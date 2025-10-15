@@ -59,6 +59,14 @@ aws:
     secret-key: ${AWS_SECRET_KEY:minioadmin}
     presigned-url-duration: 900 # 15 minutes in seconds
 
+# OpenAI Configuration
+openai:
+  api-key: ${OPENAI_API_KEY:sk-your-openai-api-key}
+  model: ${OPENAI_MODEL:gpt-4o-mini}
+  max-tokens: ${OPENAI_MAX_TOKENS:2000}
+  temperature: ${OPENAI_TEMPERATURE:0.3}
+  timeout: ${OPENAI_TIMEOUT:60}
+
 # OpenAPI/Swagger Configuration
 springdoc:
   api-docs:

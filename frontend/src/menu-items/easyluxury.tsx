@@ -1,11 +1,12 @@
 // third-party
-import { IconDashboard } from '@tabler/icons-react';
+import { IconDashboard, IconRobot } from '@tabler/icons-react';
 
 // type
 import { NavItemType } from 'types';
 
 const icons = {
-  IconDashboard
+  IconDashboard,
+  IconRobot
 };
 
 // ==============================|| MENU ITEMS - ADMIN ||============================== //
@@ -21,6 +22,14 @@ const easyluxury: NavItemType = {
       type: 'item',
       url: '/admin/dashboard',
       icon: icons.IconDashboard,
+      breadcrumbs: true
+    },
+    {
+      id: 'ai-profile',
+      title: 'AI Profile',
+      type: 'item',
+      url: '/apps/ai-profile',
+      icon: icons.IconRobot,
       breadcrumbs: true
     }
   ]
