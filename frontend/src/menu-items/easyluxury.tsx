@@ -28,7 +28,7 @@ const easyluxury: NavItemType = {
       id: 'ai-profile',
       title: 'AI Profile',
       type: 'item',
-      url: '/apps/ai-profile',
+      url: '/apps/user/social-profile/ai-profile',
       icon: icons.IconRobot,
       breadcrumbs: true
     }

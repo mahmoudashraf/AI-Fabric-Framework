@@ -3,7 +3,7 @@
 import PersonAddTwoToneIcon from '@mui/icons-material/PersonAddTwoTone';
 import { Box, Button, CardMedia, Grid, Tab, Tabs, Typography  } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { IconFriends, IconInbox, IconPhoto, IconUserPlus, IconUsers } from '@tabler/icons-react';
+import { IconFriends, IconInbox, IconPhoto, IconRobot, IconUserPlus, IconUsers } from '@tabler/icons-react';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
@@ -15,6 +15,7 @@ import FriendRequest from 'components/users/social-profile/FriendRequest';
 import Friends from 'components/users/social-profile/Friends';
 import Gallery from 'components/users/social-profile/Gallery';
 import Profile from 'components/users/social-profile/Profile';
+import AIProfileTab from 'components/users/social-profile/AIProfileTab';
 import useAuth from 'hooks/useAuth';
 import useConfig from 'hooks/useConfig';
 import { gridSpacing } from 'constants/index';
@@ -90,6 +91,11 @@ const tabOptions = [
     icon: <IconUserPlus stroke={1.5} size="17px" />,
     label: 'Friend Request',
   },
+  {
+    to: '/user/social-profile/ai-profile',
+    icon: <IconRobot stroke={1.5} size="17px" />,
+    label: 'Generate with AI',
+  },
 ];
 
 // ==============================|| SOCIAL PROFILE ||============================== //
@@ -117,6 +123,9 @@ const SocialProfile = ({ tab }: Props) => {
       break;
     case 'friend-request':
       selectedTab = 4;
+      break;
+    case 'ai-profile':
+      selectedTab = 5;
       break;
     case 'posts':
     default:
@@ -287,6 +296,9 @@ const SocialProfile = ({ tab }: Props) => {
         </TabPanel>
         <TabPanel value={value} index={4}>
           <FriendRequest />
+        </TabPanel>
+        <TabPanel value={value} index={5}>
+          <AIProfileTab />
         </TabPanel>
       </Grid>
     </Grid>
