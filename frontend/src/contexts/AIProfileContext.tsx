@@ -72,7 +72,9 @@ export const AIProfileProvider = ({ children }: { children: ReactNode }) => {
         dispatch({ type: 'SET_AI_PROFILE_DATA', payload: aiProfileData });
       }
     } catch (error: any) {
-      dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to generate AI profile' });
+      console.error('AI Profile generation error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to generate AI profile';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
     }
   };
 

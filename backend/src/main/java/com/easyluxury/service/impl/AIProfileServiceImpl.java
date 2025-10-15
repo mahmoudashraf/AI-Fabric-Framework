@@ -7,7 +7,9 @@ import com.easyluxury.mapper.AIProfileMapper;
 import com.easyluxury.repository.AIProfileRepository;
 import com.easyluxury.repository.UserRepository;
 import com.easyluxury.service.AIProfileService;
+import com.easyluxury.service.AIService;
 import com.easyluxury.service.MinIOService;
+import com.easyluxury.util.CVContentValidator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -29,14 +31,35 @@ public class AIProfileServiceImpl implements AIProfileService {
     private final AIProfileRepository aiProfileRepository;
     private final UserRepository userRepository;
     private final MinIOService minIOService;
+    private final AIService aiService;
+    private final AIRateLimitService rateLimitService;
+    private final CVContentValidator cvValidator;
     private final ObjectMapper objectMapper;
     
     @Override
     @Transactional
     public AIProfileDto createAIProfile(User user, String cvContent) {
         try {
-            // Generate AI profile from CV content
-            AIProfileDto aiProfileDto = generateProfileFromCV(cvContent);
+            log.info("Creating AI profile for user: {}", user.getId());
+            
+            // Check rate limiting
+            if (rateLimitService.isRateLimited(user.getId().toString())) {
+                throw new RuntimeException("Rate limit exceeded. Please try again later.");
+            }
+            
+            // Validate and sanitize CV content
+            CVContentValidator.ValidationResult validation = cvValidator.validate(cvContent);
+            if (!validation.isValid()) {
+                throw new IllegalArgumentException(validation.getMessage());
+            }
+            
+            String sanitizedContent = validation.getSanitizedContent();
+            
+            // Record the request for rate limiting
+            rateLimitService.recordRequest(user.getId().toString());
+            
+            // Generate AI profile from CV content using real AI service
+            AIProfileDto aiProfileDto = aiService.generateProfileFromCV(sanitizedContent);
             String aiAttributes = aiProfileDto.getAiAttributes();
             
             // Create AI profile entity
@@ -47,10 +70,14 @@ public class AIProfileServiceImpl implements AIProfileService {
                     .build();
             
             AIProfile savedProfile = aiProfileRepository.save(aiProfile);
+            log.info("AI profile created successfully for user: {}", user.getId());
             return AIProfileMapper.INSTANCE.toDto(savedProfile);
             
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid CV content for user {}: {}", user.getId(), e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to create AI profile for user {}: {}", user.getId(), e.getMessage());
+            log.error("Failed to create AI profile for user {}: {}", user.getId(), e.getMessage(), e);
             throw new RuntimeException("Failed to create AI profile", e);
         }
     }
@@ -237,15 +264,11 @@ public class AIProfileServiceImpl implements AIProfileService {
     
     @Override
     public AIProfileDto generateProfileFromCV(String cvContent) {
-        // This is a mock implementation - replace with actual AI service integration
         try {
-            String aiAttributes = generateMockAIProfile(cvContent);
-            return AIProfileDto.builder()
-                    .aiAttributes(aiAttributes)
-                    .status(AIProfile.AIProfileStatus.DRAFT)
-                    .build();
+            log.info("Generating AI profile from CV content using AI service");
+            return aiService.generateProfileFromCV(cvContent);
         } catch (Exception e) {
-            log.error("Failed to generate AI profile from CV: {}", e.getMessage());
+            log.error("Failed to generate AI profile from CV: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to generate AI profile", e);
         }
     }

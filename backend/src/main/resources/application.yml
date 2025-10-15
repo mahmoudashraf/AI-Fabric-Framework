@@ -68,6 +68,17 @@ minio:
     name: ${MINIO_BUCKET_NAME:ai-profiles}
     presigned-expiry: ${MINIO_PRESIGNED_EXPIRY:7} # days
 
+# OpenAI Configuration
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:gpt-4o-mini}
+  max-tokens: ${OPENAI_MAX_TOKENS:2000}
+  temperature: ${OPENAI_TEMPERATURE:0.3}
+  timeout: ${OPENAI_TIMEOUT:60} # seconds
+  rate-limit:
+    requests-per-minute: ${OPENAI_RATE_LIMIT_REQUESTS_PER_MINUTE:60}
+    requests-per-hour: ${OPENAI_RATE_LIMIT_REQUESTS_PER_HOUR:1000}
+
 # OpenAPI/Swagger Configuration
 springdoc:
   api-docs:
