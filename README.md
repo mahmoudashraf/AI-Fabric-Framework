@@ -1,8 +1,8 @@
-# Kiwi React Material Next.js - Enterprise Platform
+# Enterprise Platform - Spring Boot + React
 
 **Status:** ✅ Production Ready  
-**Version:** 2.0 (Modern Architecture)  
-**Last Updated:** October 2025
+**Version:** 2.0 (Generalized Architecture)  
+**Last Updated:** December 2024
 
 ---
 
@@ -14,46 +14,63 @@
 ### Core Documentation
 - **[docs/PROJECT_HISTORY.md](docs/PROJECT_HISTORY.md)** - Complete evolution timeline
 - **[docs/TECHNICAL_ARCHITECTURE.md](docs/TECHNICAL_ARCHITECTURE.md)** - Current architecture and patterns
-- **[docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)** - Redux → Context API migration summary
 - **[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)** - How to use modern patterns
-
-### Additional Resources
-- **[docs/FRONTEND_DEVELOPMENT_GUIDE.md](docs/FRONTEND_DEVELOPMENT_GUIDE.md)** - Comprehensive development guide
-- **[docs/DOCUMENTATION_REORGANIZATION_SUMMARY.md](docs/DOCUMENTATION_REORGANIZATION_SUMMARY.md)** - Details of reorganization
-- **[docs/archive/](docs/archive/)** - Historical documentation (130+ files)
+- **[docs/FRONTEND_DEVELOPMENT_GUIDE.md](docs/FRONTEND_DEVELOPMENT_GUIDE.md)** - Frontend development guide
 
 ---
 
 ## 🚀 Quick Start
 
-\`\`\`bash
-# Install dependencies
+### Prerequisites
+- Java 21+
+- Node.js 18+
+- PostgreSQL 14+
+- Maven 3.8+
+
+### Development Setup
+
+```bash
+# 1. Clone and install dependencies
+git clone <repository-url>
+cd project
 npm install
 
-# Start development server
-npm run dev
+# 2. Start development environment
+./dev.sh
 
-# Run tests
-npm test
+# 3. Access the application
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8080
+# Swagger UI: http://localhost:8080/swagger-ui.html
+```
 
-# Build for production
-npm run build
-\`\`\`
+### Production Setup
+
+```bash
+# Start production environment
+./prod.sh
+
+# Check service status
+./status.sh
+
+# Stop services
+./stop.sh
+```
 
 ---
 
 ## 🏗️ Project Overview
 
 ### Modern Enterprise Platform
-- **Next.js 15.5.4** - React framework
-- **React 19.2.0** - UI library
-- **TypeScript** - 100% type safety
-- **Material-UI v7** - Component library
-- **React Query** - Server state management
-- **Context API** - UI state management
+- **Backend:** Spring Boot 3.2.0 with Java 21
+- **Frontend:** Next.js 15.5.4 with React 19.2.0
+- **Database:** PostgreSQL with Liquibase migrations
+- **Authentication:** Supabase integration
+- **UI Library:** Material-UI v7
+- **State Management:** React Query + Context API
 
 ### Key Features
-✅ **Enterprise Patterns** - 3 reusable hooks, HOCs  
+✅ **Enterprise Patterns** - Reusable hooks and HOCs  
 ✅ **Form Validation** - 100% validation coverage  
 ✅ **Table Management** - Generic hooks, -60% code  
 ✅ **Error Handling** - 29+ protected components  
@@ -86,38 +103,42 @@ npm run build
 4. Start developing!
 
 ### Key Patterns
-- **Forms:** Use \`useAdvancedForm<T>\` hook
-- **Tables:** Use \`useTableLogic<T>\` hook
-- **Error Handling:** Wrap with \`withErrorBoundary\`
+- **Forms:** Use `useAdvancedForm<T>` hook
+- **Tables:** Use `useTableLogic<T>` hook
+- **Error Handling:** Wrap with `withErrorBoundary`
 - **State:** Use Context API + React Query
 
 ---
 
 ## 📁 Project Structure
 
-\`\`\`
+```
 /workspace/
 ├── README.md                        ⭐ START HERE
 ├── docs/
 │   ├── PROJECT_OVERVIEW.md         Main documentation entry
 │   ├── PROJECT_HISTORY.md          Complete timeline
 │   ├── TECHNICAL_ARCHITECTURE.md   Current architecture
-│   ├── MIGRATION_GUIDE.md          Redux migration
 │   ├── DEVELOPER_GUIDE.md          Development guide
 │   ├── FRONTEND_DEVELOPMENT_GUIDE.md
-│   └── archive/                    Historical docs (138 files)
-├── frontend/                        Application code
+│   └── PROJECT_GUIDELINES.yaml     Development guidelines
+├── backend/                         Spring Boot application
+│   ├── src/main/java/
+│   ├── src/main/resources/
+│   └── README.md
+├── frontend/                        Next.js application
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── enterprise/         Enterprise patterns
-│   │   │   └── users/              User components
 │   │   ├── hooks/
-│   │   │   └── enterprise/         Enterprise hooks
-│   │   ├── views/                   Page components
-│   │   └── contexts/               Context providers
-│   └── docs/                        Frontend-specific docs
-└── [other project files]
-\`\`\`
+│   │   ├── views/
+│   │   └── contexts/
+│   └── README.md
+├── dev.sh                          Development startup script
+├── prod.sh                         Production startup script
+├── status.sh                       Service status checker
+├── stop.sh                         Stop all services
+└── toDelete/                       Archived documentation
+```
 
 ---
 
@@ -141,20 +162,6 @@ npm run build
 
 ---
 
-## 📚 Documentation Structure
-
-**Old:** 161+ files, confusing  
-**New:** 5 core docs, organized
-
-### Benefits
-- ✅ 10x faster to find info
-- ✅ Clear navigation
-- ✅ No duplication
-- ✅ Easy maintenance
-- ✅ Complete history preserved
-
----
-
 ## 🏆 Success Metrics
 
 | Metric | Value |
@@ -170,7 +177,7 @@ npm run build
 
 ## 🤝 Contributing
 
-1. Read **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)**
+1. Read **[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)**
 2. Follow enterprise patterns
 3. Write tests
 4. Maintain type safety
@@ -188,7 +195,7 @@ npm run build
 ---
 
 **Status:** ✅ Production Ready  
-**Version:** 2.0 (Modern Architecture)  
-**Last Updated:** October 2025
+**Version:** 2.0 (Generalized Architecture)  
+**Last Updated:** December 2024
 
 **Start here: [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)**
