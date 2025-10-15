@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.25.xsd">
+
+    <changeSet id="create-ai-profiles-table" author="system">
+        <createTable tableName="ai_profiles">
+            <column name="id" type="uuid">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="uuid">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ai_attributes" type="jsonb">
+                <constraints nullable="true"/>
+            </column>
+            <column name="cv_file_url" type="varchar(500)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="status" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="ai_profiles"
+                baseColumnNames="user_id"
+                constraintName="fk_ai_profiles_user_id"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <createIndex tableName="ai_profiles" indexName="idx_ai_profiles_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <createIndex tableName="ai_profiles" indexName="idx_ai_profiles_status">
+            <column name="status"/>
+        </createIndex>
+
+        <createIndex tableName="ai_profiles" indexName="idx_ai_profiles_created_at">
+            <column name="created_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

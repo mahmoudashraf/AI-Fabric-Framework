@@ -1,3 +1,5 @@
 databaseChangeLog:
   - include:
       file: db/changelog/V001__users.yaml
+  - include:
+      file: db/changelog/2024-12-19-ai-profile-table.xml

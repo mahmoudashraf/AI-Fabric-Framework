@@ -20,6 +20,7 @@ import { ProductProvider } from 'contexts/ProductContext';
 import { UserProvider } from 'contexts/UserContext';
 import { MenuProvider } from 'contexts/MenuContext';
 import { CartProvider } from 'contexts/CartContext';
+import { AIProfileProvider } from 'contexts/AIProfileContext';
 
 // UI components
 import NavigationScroll from 'layout/NavigationScroll';
@@ -42,7 +43,9 @@ const AllContextProviders = ({ children }: { children: React.ReactNode }) => (
                 <MailProvider>
                   <ProductProvider>
                     <UserProvider>
-                      {children}
+                      <AIProfileProvider>
+                        {children}
+                      </AIProfileProvider>
                     </UserProvider>
                   </ProductProvider>
                 </MailProvider>

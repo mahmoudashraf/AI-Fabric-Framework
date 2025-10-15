@@ -59,6 +59,15 @@ aws:
     secret-key: ${AWS_SECRET_KEY:minioadmin}
     presigned-url-duration: 900 # 15 minutes in seconds
 
+# MinIO Configuration for AI Profiles
+minio:
+  url: ${MINIO_URL:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket:
+    name: ${MINIO_BUCKET_NAME:ai-profiles}
+    presigned-expiry: ${MINIO_PRESIGNED_EXPIRY:7} # days
+
 # OpenAPI/Swagger Configuration
 springdoc:
   api-docs:
