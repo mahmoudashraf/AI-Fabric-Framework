@@ -1,0 +1,115 @@
+import { Box, Card, Grid, Typography  } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import dynamic from 'next/dynamic';
+import { ReactNode } from 'react';
+
+// material-ui
+
+// third party
+import { Props as ChartProps } from 'react-apexcharts';
+
+const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
+
+interface SalesLineChartCardProps {
+  bgColor?: string;
+  chartData?: ChartProps;
+  footerData?: { value: string; label: string }[];
+  icon?: ReactNode | string;
+  title?: string;
+  percentage?: string;
+}
+
+// ============================|| SALES LINE CARD ||============================ //
+
+const SalesLineChartCard = ({
+  bgColor,
+  chartData,
+  footerData,
+  icon,
+  title,
+  percentage,
+}: SalesLineChartCardProps) => {
+  const theme = useTheme();
+
+  let footerHtml;
+  if (footerData) {
+    footerHtml = footerData.map((item, index) => (
+      <Grid key={index}>
+        <Box
+          sx={{
+            mt: 3,
+            mb: 3,
+            p: 1,
+          }}
+        >
+          <Grid container direction="column" spacing={1} alignItems="center">
+            <Typography variant="h3" sx={{ mb: 1 }}>
+              {item.value}
+            </Typography>
+            <Typography variant="body1">{item.label}</Typography>
+          </Grid>
+        </Box>
+      </Grid>
+    ));
+  }
+
+  return (
+    <Card>
+      <Box
+        sx={{
+          color: '#fff',
+          bgcolor: bgColor || theme.palette.primary.dark,
+          p: 3,
+        }}
+      >
+        <Grid container direction="column" spacing={1}>
+          <Grid container justifyContent="space-between" alignItems="center">
+            {title && (
+              <Grid>
+                <Typography variant="subtitle1" color="inherit">
+                  {title}
+                </Typography>
+              </Grid>
+            )}
+            <Grid>
+              <Grid container alignItems="center">
+                {icon && (
+                  <Box
+                    component="span"
+                    sx={{
+                      mr: 2,
+                    }}
+                  >
+                    {icon}
+                  </Box>
+                )}
+                {percentage && (
+                  <Typography variant="subtitle1" color="inherit">
+                    {percentage}
+                  </Typography>
+                )}
+              </Grid>
+            </Grid>
+          </Grid>
+          {chartData && (
+            <Grid>
+              <ReactApexChart
+                options={chartData.options || { chart: { type: 'bar' } } as any}
+                series={(chartData.series as any) || []}
+                type={(chartData.options?.chart?.type as ChartProps['type']) || 'bar'}
+                height={(chartData.options?.chart?.height as any) || 260}
+              />
+            </Grid>
+          )}
+        </Grid>
+      </Box>
+      {footerData && (
+        <Grid container justifyContent="space-around" alignItems="center">
+          {footerHtml}
+        </Grid>
+      )}
+    </Card>
+  );
+};
+
+export default SalesLineChartCard;

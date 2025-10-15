@@ -1,0 +1,154 @@
+'use client';
+
+import ChatBubbleTwoToneIcon from '@mui/icons-material/ChatBubbleTwoTone';
+import MoreHorizOutlinedIcon from '@mui/icons-material/MoreHorizOutlined';
+import PhoneTwoToneIcon from '@mui/icons-material/PhoneTwoTone';
+import { Button, Card, Grid, Menu, MenuItem, Typography  } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { useState } from 'react';
+
+// material-ui
+
+// project imports
+import { gridSpacing } from 'constants/index';
+import { UserProfile } from 'types/user-profile';
+
+import Avatar from '../extended/Avatar';
+
+// types
+
+// assets
+
+const avatarImage = '/assets/images/users';
+
+// ==============================|| USER CONTACT CARD ||============================== //
+
+interface ContactCardProps extends UserProfile {
+  onActive: () => void;
+}
+
+const ContactCard = ({
+  avatar,
+  contact,
+  email,
+  name,
+  location,
+  onActive,
+  role,
+}: ContactCardProps) => {
+  const theme = useTheme();
+
+  const avatarProfile = avatar && `${avatarImage}/${avatar}`;
+
+  const [anchorEl, setAnchorEl] = useState<Element | (() => Element) | null | undefined>(null);
+  const handleClick = (event: React.MouseEvent<SVGSVGElement> | undefined) => {
+    setAnchorEl(event?.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  return (
+    <Card
+      sx={{
+        p: 2,
+        bgcolor: theme.palette.mode === 'dark' ? theme.palette.dark.main : theme.palette.grey[50],
+        border: theme.palette.mode === 'dark' ? 'none' : '1px solid',
+        borderColor: theme.palette.grey[100],
+      }}
+    >
+      <Grid container spacing={gridSpacing}>
+        <Grid size={{ xs: 12 }}>
+          <Grid container spacing={gridSpacing}>
+            <Grid size="grow" sx={{ minWidth: 0 }} onClick={() => {
+                if (onActive) onActive();
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <Avatar alt={name || ''} size="lg" src={avatarProfile || ''} sx={{ width: 72, height: 72 }} />
+            </Grid>
+            <Grid>
+              <MoreHorizOutlinedIcon
+                fontSize="small"
+                sx={{ color: theme.palette.grey[500], cursor: 'pointer' }}
+                aria-controls="menu-user-details-card"
+                aria-haspopup="true"
+                onClick={handleClick}
+              />
+              {anchorEl && (
+                <Menu
+                  id="menu-user-details-card"
+                  anchorEl={anchorEl}
+                  keepMounted
+                  open={Boolean(anchorEl)}
+                  onClose={handleClose}
+                  variant="selectedMenu"
+                  anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                  }}
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                  }}
+                >
+                  <MenuItem onClick={handleClose}> Today</MenuItem>
+                  <MenuItem onClick={handleClose}> This Month</MenuItem>
+                  <MenuItem onClick={handleClose}> This Year </MenuItem>
+                </Menu>
+              )}
+            </Grid>
+          </Grid>
+        </Grid>
+        <Grid size={{ xs: 12 }}>
+          <Typography variant="h3" component="div">
+            {name}
+          </Typography>
+          <Typography variant="caption">{role}</Typography>
+        </Grid>
+        <Grid size={{ xs: 12 }}>
+          <Typography variant="caption">Email</Typography>
+          <Typography variant="h6">{email}</Typography>
+        </Grid>
+        <Grid size={{ xs: 12 }}>
+          <Grid container spacing={gridSpacing}>
+            <Grid size={6}>
+              <Typography variant="caption">Phone</Typography>
+              <Typography variant="h6">{contact}</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="caption">Location</Typography>
+              <Typography variant="h6">{location}</Typography>
+            </Grid>
+          </Grid>
+        </Grid>
+        <Grid size={{ xs: 12 }}>
+          <Grid container spacing={1}>
+            <Grid size={6}>
+              <Button
+                variant="outlined"
+                sx={{ width: '100%' }}
+                startIcon={<ChatBubbleTwoToneIcon />}
+              >
+                Message
+              </Button>
+            </Grid>
+            <Grid size={6}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                sx={{ width: '100%' }}
+                startIcon={<PhoneTwoToneIcon />}
+              >
+                Call
+              </Button>
+            </Grid>
+          </Grid>
+        </Grid>
+      </Grid>
+    </Card>
+  );
+};
+
+export default ContactCard;

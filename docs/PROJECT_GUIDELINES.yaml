@@ -1,0 +1,182 @@
+meta:
+  project: "Easy Luxury"
+  description: "Java Spring Boot (BE) + React (FE) luxury e-commerce platform"
+  goals: "Build per Phase 1–3 scope. Always follow tickets exactly. Prefer incremental PR-sized changes."
+  package_root: "com.easy.luxury"
+  environments: [dev, staging, prod]
+  roles: [OWNER, AGENCY, TENANT, PM, ADMIN, AGENCY_STAFF, AGENCY_ADMIN]
+
+tech_stack:
+  backend:
+    language: "Java 21"
+    framework: "Spring Boot 3.x"
+    components:
+      - "Spring Web"
+      - "Spring Data JPA"
+      - "Spring Security"
+      - "Spring Validation"
+    build_tool: "Maven"
+    libraries:
+      - "Liquibase"
+      - "MapStruct"
+      - "Lombok"
+      - "Springdoc OpenAPI"
+      - "Testcontainers"
+      - "JUnit 5"
+    database: "PostgreSQL 15"
+    storage: "S3-compatible (MinIO in dev) via pre-signed URLs"
+  
+  frontend:
+    framework: "Next.js (App Router)"
+    language: "TypeScript"
+    ui_library: "Material-UI (MUI)"
+    styling: "SCSS modules + Emotion CSS-in-JS"
+    libraries:
+      - "@tanstack/react-query (primary server state)"
+      - "React Hook Form"
+      - "Zod"
+      - "Emotion"
+      - "Context API (UI state management)"
+    auth: "Supabase JS SDK (email + Google/Apple/Facebook)"
+    existing_project: "Reuse existing frontend project in /frontend folder"
+    component_reuse: "Leverage existing UI components, layouts, and utilities from current codebase"
+  
+  devops:
+    containerization: "Docker + docker-compose"
+    ci_cd: "GitHub Actions CI (build, test)"
+    monitoring: "code coverage"
+    compose_services:
+      - "Postgres"
+      - "MinIO"
+    openapi_docs:
+      - "/api/docs"
+      - "/v3/api-docs.json"
+
+architecture_decisions:
+  auth:
+    strategy: "Supabase Auth (email + social) on FE; Spring verifies Supabase JWT via JWKS; local User/RBAC in DB"
+    implementation: "JWT access + refresh, httpOnly cookies preferred"
+  
+  database:
+    migrations: "Liquibase (entity→diff supported)"
+    storage: "S3-compatible (MinIO for dev) with presigned PUTs; DB stores only public URLs"
+  
+  layering:
+    pattern: "Controllers → Facades → Services → Repositories"
+    direction: "Keep controllers thin; orchestration belongs in facades; business logic in services"
+  
+  frontend:
+    framework: "Next.js (App Router) + TS (recommended for SEO)"
+    existing_codebase: "Build upon existing /frontend project structure and components"
+    component_strategy: "Reuse and extend existing UI components, layouts, and utilities"
+    development_approach: "Incremental enhancement of current frontend rather than rebuilding"
+    state_management: "Modern architecture: React Query for server state, Context API for UI state"
+    migration_status: "95% Complete - Fully migrated from Redux to Context API + React Query"
+  
+  payments:
+    provider: "Stripe PaymentIntents in Phase 3"
+    webhooks: "idempotent webhooks"
+    tracking: "simple commission tracking"
+  
+  calendar_sync:
+    implementation: "iCal export/import in Phase 3 (basic block-sync)"
+
+conventions:
+  api_design:
+    dto_usage: "DTOs only at API boundary (MapStruct)"
+    validation: "Validation with Jakarta Validation + ControllerAdvice error envelope: {code, message, details[]}"
+    pagination: "page, size, sort"
+    idempotency: "Use Idempotency-Key header on POSTs that create resources"
+    error_envelope: "{code, message, details[]}"
+      controller_dependencies: "Controllers call facades; facades call services; services call repositories"
+  
+  security:
+    rbac: "@PreAuthorize + row-level ownership checks"
+    auth_flow: "Supabase JWT verification via JWKS"
+  
+  testing:
+    requirements: "Include unit + integration tests with Testcontainers"
+    coverage_target: "70%+ service/controller coverage"
+    min_coverage: 70
+  
+  documentation:
+    openapi: "Each controller method annotated; docs at /api/docs"
+    api_docs: "/api/docs + /v3/api-docs.json"
+
+quality_standards:
+  testing:
+    unit_tests: true
+    integration_tests: true
+    testcontainers: true
+    coverage_target: 70
+  
+  code_quality:
+    validation: "Jakarta Validation"
+    error_handling: "ControllerAdvice error envelope"
+    security: "RBAC with @PreAuthorize"
+  
+  documentation:
+    openapi_annotations: true
+    api_documentation: true
+
+response_format:
+  task_execution:
+    changes: "Make changes directly in the workspace (not just code blocks)"
+    deliverables: "List all created/updated files"
+    commands: "Provide commands to run/build/test"
+    verification: "Confirm acceptance criteria"
+
+development_workflow:
+  approach: "incremental PR-sized changes"
+  ticket_following: "Always follow tickets exactly"
+  phase_based: "Build per Phase 1–3 scope"
+  testing: "Include comprehensive tests with each change"
+  planning_coherence: "All plans must be cohesive with latest UI development guidelines and component reuse strategies"
+
+frontend_development:
+  existing_project:
+    location: "/frontend folder"
+    framework: "Next.js with App Router"
+    ui_library: "Material-UI (MUI)"
+    styling: "SCSS modules + Emotion CSS-in-JS"
+    state_management: "Modern: React Query (server state) + Context API (UI state)"
+    form_handling: "React Hook Form + Zod validation"
+    migration_complete: "95% migrated from Redux to modern state management"
+  
+  state_management_strategy:
+    react_query:
+      purpose: "Primary server state management (API calls, caching, background updates)"
+      use_cases: ["User management", "Product catalog", "Customer data", "Payments", "Real-time data"]
+      benefits: ["Automatic caching", "Background refetching", "Optimistic updates", "Error handling", "DevTools"]
+      status: "Implemented and production-ready"
+    
+    context_api:
+      purpose: "UI state management (notifications, theme, navigation)"
+      use_cases: ["Snackbar notifications", "Menu state", "Theme configuration", "Cart UI state"]
+      benefits: ["Lightweight", "Built-in React", "No external dependencies", "Simple API", "Performance optimized"]
+      status: "Fully implemented with feature parity"
+    
+    migration_completed:
+      completed_components: ["Notifications", "Theme", "Menu", "Cart"]
+      completed_server_states: ["Users", "Products", "Customers", "Chat", "Calendar", "Contacts"]
+      performance_improvements: ["~70% API call reduction", "~3x faster UI updates", "~25KB bundle size reduction"]
+      rollback_capability: "Feature flags enable instant rollback to legacy state if needed"
+  
+  component_reuse_strategy:
+    ui_components: "Leverage existing components from /src/components/ui-component/"
+    layouts: "Extend existing layouts from /src/layout/"
+    forms: "Reuse form components from /src/components/forms/"
+    authentication: "Build upon existing auth components in /src/components/authentication/"
+    dashboard: "Extend dashboard components from /src/components/dashboard/"
+    themes: "Use existing theme system from /src/themes/"
+  
+  development_guidelines:
+    new_features: "Add new features by extending existing components rather than replacing"
+    styling: "Follow existing SCSS module patterns and MUI theme structure (no Tailwind CSS)"
+    routing: "Use existing route structure and add new routes as needed"
+    state_management: "Use modern approach: React Query for server state, Context API for UI state"
+    migration_status: "Redux fully migrated - not recommended for new features"
+    api_integration: "Use React Query for server state, follow existing axios patterns for error handling"
+    testing: "Maintain existing Jest + React Testing Library setup"
+    page_creation: "Use existing pages in /src/app/(dashboard), /src/app/(minimal), /src/app/(simple) as references; create new pages to meet project requirements while adhering to these layout patterns; favor composing existing components from /src/components over building new components or custom UI."
+    component_mapping: "All plans must include detailed component and page mappings specifying which existing components from /src/components/ and pages from /src/app/ will be reused, extended, or adapted to meet requirements; avoid creating new components or pages unless absolutely necessary"

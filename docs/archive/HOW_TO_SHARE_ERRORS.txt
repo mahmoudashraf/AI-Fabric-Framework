@@ -1,0 +1,93 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                   🔍 PLEASE SHARE TYPE-CHECK ERRORS                      ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+I can fix the errors, but I need to see them first!
+
+═══════════════════════════════════════════════════════════════════════════
+📋 HOW TO SHARE ERRORS
+═══════════════════════════════════════════════════════════════════════════
+
+Run this command:
+
+  cd /workspace/frontend
+  npm run type-check 2>&1 | tee type-errors.txt
+  cat type-errors.txt
+
+Then copy and paste the output here.
+
+OR
+
+Just tell me what the first few error messages say.
+
+═══════════════════════════════════════════════════════════════════════════
+🔍 WHAT TO LOOK FOR
+═══════════════════════════════════════════════════════════════════════════
+
+Common error patterns:
+
+1. Import Errors:
+   ❌ Cannot find module '@/test-utils/...'
+   ❌ Module has no exported member '...'
+
+2. Type Errors:
+   ❌ Type 'X' is not assignable to type 'Y'
+   ❌ Property '...' does not exist on type '...'
+
+3. Configuration Errors:
+   ❌ File '...' is not under 'rootDir'
+   ❌ Cannot find tsconfig.json
+
+═══════════════════════════════════════════════════════════════════════════
+🛠️ QUICK CHECKS
+═══════════════════════════════════════════════════════════════════════════
+
+Before sharing errors, try:
+
+  # 1. Make sure dependencies are installed
+  cd /workspace/frontend
+  npm install
+
+  # 2. Check if TypeScript is installed
+  npm list typescript
+
+  # 3. Run type-check
+  npm run type-check
+
+═══════════════════════════════════════════════════════════════════════════
+💡 EXAMPLE OF HELPFUL ERROR SHARING
+═══════════════════════════════════════════════════════════════════════════
+
+Good:
+  "I see these errors:
+   src/test-utils/enterprise-testing.tsx:3:23 - error TS2307: 
+   Cannot find module '@mui/material/styles' or its corresponding type 
+   declarations."
+
+Also Good:
+  "Type-check shows 15 errors, mostly about missing types for 
+   @testing-library/react"
+
+Less Helpful:
+  "Type-check gives errors"
+  "It doesn't work"
+
+═══════════════════════════════════════════════════════════════════════════
+🔧 I CAN FIX
+═══════════════════════════════════════════════════════════════════════════
+
+Common issues I can quickly fix:
+  ✅ Import path issues
+  ✅ Missing type definitions
+  ✅ Type incompatibilities
+  ✅ Module resolution
+  ✅ tsconfig.json issues
+  ✅ Interface mismatches
+
+═══════════════════════════════════════════════════════════════════════════
+
+👉 PLEASE SHARE THE ERROR OUTPUT 👈
+
+Then I can fix it immediately!
+
+═══════════════════════════════════════════════════════════════════════════

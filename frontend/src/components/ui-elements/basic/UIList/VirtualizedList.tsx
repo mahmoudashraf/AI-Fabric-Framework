@@ -1,0 +1,28 @@
+// material-ui
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
+import React from 'react';
+
+// third party
+import { FixedSizeList } from 'react-window';
+
+// list render
+function renderRow({ index, style }: { index: number; style: React.CSSProperties }) {
+  return (
+    <ListItemButton style={style} key={index}>
+      <ListItemText primary={`Item ${index + 1}`} />
+    </ListItemButton>
+  );
+}
+
+// ================================|| UI LIST - SCROLLABLE ||================================ //
+
+export default function VirtualizedList() {
+  return (
+    <div>
+      <FixedSizeList height={280} width="auto" itemSize={46} itemCount={200}>
+        {renderRow}
+      </FixedSizeList>
+    </div>
+  );
+}

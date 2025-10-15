@@ -1,0 +1,294 @@
+src/app/global-error.tsx(11,37): error TS6198: All destructured elements are unused.
+src/components/forms/forms-validation/InstantFeedback.tsx(60,14): error TS2375: Type '{ fullWidth: true; id: string; name: string; label: string; value: string; onChange: { (e: ChangeEvent<any>): void; <T_1 = string | ChangeEvent<any>>(field: T_1): T_1 extends ChangeEvent<...> ? void : (e: string | ChangeEvent<...>) => void; }; onBlur: { ...; }; error: boolean | undefined; helperText: string | ... 1 ...' is not assignable to type 'Omit<FilledTextFieldProps | OutlinedTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'error' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/forms/forms-validation/InstantFeedback.tsx(73,14): error TS2375: Type '{ fullWidth: true; id: string; name: string; label: string; type: "password"; value: string; onChange: { (e: ChangeEvent<any>): void; <T_1 = string | ChangeEvent<any>>(field: T_1): T_1 extends ChangeEvent<...> ? void : (e: string | ChangeEvent<...>) => void; }; onBlur: { ...; }; error: boolean | undefined; helperTex...' is not assignable to type 'Omit<FilledTextFieldProps | OutlinedTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'error' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/forms/forms-validation/LoginForms.tsx(66,14): error TS2375: Type '{ fullWidth: true; id: string; name: string; label: string; value: string; onChange: { (e: ChangeEvent<any>): void; <T_1 = string | ChangeEvent<any>>(field: T_1): T_1 extends ChangeEvent<...> ? void : (e: string | ChangeEvent<...>) => void; }; error: boolean | undefined; helperText: string | ... 1 more ... | undefin...' is not assignable to type 'Omit<FilledTextFieldProps | OutlinedTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'error' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/forms/forms-validation/LoginForms.tsx(78,14): error TS2375: Type '{ fullWidth: true; id: string; name: string; label: string; type: "password"; value: string; onChange: { (e: ChangeEvent<any>): void; <T_1 = string | ChangeEvent<any>>(field: T_1): T_1 extends ChangeEvent<...> ? void : (e: string | ChangeEvent<...>) => void; }; error: boolean | undefined; helperText: string | ... 1 ...' is not assignable to type 'Omit<FilledTextFieldProps | OutlinedTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'error' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/forms/forms-wizard/ValidationWizard/AddressForm.tsx(68,14): error TS2375: Type '{ id: string; name: string; label: string; value: string; onChange: { (e: ChangeEvent<any>): void; <T_1 = string | ChangeEvent<any>>(field: T_1): T_1 extends ChangeEvent<...> ? void : (e: string | ChangeEvent<...>) => void; }; error: boolean | undefined; helperText: string | ... 1 more ... | undefined; fullWidth: tr...' is not assignable to type 'Omit<OutlinedTextFieldProps | FilledTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'error' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/forms/forms-wizard/ValidationWizard/AddressForm.tsx(81,14): error TS2375: Type '{ id: string; name: string; label: string; value: string; onChange: { (e: ChangeEvent<any>): void; <T_1 = string | ChangeEvent<any>>(field: T_1): T_1 extends ChangeEvent<...> ? void : (e: string | ChangeEvent<...>) => void; }; error: boolean | undefined; helperText: string | ... 1 more ... | undefined; fullWidth: tr...' is not assignable to type 'Omit<OutlinedTextFieldProps | FilledTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'error' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/forms/forms-wizard/ValidationWizard/PaymentForm.tsx(50,22): error TS2379: Argument of type '{ cardName: string | undefined; cardNumber: number | undefined; }' is not assignable to parameter of type 'PaymentData' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'cardName' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/forms/forms-wizard/ValidationWizard/PaymentForm.tsx(66,14): error TS2375: Type '{ id: string; name: string; value: string | undefined; onChange: { (e: ChangeEvent<any>): void; <T_1 = string | ChangeEvent<any>>(field: T_1): T_1 extends ChangeEvent<...> ? void : (e: string | ChangeEvent<...>) => void; }; ... 4 more ...; autoComplete: string; }' is not assignable to type 'Omit<OutlinedTextFieldProps | FilledTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'error' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/forms/forms-wizard/ValidationWizard/PaymentForm.tsx(79,14): error TS2375: Type '{ id: string; name: string; label: string; value: number | undefined; onChange: { (e: ChangeEvent<any>): void; <T_1 = string | ChangeEvent<any>>(field: T_1): T_1 extends ChangeEvent<...> ? void : (e: string | ChangeEvent<...>) => void; }; error: boolean | undefined; helperText: string | ... 1 more ... | undefined; f...' is not assignable to type 'Omit<OutlinedTextFieldProps | FilledTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'error' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/landingpage/PeopleCard.tsx(48,14): error TS2375: Type '{ children: string; color: string | undefined; alt: string; src: string; sx: { height: number; width: number; }; }' is not assignable to type 'AvatarProp' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'color' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/cards/AnalyticsChartCard.tsx(145,12): error TS2375: Type '{ options: ApexOptions | undefined; series: ApexNonAxisChartSeries | undefined; type: "area" | "line" | "donut" | "bar" | "pie" | "heatmap" | ... 10 more ... | undefined; height: string | ... 1 more ... | undefined; }' is not assignable to type 'Props' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'type' are incompatible.
+    Type '"area" | "line" | "donut" | "bar" | "pie" | "heatmap" | "radialBar" | "scatter" | "bubble" | "candlestick" | "boxPlot" | "radar" | "polarArea" | "rangeBar" | "rangeArea" | "treemap" | undefined' is not assignable to type '"area" | "line" | "donut" | "bar" | "pie" | "heatmap" | "radialBar" | "scatter" | "bubble" | "candlestick" | "boxPlot" | "radar" | "polarArea" | "rangeBar" | "rangeArea" | "treemap"'.
+      Type 'undefined' is not assignable to type '"area" | "line" | "donut" | "bar" | "pie" | "heatmap" | "radialBar" | "scatter" | "bubble" | "candlestick" | "boxPlot" | "radar" | "polarArea" | "rangeBar" | "rangeArea" | "treemap"'.
+src/components/ui-component/cards/CardSecondaryAction.tsx(25,12): error TS2375: Type '{ children: Element; component: OverridableComponent<LinkTypeMap<{}, "a">>; href: string | undefined; target: "_blank"; alt: string; size: "badge"; color: string; "aria-label": string; outline: true; }' is not assignable to type 'AvatarProp' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'href' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/cards/CardSecondaryAction.tsx(69,12): error TS2375: Type '{ children: string | number | bigint | true | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<...>; ... 5 more ...; outline: true; }' is not assignable to type 'AvatarProp' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'href' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/cards/ContactCard.tsx(73,16): error TS2375: Type '{ alt: string | undefined; size: "lg"; src: string | undefined; sx: { width: number; height: number; }; }' is not assignable to type 'AvatarProp' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'alt' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/cards/ContactList.tsx(51,16): error TS2375: Type '{ alt: string | undefined; src: string | undefined; sx: { width: number; height: number; }; }' is not assignable to type 'AvatarProp' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'alt' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/cards/GalleryCard.tsx(82,17): error TS2322: Type '{ background: string; color: string; zIndex: number; transition: "all .2s ease-in-out"; '&[aria-controls="menu-list-grow"],&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; ... 820 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SxProps<Theme> | undefined'.
+  Type '{ background: string; color: string; zIndex: number; transition: "all .2s ease-in-out"; '&[aria-controls="menu-list-grow"],&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; ... 820 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'undefined'.
+src/components/ui-component/cards/MainCard.tsx(45,3): error TS2345: Argument of type '({ border, boxShadow, children, content, contentClass, contentSX, darkTitle, secondary, shadow, sx, title, ...others }: MainCardProps, ref: Ref<HTMLDivElement>) => React.JSX.Element' is not assignable to parameter of type 'ForwardRefRenderFunction<HTMLDivElement, Omit<MainCardProps, "ref">>'.
+  Types of parameters '__0' and 'props' are incompatible.
+    Property 'children' is missing in type 'Omit<MainCardProps, "ref">' but required in type 'MainCardProps'.
+src/components/ui-component/cards/Post/Comment/index.tsx(168,34): error TS2345: Argument of type '{ id: string; profile: Profile; data: { comment: string | undefined; likes: { like: boolean; value: number; }; replies: never[]; }; }' is not assignable to parameter of type 'Reply'.
+  The types of 'data.comment' are incompatible between these types.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/cards/Post/Comment/index.tsx(220,25): error TS2322: Type '{ background: string; color: string; zIndex: number; transition: "all .2s ease-in-out"; '&[aria-controls="menu-list-grow"],&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; ... 820 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SxProps<Theme> | undefined'.
+  Type '{ background: string; color: string; zIndex: number; transition: "all .2s ease-in-out"; '&[aria-controls="menu-list-grow"],&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; ... 820 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'undefined'.
+src/components/ui-component/cards/Post/Comment/Reply/index.tsx(111,27): error TS2322: Type '{ background: string; color: string; zIndex: number; transition: "all .2s ease-in-out"; '&[aria-controls="menu-list-grow"],&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; ... 820 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SxProps<Theme> | undefined'.
+  Type '{ background: string; color: string; zIndex: number; transition: "all .2s ease-in-out"; '&[aria-controls="menu-list-grow"],&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; ... 820 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'undefined'.
+src/components/ui-component/cards/Post/index.tsx(83,12): error TS2375: Type '{ onChange: (...event: any[]) => void; onBlur: Noop; value: any; disabled?: boolean; name: string; ref: RefCallBack; fullWidth: boolean; size: "small" | "medium" | undefined; label: string; InputLabelProps: { ...; }; error: boolean; }' is not assignable to type 'Omit<FilledTextFieldProps | OutlinedTextFieldProps | StandardTextFieldProps, "variant">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'size' are incompatible.
+    Type '"small" | "medium" | undefined' is not assignable to type 'OverridableStringUnion<"small" | "medium", TextFieldPropsSizeOverrides>'.
+      Type 'undefined' is not assignable to type 'OverridableStringUnion<"small" | "medium", TextFieldPropsSizeOverrides>'.
+src/components/ui-component/cards/Post/index.tsx(179,7): error TS2375: Type '{ comment: string | undefined; likes: { like: false; value: number; }; replies: never[]; }' is not assignable to type 'CommentData' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'comment' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/cards/Post/index.tsx(225,19): error TS2322: Type '{ background: string; color: string; zIndex: number; transition: "all .2s ease-in-out"; '&[aria-controls="menu-list-grow"],&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; ... 820 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SxProps<Theme> | undefined'.
+  Type '{ background: string; color: string; zIndex: number; transition: "all .2s ease-in-out"; '&[aria-controls="menu-list-grow"],&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; ... 820 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'undefined'.
+src/components/ui-component/cards/Post/index.tsx(276,11): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: { component: ElementType<any, keyof IntrinsicElements>; } & GridOwnProps & CommonProps & Omit<any, "xs" | "sm" | ... 119 more ... | "zeroMinWidth">): Element | null', gave the following error.
+    Type '{ '& > p': { mb: number; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; alignContent?: Property.AlignContent | undefined; ... 822 more ...; vectorEffect?: Property.VectorEffect | undefined; }; }' is not assignable to type 'SxProps<Theme>'.
+      Types of property ''& > p'' are incompatible.
+        Type '{ mb: number; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; alignContent?: Property.AlignContent | undefined; ... 822 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SystemStyleObject<Theme> | CssVariableType | ((theme: Theme) => string | number | SystemStyleObject<Theme>) | undefined'.
+          Type '{ mb: number; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; alignContent?: Property.AlignContent | undefined; ... 822 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'CSSSelectorObjectOrCssVariables<Theme>'.
+            Property ''@font-face'' is incompatible with index signature.
+              Type 'Fontface | Fontface[]' is not assignable to type 'SystemStyleObject<Theme> | CssVariableType | ((theme: Theme) => string | number | SystemStyleObject<Theme>)'.
+                Type 'Fontface' is not assignable to type 'SystemStyleObject<Theme> | CssVariableType | ((theme: Theme) => string | number | SystemStyleObject<Theme>)'.
+                  Type 'Fontface' is not assignable to type 'CSSSelectorObjectOrCssVariables<Theme>'.
+                    Index signature for type 'string' is missing in type 'FontFace<0 | (string & {}), string & {}> & { fallbacks?: FontFace<0 | (string & {}), string & {}>[]; }'.
+  Overload 2 of 2, '(props: DefaultComponentProps<GridTypeMap<{}, "div">>): Element | null', gave the following error.
+    Type '{ '& > p': { mb: number; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; alignContent?: Property.AlignContent | undefined; ... 822 more ...; vectorEffect?: Property.VectorEffect | undefined; }; }' is not assignable to type 'SxProps<Theme>'.
+      Types of property ''& > p'' are incompatible.
+        Type '{ mb: number; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; alignContent?: Property.AlignContent | undefined; ... 822 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SystemStyleObject<Theme> | CssVariableType | ((theme: Theme) => string | number | SystemStyleObject<Theme>) | undefined'.
+          Type '{ mb: number; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; alignContent?: Property.AlignContent | undefined; ... 822 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'CSSSelectorObjectOrCssVariables<Theme>'.
+            Property ''@font-face'' is incompatible with index signature.
+              Type 'Fontface | Fontface[]' is not assignable to type 'SystemStyleObject<Theme> | CssVariableType | ((theme: Theme) => string | number | SystemStyleObject<Theme>)'.
+                Type 'Fontface' is not assignable to type 'SystemStyleObject<Theme> | CssVariableType | ((theme: Theme) => string | number | SystemStyleObject<Theme>)'.
+                  Type 'Fontface' is not assignable to type 'CSSSelectorObjectOrCssVariables<Theme>'.
+                    Index signature for type 'string' is missing in type 'FontFace<0 | (string & {}), string & {}> & { fallbacks?: FontFace<0 | (string & {}), string & {}>[]; }'.
+src/components/ui-component/cards/UserDetailsCard.tsx(58,16): error TS2375: Type '{ alt: string | undefined; size: "lg"; src: string | undefined; }' is not assignable to type 'AvatarProp' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'alt' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/cards/UserProfileCard.tsx(93,18): error TS2375: Type '{ alt: string | undefined; src: string | undefined; sx: { width: number; height: number; m: string; }; }' is not assignable to type 'AvatarProp' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'alt' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/extended/Accordion.tsx(57,12): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: { component: ElementType<any, keyof IntrinsicElements>; } & { children: NonNullable<ReactNode>; classes?: Partial<AccordionClasses>; ... 7 more ...; TransitionProps?: TransitionProps; } & AccordionSlotsAndSlotProps & Omit<...> & CommonProps & Omit<...>): Element | null', gave the following error.
+    Property 'component' is missing in type '{ children: Element[]; key: string; defaultExpanded: boolean | undefined; expanded: boolean | undefined; disabled: boolean | undefined; square: boolean | undefined; onChange: (_event: SyntheticEvent<...>, newExpanded: boolean) => void; }' but required in type '{ component: ElementType<any, keyof IntrinsicElements>; }'.
+  Overload 2 of 2, '(props: DefaultComponentProps<AccordionTypeMap<{}, "div">>): Element | null', gave the following error.
+    Type '{ children: Element[]; key: string; defaultExpanded: boolean | undefined; expanded: boolean | undefined; disabled: boolean | undefined; square: boolean | undefined; onChange: (_event: SyntheticEvent<...>, newExpanded: boolean) => void; }' is not assignable to type '{ children: NonNullable<ReactNode>; classes?: Partial<AccordionClasses>; defaultExpanded?: boolean; disabled?: boolean; disableGutters?: boolean; ... 4 more ...; TransitionProps?: TransitionProps; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+      Types of property 'defaultExpanded' are incompatible.
+        Type 'boolean | undefined' is not assignable to type 'boolean'.
+          Type 'undefined' is not assignable to type 'boolean'.
+src/components/ui-component/extended/Avatar.tsx(11,11): error TS2430: Interface 'AvatarProp' incorrectly extends interface 'AvatarOwnProps & AvatarSlotsAndSlotProps & CommonProps & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>, "ref"> & { ...; }, "className" | ... 11 more ... | "slotProps"> & { ...; }'.
+  Type 'AvatarProp' is not assignable to type 'AvatarOwnProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Types of property 'sx' are incompatible.
+      Type 'SxProps<Theme> | undefined' is not assignable to type 'SxProps<Theme>'.
+        Type 'undefined' is not assignable to type 'SxProps<Theme>'.
+src/components/ui-component/extended/Chip.tsx(7,11): error TS2430: Interface 'chipProps' incorrectly extends interface 'ChipOwnProps & CommonProps & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>, "ref"> & { ...; }, "children" | ... 15 more ... | "sx"> & { ...; }'.
+  Type 'chipProps' is not assignable to type 'ChipOwnProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Types of property 'avatar' are incompatible.
+      Type 'ReactElement<any, string | JSXElementConstructor<any>> | undefined' is not assignable to type 'ReactElement<unknown, string | JSXElementConstructor<any>>'.
+        Type 'undefined' is not assignable to type 'ReactElement<unknown, string | JSXElementConstructor<any>>'.
+src/components/ui-component/extended/Form/FormControl.tsx(48,8): error TS2375: Type '{ placeholder: string | undefined; type: string; label: string | undefined; startAdornment: Element; endAdornment: Element; }' is not assignable to type 'OutlinedInputProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'placeholder' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/ui-component/extended/Snackbar.tsx(34,11): error TS2375: Type '{ appear?: boolean; children: ReactElement<unknown, any>; container?: Element | ((element: Element) => Element) | null; direction?: "left" | "right" | "up" | "down"; ... 290 more ...; onTransitionStartCapture?: TransitionEventHandler<...> | undefined; }' is not assignable to type 'GrowProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'in' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/ui-component/extended/SnackbarContext.tsx(29,11): error TS2375: Type '{ appear?: boolean; children: ReactElement<unknown, any>; container?: Element | ((element: Element) => Element) | null; direction?: "left" | "right" | "up" | "down"; ... 290 more ...; onTransitionStartCapture?: TransitionEventHandler<...> | undefined; }' is not assignable to type 'GrowProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'in' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/components/ui-component/third-party/EmojiPicker.tsx(126,10): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(props: { href: string; } & IconButtonOwnProps & Omit<ButtonBaseOwnProps, "classes"> & CommonProps & Omit<Omit<DetailedHTMLProps<AnchorHTMLAttributes<HTMLAnchorElement>, HTMLAnchorElement>, "ref"> & { ...; }, "style" | ... 21 more ... | "loadingIndicator">): Element', gave the following error.
+    Type '(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void' is not assignable to type 'MouseEventHandler<HTMLAnchorElement>'.
+      Types of parameters 'event' and 'event' are incompatible.
+        Type 'MouseEvent<HTMLAnchorElement, MouseEvent>' is not assignable to type 'MouseEvent<HTMLButtonElement, MouseEvent>'.
+          Type 'HTMLAnchorElement' is missing the following properties from type 'HTMLButtonElement': disabled, form, formAction, formEnctype, and 13 more.
+  Overload 2 of 3, '(props: { component: ElementType<any, keyof IntrinsicElements>; } & IconButtonOwnProps & Omit<ButtonBaseOwnProps, "classes"> & CommonProps & Omit<...>): Element | null', gave the following error.
+    Property 'component' is missing in type '{ children: Element; disabled: boolean | undefined; size: "small"; onClick: (event: MouseEvent<HTMLButtonElement, MouseEvent>) => void; }' but required in type '{ component: ElementType<any, keyof IntrinsicElements>; }'.
+  Overload 3 of 3, '(props: DefaultComponentProps<ExtendButtonBaseTypeMap<IconButtonTypeMap<{}, "button">>>): Element | null', gave the following error.
+    Type '{ children: Element; disabled: boolean | undefined; size: "small"; onClick: (event: MouseEvent<HTMLButtonElement, MouseEvent>) => void; }' is not assignable to type 'IconButtonOwnProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+      Types of property 'disabled' are incompatible.
+        Type 'boolean | undefined' is not assignable to type 'boolean'.
+          Type 'undefined' is not assignable to type 'boolean'.
+src/components/ui-component/third-party/map/MapPopup.tsx(18,6): error TS2375: Type '{ children: ReactNode; closeButton?: boolean | undefined; closeOnClick?: boolean | undefined; closeOnMove?: boolean | undefined; focusAfterOpen?: boolean | null | undefined; ... 9 more ...; sx: SxProps<...> | undefined; }' is not assignable to type 'MUIStyledCommonProps<Theme>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'sx' are incompatible.
+    Type 'SxProps<Theme> | undefined' is not assignable to type 'SxProps<Theme>'.
+      Type 'undefined' is not assignable to type 'SxProps<Theme>'.
+src/components/ui-elements/advance/UIDialog/MaxWidthDialog.tsx(55,8): error TS2375: Type '{ children: false | Element; fullWidth: boolean; maxWidth: false | Breakpoint | undefined; open: boolean; onClose: () => void; }' is not assignable to type 'DialogProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'maxWidth' are incompatible.
+    Type 'false | Breakpoint | undefined' is not assignable to type 'false | Breakpoint'.
+      Type 'undefined' is not assignable to type 'false | Breakpoint'.
+src/components/ui-elements/advance/UIDialog/SimpleDialog.tsx(106,60): error TS2532: Object is possibly 'undefined'.
+src/components/users/account-profile/Profile1/Profile.tsx(54,10): error TS2375: Type '{ classes?: Partial<LinearProgressClasses>; color?: OverridableStringUnion<"primary" | "secondary" | "inherit" | "success" | "warning" | "error" | "info", LinearProgressPropsColorOverrides>; ... 279 more ...; value: number | undefined; }' is not assignable to type 'LinearProgressProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'value' are incompatible.
+    Type 'number | undefined' is not assignable to type 'number'.
+      Type 'undefined' is not assignable to type 'number'.
+src/hooks/useAnalytics.ts(337,46): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/hooks/useAnalytics.ts(337,49): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/hooks/useAnalytics.ts(343,5): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/hooks/useForm.ts(48,18): error TS2345: Argument of type '(prev: IFormState) => { [x: string]: IFormField | { value: string; error: null; touched?: boolean; }; }' is not assignable to parameter of type 'SetStateAction<IFormState>'.
+  Type '(prev: IFormState) => { [x: string]: IFormField | { value: string; error: null; touched?: boolean; }; }' is not assignable to type '(prevState: IFormState) => IFormState'.
+    Type '{ [x: string]: IFormField | { value: string; error: null; touched?: boolean; }; }' is not assignable to type 'IFormState'.
+      'string' index signatures are incompatible.
+        Type 'IFormField | { value: string; error: null; touched?: boolean; }' is not assignable to type 'IFormField'.
+          Type '{ value: string; error: null; touched?: boolean; }' is not assignable to type 'IFormField'.
+            Property 'touched' is optional in type '{ value: string; error: null; touched?: boolean; }' but required in type 'IFormField'.
+src/hooks/useForm.ts(59,18): error TS2345: Argument of type '(prev: IFormState) => { [x: string]: IFormField | { error: string | null; value?: string; touched?: boolean; }; }' is not assignable to parameter of type 'SetStateAction<IFormState>'.
+  Type '(prev: IFormState) => { [x: string]: IFormField | { error: string | null; value?: string; touched?: boolean; }; }' is not assignable to type '(prevState: IFormState) => IFormState'.
+    Type '{ [x: string]: IFormField | { error: string | null; value?: string; touched?: boolean; }; }' is not assignable to type 'IFormState'.
+      'string' index signatures are incompatible.
+        Type 'IFormField | { error: string | null; value?: string; touched?: boolean; }' is not assignable to type 'IFormField'.
+          Type '{ error: string | null; value?: string; touched?: boolean; }' is not assignable to type 'IFormField'.
+            Property 'value' is optional in type '{ error: string | null; value?: string; touched?: boolean; }' but required in type 'IFormField'.
+src/hooks/useForm.ts(69,18): error TS2345: Argument of type '(prev: IFormState) => { [x: string]: IFormField | { touched: boolean; value?: string; error?: string | null; }; }' is not assignable to parameter of type 'SetStateAction<IFormState>'.
+  Type '(prev: IFormState) => { [x: string]: IFormField | { touched: boolean; value?: string; error?: string | null; }; }' is not assignable to type '(prevState: IFormState) => IFormState'.
+    Type '{ [x: string]: IFormField | { touched: boolean; value?: string; error?: string | null; }; }' is not assignable to type 'IFormState'.
+      'string' index signatures are incompatible.
+        Type 'IFormField | { touched: boolean; value?: string; error?: string | null; }' is not assignable to type 'IFormField'.
+          Type '{ touched: boolean; value?: string; error?: string | null; }' is not assignable to type 'IFormField'.
+            Property 'value' is optional in type '{ touched: boolean; value?: string; error?: string | null; }' but required in type 'IFormField'.
+src/hooks/useForm.ts(117,35): error TS18048: 'field' is possibly 'undefined'.
+src/hooks/useReactQuery.ts(16,3): error TS2322: Type 'DefinedUseQueryResult<unknown, TError>' is not assignable to type 'UseQueryResult<TData, TError>'.
+  Type 'QueryObserverRefetchErrorResult<unknown, TError>' is not assignable to type 'UseQueryResult<TData, TError>'.
+    Type 'QueryObserverRefetchErrorResult<unknown, TError>' is not assignable to type 'QueryObserverRefetchErrorResult<TData, TError>'.
+      Type 'unknown' is not assignable to type 'TData'.
+        'TData' could be instantiated with an arbitrary type which could be unrelated to 'unknown'.
+src/hooks/useReactQuery.ts(16,19): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<unknown, TError, unknown, readonly unknown[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<unknown, TError>', gave the following error.
+    Argument of type '{ queryKey: readonly unknown[]; queryFn: () => Promise<TData>; staleTime: number | undefined; gcTime: number | undefined; refetchOnWindowFocus: boolean | undefined; refetchOnReconnect: boolean | undefined; enabled: boolean | undefined; }' is not assignable to parameter of type 'DefinedInitialDataOptions<unknown, TError, unknown, readonly unknown[]>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+      Type '{ queryKey: readonly unknown[]; queryFn: () => Promise<TData>; staleTime: number | undefined; gcTime: number | undefined; refetchOnWindowFocus: boolean | undefined; refetchOnReconnect: boolean | undefined; enabled: boolean | undefined; }' is not assignable to type 'Omit<UseQueryOptions<unknown, TError, unknown, readonly unknown[]>, "queryFn">' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+        Types of property 'enabled' are incompatible.
+          Type 'boolean | undefined' is not assignable to type 'Enabled<unknown, TError, unknown, readonly unknown[]>'.
+            Type 'undefined' is not assignable to type 'Enabled<unknown, TError, unknown, readonly unknown[]>'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<TData, TError, TData, readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Argument of type '{ queryKey: readonly unknown[]; queryFn: () => Promise<TData>; staleTime: number | undefined; gcTime: number | undefined; refetchOnWindowFocus: boolean | undefined; refetchOnReconnect: boolean | undefined; enabled: boolean | undefined; }' is not assignable to parameter of type 'UndefinedInitialDataOptions<TData, TError, TData, readonly unknown[]>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+      Type '{ queryKey: readonly unknown[]; queryFn: () => Promise<TData>; staleTime: number | undefined; gcTime: number | undefined; refetchOnWindowFocus: boolean | undefined; refetchOnReconnect: boolean | undefined; enabled: boolean | undefined; }' is not assignable to type 'UseQueryOptions<TData, TError, TData, readonly unknown[]>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+        Types of property 'enabled' are incompatible.
+          Type 'boolean | undefined' is not assignable to type 'Enabled<TData, TError, TData, readonly unknown[]>'.
+            Type 'undefined' is not assignable to type 'Enabled<TData, TError, TData, readonly unknown[]>'.
+  Overload 3 of 3, '(options: UseQueryOptions<TData, TError, TData, readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<NoInfer<TData>, TError>', gave the following error.
+    Argument of type '{ queryKey: readonly unknown[]; queryFn: () => Promise<TData>; staleTime: number | undefined; gcTime: number | undefined; refetchOnWindowFocus: boolean | undefined; refetchOnReconnect: boolean | undefined; enabled: boolean | undefined; }' is not assignable to parameter of type 'UseQueryOptions<TData, TError, TData, readonly unknown[]>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+      Types of property 'enabled' are incompatible.
+        Type 'boolean | undefined' is not assignable to type 'Enabled<TData, TError, TData, readonly unknown[]>'.
+          Type 'undefined' is not assignable to type 'Enabled<TData, TError, TData, readonly unknown[]>'.
+src/layout/Customization/PresetColor.tsx(101,13): error TS2375: Type '{ id: string; primary: string | undefined; secondary: string | undefined; }' is not assignable to type 'StringColorProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'primary' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/layout/MainLayout/Header/SearchSection/index.tsx(86,30): error TS2322: Type '{ children: Element; component: string; variant: "rounded"; }' is not assignable to type 'IntrinsicAttributes & AvatarOwnProps & AvatarSlotsAndSlotProps & CommonProps & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>, "ref"> & { ...; }, "children" | ... 11 more ... | "variant"> & MUIStyledCommonProps<...>'.
+  Property 'component' does not exist on type 'IntrinsicAttributes & AvatarOwnProps & AvatarSlotsAndSlotProps & CommonProps & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>, "ref"> & { ...; }, "children" | ... 11 more ... | "variant"> & MUIStyledCommonProps<...>'.
+src/layout/MainLayout/Header/SearchSection/index.tsx(92,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: { component: ElementType<any, keyof IntrinsicElements>; } & AvatarOwnProps & AvatarSlotsAndSlotProps & CommonProps & Omit<...>): Element | null', gave the following error.
+    Type '{ background: string; color: string; '&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; ... 821 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SxProps<Theme>'.
+      Type '{ background: string; color: string; '&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; ... 821 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'null'.
+  Overload 2 of 2, '(props: DefaultComponentProps<AvatarTypeMap<{}, "div">>): Element | null', gave the following error.
+    Type '{ background: string; color: string; '&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; ... 821 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SxProps<Theme>'.
+      Type '{ background: string; color: string; '&:hover': { background: string; color: string; }; '@font-face'?: Fontface | Fontface[]; accentColor?: Property.AccentColor | undefined; ... 821 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'null'.
+src/layout/MainLayout/MenuList/index.tsx(56,18): error TS2532: Object is possibly 'undefined'.
+src/layout/MainLayout/MenuList/index.tsx(80,12): error TS2375: Type '{ key: string | undefined; item: NavItemType; lastItem: number | undefined; remItems: NavItemType[]; lastItemId: string; }' is not assignable to type 'NavGroupProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'lastItem' are incompatible.
+    Type 'number | undefined' is not assignable to type 'number'.
+      Type 'undefined' is not assignable to type 'number'.
+src/layout/MainLayout/MenuList/NavCollapse/index.tsx(351,16): error TS2375: Type '{ children: ({ TransitionProps }: PopperChildrenProps) => Element; open: boolean; anchorEl: VirtualElement | (() => VirtualElement) | null | undefined; placement: "right-start"; style: { ...; }; modifiers: { ...; }[]; }' is not assignable to type 'PopperProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Types of property 'anchorEl' are incompatible.
+    Type 'VirtualElement | (() => VirtualElement) | null | undefined' is not assignable to type 'HTMLElement | VirtualElement | (() => HTMLElement) | (() => VirtualElement) | null'.
+      Type 'undefined' is not assignable to type 'HTMLElement | VirtualElement | (() => HTMLElement) | (() => VirtualElement) | null'.
+src/layout/MainLayout/Sidebar/MenuCard/index.tsx(110,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: { component: ElementType<any, keyof IntrinsicElements>; } & AvatarOwnProps & AvatarSlotsAndSlotProps & CommonProps & Omit<...>): Element | null', gave the following error.
+    Type '{ color: string; border: "none" | "1px solid"; borderColor: string; background: string; marginRight: string; '@font-face'?: Fontface | Fontface[]; ... 819 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SxProps<Theme>'.
+      Type '{ color: string; border: "none" | "1px solid"; borderColor: string; background: string; marginRight: string; '@font-face'?: Fontface | Fontface[]; ... 819 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'null'.
+  Overload 2 of 2, '(props: DefaultComponentProps<AvatarTypeMap<{}, "div">>): Element | null', gave the following error.
+    Type '{ color: string; border: "none" | "1px solid"; borderColor: string; background: string; marginRight: string; '@font-face'?: Fontface | Fontface[]; ... 819 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'SxProps<Theme>'.
+      Type '{ color: string; border: "none" | "1px solid"; borderColor: string; background: string; marginRight: string; '@font-face'?: Fontface | Fontface[]; ... 819 more ...; vectorEffect?: Property.VectorEffect | undefined; }' is not assignable to type 'null'.
+src/views/apps/customer/customer-list.tsx(406,20): error TS2345: Argument of type '(row: Customer | undefined, index: number) => Element | null' is not assignable to parameter of type '(value: number | Customer | undefined, index: number, array: (number | Customer | undefined)[]) => Element | null'.
+  Types of parameters 'row' and 'value' are incompatible.
+    Type 'number | Customer | undefined' is not assignable to type 'Customer | undefined'.
+      Type 'number' is not assignable to type 'Customer'.
+src/views/apps/customer/order-list.tsx(424,51): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(439,62): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(453,62): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(461,27): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(468,62): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(476,26): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(479,33): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(480,33): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(481,47): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(482,48): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(484,24): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(487,24): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/customer/order-list.tsx(488,24): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/checkout.tsx(42,11): error TS6196: 'TabOptionProps' is declared but never used.
+src/views/apps/e-commerce/checkout.tsx(66,14): error TS2552: Cannot find name 'theme'. Did you mean '_theme'?
+src/views/apps/e-commerce/checkout.tsx(67,19): error TS2552: Cannot find name 'theme'. Did you mean '_theme'?
+src/views/apps/e-commerce/checkout.tsx(67,51): error TS2552: Cannot find name 'theme'. Did you mean '_theme'?
+src/views/apps/e-commerce/checkout.tsx(67,77): error TS2552: Cannot find name 'theme'. Did you mean '_theme'?
+src/views/apps/e-commerce/checkout.tsx(76,6): error TS2552: Cannot find name 'theme'. Did you mean '_theme'?
+src/views/apps/e-commerce/product-list.tsx(439,51): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(454,60): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(469,60): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(473,30): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(473,59): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(482,67): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(490,26): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(493,49): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(494,48): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(495,48): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(499,32): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/product-list.tsx(500,36): error TS18048: 'row' is possibly 'undefined'.
+src/views/apps/e-commerce/products.tsx(361,44): error TS2532: Object is possibly 'undefined'.
+src/views/apps/kanban/board.tsx(62,37): error TS18048: 'sourceColumn' is possibly 'undefined'.
+src/views/apps/kanban/board.tsx(76,7): error TS2322: Type '{ itemIds: string[]; id?: string; title?: string; }[]' is not assignable to type 'KanbanColumn[]'.
+  Type '{ itemIds: string[]; id?: string; title?: string; }' is not assignable to type 'KanbanColumn'.
+    Property 'id' is optional in type '{ itemIds: string[]; id?: string; title?: string; }' but required in type 'KanbanColumn'.
+src/views/apps/kanban/board.tsx(83,43): error TS18048: 'sourceColumn' is possibly 'undefined'.
+src/views/apps/kanban/board.tsx(94,48): error TS18048: 'destinationColumn' is possibly 'undefined'.
+src/views/apps/kanban/board.tsx(105,7): error TS2322: Type '{ itemIds: string[]; id?: string; title?: string; }[]' is not assignable to type 'KanbanColumn[]'.
+  Type '{ itemIds: string[]; id?: string; title?: string; }' is not assignable to type 'KanbanColumn'.
+    Property 'id' is optional in type '{ itemIds: string[]; id?: string; title?: string; }' but required in type 'KanbanColumn'.
+src/views/apps/kanban/board.tsx(133,50): error TS2322: Type 'KanbanColumn | undefined' is not assignable to type 'KanbanColumn'.
+  Type 'undefined' is not assignable to type 'KanbanColumn'.

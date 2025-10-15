@@ -1,0 +1,17 @@
+// material-ui
+import Paper from '@mui/material/Paper';
+import { styled, Theme } from '@mui/material/styles';
+
+// ===============================|| GRID - ITEMS ||=============================== //
+
+const GridItem = styled(Paper)(({ theme }: { theme: Theme }) => ({
+  letterSpacing: theme.typography.body2.letterSpacing,
+  fontWeight: theme.typography.body2.fontWeight,
+  lineHeight: theme.typography.body2.lineHeight,
+  padding: theme.spacing(1),
+  textAlign: 'center',
+  color: theme.palette.secondary.dark,
+  background: theme.palette.secondary.light,
+}));
+
+export default GridItem;

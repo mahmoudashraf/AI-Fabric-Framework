@@ -1,0 +1,113 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: easyluxury-backend
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/easyluxury}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+    open-in-view: false
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+
+# Supabase Configuration
+supabase:
+  url: ${SUPABASE_URL:https://your-project.supabase.co}
+  api-key: ${SUPABASE_API_KEY:your-anon-key}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:your-service-role-key}
+
+# Mock Authentication Configuration
+app:
+  mock-auth:
+    enabled: false
+
+# AWS S3/MinIO Configuration
+aws:
+  s3:
+    endpoint: ${AWS_S3_ENDPOINT:http://localhost:9000}
+    region: ${AWS_S3_REGION:us-east-1}
+    bucket: ${AWS_S3_BUCKET:easyluxury}
+    access-key: ${AWS_ACCESS_KEY:minioadmin}
+    secret-key: ${AWS_SECRET_KEY:minioadmin}
+    presigned-url-duration: 900 # 15 minutes in seconds
+
+# OpenAPI/Swagger Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.easyluxury: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Management/Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+---
+# Development Profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  jpa:
+    show-sql: true
+
+# Mock Authentication Configuration for Development
+app:
+  mock-auth:
+    enabled: true
+
+logging:
+  level:
+    root: DEBUG
+    com.easyluxury: TRACE
+
+# Production profile configuration is in application-prod.yml

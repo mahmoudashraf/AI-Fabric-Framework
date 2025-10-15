@@ -1,0 +1,10 @@
+# Development Profile Configuration
+app:
+  mock-auth:
+    enabled: true
+
+# Logging for development
+logging:
+  level:
+    com.easyluxury.security: DEBUG
+    com.easyluxury.service.MockUserService: DEBUG
