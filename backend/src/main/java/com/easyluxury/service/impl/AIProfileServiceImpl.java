@@ -36,7 +36,8 @@ public class AIProfileServiceImpl implements AIProfileService {
     public AIProfileDto createAIProfile(User user, String cvContent) {
         try {
             // Generate AI profile from CV content
-            String aiAttributes = generateProfileFromCV(cvContent);
+            AIProfileDto aiProfileDto = generateProfileFromCV(cvContent);
+            String aiAttributes = aiProfileDto.getAiAttributes();
             
             // Create AI profile entity
             AIProfile aiProfile = AIProfile.builder()
@@ -247,11 +248,6 @@ public class AIProfileServiceImpl implements AIProfileService {
             log.error("Failed to generate AI profile from CV: {}", e.getMessage());
             throw new RuntimeException("Failed to generate AI profile", e);
         }
-    }
-    
-    private String generateProfileFromCV(String cvContent) {
-        // Mock AI profile generation - replace with actual AI service
-        return generateMockAIProfile(cvContent);
     }
     
     private String generateMockAIProfile(String cvContent) {

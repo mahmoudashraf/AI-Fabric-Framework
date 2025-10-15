@@ -12,7 +12,6 @@ import {
   TextField,
   Typography,
   Alert,
-  CircularProgress,
   Divider,
   IconButton,
   Dialog,
@@ -22,25 +21,20 @@ import {
 } from '@mui/material';
 import {
   CloudUpload as CloudUploadIcon,
-  Add as AddIcon,
-  Delete as DeleteIcon,
   Edit as EditIcon,
 } from '@mui/icons-material';
-import { useTheme } from '@mui/material/styles';
 import { useAIProfile } from 'contexts/AIProfileContext';
-import { PhotoType, AIProfileData } from 'types/ai-profile';
+import { PhotoType } from 'types/ai-profile';
 import MainCard from 'ui-component/cards/MainCard';
 import Loader from 'ui-component/Loader';
 
 // ==============================|| AI PROFILE COMPONENT ||============================== //
 
 const AIProfile = () => {
-  const theme = useTheme();
   const { aiProfileData, isLoading, error, generateProfile, uploadCV, uploadPhoto, clearError } = useAIProfile();
   
   const [cvContent, setCvContent] = useState('');
   const [showCvDialog, setShowCvDialog] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
   // Handle CV content submission
   const handleGenerateProfile = async () => {
@@ -110,7 +104,7 @@ const AIProfile = () => {
                     AI Suggestions:
                   </Typography>
                   <Box sx={{ mt: 0.5 }}>
-                    {suggestion.suggestions.map((suggestionText, index) => (
+                    {suggestion.suggestions.map((suggestionText: string, index: number) => (
                       <Chip
                         key={index}
                         label={suggestionText}
@@ -125,9 +119,6 @@ const AIProfile = () => {
                 {/* Photo Display/Upload */}
                 <Box sx={{ mt: 2 }}>
                   {Array.from({ length: suggestion.count }, (_, index) => {
-                    const photoKey = category === 'profilePhoto' || category === 'coverPhoto' 
-                      ? category 
-                      : `${category}[${index}]`;
                     const photoUrl = aiProfileData.photos[category as keyof typeof aiProfileData.photos];
                     const currentPhoto = Array.isArray(photoUrl) ? photoUrl[index] : photoUrl;
                     

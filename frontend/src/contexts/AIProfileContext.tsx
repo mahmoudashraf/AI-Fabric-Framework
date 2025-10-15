@@ -145,7 +145,7 @@ export const AIProfileProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('No AI profile found');
       }
 
-      const updatedData = { ...state.aiProfileData, ...profileData };
+      const updatedData = { ...state.aiProfileData, ...profileData } as AIProfileData;
       const aiAttributes = JSON.stringify(updatedData);
 
       const response = await axios.put(`/api/ai-profile/${state.aiProfile.id}`, {
