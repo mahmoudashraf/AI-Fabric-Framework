@@ -1,8 +1,8 @@
-# EasyLuxury Platform - Simplified Startup Scripts
+# Enterprise Platform - Simplified Startup Scripts
 
 ## Overview
 
-The EasyLuxury platform now uses a simplified script structure to eliminate confusion and redundancy. Instead of multiple overlapping scripts, we now have **4 core scripts** that handle all startup scenarios.
+The Enterprise Platform now uses a simplified script structure to eliminate confusion and redundancy. Instead of multiple overlapping scripts, we now have **4 core scripts** that handle all startup scenarios.
 
 ## Core Scripts
 
@@ -56,7 +56,7 @@ The EasyLuxury platform now uses a simplified script structure to eliminate conf
 ```
 
 ### 🛑 `./stop.sh` - Stop Services
-**Stop all running EasyLuxury services**
+**Stop all running Enterprise Platform services**
 
 - ✅ Stops backend process
 - ✅ Stops frontend process
@@ -161,7 +161,7 @@ The scripts check for and install required dependencies automatically.
 - Production: Scripts validate required configuration
 
 ### Service Not Starting
-1. Check logs: `tail -f /tmp/easyluxury-backend.log`
+1. Check logs: `tail -f /tmp/enterprise-backend.log`
 2. Check status: `./status.sh`
 3. Restart: `./stop.sh && ./dev.sh` (or `./prod.sh`)
 

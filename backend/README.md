@@ -1,6 +1,6 @@
-# EasyLuxury Backend
+# Enterprise Platform Backend
 
-Property management platform backend built with Spring Boot 3.
+Generalized enterprise platform backend built with Spring Boot 3.
 
 ## Architecture
 
@@ -33,13 +33,13 @@ Property management platform backend built with Spring Boot 3.
 1. **Database Setup**
    ```bash
    # Create PostgreSQL database
-   createdb easyluxury
+   createdb enterprise_platform
    ```
 
 2. **Environment Variables**
    Create a `.env` file or set environment variables:
    ```bash
-   DATABASE_URL=jdbc:postgresql://localhost:5432/easyluxury
+   DATABASE_URL=jdbc:postgresql://localhost:5432/enterprise_platform
    DATABASE_USERNAME=postgres
    DATABASE_PASSWORD=your_password
    SUPABASE_URL=https://your-project.supabase.co
@@ -70,15 +70,8 @@ Once the application is running, access:
 - `GET /api/users/me` - Get current user profile
 - `PUT /api/users/me` - Update current user profile
 
-### Agencies
-- `POST /api/agencies` - Create agency application (OWNER role)
-- `GET /api/agencies/my-agency` - Get user's agency
-- `GET /api/agencies/{id}` - Get agency by ID
-
 ### Admin
-- `GET /api/admin/agencies?status=PENDING` - List agencies by status (ADMIN role)
-- `POST /api/admin/agencies/{id}/approve` - Approve agency (ADMIN role)
-- `POST /api/admin/agencies/{id}/reject` - Reject agency (ADMIN role)
+- `GET /api/admin/dashboard` - Admin dashboard data (ADMIN role)
 
 ## Database Schema
 
@@ -87,29 +80,11 @@ Once the application is running, access:
 - `email` (unique)
 - `first_name`
 - `last_name`
-- `role` (ADMIN, OWNER, AGENCY_OWNER, AGENCY_MEMBER, TENANT)
+- `role` (ADMIN)
 - `supabase_id` (unique)
 - `created_at`
 - `updated_at`
 
-### Agencies Table
-- `id` (UUID)
-- `name` (unique)
-- `description`
-- `status` (PENDING, APPROVED, REJECTED, SUSPENDED)
-- `owner_id` (FK to users)
-- `created_at`
-- `updated_at`
-- `approved_at`
-- `rejected_at`
-- `rejection_reason`
-
-### Agency Members Table
-- `id` (UUID)
-- `agency_id` (FK to agencies)
-- `user_id` (FK to users)
-- `role` (OWNER, ADMIN, MEMBER)
-- `joined_at`
 
 ## Development
 
@@ -170,4 +145,4 @@ The API uses RFC 7807 Problem Details for HTTP APIs:
 
 ## License
 
-Proprietary - EasyLuxury Platform
+Proprietary - Enterprise Platform

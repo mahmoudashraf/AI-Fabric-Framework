@@ -10,7 +10,7 @@ This template includes a small enterprise-ready toolkit under `src/components/en
 
 Example page: `/simple/pages/enterprise-examples` shows how to compose these pieces using `MainCard`.
 
-# Kiwi React Material Next.js - Modernized
+# Enterprise Platform Frontend - Modernized
 
 A modern, production-ready React application built with Next.js, TypeScript, and Material-UI, featuring comprehensive modernization improvements.
 
@@ -65,7 +65,7 @@ src/
 
 ```bash
 git clone <repository-url>
-cd kiwi-react-material-next-ts
+cd enterprise-platform
 ```
 
 2. Install dependencies:
