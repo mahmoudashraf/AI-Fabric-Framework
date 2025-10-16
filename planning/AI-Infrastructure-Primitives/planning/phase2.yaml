@@ -1,0 +1,166 @@
+meta:
+  phase: Phase 2 - Easy Luxury Integration
+  goals: >
+    Integrate AI infrastructure module into Easy Luxury with domain-specific
+    AI services for products, users, and orders, including behavioral AI,
+    recommendations, and luxury-specific AI features.
+  constraints:
+    - Use AI infrastructure module as dependency
+    - Maintain existing Easy Luxury architecture
+    - Focus on domain-specific implementations
+    - Incremental integration approach
+    - No breaking changes to existing functionality
+
+tickets:
+  - id: P2.1-A
+    title: User Behavior Tracking System
+    backend:
+      entities: [UserBehavior, BehaviorEvent, BehaviorPattern, UserInsight]
+      endpoints:
+        - POST /api/ai/behavior/track
+        - GET  /api/ai/behavior/{userId}/events
+        - GET  /api/ai/behavior/{userId}/patterns
+        - POST /api/ai/behavior/{userId}/insights
+      migrations: [V002__user_behavior.yaml]
+      services: [BehaviorTrackingService, BehaviorAnalysisService, InsightGenerationService]
+    frontend:
+      hooks: [useBehaviorTracking, useBehaviorAnalysis, useUserInsights]
+      components: [BehaviorTracker, BehaviorAnalytics, UserInsightsPanel]
+    acceptance:
+      - User actions are tracked automatically
+      - Behavior patterns are identified
+      - Insights are generated from behavior data
+      - Privacy controls are implemented
+
+  - id: P2.1-B
+    title: UI Adaptation Based on Behavior
+    backend:
+      services: [UIAdaptationService, BehavioralRecommendationService]
+      endpoints:
+        - GET  /api/ai/ui/{userId}/adaptation
+        - POST /api/ai/ui/{userId}/preferences
+        - GET  /api/ai/ui/{userId}/recommendations
+      algorithms: [UI preference learning, adaptive layout generation]
+    frontend:
+      hooks: [useBehavioralUI, useUIAdaptation, useUIPreferences]
+      components: [AdaptiveLayout, BehavioralUI, UIPreferencePanel]
+      pages: [/ai/personalization, /ai/ui-settings]
+    acceptance:
+      - UI adapts to user behavior patterns
+      - Layout preferences are learned
+      - Adaptive components work correctly
+      - User can override adaptations
+
+  - id: P2.1-C
+    title: Content Recommendations Engine
+    backend:
+      services: [ContentRecommendationService, RecommendationEngine]
+      endpoints:
+        - GET  /api/ai/recommendations/{userId}/content
+        - POST /api/ai/recommendations/{userId}/feedback
+        - GET  /api/ai/recommendations/{userId}/similar
+      algorithms: [Collaborative filtering, content-based filtering, hybrid approach]
+    frontend:
+      hooks: [useContentRecommendations, useRecommendationFeedback, useSimilarContent]
+      components: [RecommendationList, RecommendationCard, FeedbackPanel]
+      pages: [/ai/recommendations, /ai/similar-content]
+    acceptance:
+      - Content recommendations are relevant
+      - Feedback improves recommendations
+      - Similar content is identified
+      - Recommendations update in real-time
+
+  - id: P2.1-D
+    title: Behavioral Analytics Dashboard
+    backend:
+      services: [BehavioralAnalyticsService, UserSegmentService]
+      endpoints:
+        - GET  /api/ai/analytics/behavior
+        - GET  /api/ai/analytics/segments
+        - GET  /api/ai/analytics/trends
+      analytics: [User segmentation, behavior trends, engagement metrics]
+    frontend:
+      components: [BehavioralAnalyticsChart, UserSegmentList, TrendAnalysis]
+      pages: [/admin/ai/analytics, /admin/ai/segments]
+    acceptance:
+      - Behavioral analytics are displayed
+      - User segments are identified
+      - Trends are tracked over time
+      - Analytics are actionable
+
+  - id: P2.1-E
+    title: Intelligent User Insights Generation
+    backend:
+      services: [UserInsightService, InsightGenerationService]
+      endpoints:
+        - GET  /api/ai/insights/{userId}
+        - POST /api/ai/insights/{userId}/generate
+        - GET  /api/ai/insights/{userId}/history
+      ai: [Insight generation using LLM, pattern recognition, predictive analytics]
+    frontend:
+      hooks: [useUserInsights, useInsightGeneration, useInsightHistory]
+      components: [InsightCard, InsightGenerator, InsightHistory]
+      pages: [/ai/insights, /ai/insight-generator]
+    acceptance:
+      - User insights are generated automatically
+      - Insights are relevant and actionable
+      - Insight history is maintained
+      - Users can request custom insights
+
+  - id: P2.1-F
+    title: Personalization Engine
+    backend:
+      services: [PersonalizationService, UserProfileService]
+      endpoints:
+        - GET  /api/ai/personalization/{userId}/profile
+        - PUT  /api/ai/personalization/{userId}/profile
+        - GET  /api/ai/personalization/{userId}/preferences
+      algorithms: [User profiling, preference learning, personalization scoring]
+    frontend:
+      hooks: [usePersonalization, useUserProfile, usePreferences]
+      components: [PersonalizationSettings, UserProfileEditor, PreferenceManager]
+      pages: [/ai/personalization, /ai/profile]
+    acceptance:
+      - User profiles are created and maintained
+      - Preferences are learned and applied
+      - Personalization improves over time
+      - Users can control personalization settings
+
+  - id: P2.1-G
+    title: Behavioral A/B Testing Framework
+    backend:
+      services: [ABTestingService, ExperimentService]
+      endpoints:
+        - POST /api/ai/experiments
+        - GET  /api/ai/experiments/{id}/results
+        - POST /api/ai/experiments/{id}/conclude
+      testing: [A/B test management, statistical analysis, result interpretation]
+    frontend:
+      hooks: [useABTesting, useExperimentResults, useTestVariants]
+      components: [ExperimentManager, TestResults, VariantSelector]
+      pages: [/admin/ai/experiments, /admin/ai/test-results]
+    acceptance:
+      - A/B tests can be created and managed
+      - Test results are statistically valid
+      - Variants are served correctly
+      - Results are actionable
+
+  - id: P2.1-H
+    title: Privacy and Compliance Controls
+    backend:
+      services: [PrivacyService, ComplianceService, DataRetentionService]
+      endpoints:
+        - GET  /api/ai/privacy/{userId}/data
+        - DELETE /api/ai/privacy/{userId}/data
+        - GET  /api/ai/privacy/{userId}/consent
+        - POST /api/ai/privacy/{userId}/consent
+      compliance: [GDPR compliance, data retention, consent management]
+    frontend:
+      hooks: [usePrivacyControls, useDataManagement, useConsentManagement]
+      components: [PrivacySettings, DataManagement, ConsentManager]
+      pages: [/ai/privacy, /ai/data-management]
+    acceptance:
+      - Privacy controls are implemented
+      - Data retention policies are enforced
+      - Consent management works correctly
+      - GDPR compliance is maintained
