@@ -29,7 +29,35 @@ export function useAdvancedForm<TForm extends Record<string, any>>({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const initialRef = useRef(initialValues);
 
-  const isDirty = useMemo(() => JSON.stringify(values) !== JSON.stringify(initialRef.current), [values]);
+  const isDirty = useMemo(() => {
+    // Safe deep comparison that handles circular references
+    const deepEqual = (a: any, b: any): boolean => {
+      if (a === b) return true;
+      if (a == null || b == null) return false;
+      if (typeof a !== typeof b) return false;
+      
+      // Skip DOM elements and React components
+      if (a instanceof HTMLElement || b instanceof HTMLElement) return false;
+      if (typeof a === 'object' && a.$$typeof) return false; // React elements
+      if (typeof b === 'object' && b.$$typeof) return false; // React elements
+      
+      if (typeof a === 'object') {
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+        
+        for (const key of keysA) {
+          if (!keysB.includes(key)) return false;
+          if (!deepEqual(a[key], b[key])) return false;
+        }
+        return true;
+      }
+      
+      return false;
+    };
+    
+    return !deepEqual(values, initialRef.current);
+  }, [values]);
 
   const runValidation = useCallback(
     (nextValues: TForm) => {

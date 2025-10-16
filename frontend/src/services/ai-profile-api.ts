@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { AIProfile, AIProfileData, GenerateProfileRequest } from '@/types/ai-profile';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -10,11 +10,13 @@ const apiClient = axios.create({
   },
 });
 
-// Add auth token to requests
+// Add auth token to requests - using the standard axios defaults
+// The authentication context should set axios.defaults.headers.common.Authorization
+// This follows the project guidelines of not mixing mocks into main components
 apiClient.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  // Use the global axios authorization header that's set by the auth context
+  if (axios.defaults.headers.common.Authorization) {
+    config.headers.Authorization = axios.defaults.headers.common.Authorization;
   }
   return config;
 });
@@ -24,7 +26,7 @@ export const aiProfileApi = {
    * Generate AI profile from CV content
    */
   generateProfile: async (request: GenerateProfileRequest): Promise<AIProfile> => {
-    const response = await apiClient.post('/api/ai-profile/generate', request);
+    const response = await apiClient.post('/ai-profile/generate', request);
     return response.data;
   },
 
@@ -32,7 +34,7 @@ export const aiProfileApi = {
    * Get AI profile by ID
    */
   getProfileById: async (profileId: string): Promise<AIProfile> => {
-    const response = await apiClient.get(`/api/ai-profile/${profileId}`);
+    const response = await apiClient.get(`/ai-profile/${profileId}`);
     return response.data;
   },
 
@@ -40,7 +42,7 @@ export const aiProfileApi = {
    * Get latest AI profile for current user
    */
   getLatestProfile: async (): Promise<AIProfile> => {
-    const response = await apiClient.get('/api/ai-profile/latest');
+    const response = await apiClient.get('/ai-profile/latest');
     return response.data;
   },
 
@@ -48,7 +50,7 @@ export const aiProfileApi = {
    * Get all AI profiles for current user
    */
   getAllProfiles: async (): Promise<AIProfile[]> => {
-    const response = await apiClient.get('/api/ai-profile/all');
+    const response = await apiClient.get('/ai-profile/all');
     return response.data;
   },
 

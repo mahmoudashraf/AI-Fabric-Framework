@@ -32,10 +32,14 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
             const userData = JSON.parse(mockUser);
             authConfig.log('🎭 [Dev] Initializing with mock user:', userData);
             setUser(userData);
+            
+            // Set axios defaults for API calls (following project guidelines)
+            axios.defaults.headers.common.Authorization = `Bearer ${mockToken}`;
           } catch (mockError) {
             authConfig.log('[Dev] Mock user data invalid, clearing...', mockError);
             localStorage.removeItem('mock_token');
             localStorage.removeItem('mock_user');
+            delete axios.defaults.headers.common.Authorization;
           }
         }
       } catch (error) {
@@ -63,6 +67,10 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
         setUser(mockUser);
         localStorage.setItem('mock_token', response.data.token);
         localStorage.setItem('mock_user', JSON.stringify(mockUser));
+        
+        // Set axios defaults for API calls (following project guidelines)
+        axios.defaults.headers.common.Authorization = `Bearer ${response.data.token}`;
+        
         authConfig.log('✅ Mock login successful', mockUser.email);
       }
     } catch (error: any) {
@@ -95,6 +103,9 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
       localStorage.removeItem('mock_token');
       localStorage.removeItem('mock_user');
       setUser(null);
+      
+      // Clear axios defaults for API calls (following project guidelines)
+      delete axios.defaults.headers.common.Authorization;
     } catch (error: any) {
       authConfig.log('Mock sign out error:', error);
       throw new Error(error.message || 'Failed to sign out');

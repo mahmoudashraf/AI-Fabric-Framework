@@ -88,7 +88,7 @@ const AIProfileTab: React.FC = () => {
                 label="Paste your CV content"
                 placeholder="Paste your CV or resume content here..."
                 value={form.values.cvContent}
-                onChange={form.handleChange('cvContent')}
+                onChange={(e) => form.handleChange('cvContent')(e.target.value)}
                 onBlur={form.handleBlur('cvContent')}
                 error={Boolean(form.touched.cvContent && form.errors.cvContent)}
                 helperText={(form.touched.cvContent && form.errors.cvContent) || ''}
