@@ -1,9 +1,9 @@
-# PLAN — Batch 1 (Sequence 18) (Tickets: P1.1-A (RAG System Foundation), P1.1-B (AI Core Service))
+# PLAN — Batch 2 (Sequence 27) (Tickets: P3.1-C (Advanced AI Features + Innovation), P3.1-D (Research + Development))
 
 ## 0) Summary
-- **Goal**: Implement RAG system foundation and AI core service
+- **Goal**: Implement advanced AI features with innovation and research
 - **Architecture note**: AI Infrastructure Primitives implementation
-- **Tickets covered**: P1.1-A (RAG System Foundation), P1.1-B (AI Core Service)
+- **Tickets covered**: P3.1-C (Advanced AI Features + Innovation), P3.1-D (Research + Development)
 - **Non-goals / out of scope**: Library extraction, advanced features
 
 ## 1) Backend changes
@@ -35,10 +35,10 @@
 - **How to run**: Standard Maven commands
 
 ## 6) Acceptance Criteria Matrix
-- **P1.1-A (RAG System Foundation)**:
+- **P3.1-C (Advanced AI Features + Innovation)**:
   - [ ] AC#1: Feature works correctly
   - [ ] AC#2: Integration is successful
-- **P1.1-B (AI Core Service)**:
+- **P3.1-D (Research + Development)**:
   - [ ] AC#1: Feature works correctly
   - [ ] AC#2: Integration is successful
 
@@ -70,5 +70,5 @@ npm run test:e2e
 - **Generated diffs**: Will be provided after implementation
 - **OpenAPI delta summary**: AI primitive endpoint updates
 - **Proposed conventional commits (per ticket)**:
-  - `feat(ai-primitives): implement P1.1-A (RAG System Foundation) [P1.1-A (RAG System Foundation)]`
-  - `feat(ai-primitives): implement P1.1-B (AI Core Service) [P1.1-B (AI Core Service)]`
+  - `feat(ai-primitives): implement P3.1-C (Advanced AI Features + Innovation) [P3.1-C (Advanced AI Features + Innovation)]`
+  - `feat(ai-primitives): implement P3.1-D (Research + Development) [P3.1-D (Research + Development)]`
