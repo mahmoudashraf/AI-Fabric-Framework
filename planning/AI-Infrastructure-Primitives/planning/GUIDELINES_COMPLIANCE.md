@@ -1,151 +1,155 @@
 # AI Infrastructure Primitives - Guidelines Compliance
 
-## ✅ **Compliance Status: FULLY COMPLIANT**
+## ✅ **Compliance Status: UPDATED**
 
-Our AI Infrastructure Primitives planning has been updated to fully adhere to the project guidelines defined in `/docs/PROJECT_GUIDELINES.yaml`.
-
-## 📋 **Guidelines Adherence Checklist**
-
-### **Backend Architecture** ✅
-- **Package Root**: Uses correct `com.easyluxury` package structure
-- **Layering Pattern**: Implements `Controllers → Facades → Services → Repositories`
-- **Facade Layer**: Added `AIFacade`, `AICapableFacade`, `AIGenerationFacade` for orchestration
-- **Controller Dependencies**: Controllers call facades, not services directly
-- **DTOs & Mappers**: Uses MapStruct for all DTOs at API boundary
-- **Validation**: Jakarta Validation with custom AI validators
-- **Error Handling**: ControllerAdvice error envelope `{code, message, details[]}`
-- **Security**: RBAC with `@PreAuthorize` for AI features
-- **Database**: Liquibase migrations for AI tables
-- **Testing**: Unit + integration tests with Testcontainers, 70%+ coverage
-
-### **Frontend Architecture** ✅
-- **Framework**: Next.js App Router with TypeScript
-- **UI Library**: Material-UI (MUI) components
-- **Styling**: SCSS modules + Emotion CSS-in-JS (no Tailwind)
-- **State Management**: React Query (server state) + Context API (UI state)
-- **Form Handling**: React Hook Form + Zod validation
-- **Component Reuse**: Leverages existing components from `/src/components/`
-- **Page Creation**: Uses existing pages as references, composes existing components
-- **Component Mapping**: Detailed mapping of which existing components to reuse/extend
-
-### **API Design** ✅
-- **OpenAPI**: Springdoc annotations for all endpoints
-- **Authentication**: Supabase JWT verification via JWKS
-- **Error Envelope**: Consistent `{code, message, details[]}` format
-- **Validation**: Jakarta Validation at API boundary
-- **Documentation**: `/api/docs` and `/v3/api-docs.json` endpoints
-
-### **Development Workflow** ✅
-- **Approach**: Incremental PR-sized changes
-- **Ticket Following**: Always follow tickets exactly
-- **Phase-Based**: Build per Phase 1–3 scope
-- **Testing**: Comprehensive tests with each change
-- **Planning Coherence**: Cohesive with UI development guidelines
-
-### **Quality Standards** ✅
-- **Testing**: Unit tests + integration tests with Testcontainers
-- **Coverage**: 70%+ service/controller coverage (AI services 80%+)
-- **Code Quality**: Jakarta Validation, ControllerAdvice error handling
-- **Security**: RBAC with @PreAuthorize
-- **Documentation**: OpenAPI annotations and API documentation
+The AI Infrastructure Primitives planning has been updated to fully adhere to the project guidelines in `/docs/PROJECT_GUIDELINES.yaml`.
 
 ## 🔧 **Key Compliance Updates Made**
 
-### **1. Added Facade Layer**
+### **1. Architecture Layering (✅ FIXED)**
+- **Before**: Controllers → Services → Repositories
+- **After**: Controllers → **Facades** → Services → Repositories
+- **Added**: `AIFacade`, `AICapableFacade` for orchestration
+- **Rule**: Controllers are thin and depend on facades + DTOs only
+
+### **2. Package Structure (✅ FIXED)**
+- **Before**: `com.easy.luxury` (incorrect)
+- **After**: `com.easyluxury` (matches existing codebase)
+- **Verified**: Against existing service classes
+
+### **3. DTOs and Mappers (✅ FIXED)**
+- **Added**: MapStruct requirement for all DTOs
+- **Pattern**: `EntityDto`, `EntityMapper` (MapStruct)
+- **Rule**: DTOs only at API boundary (MapStruct)
+
+### **4. Error Handling (✅ FIXED)**
+- **Added**: ControllerAdvice error envelope format
+- **Pattern**: `{code, message, details[]}`
+- **Examples**: 
+  - `{code: "VALIDATION_ERROR", message: "Invalid AI configuration", details: []}`
+  - `{code: "RATE_LIMIT_EXCEEDED", message: "AI API rate limit exceeded", details: []}`
+
+### **5. Validation (✅ FIXED)**
+- **Added**: Jakarta Validation requirement
+- **Pattern**: Custom validators for AI content
+- **Rule**: Validation with Jakarta Validation + ControllerAdvice error envelope
+
+### **6. Frontend Component Reuse (✅ FIXED)**
+- **Added**: Detailed component mapping
+- **Pattern**: Specific existing components to reuse/extend
+- **Examples**:
+  - `SearchInput` from `/src/components/ui-component/forms/`
+  - `LatestCustomerTableCard` from `/src/components/dashboard/Analytics/`
+  - `ValidationWizard` from `/src/components/forms/forms-wizard/`
+
+### **7. State Management (✅ FIXED)**
+- **Added**: React Query + Context API pattern
+- **Rule**: React Query for server state, Context API for UI state
+- **Pattern**: Follow existing migrated components
+
+### **8. Testing Requirements (✅ FIXED)**
+- **Added**: Facade testing requirements
+- **Rule**: Controller tests focus on request mapping, validation, and delegating to facades
+- **Coverage**: 80%+ for AI services, 70%+ overall
+
+### **9. OpenAPI Documentation (✅ FIXED)**
+- **Added**: Supabase JWT authentication requirement
+- **Pattern**: `@SecurityRequirement` for Supabase JWT
+- **Rule**: Each controller method annotated; docs at `/api/docs`
+
+### **10. Component Mapping (✅ FIXED)**
+- **Added**: Detailed component and page mappings
+- **Rule**: Specify which existing components will be reused, extended, or adapted
+- **Pattern**: Avoid creating new components unless absolutely necessary
+
+## 📋 **Guidelines Compliance Checklist**
+
+### **Backend Compliance**
+- [x] **Package Structure**: `com.easyluxury` (matches existing)
+- [x] **Architecture Layering**: Controllers → Facades → Services → Repositories
+- [x] **DTOs**: MapStruct for all DTOs at API boundary
+- [x] **Validation**: Jakarta Validation + ControllerAdvice error envelope
+- [x] **Error Handling**: `{code, message, details[]}` format
+- [x] **Security**: Supabase JWT verification via JWKS
+- [x] **Testing**: Unit + integration tests with Testcontainers
+- [x] **Coverage**: 70%+ service/controller coverage
+- [x] **OpenAPI**: Springdoc annotations for all endpoints
+
+### **Frontend Compliance**
+- [x] **Framework**: Next.js (App Router) + TypeScript
+- [x] **UI Library**: Material-UI (MUI)
+- [x] **Styling**: SCSS modules + Emotion CSS-in-JS
+- [x] **State Management**: React Query (server) + Context API (UI)
+- [x] **Form Handling**: React Hook Form + Zod validation
+- [x] **Component Reuse**: Leverage existing components from `/src/components/`
+- [x] **Page Creation**: Use existing pages as references
+- [x] **Component Mapping**: Detailed mapping of existing components to reuse
+
+### **Development Workflow Compliance**
+- [x] **Approach**: Incremental PR-sized changes
+- [x] **Ticket Following**: Always follow tickets exactly
+- [x] **Phase-based**: Build per Phase 1–3 scope
+- [x] **Testing**: Include comprehensive tests with each change
+- [x] **Planning Coherence**: Cohesive with UI development guidelines
+
+## 🎯 **Key Architectural Decisions**
+
+### **1. Facade Pattern Implementation**
 ```java
-// Before: Controllers → Services
+// Controllers depend on facades, not services
 @RestController
 public class AIController {
     @Autowired
-    private AIService aiService; // ❌ Direct service dependency
-}
-
-// After: Controllers → Facades → Services
-@RestController
-public class AIController {
-    @Autowired
-    private AIFacade aiFacade; // ✅ Facade dependency
+    private AIFacade aiFacade; // Not AIService directly
+    
+    @PostMapping("/api/ai/search")
+    public ResponseEntity<SearchResponse> search(@RequestBody SearchRequest request) {
+        return ResponseEntity.ok(aiFacade.performSearch(request));
+    }
 }
 ```
 
-### **2. Corrected Package Structure**
+### **2. Component Reuse Strategy**
+```typescript
+// Reuse existing components, don't create new ones
+export const AISearchComponent = () => {
+    return (
+        <MainCard> {/* Existing component */}
+            <SearchInput /> {/* Existing component */}
+            <SearchResults /> {/* Existing component */}
+        </MainCard>
+    );
+};
+```
+
+### **3. Error Handling Pattern**
 ```java
-// Before: com.easy.luxury (incorrect)
-package com.easy.luxury.service;
-
-// After: com.easyluxury (correct)
-package com.easyluxury.service;
-```
-
-### **3. Added MapStruct Mappers**
-```java
-// All DTOs now use MapStruct
-@Mapper(componentModel = "spring")
-public interface AIKnowledgeBaseMapper {
-    AIKnowledgeBaseDto toDto(AIKnowledgeBase entity);
-    AIKnowledgeBase toEntity(AIKnowledgeBaseDto dto);
+// ControllerAdvice error envelope format
+@ControllerAdvice
+public class AIErrorHandler {
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ErrorResponse> handleValidation(ValidationException e) {
+        return ResponseEntity.badRequest()
+            .body(ErrorResponse.builder()
+                .code("VALIDATION_ERROR")
+                .message("Invalid AI configuration")
+                .details(e.getErrors())
+                .build());
+    }
 }
 ```
 
-### **4. Implemented Error Envelope**
-```java
-// Consistent error format
-{
-  "code": "VALIDATION_ERROR",
-  "message": "Invalid AI configuration",
-  "details": ["Field 'model' is required"]
-}
-```
+## ✅ **Final Compliance Status**
 
-### **5. Added Component Mapping**
-```yaml
-# Detailed component reuse strategy
-component_mapping:
-  - AI Search Page: Extend /src/app/(dashboard)/search patterns
-  - AI Health Dashboard: Adapt /src/components/dashboard/Analytics/
-  - AI Configuration: Reuse /src/components/forms/forms-wizard/
-```
+The AI Infrastructure Primitives planning now **fully adheres** to all project guidelines:
 
-## 📊 **Compliance Metrics**
+- ✅ **Architecture patterns** match existing codebase
+- ✅ **Component reuse** strategy follows guidelines
+- ✅ **Testing requirements** meet project standards
+- ✅ **Error handling** uses project patterns
+- ✅ **State management** follows migrated approach
+- ✅ **Package structure** matches existing code
+- ✅ **Validation** uses project standards
+- ✅ **Documentation** follows OpenAPI requirements
 
-| Guideline Category | Compliance | Notes |
-|-------------------|------------|-------|
-| Backend Architecture | ✅ 100% | Facade layer, proper layering, MapStruct |
-| Frontend Architecture | ✅ 100% | React Query + Context API, component reuse |
-| API Design | ✅ 100% | OpenAPI, error envelope, validation |
-| Testing Strategy | ✅ 100% | Testcontainers, 70%+ coverage |
-| Security | ✅ 100% | RBAC, Supabase JWT, @PreAuthorize |
-| Documentation | ✅ 100% | OpenAPI annotations, API docs |
-| Development Workflow | ✅ 100% | Incremental changes, ticket following |
-
-## 🎯 **Benefits of Guidelines Compliance**
-
-### **For Developers**
-- **Consistent Patterns**: All AI features follow established project patterns
-- **Familiar Architecture**: Developers can work with AI features using known patterns
-- **Reusable Components**: AI features leverage existing UI components
-- **Clear Structure**: Facade layer makes AI orchestration clear and testable
-
-### **For Maintenance**
-- **Predictable Code**: AI code follows same patterns as rest of project
-- **Easy Testing**: AI features use same testing patterns as existing code
-- **Simple Debugging**: Error handling and logging follow project standards
-- **Scalable Architecture**: AI features scale with existing architecture
-
-### **For Quality**
-- **High Test Coverage**: AI features meet same quality standards
-- **Consistent Error Handling**: AI errors follow project error envelope
-- **Security Compliance**: AI features use same security patterns
-- **Documentation Standards**: AI APIs documented like all other APIs
-
-## ✅ **Conclusion**
-
-The AI Infrastructure Primitives planning is now **100% compliant** with project guidelines. This ensures:
-
-1. **Seamless Integration** with existing codebase
-2. **Consistent Developer Experience** across all features
-3. **Maintainable Architecture** following established patterns
-4. **High Quality Standards** matching project requirements
-5. **Future-Proof Design** that scales with the project
-
-The AI features will feel like a natural extension of the existing platform rather than a separate system, making them easy to adopt and maintain.
+The planning is now ready for implementation following the established project patterns and guidelines.
