@@ -48,6 +48,8 @@ public class User {
     private LocalDateTime updatedAt;
 
     public enum UserRole {
-        ADMIN
+        ADMIN,
+        USER,
+        MANAGER
     }
 }

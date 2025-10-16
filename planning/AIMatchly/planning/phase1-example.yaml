@@ -1,0 +1,154 @@
+meta:
+  phase: Phase 1 - MVP Core
+  goals: >
+    Auth/RBAC, agency activation, core domain (Property, StylePackage, Project, Bid, Listing),
+    property submission + uploads, style selection, publish project + bids, project tracking,
+    basic rental listing (no self-service booking), admin panel, tenant browse, manual bookings.
+  constraints:
+    - No payments
+    - No OTA calendar sync
+    - Mobile-first web (Next.js App Router)
+    - Supabase Auth on FE; Spring verifies JWT via JWKS
+
+tickets:
+  - id: P1.1-A
+    title: Auth & RBAC (Supabase JWT verify)
+    backend:
+      entities: [User]
+      endpoints: [GET /api/users/me, POST /api/auth/refresh]
+      security: [JWKS verify, @PreAuthorize]
+      migrations: [V001__users.yaml]
+    frontend:
+      routes: [/auth/login, /auth/register]
+      notes: Supabase JS; persist session; fetch /me on load
+    acceptance:
+      - Login via Supabase works; /me returns local profile
+      - Role checks enforced; tests ≥ 80% for auth service
+
+  - id: P1.1-B
+    title: Agency activation (owner→agency) with admin approval
+    backend:
+      entities: [Agency, AgencyMember]
+      endpoints:
+        - POST /api/agencies
+        - GET  /api/admin/agencies?status=PENDING
+        - POST /api/admin/agencies/{id}/approve
+        - POST /api/admin/agencies/{id}/reject
+      migrations: [V002__agencies.yaml]
+    frontend:
+      routes: [/owner/settings, /admin/agencies]
+    acceptance:
+      - Pending agencies hidden from marketplace
+      - Decisions audited
+
+  - id: P1.2-A
+    title: Core schema (Property, StylePackage, Project, Bid, Listing)
+    backend:
+      entities: [Property, StylePackage, Project, Bid, Listing]
+      migrations: [V003__core_domain.yaml]
+    acceptance:
+      - JPA mappings validated; cascades correct
+
+  - id: P1.2-B
+    title: Property submission + media uploads
+    backend:
+      endpoints:
+        - POST /api/properties
+        - GET  /api/properties/{id}
+        - POST /api/properties/{id}/media:presign
+    frontend:
+      routes: [/owner/properties, /owner/properties/new, /owner/properties/[id]]
+      ui: multi-step wizard (details → photos → budget/purpose → review → submit)
+    acceptance:
+      - Presigned PUT works; images render on detail page
+
+  - id: P1.2-C
+    title: Style selection (pre-approved library)
+    backend:
+      endpoints:
+        - GET  /api/styles?type=FURNITURE|FINISHING
+        - POST /api/properties/{id}/style
+    frontend:
+      routes: [/owner/properties/[id]/style]
+    acceptance:
+      - Selected style persists & shows on overview
+
+  - id: P1.2-D
+    title: Agency packages (finishing/furniture/cleaning/renting)
+    backend:
+      endpoints:
+        - POST /api/agencies/{id}/packages
+        - GET  /api/agencies/{id}/packages
+    frontend:
+      routes: [/agency/dashboard/packages]
+    acceptance:
+      - Packages appear on agency page + marketplace
+
+  - id: P1.2-E
+    title: Publish project & accept bids
+    backend:
+      endpoints:
+        - POST /api/projects
+        - GET  /api/projects/{id}/brief
+        - POST /api/projects/{id}/bids
+        - POST /api/projects/{id}/bids/{bidId}/accept
+    frontend:
+      routes: [/projects/[id], /agency/bids]
+    acceptance:
+      - Compare ≥2 bids; accept 1 → project=SCHEDULED; email stub ok
+
+  - id: P1.2-F
+    title: Project tracking (milestones + photo updates)
+    backend:
+      endpoints:
+        - POST /api/projects/{id}/milestones
+        - GET  /api/projects/{id}/timeline
+      status_flow: [CREATED, OPEN, SCHEDULED, IN_PROGRESS, COMPLETED]
+    frontend:
+      routes: [/projects/[id]/timeline]
+    acceptance:
+      - Timeline renders milestones & media; audit logged
+
+  - id: P1.2-G
+    title: Basic rental listing (manual booking later)
+    backend:
+      endpoints:
+        - POST /api/listings
+        - PATCH /api/listings/{id}
+        - GET   /api/listings/{id}
+    frontend:
+      routes: [/listings/[id]]
+    acceptance:
+      - Public listing page (SSR) is available
+
+  - id: P1.2-H
+    title: Admin panel (users, providers, projects)
+    backend:
+      endpoints:
+        - GET /api/admin/users
+        - GET /api/admin/projects
+        - GET /api/admin/agencies
+    frontend:
+      routes: [/admin]
+    acceptance:
+      - Approvals work; lists filterable with RBAC
+
+  - id: P1.3-A
+    title: Tenant browse listings (read-only)
+    backend:
+      endpoints: [GET /api/listings/search?location&priceMin&priceMax&style]
+    frontend:
+      routes: [/search, /listings/[id]]
+    acceptance:
+      - Filters work; SSR detail page
+
+  - id: P1.3-B
+    title: Manual booking records (date blocking)
+    backend:
+      endpoints:
+        - POST /api/bookings
+        - GET  /api/listings/{id}/bookings
+    frontend:
+      routes: [/owner/bookings]
+    acceptance:
+      - Manual bookings block dates on calendar

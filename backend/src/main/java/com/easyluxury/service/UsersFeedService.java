@@ -28,19 +28,26 @@ public class UsersFeedService {
     public void initializeUsersFeed() {
         log.info("UsersFeedService initialized for dev mode");
         
-        // Check if users already exist in database
-        if (hasUsersInDatabase()) {
-            log.info("Users already exist in database, skipping feed initialization");
-            return;
-        }
-        
-        // Feed users to database
+        // Always ensure mock users are synchronized with database
+        // This ensures consistency between MockUserService and database
+        log.info("Ensuring mock users are synchronized with database");
         feedUsersToDatabase();
     }
 
     private Map<String, MockUserData> initializeMockUserData() {
         Map<String, MockUserData> data = new HashMap<>();
+        
+        // Admin user
         data.put("admin@easyluxury.com", new MockUserData("admin@easyluxury.com", "Admin", "User", User.UserRole.ADMIN));
+        
+        // Regular users
+        data.put("john.doe@easyluxury.com", new MockUserData("john.doe@easyluxury.com", "John", "Doe", User.UserRole.USER));
+        data.put("jane.smith@easyluxury.com", new MockUserData("jane.smith@easyluxury.com", "Jane", "Smith", User.UserRole.USER));
+        data.put("bob.wilson@easyluxury.com", new MockUserData("bob.wilson@easyluxury.com", "Bob", "Wilson", User.UserRole.USER));
+        
+        // Manager user
+        data.put("manager@easyluxury.com", new MockUserData("manager@easyluxury.com", "Manager", "User", User.UserRole.MANAGER));
+        
         return data;
     }
 

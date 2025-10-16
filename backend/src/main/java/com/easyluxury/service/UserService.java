@@ -34,6 +34,12 @@ public class UserService {
         return userMapper.toDto(user);
     }
 
+    @Transactional(readOnly = true)
+    public User findByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
     @Transactional
     public UserDto updateUser(UUID userId, UserDto userDto) {
         User user = userRepository.findById(userId)

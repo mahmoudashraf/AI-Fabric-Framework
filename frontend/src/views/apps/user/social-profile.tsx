@@ -3,7 +3,7 @@
 import PersonAddTwoToneIcon from '@mui/icons-material/PersonAddTwoTone';
 import { Box, Button, CardMedia, Grid, Tab, Tabs, Typography  } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { IconFriends, IconInbox, IconPhoto, IconUserPlus, IconUsers } from '@tabler/icons-react';
+import { IconFriends, IconInbox, IconPhoto, IconRobot, IconUserPlus, IconUsers } from '@tabler/icons-react';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
@@ -15,8 +15,11 @@ import FriendRequest from 'components/users/social-profile/FriendRequest';
 import Friends from 'components/users/social-profile/Friends';
 import Gallery from 'components/users/social-profile/Gallery';
 import Profile from 'components/users/social-profile/Profile';
+import AIProfileTab from 'components/users/social-profile/AIProfileTab';
 import useAuth from 'hooks/useAuth';
 import useConfig from 'hooks/useConfig';
+import { useQuery } from '@tanstack/react-query';
+import { aiProfileApi } from '@/services/ai-profile-api';
 import { gridSpacing } from 'constants/index';
 import { TabsProps } from 'types';
 import MainCard from 'ui-component/cards/MainCard';
@@ -90,6 +93,11 @@ const tabOptions = [
     icon: <IconUserPlus stroke={1.5} size="17px" />,
     label: 'Friend Request',
   },
+  {
+    to: '/user/social-profile/ai-profile',
+    icon: <IconRobot stroke={1.5} size="17px" />,
+    label: 'Generate with AI',
+  },
 ];
 
 // ==============================|| SOCIAL PROFILE ||============================== //
@@ -104,6 +112,25 @@ const SocialProfile = ({ tab }: Props) => {
   const { user } = useAuth();
   const { borderRadius } = useConfig();
 
+  // Fetch AI profile data for header
+  const { data: aiProfile } = useQuery({
+    queryKey: ['aiProfile', 'latest', 'header'],
+    queryFn: async () => {
+      try {
+        const profile = await aiProfileApi.getLatestProfile();
+        if (profile && profile.status === 'COMPLETE') {
+          return aiProfileApi.parseAiAttributes(profile.aiAttributes);
+        }
+        return null;
+      } catch (error) {
+        console.log('No published AI profile found:', error);
+        return null;
+      }
+    },
+    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   let selectedTab = 0;
   switch (tab) {
     case 'follower':
@@ -117,6 +144,9 @@ const SocialProfile = ({ tab }: Props) => {
       break;
     case 'friend-request':
       selectedTab = 4;
+      break;
+    case 'ai-profile':
+      selectedTab = 5;
       break;
     case 'posts':
     default:
@@ -156,9 +186,16 @@ const SocialProfile = ({ tab }: Props) => {
           ) : (
             <CardMedia
               component="img"
-              alt="pro image"
-              image={Cover}
-              sx={{ borderRadius: `${borderRadius}px`, overflow: 'hidden', mb: 3 }}
+              alt="cover image"
+              image={aiProfile?.photos?.coverPhoto || Cover}
+              sx={{ 
+                borderRadius: `${borderRadius}px`, 
+                overflow: 'hidden', 
+                mb: 3,
+                height: { xs: 85, sm: 150, md: 260 },
+                objectFit: 'cover',
+                width: '100%'
+              }}
             />
           )}
           <Grid container spacing={gridSpacing}>
@@ -180,8 +217,8 @@ const SocialProfile = ({ tab }: Props) => {
                 />
               ) : (
                 <Avatar
-                  alt="User 1"
-                  src={User1}
+                  alt={aiProfile?.name || 'User'}
+                  src={aiProfile?.photos?.profilePhoto || User1}
                   sx={{
                     margin: '-70px 0 0 auto',
                     borderRadius: '16px',
@@ -200,8 +237,12 @@ const SocialProfile = ({ tab }: Props) => {
             <Grid size={{ xs: 12, md: 9 }}>
               <Grid container spacing={gridSpacing}>
                 <Grid size={{ xs: 12, md: 4 }}>
-                  <Typography variant="h5">{user?.firstName ? `${user.firstName} ${user.lastName}` : user?.email}</Typography>
-                  <Typography variant="subtitle2">Android Developer</Typography>
+                  <Typography variant="h5">
+                    {aiProfile?.name || (user?.firstName ? `${user.firstName} ${user.lastName}` : user?.email)}
+                  </Typography>
+                  <Typography variant="subtitle2">
+                    {aiProfile?.jobTitle || 'Android Developer'}
+                  </Typography>
                 </Grid>
                 <Grid size={{ xs: 12, md: 8 }}>
                   <Grid
@@ -287,6 +328,9 @@ const SocialProfile = ({ tab }: Props) => {
         </TabPanel>
         <TabPanel value={value} index={4}>
           <FriendRequest />
+        </TabPanel>
+        <TabPanel value={value} index={5}>
+          <AIProfileTab />
         </TabPanel>
       </Grid>
     </Grid>

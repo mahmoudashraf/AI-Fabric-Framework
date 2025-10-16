@@ -1,3 +1,5 @@
 databaseChangeLog:
   - include:
       file: db/changelog/V001__users.yaml
+  - include:
+      file: db/changelog/V002__ai_profiles.yaml

@@ -2,8 +2,6 @@ package com.easyluxury.service;
 
 import com.easyluxury.dto.UserDto;
 import com.easyluxury.entity.User;
-import com.easyluxury.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Profile;
@@ -28,16 +26,26 @@ public class MockUserService {
     private String currentMockUserId = null;
 
     // Mock user credentials
-    private final Map<String, MockCredentials> mockCredentials = new ConcurrentHashMap<>(Map.of(
-        "admin@easyluxury.com", new MockCredentials("admin@easyluxury.com", "admin123", User.UserRole.ADMIN)
-    ));
+    private final Map<String, MockCredentials> mockCredentials = new ConcurrentHashMap<>();
+    
+    {
+        mockCredentials.put("admin@easyluxury.com", new MockCredentials("admin@easyluxury.com", "admin123", User.UserRole.ADMIN));
+        mockCredentials.put("john.doe@easyluxury.com", new MockCredentials("john.doe@easyluxury.com", "password123", User.UserRole.USER));
+        mockCredentials.put("jane.smith@easyluxury.com", new MockCredentials("jane.smith@easyluxury.com", "password123", User.UserRole.USER));
+        mockCredentials.put("bob.wilson@easyluxury.com", new MockCredentials("bob.wilson@easyluxury.com", "password123", User.UserRole.USER));
+        mockCredentials.put("manager@easyluxury.com", new MockCredentials("manager@easyluxury.com", "manager123", User.UserRole.MANAGER));
+    }
 
     @PostConstruct
     public void initializeMockUsers() {
         log.info("Initializing mock users");
         
-        // Create mock users
+        // Create mock users - same as UsersFeedService for consistency
         createMockUser("mock-admin-001", "admin@easyluxury.com", "Admin", "User", User.UserRole.ADMIN);
+        createMockUser("mock-user-001", "john.doe@easyluxury.com", "John", "Doe", User.UserRole.USER);
+        createMockUser("mock-user-002", "jane.smith@easyluxury.com", "Jane", "Smith", User.UserRole.USER);
+        createMockUser("mock-user-003", "bob.wilson@easyluxury.com", "Bob", "Wilson", User.UserRole.USER);
+        createMockUser("mock-manager-001", "manager@easyluxury.com", "Manager", "User", User.UserRole.MANAGER);
         
         log.info("Initialized {} mock users", mockUsers.size());
     }
