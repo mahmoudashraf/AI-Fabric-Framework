@@ -1,0 +1,152 @@
+meta:
+  phase: Phase 1 - Core AI Infrastructure
+  goals: >
+    Implement RAG system with Pinecone integration, @AICapable annotation framework,
+    AI Core Service with OpenAI integration, basic AI search and recommendations,
+    and frontend AI hooks for seamless AI integration.
+  constraints:
+    - Use existing OpenAI integration
+    - Maintain Spring Boot 3.x compatibility
+    - Follow existing project architecture patterns
+    - Incremental implementation approach
+    - No breaking changes to existing code
+
+tickets:
+  - id: P1.1-A
+    title: RAG System Foundation with Pinecone Integration
+    backend:
+      entities: [AIKnowledgeBase, AIEmbedding]
+      endpoints:
+        - POST /api/ai/index-document
+        - POST /api/ai/semantic-search
+        - GET  /api/ai/health
+      migrations: [V001__ai_knowledge_base.yaml]
+      dependencies: [Pinecone client, OpenAI embeddings]
+    frontend:
+      routes: [/ai/search, /ai/health]
+      components: [AISearchComponent, AIHealthIndicator]
+    acceptance:
+      - Documents can be indexed to Pinecone
+      - Semantic search returns relevant results
+      - AI health endpoint shows system status
+      - Tests achieve ≥80% coverage for RAG service
+
+  - id: P1.1-B
+    title: @AICapable Annotation Framework
+    backend:
+      entities: [AICapableEntity, AIConfiguration]
+      annotations: [@AICapable, @AIEmbedding, @AIKnowledge]
+      processors: [AICapableProcessor, AIAnnotationProcessor]
+      services: [AICapableService, AIAnnotationService]
+    frontend:
+      components: [AICapableIndicator, AIStatusBadge]
+    acceptance:
+      - @AICapable annotation processes correctly
+      - AI features auto-generate for annotated entities
+      - Configuration is stored and retrievable
+      - Annotation processor works at compile time
+
+  - id: P1.1-C
+    title: AI Core Service with OpenAI Integration
+    backend:
+      services: [AICoreService, AIEmbeddingService, AISearchService]
+      endpoints:
+        - POST /api/ai/generate-response
+        - POST /api/ai/create-embedding
+        - GET  /api/ai/models
+      configuration: [OpenAI API key, model settings, rate limiting]
+    frontend:
+      hooks: [useAIGeneration, useAIEmbedding, useAIModels]
+      components: [AIGenerator, AIEmbeddingStatus]
+    acceptance:
+      - AI responses generated successfully
+      - Embeddings created and stored
+      - Rate limiting prevents API abuse
+      - Error handling works correctly
+
+  - id: P1.1-D
+    title: Auto-Generated RAG Services
+    backend:
+      services: [ProductRAGService, UserRAGService, OrderRAGService]
+      endpoints:
+        - POST /api/ai/products/search
+        - POST /api/ai/users/recommend
+        - POST /api/ai/orders/analyze
+      generation: [Dynamic service generation based on @AICapable entities]
+    frontend:
+      hooks: [useProductAISearch, useUserAIRecommendations, useOrderAIAnalysis]
+      components: [ProductAISearch, UserAIRecommendations, OrderAIAnalysis]
+    acceptance:
+      - RAG services auto-generate for @AICapable entities
+      - Search endpoints work for each entity type
+      - Recommendations are relevant and accurate
+      - Analysis provides meaningful insights
+
+  - id: P1.1-E
+    title: Frontend AI Hooks and Components
+    backend:
+      endpoints:
+        - GET  /api/ai/entities/{type}/search
+        - POST /api/ai/entities/{type}/recommend
+        - GET  /api/ai/entities/{type}/insights
+    frontend:
+      hooks: [useAISearch, useAIRecommendations, useAIInsights, useBehavioralUI]
+      components: [AISearchInput, AIRecommendationList, AIInsightsPanel, BehavioralUI]
+      pages: [/ai/dashboard, /ai/search, /ai/insights]
+    acceptance:
+      - AI hooks work with React Query
+      - Components render AI data correctly
+      - Search functionality is responsive
+      - Recommendations update in real-time
+
+  - id: P1.1-F
+    title: AI Configuration and Management
+    backend:
+      entities: [AIConfiguration, AIProvider, AIModel]
+      endpoints:
+        - GET  /api/ai/config
+        - PUT  /api/ai/config
+        - POST /api/ai/providers
+        - GET  /api/ai/providers
+      services: [AIConfigurationService, AIProviderService]
+    frontend:
+      routes: [/admin/ai/config, /admin/ai/providers]
+      components: [AIConfigurationForm, AIProviderList, AIModelSelector]
+    acceptance:
+      - AI configuration is manageable
+      - Multiple providers can be configured
+      - Model selection works correctly
+      - Configuration changes take effect immediately
+
+  - id: P1.1-G
+    title: AI Health Monitoring and Metrics
+    backend:
+      endpoints:
+        - GET  /api/ai/health
+        - GET  /api/ai/metrics
+        - GET  /api/ai/usage
+      services: [AIHealthService, AIMetricsService, AIUsageService]
+      monitoring: [OpenAI API usage, Pinecone usage, response times]
+    frontend:
+      components: [AIHealthDashboard, AIMetricsChart, AIUsageStats]
+      pages: [/admin/ai/monitoring]
+    acceptance:
+      - Health status is accurately reported
+      - Metrics are collected and displayed
+      - Usage statistics are tracked
+      - Alerts are triggered for issues
+
+  - id: P1.1-H
+    title: AI Testing and Quality Assurance
+    backend:
+      tests: [AICoreServiceTest, RAGServiceTest, AIConfigurationTest]
+      integration: [AIIntegrationTest, AIEndToEndTest]
+      mocks: [OpenAIMock, PineconeMock, AIProviderMock]
+    frontend:
+      tests: [AIHooksTest, AIComponentsTest, AIPagesTest]
+      e2e: [AISearchFlow, AIRecommendationFlow, AIConfigurationFlow]
+    acceptance:
+      - Unit tests achieve ≥80% coverage
+      - Integration tests pass
+      - E2E tests cover main flows
+      - Mock services work correctly
