@@ -188,7 +188,14 @@ const SocialProfile = ({ tab }: Props) => {
               component="img"
               alt="cover image"
               image={aiProfile?.photos?.coverPhoto || Cover}
-              sx={{ borderRadius: `${borderRadius}px`, overflow: 'hidden', mb: 3 }}
+              sx={{ 
+                borderRadius: `${borderRadius}px`, 
+                overflow: 'hidden', 
+                mb: 3,
+                height: { xs: 85, sm: 150, md: 260 },
+                objectFit: 'cover',
+                width: '100%'
+              }}
             />
           )}
           <Grid container spacing={gridSpacing}>
