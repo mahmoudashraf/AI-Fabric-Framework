@@ -1,0 +1,197 @@
+meta:
+  phase: Phase 3 - Advanced Features & Scale
+  goals: >
+    Implement advanced features including controlled project publishing, ingestion system,
+    payment integration, advanced analytics, and scaling features. Focus on automation,
+    advanced matching, and platform monetization.
+  constraints:
+    - Full payment integration
+    - Advanced ingestion capabilities
+    - Controlled project publishing
+    - Advanced analytics and reporting
+
+tickets:
+  - id: P3.1-A
+    title: Controlled Project Publishing with Anonymity
+    backend:
+      entities: [ProjectPosting, Application]
+      endpoints:
+        - POST /api/projects/{id}/publish-controlled
+        - GET /api/postings/public
+        - POST /api/postings/{id}/applications
+        - GET /api/applications/{id}/scoring
+      features: [Anonymity controls, application caps, identity reveal on shortlist]
+    frontend:
+      routes: [/projects/[id]/publish-controlled, /marketplace/projects]
+      ui: Controlled publishing wizard and public project marketplace
+    acceptance:
+      - Controlled project publishing with anonymity
+      - Application caps (7-10 applications)
+      - Identity reveal on shortlist
+      - Public project marketplace
+
+  - id: P3.1-B
+    title: Unstructured Ingestion System
+    backend:
+      entities: [IngestionJob, SourceLog]
+      endpoints:
+        - POST /api/ingest/url
+        - POST /api/ingest/pdf
+        - POST /api/ingest/image
+        - GET /api/ingest/jobs
+        - POST /api/ingest/jobs/{id}/review
+      llm_integration: [GPT-4o-mini for extraction, OCR for images]
+    frontend:
+      routes: [/owner/agency/ingestion, /admin/ingestion-review]
+      ui: Ingestion interface and admin review dashboard
+    acceptance:
+      - URL/PDF/image ingestion with field-level citations
+      - Confidence scoring and human review
+      - Admin review interface with accept/edit/reject
+      - SourceLog for provenance tracking
+
+  - id: P3.1-C
+    title: Advanced Application Scoring & Management
+    backend:
+      entities: [Application]
+      endpoints:
+        - POST /api/applications/{id}/score
+        - GET /api/applications/{id}/scoring-breakdown
+        - POST /api/applications/{id}/shortlist
+        - POST /api/postings/{id}/close
+      features: [Fit/Evidence/Clarity scoring, transparent scoring to buyer]
+    frontend:
+      routes: [/projects/[id]/applications, /agency/applications/[id]]
+      ui: Application scoring interface and buyer review dashboard
+    acceptance:
+      - Fit (0-40), Evidence (0-40), Clarity (0-20) scoring
+      - Transparent scoring breakdown to buyers
+      - Auto-close on cap or deadline
+      - Shortlist up to 3 for consultations
+
+  - id: P3.1-D
+    title: Payment Integration & Credit Purchases
+    backend:
+      entities: [Payment, CreditTxn]
+      endpoints:
+        - POST /api/billing/credit-packs/checkout
+        - POST /api/billing/credit-packs/webhook
+        - POST /api/billing/pro-plan/checkout
+        - POST /api/billing/pro-plan/webhook
+      integrations: [Stripe PaymentIntents, webhook handling]
+    frontend:
+      routes: [/billing/credits, /billing/pro-plan, /billing/history]
+      ui: Payment interface and billing management
+    acceptance:
+      - Stripe integration for credit purchases
+      - Pro Plan subscription management
+      - Idempotent webhook handling
+      - Billing history and receipts
+
+  - id: P3.1-E
+    title: Pro Plan Features
+    backend:
+      entities: [User, Agency]
+      endpoints:
+        - POST /api/users/pro-plan/upgrade
+        - GET /api/users/pro-plan/features
+        - POST /api/agencies/{id}/auto-ingest
+      features: [Higher tile cap, advanced analytics, auto-ingest, fee waivers]
+    frontend:
+      routes: [/pro-plan/features, /owner/agency/auto-ingest]
+      ui: Pro Plan features and upgrade interface
+    acceptance:
+      - Pro Plan feature gating
+      - Advanced analytics for Pro users
+      - Auto-ingestion capabilities
+      - Application fee waivers
+
+  - id: P3.1-F
+    title: Advanced Analytics & Reporting
+    backend:
+      entities: [AnalyticsEvent, Report]
+      endpoints:
+        - GET /api/analytics/agency-performance
+        - GET /api/analytics/market-insights
+        - GET /api/analytics/benchmark-reports
+        - POST /api/reports/generate
+      features: [Market insights, benchmark reports, custom reporting]
+    frontend:
+      routes: [/analytics/advanced, /reports, /market-insights]
+      ui: Advanced analytics dashboard and reporting interface
+    acceptance:
+      - Market insights and trends
+      - Benchmark reports
+      - Custom report generation
+      - Agency performance comparisons
+
+  - id: P3.1-G
+    title: Concierge & Featured Placements
+    backend:
+      entities: [Payment, FeaturedPlacement]
+      endpoints:
+        - POST /api/concierge/intro
+        - POST /api/agencies/{id}/featured
+        - GET /api/featured/agencies
+      features: [Concierge introduction service, featured agency placements]
+    frontend:
+      routes: [/concierge, /marketplace/featured]
+      ui: Concierge service interface and featured agency gallery
+    acceptance:
+      - Concierge introduction service (100 credits or cash)
+      - Featured agency placements
+      - Featured agency gallery
+      - Concierge service tracking
+
+  - id: P3.1-H
+    title: Advanced Security & Compliance
+    backend:
+      entities: [AuditLog, RateLimit]
+      endpoints:
+        - GET /api/admin/security/audit
+        - GET /api/admin/security/rate-limits
+        - POST /api/admin/security/scrub-pii
+      features: [PII scrubbing, GDPR compliance, advanced audit logging]
+    frontend:
+      routes: [/admin/security, /privacy-settings]
+      ui: Security dashboard and privacy settings
+    acceptance:
+      - PII scrubbing before LLM processing
+      - GDPR compliance (export/delete, DPA)
+      - Advanced audit logging
+      - Rate limiting on sensitive endpoints
+
+  - id: P3.1-I
+    title: Performance Optimization & Scaling
+    backend:
+      features: [Caching, database optimization, CDN integration]
+      endpoints:
+        - GET /api/health/performance
+        - GET /api/admin/performance/metrics
+      optimizations: [Redis caching, database indexing, query optimization]
+    frontend:
+      features: [Code splitting, lazy loading, performance monitoring]
+      routes: [/admin/performance]
+    acceptance:
+      - p95 page load < 2.5s
+      - p95 matching < 800ms at 1k agencies
+      - 99.5% availability target
+      - Performance monitoring dashboard
+
+  - id: P3.1-J
+    title: Advanced Matching & AI Features
+    backend:
+      entities: [MatchResult]
+      endpoints:
+        - POST /api/match/advanced
+        - GET /api/match/explain/{matchId}
+        - POST /api/ai/insights
+      llm_integration: [Advanced matching algorithms, AI insights]
+    frontend:
+      routes: [/briefs/[id]/advanced-matches, /ai-insights]
+      ui: Advanced matching interface and AI insights dashboard
+    acceptance:
+      - Advanced matching algorithms
+      - AI-powered insights and recommendations
+      - Explainable AI for matching decisions
+      - Machine learning model improvements

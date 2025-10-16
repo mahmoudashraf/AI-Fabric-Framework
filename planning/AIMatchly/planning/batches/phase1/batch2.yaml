@@ -1,0 +1,19 @@
+meta:
+  batch: Phase 1 - Batch 2
+  tickets: [P1.1-C, P1.1-D]
+  goal: >
+    Implement brief intake and normalization system with basic matching algorithm.
+    Enable buyers to submit briefs and get matched with relevant agencies.
+  duration: "1-2 weeks"
+  dependencies: [batch1]
+
+tickets:
+  - id: P1.1-C
+    title: Brief Intake & Normalization
+    priority: "high"
+    complexity: "high"
+    
+  - id: P1.1-D
+    title: Basic Matching Algorithm
+    priority: "high"
+    complexity: "high"

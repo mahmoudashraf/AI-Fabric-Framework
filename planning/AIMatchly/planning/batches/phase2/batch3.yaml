@@ -1,0 +1,19 @@
+meta:
+  batch: Phase 2 - Batch 3
+  tickets: [P2.1-E, P2.1-F]
+  goal: >
+    Implement Proof Pack verification workflow and enhanced matching analytics.
+    Complete Phase 2 with verification system and advanced analytics.
+  duration: "2-3 weeks"
+  dependencies: [phase2-batch2]
+
+tickets:
+  - id: P2.1-E
+    title: Proof Pack Verification Workflow
+    priority: "medium"
+    complexity: "medium"
+    
+  - id: P2.1-F
+    title: Enhanced Matching & Analytics
+    priority: "medium"
+    complexity: "medium"
