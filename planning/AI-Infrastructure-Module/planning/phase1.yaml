@@ -1,0 +1,126 @@
+meta:
+  phase: Phase 1 - Generic AI Module Foundation
+  goals: >
+    Create standalone ai-infrastructure-spring-boot-starter module with core AI capabilities,
+    RAG system with vector database abstraction, @AICapable annotation framework,
+    AI Core Service with OpenAI integration, and comprehensive testing.
+  constraints:
+    - Create as separate Maven module
+    - Provider-agnostic design (OpenAI, future: Anthropic, Cohere)
+    - Vector database abstraction (Pinecone, future: Chroma, Weaviate)
+    - Entity-agnostic implementation
+    - Spring Boot 3.x compatibility
+    - Ready for Maven Central publication
+
+tickets:
+  - id: P1.1-A
+    title: Create Maven Module Structure
+    backend:
+      module: ai-infrastructure-spring-boot-starter
+      structure: [annotation/, core/, rag/, behavioral/, config/, dto/, processor/, exception/]
+      dependencies: [Spring Boot, OpenAI, Pinecone, MapStruct, Jackson]
+      configuration: [Maven POM, Spring Boot starter, auto-configuration]
+    acceptance:
+      - Maven module structure is created
+      - Dependencies are properly configured
+      - Spring Boot starter auto-configuration works
+      - Module can be built and packaged
+      - Basic package structure is established
+
+  - id: P1.1-B
+    title: Implement AICoreService with OpenAI Integration
+    backend:
+      services: [AICoreService, AIEmbeddingService, AISearchService]
+      providers: [OpenAIProvider, future: AnthropicProvider, CohereProvider]
+      features: [text generation, embedding generation, semantic search]
+      configuration: [OpenAI API settings, model configuration, rate limiting]
+    acceptance:
+      - AICoreService generates content successfully
+      - Embeddings are created and stored
+      - Semantic search returns relevant results
+      - Error handling and retry logic works
+      - Rate limiting prevents API abuse
+
+  - id: P1.1-C
+    title: Add AIEmbeddingService for Vector Generation
+    backend:
+      services: [AIEmbeddingService, EmbeddingProcessor]
+      features: [text preprocessing, chunking, vector generation, caching]
+      providers: [OpenAI embeddings, future: other embedding providers]
+      optimization: [batch processing, caching, performance monitoring]
+    acceptance:
+      - Text is preprocessed and chunked correctly
+      - Embeddings are generated efficiently
+      - Caching reduces API calls
+      - Performance monitoring tracks metrics
+      - Error handling works for embedding failures
+
+  - id: P1.1-D
+    title: Create AISearchService for Semantic Search
+    backend:
+      services: [AISearchService, VectorSearchService]
+      features: [semantic search, vector similarity, result ranking, filtering]
+      providers: [Vector database abstraction layer]
+      optimization: [search caching, result optimization, performance tuning]
+    acceptance:
+      - Semantic search returns relevant results
+      - Vector similarity search works correctly
+      - Result ranking and filtering function properly
+      - Search performance is optimized
+      - Caching improves response times
+
+  - id: P1.1-E
+    title: Implement @AICapable Annotation Framework
+    backend:
+      annotations: [@AICapable, @AIEmbedding, @AIKnowledge, @AISmartValidation]
+      processors: [AICapableProcessor, AIAnnotationProcessor]
+      features: [annotation processing, feature detection, auto-generation]
+      configuration: [annotation settings, feature toggles, validation rules]
+    acceptance:
+      - @AICapable annotation processes correctly
+      - AI features auto-generate for annotated entities
+      - Annotation processor works at compile time
+      - Feature detection and activation works
+      - Configuration is stored and retrievable
+
+  - id: P1.1-F
+    title: Build RAG System with Vector Database Abstraction
+    backend:
+      services: [RAGService, VectorDatabaseService, EmbeddingProcessor]
+      providers: [PineconeVectorDatabase, future: ChromaVectorDatabase, WeaviateVectorDatabase]
+      features: [automatic indexing, RAG queries, context building, result ranking]
+      abstraction: [VectorDatabase interface, provider-agnostic design]
+    acceptance:
+      - RAG system works with any vector database
+      - Automatic indexing functions correctly
+      - RAG queries return relevant results
+      - Context building and ranking work properly
+      - Provider abstraction allows easy switching
+
+  - id: P1.1-G
+    title: Add AI Configuration and Auto-Configuration
+    backend:
+      configuration: [AIProviderConfig, AIServiceConfig, AIInfrastructureAutoConfiguration]
+      features: [auto-configuration, provider settings, feature toggles, validation]
+      providers: [OpenAI, Pinecone, future: Anthropic, Cohere, Chroma, Weaviate]
+      settings: [API keys, model settings, rate limiting, performance tuning]
+    acceptance:
+      - Auto-configuration works correctly
+      - Provider settings are configurable
+      - Feature toggles function properly
+      - Configuration validation works
+      - Settings are applied correctly
+
+  - id: P1.1-H
+    title: Implement Comprehensive Testing and Documentation
+    backend:
+      tests: [AICoreServiceTest, RAGServiceTest, AIConfigurationTest, VectorDatabaseTest]
+      integration: [AIIntegrationTest, AIEndToEndTest, ProviderIntegrationTest]
+      mocks: [OpenAIMock, PineconeMock, AIProviderMock, VectorDatabaseMock]
+      documentation: [API docs, usage guides, examples, configuration docs]
+    acceptance:
+      - Unit tests achieve ≥90% coverage
+      - Integration tests pass with Testcontainers
+      - Mock services work correctly
+      - Documentation is comprehensive and clear
+      - Examples demonstrate proper usage
