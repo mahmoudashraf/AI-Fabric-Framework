@@ -52,9 +52,13 @@ const AIProfileTab: React.FC = () => {
 
   // Success handler for profile generation
   const handleProfileGenerated = (data: AIProfile) => {
+    console.log('🤖 [AIProfileTab] Profile generated from backend:', data);
     setGeneratedProfile(data);
     try {
       const parsed = aiProfileApi.parseAiAttributes(data.aiAttributes);
+      console.log('🤖 [AIProfileTab] Parsed profile data:', parsed);
+      console.log('🤖 [AIProfileTab] Companies extracted:', parsed.companies);
+      console.log('🤖 [AIProfileTab] Number of companies:', parsed.companies?.length || 0);
       setProfileData(parsed);
       showNotification({
         open: true,

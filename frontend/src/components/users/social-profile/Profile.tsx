@@ -50,8 +50,12 @@ const Profile = () => {
     queryFn: async () => {
       try {
         const profile = await aiProfileApi.getLatestProfile();
+        console.log('📊 [Profile.tsx] Raw profile from API:', profile);
         if (profile && profile.status === 'COMPLETE') {
-          return aiProfileApi.parseAiAttributes(profile.aiAttributes);
+          const parsed = aiProfileApi.parseAiAttributes(profile.aiAttributes);
+          console.log('📊 [Profile.tsx] Parsed AI profile data:', parsed);
+          console.log('📊 [Profile.tsx] Companies in profile:', parsed.companies);
+          return parsed;
         }
         return null;
       } catch (error) {
