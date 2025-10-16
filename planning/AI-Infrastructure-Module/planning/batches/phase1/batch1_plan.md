@@ -1,271 +1,147 @@
-# Phase 1, Batch 1: Create Maven Module Structure
+# PLAN — Batch 1 (Sequence 1) (Tickets: P1.1-A, P1.1-B)
 
-## Overview
-Create the foundational Maven module structure for `ai-infrastructure-spring-boot-starter` with proper dependencies, configuration, and build setup.
+## 0) Summary
+- **Goal**: Create standalone ai-infrastructure-spring-boot-starter module with core AI capabilities and OpenAI integration
+- **Architecture note**: Build as separate Maven module with Spring Boot auto-configuration for easy integration
+- **Tickets covered**: P1.1-A (Create Maven Module Structure), P1.1-B (Implement AICoreService with OpenAI Integration)
+- **Non-goals / out of scope**: Vector database integration, RAG system, behavioral AI, advanced features
 
-## Tickets
-- **P1.1-A**: Create Maven Module Structure
-- **P1.1-B**: Implement AICoreService with OpenAI Integration
+## 1) Backend changes
+- **Maven module structure**:
+  - Create `ai-infrastructure-spring-boot-starter/` directory
+  - `pom.xml` with Spring Boot starter configuration
+  - Package structure: `com.ai.infrastructure.*`
+  - Auto-configuration setup with `spring.factories`
+- **Dependencies**:
+  - Spring Boot 3.x, Spring AI, OpenAI Java client
+  - Jackson, MapStruct, Lombok, Jakarta Validation
+  - Spring Boot Test, Testcontainers for testing
+- **Configuration**:
+  - `AIProviderConfig` with OpenAI settings
+  - `AIInfrastructureAutoConfiguration` for auto-configuration
+  - `application-ai.yml` with default settings
+- **Services**:
+  - `AICoreService` - Central AI service with OpenAI integration
+  - `AIEmbeddingService` - Embedding generation service
+  - `AISearchService` - Semantic search service
+- **DTOs & mappers**:
+  - `AIGenerationRequest`, `AIGenerationResponse`
+  - `AIEmbeddingRequest`, `AIEmbeddingResponse`
+  - `AISearchRequest`, `AISearchResponse`
+  - MapStruct mappers for DTO conversion
+- **Auto-configuration**:
+  - `@ConditionalOnClass` for AI services
+  - `@ConditionalOnProperty` for feature toggles
+  - `@EnableConfigurationProperties` for AI settings
+- **Error handling**:
+  - `AIException` hierarchy
+  - `AIErrorHandler` with proper error responses
+  - Rate limiting and retry logic
 
-## Backend Changes
+## 2) Frontend changes (Next.js App Router)
+- **Routes/pages**: None in this batch (AI module is backend-only)
+- **Components**: None in this batch
+- **Data fetching (React Query keys)**: None in this batch
+- **Forms & validation (RHF + Zod)**: None in this batch
+- **AI hooks**: None in this batch (will be added in Phase 2)
+- **Accessibility notes**: N/A for backend module
 
-### New Maven Module Structure
-```
-ai-infrastructure-spring-boot-starter/
-├── pom.xml
-├── src/main/java/com/ai/infrastructure/
-│   ├── annotation/
-│   ├── core/
-│   ├── config/
-│   ├── dto/
-│   └── exception/
-└── src/main/resources/
-    ├── META-INF/spring.factories
-    └── application-ai.yml
-```
+## 3) OpenAPI & Types
+- **Springdoc annotations**:
+  - `@Operation` for AI service endpoints
+  - `@ApiResponse` for error codes
+  - `@Schema` for request/response DTOs
+- **Regenerate FE types**: N/A for backend module
 
-### Dependencies
-```xml
-<dependencies>
-    <!-- Spring Boot Starters -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter</artifactId>
-    </dependency>
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-data-jpa</artifactId>
-    </dependency>
-    
-    <!-- AI Providers -->
-    <dependency>
-        <groupId>com.theokanning.openai-gpt3-java</groupId>
-        <artifactId>service</artifactId>
-        <version>0.18.2</version>
-    </dependency>
-    
-    <!-- Utilities -->
-    <dependency>
-        <groupId>org.mapstruct</groupId>
-        <artifactId>mapstruct</artifactId>
-        <version>1.5.5.Final</version>
-    </dependency>
-    <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-databind</artifactId>
-    </dependency>
-</dependencies>
-```
+## 4) Tests
+- **BE unit/slice**:
+  - `AICoreServiceTest` - Core AI functionality
+  - `AIEmbeddingServiceTest` - Embedding generation
+  - `AISearchServiceTest` - Semantic search
+  - `AIProviderConfigTest` - Configuration validation
+  - `AIInfrastructureAutoConfigurationTest` - Auto-configuration
+- **BE integration (Testcontainers)**:
+  - `AIIntegrationTest` - Full AI service integration
+  - `OpenAIIntegrationTest` - OpenAI API integration
+- **FE unit**: N/A for backend module
+- **E2E happy-path (Playwright)**: N/A for backend module
+- **Coverage target**: 90%+ for AI services, 80%+ overall
 
-### Core Services
+## 5) Seed & Sample Data (dev only)
+- **What to seed**:
+  - Sample AI configuration for testing
+  - Mock OpenAI responses for integration tests
+- **How to run**:
+  - `mvn clean install` - Build AI module
+  - `mvn spring-boot:run` - Run with test configuration
 
-#### AICoreService
-```java
-@Service
-@RequiredArgsConstructor
-public class AICoreService {
-    private final AIProviderConfig aiProviderConfig;
-    private final AIEmbeddingService embeddingService;
-    private final AISearchService searchService;
-    
-    public AIGenerationResponse generateContent(AIGenerationRequest request) {
-        // OpenAI integration for content generation
-    }
-    
-    public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
-        // Embedding generation using OpenAI
-    }
-    
-    public AISearchResponse performSearch(AISearchRequest request) {
-        // Semantic search functionality
-    }
-}
-```
+## 6) Acceptance Criteria Matrix
+- **P1.1-A**:
+  - [ ] AC#1: Maven module structure is created with proper package organization
+  - [ ] AC#2: Dependencies are properly configured in pom.xml
+  - [ ] AC#3: Spring Boot starter auto-configuration works
+  - [ ] AC#4: Module can be built and packaged successfully
+  - [ ] AC#5: Basic package structure is established
+- **P1.1-B**:
+  - [ ] AC#1: AICoreService generates content successfully with OpenAI
+  - [ ] AC#2: Embeddings are created and stored correctly
+  - [ ] AC#3: Semantic search returns relevant results
+  - [ ] AC#4: Error handling and retry logic works
+  - [ ] AC#5: Rate limiting prevents API abuse
 
-#### AIProviderConfig
-```java
-@ConfigurationProperties(prefix = "ai.providers")
-public class AIProviderConfig {
-    private String openaiApiKey;
-    private String openaiModel = "gpt-4o-mini";
-    private String openaiEmbeddingModel = "text-embedding-3-small";
-    private Integer openaiMaxTokens = 2000;
-    private Double openaiTemperature = 0.3;
-    private Integer openaiTimeout = 60;
-}
-```
+## 7) Risks & Rollback
+- **Risks**:
+  - OpenAI API rate limits and costs
+  - Maven module configuration complexity
+  - Spring Boot auto-configuration issues
+- **Mitigations**:
+  - Implement caching and rate limiting
+  - Comprehensive Maven configuration testing
+  - Thorough auto-configuration testing
+- **Rollback plan**:
+  - Remove AI module dependency
+  - Revert to previous configuration
+  - Clean up Maven module
 
-### Auto-Configuration
-```java
-@Configuration
-@EnableConfigurationProperties(AIProviderConfig.class)
-@ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
-public class AIInfrastructureAutoConfiguration {
-    
-    @Bean
-    public AICoreService aiCoreService(AIProviderConfig config) {
-        return new AICoreService(config, aiEmbeddingService(config), aiSearchService(config));
-    }
-    
-    @Bean
-    public AIEmbeddingService aiEmbeddingService(AIProviderConfig config) {
-        return new AIEmbeddingService(config);
-    }
-    
-    @Bean
-    public AISearchService aiSearchService(AIProviderConfig config) {
-        return new AISearchService(config);
-    }
-}
+## 8) Commands to run (print, don't execute yet)
+```bash
+# Maven module setup
+cd ai-infrastructure-spring-boot-starter
+mvn clean install
+mvn spring-boot:run
+
+# Testing
+mvn test
+mvn test -Dtest=AIIntegrationTest
+
+# Integration with Easy Luxury
+cd ../backend
+mvn clean install
+mvn spring-boot:run
 ```
 
-### DTOs
-
-#### AIGenerationRequest
-```java
-@Data
-@Builder
-public class AIGenerationRequest {
-    @NotBlank(message = "Prompt cannot be blank")
-    @Size(max = 4000, message = "Prompt cannot exceed 4000 characters")
-    private String prompt;
-    
-    private String systemPrompt;
-    private String model;
-    private Integer maxTokens;
-    private Double temperature;
-    private String context;
-    private String entityType;
-    private String purpose;
-}
-```
-
-#### AIGenerationResponse
-```java
-@Data
-@Builder
-public class AIGenerationResponse {
-    private String content;
-    private String model;
-    private Usage usage;
-    private Long processingTimeMs;
-    private String requestId;
-}
-```
-
-### Configuration Files
-
-#### META-INF/spring.factories
-```
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.ai.infrastructure.config.AIInfrastructureAutoConfiguration
-```
-
-#### application-ai.yml
-```yaml
-ai:
-  enabled: true
-  providers:
-    openai:
-      api-key: ${OPENAI_API_KEY:}
-      model: gpt-4o-mini
-      embedding-model: text-embedding-3-small
-      max-tokens: 2000
-      temperature: 0.3
-      timeout: 60
-  features:
-    rag:
-      enabled: true
-      auto-index: true
-    behavioral:
-      enabled: true
-      tracking: true
-    validation:
-      enabled: true
-      smart-validation: true
-```
-
-## Testing
-
-### Unit Tests
-- AICoreServiceTest
-- AIProviderConfigTest
-- AIGenerationRequestTest
-- AIGenerationResponseTest
-
-### Integration Tests
-- AIIntegrationTest with Testcontainers
-- OpenAI API integration tests
-- Configuration validation tests
-
-### Test Coverage
-- Target: 90%+ unit test coverage
-- All public methods tested
-- Error scenarios covered
-- Configuration scenarios tested
-
-## Acceptance Criteria
-
-### P1.1-A: Create Maven Module Structure
-- [ ] Maven module structure is created
-- [ ] Dependencies are properly configured
-- [ ] Spring Boot starter auto-configuration works
-- [ ] Module can be built and packaged
-- [ ] Basic package structure is established
-
-### P1.1-B: Implement AICoreService with OpenAI Integration
-- [ ] AICoreService generates content successfully
-- [ ] Embeddings are created and stored
-- [ ] Semantic search returns relevant results
-- [ ] Error handling and retry logic works
-- [ ] Rate limiting prevents API abuse
-
-## Risks and Mitigation
-
-### Risks
-1. **OpenAI API Rate Limits**: Implement proper rate limiting and retry logic
-2. **Configuration Complexity**: Use Spring Boot configuration properties
-3. **Dependency Management**: Use Spring Boot dependency management
-4. **Testing Challenges**: Use Testcontainers for integration tests
-
-### Mitigation
-1. **Rate Limiting**: Implement exponential backoff and circuit breaker
-2. **Configuration**: Use @ConfigurationProperties for type-safe configuration
-3. **Dependencies**: Use Spring Boot BOM for dependency management
-4. **Testing**: Use Testcontainers and mock services for testing
-
-## Deliverables
-
-### Code
-- Complete Maven module structure
-- AICoreService implementation
-- AIProviderConfig configuration
-- Auto-configuration setup
-- DTOs and request/response models
-
-### Documentation
-- Module README
-- Configuration guide
-- Usage examples
-- API documentation
-
-### Testing
-- Unit tests (90%+ coverage)
-- Integration tests
-- Configuration tests
-- Error handling tests
-
-## Timeline
-- **Duration**: 1 week
-- **Start**: Week 1 of Phase 1
-- **End**: End of Week 1
-
-## Dependencies
-- OpenAI API key
-- Spring Boot 3.x
-- Java 21
-- Maven 3.8+
+## 9) Deliverables
+- **File tree (added/changed)**:
+  ```
+  ai-infrastructure-spring-boot-starter/
+  ├── pom.xml
+  ├── src/main/java/com/ai/infrastructure/
+  │   ├── annotation/AICapable.java
+  │   ├── core/AICoreService.java, AIEmbeddingService.java, AISearchService.java
+  │   ├── config/AIProviderConfig.java, AIInfrastructureAutoConfiguration.java
+  │   ├── dto/AIGenerationRequest.java, AIGenerationResponse.java, etc.
+  │   ├── exception/AIException.java, AIErrorHandler.java
+  │   └── processor/AICapableProcessor.java
+  ├── src/main/resources/
+  │   ├── META-INF/spring.factories
+  │   └── application-ai.yml
+  └── src/test/java/com/ai/infrastructure/
+      ├── core/AICoreServiceTest.java
+      ├── config/AIProviderConfigTest.java
+      └── integration/AIIntegrationTest.java
+  ```
+- **Generated diffs**: Will be provided after implementation
+- **OpenAPI delta summary**: AI service endpoints for content generation and search
+- **Proposed conventional commits (per ticket)**:
+  - `feat(ai-module): create Maven module structure with Spring Boot starter [P1.1-A]`
+  - `feat(ai-core): implement AICoreService with OpenAI integration [P1.1-B]`
