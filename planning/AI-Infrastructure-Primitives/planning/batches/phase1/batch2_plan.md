@@ -7,12 +7,17 @@
 - **Non-goals / out of scope**: Behavioral AI, advanced UI features, complex automation
 
 ## 1) Backend changes
-- **Services (new/updated)**:
-  - `AICoreService` - Central AI functionality with OpenAI integration
-  - `AIEmbeddingService` - Embedding generation and management
-  - `AISearchService` - Semantic search operations
-  - `AIGenerationService` - Content generation with OpenAI
-  - `AIServiceRegistry` - Dynamic service registration
+- **Facade layer (controllers depend on facades, not services)**:
+  - Pattern: Controllers → Facades → Services → Repositories
+  - Facades:
+    - `AIGenerationFacade` — aggregates `AIGenerationService`, `AIEmbeddingService` for AI generation orchestration
+    - `EntityAIFacade` — coordinates `AIServiceRegistry`, `AICoreService` for entity-specific AI features
+  - Services (new/updated):
+    - `AICoreService` - Central AI functionality with OpenAI integration
+    - `AIEmbeddingService` - Embedding generation and management
+    - `AISearchService` - Semantic search operations
+    - `AIGenerationService` - Content generation with OpenAI
+    - `AIServiceRegistry` - Dynamic service registration
 - **Auto-generated services**:
   - `ProductRAGService` - Auto-generated for Product entities
   - `UserRAGService` - Auto-generated for User entities
@@ -172,7 +177,7 @@ docker compose up -d
 - **File tree (added/changed)**:
   ```
   backend/
-  ├── src/main/java/com/easy/luxury/
+  ├── src/main/java/com/easyluxury/
   │   ├── service/AICoreService.java, AIGenerationService.java, AIServiceRegistry.java
   │   ├── service/rag/ProductRAGService.java, UserRAGService.java, OrderRAGService.java
   │   ├── controller/AIGenerationController.java, EntityAIController.java
