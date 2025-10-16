@@ -1,8 +1,8 @@
 Use docs/PROJECT_GUIDELINES.yaml as the single source of truth.
 Use docs/FRONTEND_DEVELOPMENT_GUIDE.md as the UI Development guide.
 
-Load planning/phase1.yaml.  
-Implement tickets **P1.1-A (RAG System Foundation)** and **P1.1-B (AI Core Service)**.  
+Load planning/phase3.yaml.  
+Implement tickets **P3.1-A (Implement Behavioral AI System)** and **P3.1-B (Add Smart Data Validation with AI)**.  
 
 Plan first: list files, DTOs, endpoints, Maven configuration, and acceptance criteria.  
 Wait for my approval before coding.
@@ -10,11 +10,11 @@ Wait for my approval before coding.
 ⚠️ IMPORTANT: Output ONLY the PLAN using the following Markdown Checklist template.  
 Do NOT generate or edit code until I explicitly reply "OK, proceed".
 
-# PLAN — Batch 1 (Sequence 18) (Tickets: P1.1-A (RAG System Foundation), P1.1-B (AI Core Service))
+# PLAN — Batch 1 (Sequence 10) (Tickets: P3.1-A (Implement Behavioral AI System), P3.1-B (Add Smart Data Validation with AI))
 
 ## 0) Summary
-- Goal: Implement RAG system foundation and AI core service
-- Tickets covered: P1.1-A (RAG System Foundation), P1.1-B (AI Core Service)
+- Goal: Implement behavioral AI system and smart data validation with AI
+- Tickets covered: P3.1-A (Implement Behavioral AI System), P3.1-B (Add Smart Data Validation with AI)
 - Non-goals / out of scope:
 
 ## 1) Backend changes
@@ -46,10 +46,10 @@ Do NOT generate or edit code until I explicitly reply "OK, proceed".
 - How to run:
 
 ## 6) Acceptance Criteria Matrix
-- P1.1-A (RAG System Foundation):
+- P3.1-A (Implement Behavioral AI System):
   - [ ] AC#1 …
   - [ ] AC#2 …
-- P1.1-B (AI Core Service):
+- P3.1-B (Add Smart Data Validation with AI):
   - [ ] AC#1 …
   - [ ] AC#2 …
 

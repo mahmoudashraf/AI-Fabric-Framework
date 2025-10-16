@@ -1,9 +1,9 @@
-# PLAN — Batch 1 (Sequence 18) (Tickets: P1.1-A (RAG System Foundation), P1.1-B (AI Core Service))
+# PLAN — Batch 4 (Sequence 25) (Tickets: P2.1-G (Production Deployment + Monitoring), P2.1-H (User Experience + Feedback))
 
 ## 0) Summary
-- **Goal**: Implement RAG system foundation and AI core service
+- **Goal**: Implement production deployment with monitoring and user experience optimization
 - **Architecture note**: AI Infrastructure Primitives implementation
-- **Tickets covered**: P1.1-A (RAG System Foundation), P1.1-B (AI Core Service)
+- **Tickets covered**: P2.1-G (Production Deployment + Monitoring), P2.1-H (User Experience + Feedback)
 - **Non-goals / out of scope**: Library extraction, advanced features
 
 ## 1) Backend changes
@@ -35,10 +35,10 @@
 - **How to run**: Standard Maven commands
 
 ## 6) Acceptance Criteria Matrix
-- **P1.1-A (RAG System Foundation)**:
+- **P2.1-G (Production Deployment + Monitoring)**:
   - [ ] AC#1: Feature works correctly
   - [ ] AC#2: Integration is successful
-- **P1.1-B (AI Core Service)**:
+- **P2.1-H (User Experience + Feedback)**:
   - [ ] AC#1: Feature works correctly
   - [ ] AC#2: Integration is successful
 
@@ -70,5 +70,5 @@ npm run test:e2e
 - **Generated diffs**: Will be provided after implementation
 - **OpenAPI delta summary**: AI primitive endpoint updates
 - **Proposed conventional commits (per ticket)**:
-  - `feat(ai-primitives): implement P1.1-A (RAG System Foundation) [P1.1-A (RAG System Foundation)]`
-  - `feat(ai-primitives): implement P1.1-B (AI Core Service) [P1.1-B (AI Core Service)]`
+  - `feat(ai-primitives): implement P2.1-G (Production Deployment + Monitoring) [P2.1-G (Production Deployment + Monitoring)]`
+  - `feat(ai-primitives): implement P2.1-H (User Experience + Feedback) [P2.1-H (User Experience + Feedback)]`

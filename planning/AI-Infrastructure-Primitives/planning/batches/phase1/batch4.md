@@ -2,7 +2,7 @@ Use docs/PROJECT_GUIDELINES.yaml as the single source of truth.
 Use docs/FRONTEND_DEVELOPMENT_GUIDE.md as the UI Development guide.
 
 Load planning/phase1.yaml.  
-Implement tickets **P1.1-A (RAG System Foundation)** and **P1.1-B (AI Core Service)**.  
+Implement tickets **P1.1-G (Dynamic UI Generation + Intelligent Testing)** and **P1.1-H (Performance Optimization + Production Readiness)**.  
 
 Plan first: list files, DTOs, endpoints, Maven configuration, and acceptance criteria.  
 Wait for my approval before coding.
@@ -10,11 +10,11 @@ Wait for my approval before coding.
 ⚠️ IMPORTANT: Output ONLY the PLAN using the following Markdown Checklist template.  
 Do NOT generate or edit code until I explicitly reply "OK, proceed".
 
-# PLAN — Batch 1 (Sequence 18) (Tickets: P1.1-A (RAG System Foundation), P1.1-B (AI Core Service))
+# PLAN — Batch 4 (Sequence 21) (Tickets: P1.1-G (Dynamic UI Generation + Intelligent Testing), P1.1-H (Performance Optimization + Production Readiness))
 
 ## 0) Summary
-- Goal: Implement RAG system foundation and AI core service
-- Tickets covered: P1.1-A (RAG System Foundation), P1.1-B (AI Core Service)
+- Goal: Implement dynamic UI generation with intelligent testing and performance optimization
+- Tickets covered: P1.1-G (Dynamic UI Generation + Intelligent Testing), P1.1-H (Performance Optimization + Production Readiness)
 - Non-goals / out of scope:
 
 ## 1) Backend changes
@@ -46,10 +46,10 @@ Do NOT generate or edit code until I explicitly reply "OK, proceed".
 - How to run:
 
 ## 6) Acceptance Criteria Matrix
-- P1.1-A (RAG System Foundation):
+- P1.1-G (Dynamic UI Generation + Intelligent Testing):
   - [ ] AC#1 …
   - [ ] AC#2 …
-- P1.1-B (AI Core Service):
+- P1.1-H (Performance Optimization + Production Readiness):
   - [ ] AC#1 …
   - [ ] AC#2 …
 
