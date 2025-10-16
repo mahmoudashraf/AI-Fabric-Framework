@@ -186,8 +186,8 @@ const SocialProfile = ({ tab }: Props) => {
           ) : (
             <CardMedia
               component="img"
-              alt="pro image"
-              image={Cover}
+              alt="cover image"
+              image={aiProfile?.photos?.coverPhoto || Cover}
               sx={{ borderRadius: `${borderRadius}px`, overflow: 'hidden', mb: 3 }}
             />
           )}
