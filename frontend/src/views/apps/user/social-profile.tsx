@@ -18,6 +18,8 @@ import Profile from 'components/users/social-profile/Profile';
 import AIProfileTab from 'components/users/social-profile/AIProfileTab';
 import useAuth from 'hooks/useAuth';
 import useConfig from 'hooks/useConfig';
+import { useQuery } from '@tanstack/react-query';
+import { aiProfileApi } from '@/services/ai-profile-api';
 import { gridSpacing } from 'constants/index';
 import { TabsProps } from 'types';
 import MainCard from 'ui-component/cards/MainCard';
@@ -110,6 +112,25 @@ const SocialProfile = ({ tab }: Props) => {
   const { user } = useAuth();
   const { borderRadius } = useConfig();
 
+  // Fetch AI profile data for header
+  const { data: aiProfile } = useQuery({
+    queryKey: ['aiProfile', 'latest', 'header'],
+    queryFn: async () => {
+      try {
+        const profile = await aiProfileApi.getLatestProfile();
+        if (profile && profile.status === 'COMPLETE') {
+          return aiProfileApi.parseAiAttributes(profile.aiAttributes);
+        }
+        return null;
+      } catch (error) {
+        console.log('No published AI profile found:', error);
+        return null;
+      }
+    },
+    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   let selectedTab = 0;
   switch (tab) {
     case 'follower':
@@ -189,8 +210,8 @@ const SocialProfile = ({ tab }: Props) => {
                 />
               ) : (
                 <Avatar
-                  alt="User 1"
-                  src={User1}
+                  alt={aiProfile?.name || 'User'}
+                  src={aiProfile?.photos?.profilePhoto || User1}
                   sx={{
                     margin: '-70px 0 0 auto',
                     borderRadius: '16px',
@@ -209,8 +230,12 @@ const SocialProfile = ({ tab }: Props) => {
             <Grid size={{ xs: 12, md: 9 }}>
               <Grid container spacing={gridSpacing}>
                 <Grid size={{ xs: 12, md: 4 }}>
-                  <Typography variant="h5">{user?.firstName ? `${user.firstName} ${user.lastName}` : user?.email}</Typography>
-                  <Typography variant="subtitle2">Android Developer</Typography>
+                  <Typography variant="h5">
+                    {aiProfile?.name || (user?.firstName ? `${user.firstName} ${user.lastName}` : user?.email)}
+                  </Typography>
+                  <Typography variant="subtitle2">
+                    {aiProfile?.jobTitle || 'Android Developer'}
+                  </Typography>
                 </Grid>
                 <Grid size={{ xs: 12, md: 8 }}>
                   <Grid
