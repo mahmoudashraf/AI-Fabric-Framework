@@ -1,15 +1,15 @@
 meta:
-  phase: Phase 2 - Behavioral AI and User Intelligence
+  phase: Phase 2 - Easy Luxury Integration
   goals: >
-    Implement user behavior tracking system, UI adaptation based on behavior,
-    content recommendations, behavioral analytics dashboard, and intelligent
-    user insights generation for personalized AI experiences.
+    Integrate AI infrastructure module into Easy Luxury with domain-specific
+    AI services for products, users, and orders, including behavioral AI,
+    recommendations, and luxury-specific AI features.
   constraints:
-    - Build on Phase 1 RAG foundation
-    - Maintain user privacy and data protection
-    - Follow GDPR compliance requirements
-    - Use existing user management system
-    - Incremental behavioral feature rollout
+    - Use AI infrastructure module as dependency
+    - Maintain existing Easy Luxury architecture
+    - Focus on domain-specific implementations
+    - Incremental integration approach
+    - No breaking changes to existing functionality
 
 tickets:
   - id: P2.1-A

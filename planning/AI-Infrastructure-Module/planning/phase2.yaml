@@ -1,0 +1,156 @@
+meta:
+  phase: Phase 2 - Easy Luxury Integration
+  goals: >
+    Integrate AI infrastructure module into Easy Luxury with domain-specific
+    AI services for products, users, and orders, including behavioral AI,
+    recommendations, and luxury-specific AI features.
+  constraints:
+    - Use AI infrastructure module as dependency
+    - Maintain existing Easy Luxury architecture
+    - Focus on domain-specific implementations
+    - Incremental integration approach
+    - No breaking changes to existing functionality
+
+tickets:
+  - id: P2.1-A
+    title: Add AI Module Dependency to Easy Luxury
+    backend:
+      dependencies: [ai-infrastructure-spring-boot-starter]
+      configuration: [EasyLuxuryAIConfig, AI provider settings]
+      integration: [AI module auto-configuration, dependency injection]
+      settings: [OpenAI API key, Pinecone settings, feature toggles]
+    acceptance:
+      - AI module dependency is added to POM
+      - Auto-configuration works correctly
+      - AI services are available for injection
+      - Configuration is properly loaded
+      - Basic AI functionality is accessible
+
+  - id: P2.1-B
+    title: Create EasyLuxuryAIConfig
+    backend:
+      configuration: [EasyLuxuryAIConfig, project-specific AI settings]
+      settings: [product index, user index, order index, feature toggles]
+      validation: [configuration validation, error handling]
+      documentation: [configuration guide, examples]
+    acceptance:
+      - Easy Luxury specific AI configuration is created
+      - Settings are properly validated
+      - Configuration is documented
+      - Error handling works correctly
+      - Settings are applied to AI services
+
+  - id: P2.1-C
+    title: Implement AIFacade for Basic Operations
+    backend:
+      services: [AIFacade, basic AI operations]
+      features: [search, generate, validate, health check]
+      integration: [AI module services, Easy Luxury services]
+      endpoints: [AI search, AI generation, AI validation, AI health]
+    acceptance:
+      - AIFacade provides basic AI operations
+      - Search functionality works correctly
+      - Content generation is functional
+      - Validation features work properly
+      - Health checks are accurate
+
+  - id: P2.1-D
+    title: Add AI Endpoints to Existing Controllers
+    backend:
+      controllers: [AIProfileController, UserController, ProductController]
+      endpoints: [AI search, AI recommendations, AI insights]
+      integration: [existing controller patterns, AI facade integration]
+      documentation: [OpenAPI annotations, endpoint documentation]
+    acceptance:
+      - AI endpoints are added to existing controllers
+      - Endpoints follow existing patterns
+      - OpenAPI documentation is updated
+      - Integration with existing code works
+      - Error handling is consistent
+
+  - id: P2.1-E
+    title: Configure AI Settings for Easy Luxury
+    backend:
+      configuration: [application.yml, AI provider settings]
+      settings: [OpenAI configuration, Pinecone configuration, feature toggles]
+      environment: [development, staging, production settings]
+      validation: [configuration validation, environment checks]
+    acceptance:
+      - AI settings are configured for Easy Luxury
+      - Environment-specific settings work
+      - Configuration validation passes
+      - Feature toggles function correctly
+      - Settings are properly documented
+
+  - id: P2.2-A
+    title: Create ProductAIService with @AICapable Product Entity
+    backend:
+      entities: [Product with @AICapable annotation]
+      services: [ProductAIService, product-specific AI operations]
+      features: [product search, recommendations, description generation]
+      integration: [AI module services, existing ProductService]
+      endpoints: [product AI search, product recommendations, product insights]
+    acceptance:
+      - Product entity is marked as @AICapable
+      - ProductAIService provides AI functionality
+      - Product search works with AI
+      - Product recommendations are generated
+      - Integration with existing ProductService works
+
+  - id: P2.2-B
+    title: Implement UserAIService with Behavioral Tracking
+    backend:
+      entities: [User with @AICapable annotation]
+      services: [UserAIService, behavioral tracking, user insights]
+      features: [user behavior tracking, preference learning, recommendations]
+      integration: [AI module services, existing UserService]
+      endpoints: [user AI insights, user recommendations, behavior tracking]
+    acceptance:
+      - User entity is marked as @AICapable
+      - UserAIService provides behavioral AI functionality
+      - User behavior is tracked correctly
+      - User preferences are learned
+      - User recommendations are generated
+
+  - id: P2.2-C
+    title: Add OrderAIService for Order Analysis
+    backend:
+      entities: [Order with @AICapable annotation]
+      services: [OrderAIService, order analysis, pattern recognition]
+      features: [order analysis, pattern recognition, fraud detection]
+      integration: [AI module services, existing OrderService]
+      endpoints: [order AI analysis, order patterns, fraud detection]
+    acceptance:
+      - Order entity is marked as @AICapable
+      - OrderAIService provides order analysis
+      - Order patterns are recognized
+      - Fraud detection works correctly
+      - Integration with existing OrderService works
+
+  - id: P2.2-D
+    title: Create Domain-Specific AI Facades
+    backend:
+      facades: [ProductAIFacade, UserAIFacade, OrderAIFacade]
+      features: [domain-specific AI operations, business logic integration]
+      integration: [AI module services, domain services, existing facades]
+      endpoints: [domain-specific AI endpoints, business logic integration]
+    acceptance:
+      - Domain-specific AI facades are created
+      - Business logic integration works
+      - AI operations are domain-specific
+      - Integration with existing facades works
+      - Endpoints provide domain-specific functionality
+
+  - id: P2.2-E
+    title: Add AI-Specific DTOs and Mappers
+    backend:
+      dtos: [ProductAISearchRequest, UserAIInsightsRequest, OrderAIAnalysisRequest]
+      mappers: [MapStruct mappers for AI DTOs]
+      validation: [Jakarta Validation for AI DTOs]
+      documentation: [DTO documentation, mapper documentation]
+    acceptance:
+      - AI-specific DTOs are created
+      - MapStruct mappers work correctly
+      - Validation rules are applied
+      - Documentation is complete
+      - DTOs integrate with existing patterns
