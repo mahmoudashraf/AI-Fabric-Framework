@@ -31,6 +31,43 @@ export const aiProfileApi = {
   },
 
   /**
+   * Upload CV file and generate AI profile
+   */
+  uploadCVFile: async (file: File): Promise<AIProfile> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/ai-profile/upload-cv', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Upload photo for AI profile
+   */
+  uploadPhoto: async (profileId: string, file: File, photoType: string): Promise<AIProfile> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('photoType', photoType);
+    const response = await apiClient.post(`/ai-profile/${profileId}/upload-photo`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Publish AI profile
+   */
+  publishProfile: async (profileId: string): Promise<AIProfile> => {
+    const response = await apiClient.post(`/ai-profile/${profileId}/publish`);
+    return response.data;
+  },
+
+  /**
    * Get AI profile by ID
    */
   getProfileById: async (profileId: string): Promise<AIProfile> => {

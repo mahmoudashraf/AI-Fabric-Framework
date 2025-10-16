@@ -16,9 +16,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +35,83 @@ public class AIProfileController {
     
     private final AIProfileFacade aiProfileFacade;
     private final UserService userService;
+    
+    /**
+     * Upload CV file and generate AI profile
+     */
+    @PostMapping(value = "/upload-cv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+        summary = "Upload CV file and generate AI profile",
+        description = "Upload CV file (PDF or Word) and generate AI profile from its content"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Profile generated successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid file"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<AIProfileDto> uploadCVFile(
+        @RequestParam("file") MultipartFile file,
+        Authentication authentication
+    ) {
+        log.info("Uploading CV file for user: {}", authentication.getName());
+        
+        User user = userService.findByEmail(authentication.getName());
+        AIProfileDto profile = aiProfileFacade.uploadAndGenerateProfile(user, file);
+        
+        return ResponseEntity.ok(profile);
+    }
+    
+    /**
+     * Upload photo for AI profile
+     */
+    @PostMapping(value = "/{profileId}/upload-photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+        summary = "Upload photo for AI profile",
+        description = "Upload a photo for a specific photo type in the AI profile"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Photo uploaded successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid file"),
+        @ApiResponse(responseCode = "404", description = "Profile not found"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<AIProfileDto> uploadPhoto(
+        @PathVariable UUID profileId,
+        @RequestParam("file") MultipartFile file,
+        @RequestParam("photoType") String photoType,
+        Authentication authentication
+    ) {
+        log.info("Uploading {} photo for profile: {}", photoType, profileId);
+        
+        AIProfileDto profile = aiProfileFacade.uploadPhoto(profileId, file, photoType);
+        
+        return ResponseEntity.ok(profile);
+    }
+    
+    /**
+     * Publish AI profile (update status to COMPLETE)
+     */
+    @PostMapping("/{profileId}/publish")
+    @Operation(
+        summary = "Publish AI profile",
+        description = "Mark the AI profile as complete and ready for use"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Profile published successfully"),
+        @ApiResponse(responseCode = "404", description = "Profile not found"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<AIProfileDto> publishProfile(
+        @PathVariable UUID profileId,
+        Authentication authentication
+    ) {
+        log.info("Publishing AI profile: {} for user: {}", profileId, authentication.getName());
+        
+        AIProfileDto profile = aiProfileFacade.publishProfile(profileId);
+        
+        return ResponseEntity.ok(profile);
+    }
     
     /**
      * Generate AI profile from CV content
