@@ -1,0 +1,159 @@
+meta:
+  phase: Phase 2 - Project Management & Advanced Features
+  goals: >
+    Add project pack generation, consultation booking, credits system, and advanced
+    matching features. Enable agencies to apply to projects and manage consultations
+    with integrated scheduling.
+  constraints:
+    - No payment processing (credits only)
+    - Basic consultation booking
+    - Manual project management
+    - Invite-only project postings
+
+tickets:
+  - id: P2.1-A
+    title: Project Pack Generation
+    backend:
+      entities: [Project, ProjectMilestone]
+      endpoints:
+        - POST /api/projects/from-brief/{briefId}
+        - GET /api/projects/{id}
+        - PATCH /api/projects/{id}
+        - POST /api/projects/{id}/share
+      llm_integration: [GPT-4o-mini for project pack generation]
+    frontend:
+      routes: [/projects/[id], /briefs/[id]/project-pack]
+      ui: Project pack preview with shareable links
+    acceptance:
+      - Auto-generated project packs from briefs
+      - Non-binding SOW-like structure
+      - Shareable links and PDF export
+      - Milestones with acceptance tests
+
+  - id: P2.1-B
+    title: Invite-Only Project Postings
+    backend:
+      entities: [ProjectPosting, Application]
+      endpoints:
+        - POST /api/projects/{id}/publish
+        - GET /api/postings/{id}/eligibility
+        - POST /api/postings/{id}/applications
+        - GET /api/postings/{id}/applications
+        - POST /api/applications/{id}/shortlist
+      features: [Auto-invite top 5-7 matched agencies, structured applications]
+    frontend:
+      routes: [/projects/[id]/publish, /agency/applications]
+      ui: Project publishing wizard and application management
+    acceptance:
+      - Invite-only project postings
+      - Auto-invite top matched agencies
+      - Structured application forms
+      - Application scoring and shortlisting
+
+  - id: P2.1-C
+    title: Consultation Booking System
+    backend:
+      entities: [Consultation]
+      endpoints:
+        - POST /api/consultations
+        - POST /api/consultations/{id}/accept
+        - POST /api/integrations/scheduler/webhook
+      integrations: [Cal.com/Calendly webhook integration]
+    frontend:
+      routes: [/consultations, /consultations/[id]]
+      ui: Consultation booking with embedded scheduler
+    acceptance:
+      - Embedded scheduler integration
+      - ICS email invites
+      - Consultation context from brief/project
+      - Webhook analytics
+
+  - id: P2.1-D
+    title: Credits System Foundation
+    backend:
+      entities: [CreditAccount, CreditTxn]
+      endpoints:
+        - GET /api/credits/balance
+        - POST /api/credits/spend
+        - POST /api/credits/grant
+      features: [Credit tracking, idempotent transactions]
+    frontend:
+      routes: [/credits/balance, /credits/history]
+      ui: Credits dashboard and transaction history
+    acceptance:
+      - Credit balance tracking
+      - Idempotent credit transactions
+      - Credit earning rules (Proof Pack +10, fast response +2, etc.)
+      - Credit spending rules (apply to project 5 credits, etc.)
+
+  - id: P2.1-E
+    title: Proof Pack Verification Workflow
+    backend:
+      entities: [ClaimVerification]
+      endpoints:
+        - POST /api/agencies/{id}/claim
+        - POST /api/agencies/{id}/proof/complete
+        - GET /api/admin/verification-queue
+      features: [Email/domain verification, verifier checklist]
+    frontend:
+      routes: [/owner/agency/verification, /admin/verification]
+      ui: Verification workflow and admin review interface
+    acceptance:
+      - Agency claiming via email/domain
+      - Proof Pack verification checklist
+      - Verifier review interface
+      - Verification status badges
+
+  - id: P2.1-F
+    title: Enhanced Matching & Analytics
+    backend:
+      entities: [MatchResult]
+      endpoints:
+        - GET /api/analytics/matching-stats
+        - GET /api/analytics/agency-performance
+      features: [Matching analytics, agency performance metrics]
+    frontend:
+      routes: [/analytics/matching, /owner/analytics]
+      ui: Analytics dashboard for matching and performance
+    acceptance:
+      - Matching algorithm performance metrics
+      - Agency performance analytics
+      - Brief-to-match conversion rates
+      - Top-performing agencies insights
+
+  - id: P2.1-G
+    title: Notification & Communication System
+    backend:
+      entities: [Notification, EmailTemplate]
+      endpoints:
+        - GET /api/notifications
+        - POST /api/notifications/send
+        - GET /api/email-templates
+      features: [Email templates, notification preferences]
+    frontend:
+      routes: [/notifications/settings, /admin/email-templates]
+      ui: Notification preferences and email template management
+    acceptance:
+      - Rich email templates
+      - Notification preference management
+      - Admin email template editor
+      - Notification delivery tracking
+
+  - id: P2.1-H
+    title: Basic Admin Analytics Dashboard
+    backend:
+      entities: [AuditLog]
+      endpoints:
+        - GET /api/admin/metrics
+        - GET /api/admin/analytics/overview
+        - GET /api/admin/analytics/agencies
+        - GET /api/admin/analytics/briefs
+      features: [KPI tracking, admin analytics]
+    frontend:
+      routes: [/admin/analytics]
+      ui: Comprehensive admin analytics dashboard
+    acceptance:
+      - KPI tracking (≥70% briefs parse valid, ≥40% brief views click CTA)
+      - Agency performance metrics
+      - Brief conversion analytics
+      - System health monitoring

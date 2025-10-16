@@ -1,0 +1,19 @@
+meta:
+  batch: Phase 3 - Batch 1
+  tickets: [P3.1-A, P3.1-B]
+  goal: >
+    Implement controlled project publishing with anonymity and unstructured ingestion system.
+    Enable advanced project management and automated content ingestion.
+  duration: "3-4 weeks"
+  dependencies: [phase2]
+
+tickets:
+  - id: P3.1-A
+    title: Controlled Project Publishing with Anonymity
+    priority: "high"
+    complexity: "high"
+    
+  - id: P3.1-B
+    title: Unstructured Ingestion System
+    priority: "high"
+    complexity: "high"

@@ -1,0 +1,181 @@
+cross_phase:
+  - id: X-01
+    title: Liquibase Database Migrations
+    notes: >
+      One changeset per ticket; include in master changelog; fail-fast on drift.
+      All database changes must be versioned and reversible.
+    requirements:
+      - Each ticket includes specific Liquibase changeset
+      - Changesets are reversible and tested
+      - Master changelog includes all changesets
+      - Database drift detection and prevention
+
+  - id: X-02
+    title: OpenAPI Documentation & Frontend Type Generation
+    notes: >
+      Springdoc annotations at /api/docs; publish /v3/api-docs.json; 
+      generate TypeScript types for frontend consumption.
+    requirements:
+      - All endpoints documented with Springdoc annotations
+      - OpenAPI spec published at /v3/api-docs.json
+      - Frontend types generated from OpenAPI spec
+      - API documentation accessible at /api/docs
+
+  - id: X-03
+    title: Seed Data & Development Environment
+    notes: >
+      Comprehensive seed data for development: roles, stack tags, 
+      demo agencies, sample briefs, and test data.
+    requirements:
+      - Admin user with ADMIN role
+      - Sample agencies in different statuses
+      - Stack tags and use case examples
+      - Sample briefs and project data
+      - Development environment setup scripts
+
+  - id: X-04
+    title: Error Handling & Validation Framework
+    notes: >
+      RFC7807-like problem+json error responses; ControllerAdvice; 
+      consistent error codes and validation across all phases.
+    requirements:
+      - Standardized error response format
+      - Global exception handling with ControllerAdvice
+      - Consistent validation error messages
+      - Error code standardization
+      - Frontend error handling integration
+
+  - id: X-05
+    title: File Storage & Media Management
+    notes: >
+      S3-compatible storage (MinIO in dev) with presigned URLs; 
+      support for images, PDFs, and documents.
+    requirements:
+      - S3-compatible storage adapter
+      - Presigned URL generation for uploads
+      - File type validation and security
+      - CDN integration for performance
+      - Local development with MinIO
+
+  - id: X-06
+    title: Authentication & Authorization Framework
+    notes: >
+      Supabase JWT verification via JWKS; RBAC with @PreAuthorize; 
+      secure token handling and role-based access control.
+    requirements:
+      - Supabase JWT verification via JWKS endpoint
+      - Role-based access control with @PreAuthorize
+      - Secure token storage and handling
+      - Authentication state management
+      - Authorization middleware
+
+  - id: X-07
+    title: Logging & Monitoring Infrastructure
+    notes: >
+      Structured logging, error tracking, performance monitoring, 
+      and observability across all services.
+    requirements:
+      - Structured logging with correlation IDs
+      - Error tracking and alerting
+      - Performance monitoring and metrics
+      - Health check endpoints
+      - Log aggregation and analysis
+
+  - id: X-08
+    title: Testing Framework & Quality Assurance
+    notes: >
+      Comprehensive testing strategy: unit tests, integration tests, 
+      E2E tests, and code coverage requirements.
+    requirements:
+      - Unit tests for all services and controllers
+      - Integration tests with Testcontainers
+      - E2E tests with Playwright
+      - Code coverage requirements (70%+)
+      - Automated testing in CI/CD
+
+  - id: X-09
+    title: Security & Compliance Framework
+    notes: >
+      Security best practices, data protection, GDPR compliance, 
+      and security monitoring across all phases.
+    requirements:
+      - Input validation and sanitization
+      - SQL injection prevention
+      - XSS protection
+      - CSRF protection
+      - GDPR compliance features
+      - Security headers and policies
+
+  - id: X-10
+    title: Performance & Scalability Foundation
+    notes: >
+      Performance optimization, caching strategies, database optimization, 
+      and scalability considerations across all phases.
+    requirements:
+      - Database query optimization
+      - Caching strategies (Redis)
+      - CDN integration
+      - Performance monitoring
+      - Scalability planning
+      - Load testing and optimization
+
+  - id: X-11
+    title: Frontend Component Library & Design System
+    notes: >
+      Reusable component library, design system, and consistent UI patterns 
+      across all frontend features.
+    requirements:
+      - Material-UI component library
+      - Custom component extensions
+      - Design system and theming
+      - Responsive design patterns
+      - Accessibility compliance
+      - Component documentation
+
+  - id: X-12
+    title: API Rate Limiting & Throttling
+    notes: >
+      Rate limiting for API endpoints, especially for ingestion and matching 
+      services to prevent abuse and ensure fair usage.
+    requirements:
+      - Rate limiting on sensitive endpoints
+      - Throttling for expensive operations
+      - User-based rate limits
+      - API key management
+      - Rate limit monitoring and alerting
+
+  - id: X-13
+    title: Data Backup & Recovery
+    notes: >
+      Automated backup strategies, data recovery procedures, and disaster 
+      recovery planning for production environment.
+    requirements:
+      - Automated database backups
+      - File storage backups
+      - Recovery procedures
+      - Disaster recovery planning
+      - Backup testing and validation
+
+  - id: X-14
+    title: Internationalization & Localization
+    notes: >
+      Multi-language support, localization framework, and international 
+      compliance for global platform expansion.
+    requirements:
+      - i18n framework implementation
+      - Multi-language content support
+      - Locale-specific formatting
+      - Translation management
+      - RTL language support
+
+  - id: X-15
+    title: Analytics & Business Intelligence
+    notes: >
+      Analytics tracking, business intelligence, and reporting infrastructure 
+      for platform insights and decision making.
+    requirements:
+      - Event tracking and analytics
+      - Business metrics collection
+      - Reporting infrastructure
+      - Data visualization
+      - Business intelligence tools

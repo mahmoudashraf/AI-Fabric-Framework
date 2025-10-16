@@ -1,0 +1,19 @@
+meta:
+  batch: Phase 1 - Batch 1
+  tickets: [P1.1-A, P1.1-B]
+  goal: >
+    Establish authentication, authorization, and core domain foundation.
+    Enable agency creation and management with admin approval workflow.
+  duration: "1-2 weeks"
+  dependencies: []
+
+tickets:
+  - id: P1.1-A
+    title: Auth & RBAC (Supabase JWT verify)
+    priority: "high"
+    complexity: "medium"
+    
+  - id: P1.1-B
+    title: Core Domain Schema (Agency, UseCase, StackTag, Brief)
+    priority: "high"
+    complexity: "medium"

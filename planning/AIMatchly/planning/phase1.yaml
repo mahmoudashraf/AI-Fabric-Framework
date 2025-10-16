@@ -1,0 +1,162 @@
+meta:
+  phase: Phase 1 - Core Foundation & MVP
+  goals: >
+    Build the foundational platform with agency profiles, brief intake, basic matching,
+    and core marketplace functionality. Focus on evidence-first agency profiles,
+    brief normalization, and essential matching capabilities.
+  constraints:
+    - No payments integration
+    - No advanced project management
+    - Manual ingestion review process
+    - Basic matching algorithm
+    - Mobile-first web (Next.js App Router)
+    - Supabase Auth on FE; Spring verifies JWT via JWKS
+
+tickets:
+  - id: P1.1-A
+    title: Auth & RBAC (Supabase JWT verify)
+    backend:
+      entities: [User, Agency, AgencyMember]
+      endpoints: 
+        - GET /api/users/me
+        - POST /api/auth/refresh
+        - POST /api/agencies
+        - GET /api/admin/agencies?status=PENDING
+        - POST /api/admin/agencies/{id}/approve
+        - POST /api/admin/agencies/{id}/reject
+      security: [JWKS verify, @PreAuthorize]
+      migrations: [V001__users.yaml, V002__agencies.yaml]
+    frontend:
+      routes: [/auth/login, /auth/register, /owner/settings, /admin/agencies]
+      notes: Supabase JS; persist session; fetch /me on load; agency application flow
+    acceptance:
+      - Login via Supabase works; /me returns local profile with role
+      - Role checks enforced; tests ≥ 80% for auth service
+      - Agency application workflow with admin approval
+
+  - id: P1.1-B
+    title: Core Domain Schema (Agency, UseCase, StackTag, Brief)
+    backend:
+      entities: [Agency, UseCase, StackTag, AgencyStack, Brief, SupportPackage]
+      endpoints:
+        - GET /api/agencies
+        - GET /api/agencies/{id}
+        - POST /api/agencies/{id}/use-cases
+        - POST /api/agencies/{id}/support-packages
+        - GET /api/stack-tags
+      migrations: [V003__core_domain.yaml]
+    frontend:
+      routes: [/agencies, /agencies/[id], /owner/agency/edit]
+    acceptance:
+      - JPA mappings validated; cascades correct
+      - Agency profiles with use cases and stack tags
+      - Support packages configuration
+
+  - id: P1.1-C
+    title: Brief Intake & Normalization
+    backend:
+      entities: [Brief, MatchResult]
+      endpoints:
+        - POST /api/briefs
+        - POST /api/briefs/{id}/confirm
+        - POST /api/match/{briefId}
+        - GET /api/match/{briefId}
+      llm_integration: [GPT-4o-mini for normalization, text-embedding-3-large for embeddings]
+    frontend:
+      routes: [/briefs/new, /briefs/[id]/confirm]
+      ui: 8-question intake form with normalization preview
+    acceptance:
+      - Brief intake form with 8 questions
+      - LLM normalization with risk flags
+      - Buyer confirmation of normalized summary
+      - Embeddings generation for matching
+
+  - id: P1.1-D
+    title: Basic Matching Algorithm
+    backend:
+      entities: [MatchResult]
+      endpoints:
+        - POST /api/match/{briefId}
+        - GET /api/match/{briefId}
+      algorithm:
+        - Stack fit: 0-40 points (Jaccard weighted by depth)
+        - Use-case similarity: 0-30 points (cosine vs agency top-3 tiles)
+        - Domain fit: 0-20 points (industry + size + verified)
+        - Proof signal: 0-10 points (badge + verified tiles)
+    frontend:
+      routes: [/briefs/[id]/matches]
+      ui: Match results with explainable reasons
+    acceptance:
+      - Matching score calculation (0-100)
+      - Explainable reasons for matches
+      - Top 5-7 agencies returned
+      - Performance: p95 matching < 800ms at 1k agencies
+
+  - id: P1.1-E
+    title: Agency Profile Builder
+    backend:
+      entities: [Agency, UseCase, SupportPackage]
+      endpoints:
+        - POST /api/agencies/{id}/use-cases
+        - POST /api/agencies/{id}/support-packages
+        - POST /api/agencies/{id}/proof/complete
+      validation: [≥2 UseCase tiles required, Loom demo validation]
+    frontend:
+      routes: [/owner/agency/profile, /owner/agency/use-cases, /owner/agency/packages]
+      ui: Multi-step profile builder with validation
+    acceptance:
+      - Agency can create profile with basics, stacks, ≥2 use-cases
+      - UseCase tiles with Loom demo, outcome metrics, stacks, industries
+      - Support packages (Basic/Plus/Pro templates)
+      - Proof Pack completion workflow
+
+  - id: P1.1-F
+    title: Basic Marketplace & Search
+    backend:
+      endpoints:
+        - GET /api/agencies/search?stack&industry&verified
+        - GET /api/agencies/{id}/public
+      features: [Stack filtering, industry filtering, verified agencies only]
+    frontend:
+      routes: [/marketplace, /agencies/[id]]
+      ui: Agency gallery with filters and search
+    acceptance:
+      - Public agency gallery with filtering
+      - Agency detail pages (public view)
+      - Search by stack tags and industry
+      - Verified agencies highlighted
+
+  - id: P1.1-G
+    title: Admin Panel & Moderation
+    backend:
+      entities: [AuditLog]
+      endpoints:
+        - GET /api/admin/agencies
+        - GET /api/admin/briefs
+        - GET /api/admin/metrics
+        - POST /api/admin/agencies/{id}/verify
+      features: [Agency verification, content moderation, metrics dashboard]
+    frontend:
+      routes: [/admin/dashboard, /admin/agencies, /admin/briefs]
+    acceptance:
+      - Admin dashboard with key metrics
+      - Agency verification workflow
+      - Content moderation tools
+      - Audit logging for all admin actions
+
+  - id: P1.1-H
+    title: Basic Notifications & Email
+    backend:
+      entities: [Notification]
+      endpoints:
+        - GET /api/notifications
+        - POST /api/notifications/mark-read
+      features: [Email notifications, in-app notifications]
+    frontend:
+      routes: [/notifications]
+      ui: Notification center with read/unread states
+    acceptance:
+      - Email notifications for key events
+      - In-app notification system
+      - Notification preferences
+      - Email templates for common events
