@@ -6,6 +6,8 @@
 import { useUser } from 'contexts/UserContext';
 import { useNotifications } from 'contexts/NotificationContext';
 import { useAsyncOperation } from '@/hooks/enterprise';
+import { useQuery } from '@tanstack/react-query';
+import { aiProfileApi } from '@/services/ai-profile-api';
 // import { useUserQuery } from 'hooks/useUserQuery'; // TODO: Implement this hook
 
 // Using Context API
@@ -23,7 +25,8 @@ import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded';
 import PeopleAltTwoToneIcon from '@mui/icons-material/PeopleAltTwoTone';
 import PublicTwoToneIcon from '@mui/icons-material/PublicTwoTone';
 import RecentActorsTwoToneIcon from '@mui/icons-material/RecentActorsTwoTone';
-import { Box, Button, Divider, Grid, IconButton, Link, TextField, Typography  } from '@mui/material';
+import WorkOutlineTwoToneIcon from '@mui/icons-material/WorkOutlineTwoTone';
+import { Box, Button, Divider, Grid, IconButton, Link, TextField, Typography, Chip, CircularProgress, Alert  } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import React from 'react';
 import MainCard from 'ui-component/cards/MainCard';
@@ -40,6 +43,29 @@ const Profile = () => {
   // Use Context API for user and notifications
   const userContext = useUser();
   const notificationContext = useNotifications();
+  
+  // Fetch the latest published AI profile
+  const { data: aiProfile, isLoading: aiProfileLoading } = useQuery({
+    queryKey: ['aiProfile', 'latest'],
+    queryFn: async () => {
+      try {
+        const profile = await aiProfileApi.getLatestProfile();
+        console.log('📊 [Profile.tsx] Raw profile from API:', profile);
+        if (profile && profile.status === 'COMPLETE') {
+          const parsed = aiProfileApi.parseAiAttributes(profile.aiAttributes);
+          console.log('📊 [Profile.tsx] Parsed AI profile data:', parsed);
+          console.log('📊 [Profile.tsx] Companies in profile:', parsed.companies);
+          return parsed;
+        }
+        return null;
+      } catch (error) {
+        console.log('No published AI profile found:', error);
+        return null;
+      }
+    },
+    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
   
   // Get posts data from user context
   const { data: _posts, isLoading: postsLoading, refetch: _refetchPosts } = { 
@@ -314,80 +340,245 @@ const Profile = () => {
           </Grid>
           <Grid size={{ xs: 12 }}>
             <MainCard>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12 }}>
-                  <Typography variant="h4">About</Typography>
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <Typography variant="body2">
-                    It is a long established fact that a reader will be distracted by the readable
-                    content of a page when looking at its layout.
-                  </Typography>
-                </Grid>
-              </Grid>
-              <Divider sx={{ margin: '16px 0' }} />
-              <Grid
-                container
-                spacing={2}
-                sx={{
-                  '& >div': {
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    display: 'block',
-                    width: '100%',
-                  },
-                  '& a': {
-                    color: theme.palette.grey[700],
-
-                    '& svg': {
-                      mr: 1,
-                      verticalAlign: 'bottom',
-                    },
-                    '&:hover': {
-                      color: theme.palette.primary.main,
-                      textDecoration: 'none',
-                    },
-                  },
-                }}
-              >
-                <Grid size={{ xs: 12 }}>
-                  <Link href="https://codedthemes.com/" target="_blank" underline="hover">
-                    <PublicTwoToneIcon color="secondary" /> https://codedthemes.com/
-                  </Link>
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <Link
-                    href="https://www.instagram.com/codedthemes"
-                    target="_blank"
-                    underline="hover"
+              {aiProfileLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                  <CircularProgress size={30} />
+                </Box>
+              ) : aiProfile ? (
+                <>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12 }}>
+                      <Typography variant="h4">About</Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Box sx={{ mb: 1 }}>
+                        <Typography variant="subtitle1" fontWeight="bold" color="primary">
+                          {aiProfile.jobTitle}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary">
+                          {aiProfile.experience} years of experience
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2">
+                        {aiProfile.profileSummary}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                  
+                  <Divider sx={{ margin: '16px 0' }} />
+                  
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12 }}>
+                      <Typography variant="h6" gutterBottom>
+                        Skills
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {aiProfile.skills.slice(0, 6).map((skill, index) => (
+                          <Chip 
+                            key={index} 
+                            label={skill} 
+                            size="small" 
+                            color="primary" 
+                            variant="outlined" 
+                          />
+                        ))}
+                        {aiProfile.skills.length > 6 && (
+                          <Chip 
+                            label={`+${aiProfile.skills.length - 6} more`} 
+                            size="small" 
+                            variant="outlined" 
+                          />
+                        )}
+                      </Box>
+                    </Grid>
+                  </Grid>
+                  
+                  <Divider sx={{ margin: '16px 0' }} />
+                  
+                  <Grid
+                    container
+                    spacing={2}
+                    sx={{
+                      '& >div': {
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        display: 'block',
+                        width: '100%',
+                      },
+                      '& a': {
+                        color: theme.palette.grey[700],
+                        '& svg': {
+                          mr: 1,
+                          verticalAlign: 'bottom',
+                        },
+                        '&:hover': {
+                          color: theme.palette.primary.main,
+                          textDecoration: 'none',
+                        },
+                      },
+                    }}
                   >
-                    <InstagramIcon sx={{ color: theme.palette.orange.dark }} />{' '}
-                    https://www.instagram.com/codedthemes
-                  </Link>
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <Link
-                    href="https://www.facebook.com/codedthemes"
-                    target="_blank"
-                    underline="hover"
+                    <Grid size={{ xs: 12 }}>
+                      <Link href="https://codedthemes.com/" target="_blank" underline="hover">
+                        <PublicTwoToneIcon color="secondary" /> https://codedthemes.com/
+                      </Link>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Link
+                        href="https://www.instagram.com/codedthemes"
+                        target="_blank"
+                        underline="hover"
+                      >
+                        <InstagramIcon sx={{ color: theme.palette.orange.dark }} />{' '}
+                        https://www.instagram.com/codedthemes
+                      </Link>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Link
+                        href="https://www.facebook.com/codedthemes"
+                        target="_blank"
+                        underline="hover"
+                      >
+                        <FacebookIcon color="primary" /> https://www.facebook.com/codedthemes
+                      </Link>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Link
+                        href="https://in.linkedin.com/company/codedthemes"
+                        target="_blank"
+                        underline="hover"
+                      >
+                        <LinkedInIcon sx={{ color: theme.palette.grey[900] }} />{' '}
+                        https://in.linkedin.com/company/codedthemes
+                      </Link>
+                    </Grid>
+                  </Grid>
+                </>
+              ) : (
+                <>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12 }}>
+                      <Typography variant="h4">About</Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Alert severity="info" sx={{ mb: 2 }}>
+                        No AI profile generated yet. Visit the "Generate with AI" tab to create your professional profile.
+                      </Alert>
+                      <Typography variant="body2">
+                        It is a long established fact that a reader will be distracted by the readable
+                        content of a page when looking at its layout.
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                  <Divider sx={{ margin: '16px 0' }} />
+                  <Grid
+                    container
+                    spacing={2}
+                    sx={{
+                      '& >div': {
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        display: 'block',
+                        width: '100%',
+                      },
+                      '& a': {
+                        color: theme.palette.grey[700],
+                        '& svg': {
+                          mr: 1,
+                          verticalAlign: 'bottom',
+                        },
+                        '&:hover': {
+                          color: theme.palette.primary.main,
+                          textDecoration: 'none',
+                        },
+                      },
+                    }}
                   >
-                    <FacebookIcon color="primary" /> https://www.facebook.com/codedthemes
-                  </Link>
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <Link
-                    href="https://in.linkedin.com/company/codedthemes"
-                    target="_blank"
-                    underline="hover"
-                  >
-                    <LinkedInIcon sx={{ color: theme.palette.grey[900] }} />{' '}
-                    https://in.linkedin.com/company/codedthemes
-                  </Link>
-                </Grid>
-              </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Link href="https://codedthemes.com/" target="_blank" underline="hover">
+                        <PublicTwoToneIcon color="secondary" /> https://codedthemes.com/
+                      </Link>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Link
+                        href="https://www.instagram.com/codedthemes"
+                        target="_blank"
+                        underline="hover"
+                      >
+                        <InstagramIcon sx={{ color: theme.palette.orange.dark }} />{' '}
+                        https://www.instagram.com/codedthemes
+                      </Link>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Link
+                        href="https://www.facebook.com/codedthemes"
+                        target="_blank"
+                        underline="hover"
+                      >
+                        <FacebookIcon color="primary" /> https://www.facebook.com/codedthemes
+                      </Link>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Link
+                        href="https://in.linkedin.com/company/codedthemes"
+                        target="_blank"
+                        underline="hover"
+                      >
+                        <LinkedInIcon sx={{ color: theme.palette.grey[900] }} />{' '}
+                        https://in.linkedin.com/company/codedthemes
+                      </Link>
+                    </Grid>
+                  </Grid>
+                </>
+              )}
             </MainCard>
           </Grid>
+          
+          {/* Work Experience Section (Only shown if AI profile exists) */}
+          {aiProfile && aiProfile.companies.length > 0 && (
+            <Grid size={{ xs: 12 }}>
+              <MainCard>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <WorkOutlineTwoToneIcon color="primary" />
+                      <Typography variant="h4">Work Experience</Typography>
+                    </Box>
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    {aiProfile.companies.slice(0, 3).map((company, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          mb: 2,
+                          pb: 2,
+                          borderBottom: index < Math.min(aiProfile.companies.length, 3) - 1 ? 1 : 0,
+                          borderColor: 'divider',
+                        }}
+                      >
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          {company.position}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary">
+                          {company.name}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {company.duration}
+                        </Typography>
+                      </Box>
+                    ))}
+                    {aiProfile.companies.length > 3 && (
+                      <Typography variant="caption" color="textSecondary">
+                        +{aiProfile.companies.length - 3} more positions
+                      </Typography>
+                    )}
+                  </Grid>
+                </Grid>
+              </MainCard>
+            </Grid>
+          )}
         </Grid>
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>

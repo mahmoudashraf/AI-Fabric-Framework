@@ -495,7 +495,7 @@ OPENAI_RATE_LIMIT_REQUESTS_PER_HOUR=1000
 MINIO_URL=http://localhost:9000
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
-MINIO_BUCKET_NAME=ai-profiles
+MINIO_BUCKET_NAME=easyluxury
 
 # Supabase Configuration
 SUPABASE_URL=https://your-project.supabase.co

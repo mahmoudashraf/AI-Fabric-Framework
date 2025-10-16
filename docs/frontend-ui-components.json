@@ -1,0 +1,1666 @@
+[
+  {
+    "component_name": "MainCard",
+    "description": "A flexible card component with header, content, and actions sections. Supports customizable styling, borders, shadows, and compound API for progressive migration.",
+    "usage": "Used throughout the application as a container for content sections, forms, dashboards, and data display areas.",
+    "inputs": {
+      "border": "boolean - Show card border",
+      "boxShadow": "boolean - Enable box shadow on hover",
+      "children": "React.ReactNode | string - Card content",
+      "style": "React.CSSProperties - Custom styles",
+      "content": "boolean - Show content section",
+      "className": "string - CSS class name",
+      "contentClass": "string - Content section class",
+      "contentSX": "CardContentProps['sx'] - Content styling",
+      "darkTitle": "boolean - Use dark title styling",
+      "sx": "CardProps['sx'] - Card styling",
+      "secondary": "CardHeaderProps['action'] - Header action element",
+      "shadow": "string - Custom shadow value",
+      "elevation": "number - Material-UI elevation",
+      "title": "React.ReactNode | string - Card title"
+    },
+    "size": "Responsive - Adapts to container size",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "React"],
+      "compound_api": "Supports MainCard.Header, MainCard.Body, MainCard.Actions",
+      "styling_system": "Material-UI with theme integration"
+    }
+  },
+  {
+    "component_name": "Avatar",
+    "description": "A customizable avatar component with size variants, color options, and outline support. Extends Material-UI Avatar with additional styling options.",
+    "usage": "User profiles, contact lists, chat interfaces, and anywhere user representation is needed.",
+    "inputs": {
+      "alt": "string - Alt text for accessibility",
+      "src": "string - Image source URL",
+      "className": "string - CSS class name",
+      "color": "string - Avatar color theme",
+      "component": "any - Custom component type",
+      "target": "LinkTarget - Link target for navigation",
+      "href": "string - Link URL",
+      "sx": "AvatarProps['sx'] - Custom styling",
+      "children": "ReactNode - Avatar content",
+      "outline": "boolean - Show outline border",
+      "size": "'badge' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' - Size variant"
+    },
+    "size": "Multiple sizes: badge (28px), xs (34px), sm (40px), md (60px), lg (72px), xl (82px)",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "styling_system": "Material-UI theme integration",
+      "accessibility": "Supports alt text and ARIA labels"
+    }
+  },
+  {
+    "component_name": "BasicSlider",
+    "description": "A simple slider component for selecting numeric values within a range. Built on Material-UI Slider with basic functionality.",
+    "usage": "Settings panels, filters, volume controls, and any interface requiring range selection.",
+    "inputs": {
+      "value": "number | number[] - Current slider value",
+      "onChange": "function - Change handler",
+      "aria-labelledby": "string - Accessibility label"
+    },
+    "size": "Standard Material-UI slider size",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "accessibility": "ARIA support included",
+      "interaction": "Mouse and keyboard navigation"
+    }
+  },
+  {
+    "component_name": "BasicGrid",
+    "description": "A responsive grid layout component using Material-UI Grid system. Demonstrates basic grid structure with multiple breakpoints.",
+    "usage": "Page layouts, content organization, dashboard widgets, and responsive design patterns.",
+    "inputs": {
+      "container": "boolean - Enable grid container",
+      "spacing": "number - Grid spacing",
+      "size": "number | object - Grid item size"
+    },
+    "size": "Responsive - Adapts to screen size with breakpoints",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "responsive": "Supports xs, sm, md, lg, xl breakpoints",
+      "layout_system": "Material-UI Grid v2"
+    }
+  },
+  {
+    "component_name": "AuthSupabaseLogin",
+    "description": "A complete login form component with email/password authentication, validation, social login options, and Supabase integration.",
+    "usage": "Authentication pages, login modals, and user access control interfaces.",
+    "inputs": {
+      "onError": "function - Error handling callback",
+      "onSuccess": "function - Success handling callback"
+    },
+    "size": "Full-width form with responsive design",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "Supabase", "Next.js"],
+      "validation": "Email format and password requirements",
+      "features": ["Password visibility toggle", "Remember me", "Social login", "Form validation"],
+      "styling_system": "Material-UI with custom theming"
+    }
+  },
+  {
+    "component_name": "ChatDrawer",
+    "description": "A collapsible drawer component for chat interfaces with user list, search functionality, and status management.",
+    "usage": "Chat applications, messaging interfaces, and communication platforms.",
+    "inputs": {
+      "handleDrawerOpen": "function - Drawer toggle handler",
+      "openChatDrawer": "boolean - Drawer open state",
+      "setUser": "function - User selection handler"
+    },
+    "size": "Fixed width drawer (responsive on mobile)",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "react-perfect-scrollbar"],
+      "features": ["User search", "Status management", "Responsive design", "Perfect scrollbar"],
+      "styling_system": "Material-UI with theme integration"
+    }
+  },
+  {
+    "component_name": "LoginForms",
+    "description": "An enterprise-grade login form with advanced validation, error handling, and notification integration using custom form hooks.",
+    "usage": "Enterprise applications, admin panels, and systems requiring robust form validation.",
+    "inputs": {
+      "initialValues": "object - Form initial values",
+      "validationRules": "object - Validation configuration",
+      "onSubmit": "function - Form submission handler"
+    },
+    "size": "Full-width form with responsive design",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "Custom form hooks", "Notification system"],
+      "features": ["Real-time validation", "Error handling", "Success notifications", "Enterprise patterns"],
+      "validation": "Email format, password length, required fields"
+    }
+  },
+  {
+    "component_name": "SimpleDialog",
+    "description": "A basic dialog component for displaying user selection lists with avatar support and add account functionality.",
+    "usage": "User selection interfaces, account management, and modal dialogs requiring list selection.",
+    "inputs": {
+      "onClose": "function - Dialog close handler",
+      "selectedValue": "string - Currently selected value",
+      "open": "boolean - Dialog open state"
+    },
+    "size": "Standard dialog size (responsive)",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["User list display", "Avatar support", "Add account option", "Click outside to close"],
+      "accessibility": "ARIA labels and keyboard navigation"
+    }
+  },
+  {
+    "component_name": "ProductCard",
+    "description": "A comprehensive product display card with image, pricing, ratings, and add-to-cart functionality for e-commerce applications.",
+    "usage": "Product catalogs, shopping pages, search results, and e-commerce interfaces.",
+    "inputs": {
+      "id": "string | number - Product ID",
+      "color": "string - Product color",
+      "name": "string - Product name",
+      "image": "string - Product image path",
+      "description": "string - Product description",
+      "offerPrice": "number - Current price",
+      "salePrice": "number - Original price",
+      "rating": "number - Product rating"
+    },
+    "size": "Fixed card size with hover effects",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "Next.js", "Cart context"],
+      "features": ["Hover animations", "Rating display", "Price comparison", "Add to cart", "Image linking"],
+      "interactions": ["Click to view details", "Add to cart button", "Hover effects"]
+    }
+  },
+  {
+    "component_name": "Breadcrumbs",
+    "description": "A sophisticated breadcrumb navigation component with icon support, custom links, and responsive design for complex navigation structures.",
+    "usage": "Page navigation, hierarchical content display, and user orientation in complex applications.",
+    "inputs": {
+      "card": "boolean - Wrap in card component",
+      "custom": "boolean - Use custom links",
+      "divider": "boolean - Show divider",
+      "heading": "string - Custom heading",
+      "icon": "boolean - Show home icon",
+      "icons": "boolean - Show all icons",
+      "links": "BreadcrumbLinkProps[] - Custom link array",
+      "maxItems": "number - Maximum breadcrumb items",
+      "rightAlign": "boolean - Right align content",
+      "separator": "OverrideIcon - Custom separator icon",
+      "title": "boolean - Show title",
+      "titleBottom": "boolean - Title at bottom",
+      "sx": "BreadCrumbSxProps - Custom styling"
+    },
+    "size": "Responsive - Adapts to content and screen size",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "Next.js", "Tabler icons"],
+      "features": ["Icon support", "Custom separators", "Responsive design", "Navigation integration"],
+      "accessibility": "ARIA labels and keyboard navigation"
+    }
+  },
+  {
+    "component_name": "ApexLineChart",
+    "description": "A line chart component using ApexCharts with theme integration, responsive design, and customizable data visualization.",
+    "usage": "Analytics dashboards, data visualization, reports, and any interface requiring line chart representation.",
+    "inputs": {
+      "data": "array - Chart data series",
+      "options": "object - Chart configuration",
+      "height": "number - Chart height"
+    },
+    "size": "Responsive with fixed height (350px)",
+    "other_metadata": {
+      "dependencies": ["react-apexcharts", "apexcharts", "@mui/material"],
+      "features": ["Theme integration", "Responsive design", "Interactive tooltips", "Zoom capabilities"],
+      "chart_type": "Line chart with straight curves"
+    }
+  },
+  {
+    "component_name": "Cart",
+    "description": "A comprehensive shopping cart component with product management, quantity controls, pricing calculations, and checkout integration.",
+    "usage": "E-commerce checkout flows, shopping cart pages, and product management interfaces.",
+    "inputs": {
+      "checkout": "CartCheckoutStateProps - Cart state",
+      "onNext": "function - Proceed to next step",
+      "removeProduct": "function - Remove product handler",
+      "updateQuantity": "function - Quantity update handler"
+    },
+    "size": "Full-width responsive table layout",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "currency.js", "lodash"],
+      "features": ["Quantity controls", "Price calculations", "Product removal", "Responsive design", "Color/size display"],
+      "interactions": ["Increment/decrement quantities", "Remove products", "Continue shopping", "Checkout"]
+    }
+  },
+  {
+    "component_name": "AlertDialog",
+    "description": "A confirmation dialog component for displaying alerts, confirmations, and user decisions with customizable actions.",
+    "usage": "Confirmation dialogs, alert messages, and any interface requiring user decision confirmation.",
+    "inputs": {
+      "open": "boolean - Dialog open state",
+      "onClose": "function - Close handler",
+      "title": "string - Dialog title",
+      "description": "string - Dialog content",
+      "actions": "array - Action buttons"
+    },
+    "size": "Standard dialog size (responsive)",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Confirmation actions", "Customizable content", "Theme integration", "Accessibility support"],
+      "accessibility": "ARIA labels and keyboard navigation"
+    }
+  },
+  {
+    "component_name": "Items",
+    "description": "A draggable kanban board item component with drag-and-drop functionality, context menus, and story integration.",
+    "usage": "Kanban boards, project management, task organization, and drag-and-drop interfaces.",
+    "inputs": {
+      "item": "KanbanItem - Item data",
+      "index": "number - Item index",
+      "onEdit": "function - Edit handler",
+      "onDelete": "function - Delete handler",
+      "onSelect": "function - Selection handler"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@hello-pangea/dnd", "@mui/material", "Context API"],
+      "features": ["Drag and drop", "Context menus", "Story integration", "Image support", "Status management"],
+      "interactions": ["Drag to reorder", "Click to edit", "Right-click menu", "Story linking"]
+    }
+  },
+  {
+    "component_name": "TotalRevenueCard",
+    "description": "A dashboard analytics card displaying revenue data with loading states, error handling, and scrollable content.",
+    "usage": "Analytics dashboards, financial reports, and data visualization interfaces.",
+    "inputs": {
+      "data": "IRevenueData[] - Revenue data array",
+      "loading": "boolean - Loading state",
+      "error": "string - Error message"
+    },
+    "size": "Fixed height (370px) with scrollable content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "react-perfect-scrollbar"],
+      "features": ["Loading skeletons", "Error handling", "Scrollable content", "Trend indicators", "Memoized rendering"],
+      "performance": "React.memo for optimization"
+    }
+  },
+  {
+    "component_name": "HeaderSection",
+    "description": "A landing page header component with animated content, responsive design, and call-to-action buttons.",
+    "usage": "Landing pages, marketing sites, and promotional content sections.",
+    "inputs": {
+      "title": "string - Main title",
+      "subtitle": "string - Subtitle text",
+      "ctaText": "string - Call-to-action text",
+      "ctaLink": "string - CTA link URL",
+      "backgroundImage": "string - Background image path"
+    },
+    "size": "Full viewport height (100vh)",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "framer-motion", "Next.js"],
+      "features": ["Framer Motion animations", "Responsive design", "Theme integration", "RTL support", "Parallax effects"],
+      "animations": "Spring-based entrance animations"
+    }
+  },
+  {
+    "component_name": "UserAvatar",
+    "description": "A user avatar component with online status indicators, customizable sizes, and profile integration.",
+    "usage": "User profiles, chat interfaces, contact lists, and anywhere user representation with status is needed.",
+    "inputs": {
+      "user": "UserProfile - User data object",
+      "size": "string - Avatar size",
+      "showStatus": "boolean - Show online status",
+      "onClick": "function - Click handler"
+    },
+    "size": "Multiple sizes: xs, sm, md, lg, xl",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Online status indicators", "Profile image support", "Click interactions", "Size variants"],
+      "status_types": ["available", "do_not_disturb", "offline"]
+    }
+  },
+  {
+    "component_name": "UserList",
+    "description": "A scrollable list component for displaying users with search functionality and selection capabilities.",
+    "usage": "Chat user lists, contact management, team member selection, and user directory interfaces.",
+    "inputs": {
+      "users": "UserProfile[] - User data array",
+      "onUserSelect": "function - User selection handler",
+      "searchable": "boolean - Enable search functionality",
+      "filterable": "boolean - Enable filtering"
+    },
+    "size": "Variable height with scrollable content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "react-perfect-scrollbar"],
+      "features": ["Search functionality", "User selection", "Scrollable content", "Status indicators"],
+      "interactions": ["Click to select", "Search filtering", "Scroll navigation"]
+    }
+  },
+  {
+    "component_name": "ProductFilter",
+    "description": "A product filtering component with multiple filter options, sorting capabilities, and responsive design.",
+    "usage": "E-commerce product pages, search results, and any interface requiring product filtering.",
+    "inputs": {
+      "filters": "FilterOptions - Available filters",
+      "onFilterChange": "function - Filter change handler",
+      "onSortChange": "function - Sort change handler",
+      "productCount": "number - Total product count"
+    },
+    "size": "Responsive sidebar or horizontal layout",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple filter types", "Sorting options", "Price range", "Category filters", "Brand filters"],
+      "filter_types": ["price", "category", "brand", "rating", "availability"]
+    }
+  },
+  {
+    "component_name": "OrderSummary",
+    "description": "A checkout order summary component displaying cart totals, taxes, discounts, and final pricing calculations.",
+    "usage": "E-commerce checkout flows, cart review pages, and order confirmation interfaces.",
+    "inputs": {
+      "checkout": "CartCheckoutStateProps - Cart state",
+      "discounts": "Discount[] - Applied discounts",
+      "taxes": "Tax[] - Tax calculations",
+      "shipping": "Shipping - Shipping information"
+    },
+    "size": "Fixed width sidebar or full-width section",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "currency.js"],
+      "features": ["Price calculations", "Discount display", "Tax breakdown", "Shipping costs", "Total summary"],
+      "calculations": ["Subtotal", "Taxes", "Discounts", "Shipping", "Final total"]
+    }
+  },
+  {
+    "component_name": "CalendarStyled",
+    "description": "A styled calendar component with event management, date selection, and customizable appearance.",
+    "usage": "Scheduling interfaces, event management, appointment booking, and date selection interfaces.",
+    "inputs": {
+      "events": "Event[] - Calendar events",
+      "onDateSelect": "function - Date selection handler",
+      "onEventClick": "function - Event click handler",
+      "view": "string - Calendar view type"
+    },
+    "size": "Responsive calendar grid",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "Calendar library"],
+      "features": ["Event display", "Date selection", "Multiple views", "Event management", "Custom styling"],
+      "views": ["month", "week", "day", "agenda"]
+    }
+  },
+  {
+    "component_name": "NotificationSnackbar",
+    "description": "A notification system component for displaying success, error, warning, and info messages with customizable positioning and duration.",
+    "usage": "Application-wide notifications, user feedback, system alerts, and status updates.",
+    "inputs": {
+      "message": "string - Notification message",
+      "variant": "'success' | 'error' | 'warning' | 'info' - Notification type",
+      "duration": "number - Display duration",
+      "position": "object - Notification position",
+      "action": "ReactNode - Action button"
+    },
+    "size": "Variable width based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "notistack"],
+      "features": ["Multiple variants", "Custom positioning", "Action buttons", "Auto-dismiss", "Queue management"],
+      "positions": ["top-right", "top-left", "bottom-right", "bottom-left", "top-center", "bottom-center"]
+    }
+  },
+  {
+    "component_name": "DataTable",
+    "description": "A comprehensive data table component with sorting, filtering, pagination, and row selection capabilities.",
+    "usage": "Data management interfaces, admin panels, reports, and any interface requiring tabular data display.",
+    "inputs": {
+      "data": "any[] - Table data",
+      "columns": "Column[] - Column definitions",
+      "sortable": "boolean - Enable sorting",
+      "filterable": "boolean - Enable filtering",
+      "selectable": "boolean - Enable row selection",
+      "pagination": "boolean - Enable pagination"
+    },
+    "size": "Responsive table with horizontal scroll",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Sorting", "Filtering", "Pagination", "Row selection", "Column resizing", "Export options"],
+      "interactions": ["Click to sort", "Filter inputs", "Row selection", "Page navigation"]
+    }
+  },
+  {
+    "component_name": "SearchBar",
+    "description": "A search input component with suggestions, filters, and real-time search capabilities.",
+    "usage": "Search interfaces, data filtering, content discovery, and any interface requiring search functionality.",
+    "inputs": {
+      "placeholder": "string - Input placeholder",
+      "onSearch": "function - Search handler",
+      "suggestions": "string[] - Search suggestions",
+      "filters": "Filter[] - Available filters",
+      "debounce": "number - Search debounce delay"
+    },
+    "size": "Full-width input with dropdown suggestions",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Real-time search", "Search suggestions", "Filter integration", "Debounced input", "Keyboard navigation"],
+      "search_types": ["text", "fuzzy", "exact", "regex"]
+    }
+  },
+  {
+    "component_name": "ProgressIndicator",
+    "description": "A progress indicator component for showing loading states, completion percentages, and step-by-step processes.",
+    "usage": "Loading states, form wizards, file uploads, and any interface requiring progress indication.",
+    "inputs": {
+      "value": "number - Progress value (0-100)",
+      "variant": "'determinate' | 'indeterminate' - Progress type",
+      "color": "string - Progress color",
+      "size": "string - Indicator size",
+      "label": "string - Progress label"
+    },
+    "size": "Variable width with fixed height",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Determinate/indeterminate modes", "Custom colors", "Size variants", "Label support", "Animation"],
+      "variants": ["linear", "circular", "buffer"]
+    }
+  },
+  {
+    "component_name": "FileUpload",
+    "description": "A file upload component with drag-and-drop support, file type validation, and upload progress indication.",
+    "usage": "File management interfaces, document uploads, image galleries, and any interface requiring file upload functionality.",
+    "inputs": {
+      "accept": "string - Accepted file types",
+      "multiple": "boolean - Allow multiple files",
+      "maxSize": "number - Maximum file size",
+      "onUpload": "function - Upload handler",
+      "onProgress": "function - Progress handler"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "react-dropzone"],
+      "features": ["Drag and drop", "File validation", "Progress indication", "Preview support", "Error handling"],
+      "validation": ["File type", "File size", "File count"]
+    }
+  },
+  {
+    "component_name": "MapComponent",
+    "description": "An interactive map component with markers, popups, and location-based features using third-party mapping libraries.",
+    "usage": "Location-based interfaces, delivery tracking, store locators, and any interface requiring geographic visualization.",
+    "inputs": {
+      "center": "object - Map center coordinates",
+      "zoom": "number - Initial zoom level",
+      "markers": "Marker[] - Map markers",
+      "onMarkerClick": "function - Marker click handler",
+      "interactive": "boolean - Enable user interaction"
+    },
+    "size": "Responsive container with aspect ratio",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "Map library"],
+      "features": ["Interactive markers", "Popup windows", "Zoom controls", "Location search", "Custom styling"],
+      "map_types": ["roadmap", "satellite", "hybrid", "terrain"]
+    }
+  },
+  {
+    "component_name": "Timeline",
+    "description": "A timeline component for displaying chronological events, activities, and status updates with customizable styling.",
+    "usage": "Activity feeds, project timelines, status updates, and any interface requiring chronological data display.",
+    "inputs": {
+      "events": "TimelineEvent[] - Timeline events",
+      "orientation": "'vertical' | 'horizontal' - Timeline orientation",
+      "variant": "string - Timeline variant",
+      "onEventClick": "function - Event click handler"
+    },
+    "size": "Variable height based on event count",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple orientations", "Custom styling", "Event interactions", "Responsive design", "Icon support"],
+      "variants": ["basic", "outlined", "filled", "custom"]
+    }
+  },
+  {
+    "component_name": "Accordion",
+    "description": "A collapsible content component for organizing information in expandable sections with customizable styling.",
+    "usage": "FAQ sections, content organization, settings panels, and any interface requiring collapsible content sections.",
+    "inputs": {
+      "sections": "AccordionSection[] - Accordion sections",
+      "allowMultiple": "boolean - Allow multiple open sections",
+      "defaultExpanded": "string[] - Initially expanded sections",
+      "variant": "string - Accordion variant"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple sections", "Custom styling", "Smooth animations", "Keyboard navigation", "Accessibility support"],
+      "variants": ["standard", "outlined", "filled"]
+    }
+  },
+  {
+    "component_name": "Tabs",
+    "description": "A tabbed interface component for organizing content into multiple panels with navigation and content switching.",
+    "usage": "Settings pages, content organization, multi-step processes, and any interface requiring tabbed navigation.",
+    "inputs": {
+      "tabs": "Tab[] - Tab definitions",
+      "defaultTab": "string - Default active tab",
+      "orientation": "'horizontal' | 'vertical' - Tab orientation",
+      "variant": "string - Tab variant"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple orientations", "Custom styling", "Keyboard navigation", "Accessibility support", "Scrollable tabs"],
+      "variants": ["standard", "scrollable", "fullWidth"]
+    }
+  },
+  {
+    "component_name": "Stepper",
+    "description": "A step-by-step process component for guiding users through multi-step workflows with progress indication.",
+    "usage": "Form wizards, checkout processes, onboarding flows, and any interface requiring step-by-step guidance.",
+    "inputs": {
+      "steps": "Step[] - Step definitions",
+      "activeStep": "number - Current active step",
+      "orientation": "'horizontal' | 'vertical' - Stepper orientation",
+      "alternativeLabel": "boolean - Alternative label positioning"
+    },
+    "size": "Variable height based on step count and content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple orientations", "Progress indication", "Step validation", "Custom styling", "Accessibility support"],
+      "step_states": ["completed", "active", "disabled", "error"]
+    }
+  },
+  {
+    "component_name": "Rating",
+    "description": "A rating component for collecting and displaying user ratings with customizable appearance and interaction modes.",
+    "usage": "Product reviews, feedback collection, rating displays, and any interface requiring rating input or display.",
+    "inputs": {
+      "value": "number - Current rating value",
+      "max": "number - Maximum rating value",
+      "readOnly": "boolean - Read-only mode",
+      "precision": "number - Rating precision",
+      "size": "string - Rating size",
+      "onChange": "function - Rating change handler"
+    },
+    "size": "Variable width based on max value and size",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Customizable appearance", "Half-star ratings", "Read-only mode", "Hover effects", "Accessibility support"],
+      "interaction_modes": ["click", "hover", "keyboard"]
+    }
+  },
+  {
+    "component_name": "Chip",
+    "description": "A compact element component for displaying tags, labels, and interactive elements with customizable styling.",
+    "usage": "Tag systems, filter chips, status indicators, and any interface requiring compact labeled elements.",
+    "inputs": {
+      "label": "string - Chip label",
+      "color": "string - Chip color",
+      "variant": "string - Chip variant",
+      "size": "string - Chip size",
+      "onDelete": "function - Delete handler",
+      "onClick": "function - Click handler"
+    },
+    "size": "Small to medium compact size",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Customizable colors", "Multiple variants", "Delete functionality", "Click interactions", "Icon support"],
+      "variants": ["filled", "outlined", "soft"]
+    }
+  },
+  {
+    "component_name": "Tooltip",
+    "description": "A tooltip component for displaying additional information on hover or focus with customizable positioning and styling.",
+    "usage": "Help text, additional information, feature explanations, and any interface requiring contextual information display.",
+    "inputs": {
+      "title": "string | ReactNode - Tooltip content",
+      "placement": "string - Tooltip placement",
+      "arrow": "boolean - Show arrow",
+      "disableHoverListener": "boolean - Disable hover trigger",
+      "open": "boolean - Controlled open state"
+    },
+    "size": "Variable size based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple placements", "Arrow support", "Custom styling", "Delay controls", "Accessibility support"],
+      "placements": ["top", "bottom", "left", "right", "top-start", "top-end", "bottom-start", "bottom-end"]
+    }
+  },
+  {
+    "component_name": "Skeleton",
+    "description": "A loading placeholder component for displaying content structure while data is being loaded.",
+    "usage": "Loading states, content placeholders, and any interface requiring loading indication with content structure preview.",
+    "inputs": {
+      "variant": "string - Skeleton variant",
+      "width": "number | string - Skeleton width",
+      "height": "number | string - Skeleton height",
+      "animation": "string - Animation type"
+    },
+    "size": "Variable size based on content being loaded",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple variants", "Customizable dimensions", "Animation effects", "Content structure preview"],
+      "variants": ["text", "rectangular", "circular", "rounded"]
+    }
+  },
+  {
+    "component_name": "Backdrop",
+    "description": "A backdrop component for overlaying content with semi-transparent background and loading indicators.",
+    "usage": "Loading overlays, modal backgrounds, and any interface requiring content overlay with visual emphasis.",
+    "inputs": {
+      "open": "boolean - Backdrop visibility",
+      "invisible": "boolean - Invisible backdrop",
+      "onClick": "function - Click handler",
+      "children": "ReactNode - Backdrop content"
+    },
+    "size": "Full viewport coverage",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Semi-transparent overlay", "Click-through prevention", "Loading indicator support", "Customizable opacity"],
+      "use_cases": ["Modal backgrounds", "Loading overlays", "Content emphasis"]
+    }
+  },
+  {
+    "component_name": "Pagination",
+    "description": "A pagination component for navigating through large datasets with page numbers, navigation arrows, and customizable appearance.",
+    "usage": "Data tables, search results, content lists, and any interface requiring pagination navigation.",
+    "inputs": {
+      "count": "number - Total number of pages",
+      "page": "number - Current page",
+      "onChange": "function - Page change handler",
+      "showFirstButton": "boolean - Show first page button",
+      "showLastButton": "boolean - Show last page button",
+      "color": "string - Pagination color"
+    },
+    "size": "Variable width based on page count",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Page navigation", "First/last buttons", "Customizable appearance", "Responsive design", "Accessibility support"],
+      "variants": ["text", "outlined", "rounded"]
+    }
+  },
+  {
+    "component_name": "SpeedDial",
+    "description": "A floating action button component with expandable menu options for quick access to common actions.",
+    "usage": "Quick actions, floating menus, and any interface requiring compact access to multiple actions.",
+    "inputs": {
+      "actions": "Action[] - Speed dial actions",
+      "open": "boolean - Speed dial open state",
+      "onOpen": "function - Open handler",
+      "onClose": "function - Close handler",
+      "direction": "string - Expansion direction"
+    },
+    "size": "Compact floating button with expandable menu",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Expandable menu", "Multiple directions", "Custom actions", "Smooth animations", "Accessibility support"],
+      "directions": ["up", "down", "left", "right"]
+    }
+  },
+  {
+    "component_name": "TreeView",
+    "description": "A hierarchical tree component for displaying nested data structures with expand/collapse functionality.",
+    "usage": "File browsers, navigation menus, organizational charts, and any interface requiring hierarchical data display.",
+    "inputs": {
+      "data": "TreeNode[] - Tree data",
+      "onNodeSelect": "function - Node selection handler",
+      "onNodeToggle": "function - Node expand/collapse handler",
+      "multiSelect": "boolean - Allow multiple selection",
+      "defaultExpanded": "string[] - Initially expanded nodes"
+    },
+    "size": "Variable height based on tree depth and content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Hierarchical display", "Expand/collapse", "Multi-selection", "Custom icons", "Keyboard navigation"],
+      "interactions": ["Click to expand/collapse", "Click to select", "Keyboard navigation"]
+    }
+  },
+  {
+    "component_name": "TransferList",
+    "description": "A dual-list component for transferring items between two lists with search and filtering capabilities.",
+    "usage": "User management, permission assignment, data migration, and any interface requiring item transfer between lists.",
+    "inputs": {
+      "leftItems": "Item[] - Left list items",
+      "rightItems": "Item[] - Right list items",
+      "onTransfer": "function - Transfer handler",
+      "searchable": "boolean - Enable search",
+      "filterable": "boolean - Enable filtering"
+    },
+    "size": "Two-column layout with variable height",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Dual lists", "Item transfer", "Search functionality", "Filtering", "Bulk operations"],
+      "interactions": ["Click to select", "Double-click to transfer", "Bulk selection", "Search filtering"]
+    }
+  },
+  {
+    "component_name": "Autocomplete",
+    "description": "An autocomplete input component with suggestions, filtering, and custom rendering capabilities.",
+    "usage": "Search inputs, tag selection, data entry with suggestions, and any interface requiring autocomplete functionality.",
+    "inputs": {
+      "options": "Option[] - Available options",
+      "value": "any - Selected value",
+      "onChange": "function - Change handler",
+      "onInputChange": "function - Input change handler",
+      "freeSolo": "boolean - Allow custom input",
+      "multiple": "boolean - Allow multiple selection"
+    },
+    "size": "Variable width input with dropdown suggestions",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Suggestions dropdown", "Custom filtering", "Multiple selection", "Free text input", "Custom rendering"],
+      "filter_modes": ["includes", "startsWith", "fuzzy", "custom"]
+    }
+  },
+  {
+    "component_name": "DatePicker",
+    "description": "A date selection component with calendar interface, date range selection, and customizable formatting.",
+    "usage": "Form inputs, scheduling interfaces, date filtering, and any interface requiring date selection.",
+    "inputs": {
+      "value": "Date | null - Selected date",
+      "onChange": "function - Date change handler",
+      "minDate": "Date - Minimum selectable date",
+      "maxDate": "Date - Maximum selectable date",
+      "format": "string - Date format",
+      "views": "string[] - Available views"
+    },
+    "size": "Variable width input with calendar popup",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "date-fns"],
+      "features": ["Calendar interface", "Date range selection", "Custom formatting", "Min/max dates", "Multiple views"],
+      "views": ["year", "month", "day"]
+    }
+  },
+  {
+    "component_name": "TimePicker",
+    "description": "A time selection component with clock interface and customizable time format.",
+    "usage": "Scheduling interfaces, time-based filtering, and any interface requiring time selection.",
+    "inputs": {
+      "value": "Date | null - Selected time",
+      "onChange": "function - Time change handler",
+      "format": "string - Time format",
+      "ampm": "boolean - 12-hour format",
+      "minutesStep": "number - Minutes step interval"
+    },
+    "size": "Variable width input with clock popup",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "date-fns"],
+      "features": ["Clock interface", "12/24 hour format", "Custom step intervals", "Keyboard input", "Accessibility support"],
+      "formats": ["12-hour", "24-hour", "custom"]
+    }
+  },
+  {
+    "component_name": "ColorPicker",
+    "description": "A color selection component with palette, custom color input, and color format support.",
+    "usage": "Theme customization, design tools, color-based filtering, and any interface requiring color selection.",
+    "inputs": {
+      "value": "string - Selected color",
+      "onChange": "function - Color change handler",
+      "format": "string - Color format",
+      "presetColors": "string[] - Preset color options",
+      "disableAlpha": "boolean - Disable alpha channel"
+    },
+    "size": "Variable width popup with color palette",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "color picker library"],
+      "features": ["Color palette", "Custom color input", "Multiple formats", "Preset colors", "Alpha channel support"],
+      "formats": ["hex", "rgb", "hsl", "hsv"]
+    }
+  },
+  {
+    "component_name": "ImageUpload",
+    "description": "An image upload component with drag-and-drop, preview, cropping, and multiple format support.",
+    "usage": "Profile pictures, image galleries, content management, and any interface requiring image upload functionality.",
+    "inputs": {
+      "value": "File | string - Selected image",
+      "onChange": "function - Image change handler",
+      "accept": "string - Accepted image formats",
+      "maxSize": "number - Maximum file size",
+      "aspectRatio": "number - Crop aspect ratio",
+      "preview": "boolean - Show preview"
+    },
+    "size": "Variable size based on preview and controls",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "react-dropzone", "image cropping library"],
+      "features": ["Drag and drop", "Image preview", "Cropping functionality", "Format validation", "Size validation"],
+      "supported_formats": ["jpg", "jpeg", "png", "gif", "webp"]
+    }
+  },
+  {
+    "component_name": "VideoPlayer",
+    "description": "A video player component with custom controls, playback options, and responsive design.",
+    "usage": "Media galleries, content players, educational platforms, and any interface requiring video playback.",
+    "inputs": {
+      "src": "string - Video source URL",
+      "poster": "string - Video poster image",
+      "controls": "boolean - Show controls",
+      "autoplay": "boolean - Auto-play video",
+      "loop": "boolean - Loop video",
+      "muted": "boolean - Mute video"
+    },
+    "size": "Responsive container with aspect ratio",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "video player library"],
+      "features": ["Custom controls", "Responsive design", "Playback options", "Fullscreen support", "Accessibility support"],
+      "playback_options": ["play", "pause", "seek", "volume", "fullscreen"]
+    }
+  },
+  {
+    "component_name": "AudioPlayer",
+    "description": "An audio player component with custom controls, playlist support, and waveform visualization.",
+    "usage": "Music players, podcast interfaces, audio content, and any interface requiring audio playback.",
+    "inputs": {
+      "src": "string - Audio source URL",
+      "title": "string - Audio title",
+      "artist": "string - Audio artist",
+      "playlist": "AudioItem[] - Playlist items",
+      "showWaveform": "boolean - Show waveform visualization"
+    },
+    "size": "Compact horizontal player with optional waveform",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "audio player library"],
+      "features": ["Custom controls", "Playlist support", "Waveform visualization", "Progress tracking", "Volume control"],
+      "playback_features": ["play", "pause", "seek", "volume", "repeat", "shuffle"]
+    }
+  },
+  {
+    "component_name": "QRCode",
+    "description": "A QR code generation component for displaying QR codes with customizable styling and error correction.",
+    "usage": "Sharing interfaces, authentication codes, payment links, and any interface requiring QR code generation.",
+    "inputs": {
+      "value": "string - QR code data",
+      "size": "number - QR code size",
+      "level": "string - Error correction level",
+      "color": "string - QR code color",
+      "backgroundColor": "string - Background color"
+    },
+    "size": "Square with customizable dimensions",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "qrcode library"],
+      "features": ["Customizable styling", "Error correction", "Multiple formats", "Download support", "Print support"],
+      "error_levels": ["L", "M", "Q", "H"]
+    }
+  },
+  {
+    "component_name": "Barcode",
+    "description": "A barcode generation component for displaying various barcode formats with customizable styling.",
+    "usage": "Product identification, inventory management, ticketing systems, and any interface requiring barcode generation.",
+    "inputs": {
+      "value": "string - Barcode data",
+      "format": "string - Barcode format",
+      "width": "number - Barcode width",
+      "height": "number - Barcode height",
+      "displayValue": "boolean - Show value below barcode"
+    },
+    "size": "Variable width based on data length, fixed height",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "barcode library"],
+      "features": ["Multiple formats", "Customizable dimensions", "Value display", "Print support", "Validation"],
+      "formats": ["CODE128", "EAN13", "EAN8", "UPC", "CODE39"]
+    }
+  },
+  {
+    "component_name": "SignaturePad",
+    "description": "A signature capture component with drawing capabilities, signature validation, and export options.",
+    "usage": "Document signing, approval workflows, consent forms, and any interface requiring signature capture.",
+    "inputs": {
+      "value": "string - Signature data",
+      "onChange": "function - Signature change handler",
+      "penColor": "string - Pen color",
+      "penWidth": "number - Pen width",
+      "backgroundColor": "string - Background color"
+    },
+    "size": "Variable size based on container",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "signature pad library"],
+      "features": ["Drawing capabilities", "Customizable pen", "Signature validation", "Export options", "Clear functionality"],
+      "export_formats": ["png", "jpeg", "svg"]
+    }
+  },
+  {
+    "component_name": "RichTextEditor",
+    "description": "A rich text editor component with formatting options, media support, and customizable toolbar.",
+    "usage": "Content creation, document editing, email composition, and any interface requiring rich text editing.",
+    "inputs": {
+      "value": "string - Editor content",
+      "onChange": "function - Content change handler",
+      "placeholder": "string - Editor placeholder",
+      "toolbar": "ToolbarItem[] - Toolbar configuration",
+      "readOnly": "boolean - Read-only mode"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "rich text editor library"],
+      "features": ["Text formatting", "Media support", "Customizable toolbar", "Keyboard shortcuts", "Undo/redo"],
+      "formatting_options": ["bold", "italic", "underline", "strikethrough", "lists", "links", "images"]
+    }
+  },
+  {
+    "component_name": "CodeEditor",
+    "description": "A code editor component with syntax highlighting, line numbers, and code formatting capabilities.",
+    "usage": "Code editing interfaces, configuration management, script editors, and any interface requiring code editing.",
+    "inputs": {
+      "value": "string - Code content",
+      "onChange": "function - Code change handler",
+      "language": "string - Programming language",
+      "theme": "string - Editor theme",
+      "readOnly": "boolean - Read-only mode"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "code editor library"],
+      "features": ["Syntax highlighting", "Line numbers", "Code formatting", "Multiple themes", "Keyboard shortcuts"],
+      "supported_languages": ["javascript", "typescript", "python", "java", "html", "css", "json", "xml"]
+    }
+  },
+  {
+    "component_name": "MarkdownEditor",
+    "description": "A markdown editor component with live preview, syntax highlighting, and markdown formatting support.",
+    "usage": "Documentation editing, blog post creation, README files, and any interface requiring markdown editing.",
+    "inputs": {
+      "value": "string - Markdown content",
+      "onChange": "function - Content change handler",
+      "preview": "boolean - Show live preview",
+      "toolbar": "boolean - Show formatting toolbar",
+      "height": "number - Editor height"
+    },
+    "size": "Variable height with optional split view",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "markdown editor library"],
+      "features": ["Live preview", "Syntax highlighting", "Formatting toolbar", "Split view", "Export options"],
+      "markdown_features": ["headers", "lists", "links", "images", "code blocks", "tables"]
+    }
+  },
+  {
+    "component_name": "JsonEditor",
+    "description": "A JSON editor component with syntax validation, formatting, and tree view capabilities.",
+    "usage": "Configuration management, API testing, data editing, and any interface requiring JSON editing.",
+    "inputs": {
+      "value": "object | string - JSON data",
+      "onChange": "function - JSON change handler",
+      "readOnly": "boolean - Read-only mode",
+      "theme": "string - Editor theme",
+      "height": "number - Editor height"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "json editor library"],
+      "features": ["Syntax validation", "Auto-formatting", "Tree view", "Search functionality", "Error highlighting"],
+      "validation": ["JSON syntax", "Schema validation", "Type checking"]
+    }
+  },
+  {
+    "component_name": "XmlEditor",
+    "description": "An XML editor component with syntax highlighting, validation, and formatting capabilities.",
+    "usage": "Configuration files, data exchange, document editing, and any interface requiring XML editing.",
+    "inputs": {
+      "value": "string - XML content",
+      "onChange": "function - XML change handler",
+      "readOnly": "boolean - Read-only mode",
+      "validate": "boolean - Enable validation",
+      "format": "boolean - Enable auto-formatting"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "xml editor library"],
+      "features": ["Syntax highlighting", "XML validation", "Auto-formatting", "Tag completion", "Error highlighting"],
+      "validation": ["XML syntax", "Schema validation", "DTD validation"]
+    }
+  },
+  {
+    "component_name": "CsvEditor",
+    "description": "A CSV editor component with table view, data validation, and import/export capabilities.",
+    "usage": "Data management, spreadsheet editing, data import/export, and any interface requiring CSV editing.",
+    "inputs": {
+      "value": "string[][] - CSV data",
+      "onChange": "function - Data change handler",
+      "headers": "string[] - Column headers",
+      "delimiter": "string - CSV delimiter",
+      "readOnly": "boolean - Read-only mode"
+    },
+    "size": "Variable height based on row count",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "csv editor library"],
+      "features": ["Table view", "Data validation", "Import/export", "Column management", "Row operations"],
+      "operations": ["add row", "delete row", "add column", "delete column", "sort", "filter"]
+    }
+  },
+  {
+    "component_name": "ExcelViewer",
+    "description": "An Excel file viewer component with sheet navigation, cell editing, and formula support.",
+    "usage": "Spreadsheet viewing, data analysis, financial reports, and any interface requiring Excel file display.",
+    "inputs": {
+      "file": "File | string - Excel file",
+      "readOnly": "boolean - Read-only mode",
+      "sheets": "string[] - Available sheets",
+      "activeSheet": "string - Active sheet",
+      "onSheetChange": "function - Sheet change handler"
+    },
+    "size": "Variable size based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "excel viewer library"],
+      "features": ["Sheet navigation", "Cell editing", "Formula support", "Formatting", "Charts"],
+      "supported_formats": ["xlsx", "xls", "csv"]
+    }
+  },
+  {
+    "component_name": "PdfViewer",
+    "description": "A PDF viewer component with page navigation, zoom controls, and annotation support.",
+    "usage": "Document viewing, report display, manual viewing, and any interface requiring PDF file display.",
+    "inputs": {
+      "file": "File | string - PDF file",
+      "page": "number - Current page",
+      "scale": "number - Zoom scale",
+      "onPageChange": "function - Page change handler",
+      "onScaleChange": "function - Scale change handler"
+    },
+    "size": "Variable size based on page dimensions and scale",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "pdf viewer library"],
+      "features": ["Page navigation", "Zoom controls", "Search functionality", "Annotations", "Print support"],
+      "navigation": ["first page", "previous page", "next page", "last page", "page input"]
+    }
+  },
+  {
+    "component_name": "ImageGallery",
+    "description": "An image gallery component with lightbox, thumbnails, and image management capabilities.",
+    "usage": "Photo galleries, product images, portfolio displays, and any interface requiring image collection display.",
+    "inputs": {
+      "images": "ImageItem[] - Gallery images",
+      "onImageSelect": "function - Image selection handler",
+      "showThumbnails": "boolean - Show thumbnail navigation",
+      "showLightbox": "boolean - Enable lightbox view",
+      "aspectRatio": "number - Image aspect ratio"
+    },
+    "size": "Variable size based on layout and image count",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "lightbox library"],
+      "features": ["Lightbox view", "Thumbnail navigation", "Image zoom", "Slideshow", "Fullscreen support"],
+      "layouts": ["grid", "masonry", "carousel", "justified"]
+    }
+  },
+  {
+    "component_name": "Carousel",
+    "description": "A carousel component for displaying content in a sliding format with navigation controls and indicators.",
+    "usage": "Image sliders, content showcases, testimonials, and any interface requiring sliding content display.",
+    "inputs": {
+      "items": "CarouselItem[] - Carousel items",
+      "autoPlay": "boolean - Auto-play carousel",
+      "interval": "number - Auto-play interval",
+      "showIndicators": "boolean - Show page indicators",
+      "showArrows": "boolean - Show navigation arrows"
+    },
+    "size": "Variable width with fixed aspect ratio",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "carousel library"],
+      "features": ["Auto-play", "Navigation controls", "Page indicators", "Smooth transitions", "Responsive design"],
+      "transitions": ["slide", "fade", "zoom", "flip"]
+    }
+  },
+  {
+    "component_name": "Tabs",
+    "description": "A tabbed interface component for organizing content into multiple panels with navigation and content switching.",
+    "usage": "Settings pages, content organization, multi-step processes, and any interface requiring tabbed navigation.",
+    "inputs": {
+      "tabs": "Tab[] - Tab definitions",
+      "defaultTab": "string - Default active tab",
+      "orientation": "'horizontal' | 'vertical' - Tab orientation",
+      "variant": "string - Tab variant"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple orientations", "Custom styling", "Keyboard navigation", "Accessibility support", "Scrollable tabs"],
+      "variants": ["standard", "scrollable", "fullWidth"]
+    }
+  },
+  {
+    "component_name": "Accordion",
+    "description": "A collapsible content component for organizing information in expandable sections with customizable styling.",
+    "usage": "FAQ sections, content organization, settings panels, and any interface requiring collapsible content sections.",
+    "inputs": {
+      "sections": "AccordionSection[] - Accordion sections",
+      "allowMultiple": "boolean - Allow multiple open sections",
+      "defaultExpanded": "string[] - Initially expanded sections",
+      "variant": "string - Accordion variant"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple sections", "Custom styling", "Smooth animations", "Keyboard navigation", "Accessibility support"],
+      "variants": ["standard", "outlined", "filled"]
+    }
+  },
+  {
+    "component_name": "Stepper",
+    "description": "A step-by-step process component for guiding users through multi-step workflows with progress indication.",
+    "usage": "Form wizards, checkout processes, onboarding flows, and any interface requiring step-by-step guidance.",
+    "inputs": {
+      "steps": "Step[] - Step definitions",
+      "activeStep": "number - Current active step",
+      "orientation": "'horizontal' | 'vertical' - Stepper orientation",
+      "alternativeLabel": "boolean - Alternative label positioning"
+    },
+    "size": "Variable height based on step count and content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple orientations", "Progress indication", "Step validation", "Custom styling", "Accessibility support"],
+      "step_states": ["completed", "active", "disabled", "error"]
+    }
+  },
+  {
+    "component_name": "Rating",
+    "description": "A rating component for collecting and displaying user ratings with customizable appearance and interaction modes.",
+    "usage": "Product reviews, feedback collection, rating displays, and any interface requiring rating input or display.",
+    "inputs": {
+      "value": "number - Current rating value",
+      "max": "number - Maximum rating value",
+      "readOnly": "boolean - Read-only mode",
+      "precision": "number - Rating precision",
+      "size": "string - Rating size",
+      "onChange": "function - Rating change handler"
+    },
+    "size": "Variable width based on max value and size",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Customizable appearance", "Half-star ratings", "Read-only mode", "Hover effects", "Accessibility support"],
+      "interaction_modes": ["click", "hover", "keyboard"]
+    }
+  },
+  {
+    "component_name": "Chip",
+    "description": "A compact element component for displaying tags, labels, and interactive elements with customizable styling.",
+    "usage": "Tag systems, filter chips, status indicators, and any interface requiring compact labeled elements.",
+    "inputs": {
+      "label": "string - Chip label",
+      "color": "string - Chip color",
+      "variant": "string - Chip variant",
+      "size": "string - Chip size",
+      "onDelete": "function - Delete handler",
+      "onClick": "function - Click handler"
+    },
+    "size": "Small to medium compact size",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Customizable colors", "Multiple variants", "Delete functionality", "Click interactions", "Icon support"],
+      "variants": ["filled", "outlined", "soft"]
+    }
+  },
+  {
+    "component_name": "Tooltip",
+    "description": "A tooltip component for displaying additional information on hover or focus with customizable positioning and styling.",
+    "usage": "Help text, additional information, feature explanations, and any interface requiring contextual information display.",
+    "inputs": {
+      "title": "string | ReactNode - Tooltip content",
+      "placement": "string - Tooltip placement",
+      "arrow": "boolean - Show arrow",
+      "disableHoverListener": "boolean - Disable hover trigger",
+      "open": "boolean - Controlled open state"
+    },
+    "size": "Variable size based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple placements", "Arrow support", "Custom styling", "Delay controls", "Accessibility support"],
+      "placements": ["top", "bottom", "left", "right", "top-start", "top-end", "bottom-start", "bottom-end"]
+    }
+  },
+  {
+    "component_name": "Skeleton",
+    "description": "A loading placeholder component for displaying content structure while data is being loaded.",
+    "usage": "Loading states, content placeholders, and any interface requiring loading indication with content structure preview.",
+    "inputs": {
+      "variant": "string - Skeleton variant",
+      "width": "number | string - Skeleton width",
+      "height": "number | string - Skeleton height",
+      "animation": "string - Animation type"
+    },
+    "size": "Variable size based on content being loaded",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Multiple variants", "Customizable dimensions", "Animation effects", "Content structure preview"],
+      "variants": ["text", "rectangular", "circular", "rounded"]
+    }
+  },
+  {
+    "component_name": "Backdrop",
+    "description": "A backdrop component for overlaying content with semi-transparent background and loading indicators.",
+    "usage": "Loading overlays, modal backgrounds, and any interface requiring content overlay with visual emphasis.",
+    "inputs": {
+      "open": "boolean - Backdrop visibility",
+      "invisible": "boolean - Invisible backdrop",
+      "onClick": "function - Click handler",
+      "children": "ReactNode - Backdrop content"
+    },
+    "size": "Full viewport coverage",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Semi-transparent overlay", "Click-through prevention", "Loading indicator support", "Customizable opacity"],
+      "use_cases": ["Modal backgrounds", "Loading overlays", "Content emphasis"]
+    }
+  },
+  {
+    "component_name": "Pagination",
+    "description": "A pagination component for navigating through large datasets with page numbers, navigation arrows, and customizable appearance.",
+    "usage": "Data tables, search results, content lists, and any interface requiring pagination navigation.",
+    "inputs": {
+      "count": "number - Total number of pages",
+      "page": "number - Current page",
+      "onChange": "function - Page change handler",
+      "showFirstButton": "boolean - Show first page button",
+      "showLastButton": "boolean - Show last page button",
+      "color": "string - Pagination color"
+    },
+    "size": "Variable width based on page count",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Page navigation", "First/last buttons", "Customizable appearance", "Responsive design", "Accessibility support"],
+      "variants": ["text", "outlined", "rounded"]
+    }
+  },
+  {
+    "component_name": "SpeedDial",
+    "description": "A floating action button component with expandable menu options for quick access to common actions.",
+    "usage": "Quick actions, floating menus, and any interface requiring compact access to multiple actions.",
+    "inputs": {
+      "actions": "Action[] - Speed dial actions",
+      "open": "boolean - Speed dial open state",
+      "onOpen": "function - Open handler",
+      "onClose": "function - Close handler",
+      "direction": "string - Expansion direction"
+    },
+    "size": "Compact floating button with expandable menu",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Expandable menu", "Multiple directions", "Custom actions", "Smooth animations", "Accessibility support"],
+      "directions": ["up", "down", "left", "right"]
+    }
+  },
+  {
+    "component_name": "TreeView",
+    "description": "A hierarchical tree component for displaying nested data structures with expand/collapse functionality.",
+    "usage": "File browsers, navigation menus, organizational charts, and any interface requiring hierarchical data display.",
+    "inputs": {
+      "data": "TreeNode[] - Tree data",
+      "onNodeSelect": "function - Node selection handler",
+      "onNodeToggle": "function - Node expand/collapse handler",
+      "multiSelect": "boolean - Allow multiple selection",
+      "defaultExpanded": "string[] - Initially expanded nodes"
+    },
+    "size": "Variable height based on tree depth and content",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Hierarchical display", "Expand/collapse", "Multi-selection", "Custom icons", "Keyboard navigation"],
+      "interactions": ["Click to expand/collapse", "Click to select", "Keyboard navigation"]
+    }
+  },
+  {
+    "component_name": "TransferList",
+    "description": "A dual-list component for transferring items between two lists with search and filtering capabilities.",
+    "usage": "User management, permission assignment, data migration, and any interface requiring item transfer between lists.",
+    "inputs": {
+      "leftItems": "Item[] - Left list items",
+      "rightItems": "Item[] - Right list items",
+      "onTransfer": "function - Transfer handler",
+      "searchable": "boolean - Enable search",
+      "filterable": "boolean - Enable filtering"
+    },
+    "size": "Two-column layout with variable height",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Dual lists", "Item transfer", "Search functionality", "Filtering", "Bulk operations"],
+      "interactions": ["Click to select", "Double-click to transfer", "Bulk selection", "Search filtering"]
+    }
+  },
+  {
+    "component_name": "Autocomplete",
+    "description": "An autocomplete input component with suggestions, filtering, and custom rendering capabilities.",
+    "usage": "Search inputs, tag selection, data entry with suggestions, and any interface requiring autocomplete functionality.",
+    "inputs": {
+      "options": "Option[] - Available options",
+      "value": "any - Selected value",
+      "onChange": "function - Change handler",
+      "onInputChange": "function - Input change handler",
+      "freeSolo": "boolean - Allow custom input",
+      "multiple": "boolean - Allow multiple selection"
+    },
+    "size": "Variable width input with dropdown suggestions",
+    "other_metadata": {
+      "dependencies": ["@mui/material"],
+      "features": ["Suggestions dropdown", "Custom filtering", "Multiple selection", "Free text input", "Custom rendering"],
+      "filter_modes": ["includes", "startsWith", "fuzzy", "custom"]
+    }
+  },
+  {
+    "component_name": "DatePicker",
+    "description": "A date selection component with calendar interface, date range selection, and customizable formatting.",
+    "usage": "Form inputs, scheduling interfaces, date filtering, and any interface requiring date selection.",
+    "inputs": {
+      "value": "Date | null - Selected date",
+      "onChange": "function - Date change handler",
+      "minDate": "Date - Minimum selectable date",
+      "maxDate": "Date - Maximum selectable date",
+      "format": "string - Date format",
+      "views": "string[] - Available views"
+    },
+    "size": "Variable width input with calendar popup",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "date-fns"],
+      "features": ["Calendar interface", "Date range selection", "Custom formatting", "Min/max dates", "Multiple views"],
+      "views": ["year", "month", "day"]
+    }
+  },
+  {
+    "component_name": "TimePicker",
+    "description": "A time selection component with clock interface and customizable time format.",
+    "usage": "Scheduling interfaces, time-based filtering, and any interface requiring time selection.",
+    "inputs": {
+      "value": "Date | null - Selected time",
+      "onChange": "function - Time change handler",
+      "format": "string - Time format",
+      "ampm": "boolean - 12-hour format",
+      "minutesStep": "number - Minutes step interval"
+    },
+    "size": "Variable width input with clock popup",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "date-fns"],
+      "features": ["Clock interface", "12/24 hour format", "Custom step intervals", "Keyboard input", "Accessibility support"],
+      "formats": ["12-hour", "24-hour", "custom"]
+    }
+  },
+  {
+    "component_name": "ColorPicker",
+    "description": "A color selection component with palette, custom color input, and color format support.",
+    "usage": "Theme customization, design tools, color-based filtering, and any interface requiring color selection.",
+    "inputs": {
+      "value": "string - Selected color",
+      "onChange": "function - Color change handler",
+      "format": "string - Color format",
+      "presetColors": "string[] - Preset color options",
+      "disableAlpha": "boolean - Disable alpha channel"
+    },
+    "size": "Variable width popup with color palette",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "color picker library"],
+      "features": ["Color palette", "Custom color input", "Multiple formats", "Preset colors", "Alpha channel support"],
+      "formats": ["hex", "rgb", "hsl", "hsv"]
+    }
+  },
+  {
+    "component_name": "ImageUpload",
+    "description": "An image upload component with drag-and-drop, preview, cropping, and multiple format support.",
+    "usage": "Profile pictures, image galleries, content management, and any interface requiring image upload functionality.",
+    "inputs": {
+      "value": "File | string - Selected image",
+      "onChange": "function - Image change handler",
+      "accept": "string - Accepted image formats",
+      "maxSize": "number - Maximum file size",
+      "aspectRatio": "number - Crop aspect ratio",
+      "preview": "boolean - Show preview"
+    },
+    "size": "Variable size based on preview and controls",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "react-dropzone", "image cropping library"],
+      "features": ["Drag and drop", "Image preview", "Cropping functionality", "Format validation", "Size validation"],
+      "supported_formats": ["jpg", "jpeg", "png", "gif", "webp"]
+    }
+  },
+  {
+    "component_name": "VideoPlayer",
+    "description": "A video player component with custom controls, playback options, and responsive design.",
+    "usage": "Media galleries, content players, educational platforms, and any interface requiring video playback.",
+    "inputs": {
+      "src": "string - Video source URL",
+      "poster": "string - Video poster image",
+      "controls": "boolean - Show controls",
+      "autoplay": "boolean - Auto-play video",
+      "loop": "boolean - Loop video",
+      "muted": "boolean - Mute video"
+    },
+    "size": "Responsive container with aspect ratio",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "video player library"],
+      "features": ["Custom controls", "Responsive design", "Playback options", "Fullscreen support", "Accessibility support"],
+      "playback_options": ["play", "pause", "seek", "volume", "fullscreen"]
+    }
+  },
+  {
+    "component_name": "AudioPlayer",
+    "description": "An audio player component with custom controls, playlist support, and waveform visualization.",
+    "usage": "Music players, podcast interfaces, audio content, and any interface requiring audio playback.",
+    "inputs": {
+      "src": "string - Audio source URL",
+      "title": "string - Audio title",
+      "artist": "string - Audio artist",
+      "playlist": "AudioItem[] - Playlist items",
+      "showWaveform": "boolean - Show waveform visualization"
+    },
+    "size": "Compact horizontal player with optional waveform",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "audio player library"],
+      "features": ["Custom controls", "Playlist support", "Waveform visualization", "Progress tracking", "Volume control"],
+      "playback_features": ["play", "pause", "seek", "volume", "repeat", "shuffle"]
+    }
+  },
+  {
+    "component_name": "QRCode",
+    "description": "A QR code generation component for displaying QR codes with customizable styling and error correction.",
+    "usage": "Sharing interfaces, authentication codes, payment links, and any interface requiring QR code generation.",
+    "inputs": {
+      "value": "string - QR code data",
+      "size": "number - QR code size",
+      "level": "string - Error correction level",
+      "color": "string - QR code color",
+      "backgroundColor": "string - Background color"
+    },
+    "size": "Square with customizable dimensions",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "qrcode library"],
+      "features": ["Customizable styling", "Error correction", "Multiple formats", "Download support", "Print support"],
+      "error_levels": ["L", "M", "Q", "H"]
+    }
+  },
+  {
+    "component_name": "Barcode",
+    "description": "A barcode generation component for displaying various barcode formats with customizable styling.",
+    "usage": "Product identification, inventory management, ticketing systems, and any interface requiring barcode generation.",
+    "inputs": {
+      "value": "string - Barcode data",
+      "format": "string - Barcode format",
+      "width": "number - Barcode width",
+      "height": "number - Barcode height",
+      "displayValue": "boolean - Show value below barcode"
+    },
+    "size": "Variable width based on data length, fixed height",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "barcode library"],
+      "features": ["Multiple formats", "Customizable dimensions", "Value display", "Print support", "Validation"],
+      "formats": ["CODE128", "EAN13", "EAN8", "UPC", "CODE39"]
+    }
+  },
+  {
+    "component_name": "SignaturePad",
+    "description": "A signature capture component with drawing capabilities, signature validation, and export options.",
+    "usage": "Document signing, approval workflows, consent forms, and any interface requiring signature capture.",
+    "inputs": {
+      "value": "string - Signature data",
+      "onChange": "function - Signature change handler",
+      "penColor": "string - Pen color",
+      "penWidth": "number - Pen width",
+      "backgroundColor": "string - Background color"
+    },
+    "size": "Variable size based on container",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "signature pad library"],
+      "features": ["Drawing capabilities", "Customizable pen", "Signature validation", "Export options", "Clear functionality"],
+      "export_formats": ["png", "jpeg", "svg"]
+    }
+  },
+  {
+    "component_name": "RichTextEditor",
+    "description": "A rich text editor component with formatting options, media support, and customizable toolbar.",
+    "usage": "Content creation, document editing, email composition, and any interface requiring rich text editing.",
+    "inputs": {
+      "value": "string - Editor content",
+      "onChange": "function - Content change handler",
+      "placeholder": "string - Editor placeholder",
+      "toolbar": "ToolbarItem[] - Toolbar configuration",
+      "readOnly": "boolean - Read-only mode"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "rich text editor library"],
+      "features": ["Text formatting", "Media support", "Customizable toolbar", "Keyboard shortcuts", "Undo/redo"],
+      "formatting_options": ["bold", "italic", "underline", "strikethrough", "lists", "links", "images"]
+    }
+  },
+  {
+    "component_name": "CodeEditor",
+    "description": "A code editor component with syntax highlighting, line numbers, and code formatting capabilities.",
+    "usage": "Code editing interfaces, configuration management, script editors, and any interface requiring code editing.",
+    "inputs": {
+      "value": "string - Code content",
+      "onChange": "function - Code change handler",
+      "language": "string - Programming language",
+      "theme": "string - Editor theme",
+      "readOnly": "boolean - Read-only mode"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "code editor library"],
+      "features": ["Syntax highlighting", "Line numbers", "Code formatting", "Multiple themes", "Keyboard shortcuts"],
+      "supported_languages": ["javascript", "typescript", "python", "java", "html", "css", "json", "xml"]
+    }
+  },
+  {
+    "component_name": "MarkdownEditor",
+    "description": "A markdown editor component with live preview, syntax highlighting, and markdown formatting support.",
+    "usage": "Documentation editing, blog post creation, README files, and any interface requiring markdown editing.",
+    "inputs": {
+      "value": "string - Markdown content",
+      "onChange": "function - Content change handler",
+      "preview": "boolean - Show live preview",
+      "toolbar": "boolean - Show formatting toolbar",
+      "height": "number - Editor height"
+    },
+    "size": "Variable height with optional split view",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "markdown editor library"],
+      "features": ["Live preview", "Syntax highlighting", "Formatting toolbar", "Split view", "Export options"],
+      "markdown_features": ["headers", "lists", "links", "images", "code blocks", "tables"]
+    }
+  },
+  {
+    "component_name": "JsonEditor",
+    "description": "A JSON editor component with syntax validation, formatting, and tree view capabilities.",
+    "usage": "Configuration management, API testing, data editing, and any interface requiring JSON editing.",
+    "inputs": {
+      "value": "object | string - JSON data",
+      "onChange": "function - JSON change handler",
+      "readOnly": "boolean - Read-only mode",
+      "theme": "string - Editor theme",
+      "height": "number - Editor height"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "json editor library"],
+      "features": ["Syntax validation", "Auto-formatting", "Tree view", "Search functionality", "Error highlighting"],
+      "validation": ["JSON syntax", "Schema validation", "Type checking"]
+    }
+  },
+  {
+    "component_name": "XmlEditor",
+    "description": "An XML editor component with syntax highlighting, validation, and formatting capabilities.",
+    "usage": "Configuration files, data exchange, document editing, and any interface requiring XML editing.",
+    "inputs": {
+      "value": "string - XML content",
+      "onChange": "function - XML change handler",
+      "readOnly": "boolean - Read-only mode",
+      "validate": "boolean - Enable validation",
+      "format": "boolean - Enable auto-formatting"
+    },
+    "size": "Variable height based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "xml editor library"],
+      "features": ["Syntax highlighting", "XML validation", "Auto-formatting", "Tag completion", "Error highlighting"],
+      "validation": ["XML syntax", "Schema validation", "DTD validation"]
+    }
+  },
+  {
+    "component_name": "CsvEditor",
+    "description": "A CSV editor component with table view, data validation, and import/export capabilities.",
+    "usage": "Data management, spreadsheet editing, data import/export, and any interface requiring CSV editing.",
+    "inputs": {
+      "value": "string[][] - CSV data",
+      "onChange": "function - Data change handler",
+      "headers": "string[] - Column headers",
+      "delimiter": "string - CSV delimiter",
+      "readOnly": "boolean - Read-only mode"
+    },
+    "size": "Variable height based on row count",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "csv editor library"],
+      "features": ["Table view", "Data validation", "Import/export", "Column management", "Row operations"],
+      "operations": ["add row", "delete row", "add column", "delete column", "sort", "filter"]
+    }
+  },
+  {
+    "component_name": "ExcelViewer",
+    "description": "An Excel file viewer component with sheet navigation, cell editing, and formula support.",
+    "usage": "Spreadsheet viewing, data analysis, financial reports, and any interface requiring Excel file display.",
+    "inputs": {
+      "file": "File | string - Excel file",
+      "readOnly": "boolean - Read-only mode",
+      "sheets": "string[] - Available sheets",
+      "activeSheet": "string - Active sheet",
+      "onSheetChange": "function - Sheet change handler"
+    },
+    "size": "Variable size based on content",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "excel viewer library"],
+      "features": ["Sheet navigation", "Cell editing", "Formula support", "Formatting", "Charts"],
+      "supported_formats": ["xlsx", "xls", "csv"]
+    }
+  },
+  {
+    "component_name": "PdfViewer",
+    "description": "A PDF viewer component with page navigation, zoom controls, and annotation support.",
+    "usage": "Document viewing, report display, manual viewing, and any interface requiring PDF file display.",
+    "inputs": {
+      "file": "File | string - PDF file",
+      "page": "number - Current page",
+      "scale": "number - Zoom scale",
+      "onPageChange": "function - Page change handler",
+      "onScaleChange": "function - Scale change handler"
+    },
+    "size": "Variable size based on page dimensions and scale",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "pdf viewer library"],
+      "features": ["Page navigation", "Zoom controls", "Search functionality", "Annotations", "Print support"],
+      "navigation": ["first page", "previous page", "next page", "last page", "page input"]
+    }
+  },
+  {
+    "component_name": "ImageGallery",
+    "description": "An image gallery component with lightbox, thumbnails, and image management capabilities.",
+    "usage": "Photo galleries, product images, portfolio displays, and any interface requiring image collection display.",
+    "inputs": {
+      "images": "ImageItem[] - Gallery images",
+      "onImageSelect": "function - Image selection handler",
+      "showThumbnails": "boolean - Show thumbnail navigation",
+      "showLightbox": "boolean - Enable lightbox view",
+      "aspectRatio": "number - Image aspect ratio"
+    },
+    "size": "Variable size based on layout and image count",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "lightbox library"],
+      "features": ["Lightbox view", "Thumbnail navigation", "Image zoom", "Slideshow", "Fullscreen support"],
+      "layouts": ["grid", "masonry", "carousel", "justified"]
+    }
+  },
+  {
+    "component_name": "Carousel",
+    "description": "A carousel component for displaying content in a sliding format with navigation controls and indicators.",
+    "usage": "Image sliders, content showcases, testimonials, and any interface requiring sliding content display.",
+    "inputs": {
+      "items": "CarouselItem[] - Carousel items",
+      "autoPlay": "boolean - Auto-play carousel",
+      "interval": "number - Auto-play interval",
+      "showIndicators": "boolean - Show page indicators",
+      "showArrows": "boolean - Show navigation arrows"
+    },
+    "size": "Variable width with fixed aspect ratio",
+    "other_metadata": {
+      "dependencies": ["@mui/material", "carousel library"],
+      "features": ["Auto-play", "Navigation controls", "Page indicators", "Smooth transitions", "Responsive design"],
+      "transitions": ["slide", "fade", "zoom", "flip"]
+    }
+  }
+]

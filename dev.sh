@@ -254,6 +254,28 @@ echo "Starting backend..."
 cd backend
 export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
+# Load backend development environment variables (including OPENAI_API_KEY)
+echo "Loading backend env (env.dev or .env) ..."
+if [ -f "env.dev" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./env.dev
+  set +a
+  echo "Loaded backend/env.dev"
+elif [ -f ".env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+  echo "Loaded backend/.env"
+else
+  echo "No backend env file found. Proceeding with current environment."
+fi
+
+# Ensure dev profile and mock auth are enabled
+export SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+export APP_MOCK_AUTH_ENABLED=${APP_MOCK_AUTH_ENABLED:-true}
+
 # Kill any existing backend process on port 8080
 if lsof -Pi :8080 -sTCP:LISTEN -t >/dev/null 2>&1; then
     echo "Stopping existing backend process..."
@@ -261,7 +283,7 @@ if lsof -Pi :8080 -sTCP:LISTEN -t >/dev/null 2>&1; then
     sleep 2
 fi
 
-mvn spring-boot:run -Dspring-boot.run.profiles=dev > /tmp/easyluxury-backend.log 2>&1 &
+mvn spring-boot:run -Dspring-boot.run.profiles=${SPRING_PROFILES_ACTIVE} > /tmp/easyluxury-backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 echo "Backend starting (PID: $BACKEND_PID)..."
@@ -342,6 +364,12 @@ echo ""
 # Save PIDs to file for stop script
 echo "$BACKEND_PID" > /tmp/easyluxury-backend.pid
 echo "$FRONTEND_PID" > /tmp/easyluxury-frontend.pid
+
+# In background mode, exit immediately after starting services
+if [ "$RUN_IN_BACKGROUND" -eq 1 ]; then
+  echo -e "${GREEN}Background mode enabled. Exiting script while services continue running.${NC}"
+  exit 0
+fi
 
 # Cleanup function to restore .env.local if it was backed up
 cleanup() {

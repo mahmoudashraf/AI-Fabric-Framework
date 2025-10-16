@@ -59,12 +59,12 @@ public class MockAuthenticationFilter extends OncePerRequestFilter {
                     User user = getCurrentMockUser(token);
                     
                     if (user != null) {
-                        // Set authentication
+                        // Set authentication with email as principal (so authentication.getName() returns email)
                         UsernamePasswordAuthenticationToken authentication = 
                                 new UsernamePasswordAuthenticationToken(
-                                        user,
+                                        user.getEmail(),
                                         null,
-                                        Collections.singletonList(new SimpleGrantedAuthority(user.getRole().name()))
+                                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
                                 );
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);

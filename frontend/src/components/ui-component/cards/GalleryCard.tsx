@@ -31,7 +31,8 @@ const backImage = '/assets/images/profile';
 
 const GalleryCard = ({ dateTime, image, title }: GenericCardProps) => {
   const theme = useTheme();
-  const backProfile = `${backImage}/${image}`;
+  // Handle both local asset paths and full URLs (e.g., from S3)
+  const backProfile = image?.startsWith('http') ? image : `${backImage}/${image}`;
   const [anchorEl, setAnchorEl] = useState<Element | (() => Element) | null | undefined>(null);
   const handleClick = (event: React.MouseEvent<HTMLButtonElement> | undefined) => {
     setAnchorEl(event?.currentTarget);
