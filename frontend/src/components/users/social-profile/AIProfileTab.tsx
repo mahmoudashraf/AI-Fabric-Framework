@@ -403,6 +403,37 @@ const AIProfileTab: React.FC = () => {
               After uploading your photos, click "Publish Profile" to save everything. Then navigate to other tabs to complete your social profile.
             </Alert>
           </Grid>
+
+          {/* Prominent Publish Button Section */}
+          {!isPublished && (
+            <Grid size={{ xs: 12 }}>
+              <Card sx={{ bgcolor: 'primary.lighter', borderColor: 'primary.main', borderWidth: 2, borderStyle: 'solid' }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                    <Box>
+                      <Typography variant="h5" gutterBottom>
+                        Ready to Publish?
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Once you publish, your AI-generated profile will be saved and marked as complete.
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="large"
+                      onClick={handlePublish}
+                      disabled={publishMutation.isPending}
+                      startIcon={publishMutation.isPending ? <CircularProgress size={20} /> : <IconCheck size={20} />}
+                      sx={{ minWidth: 180, py: 1.5 }}
+                    >
+                      {publishMutation.isPending ? 'Publishing...' : 'Publish Profile'}
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
         </>
       )}
     </Grid>
