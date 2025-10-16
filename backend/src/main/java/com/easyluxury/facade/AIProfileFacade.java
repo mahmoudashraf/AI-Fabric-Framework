@@ -4,16 +4,26 @@ import com.easyluxury.dto.AIProfileDataDto;
 import com.easyluxury.dto.AIProfileDto;
 import com.easyluxury.dto.GenerateProfileRequest;
 import com.easyluxury.entity.User;
+import com.easyluxury.entity.AIProfileStatus;
 import com.easyluxury.service.AIProfileService;
 import com.easyluxury.service.AIService;
+import com.easyluxury.service.S3Service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
