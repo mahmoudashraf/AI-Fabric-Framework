@@ -11,6 +11,7 @@ import com.easyluxury.ai.service.AIHealthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -25,10 +26,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * @version 1.0.0
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @TestPropertySource(properties = {
-    "ai.provider.openai.api-key=test-key",
-    "ai.provider.openai.model=gpt-4o-mini",
-    "ai.provider.openai.embedding-model=text-embedding-3-small",
+    "ai.providers.openai-api-key=test-key",
+    "ai.providers.openai-model=gpt-4o-mini",
+    "ai.providers.openai-embedding-model=text-embedding-3-small",
     "ai.service.enabled=true",
     "ai.service.auto-configuration=true",
     "easyluxury.ai.product-index-name=test-products",
