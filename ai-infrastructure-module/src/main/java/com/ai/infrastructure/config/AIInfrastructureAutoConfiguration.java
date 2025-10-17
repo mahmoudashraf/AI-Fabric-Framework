@@ -81,6 +81,24 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
+    public VectorDatabaseService luceneVectorDatabaseService(AIProviderConfig config) {
+        return new com.ai.infrastructure.rag.LuceneVectorDatabaseService(config);
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
+    public VectorDatabaseService pineconeVectorDatabaseService(AIProviderConfig config) {
+        return new com.ai.infrastructure.rag.PineconeVectorDatabaseService(config);
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
+    public VectorDatabaseService inMemoryVectorDatabaseService(AIProviderConfig config) {
+        return new com.ai.infrastructure.rag.InMemoryVectorDatabaseService(config);
+    }
+    
+    @Bean
     public AIConfigurationService aiConfigurationService(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
         return new AIConfigurationService(providerConfig, serviceConfig);
     }

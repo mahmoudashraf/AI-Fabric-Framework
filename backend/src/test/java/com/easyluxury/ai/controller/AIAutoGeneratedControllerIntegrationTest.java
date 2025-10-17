@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @author Easy Luxury Team
  * @version 1.0.0
  */
-@SpringBootTest
+@SpringBootTest(classes = {com.easyluxury.EasyLuxuryApplication.class, com.ai.infrastructure.config.AIInfrastructureAutoConfiguration.class})
 @AutoConfigureWebMvc
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
