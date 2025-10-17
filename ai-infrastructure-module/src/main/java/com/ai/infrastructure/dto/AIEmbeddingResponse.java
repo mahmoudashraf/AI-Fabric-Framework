@@ -3,21 +3,23 @@ package com.ai.infrastructure.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 /**
- * Response DTO for AI content generation
+ * Response DTO for AI embedding generation
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
 @Data
 @Builder
-public class AIGenerationResponse {
+public class AIEmbeddingResponse {
     
-    private String content;
+    private List<Double> embedding;
     
     private String model;
     
-    private Object usage;
+    private Integer dimensions;
     
     private Long processingTimeMs;
     

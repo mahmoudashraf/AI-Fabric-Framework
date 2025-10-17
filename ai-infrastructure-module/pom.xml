@@ -19,7 +19,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-boot.version>3.2.0</spring-boot.version>
         <openai.version>0.18.2</openai.version>
-        <pinecone.version>0.1.0</pinecone.version>
+        <!-- <pinecone.version>0.1.0</pinecone.version> -->
     </properties>
 
     <dependencyManagement>
@@ -64,11 +64,14 @@
             <artifactId>service</artifactId>
             <version>${openai.version}</version>
         </dependency>
+        <!-- Pinecone dependency removed for now - will be added in future phases -->
+        <!--
         <dependency>
             <groupId>io.pinecone</groupId>
             <artifactId>pinecone-client</artifactId>
             <version>${pinecone.version}</version>
         </dependency>
+        -->
 
         <!-- Utilities -->
         <dependency>

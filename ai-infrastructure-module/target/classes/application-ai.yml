@@ -1,0 +1,43 @@
+# AI Infrastructure Configuration
+ai:
+  enabled: true
+  providers:
+    # OpenAI Configuration
+    openai-api-key: ${OPENAI_API_KEY:your-openai-api-key}
+    openai-model: gpt-4o-mini
+    openai-embedding-model: text-embedding-3-small
+    openai-max-tokens: 2000
+    openai-temperature: 0.3
+    openai-timeout: 60
+    
+    # Pinecone Configuration (for future use)
+    pinecone-api-key: ${PINECONE_API_KEY:your-pinecone-api-key}
+    pinecone-environment: us-east-1-aws
+    pinecone-index-name: ai-infrastructure
+    pinecone-dimensions: 1536
+    
+    # AI Features Configuration
+    enable-rag: true
+    enable-behavioral-ai: true
+    enable-smart-validation: true
+    enable-auto-generation: true
+    
+    # Performance Configuration
+    max-concurrent-requests: 10
+    cache-timeout-minutes: 60
+    enable-caching: true
+    
+    # Rate Limiting Configuration
+    rate-limit-per-minute: 100
+    rate-limit-burst-size: 20
+    
+    # Error Handling Configuration
+    max-retries: 3
+    retry-delay-ms: 1000
+    enable-fallback: true
+
+# Logging Configuration
+logging:
+  level:
+    com.ai.infrastructure: DEBUG
+    org.springframework.ai: DEBUG

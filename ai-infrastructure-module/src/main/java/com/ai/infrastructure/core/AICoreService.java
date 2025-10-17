@@ -72,8 +72,8 @@ public class AICoreService {
             ChatCompletionRequest chatRequest = ChatCompletionRequest.builder()
                 .model(aiProviderConfig.getOpenaiModel())
                 .messages(List.of(
-                    new ChatMessage(ChatMessageRole.SYSTEM, request.getSystemPrompt()),
-                    new ChatMessage(ChatMessageRole.USER, request.getPrompt())
+                    new ChatMessage(ChatMessageRole.SYSTEM.value(), request.getSystemPrompt()),
+                    new ChatMessage(ChatMessageRole.USER.value(), request.getPrompt())
                 ))
                 .maxTokens(aiProviderConfig.getOpenaiMaxTokens())
                 .temperature(aiProviderConfig.getOpenaiTemperature())

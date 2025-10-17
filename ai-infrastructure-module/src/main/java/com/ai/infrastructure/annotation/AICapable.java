@@ -18,16 +18,58 @@ import java.lang.annotation.Target;
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@Target(ElementType.TYPE)
+@Target({ElementType.TYPE, ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AICapable {
     
     /**
-     * AI features to enable for this entity
+     * Enable RAG (Retrieval-Augmented Generation) capabilities
      * 
-     * @return array of enabled AI features
+     * @return true if RAG is enabled
      */
-    String[] features() default {"rag", "search", "recommendations", "validation"};
+    boolean enableRAG() default true;
+    
+    /**
+     * Enable embedding generation
+     * 
+     * @return true if embedding is enabled
+     */
+    boolean enableEmbedding() default true;
+    
+    /**
+     * Enable semantic search
+     * 
+     * @return true if search is enabled
+     */
+    boolean enableSearch() default true;
+    
+    /**
+     * Enable smart validation
+     * 
+     * @return true if validation is enabled
+     */
+    boolean enableValidation() default true;
+    
+    /**
+     * Enable content generation
+     * 
+     * @return true if generation is enabled
+     */
+    boolean enableGeneration() default true;
+    
+    /**
+     * Entity type for AI context
+     * 
+     * @return entity type
+     */
+    String entityType() default "";
+    
+    /**
+     * Priority for AI processing
+     * 
+     * @return priority level
+     */
+    int priority() default 0;
     
     /**
      * Description of the entity for AI context
@@ -35,25 +77,4 @@ public @interface AICapable {
      * @return entity description
      */
     String description() default "";
-    
-    /**
-     * Whether to enable automatic indexing
-     * 
-     * @return true if auto-indexing is enabled
-     */
-    boolean autoIndex() default true;
-    
-    /**
-     * Custom search fields for this entity
-     * 
-     * @return array of field names to include in search
-     */
-    String[] searchFields() default {};
-    
-    /**
-     * Custom recommendation fields for this entity
-     * 
-     * @return array of field names to use for recommendations
-     */
-    String[] recommendationFields() default {};
 }
