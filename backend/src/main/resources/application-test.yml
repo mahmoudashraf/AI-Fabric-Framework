@@ -1,0 +1,215 @@
+# Test Profile Configuration
+# Optimized for testing with in-memory vector database
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+        jdbc:
+          batch_size: 20
+    open-in-view: false
+
+  # Disable Liquibase for test
+  liquibase:
+    enabled: false
+
+# AI Configuration for Testing
+ai:
+  provider:
+    openai:
+      api-key: test-key
+      model: gpt-4o-mini
+      embedding-model: text-embedding-3-small
+    pinecone:
+      api-key: test-key
+      environment: test
+      index-name: test-index
+  
+  service:
+    enabled: true
+    auto-configuration: true
+    caching:
+      enabled: false  # Disable caching for tests
+    metrics:
+      enabled: false  # Disable metrics for tests
+    health-checks:
+      enabled: true
+    logging:
+      enabled: false  # Reduce logging for tests
+    default-timeout: 5000  # Shorter timeout for tests
+    max-retries: 1  # Fewer retries for tests
+    retry-delay: 100
+    async:
+      enabled: false  # Disable async for tests
+      thread-pool-size: 1
+    batch-processing:
+      enabled: false  # Disable batch processing for tests
+      batch-size: 10
+    rate-limiting:
+      enabled: false  # Disable rate limiting for tests
+      rate-limit-per-minute: 10000
+    circuit-breaker:
+      enabled: false  # Disable circuit breaker for tests
+      threshold: 10
+      timeout: 10000
+
+  # Vector Database Configuration for Testing
+  vector-db:
+    type: memory  # Use in-memory for tests
+    lucene:
+      index-path: ./data/test-lucene-vector-index
+      similarity-threshold: 0.5  # Lower threshold for tests
+      max-results: 20  # Fewer results for tests
+      create-index-if-not-exists: true
+      analyzer: standard
+      use-compound-file: false
+      max-buffered-docs: 50
+    pinecone:
+      api-key: test-key
+      environment: test
+      index-name: test-index
+      dimensions: 1536
+      metric: cosine
+      pods: 1
+      pod-type: p1
+      enable-metadata-filtering: true
+    memory:
+      enable-persistence: false
+      persistence-path: ./data/test-memory-vector-store.json
+      max-vectors: 1000  # Smaller limit for tests
+      enable-cleanup: false  # Disable cleanup for tests
+      cleanup-interval-minutes: 60
+      max-vector-age-minutes: 1440
+
+# Easy Luxury AI Configuration for Testing
+easyluxury:
+  ai:
+    # Index Names
+    product-index-name: easyluxury-products-test
+    user-index-name: easyluxury-users-test
+    order-index-name: easyluxury-orders-test
+    
+    # Feature Toggles - All enabled for testing
+    enable-product-recommendations: true
+    enable-user-behavior-tracking: true
+    enable-smart-validation: true
+    enable-ai-content-generation: true
+    enable-ai-search: true
+    enable-ai-rag: true
+    enable-product-description-generation: true
+    enable-product-categorization: true
+    enable-product-tagging: true
+    
+    # AI Model Configuration
+    default-ai-model: gpt-4o-mini
+    default-embedding-model: text-embedding-3-small
+    max-tokens: 500  # Shorter for tests
+    temperature: 0.3
+    timeout-seconds: 10  # Shorter timeout for tests
+    
+    # Product-Specific AI Settings
+    product:
+      description-generation:
+        enabled: true
+        max-length: 200  # Shorter for tests
+        style: luxury
+      categorization:
+        enabled: true
+        categories: luxury,premium,exclusive,limited-edition
+      tagging:
+        enabled: true
+        max-tags: 3  # Fewer tags for tests
+        tag-types: material,style,occasion,price-range,season
+      search:
+        enabled: true
+        similarity-threshold: 0.5  # Lower threshold for tests
+        max-results: 10  # Fewer results for tests
+      recommendations:
+        enabled: true
+        max-recommendations: 3  # Fewer recommendations for tests
+        algorithm: collaborative-filtering
+    
+    # User-Specific AI Settings
+    user:
+      behavior-tracking:
+        enabled: true
+        track-views: true
+        track-purchases: true
+        track-searches: true
+        retention-days: 7  # Shorter retention for tests
+      preferences:
+        learning-enabled: true
+        update-frequency: immediate  # More frequent for tests
+        min-interactions: 1  # Lower threshold for tests
+      recommendations:
+        enabled: true
+        max-recommendations: 5  # Fewer for tests
+        diversity-factor: 0.5
+    
+    # Order-Specific AI Settings
+    order:
+      analysis:
+        enabled: true
+        pattern-recognition: true
+        fraud-detection: false  # Disable for tests
+      insights:
+        enabled: true
+        trend-analysis: true
+        seasonal-patterns: false  # Disable for tests
+
+# Supabase Configuration for Testing
+supabase:
+  url: https://test-project.supabase.co
+  api-key: test-anon-key
+  service-role-key: test-service-role-key
+
+# Mock Authentication Configuration for Testing
+app:
+  mock-auth:
+    enabled: true
+
+# AWS S3/MinIO Configuration for Testing
+aws:
+  s3:
+    endpoint: http://localhost:9000
+    region: us-east-1
+    bucket: easyluxury-test
+    access-key: test-access-key
+    secret-key: test-secret-key
+    presigned-url-duration: 300  # Shorter for tests
+
+# Logging for Testing
+logging:
+  level:
+    root: WARN
+    com.easyluxury: INFO
+    com.ai.infrastructure: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management/Actuator for Testing
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized

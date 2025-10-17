@@ -8,10 +8,13 @@
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/vector/VectorDatabase.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AIEmbedding.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIEmbeddingResponse.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/PineconeVectorDatabaseService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIGenerationRequest.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIInfrastructureAutoConfiguration.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/InMemoryVectorDatabaseService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/processor/AICapableProcessor.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AIEmbeddingService.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/VectorDatabaseConfig.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AICapable.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/service/AIConfigurationService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/RAGRequest.java
@@ -24,6 +27,7 @@
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AICoreService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIConfigurationDto.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIHealthDto.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/LuceneVectorDatabaseService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/vector/PineconeVectorDatabase.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIEmbeddingRequest.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/search/VectorSearchService.java

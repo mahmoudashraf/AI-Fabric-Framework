@@ -98,6 +98,34 @@ ai:
       enabled: true
       threshold: 5
       timeout: 60000
+  
+  # Vector Database Configuration
+  vector-db:
+    type: ${AI_VECTOR_DB_TYPE:lucene}  # lucene, pinecone, memory
+    lucene:
+      index-path: ${AI_LUCENE_INDEX_PATH:./data/lucene-vector-index}
+      similarity-threshold: ${AI_LUCENE_SIMILARITY_THRESHOLD:0.7}
+      max-results: ${AI_LUCENE_MAX_RESULTS:100}
+      create-index-if-not-exists: true
+      analyzer: standard
+      use-compound-file: true
+      max-buffered-docs: 1000
+    pinecone:
+      api-key: ${PINECONE_API_KEY:}
+      environment: ${PINECONE_ENVIRONMENT:us-east-1-aws}
+      index-name: ${PINECONE_INDEX_NAME:ai-infrastructure}
+      dimensions: ${PINECONE_DIMENSIONS:1536}
+      metric: cosine
+      pods: 1
+      pod-type: p1
+      enable-metadata-filtering: true
+    memory:
+      enable-persistence: false
+      persistence-path: ./data/memory-vector-store.json
+      max-vectors: 10000
+      enable-cleanup: true
+      cleanup-interval-minutes: 60
+      max-vector-age-minutes: 1440
     feature-flags:
       enabled: true
       flags:

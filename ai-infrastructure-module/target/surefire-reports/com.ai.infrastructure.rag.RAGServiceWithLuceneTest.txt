@@ -1,0 +1,16 @@
+-------------------------------------------------------------------------------
+Test set: com.ai.infrastructure.rag.RAGServiceWithLuceneTest
+-------------------------------------------------------------------------------
+Tests run: 10, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 1.009 s <<< FAILURE! - in com.ai.infrastructure.rag.RAGServiceWithLuceneTest
+com.ai.infrastructure.rag.RAGServiceWithLuceneTest.testGetStatistics  Time elapsed: 0.015 s  <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: {"entityTypeCounts"={"product"=80, "user"=20}, "entityTypes"=["product", "user"], "totalVectors"=100}
+ but was: {"totalIndexed"={"entityTypeCounts"={"product"=80, "user"=20}, "entityTypes"=["product", "user"], "totalVectors"=100}, "vectorDatabase"={}}
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502)
+	at com.ai.infrastructure.rag.RAGServiceWithLuceneTest.testGetStatistics(RAGServiceWithLuceneTest.java:209)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+

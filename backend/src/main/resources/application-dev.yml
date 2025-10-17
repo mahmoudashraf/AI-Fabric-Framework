@@ -46,6 +46,18 @@ ai:
       environment: dev
       index-name: easyluxury-dev
   
+  # Vector Database Configuration for Development
+  vector-db:
+    type: lucene  # Use Lucene for development
+    lucene:
+      index-path: ./data/dev-lucene-vector-index
+      similarity-threshold: 0.6  # Lower threshold for dev
+      max-results: 50  # Fewer results for dev
+      create-index-if-not-exists: true
+      analyzer: standard
+      use-compound-file: false  # Faster for dev
+      max-buffered-docs: 100  # Smaller buffer for dev
+  
   service:
     enabled: true
     auto-configuration: true

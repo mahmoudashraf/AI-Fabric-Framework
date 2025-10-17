@@ -42,6 +42,27 @@ ai:
       environment: ${PINECONE_ENVIRONMENT:production}
       index-name: ${PINECONE_INDEX_NAME:easyluxury-prod}
   
+  # Vector Database Configuration for Production
+  vector-db:
+    type: ${AI_VECTOR_DB_TYPE:pinecone}  # Use Pinecone for production
+    lucene:
+      index-path: ${AI_LUCENE_INDEX_PATH:/var/lib/easyluxury/lucene-vector-index}
+      similarity-threshold: ${AI_LUCENE_SIMILARITY_THRESHOLD:0.7}
+      max-results: ${AI_LUCENE_MAX_RESULTS:100}
+      create-index-if-not-exists: true
+      analyzer: standard
+      use-compound-file: true
+      max-buffered-docs: 5000
+    pinecone:
+      api-key: ${PINECONE_API_KEY}
+      environment: ${PINECONE_ENVIRONMENT:production}
+      index-name: ${PINECONE_INDEX_NAME:easyluxury-prod}
+      dimensions: ${PINECONE_DIMENSIONS:1536}
+      metric: cosine
+      pods: ${PINECONE_PODS:2}
+      pod-type: ${PINECONE_POD_TYPE:p2}
+      enable-metadata-filtering: true
+  
   service:
     enabled: true
     auto-configuration: true

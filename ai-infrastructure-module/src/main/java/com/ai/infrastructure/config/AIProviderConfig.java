@@ -26,6 +26,12 @@ public class AIProviderConfig {
     private Double openaiTemperature = 0.3;
     private Integer openaiTimeout = 60;
     
+    // Vector Database Configuration
+    private String vectorDbType = "lucene"; // lucene, pinecone, memory
+    private String vectorDbIndexPath = "./data/lucene-vector-index";
+    private Double vectorDbSimilarityThreshold = 0.7;
+    private Integer vectorDbMaxResults = 100;
+    
     // Pinecone Configuration
     private String pineconeApiKey;
     private String pineconeEnvironment = "us-east-1-aws";
