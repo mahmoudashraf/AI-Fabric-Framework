@@ -34,7 +34,9 @@ import java.util.UUID;
 public class OrderAIService {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
+    private final SimpleAIService simpleAIService;
     private final OrderRepository orderRepository;
     
     /**
@@ -140,7 +142,7 @@ public class OrderAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             // Update orders with analysis
             updateOrderAnalysis(orders, response.getContent());
@@ -212,7 +214,7 @@ public class OrderAIService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             // Calculate fraud score and update order
             double fraudScore = calculateFraudScore(order, userOrders);
@@ -312,7 +314,7 @@ public class OrderAIService {
                 .temperature(0.4)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Successfully generated business insights for last {} days", days);
             

@@ -36,8 +36,11 @@ import java.util.UUID;
 public class UserAIService {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final AIEmbeddingService embeddingService;
+    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
+    private final SimpleAIService simpleAIService;
     private final UserRepository userRepository;
     private final UserBehaviorRepository userBehaviorRepository;
     
@@ -137,7 +140,7 @@ public class UserAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             // Update user with AI insights
             user.setAiInsights(response.getContent());
@@ -190,7 +193,7 @@ public class UserAIService {
                 .temperature(0.4)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Successfully generated recommendations for user {}", userId);
             
@@ -247,7 +250,7 @@ public class UserAIService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             // Update user preferences
             user.setAiPreferences(response.getContent());

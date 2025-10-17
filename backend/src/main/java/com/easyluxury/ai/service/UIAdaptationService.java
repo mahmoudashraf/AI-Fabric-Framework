@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 public class UIAdaptationService {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final UserRepository userRepository;
     private final UserBehaviorRepository userBehaviorRepository;
     
@@ -243,10 +244,10 @@ public class UIAdaptationService {
                 "- Input method preferences\n\n" +
                 "User interaction data:\n" +
                 behaviors.stream()
-                    .map(b -> String.format("Action: %s, Device: %s, Context: %s", 
-                        b.getAction(), b.getDeviceInfo(), b.getContext()))
+                        .map(b -> String.format("Action: %s, Device: %s, Context: %s", 
+                            b.getAction(), b.getDeviceInfo() != null ? b.getDeviceInfo() : "unknown", b.getContext()))
                     .limit(15)
-                    .collect(Collectors.joining("\n"))
+                    .collect(java.util.stream.Collectors.joining("\n"))
             );
             
             adaptations.put("aiRecommendations", aiAccessibilityRecommendations);
@@ -426,12 +427,12 @@ public class UIAdaptationService {
         Map<String, Object> needs = new HashMap<>();
         
         // Analyze device patterns
-        Map<String, Long> devicePatterns = behaviors.stream()
-            .filter(b -> b.getDeviceInfo() != null)
-            .collect(Collectors.groupingBy(
-                b -> b.getDeviceInfo(),
-                Collectors.counting()
-            ));
+            Map<String, Long> devicePatterns = behaviors.stream()
+                .filter(b -> b.getDeviceInfo() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                    b -> b.getDeviceInfo(),
+                    java.util.stream.Collectors.counting()
+                ));
         
         needs.put("devicePatterns", devicePatterns);
         

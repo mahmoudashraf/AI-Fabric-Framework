@@ -29,8 +29,12 @@ import java.util.UUID;
 public class BehaviorTrackingService {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
+    private final SimpleAIService simpleAIService;
     private final UserBehaviorRepository userBehaviorRepository;
+    private final AIHelperService aiHelperService;
+    private final SimpleAIService simpleAIService;
     
     /**
      * Track comprehensive user behavior with AI analysis
@@ -138,13 +142,15 @@ public class BehaviorTrackingService {
             }
             
             // Generate AI analysis of patterns
-            String patternAnalysis = aiCoreService.generateContent(
+            String patternAnalysis = aiHelperService.generateContent(
                 "Analyze the following user behaviors and identify patterns, trends, and insights:\n" +
                 behaviors.stream()
                     .map(b -> String.format("Type: %s, Action: %s, Entity: %s, Time: %s", 
                         b.getBehaviorType(), b.getAction(), b.getEntityType(), b.getCreatedAt()))
                     .reduce((a, b) -> a + "\n" + b)
-                    .orElse("No behaviors")
+                    .orElse("No behaviors"),
+                "user_behavior",
+                "pattern_analysis"
             );
             
             log.debug("Successfully analyzed behavior patterns for user: {}", userId);
@@ -180,13 +186,15 @@ public class BehaviorTrackingService {
             }
             
             // Generate AI analysis for anomaly detection
-            String anomalyAnalysis = aiCoreService.generateContent(
+            String anomalyAnalysis = aiHelperService.generateContent(
                 "Analyze the following user behaviors for anomalies, unusual patterns, or suspicious activities:\n" +
                 behaviors.stream()
                     .map(b -> String.format("Type: %s, Action: %s, Entity: %s, Time: %s, Score: %s", 
                         b.getBehaviorType(), b.getAction(), b.getEntityType(), b.getCreatedAt(), b.getBehaviorScore()))
                     .reduce((a, b) -> a + "\n" + b)
-                    .orElse("No behaviors")
+                    .orElse("No behaviors"),
+                "user_behavior",
+                "anomaly_detection"
             );
             
             log.debug("Successfully detected behavioral anomalies for user: {}", userId);
@@ -222,13 +230,15 @@ public class BehaviorTrackingService {
             }
             
             // Generate AI insights
-            String insights = aiCoreService.generateContent(
+            String insights = aiHelperService.generateContent(
                 "Generate comprehensive behavioral insights for this user based on their activity patterns:\n" +
                 behaviors.stream()
                     .map(b -> String.format("Type: %s, Action: %s, Entity: %s, Time: %s, Context: %s", 
                         b.getBehaviorType(), b.getAction(), b.getEntityType(), b.getCreatedAt(), b.getContext()))
                     .reduce((a, b) -> a + "\n" + b)
-                    .orElse("No behaviors")
+                    .orElse("No behaviors"),
+                "user_behavior",
+                "insights_generation"
             );
             
             log.debug("Successfully generated behavioral insights for user: {}", userId);
@@ -314,9 +324,11 @@ public class BehaviorTrackingService {
      */
     private String analyzeBehaviorWithAI(UserBehavior behavior) {
         try {
-            return aiCoreService.generateContent(
+            return aiHelperService.generateContent(
                 String.format("Analyze this user behavior: Type=%s, Action=%s, Entity=%s, Context=%s", 
-                    behavior.getBehaviorType(), behavior.getAction(), behavior.getEntityType(), behavior.getContext())
+                    behavior.getBehaviorType(), behavior.getAction(), behavior.getEntityType(), behavior.getContext()),
+                "user_behavior",
+                "behavior_analysis"
             );
         } catch (Exception e) {
             log.warn("Failed to analyze behavior with AI", e);
@@ -372,9 +384,11 @@ public class BehaviorTrackingService {
      */
     private String generateBehaviorInsights(UserBehavior behavior) {
         try {
-            return aiCoreService.generateContent(
+            return aiHelperService.generateContent(
                 String.format("Generate insights for this behavior: %s %s on %s", 
-                    behavior.getBehaviorType(), behavior.getAction(), behavior.getEntityType())
+                    behavior.getBehaviorType(), behavior.getAction(), behavior.getEntityType()),
+                "user_behavior",
+                "insights_generation"
             );
         } catch (Exception e) {
             log.warn("Failed to generate behavior insights", e);

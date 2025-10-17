@@ -31,7 +31,9 @@ import java.util.UUID;
 public class ProductAIService {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
+    private final SimpleAIService simpleAIService;
     private final ProductRepository productRepository;
     
     /**
@@ -98,7 +100,7 @@ public class ProductAIService {
                 .temperature(0.4)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Generated product recommendations for user: {}", userId);
             
@@ -140,7 +142,7 @@ public class ProductAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Generated AI description for product: {}", product.getId());
             
@@ -179,7 +181,7 @@ public class ProductAIService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Generated AI categories for product: {}", product.getId());
             
@@ -220,7 +222,7 @@ public class ProductAIService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Generated AI tags for product: {}", product.getId());
             
@@ -262,7 +264,7 @@ public class ProductAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Generated AI insights for product: {}", product.getId());
             
@@ -307,7 +309,7 @@ public class ProductAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Generated AI analytics for product: {}", product.getId());
             
