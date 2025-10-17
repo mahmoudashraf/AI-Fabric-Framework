@@ -2,6 +2,8 @@ package com.easyluxury.ai.controller;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -24,9 +26,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, 
+                classes = {com.easyluxury.EasyLuxuryApplication.class, 
+                          com.ai.infrastructure.config.AIInfrastructureAutoConfiguration.class})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@org.springframework.security.test.context.support.WithMockUser
 class SimpleAIControllerIntegrationTest {
     
     @Autowired
