@@ -99,6 +99,13 @@
             <version>2.20.26</version>
         </dependency>
 
+        <!-- AI Infrastructure Module -->
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
         <!-- OpenAI Java SDK -->
         <dependency>
             <groupId>com.theokanning.openai-gpt3-java</groupId>

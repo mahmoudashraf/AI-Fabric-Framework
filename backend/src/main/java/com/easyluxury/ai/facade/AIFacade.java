@@ -6,11 +6,8 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.easyluxury.ai.config.EasyLuxuryAIConfig.EasyLuxuryAISettings;
-import com.easyluxury.dto.ProductDto;
 import com.easyluxury.dto.UserDto;
-import com.easyluxury.entity.Product;
 import com.easyluxury.entity.User;
-import com.easyluxury.mapper.ProductMapper;
 import com.easyluxury.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +34,6 @@ public class AIFacade {
     
     private final AICoreService aiCoreService;
     private final EasyLuxuryAISettings aiSettings;
-    private final ProductMapper productMapper;
     private final UserMapper userMapper;
     
     /**
@@ -48,7 +44,7 @@ public class AIFacade {
      * @return list of matching products
      */
     @Transactional(readOnly = true)
-    public List<ProductDto> searchProducts(String query, int limit) {
+    public List<Map<String, Object>> searchProducts(String query, int limit) {
         log.info("Performing AI search for products with query: {}", query);
         
         AISearchRequest searchRequest = AISearchRequest.builder()
@@ -59,14 +55,8 @@ public class AIFacade {
         
         AISearchResponse searchResponse = aiCoreService.performSearch(searchRequest);
         
-        // Convert search results to ProductDto
-        return searchResponse.getResults().stream()
-            .map(result -> {
-                // Extract product data from search result
-                Product product = extractProductFromSearchResult(result);
-                return productMapper.toDto(product);
-            })
-            .toList();
+        // Return search results as maps for now
+        return searchResponse.getResults();
     }
     
     /**
@@ -77,7 +67,7 @@ public class AIFacade {
      * @return list of recommended products
      */
     @Transactional(readOnly = true)
-    public List<ProductDto> getProductRecommendations(User user, int limit) {
+    public List<Map<String, Object>> getProductRecommendations(User user, int limit) {
         log.info("Getting AI product recommendations for user: {}", user.getId());
         
         // Build context for recommendations
@@ -88,24 +78,21 @@ public class AIFacade {
             "Product", context, limit
         );
         
-        // Convert recommendations to ProductDto
-        return recommendations.stream()
-            .map(this::extractProductFromRecommendation)
-            .map(productMapper::toDto)
-            .toList();
+        // Return recommendations as maps for now
+        return recommendations;
     }
     
     /**
      * Generate AI-powered product description
      * 
-     * @param product the product to generate description for
+     * @param productData the product data to generate description for
      * @return generated product description
      */
     @Transactional(readOnly = true)
-    public String generateProductDescription(Product product) {
-        log.info("Generating AI description for product: {}", product.getId());
+    public String generateProductDescription(Map<String, Object> productData) {
+        log.info("Generating AI description for product: {}", productData.get("name"));
         
-        String prompt = buildProductDescriptionPrompt(product);
+        String prompt = buildProductDescriptionPrompt(productData);
         
         AIGenerationRequest request = AIGenerationRequest.builder()
             .prompt(prompt)
@@ -122,14 +109,14 @@ public class AIFacade {
     /**
      * Validate product data using AI
      * 
-     * @param product the product to validate
+     * @param productData the product data to validate
      * @return validation result with suggestions
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> validateProduct(Product product) {
-        log.info("Validating product using AI: {}", product.getId());
+    public Map<String, Object> validateProduct(Map<String, Object> productData) {
+        log.info("Validating product using AI: {}", productData.get("name"));
         
-        String content = buildProductValidationContent(product);
+        String content = buildProductValidationContent(productData);
         Map<String, Object> rules = buildProductValidationRules();
         
         return aiCoreService.validateContent(content, rules);
@@ -165,7 +152,7 @@ public class AIFacade {
     
     // Helper methods
     
-    private String buildUserContext(User user) {
+    String buildUserContext(User user) {
         StringBuilder context = new StringBuilder();
         context.append("User: ").append(user.getFirstName()).append(" ").append(user.getLastName()).append("\n");
         context.append("Email: ").append(user.getEmail()).append("\n");
@@ -173,25 +160,25 @@ public class AIFacade {
         return context.toString();
     }
     
-    private String buildProductDescriptionPrompt(Product product) {
+    String buildProductDescriptionPrompt(Map<String, Object> productData) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Create a luxury product description for:\n");
-        prompt.append("Name: ").append(product.getName()).append("\n");
-        prompt.append("Description: ").append(product.getDescription()).append("\n");
-        prompt.append("Price: $").append(product.getPrice()).append("\n");
+        prompt.append("Name: ").append(productData.get("name")).append("\n");
+        prompt.append("Description: ").append(productData.get("description")).append("\n");
+        prompt.append("Price: $").append(productData.get("price")).append("\n");
         // Add more product details as needed
         return prompt.toString();
     }
     
-    private String buildProductValidationContent(Product product) {
+    String buildProductValidationContent(Map<String, Object> productData) {
         StringBuilder content = new StringBuilder();
-        content.append("Product Name: ").append(product.getName()).append("\n");
-        content.append("Description: ").append(product.getDescription()).append("\n");
-        content.append("Price: ").append(product.getPrice()).append("\n");
+        content.append("Product Name: ").append(productData.get("name")).append("\n");
+        content.append("Description: ").append(productData.get("description")).append("\n");
+        content.append("Price: ").append(productData.get("price")).append("\n");
         return content.toString();
     }
     
-    private Map<String, Object> buildProductValidationRules() {
+    Map<String, Object> buildProductValidationRules() {
         return Map.of(
             "nameRequired", true,
             "descriptionMinLength", 10,
@@ -200,7 +187,7 @@ public class AIFacade {
         );
     }
     
-    private String buildUserInsightsPrompt(User user) {
+    String buildUserInsightsPrompt(User user) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Analyze this luxury e-commerce user:\n");
         prompt.append("Name: ").append(user.getFirstName()).append(" ").append(user.getLastName()).append("\n");
@@ -209,23 +196,5 @@ public class AIFacade {
         return prompt.toString();
     }
     
-    private Product extractProductFromSearchResult(Map<String, Object> result) {
-        // Extract product data from AI search result
-        // This is a simplified implementation
-        Product product = new Product();
-        product.setName((String) result.get("name"));
-        product.setDescription((String) result.get("description"));
-        // Add more field extraction as needed
-        return product;
-    }
-    
-    private Product extractProductFromRecommendation(Map<String, Object> recommendation) {
-        // Extract product data from AI recommendation
-        // This is a simplified implementation
-        Product product = new Product();
-        product.setName((String) recommendation.get("name"));
-        product.setDescription((String) recommendation.get("description"));
-        // Add more field extraction as needed
-        return product;
-    }
+    // Helper methods for product data extraction can be added here as needed
 }
