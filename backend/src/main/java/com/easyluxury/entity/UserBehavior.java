@@ -101,7 +101,7 @@ public class UserBehavior {
     @Column(name = "duration_seconds")
     private Long durationSeconds;
     
-    @Column(name = "value")
+    @Column(name = "behavior_value")
     private String value;
     
     @Column(name = "search_vector")
