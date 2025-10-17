@@ -1,6 +1,8 @@
 package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.easyluxury.entity.User;
 import com.easyluxury.entity.UserBehavior;
 import com.easyluxury.repository.UserRepository;
@@ -135,15 +137,20 @@ public class UIAdaptationService {
             
             // Generate AI-powered recommendations
             String aiRecommendations = aiCoreService.generateContent(
-                String.format("Based on user behavior with %s content, recommend specific content types, categories, or features that would be most engaging. User has interacted with: %s", 
-                    contentType,
-                    behaviors.stream()
-                        .map(b -> b.getAction() + " on " + b.getEntityId())
-                        .distinct()
-                        .limit(10)
-                        .collect(Collectors.joining(", "))
-                )
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Based on user behavior with %s content, recommend specific content types, categories, or features that would be most engaging. User has interacted with: %s", 
+                        contentType,
+                        behaviors.stream()
+                            .map(b -> b.getAction() + " on " + b.getEntityId())
+                            .distinct()
+                            .limit(10)
+                            .collect(Collectors.joining(", "))
+                    ))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             // Parse AI recommendations into structured format
             List<Map<String, Object>> recommendations = parseAIRecommendations(aiRecommendations, limit);

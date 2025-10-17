@@ -1,6 +1,7 @@
 package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
@@ -137,7 +138,7 @@ public class UserAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             // Update user with AI insights
             user.setAiInsights(response.getContent());
@@ -190,7 +191,7 @@ public class UserAIService {
                 .temperature(0.4)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Successfully generated recommendations for user {}", userId);
             
@@ -247,7 +248,7 @@ public class UserAIService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             // Update user preferences
             user.setAiPreferences(response.getContent());

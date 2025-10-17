@@ -2,6 +2,8 @@ package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,5 +48,34 @@ public class AIHelperService {
      */
     public String generateContent(String prompt) {
         return generateContent(prompt, "general", "content_generation");
+    }
+    
+    /**
+     * Generate content and return full AIGenerationResponse
+     */
+    public AIGenerationResponse generateContentResponse(String prompt, String entityType, String purpose) {
+        try {
+            return aiCoreService.generateContent(
+                AIGenerationRequest.builder()
+                    .prompt(prompt)
+                    .model("gpt-4o-mini")
+                    .maxTokens(1000)
+                    .temperature(0.7)
+                    .build()
+            );
+        } catch (Exception e) {
+            log.warn("Failed to generate content with AI", e);
+            return AIGenerationResponse.builder()
+                .content("AI content generation unavailable")
+                .model("gpt-4o-mini")
+                .build();
+        }
+    }
+    
+    /**
+     * Generate content and return full AIGenerationResponse with default parameters
+     */
+    public AIGenerationResponse generateContentResponse(String prompt) {
+        return generateContentResponse(prompt, "general", "content_generation");
     }
 }
