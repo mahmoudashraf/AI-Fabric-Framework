@@ -3,5 +3,8 @@
 /workspace/ai-infrastructure-module/src/test/java/com/ai/infrastructure/rag/RAGServiceWithLuceneTest.java
 /workspace/ai-infrastructure-module/src/test/java/com/ai/infrastructure/processor/EmbeddingProcessorTest.java
 /workspace/ai-infrastructure-module/src/test/java/com/ai/infrastructure/core/AICoreServiceTest.java
+/workspace/ai-infrastructure-module/src/test/java/com/ai/infrastructure/mock/MockAIResponses.java
 /workspace/ai-infrastructure-module/src/test/java/com/ai/infrastructure/config/AIConfigurationServiceTest.java
 /workspace/ai-infrastructure-module/src/test/java/com/ai/infrastructure/rag/VectorDatabaseServiceIntegrationTest.java
+/workspace/ai-infrastructure-module/src/test/java/com/ai/infrastructure/rag/RAGServiceWithMockingTest.java
+/workspace/ai-infrastructure-module/src/test/java/com/ai/infrastructure/config/MockAIConfiguration.java

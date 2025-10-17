@@ -1,6 +1,8 @@
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/cache/AIIntelligentCacheService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/processor/EmbeddingProcessor.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/RAGService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIServiceConfig.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/api/AIAutoGeneratorService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AISmartValidation.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/health/AIHealthIndicator.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AISearchRequest.java
@@ -17,6 +19,7 @@
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AIEmbeddingService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/VectorDatabaseConfig.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AICapable.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/api/APISpecification.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/service/AIConfigurationService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/RAGRequest.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIProviderConfig.java
@@ -24,6 +27,7 @@
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/RAGResponse.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/VectorDatabaseService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/cache/AICacheConfig.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/api/APIEndpointDefinition.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AISearchResponse.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AICoreService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIConfigurationDto.java
