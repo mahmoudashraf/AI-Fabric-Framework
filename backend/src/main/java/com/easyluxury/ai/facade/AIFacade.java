@@ -68,7 +68,10 @@ public class AIFacade {
                 .build();
             
             // Call core AI service
-            AIGenerationResponse coreResponse = "AI analysis placeholder";
+            AIGenerationResponse coreResponse = AIGenerationResponse.builder()
+                .content("AI analysis placeholder")
+                .model("gpt-4o-mini")
+                .build();
             
             // Convert to Easy Luxury response
             return com.easyluxury.ai.dto.AIGenerationResponse.builder()
@@ -78,7 +81,7 @@ public class AIFacade {
                 .usage(convertUsageInfo(coreResponse.getUsage()))
                 .generationId(UUID.randomUUID().toString())
                 .requestId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString())
-                .status("SUCCESS")
+                
                 .processingTimeMs(coreResponse.getProcessingTimeMs())
                 .build();
                 
@@ -131,7 +134,7 @@ public class AIFacade {
                 .usage(convertEmbeddingUsageInfo(null))
                 .embeddingId(UUID.randomUUID().toString())
                 .requestId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString())
-                .status("SUCCESS")
+                
                 .processingTimeMs(0L)
                 .input(request.getInput())
                 .build();
@@ -188,7 +191,7 @@ public class AIFacade {
                 .timestamp(LocalDateTime.now())
                 .searchId(UUID.randomUUID().toString())
                 .requestId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString())
-                .status("SUCCESS")
+                
                 .processingTimeMs(coreResponse.getProcessingTimeMs())
                 .build();
                 
@@ -243,7 +246,10 @@ public class AIFacade {
                 .systemPrompt("You are a helpful assistant that answers questions based on provided context.")
                 .build();
             
-            AIGenerationResponse generationResponse = "AI analysis placeholder";
+            AIGenerationResponse generationResponse = AIGenerationResponse.builder()
+                .content("AI analysis placeholder")
+                .model("gpt-4o-mini")
+                .build();
             
             // Convert to Easy Luxury response
             return com.easyluxury.ai.dto.RAGResponse.builder()
@@ -254,7 +260,7 @@ public class AIFacade {
                 .timestamp(LocalDateTime.now())
                 .ragId(UUID.randomUUID().toString())
                 .requestId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString())
-                .status("SUCCESS")
+                
                 .processingTimeMs(generationResponse.getProcessingTimeMs())
                 .confidence(0.8)
                 .documentsRetrieved(searchResponse.getResults().size())

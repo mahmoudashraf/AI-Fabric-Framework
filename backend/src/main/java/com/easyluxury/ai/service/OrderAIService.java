@@ -2,6 +2,7 @@ package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
@@ -140,7 +141,7 @@ public class OrderAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             // Update orders with analysis
             updateOrderAnalysis(orders, response.getContent());
@@ -212,7 +213,7 @@ public class OrderAIService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             // Calculate fraud score and update order
             double fraudScore = calculateFraudScore(order, userOrders);
@@ -312,7 +313,7 @@ public class OrderAIService {
                 .temperature(0.4)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Successfully generated business insights for last {} days", days);
             

@@ -2,6 +2,7 @@ package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.easyluxury.entity.Order;
 import com.easyluxury.repository.OrderRepository;
@@ -93,7 +94,7 @@ public class OrderPatternService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             // Update orders with pattern analysis
             updateOrderPatterns(orders, response.getContent());
@@ -164,7 +165,7 @@ public class OrderPatternService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             // Update orders with anomaly scores
             updateOrderAnomalyScores(orders, response.getContent());
@@ -249,7 +250,7 @@ public class OrderPatternService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Successfully analyzed seasonal patterns for last {} months", months);
             

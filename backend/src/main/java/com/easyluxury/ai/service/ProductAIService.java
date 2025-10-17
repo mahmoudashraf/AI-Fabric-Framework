@@ -2,6 +2,7 @@ package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
@@ -98,7 +99,7 @@ public class ProductAIService {
                 .temperature(0.4)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Generated product recommendations for user: {}", userId);
             
@@ -140,7 +141,7 @@ public class ProductAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Generated AI description for product: {}", product.getId());
             
@@ -179,7 +180,7 @@ public class ProductAIService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Generated AI categories for product: {}", product.getId());
             
@@ -220,7 +221,7 @@ public class ProductAIService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Generated AI tags for product: {}", product.getId());
             
@@ -262,7 +263,7 @@ public class ProductAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Generated AI insights for product: {}", product.getId());
             
@@ -307,7 +308,7 @@ public class ProductAIService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Generated AI analytics for product: {}", product.getId());
             

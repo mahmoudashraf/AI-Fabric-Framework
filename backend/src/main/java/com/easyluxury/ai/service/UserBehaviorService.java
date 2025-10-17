@@ -2,6 +2,7 @@ package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.easyluxury.entity.UserBehavior;
 import com.easyluxury.repository.UserBehaviorRepository;
@@ -89,7 +90,7 @@ public class UserBehaviorService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             // Update behavior records with analysis
             updateBehaviorAnalysis(behaviors, response.getContent());
@@ -158,7 +159,7 @@ public class UserBehaviorService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             log.debug("Successfully detected behavioral anomalies for user {}", userId);
             
@@ -237,7 +238,7 @@ public class UserBehaviorService {
                 .temperature(0.4)
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
             
             // Update behavior records with insights
             updateBehaviorInsights(behaviors, response.getContent());
