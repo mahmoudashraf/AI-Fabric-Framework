@@ -46,7 +46,7 @@ public class AIHealthController {
         log.info("Retrieving AI health status");
         
         try {
-            AIHealthStatusDto healthStatus = aiHealthService.getHealthStatus();
+            AIHealthStatusDto healthStatus = aiHealthService.getAIHealthStatus();
             return ResponseEntity.ok(healthStatus);
         } catch (Exception e) {
             log.error("Error retrieving AI health status: {}", e.getMessage(), e);
@@ -136,7 +136,7 @@ public class AIHealthController {
         log.info("Retrieving AI services status");
         
         try {
-            AIHealthStatusDto healthStatus = aiHealthService.getHealthStatus();
+            AIHealthStatusDto healthStatus = aiHealthService.getAIHealthStatus();
             
             ServicesStatusResponse response = ServicesStatusResponse.builder()
                 .coreService(healthStatus.getCoreServiceStatus())

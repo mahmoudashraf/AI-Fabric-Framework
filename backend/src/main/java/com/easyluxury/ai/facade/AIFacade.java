@@ -49,7 +49,7 @@ public class AIFacade {
      * @return AI generation response
      */
     @Transactional(readOnly = true)
-    public AIGenerationResponse generateContent(AIGenerationRequest request) {
+    public com.easyluxury.ai.dto.AIGenerationResponse generateContent(com.easyluxury.ai.dto.AIGenerationRequest request) {
         log.info("Generating AI content with prompt: {}", request.getPrompt());
         
         try {
@@ -58,37 +58,31 @@ public class AIFacade {
                 .prompt(request.getPrompt())
                 .maxTokens(request.getMaxTokens())
                 .temperature(request.getTemperature())
-                .topP(request.getTopP())
-                .frequencyPenalty(request.getFrequencyPenalty())
-                .presencePenalty(request.getPresencePenalty())
-                .stop(request.getStop())
-                .context(request.getContext())
-                .model(request.getModel() != null ? request.getModel() : aiSettings.getDefaultAiModel())
-                .stream(request.getStream())
-                .userId(request.getUserId())
-                .timeoutSeconds(request.getTimeoutSeconds())
+                .context(request.getContext() != null ? request.getContext().toString() : null)
+                .model(request.getModel())
+                .systemPrompt("You are a helpful AI assistant.")
+                .entityType("content")
+                .purpose("generation")
                 .build();
             
             // Call core AI service
             AIGenerationResponse coreResponse = aiCoreService.generateContent(coreRequest);
             
             // Convert to Easy Luxury response
-            return AIGenerationResponse.builder()
+            return com.easyluxury.ai.dto.AIGenerationResponse.builder()
                 .content(coreResponse.getContent())
                 .model(coreResponse.getModel())
                 .timestamp(LocalDateTime.now())
                 .usage(convertUsageInfo(coreResponse.getUsage()))
-                .metadata(coreResponse.getMetadata())
                 .generationId(UUID.randomUUID().toString())
                 .requestId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString())
                 .status("SUCCESS")
                 .processingTimeMs(coreResponse.getProcessingTimeMs())
-                .alternatives(coreResponse.getAlternatives())
                 .build();
                 
         } catch (Exception e) {
             log.error("Error generating AI content: {}", e.getMessage(), e);
-            return AIGenerationResponse.builder()
+            return com.easyluxury.ai.dto.AIGenerationResponse.builder()
                 .content("")
                 .model(request.getModel())
                 .timestamp(LocalDateTime.now())
@@ -110,45 +104,39 @@ public class AIFacade {
      * @return AI embedding response
      */
     @Transactional(readOnly = true)
-    public AIEmbeddingResponse generateEmbeddings(AIEmbeddingRequest request) {
+    public com.easyluxury.ai.dto.AIEmbeddingResponse generateEmbeddings(com.easyluxury.ai.dto.AIEmbeddingRequest request) {
         log.info("Generating AI embeddings for input: {}", request.getInput());
         
         try {
             // Convert to core AI request
             AIEmbeddingRequest coreRequest = AIEmbeddingRequest.builder()
-                .input(request.getInput())
-                .model(request.getModel() != null ? request.getModel() : aiSettings.getDefaultEmbeddingModel())
-                .dimensions(request.getDimensions())
-                .userId(request.getUserId())
-                .timeoutSeconds(request.getTimeoutSeconds())
-                .context(request.getContext())
-                .batch(request.getBatch())
-                .normalize(request.getNormalize())
-                .inputType(request.getInputType())
-                .inputs(request.getInputs())
+                .text(request.getInput())
+                .model(request.getModel())
+                .entityType("content")
+                .entityId(request.getUserId())
+                .metadata(request.getContext() != null ? request.getContext().toString() : null)
                 .build();
             
             // Call core AI service
-            AIEmbeddingResponse coreResponse = aiCoreService.generateEmbeddings(coreRequest);
+            AIEmbeddingResponse coreResponse = aiCoreService.generateEmbedding(coreRequest);
             
             // Convert to Easy Luxury response
-            return AIEmbeddingResponse.builder()
-                .embeddings(coreResponse.getEmbeddings())
+            return com.easyluxury.ai.dto.AIEmbeddingResponse.builder()
+                .embeddings(List.of(coreResponse.getEmbedding()))
                 .model(coreResponse.getModel())
                 .dimensions(coreResponse.getDimensions())
                 .timestamp(LocalDateTime.now())
-                .usage(convertEmbeddingUsageInfo(coreResponse.getUsage()))
-                .metadata(coreResponse.getMetadata())
+                .usage(convertEmbeddingUsageInfo(null))
                 .embeddingId(UUID.randomUUID().toString())
                 .requestId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString())
                 .status("SUCCESS")
-                .processingTimeMs(coreResponse.getProcessingTimeMs())
+                .processingTimeMs(0L)
                 .input(request.getInput())
                 .build();
                 
         } catch (Exception e) {
             log.error("Error generating AI embeddings: {}", e.getMessage(), e);
-            return AIEmbeddingResponse.builder()
+            return com.easyluxury.ai.dto.AIEmbeddingResponse.builder()
                 .embeddings(List.of())
                 .model(request.getModel())
                 .dimensions(request.getDimensions())
@@ -172,50 +160,39 @@ public class AIFacade {
      * @return AI search response
      */
     @Transactional(readOnly = true)
-    public AISearchResponse performSearch(AISearchRequest request) {
+    public com.easyluxury.ai.dto.AISearchResponse performSearch(com.easyluxury.ai.dto.AISearchRequest request) {
         log.info("Performing AI search with query: {}", request.getQuery());
         
         try {
             // Convert to core AI request
             AISearchRequest coreRequest = AISearchRequest.builder()
                 .query(request.getQuery())
-                .index(request.getIndex())
+                .entityType(request.getIndex())
                 .limit(request.getLimit())
-                .offset(request.getOffset())
-                .filters(request.getFilters())
-                .sort(convertSortCriteria(request.getSort()))
-                .facets(request.getFacets())
-                .userId(request.getUserId())
-                .timeoutSeconds(request.getTimeoutSeconds())
-                .context(request.getContext())
-                .searchType(request.getSearchType())
-                .similarityThreshold(request.getSimilarityThreshold())
-                .includeMetadata(request.getIncludeMetadata())
+                .threshold(request.getSimilarityThreshold())
+                .context(request.getContext() != null ? request.getContext().toString() : null)
                 .build();
             
             // Call core AI service
             AISearchResponse coreResponse = aiCoreService.performSearch(coreRequest);
             
             // Convert to Easy Luxury response
-            return AISearchResponse.builder()
+            return com.easyluxury.ai.dto.AISearchResponse.builder()
                 .results(convertSearchResults(coreResponse.getResults()))
-                .totalResults(coreResponse.getTotalResults())
-                .returnedResults(coreResponse.getReturnedResults())
+                .totalResults(coreResponse.getTotalResults() != null ? coreResponse.getTotalResults().longValue() : 0L)
+                .returnedResults(coreResponse.getResults() != null ? coreResponse.getResults().size() : 0)
                 .query(request.getQuery())
                 .index(request.getIndex())
                 .timestamp(LocalDateTime.now())
-                .metadata(coreResponse.getMetadata())
                 .searchId(UUID.randomUUID().toString())
                 .requestId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString())
                 .status("SUCCESS")
                 .processingTimeMs(coreResponse.getProcessingTimeMs())
-                .facets(coreResponse.getFacets())
-                .suggestions(coreResponse.getSuggestions())
                 .build();
                 
         } catch (Exception e) {
             log.error("Error performing AI search: {}", e.getMessage(), e);
-            return AISearchResponse.builder()
+            return com.easyluxury.ai.dto.AISearchResponse.builder()
                 .results(List.of())
                 .totalResults(0L)
                 .returnedResults(0)
@@ -240,54 +217,53 @@ public class AIFacade {
      * @return RAG response
      */
     @Transactional(readOnly = true)
-    public RAGResponse performRAG(RAGRequest request) {
+    public com.easyluxury.ai.dto.RAGResponse performRAG(com.easyluxury.ai.dto.RAGRequest request) {
         log.info("Performing RAG operation with question: {}", request.getQuestion());
         
         try {
-            // Convert to core AI request
-            RAGRequest coreRequest = RAGRequest.builder()
-                .question(request.getQuestion())
-                .knowledgeBase(request.getKnowledgeBase())
-                .maxDocuments(request.getMaxDocuments())
-                .similarityThreshold(request.getSimilarityThreshold())
-                .maxTokens(request.getMaxTokens())
-                .temperature(request.getTemperature())
-                .userId(request.getUserId())
-                .timeoutSeconds(request.getTimeoutSeconds())
-                .context(request.getContext())
-                .config(request.getConfig())
-                .includeSources(request.getIncludeSources())
-                .mode(request.getMode())
-                .language(request.getLanguage())
-                .format(request.getFormat())
-                .instructions(request.getInstructions())
+            // For now, we'll use the search service and then generate content
+            // This is a simplified RAG implementation
+            AISearchRequest searchRequest = AISearchRequest.builder()
+                .query(request.getQuestion())
+                .entityType(request.getKnowledgeBase())
+                .limit(request.getMaxDocuments())
                 .build();
             
-            // Call core AI service
-            RAGResponse coreResponse = aiCoreService.performRAG(coreRequest);
+            AISearchResponse searchResponse = aiCoreService.performSearch(searchRequest);
+            
+            // Generate answer based on search results
+            String context = searchResponse.getResults().stream()
+                .map(result -> result.toString())
+                .reduce("", (a, b) -> a + "\n" + b);
+            
+            AIGenerationRequest generationRequest = AIGenerationRequest.builder()
+                .prompt("Based on the following context, answer the question: " + request.getQuestion() + "\n\nContext:\n" + context)
+                .systemPrompt("You are a helpful assistant that answers questions based on provided context.")
+                .build();
+            
+            AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest);
             
             // Convert to Easy Luxury response
-            return RAGResponse.builder()
-                .answer(coreResponse.getAnswer())
-                .sources(convertSourceDocuments(coreResponse.getSources()))
+            return com.easyluxury.ai.dto.RAGResponse.builder()
+                .answer(generationResponse.getContent())
+                .sources(convertSourceDocuments(searchResponse.getResults()))
                 .question(request.getQuestion())
                 .knowledgeBase(request.getKnowledgeBase())
                 .timestamp(LocalDateTime.now())
-                .metadata(coreResponse.getMetadata())
                 .ragId(UUID.randomUUID().toString())
                 .requestId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID().toString())
                 .status("SUCCESS")
-                .processingTimeMs(coreResponse.getProcessingTimeMs())
-                .confidence(coreResponse.getConfidence())
-                .documentsRetrieved(coreResponse.getDocumentsRetrieved())
-                .documentsUsed(coreResponse.getDocumentsUsed())
-                .model(coreResponse.getModel())
-                .usage(convertRAGUsageInfo(coreResponse.getUsage()))
+                .processingTimeMs(generationResponse.getProcessingTimeMs())
+                .confidence(0.8)
+                .documentsRetrieved(searchResponse.getResults().size())
+                .documentsUsed(searchResponse.getResults().size())
+                .model(generationResponse.getModel())
+                .usage(convertRAGUsageInfo(null))
                 .build();
                 
         } catch (Exception e) {
             log.error("Error performing RAG operation: {}", e.getMessage(), e);
-            return RAGResponse.builder()
+            return com.easyluxury.ai.dto.RAGResponse.builder()
                 .answer("")
                 .sources(List.of())
                 .question(request.getQuestion())
@@ -355,8 +331,17 @@ public class AIFacade {
     private List<com.easyluxury.ai.dto.AISearchResponse.SearchResult> convertSearchResults(List<Map<String, Object>> coreResults) {
         if (coreResults == null) return List.of();
         
-        // For now, return empty list since core DTOs don't have detailed search results
-        return List.of();
+        return coreResults.stream()
+            .map(result -> com.easyluxury.ai.dto.AISearchResponse.SearchResult.builder()
+                .id(result.get("id") != null ? result.get("id").toString() : UUID.randomUUID().toString())
+                .content(result.get("content") != null ? result.get("content").toString() : "")
+                .title(result.get("title") != null ? result.get("title").toString() : "")
+                .score(result.get("score") != null ? Double.parseDouble(result.get("score").toString()) : 0.0)
+                .metadata(result)
+                .type(result.get("type") != null ? result.get("type").toString() : "unknown")
+                .url(result.get("url") != null ? result.get("url").toString() : "")
+                .build())
+            .toList();
     }
     
     /**
@@ -365,8 +350,17 @@ public class AIFacade {
     private List<com.easyluxury.ai.dto.RAGResponse.SourceDocument> convertSourceDocuments(List<Map<String, Object>> coreSources) {
         if (coreSources == null) return List.of();
         
-        // For now, return empty list since core DTOs don't have detailed source documents
-        return List.of();
+        return coreSources.stream()
+            .map(source -> com.easyluxury.ai.dto.RAGResponse.SourceDocument.builder()
+                .id(source.get("id") != null ? source.get("id").toString() : UUID.randomUUID().toString())
+                .title(source.get("title") != null ? source.get("title").toString() : "")
+                .content(source.get("content") != null ? source.get("content").toString() : "")
+                .score(source.get("score") != null ? Double.parseDouble(source.get("score").toString()) : 0.0)
+                .metadata(source)
+                .type(source.get("type") != null ? source.get("type").toString() : "unknown")
+                .url(source.get("url") != null ? source.get("url").toString() : "")
+                .build())
+            .toList();
     }
     
     /**

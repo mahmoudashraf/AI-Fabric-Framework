@@ -54,8 +54,8 @@ public class AIConfigurationController {
             log.error("Error retrieving AI configuration status: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                 .body(AIConfigurationStatusDto.builder()
-                    .configurationValid(false)
-                    .message("Failed to retrieve configuration status: " + e.getMessage())
+                    .openaiConfigured(false)
+                    .aiServicesEnabled(false)
                     .build());
         }
     }

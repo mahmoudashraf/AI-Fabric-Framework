@@ -144,7 +144,7 @@ public class AIMonitoringService {
     @Transactional(readOnly = true)
     public Map<String, Object> getEnhancedHealthStatus() {
         try {
-            AIHealthStatusDto healthStatus = aiHealthService.getHealthStatus();
+            AIHealthStatusDto healthStatus = aiHealthService.getAIHealthStatus();
             Map<String, Object> monitoringMetrics = getMonitoringMetrics();
             
             Map<String, Object> enhancedStatus = new HashMap<>();
@@ -213,7 +213,7 @@ public class AIMonitoringService {
     @Transactional(readOnly = true)
     public Map<String, Object> getServiceHealthCheck() {
         try {
-            AIHealthStatusDto healthStatus = aiHealthService.getHealthStatus();
+            AIHealthStatusDto healthStatus = aiHealthService.getAIHealthStatus();
             Map<String, Object> monitoringMetrics = getMonitoringMetrics();
             
             boolean isHealthy = "HEALTHY".equals(healthStatus.getOverallStatus()) || 
