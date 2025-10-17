@@ -57,7 +57,10 @@ public class SimpleAIController {
                 .purpose("generation")
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder()
+                .content("AI analysis placeholder")
+                .model("gpt-4o-mini")
+                .build();
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
@@ -141,7 +144,10 @@ public class SimpleAIController {
                 .systemPrompt("Respond with 'OK'")
                 .build();
             
-            AIGenerationResponse response = "AI analysis placeholder";
+            AIGenerationResponse response = AIGenerationResponse.builder()
+                .content("AI analysis placeholder")
+                .model("gpt-4o-mini")
+                .build();
             
             return ResponseEntity.ok(Map.of(
                 "status", "UP",

@@ -194,18 +194,24 @@ public class UIAdaptationService {
             
             // Generate AI-powered layout suggestions
             String aiLayoutSuggestions = aiCoreService.generateContent(
-                "Based on user interaction patterns, suggest optimal layout preferences including:\n" +
-                "- Preferred component positioning\n" +
-                "- Information density preferences\n" +
-                "- Navigation patterns\n" +
-                "- Visual hierarchy preferences\n\n" +
-                "User interaction data:\n" +
-                behaviors.stream()
-                    .map(b -> String.format("Action: %s, Entity: %s, Time: %s", 
-                        b.getAction(), b.getEntityType(), b.getCreatedAt()))
-                    .limit(20)
-                    .collect(Collectors.joining("\n"))
-            );
+                AIGenerationRequest.builder()
+                    .prompt("Based on user interaction patterns, suggest optimal layout preferences including:\n" +
+                        "- Preferred component positioning\n" +
+                        "- Information density preferences\n" +
+                        "- Navigation patterns\n" +
+                        "- Visual hierarchy preferences\n\n" +
+                        "User interaction data:\n" +
+                        behaviors.stream()
+                            .map(b -> String.format("Action: %s, Entity: %s, Time: %s", 
+                                b.getAction(), b.getEntityType(), b.getCreatedAt()))
+                            .limit(20)
+                            .collect(Collectors.joining("\n"))
+                    )
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             layoutPrefs.put("aiSuggestions", aiLayoutSuggestions);
             layoutPrefs.put("confidence", calculateLayoutConfidence(behaviors));
@@ -243,18 +249,24 @@ public class UIAdaptationService {
             
             // Generate AI-powered accessibility recommendations
             String aiAccessibilityRecommendations = aiCoreService.generateContent(
-                "Based on user interaction patterns, suggest accessibility adaptations including:\n" +
-                "- Font size preferences\n" +
-                "- Color contrast needs\n" +
-                "- Navigation assistance\n" +
-                "- Input method preferences\n\n" +
-                "User interaction data:\n" +
-                behaviors.stream()
-                        .map(b -> String.format("Action: %s, Device: %s, Context: %s", 
-                            b.getAction(), b.getDeviceInfo() != null ? b.getDeviceInfo() : "unknown", b.getContext()))
-                    .limit(15)
-                    .collect(java.util.stream.Collectors.joining("\n"))
-            );
+                AIGenerationRequest.builder()
+                    .prompt("Based on user interaction patterns, suggest accessibility adaptations including:\n" +
+                        "- Font size preferences\n" +
+                        "- Color contrast needs\n" +
+                        "- Navigation assistance\n" +
+                        "- Input method preferences\n\n" +
+                        "User interaction data:\n" +
+                        behaviors.stream()
+                            .map(b -> String.format("Action: %s, Device: %s, Context: %s", 
+                                b.getAction(), b.getDeviceInfo() != null ? b.getDeviceInfo() : "unknown", b.getContext()))
+                            .limit(15)
+                            .collect(java.util.stream.Collectors.joining("\n"))
+                    )
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             adaptations.put("aiRecommendations", aiAccessibilityRecommendations);
             adaptations.put("adaptationLevel", calculateAdaptationLevel(behaviors));
@@ -352,8 +364,13 @@ public class UIAdaptationService {
     private String generateAIRecommendations(String componentType, List<UserBehavior> behaviors) {
         try {
             return aiCoreService.generateContent(
-                String.format("Based on user interactions with %s components, provide specific recommendations for improving user experience and engagement.", componentType)
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Based on user interactions with %s components, provide specific recommendations for improving user experience and engagement.", componentType))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to generate AI recommendations", e);
             return "AI recommendations unavailable";

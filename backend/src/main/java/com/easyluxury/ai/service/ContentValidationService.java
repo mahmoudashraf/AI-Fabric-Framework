@@ -1,6 +1,7 @@
 package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.rag.RAGService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -243,9 +244,14 @@ public class ContentValidationService {
     private String analyzeTextWithAI(String textContent, String contentType) {
         try {
             return aiCoreService.generateContent(
-                String.format("Analyze the following %s text content for quality, appropriateness, and compliance: %s", 
-                    contentType, textContent)
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Analyze the following %s text content for quality, appropriateness, and compliance: %s", 
+                        contentType, textContent))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to analyze text with AI", e);
             return "AI text analysis unavailable";
@@ -296,8 +302,13 @@ public class ContentValidationService {
     private SentimentAnalysis performSentimentAnalysis(String textContent) {
         try {
             String sentimentResult = aiCoreService.generateContent(
-                "Analyze the sentiment of this text: " + textContent
-            );
+                AIGenerationRequest.builder()
+                    .prompt("Analyze the sentiment of this text: " + textContent)
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             // Simple sentiment analysis - in real implementation, this would use specialized sentiment analysis
             String sentiment = "NEUTRAL";
@@ -333,8 +344,13 @@ public class ContentValidationService {
     private InappropriateContentCheck checkInappropriateContent(String textContent) {
         try {
             String inappropriateResult = aiCoreService.generateContent(
-                "Check if this content is appropriate for a general audience: " + textContent
-            );
+                AIGenerationRequest.builder()
+                    .prompt("Check if this content is appropriate for a general audience: " + textContent)
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             boolean isInappropriate = inappropriateResult.contains("inappropriate") || 
                                    inappropriateResult.contains("offensive") ||
@@ -382,9 +398,14 @@ public class ContentValidationService {
     private String generateContentInsights(String textContent, String contentType, String aiAnalysis, List<ContentError> errors) {
         try {
             return aiCoreService.generateContent(
-                String.format("Generate content insights for %s content. AI Analysis: %s, Errors: %s", 
-                    contentType, aiAnalysis, errors.size())
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Generate content insights for %s content. AI Analysis: %s, Errors: %s", 
+                        contentType, aiAnalysis, errors.size()))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to generate content insights", e);
             return "Content insights unavailable";
