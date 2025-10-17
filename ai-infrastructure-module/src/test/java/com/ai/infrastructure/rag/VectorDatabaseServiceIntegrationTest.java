@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.*;
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@SpringBootTest(classes = {com.ai.infrastructure.TestConfiguration.class})
+@SpringBootTest
 @ActiveProfiles("test")
 class VectorDatabaseServiceIntegrationTest {
     
