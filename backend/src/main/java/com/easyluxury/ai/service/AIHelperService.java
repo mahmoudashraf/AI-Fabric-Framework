@@ -38,8 +38,8 @@ public class AIHelperService {
             );
             return response.getContent();
         } catch (Exception e) {
-            log.warn("Failed to generate content with AI", e);
-            return "AI content generation unavailable";
+            log.error("Failed to generate content with AI", e);
+            throw new RuntimeException("AI content generation failed", e);
         }
     }
     
@@ -64,11 +64,8 @@ public class AIHelperService {
                     .build()
             );
         } catch (Exception e) {
-            log.warn("Failed to generate content with AI", e);
-            return AIGenerationResponse.builder()
-                .content("AI content generation unavailable")
-                .model("gpt-4o-mini")
-                .build();
+            log.error("Failed to generate content with AI", e);
+            throw new RuntimeException("AI content generation failed", e);
         }
     }
     
