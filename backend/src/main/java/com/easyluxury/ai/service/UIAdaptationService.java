@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 public class UIAdaptationService {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     private final UserRepository userRepository;
     private final UserBehaviorRepository userBehaviorRepository;
     

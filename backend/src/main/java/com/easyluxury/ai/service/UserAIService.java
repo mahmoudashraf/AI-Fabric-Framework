@@ -36,11 +36,8 @@ import java.util.UUID;
 public class UserAIService {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     private final AIEmbeddingService embeddingService;
-    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
-    private final SimpleAIService simpleAIService;
     private final UserRepository userRepository;
     private final UserBehaviorRepository userBehaviorRepository;
     

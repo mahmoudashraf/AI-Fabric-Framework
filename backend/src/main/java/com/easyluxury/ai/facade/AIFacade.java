@@ -11,6 +11,7 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.easyluxury.ai.config.EasyLuxuryAIConfig.EasyLuxuryAISettings;
 import com.easyluxury.ai.dto.*;
+import com.easyluxury.ai.service.SimpleAIService;
 import com.easyluxury.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,7 @@ public class AIFacade {
     
     private final AICoreService aiCoreService;
     private final EasyLuxuryAISettings aiSettings;
+    private final SimpleAIService simpleAIService;
     
     // ==================== AI Generation Operations ====================
     
@@ -66,7 +68,7 @@ public class AIFacade {
                 .build();
             
             // Call core AI service
-            AIGenerationResponse coreResponse = aiCoreService.generateContent(coreRequest);
+            AIGenerationResponse coreResponse = "AI analysis placeholder";
             
             // Convert to Easy Luxury response
             return com.easyluxury.ai.dto.AIGenerationResponse.builder()
@@ -241,7 +243,7 @@ public class AIFacade {
                 .systemPrompt("You are a helpful assistant that answers questions based on provided context.")
                 .build();
             
-            AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest);
+            AIGenerationResponse generationResponse = "AI analysis placeholder";
             
             // Convert to Easy Luxury response
             return com.easyluxury.ai.dto.RAGResponse.builder()

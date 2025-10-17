@@ -29,9 +29,7 @@ import java.util.UUID;
 public class BehaviorTrackingService {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
-    private final SimpleAIService simpleAIService;
     private final UserBehaviorRepository userBehaviorRepository;
     private final AIHelperService aiHelperService;
     private final SimpleAIService simpleAIService;

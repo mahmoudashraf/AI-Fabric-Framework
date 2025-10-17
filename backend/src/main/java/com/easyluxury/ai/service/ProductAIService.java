@@ -31,9 +31,7 @@ import java.util.UUID;
 public class ProductAIService {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
-    private final SimpleAIService simpleAIService;
     private final ProductRepository productRepository;
     
     /**
