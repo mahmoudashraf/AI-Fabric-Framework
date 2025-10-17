@@ -1,6 +1,8 @@
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/processor/EmbeddingProcessor.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/RAGService.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIServiceConfig.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AISmartValidation.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/health/AIHealthIndicator.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AISearchRequest.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AIKnowledge.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/vector/VectorDatabase.java
@@ -11,6 +13,7 @@
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/processor/AICapableProcessor.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AIEmbeddingService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AICapable.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/service/AIConfigurationService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/RAGRequest.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIProviderConfig.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/exception/AIServiceException.java
@@ -19,6 +22,8 @@
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/cache/AICacheConfig.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AISearchResponse.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AICoreService.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIConfigurationDto.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIHealthDto.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/vector/PineconeVectorDatabase.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIEmbeddingRequest.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/search/VectorSearchService.java
