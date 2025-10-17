@@ -31,11 +31,9 @@ public class AIHealthService {
     
     private final AIHealthIndicator aiHealthIndicator;
     private final AIConfigurationService aiConfigurationService;
-    private final SimpleAIService simpleAIService;
     private final EasyLuxuryAISettings aiSettings;
     private final AIProviderConfig aiProviderConfig;
     private final AIServiceConfig aiServiceConfig;
-    private final SimpleAIService simpleAIService;
     
     /**
      * Get comprehensive AI health status

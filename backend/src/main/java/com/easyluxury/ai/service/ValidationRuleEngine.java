@@ -24,9 +24,7 @@ import java.util.regex.Pattern;
 public class ValidationRuleEngine {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
-    private final SimpleAIService simpleAIService;
     
     /**
      * Generate validation rules automatically based on data patterns

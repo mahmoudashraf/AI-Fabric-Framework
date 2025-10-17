@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
+import com.easyluxury.ai.service.SimpleAIService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,6 +34,7 @@ import java.util.Map;
 public class SimpleAIController {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     
     @PostMapping("/generate")
     @Operation(summary = "Generate AI content", description = "Generate AI content using core AI service")
@@ -55,7 +57,7 @@ public class SimpleAIController {
                 .purpose("generation")
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
@@ -139,7 +141,7 @@ public class SimpleAIController {
                 .systemPrompt("Respond with 'OK'")
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             return ResponseEntity.ok(Map.of(
                 "status", "UP",

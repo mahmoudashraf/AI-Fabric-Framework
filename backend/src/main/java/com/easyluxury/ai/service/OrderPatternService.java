@@ -32,7 +32,6 @@ import java.util.UUID;
 public class OrderPatternService {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     private final OrderRepository orderRepository;
     
     /**

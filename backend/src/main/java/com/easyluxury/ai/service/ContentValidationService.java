@@ -24,9 +24,7 @@ import java.util.regex.Pattern;
 public class ContentValidationService {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
-    private final SimpleAIService simpleAIService;
     
     /**
      * Validate text content with AI analysis

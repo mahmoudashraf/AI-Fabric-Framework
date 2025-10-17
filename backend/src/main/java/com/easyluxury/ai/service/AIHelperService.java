@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 public class AIHelperService {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     
     /**
      * Generate content with a simple prompt
@@ -30,8 +29,9 @@ public class AIHelperService {
             var response = aiCoreService.generateContent(
                 AIGenerationRequest.builder()
                     .prompt(prompt)
-                    .entityType(entityType)
-                    .purpose(purpose)
+                    .model("gpt-4o-mini")
+                    .maxTokens(1000)
+                    .temperature(0.7)
                     .build()
             );
             return response.getContent();

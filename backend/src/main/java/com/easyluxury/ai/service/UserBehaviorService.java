@@ -30,7 +30,6 @@ import java.util.UUID;
 public class UserBehaviorService {
     
     private final AICoreService aiCoreService;
-    private final SimpleAIService simpleAIService;
     private final UserBehaviorRepository userBehaviorRepository;
     
     /**
