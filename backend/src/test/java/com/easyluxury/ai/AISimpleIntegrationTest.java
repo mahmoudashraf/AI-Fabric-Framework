@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -26,6 +27,22 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, classes = {com.easyluxury.EasyLuxuryApplication.class, AIInfrastructureAutoConfiguration.class})
 @ActiveProfiles("test")
+@TestPropertySource(properties = {
+    "ai.providers.openai-api-key=test-key",
+    "ai.providers.openai-model=gpt-4o-mini",
+    "ai.providers.openai-embedding-model=text-embedding-3-small",
+    "ai.service.enabled=true",
+    "ai.service.auto-configuration=true",
+    "easyluxury.ai.product-index-name=test-products",
+    "easyluxury.ai.user-index-name=test-users",
+    "easyluxury.ai.order-index-name=test-orders",
+    "easyluxury.ai.enable-product-recommendations=true",
+    "easyluxury.ai.enable-user-behavior-tracking=true",
+    "easyluxury.ai.enable-smart-validation=true",
+    "easyluxury.ai.enable-ai-content-generation=true",
+    "easyluxury.ai.enable-ai-search=true",
+    "easyluxury.ai.enable-ai-rag=true"
+})
 class AISimpleIntegrationTest {
 
     @Autowired
