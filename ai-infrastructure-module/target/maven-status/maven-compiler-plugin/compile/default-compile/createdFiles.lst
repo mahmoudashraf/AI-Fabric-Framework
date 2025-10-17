@@ -27,6 +27,7 @@ com/ai/infrastructure/processor/EmbeddingProcessor.class
 com/ai/infrastructure/vector/VectorDatabase.class
 com/ai/infrastructure/dto/AISearchRequest.class
 com/ai/infrastructure/exception/AIServiceException.class
+com/ai/infrastructure/mock/MockAIService.class
 com/ai/infrastructure/dto/AIHealthDto.class
 com/ai/infrastructure/vector/VectorDatabase$VectorSearchQuery.class
 com/ai/infrastructure/rag/InMemoryVectorDatabaseService.class

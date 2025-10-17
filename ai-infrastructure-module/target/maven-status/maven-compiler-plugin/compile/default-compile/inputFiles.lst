@@ -11,6 +11,7 @@
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/PineconeVectorDatabaseService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIGenerationRequest.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIInfrastructureAutoConfiguration.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/mock/MockAIService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/InMemoryVectorDatabaseService.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/processor/AICapableProcessor.java
 /workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AIEmbeddingService.java

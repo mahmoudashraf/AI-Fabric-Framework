@@ -35,6 +35,7 @@ ai:
       api-key: test-key
       model: gpt-4o-mini
       embedding-model: text-embedding-3-small
+      mock-responses: true  # Enable mock responses for testing
     pinecone:
       api-key: test-key
       environment: test
