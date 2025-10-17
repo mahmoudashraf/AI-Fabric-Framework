@@ -1,6 +1,7 @@
 package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.rag.RAGService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -219,9 +220,14 @@ public class AISmartValidation {
     private String analyzeContentWithAI(String content, String contentType) {
         try {
             return aiCoreService.generateContent(
-                String.format("Analyze the following %s content for quality, accuracy, and compliance: %s", 
-                    contentType, content)
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Analyze the following %s content for quality, accuracy, and compliance: %s", 
+                        contentType, content))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to analyze content with AI", e);
             return "AI analysis unavailable";
@@ -293,11 +299,16 @@ public class AISmartValidation {
     private String generateValidationInsights(String content, String contentType, List<ValidationError> errors, String aiAnalysis) {
         try {
             return aiCoreService.generateContent(
-                String.format("Generate validation insights for %s content. Errors: %s, AI Analysis: %s", 
-                    contentType, 
-                    errors.stream().map(e -> e.getMessage()).collect(java.util.stream.Collectors.joining(", ")),
-                    aiAnalysis)
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Generate validation insights for %s content. Errors: %s, AI Analysis: %s", 
+                        contentType, 
+                        errors.stream().map(e -> e.getMessage()).collect(java.util.stream.Collectors.joining(", ")),
+                        aiAnalysis))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to generate validation insights", e);
             return "Validation insights unavailable";
@@ -350,9 +361,14 @@ public class AISmartValidation {
     private String generateAIRules(String contentType, List<String> sampleData, Map<String, Object> patterns) {
         try {
             return aiCoreService.generateContent(
-                String.format("Generate validation rules for %s content based on these patterns: %s", 
-                    contentType, patterns.toString())
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Generate validation rules for %s content based on these patterns: %s", 
+                        contentType, patterns.toString()))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to generate AI rules", e);
             return "AI rules generation unavailable";
@@ -457,9 +473,14 @@ public class AISmartValidation {
                                          ConsistencyAnalysis consistency, AccuracyAnalysis accuracy) {
         try {
             return aiCoreService.generateContent(
-                String.format("Generate data quality insights. Completeness: %.2f, Consistency: %.2f, Accuracy: %.2f", 
-                    completeness.getCompletenessScore(), consistency.getConsistencyScore(), accuracy.getAccuracyScore())
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Generate data quality insights. Completeness: %.2f, Consistency: %.2f, Accuracy: %.2f", 
+                        completeness.getCompletenessScore(), consistency.getConsistencyScore(), accuracy.getAccuracyScore()))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to generate quality insights", e);
             return "Quality insights unavailable";
@@ -504,9 +525,14 @@ public class AISmartValidation {
     private String generateBusinessRuleSuggestions(List<Map<String, Object>> data, Map<String, Object> rules) {
         try {
             return aiCoreService.generateContent(
-                String.format("Suggest business rules for this data. Current rules: %s, Data sample: %s", 
-                    rules.toString(), data.stream().limit(5).collect(java.util.stream.Collectors.toList()).toString())
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Suggest business rules for this data. Current rules: %s, Data sample: %s", 
+                        rules.toString(), data.stream().limit(5).collect(java.util.stream.Collectors.toList()).toString()))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to generate business rule suggestions", e);
             return "Business rule suggestions unavailable";
@@ -537,10 +563,15 @@ public class AISmartValidation {
     private String generateBusinessRuleInsights(List<Map<String, Object>> data, List<BusinessRuleError> errors, String aiSuggestions) {
         try {
             return aiCoreService.generateContent(
-                String.format("Generate business rule insights. Errors: %s, AI Suggestions: %s", 
-                    errors.stream().map(e -> e.getMessage()).collect(java.util.stream.Collectors.joining(", ")),
-                    aiSuggestions)
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Generate business rule insights. Errors: %s, AI Suggestions: %s", 
+                        errors.stream().map(e -> e.getMessage()).collect(java.util.stream.Collectors.joining(", ")),
+                        aiSuggestions))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to generate business rule insights", e);
             return "Business rule insights unavailable";

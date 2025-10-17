@@ -1,6 +1,7 @@
 package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.rag.RAGService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -439,9 +440,14 @@ public class ValidationRuleEngine {
                                            Map<String, Object> businessContext, DataPatternAnalysis patternAnalysis) {
         try {
             String aiRules = aiCoreService.generateContent(
-                String.format("Generate validation rules for %s data based on these patterns: %s and business context: %s", 
-                    dataType, patternAnalysis.toString(), businessContext.toString())
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Generate validation rules for %s data based on these patterns: %s and business context: %s", 
+                        dataType, patternAnalysis.toString(), businessContext.toString()))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             Map<String, Object> rules = parseAIRules(aiRules);
             
@@ -628,8 +634,13 @@ public class ValidationRuleEngine {
     private String generateAIDocumentation(ValidationRuleSet ruleSet) {
         try {
             return aiCoreService.generateContent(
-                String.format("Generate comprehensive documentation for validation rules for %s data type", ruleSet.getDataType())
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Generate comprehensive documentation for validation rules for %s data type", ruleSet.getDataType()))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             return "AI documentation generation unavailable";
         }

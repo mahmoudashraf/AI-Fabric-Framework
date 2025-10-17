@@ -1,6 +1,7 @@
 package com.easyluxury.ai.service;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.rag.RAGService;
 import com.easyluxury.entity.Product;
 import com.easyluxury.entity.User;
@@ -121,15 +122,20 @@ public class RecommendationEngine {
             
             // Generate AI-powered content recommendations
             String aiRecommendations = aiCoreService.generateContent(
-                String.format("Based on user's interaction with %s content, recommend specific content that would be most engaging and relevant. User preferences: %s", 
-                    contentType,
-                    contentPreferences.entrySet().stream()
-                        .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                        .limit(5)
-                        .map(e -> e.getKey() + " (" + String.format("%.2f", e.getValue()) + ")")
-                        .collect(Collectors.joining(", "))
-                )
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Based on user's interaction with %s content, recommend specific content that would be most engaging and relevant. User preferences: %s", 
+                        contentType,
+                        contentPreferences.entrySet().stream()
+                            .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                            .limit(5)
+                            .map(e -> e.getKey() + " (" + String.format("%.2f", e.getValue()) + ")")
+                            .collect(Collectors.joining(", "))
+                    ))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             // Parse AI recommendations
             List<Map<String, Object>> recommendations = parseContentRecommendations(aiRecommendations, limit);
@@ -191,18 +197,23 @@ public class RecommendationEngine {
             
             // Generate AI-powered cross-domain recommendations
             String aiRecommendations = aiCoreService.generateContent(
-                String.format("Based on user's behavior in %s domain, recommend relevant content in %s domain. Source behaviors: %s, Target behaviors: %s", 
-                    sourceDomain, targetDomain,
-                    sourceBehaviors.stream()
-                        .map(b -> b.getAction() + " on " + b.getEntityId())
-                        .limit(10)
-                        .collect(Collectors.joining(", ")),
-                    targetBehaviors.stream()
-                        .map(b -> b.getAction() + " on " + b.getEntityId())
-                        .limit(10)
-                        .collect(Collectors.joining(", "))
-                )
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Based on user's behavior in %s domain, recommend relevant content in %s domain. Source behaviors: %s, Target behaviors: %s", 
+                        sourceDomain, targetDomain,
+                        sourceBehaviors.stream()
+                            .map(b -> b.getAction() + " on " + b.getEntityId())
+                            .limit(10)
+                            .collect(Collectors.joining(", ")),
+                        targetBehaviors.stream()
+                            .map(b -> b.getAction() + " on " + b.getEntityId())
+                            .limit(10)
+                            .collect(Collectors.joining(", "))
+                    ))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             // Parse cross-domain recommendations
             List<Map<String, Object>> recommendations = parseCrossDomainRecommendations(aiRecommendations, limit);
@@ -254,14 +265,19 @@ public class RecommendationEngine {
             
             // Generate AI-powered real-time recommendations
             String aiRecommendations = aiCoreService.generateContent(
-                String.format("Based on user's current context and recent behavior, provide immediate recommendations. Context: %s, Recent behaviors: %s", 
-                    currentContext.toString(),
-                    recentBehaviors.stream()
-                        .map(b -> b.getAction() + " on " + b.getEntityType())
-                        .limit(10)
-                        .collect(Collectors.joining(", "))
-                )
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Based on user's current context and recent behavior, provide immediate recommendations. Context: %s, Recent behaviors: %s", 
+                        currentContext.toString(),
+                        recentBehaviors.stream()
+                            .map(b -> b.getAction() + " on " + b.getEntityType())
+                            .limit(10)
+                            .collect(Collectors.joining(", "))
+                    ))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
             
             // Parse real-time recommendations
             List<Map<String, Object>> recommendations = parseRealTimeRecommendations(aiRecommendations, limit);
@@ -371,16 +387,21 @@ public class RecommendationEngine {
                                            List<String> categories, String priceRange) {
         try {
             return aiCoreService.generateContent(
-                String.format("Based on user profile and behavior, recommend products. User preferences: %s, Categories: %s, Price range: %s, Recent behaviors: %s", 
-                    user.getAiPreferences(),
-                    categories != null ? String.join(",", categories) : "any",
-                    priceRange != null ? priceRange : "any",
-                    behaviors.stream()
-                        .map(b -> b.getAction() + " on " + b.getEntityType())
-                        .limit(10)
-                        .collect(Collectors.joining(", "))
-                )
-            );
+                AIGenerationRequest.builder()
+                    .prompt(String.format("Based on user profile and behavior, recommend products. User preferences: %s, Categories: %s, Price range: %s, Recent behaviors: %s", 
+                        user.getAiPreferences(),
+                        categories != null ? String.join(",", categories) : "any",
+                        priceRange != null ? priceRange : "any",
+                        behaviors.stream()
+                            .map(b -> b.getAction() + " on " + b.getEntityType())
+                            .limit(10)
+                            .collect(Collectors.joining(", "))
+                    ))
+                    .model("gpt-4o-mini")
+                    .maxTokens(500)
+                    .temperature(0.7)
+                    .build()
+            ).getContent();
         } catch (Exception e) {
             log.warn("Failed to generate AI recommendations", e);
             return "AI recommendations unavailable";
