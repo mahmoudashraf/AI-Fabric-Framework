@@ -1,0 +1,16 @@
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIProviderConfig.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/exception/AIServiceException.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/RAGService.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/rag/VectorDatabaseService.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AISearchRequest.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AISearchResponse.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AICoreService.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIEmbeddingResponse.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIGenerationRequest.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIInfrastructureAutoConfiguration.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/processor/AICapableProcessor.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIEmbeddingRequest.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AIEmbeddingService.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AICapable.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/AIGenerationResponse.java
+/workspace/ai-infrastructure-module/src/main/java/com/ai/infrastructure/core/AISearchService.java
