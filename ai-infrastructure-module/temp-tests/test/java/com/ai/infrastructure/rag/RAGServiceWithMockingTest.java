@@ -38,7 +38,7 @@ import static org.mockito.Mockito.*;
  * @version 1.0.0
  */
 @ExtendWith(MockitoExtension.class)
-@SpringBootTest(classes = {com.ai.infrastructure.TestConfiguration.class})
+@SpringBootTest
 @Import(MockAIConfiguration.class)
 @ActiveProfiles("test")
 class RAGServiceWithMockingTest {

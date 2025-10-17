@@ -13,6 +13,8 @@ import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.PineconeVectorDatabase;
 import com.ai.infrastructure.service.AIConfigurationService;
 import com.ai.infrastructure.health.AIHealthIndicator;
+import com.ai.infrastructure.api.AIAutoGeneratorService;
+import com.ai.infrastructure.cache.AIIntelligentCacheService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -86,5 +88,15 @@ public class AIInfrastructureAutoConfiguration {
     @Bean
     public AIHealthIndicator aiHealthIndicator(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
         return new AIHealthIndicator(providerConfig, serviceConfig);
+    }
+    
+    @Bean
+    public AIAutoGeneratorService aiAutoGeneratorService(AICoreService aiCoreService) {
+        return new AIAutoGeneratorService(aiCoreService);
+    }
+    
+    @Bean
+    public AIIntelligentCacheService aiIntelligentCacheService() {
+        return new AIIntelligentCacheService();
     }
 }
