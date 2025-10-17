@@ -9,6 +9,8 @@ import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.cache.AICacheConfig;
+import com.ai.infrastructure.vector.VectorDatabase;
+import com.ai.infrastructure.vector.PineconeVectorDatabase;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -44,8 +46,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public RAGService ragService(AIProviderConfig config, AIEmbeddingService embeddingService, VectorDatabaseService vectorDatabaseService) {
-        return new RAGService(config, embeddingService, vectorDatabaseService);
+    public RAGService ragService(AIProviderConfig config, AIEmbeddingService embeddingService, VectorDatabaseService vectorDatabaseService, VectorDatabase vectorDatabase) {
+        return new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase);
     }
     
     @Bean
@@ -66,5 +68,10 @@ public class AIInfrastructureAutoConfiguration {
     @Bean
     public VectorSearchService vectorSearchService(AIProviderConfig config) {
         return new VectorSearchService(config);
+    }
+    
+    @Bean
+    public VectorDatabase vectorDatabase(AIProviderConfig config) {
+        return new PineconeVectorDatabase(config);
     }
 }
