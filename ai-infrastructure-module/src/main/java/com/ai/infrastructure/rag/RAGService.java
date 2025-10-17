@@ -5,13 +5,16 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
+import com.ai.infrastructure.dto.RAGRequest;
+import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.vector.VectorDatabase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * RAG (Retrieval-Augmented Generation) Service
@@ -30,6 +33,7 @@ public class RAGService {
     private final AIProviderConfig config;
     private final AIEmbeddingService embeddingService;
     private final VectorDatabaseService vectorDatabaseService;
+    private final VectorDatabase vectorDatabase;
     
     /**
      * Index content for RAG
@@ -154,6 +158,142 @@ public class RAGService {
      * @return map of RAG statistics
      */
     public Map<String, Object> getStatistics() {
-        return vectorDatabaseService.getStatistics();
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalIndexed", vectorDatabaseService.getStatistics());
+        stats.put("vectorDatabase", vectorDatabase.getStatistics());
+        return stats;
+    }
+    
+    /**
+     * Perform RAG query with advanced features
+     * 
+     * @param request the RAG request
+     * @return RAG response with generated content
+     */
+    public RAGResponse performRAGQuery(RAGRequest request) {
+        try {
+            log.debug("Performing RAG query: {}", request.getQuery());
+            
+            long startTime = System.currentTimeMillis();
+            
+            // Generate query embedding
+            AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
+                .text(request.getQuery())
+                .model(config.getOpenaiEmbeddingModel())
+                .build();
+            
+            var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
+            List<Double> queryVector = embeddingResponse.getEmbedding();
+            
+            // Create search request
+            AISearchRequest searchRequest = AISearchRequest.builder()
+                .query(request.getQuery())
+                .entityType(request.getEntityType())
+                .limit(request.getLimit())
+                .threshold(request.getThreshold())
+                .build();
+            
+            // Perform search
+            AISearchResponse searchResponse;
+            if (request.isEnableHybridSearch()) {
+                searchResponse = performHybridSearch(queryVector, request.getQuery(), searchRequest);
+            } else if (request.isEnableContextualSearch()) {
+                searchResponse = performContextualSearch(queryVector, request.getContext(), searchRequest);
+            } else {
+                searchResponse = vectorDatabase.search(queryVector, searchRequest);
+            }
+            
+            // Build context
+            String context = buildContext(searchResponse);
+            
+            // Generate response (simplified for now)
+            String response = generateResponse(request.getQuery(), context);
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            return RAGResponse.builder()
+                .response(response)
+                .context(context)
+                .documents(searchResponse.getResults())
+                .totalDocuments(searchResponse.getTotalResults())
+                .usedDocuments(Math.min(searchResponse.getTotalResults(), request.getLimit()))
+                .confidence(calculateConfidence(searchResponse))
+                .relevanceScores(searchResponse.getResults().stream()
+                    .map(doc -> (Double) doc.get("similarity"))
+                    .collect(Collectors.toList()))
+                .processingTimeMs(processingTime)
+                .requestId(request.getRequestId())
+                .model(config.getOpenaiEmbeddingModel())
+                .success(true)
+                .hybridSearchUsed(request.isEnableHybridSearch())
+                .contextualSearchUsed(request.isEnableContextualSearch())
+                .originalQuery(request.getQuery())
+                .entityType(request.getEntityType())
+                .searchedCategories(request.getCategories())
+                .build();
+                
+        } catch (Exception e) {
+            log.error("Error performing RAG query", e);
+            return RAGResponse.builder()
+                .response("")
+                .context("")
+                .documents(Collections.emptyList())
+                .totalDocuments(0)
+                .usedDocuments(0)
+                .confidence(0.0)
+                .relevanceScores(Collections.emptyList())
+                .processingTimeMs(0)
+                .requestId(request.getRequestId())
+                .model(config.getOpenaiEmbeddingModel())
+                .success(false)
+                .errorMessage(e.getMessage())
+                .build();
+        }
+    }
+    
+    /**
+     * Perform hybrid search combining vector and text search
+     */
+    private AISearchResponse performHybridSearch(List<Double> queryVector, String queryText, AISearchRequest request) {
+        // This would integrate with the VectorSearchService for hybrid search
+        // For now, fall back to regular vector search
+        return vectorDatabase.search(queryVector, request);
+    }
+    
+    /**
+     * Perform contextual search with additional context
+     */
+    private AISearchResponse performContextualSearch(List<Double> queryVector, String context, AISearchRequest request) {
+        // This would integrate with the VectorSearchService for contextual search
+        // For now, fall back to regular vector search
+        return vectorDatabase.search(queryVector, request);
+    }
+    
+    /**
+     * Generate response based on query and context
+     */
+    private String generateResponse(String query, String context) {
+        // This is a simplified response generation
+        // In a real implementation, this would use an LLM to generate the response
+        if (context.isEmpty()) {
+            return "I don't have enough information to answer your question: " + query;
+        }
+        
+        return "Based on the available information: " + context.substring(0, Math.min(context.length(), 500)) + "...";
+    }
+    
+    /**
+     * Calculate confidence score for the response
+     */
+    private double calculateConfidence(AISearchResponse searchResponse) {
+        if (searchResponse.getResults().isEmpty()) {
+            return 0.0;
+        }
+        
+        // Calculate average similarity score as confidence
+        return searchResponse.getResults().stream()
+            .mapToDouble(doc -> (Double) doc.get("similarity"))
+            .average()
+            .orElse(0.0);
     }
 }

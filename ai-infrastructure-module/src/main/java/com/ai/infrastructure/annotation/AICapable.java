@@ -6,75 +6,108 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation to mark entities as AI-capable, enabling automatic AI features
+ * Marks an entity as AI-capable, enabling automatic AI features
  * 
- * When applied to an entity, this annotation enables:
- * - RAG (Retrieval-Augmented Generation) capabilities
- * - Semantic search functionality
- * - AI-powered recommendations
- * - Smart validation
- * - Auto-generated AI APIs
+ * This annotation indicates that an entity should have AI capabilities
+ * such as embedding generation, semantic search, and intelligent validation.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@Target({ElementType.TYPE, ElementType.FIELD})
+@Target({ElementType.TYPE, ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AICapable {
     
     /**
-     * Enable RAG (Retrieval-Augmented Generation) capabilities
+     * AI features to enable for this entity
      * 
-     * @return true if RAG is enabled
+     * @return array of enabled AI features
      */
-    boolean enableRAG() default true;
+    String[] features() default {
+        "embedding",
+        "search",
+        "validation",
+        "recommendation"
+    };
     
     /**
-     * Enable embedding generation
+     * Priority level for AI processing
      * 
-     * @return true if embedding is enabled
+     * @return priority level (1-10, higher is more important)
      */
-    boolean enableEmbedding() default true;
+    int priority() default 5;
     
     /**
-     * Enable semantic search
+     * Whether to enable automatic embedding generation
      * 
-     * @return true if search is enabled
+     * @return true if automatic embedding generation is enabled
+     */
+    boolean autoEmbedding() default true;
+    
+    /**
+     * Whether to enable semantic search
+     * 
+     * @return true if semantic search is enabled
      */
     boolean enableSearch() default true;
     
     /**
-     * Enable smart validation
+     * Whether to enable AI validation
      * 
-     * @return true if validation is enabled
+     * @return true if AI validation is enabled
      */
     boolean enableValidation() default true;
     
     /**
-     * Enable content generation
+     * Whether to enable AI recommendations
      * 
-     * @return true if generation is enabled
+     * @return true if AI recommendations are enabled
      */
-    boolean enableGeneration() default true;
+    boolean enableRecommendations() default true;
     
     /**
-     * Entity type for AI context
+     * Custom configuration for this entity
+     * 
+     * @return custom configuration map
+     */
+    String[] config() default {};
+    
+    /**
+     * Entity type for categorization
      * 
      * @return entity type
      */
     String entityType() default "";
     
     /**
-     * Priority for AI processing
+     * Whether to index this entity in the vector database
      * 
-     * @return priority level
+     * @return true if entity should be indexed
      */
-    int priority() default 0;
+    boolean indexable() default true;
     
     /**
-     * Description of the entity for AI context
+     * Chunking strategy for large content
      * 
-     * @return entity description
+     * @return chunking strategy
      */
-    String description() default "";
+    ChunkingStrategy chunkingStrategy() default ChunkingStrategy.SENTENCE;
+    
+    /**
+     * Maximum chunk size for content processing
+     * 
+     * @return maximum chunk size
+     */
+    int maxChunkSize() default 1000;
+    
+    /**
+     * Chunking strategies
+     */
+    enum ChunkingStrategy {
+        SENTENCE,
+        WORD,
+        CHARACTER,
+        PARAGRAPH,
+        SMART
+    }
 }

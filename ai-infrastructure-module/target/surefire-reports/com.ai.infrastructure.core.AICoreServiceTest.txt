@@ -1,8 +1,8 @@
 -------------------------------------------------------------------------------
 Test set: com.ai.infrastructure.core.AICoreServiceTest
 -------------------------------------------------------------------------------
-Tests run: 5, Failures: 0, Errors: 3, Skipped: 0, Time elapsed: 1.062 s <<< FAILURE! - in com.ai.infrastructure.core.AICoreServiceTest
-com.ai.infrastructure.core.AICoreServiceTest.testGenerateRecommendations  Time elapsed: 0.283 s  <<< ERROR!
+Tests run: 5, Failures: 0, Errors: 3, Skipped: 0, Time elapsed: 0.982 s <<< FAILURE! - in com.ai.infrastructure.core.AICoreServiceTest
+com.ai.infrastructure.core.AICoreServiceTest.testGenerateRecommendations  Time elapsed: 0.267 s  <<< ERROR!
 com.ai.infrastructure.exception.AIServiceException: Failed to generate recommendations
 	at com.ai.infrastructure.core.AICoreService.generateRecommendations(AICoreService.java:193)
 	at com.ai.infrastructure.core.AICoreServiceTest.testGenerateRecommendations(AICoreServiceTest.java:138)
@@ -22,7 +22,7 @@ Caused by: java.lang.NullPointerException: OpenAI token required
 	at com.ai.infrastructure.core.AICoreService.generateEmbedding(AICoreService.java:107)
 	... 5 more
 
-com.ai.infrastructure.core.AICoreServiceTest.testGenerateEmbedding  Time elapsed: 0.008 s  <<< ERROR!
+com.ai.infrastructure.core.AICoreServiceTest.testGenerateEmbedding  Time elapsed: 0.004 s  <<< ERROR!
 com.ai.infrastructure.exception.AIServiceException: Failed to generate embedding
 	at com.ai.infrastructure.core.AICoreService.generateEmbedding(AICoreService.java:129)
 	at com.ai.infrastructure.core.AICoreServiceTest.testGenerateEmbedding(AICoreServiceTest.java:75)
@@ -38,7 +38,7 @@ Caused by: java.lang.NullPointerException: OpenAI token required
 	at com.ai.infrastructure.core.AICoreService.generateEmbedding(AICoreService.java:107)
 	... 4 more
 
-com.ai.infrastructure.core.AICoreServiceTest.testPerformSearch  Time elapsed: 0.005 s  <<< ERROR!
+com.ai.infrastructure.core.AICoreServiceTest.testPerformSearch  Time elapsed: 0.004 s  <<< ERROR!
 com.ai.infrastructure.exception.AIServiceException: Failed to perform semantic search
 	at com.ai.infrastructure.core.AICoreService.performSearch(AICoreService.java:155)
 	at com.ai.infrastructure.core.AICoreServiceTest.testPerformSearch(AICoreServiceTest.java:108)
