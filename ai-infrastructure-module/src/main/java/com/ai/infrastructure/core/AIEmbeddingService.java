@@ -9,11 +9,16 @@ import com.theokanning.openai.embedding.EmbeddingResult;
 import com.theokanning.openai.service.OpenAiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Service for AI embedding generation
@@ -33,6 +38,12 @@ public class AIEmbeddingService {
     private final AIProviderConfig config;
     private OpenAiService openAiService;
     
+    // Performance metrics
+    private final AtomicLong totalEmbeddingsGenerated = new AtomicLong(0);
+    private final AtomicLong totalProcessingTime = new AtomicLong(0);
+    private final ConcurrentHashMap<String, Long> cacheHits = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> cacheMisses = new ConcurrentHashMap<>();
+    
     /**
      * Initialize OpenAI service with configuration
      */
@@ -46,11 +57,12 @@ public class AIEmbeddingService {
     }
     
     /**
-     * Generate embedding for text content
+     * Generate embedding for text content with caching
      * 
      * @param request the embedding request
      * @return embedding response with vector data
      */
+    @Cacheable(value = "embeddings", key = "#request.text + '_' + #request.model")
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
         try {
             initializeOpenAI();
@@ -68,6 +80,10 @@ public class AIEmbeddingService {
             var embedding = result.getData().get(0).getEmbedding();
             
             long processingTime = System.currentTimeMillis() - startTime;
+            
+            // Update metrics
+            totalEmbeddingsGenerated.incrementAndGet();
+            totalProcessingTime.addAndGet(processingTime);
             
             log.debug("Successfully generated embedding with {} dimensions in {}ms", 
                 embedding.size(), processingTime);
@@ -87,7 +103,7 @@ public class AIEmbeddingService {
     }
     
     /**
-     * Generate embeddings for multiple texts in batch
+     * Generate embeddings for multiple texts in batch with optimization
      * 
      * @param texts list of texts to embed
      * @param entityType type of entity for context
@@ -191,5 +207,67 @@ public class AIEmbeddingService {
         }
         
         return chunks;
+    }
+    
+    /**
+     * Generate embeddings asynchronously for better performance
+     * 
+     * @param request the embedding request
+     * @return CompletableFuture with embedding response
+     */
+    @Async
+    public CompletableFuture<AIEmbeddingResponse> generateEmbeddingAsync(AIEmbeddingRequest request) {
+        try {
+            AIEmbeddingResponse response = generateEmbedding(request);
+            return CompletableFuture.completedFuture(response);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+    
+    /**
+     * Generate embeddings for multiple texts asynchronously
+     * 
+     * @param texts list of texts to embed
+     * @param entityType type of entity for context
+     * @return CompletableFuture with list of embedding responses
+     */
+    @Async
+    public CompletableFuture<List<AIEmbeddingResponse>> generateEmbeddingsAsync(List<String> texts, String entityType) {
+        try {
+            List<AIEmbeddingResponse> responses = generateEmbeddings(texts, entityType);
+            return CompletableFuture.completedFuture(responses);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+    
+    /**
+     * Get performance metrics for monitoring
+     * 
+     * @return map of performance metrics
+     */
+    public java.util.Map<String, Object> getPerformanceMetrics() {
+        long totalEmbeddings = totalEmbeddingsGenerated.get();
+        long totalTime = totalProcessingTime.get();
+        double avgProcessingTime = totalEmbeddings > 0 ? (double) totalTime / totalEmbeddings : 0.0;
+        
+        return java.util.Map.of(
+            "totalEmbeddingsGenerated", totalEmbeddings,
+            "totalProcessingTimeMs", totalTime,
+            "averageProcessingTimeMs", avgProcessingTime,
+            "cacheHits", cacheHits,
+            "cacheMisses", cacheMisses
+        );
+    }
+    
+    /**
+     * Clear performance metrics
+     */
+    public void clearMetrics() {
+        totalEmbeddingsGenerated.set(0);
+        totalProcessingTime.set(0);
+        cacheHits.clear();
+        cacheMisses.clear();
     }
 }
