@@ -136,20 +136,78 @@ ai:
 # Easy Luxury AI Configuration
 easyluxury:
   ai:
+    # Index Names
     product-index-name: ${AI_PRODUCT_INDEX_NAME:easyluxury-products}
     user-index-name: ${AI_USER_INDEX_NAME:easyluxury-users}
     order-index-name: ${AI_ORDER_INDEX_NAME:easyluxury-orders}
+    
+    # Feature Toggles
     enable-product-recommendations: ${AI_ENABLE_PRODUCT_RECOMMENDATIONS:true}
     enable-user-behavior-tracking: ${AI_ENABLE_USER_BEHAVIOR_TRACKING:true}
     enable-smart-validation: ${AI_ENABLE_SMART_VALIDATION:true}
     enable-ai-content-generation: ${AI_ENABLE_CONTENT_GENERATION:true}
     enable-ai-search: ${AI_ENABLE_SEARCH:true}
     enable-ai-rag: ${AI_ENABLE_RAG:true}
+    enable-product-description-generation: ${AI_ENABLE_PRODUCT_DESCRIPTION:true}
+    enable-product-categorization: ${AI_ENABLE_PRODUCT_CATEGORIZATION:true}
+    enable-product-tagging: ${AI_ENABLE_PRODUCT_TAGGING:true}
+    
+    # AI Model Configuration
     default-ai-model: ${AI_DEFAULT_MODEL:gpt-4o-mini}
     default-embedding-model: ${AI_DEFAULT_EMBEDDING_MODEL:text-embedding-3-small}
     max-tokens: ${AI_MAX_TOKENS:2000}
     temperature: ${AI_TEMPERATURE:0.3}
     timeout-seconds: ${AI_TIMEOUT_SECONDS:60}
+    
+    # Product-Specific AI Settings
+    product:
+      description-generation:
+        enabled: ${AI_PRODUCT_DESCRIPTION_ENABLED:true}
+        max-length: ${AI_PRODUCT_DESCRIPTION_MAX_LENGTH:500}
+        style: ${AI_PRODUCT_DESCRIPTION_STYLE:luxury}
+      categorization:
+        enabled: ${AI_PRODUCT_CATEGORIZATION_ENABLED:true}
+        categories: ${AI_PRODUCT_CATEGORIES:luxury,premium,exclusive,limited-edition}
+      tagging:
+        enabled: ${AI_PRODUCT_TAGGING_ENABLED:true}
+        max-tags: ${AI_PRODUCT_MAX_TAGS:10}
+        tag-types: ${AI_PRODUCT_TAG_TYPES:material,style,occasion,price-range,season}
+      search:
+        enabled: ${AI_PRODUCT_SEARCH_ENABLED:true}
+        similarity-threshold: ${AI_PRODUCT_SIMILARITY_THRESHOLD:0.7}
+        max-results: ${AI_PRODUCT_MAX_SEARCH_RESULTS:20}
+      recommendations:
+        enabled: ${AI_PRODUCT_RECOMMENDATIONS_ENABLED:true}
+        max-recommendations: ${AI_PRODUCT_MAX_RECOMMENDATIONS:10}
+        algorithm: ${AI_PRODUCT_RECOMMENDATION_ALGORITHM:collaborative-filtering}
+    
+    # User-Specific AI Settings
+    user:
+      behavior-tracking:
+        enabled: ${AI_USER_BEHAVIOR_TRACKING_ENABLED:true}
+        track-views: ${AI_USER_TRACK_VIEWS:true}
+        track-purchases: ${AI_USER_TRACK_PURCHASES:true}
+        track-searches: ${AI_USER_TRACK_SEARCHES:true}
+        retention-days: ${AI_USER_BEHAVIOR_RETENTION_DAYS:365}
+      preferences:
+        learning-enabled: ${AI_USER_PREFERENCES_LEARNING:true}
+        update-frequency: ${AI_USER_PREFERENCES_UPDATE_FREQUENCY:daily}
+        min-interactions: ${AI_USER_MIN_INTERACTIONS:5}
+      recommendations:
+        enabled: ${AI_USER_RECOMMENDATIONS_ENABLED:true}
+        max-recommendations: ${AI_USER_MAX_RECOMMENDATIONS:15}
+        diversity-factor: ${AI_USER_RECOMMENDATION_DIVERSITY:0.3}
+    
+    # Order-Specific AI Settings
+    order:
+      analysis:
+        enabled: ${AI_ORDER_ANALYSIS_ENABLED:true}
+        pattern-recognition: ${AI_ORDER_PATTERN_RECOGNITION:true}
+        fraud-detection: ${AI_ORDER_FRAUD_DETECTION:true}
+      insights:
+        enabled: ${AI_ORDER_INSIGHTS_ENABLED:true}
+        trend-analysis: ${AI_ORDER_TREND_ANALYSIS:true}
+        seasonal-patterns: ${AI_ORDER_SEASONAL_PATTERNS:true}
 
 # Legacy OpenAI Configuration (for backward compatibility)
 openai:

@@ -1,10 +1,7 @@
-# Production Profile Configuration for EasyLuxury Backend
-spring:
-  config:
-    activate:
-      on-profile: prod
+# Production Profile Configuration
+# Optimized for production with security and performance
 
-  # Production Database Configuration
+spring:
   datasource:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
@@ -16,10 +13,7 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      leak-detection-threshold: 60000
-      pool-name: EasyLuxuryHikariCP
 
-  # JPA/Hibernate Configuration for Production
   jpa:
     hibernate:
       ddl-auto: validate
@@ -29,26 +23,128 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
         jdbc:
-          batch_size: 25
-          batch_versioned_data: true
-        order_inserts: true
-        order_updates: true
-        jdbc.lob.non_contextual_creation: true
+          batch_size: 50
     open-in-view: false
 
-  # Liquibase Configuration
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
-    contexts: prod
 
-  # Jackson Configuration
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-      fail-on-empty-beans: false
-    time-zone: UTC
-    default-property-inclusion: non_null
+# AI Configuration for Production
+ai:
+  provider:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    pinecone:
+      api-key: ${PINECONE_API_KEY}
+      environment: ${PINECONE_ENVIRONMENT:production}
+      index-name: ${PINECONE_INDEX_NAME:easyluxury-prod}
+  
+  service:
+    enabled: true
+    auto-configuration: true
+    caching:
+      enabled: true
+    metrics:
+      enabled: true
+    health-checks:
+      enabled: true
+    logging:
+      enabled: true
+    default-timeout: 30000
+    max-retries: 3
+    retry-delay: 1000
+    async:
+      enabled: true
+      thread-pool-size: 20
+    batch-processing:
+      enabled: true
+      batch-size: 200
+    rate-limiting:
+      enabled: true
+      rate-limit-per-minute: 1000
+    circuit-breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60000
+
+# Easy Luxury AI Configuration for Production
+easyluxury:
+  ai:
+    # Index Names
+    product-index-name: ${AI_PRODUCT_INDEX_NAME:easyluxury-products-prod}
+    user-index-name: ${AI_USER_INDEX_NAME:easyluxury-users-prod}
+    order-index-name: ${AI_ORDER_INDEX_NAME:easyluxury-orders-prod}
+    
+    # Feature Toggles - Environment controlled
+    enable-product-recommendations: ${AI_ENABLE_PRODUCT_RECOMMENDATIONS:true}
+    enable-user-behavior-tracking: ${AI_ENABLE_USER_BEHAVIOR_TRACKING:true}
+    enable-smart-validation: ${AI_ENABLE_SMART_VALIDATION:true}
+    enable-ai-content-generation: ${AI_ENABLE_CONTENT_GENERATION:true}
+    enable-ai-search: ${AI_ENABLE_SEARCH:true}
+    enable-ai-rag: ${AI_ENABLE_RAG:true}
+    enable-product-description-generation: ${AI_ENABLE_PRODUCT_DESCRIPTION:true}
+    enable-product-categorization: ${AI_ENABLE_PRODUCT_CATEGORIZATION:true}
+    enable-product-tagging: ${AI_ENABLE_PRODUCT_TAGGING:true}
+    
+    # AI Model Configuration
+    default-ai-model: ${AI_DEFAULT_MODEL:gpt-4o-mini}
+    default-embedding-model: ${AI_DEFAULT_EMBEDDING_MODEL:text-embedding-3-small}
+    max-tokens: ${AI_MAX_TOKENS:2000}
+    temperature: ${AI_TEMPERATURE:0.3}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:60}
+    
+    # Product-Specific AI Settings
+    product:
+      description-generation:
+        enabled: ${AI_PRODUCT_DESCRIPTION_ENABLED:true}
+        max-length: ${AI_PRODUCT_DESCRIPTION_MAX_LENGTH:500}
+        style: ${AI_PRODUCT_DESCRIPTION_STYLE:luxury}
+      categorization:
+        enabled: ${AI_PRODUCT_CATEGORIZATION_ENABLED:true}
+        categories: ${AI_PRODUCT_CATEGORIES:luxury,premium,exclusive,limited-edition}
+      tagging:
+        enabled: ${AI_PRODUCT_TAGGING_ENABLED:true}
+        max-tags: ${AI_PRODUCT_MAX_TAGS:10}
+        tag-types: ${AI_PRODUCT_TAG_TYPES:material,style,occasion,price-range,season}
+      search:
+        enabled: ${AI_PRODUCT_SEARCH_ENABLED:true}
+        similarity-threshold: ${AI_PRODUCT_SIMILARITY_THRESHOLD:0.7}
+        max-results: ${AI_PRODUCT_MAX_SEARCH_RESULTS:20}
+      recommendations:
+        enabled: ${AI_PRODUCT_RECOMMENDATIONS_ENABLED:true}
+        max-recommendations: ${AI_PRODUCT_MAX_RECOMMENDATIONS:10}
+        algorithm: ${AI_PRODUCT_RECOMMENDATION_ALGORITHM:collaborative-filtering}
+    
+    # User-Specific AI Settings
+    user:
+      behavior-tracking:
+        enabled: ${AI_USER_BEHAVIOR_TRACKING_ENABLED:true}
+        track-views: ${AI_USER_TRACK_VIEWS:true}
+        track-purchases: ${AI_USER_TRACK_PURCHASES:true}
+        track-searches: ${AI_USER_TRACK_SEARCHES:true}
+        retention-days: ${AI_USER_BEHAVIOR_RETENTION_DAYS:365}
+      preferences:
+        learning-enabled: ${AI_USER_PREFERENCES_LEARNING:true}
+        update-frequency: ${AI_USER_PREFERENCES_UPDATE_FREQUENCY:daily}
+        min-interactions: ${AI_USER_MIN_INTERACTIONS:5}
+      recommendations:
+        enabled: ${AI_USER_RECOMMENDATIONS_ENABLED:true}
+        max-recommendations: ${AI_USER_MAX_RECOMMENDATIONS:15}
+        diversity-factor: ${AI_USER_RECOMMENDATION_DIVERSITY:0.3}
+    
+    # Order-Specific AI Settings
+    order:
+      analysis:
+        enabled: ${AI_ORDER_ANALYSIS_ENABLED:true}
+        pattern-recognition: ${AI_ORDER_PATTERN_RECOGNITION:true}
+        fraud-detection: ${AI_ORDER_FRAUD_DETECTION:true}
+      insights:
+        enabled: ${AI_ORDER_INSIGHTS_ENABLED:true}
+        trend-analysis: ${AI_ORDER_TREND_ANALYSIS:true}
+        seasonal-patterns: ${AI_ORDER_SEASONAL_PATTERNS:true}
 
 # Supabase Configuration for Production
 supabase:
@@ -56,7 +152,7 @@ supabase:
   api-key: ${SUPABASE_API_KEY}
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
 
-# Mock Authentication - DISABLED in Production
+# Mock Authentication Configuration for Production
 app:
   mock-auth:
     enabled: false
@@ -64,118 +160,38 @@ app:
 # AWS S3 Configuration for Production
 aws:
   s3:
-    endpoint: ${AWS_S3_ENDPOINT}
-    region: ${AWS_S3_REGION}
+    endpoint: ${AWS_S3_ENDPOINT:https://s3.amazonaws.com}
+    region: ${AWS_S3_REGION:us-east-1}
     bucket: ${AWS_S3_BUCKET}
-    access-key: ${AWS_ACCESS_KEY}
-    secret-key: ${AWS_SECRET_KEY}
-    presigned-url-duration: 3600 # 1 hour in seconds for production
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
+    presigned-url-duration: ${AWS_PRESIGNED_URL_DURATION:3600}
 
-# OpenAPI/Swagger Configuration for Production
-springdoc:
-  api-docs:
-    path: /v3/api-docs
-    enabled: ${SWAGGER_ENABLED:false}
-  swagger-ui:
-    path: /swagger-ui.html
-    enabled: ${SWAGGER_ENABLED:false}
-    tags-sorter: alpha
-    operations-sorter: alpha
-  default-produces-media-type: application/json
-  default-consumes-media-type: application/json
-
-# Production Logging Configuration
+# Logging for Production
 logging:
   level:
     root: WARN
     com.easyluxury: INFO
-    org.springframework.security: WARN
-    org.hibernate.SQL: WARN
-    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    com.ai.infrastructure: INFO
     org.springframework.web: WARN
-    org.springframework.boot: WARN
+    org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: ${LOG_FILE_PATH:/var/log/easyluxury/backend.log}
+    name: /var/log/easyluxury/application.log
     max-size: 100MB
     max-history: 30
-    total-size-cap: 3GB
 
-# Management/Actuator Configuration for Production
+# Management/Actuator for Production
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
-      base-path: /actuator
+        include: health,info,metrics
   endpoint:
     health:
-      show-details: never
-      show-components: always
-    info:
-      enabled: true
-    metrics:
-      enabled: true
+      show-details: when-authorized
   metrics:
     export:
       prometheus:
         enabled: true
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true
-      slo:
-        http.server.requests: 50ms,100ms,200ms,500ms
-
-# Server Configuration for Production
-server:
-  port: ${SERVER_PORT:8080}
-  servlet:
-    context-path: /
-  compression:
-    enabled: true
-    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
-    min-response-size: 1024
-  http2:
-    enabled: true
-  tomcat:
-    max-connections: 8192
-    accept-count: 100
-    threads:
-      max: 200
-      min-spare: 10
-    connection-timeout: 20000
-    max-http-form-post-size: 2MB
-    max-swallow-size: 2MB
-
-  # Error Handling for Production
-  error:
-    include-stacktrace: never
-    include-message: never
-    include-binding-errors: never
-    include-exception: false
-
-# Security Configuration for Production
-security:
-  require-ssl: ${REQUIRE_SSL:false}
-
-
-# Application-specific Production Settings
-  production:
-    enabled: true
-    cors:
-      allowed-origins: ${CORS_ALLOWED_ORIGINS:https://easyluxury.com,https://www.easyluxury.com}
-      allowed-methods: GET,POST,PUT,DELETE,OPTIONS
-      allowed-headers: "*"
-      allow-credentials: true
-      max-age: 3600
-    rate-limiting:
-      enabled: true
-      requests-per-minute: 100
-    cache:
-      enabled: true
-      ttl: 3600 # 1 hour
-    monitoring:
-      enabled: true
-      health-check-interval: 30s
