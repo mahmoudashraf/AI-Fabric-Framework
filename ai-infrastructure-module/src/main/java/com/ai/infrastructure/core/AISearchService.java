@@ -4,6 +4,7 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.search.VectorSearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,10 +23,15 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AISearchService {
     
     private final AIProviderConfig config;
+    private final VectorSearchService vectorSearchService;
+    
+    public AISearchService(AIProviderConfig config, VectorSearchService vectorSearchService) {
+        this.config = config;
+        this.vectorSearchService = vectorSearchService;
+    }
     
     // In-memory storage for demo purposes
     // In production, this would be replaced with a proper vector database
@@ -42,58 +48,52 @@ public class AISearchService {
         try {
             log.debug("Performing semantic search for query: {}", request.getQuery());
             
-            long startTime = System.currentTimeMillis();
-            
-            // Get entities to search
-            String entityType = request.getEntityType();
-            List<Map<String, Object>> entities = vectorStore.getOrDefault(entityType, new ArrayList<>());
-            
-            if (entities.isEmpty()) {
-                log.debug("No entities found for type: {}", entityType);
-                return AISearchResponse.builder()
-                    .results(new ArrayList<>())
-                    .totalResults(0)
-                    .maxScore(0.0)
-                    .processingTimeMs(System.currentTimeMillis() - startTime)
-                    .requestId(UUID.randomUUID().toString())
-                    .query(request.getQuery())
-                    .model(config.getOpenaiEmbeddingModel())
-                    .build();
-            }
-            
-            // Calculate similarity scores
-            List<Map<String, Object>> scoredEntities = entities.stream()
-                .map(entity -> {
-                    List<Double> entityVector = (List<Double>) entity.get("embedding");
-                    double similarity = calculateCosineSimilarity(queryVector, entityVector);
-                    
-                    Map<String, Object> scoredEntity = new HashMap<>(entity);
-                    scoredEntity.put("similarity", similarity);
-                    scoredEntity.put("score", similarity);
-                    return scoredEntity;
-                })
-                .filter(entity -> (Double) entity.get("similarity") >= request.getThreshold())
-                .sorted((a, b) -> Double.compare((Double) b.get("similarity"), (Double) a.get("similarity")))
-                .limit(request.getLimit())
-                .collect(Collectors.toList());
-            
-            long processingTime = System.currentTimeMillis() - startTime;
-            
-            log.debug("Found {} results in {}ms", scoredEntities.size(), processingTime);
-            
-            return AISearchResponse.builder()
-                .results(scoredEntities)
-                .totalResults(scoredEntities.size())
-                .maxScore(scoredEntities.isEmpty() ? 0.0 : (Double) scoredEntities.get(0).get("similarity"))
-                .processingTimeMs(processingTime)
-                .requestId(UUID.randomUUID().toString())
-                .query(request.getQuery())
-                .model(config.getOpenaiEmbeddingModel())
-                .build();
+            // Use the advanced VectorSearchService for better performance
+            return vectorSearchService.search(queryVector, request);
                 
         } catch (Exception e) {
             log.error("Error performing semantic search", e);
             throw new AIServiceException("Failed to perform semantic search", e);
+        }
+    }
+    
+    /**
+     * Perform hybrid search combining vector and text similarity
+     * 
+     * @param queryVector the query vector for search
+     * @param queryText the original query text
+     * @param request the search request
+     * @return hybrid search results
+     */
+    public AISearchResponse hybridSearch(List<Double> queryVector, String queryText, AISearchRequest request) {
+        try {
+            log.debug("Performing hybrid search for query: {}", queryText);
+            
+            return vectorSearchService.hybridSearch(queryVector, queryText, request);
+                
+        } catch (Exception e) {
+            log.error("Error performing hybrid search", e);
+            throw new AIServiceException("Failed to perform hybrid search", e);
+        }
+    }
+    
+    /**
+     * Perform contextual search with additional context
+     * 
+     * @param queryVector the query vector for search
+     * @param context the search context
+     * @param request the search request
+     * @return context-aware search results
+     */
+    public AISearchResponse contextualSearch(List<Double> queryVector, String context, AISearchRequest request) {
+        try {
+            log.debug("Performing contextual search with context: {}", context);
+            
+            return vectorSearchService.contextualSearch(queryVector, context, request);
+                
+        } catch (Exception e) {
+            log.error("Error performing contextual search", e);
+            throw new AIServiceException("Failed to perform contextual search", e);
         }
     }
     
@@ -111,6 +111,10 @@ public class AISearchService {
         try {
             log.debug("Indexing entity {} of type {}", entityId, entityType);
             
+            // Use VectorSearchService for advanced indexing
+            vectorSearchService.storeVector(entityType, entityId, content, embedding, metadata);
+            
+            // Also maintain backward compatibility with simple store
             Map<String, Object> entity = new HashMap<>();
             entity.put("id", entityId);
             entity.put("content", content);
@@ -203,5 +207,24 @@ public class AISearchService {
     public void clearIndex() {
         log.debug("Clearing vector store index");
         vectorStore.clear();
+    }
+    
+    /**
+     * Get search statistics and performance metrics
+     * 
+     * @return map of search statistics
+     */
+    public Map<String, Object> getSearchStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalEntities", vectorStore.values().stream().mapToInt(List::size).sum());
+        stats.put("entityTypes", vectorStore.keySet());
+        stats.put("entityTypeCounts", vectorStore.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size())));
+        
+        // Add advanced search statistics
+        Map<String, Object> advancedStats = vectorSearchService.getSearchStatistics();
+        stats.putAll(advancedStats);
+        
+        return stats;
     }
 }
