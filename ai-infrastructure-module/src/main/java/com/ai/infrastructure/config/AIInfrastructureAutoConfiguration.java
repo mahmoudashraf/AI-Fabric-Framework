@@ -26,7 +26,7 @@ import org.springframework.context.annotation.Configuration;
  * @version 1.0.0
  */
 @Configuration
-@EnableConfigurationProperties(AIProviderConfig.class)
+@EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class})
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     

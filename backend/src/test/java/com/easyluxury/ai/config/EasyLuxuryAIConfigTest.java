@@ -10,29 +10,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @SpringBootTest
-@TestPropertySource(properties = {
-    "easyluxury.ai.product-index-name=test-products",
-    "easyluxury.ai.user-index-name=test-users",
-    "easyluxury.ai.order-index-name=test-orders",
-    "easyluxury.ai.enable-product-recommendations=true",
-    "easyluxury.ai.enable-user-behavior-tracking=true",
-    "easyluxury.ai.enable-smart-validation=true",
-    "easyluxury.ai.enable-ai-content-generation=true",
-    "easyluxury.ai.enable-ai-search=true",
-    "easyluxury.ai.enable-ai-rag=true",
-    "easyluxury.ai.default-ai-model=gpt-4o-mini",
-    "easyluxury.ai.default-embedding-model=text-embedding-3-small",
-    "easyluxury.ai.max-tokens=2000",
-    "easyluxury.ai.temperature=0.3",
-    "easyluxury.ai.timeout-seconds=60"
-})
+@ActiveProfiles("test")
 class EasyLuxuryAIConfigTest {
 
     @Mock

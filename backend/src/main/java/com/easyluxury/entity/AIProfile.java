@@ -28,7 +28,7 @@ public class AIProfile {
     private User user;
     
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "ai_attributes", columnDefinition = "jsonb")
+    @Column(name = "ai_attributes", columnDefinition = "json")
     private String aiAttributes;
     
     @Column(name = "cv_file_url", length = 500)
