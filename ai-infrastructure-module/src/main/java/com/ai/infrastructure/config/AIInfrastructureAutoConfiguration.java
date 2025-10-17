@@ -52,10 +52,11 @@ public class AIInfrastructureAutoConfiguration {
         return new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase);
     }
     
-    @Bean
-    public VectorDatabaseService vectorDatabaseService(AIProviderConfig config) {
-        return new VectorDatabaseService(config);
-    }
+    // VectorDatabaseService is now an interface with multiple implementations
+    // The specific implementation is selected based on configuration:
+    // - LuceneVectorDatabaseService (default)
+    // - PineconeVectorDatabaseService
+    // - InMemoryVectorDatabaseService
     
     @Bean
     public AICapableProcessor aiCapableProcessor() {

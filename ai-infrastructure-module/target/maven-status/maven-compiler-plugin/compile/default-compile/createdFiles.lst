@@ -29,12 +29,18 @@ com/ai/infrastructure/dto/AISearchRequest.class
 com/ai/infrastructure/exception/AIServiceException.class
 com/ai/infrastructure/dto/AIHealthDto.class
 com/ai/infrastructure/vector/VectorDatabase$VectorSearchQuery.class
+com/ai/infrastructure/rag/InMemoryVectorDatabaseService.class
+com/ai/infrastructure/rag/LuceneVectorDatabaseService.class
 com/ai/infrastructure/vector/VectorDatabase$VectorData.class
+com/ai/infrastructure/rag/PineconeVectorDatabaseService.class
+com/ai/infrastructure/config/VectorDatabaseConfig$MemoryConfig.class
 com/ai/infrastructure/dto/RAGResponse$RAGResponseBuilder.class
+com/ai/infrastructure/config/VectorDatabaseConfig$PineconeConfig.class
 com/ai/infrastructure/dto/RAGRequest$RAGRequestBuilder.class
 com/ai/infrastructure/search/VectorSearchService.class
 com/ai/infrastructure/dto/AIEmbeddingRequest$AIEmbeddingRequestBuilder.class
 com/ai/infrastructure/annotation/AISmartValidation.class
+com/ai/infrastructure/config/VectorDatabaseConfig$LuceneConfig.class
 com/ai/infrastructure/dto/AIHealthDto$AIHealthDtoBuilder.class
 com/ai/infrastructure/dto/AIConfigurationDto$AIConfigurationDtoBuilder.class
 com/ai/infrastructure/config/AIProviderConfig.class
@@ -46,3 +52,4 @@ com/ai/infrastructure/annotation/AIEmbedding$ChunkingStrategy.class
 com/ai/infrastructure/health/AIHealthIndicator.class
 com/ai/infrastructure/dto/AIGenerationRequest$AIGenerationRequestBuilder.class
 com/ai/infrastructure/config/AIInfrastructureAutoConfiguration.class
+com/ai/infrastructure/config/VectorDatabaseConfig.class
