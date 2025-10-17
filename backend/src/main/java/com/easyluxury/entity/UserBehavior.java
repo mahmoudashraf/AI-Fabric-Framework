@@ -89,6 +89,15 @@ public class UserBehavior {
     )
     private String metadata;
     
+    @Column(name = "session_id")
+    private String sessionId;
+    
+    @Column(name = "device_info")
+    private String deviceInfo;
+    
+    @Column(name = "location_info")
+    private String locationInfo;
+    
     @Column(name = "duration_seconds")
     private Long durationSeconds;
     

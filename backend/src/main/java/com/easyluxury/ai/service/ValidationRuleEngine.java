@@ -24,7 +24,9 @@ import java.util.regex.Pattern;
 public class ValidationRuleEngine {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
+    private final SimpleAIService simpleAIService;
     
     /**
      * Generate validation rules automatically based on data patterns
@@ -380,7 +382,7 @@ public class ValidationRuleEngine {
      * Calculate field statistics
      */
     private FieldStatistics calculateFieldStatistics(List<Object> values, String dataType) {
-        FieldStatistics.StatisticsBuilder builder = FieldStatistics.builder()
+        FieldStatistics.FieldStatisticsBuilder builder = FieldStatistics.builder()
             .count(values.size())
             .uniqueCount(values.stream().distinct().count());
         

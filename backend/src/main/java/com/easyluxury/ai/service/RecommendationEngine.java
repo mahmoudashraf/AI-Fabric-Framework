@@ -32,7 +32,9 @@ import java.util.stream.Collectors;
 public class RecommendationEngine {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
+    private final SimpleAIService simpleAIService;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final UserBehaviorRepository userBehaviorRepository;

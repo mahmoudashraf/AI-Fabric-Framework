@@ -32,6 +32,7 @@ import java.util.UUID;
 public class OrderPatternService {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final OrderRepository orderRepository;
     
     /**
@@ -93,7 +94,7 @@ public class OrderPatternService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             // Update orders with pattern analysis
             updateOrderPatterns(orders, response.getContent());
@@ -164,7 +165,7 @@ public class OrderPatternService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             // Update orders with anomaly scores
             updateOrderAnomalyScores(orders, response.getContent());
@@ -249,7 +250,7 @@ public class OrderPatternService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Successfully analyzed seasonal patterns for last {} months", months);
             

@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class AIMonitoringService {
     
     private final AIHealthService aiHealthService;
+    private final SimpleAIService simpleAIService;
     
     // Performance metrics
     private final AtomicLong totalRequests = new AtomicLong(0);

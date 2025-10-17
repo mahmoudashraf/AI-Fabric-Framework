@@ -24,7 +24,9 @@ import java.util.regex.Pattern;
 public class ContentValidationService {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final RAGService ragService;
+    private final SimpleAIService simpleAIService;
     
     /**
      * Validate text content with AI analysis
@@ -164,7 +166,7 @@ public class ContentValidationService {
             
             // Create validation result
             MultimediaValidationResult result = MultimediaValidationResult.builder()
-                .isValid(audioValidation.isValid() && videoValidation.isValid() && integrityValidation.isValid() && !copyrightCheck.hasIssues())
+                .isValid(audioValidation.isValid() && videoValidation.isValid() && integrityValidation.isValid() && !copyrightCheck.isHasIssues())
                 .audioValidation(audioValidation)
                 .videoValidation(videoValidation)
                 .integrityValidation(integrityValidation)

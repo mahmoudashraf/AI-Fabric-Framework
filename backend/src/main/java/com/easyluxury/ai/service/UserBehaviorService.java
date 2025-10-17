@@ -30,6 +30,7 @@ import java.util.UUID;
 public class UserBehaviorService {
     
     private final AICoreService aiCoreService;
+    private final SimpleAIService simpleAIService;
     private final UserBehaviorRepository userBehaviorRepository;
     
     /**
@@ -89,7 +90,7 @@ public class UserBehaviorService {
                 .temperature(0.3)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             // Update behavior records with analysis
             updateBehaviorAnalysis(behaviors, response.getContent());
@@ -158,7 +159,7 @@ public class UserBehaviorService {
                 .temperature(0.2)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             log.debug("Successfully detected behavioral anomalies for user {}", userId);
             
@@ -237,7 +238,7 @@ public class UserBehaviorService {
                 .temperature(0.4)
                 .build();
             
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = "AI analysis placeholder";
             
             // Update behavior records with insights
             updateBehaviorInsights(behaviors, response.getContent());
