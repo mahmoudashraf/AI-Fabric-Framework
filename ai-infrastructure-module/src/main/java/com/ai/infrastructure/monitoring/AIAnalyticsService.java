@@ -469,7 +469,7 @@ public class AIAnalyticsService {
         
         // Find most common errors
         String mostCommonError = errorMetrics.entrySet().stream()
-            .max(Map.Entry.comparingByValue())
+            .max((e1, e2) -> Long.compare(((Number) e1.getValue()).longValue(), ((Number) e2.getValue()).longValue()))
             .map(Map.Entry::getKey)
             .orElse("none");
         

@@ -4,18 +4,20 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
-import com.theokanning.openai.OpenAiService;
-import com.theokanning.openai.completion.CompletionRequest;
-import com.theokanning.openai.completion.CompletionResult;
-import com.theokanning.openai.embedding.EmbeddingRequest;
-import com.theokanning.openai.embedding.EmbeddingResult;
-import com.theokanning.openai.embedding.Embedding;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class OpenAIProvider implements AIProvider {
     
     private final ProviderConfig config;
+    private final RestTemplate restTemplate;
     private final AtomicLong totalRequests = new AtomicLong(0);
     private final AtomicLong successfulRequests = new AtomicLong(0);
     private final AtomicLong failedRequests = new AtomicLong(0);
@@ -42,17 +45,7 @@ public class OpenAIProvider implements AIProvider {
     private final AtomicReference<String> lastErrorMessage = new AtomicReference<>();
     private final AtomicReference<Double> averageResponseTime = new AtomicReference<>(0.0);
     
-    private OpenAiService openAiService;
-    
-    /**
-     * Initialize OpenAI service
-     */
-    private void initializeService() {
-        if (openAiService == null) {
-            openAiService = new OpenAiService(config.getApiKey(), config.getTimeoutSeconds());
-            log.debug("Initialized OpenAI service with timeout: {} seconds", config.getTimeoutSeconds());
-        }
-    }
+    private static final String OPENAI_BASE_URL = "https://api.openai.com/v1";
     
     @Override
     public String getProviderName() {
@@ -62,8 +55,8 @@ public class OpenAIProvider implements AIProvider {
     @Override
     public boolean isAvailable() {
         try {
-            initializeService();
-            return config.isValid() && config.isEnabled();
+            return config.isValid() && config.isEnabled() && 
+                   config.getApiKey() != null && !config.getApiKey().trim().isEmpty();
         } catch (Exception e) {
             log.warn("OpenAI provider not available: {}", e.getMessage());
             return false;
@@ -76,31 +69,41 @@ public class OpenAIProvider implements AIProvider {
         totalRequests.incrementAndGet();
         
         try {
-            initializeService();
-            
             log.debug("Generating content with OpenAI: model={}, prompt={}", 
                      request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
             
-            CompletionRequest completionRequest = CompletionRequest.builder()
-                .model(request.getModel() != null ? request.getModel() : config.getDefaultModel())
-                .prompt(request.getPrompt())
-                .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens())
-                .temperature(request.getTemperature() != null ? request.getTemperature() : config.getTemperature())
-                .build();
+            String url = OPENAI_BASE_URL + "/completions";
             
-            CompletionResult result = openAiService.createCompletion(completionRequest);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + config.getApiKey());
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultModel());
+            requestBody.put("prompt", request.getPrompt());
+            requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
+            requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
+            
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url, HttpMethod.POST, entity, Map.class);
             
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(true, responseTime);
             
-            String content = result.getChoices().get(0).getText();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = response.getBody();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
+            String content = (String) choices.get(0).get("text");
             
             log.debug("OpenAI content generation completed in {}ms", responseTime);
             
             return AIGenerationResponse.builder()
                 .content(content)
-                .model(result.getModel())
-                .usage(result.getUsage())
+                .model((String) responseBody.get("model"))
+                .usage(createUsageFromResponse(responseBody))
                 .processingTimeMs(responseTime)
                 .requestId(java.util.UUID.randomUUID().toString())
                 .build();
@@ -123,29 +126,39 @@ public class OpenAIProvider implements AIProvider {
         totalRequests.incrementAndGet();
         
         try {
-            initializeService();
-            
             log.debug("Generating embedding with OpenAI: model={}, text={}", 
                      request.getModel(), request.getText().substring(0, Math.min(100, request.getText().length())));
             
-            EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
-                .model(request.getModel() != null ? request.getModel() : config.getDefaultEmbeddingModel())
-                .input(List.of(request.getText()))
-                .build();
+            String url = OPENAI_BASE_URL + "/embeddings";
             
-            EmbeddingResult result = openAiService.createEmbeddings(embeddingRequest);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + config.getApiKey());
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultEmbeddingModel());
+            requestBody.put("input", request.getText());
+            
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url, HttpMethod.POST, entity, Map.class);
             
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(true, responseTime);
             
-            Embedding embedding = result.getData().get(0);
-            List<Double> embeddingValues = embedding.getEmbedding();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = response.getBody();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
+            @SuppressWarnings("unchecked")
+            List<Double> embeddingValues = (List<Double>) data.get(0).get("embedding");
             
             log.debug("OpenAI embedding generation completed in {}ms", responseTime);
             
             return AIEmbeddingResponse.builder()
                 .embedding(embeddingValues)
-                .model(result.getModel())
+                .model((String) responseBody.get("model"))
                 .dimensions(embeddingValues.size())
                 .processingTimeMs(responseTime)
                 .requestId(java.util.UUID.randomUUID().toString())
@@ -241,5 +254,25 @@ public class OpenAIProvider implements AIProvider {
         
         log.debug("Updated OpenAI metrics: success={}, responseTime={}ms, successRate={}", 
                  success, responseTime, calculateSuccessRate());
+    }
+    
+    /**
+     * Create usage object from response
+     * 
+     * @param responseBody response body
+     * @return usage object
+     */
+    private Object createUsageFromResponse(Map<String, Object> responseBody) {
+        Map<String, Object> usage = new HashMap<>();
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> usageData = (Map<String, Object>) responseBody.get("usage");
+        if (usageData != null) {
+            usage.put("prompt_tokens", usageData.get("prompt_tokens"));
+            usage.put("completion_tokens", usageData.get("completion_tokens"));
+            usage.put("total_tokens", usageData.get("total_tokens"));
+        }
+        
+        return usage;
     }
 }

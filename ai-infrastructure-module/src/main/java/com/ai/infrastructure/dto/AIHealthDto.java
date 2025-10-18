@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+import java.util.Map;
+
 /**
  * AI Health DTO
  * 
@@ -109,4 +112,34 @@ public class AIHealthDto {
      * Whether Pinecone is configured
      */
     private boolean pineconeConfigured;
+    
+    /**
+     * Performance metrics
+     */
+    private Map<String, Object> performanceMetrics;
+    
+    /**
+     * Provider status
+     */
+    private Map<String, Object> providerStatus;
+    
+    /**
+     * Service status
+     */
+    private Map<String, Object> serviceStatus;
+    
+    /**
+     * System status
+     */
+    private Map<String, Object> systemStatus;
+    
+    /**
+     * Last updated timestamp
+     */
+    private LocalDateTime lastUpdated;
+    
+    /**
+     * Error message if any
+     */
+    private String errorMessage;
 }

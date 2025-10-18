@@ -1,5 +1,0 @@
-com/ai/infrastructure/rag/RAGServiceWithLuceneTest.class
-com/ai/infrastructure/rag/LuceneVectorDatabaseServiceTest.class
-com/ai/infrastructure/core/AICoreServiceTest.class
-com/ai/infrastructure/SimpleTest.class
-com/ai/infrastructure/processor/EmbeddingProcessorTest.class
