@@ -218,7 +218,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                 .results(results)
                 .totalResults(results.size())
                 .maxScore(results.isEmpty() ? 0.0 : (Double) results.get(0).get("similarity"))
-                .processingTimeMs(processingTime)
+                .processingTimeMs(Long.valueOf(processingTime))
                 .requestId(UUID.randomUUID().toString())
                 .query(request.getQuery())
                 .model(config.getOpenaiEmbeddingModel())
