@@ -84,1359 +84,1234 @@ public class AIDataPrivacyResponse {
     private Map<String, Object> privacyMetrics;
     
     /**
-     * Data protection status
-     */
-    private String dataProtectionStatus;
-    
-    /**
-     * Data protection violations
-     */
-    private List<String> dataProtectionViolations;
-    
-    /**
      * Data protection recommendations
      */
     private List<String> dataProtectionRecommendations;
     
     /**
-     * Privacy status
+     * Compliance recommendations
      */
-    private String privacyStatus;
+    private List<String> complianceRecommendations;
     
     /**
-     * Privacy violations
+     * Risk assessment
      */
-    private List<String> privacyViolations;
+    private String riskAssessment;
     
     /**
-     * Privacy recommendations
+     * Impact assessment
      */
-    private List<String> privacyRecommendations;
+    private String impactAssessment;
     
     /**
-     * Access control status
+     * Mitigation measures
      */
-    private String accessControlStatus;
+    private List<String> mitigationMeasures;
     
     /**
-     * Access control violations
+     * Monitoring measures
      */
-    private List<String> accessControlViolations;
+    private List<String> monitoringMeasures;
     
     /**
-     * Access control recommendations
+     * Review recommendations
      */
-    private List<String> accessControlRecommendations;
+    private List<String> reviewRecommendations;
     
     /**
-     * Authentication status
+     * Next review date
      */
-    private String authenticationStatus;
+    private LocalDateTime nextReviewDate;
     
     /**
-     * Authorization status
+     * Privacy level
      */
-    private String authorizationStatus;
+    private String privacyLevel;
     
     /**
-     * Session status
+     * Privacy maturity
      */
-    private String sessionStatus;
+    private String privacyMaturity;
     
     /**
-     * Token status
+     * Privacy gaps
      */
-    private String tokenStatus;
+    private List<String> privacyGaps;
     
     /**
-     * Certificate status
+     * Privacy improvements
      */
-    private String certificateStatus;
+    private List<String> privacyImprovements;
     
     /**
-     * Encryption status
+     * Privacy training needs
      */
-    private String encryptionStatus;
+    private List<String> privacyTrainingNeeds;
     
     /**
-     * Integrity status
+     * Privacy documentation
      */
-    private String integrityStatus;
+    private List<String> privacyDocumentation;
     
     /**
-     * Availability status
+     * Privacy policies
      */
-    private String availabilityStatus;
+    private List<String> privacyPolicies;
     
     /**
-     * Confidentiality status
+     * Privacy procedures
      */
-    private String confidentialityStatus;
+    private List<String> privacyProcedures;
     
     /**
-     * Non-repudiation status
+     * Privacy guidelines
      */
-    private String nonRepudiationStatus;
+    private List<String> privacyGuidelines;
     
     /**
-     * Audit status
+     * Privacy standards
      */
-    private String auditStatus;
+    private List<String> privacyStandards;
     
     /**
-     * Monitoring status
+     * Privacy frameworks
      */
-    private String monitoringStatus;
+    private List<String> privacyFrameworks;
     
     /**
-     * Incident status
+     * Privacy methodologies
      */
-    private String incidentStatus;
+    private List<String> privacyMethodologies;
     
     /**
-     * Response status
+     * Privacy tools
      */
-    private String responseStatus;
+    private List<String> privacyTools;
     
     /**
-     * Recovery status
+     * Privacy technologies
      */
-    private String recoveryStatus;
+    private List<String> privacyTechnologies;
     
     /**
-     * Business continuity status
+     * Privacy platforms
      */
-    private String businessContinuityStatus;
+    private List<String> privacyPlatforms;
     
     /**
-     * Disaster recovery status
+     * Privacy services
      */
-    private String disasterRecoveryStatus;
+    private List<String> privacyServices;
     
     /**
-     * Backup status
+     * Privacy products
      */
-    private String backupStatus;
+    private List<String> privacyProducts;
     
     /**
-     * Restore status
+     * Privacy solutions
      */
-    private String restoreStatus;
+    private List<String> privacySolutions;
     
     /**
-     * Version control status
+     * Privacy systems
      */
-    private String versionControlStatus;
+    private List<String> privacySystems;
     
     /**
-     * Change management status
+     * Privacy applications
      */
-    private String changeManagementStatus;
+    private List<String> privacyApplications;
     
     /**
-     * Configuration management status
+     * Privacy databases
      */
-    private String configurationManagementStatus;
+    private List<String> privacyDatabases;
     
     /**
-     * Asset management status
+     * Privacy networks
      */
-    private String assetManagementStatus;
+    private List<String> privacyNetworks;
     
     /**
-     * Vulnerability management status
+     * Privacy infrastructure
      */
-    private String vulnerabilityManagementStatus;
+    private List<String> privacyInfrastructure;
     
     /**
-     * Patch management status
+     * Privacy cloud
      */
-    private String patchManagementStatus;
+    private List<String> privacyCloud;
     
     /**
-     * Security awareness status
+     * Privacy on-premises
      */
-    private String securityAwarenessStatus;
+    private List<String> privacyOnPremises;
     
     /**
-     * Training status
+     * Privacy hybrid
      */
-    private String trainingStatus;
+    private List<String> privacyHybrid;
     
     /**
-     * Education status
+     * Privacy multi-cloud
      */
-    private String educationStatus;
+    private List<String> privacyMultiCloud;
     
     /**
-     * Communication status
+     * Privacy edge
      */
-    private String communicationStatus;
+    private List<String> privacyEdge;
     
     /**
-     * Documentation status
+     * Privacy mobile
      */
-    private String documentationStatus;
+    private List<String> privacyMobile;
     
     /**
-     * Policy status
+     * Privacy IoT
      */
-    private String policyStatus;
+    private List<String> privacyIoT;
     
     /**
-     * Procedure status
+     * Privacy AI
      */
-    private String procedureStatus;
+    private List<String> privacyAI;
     
     /**
-     * Guideline status
+     * Privacy ML
      */
-    private String guidelineStatus;
+    private List<String> privacyML;
     
     /**
-     * Standard status
+     * Privacy DL
      */
-    private String standardStatus;
+    private List<String> privacyDL;
     
     /**
-     * Framework status
+     * Privacy NLP
      */
-    private String frameworkStatus;
+    private List<String> privacyNLP;
     
     /**
-     * Methodology status
+     * Privacy CV
      */
-    private String methodologyStatus;
+    private List<String> privacyCV;
     
     /**
-     * Tool status
+     * Privacy RL
      */
-    private String toolStatus;
+    private List<String> privacyRL;
     
     /**
-     * Technology status
+     * Privacy GAN
      */
-    private String technologyStatus;
+    private List<String> privacyGAN;
     
     /**
-     * Platform status
+     * Privacy Transformer
      */
-    private String platformStatus;
+    private List<String> privacyTransformer;
     
     /**
-     * Service status
+     * Privacy BERT
      */
-    private String serviceStatus;
+    private List<String> privacyBERT;
     
     /**
-     * Product status
+     * Privacy GPT
      */
-    private String productStatus;
+    private List<String> privacyGPT;
     
     /**
-     * Solution status
+     * Privacy T5
      */
-    private String solutionStatus;
+    private List<String> privacyT5;
     
     /**
-     * System status
+     * Privacy RoBERTa
      */
-    private String systemStatus;
+    private List<String> privacyRoBERTa;
     
     /**
-     * Application status
+     * Privacy DistilBERT
      */
-    private String applicationStatus;
+    private List<String> privacyDistilBERT;
     
     /**
-     * Database status
+     * Privacy ALBERT
      */
-    private String databaseStatus;
+    private List<String> privacyALBERT;
     
     /**
-     * Network status
+     * Privacy ELECTRA
      */
-    private String networkStatus;
+    private List<String> privacyELECTRA;
     
     /**
-     * Infrastructure status
+     * Privacy DeBERTa
      */
-    private String infrastructureStatus;
+    private List<String> privacyDeBERTa;
     
     /**
-     * Cloud status
+     * Privacy Longformer
      */
-    private String cloudStatus;
+    private List<String> privacyLongformer;
     
     /**
-     * On-premises status
+     * Privacy BigBird
      */
-    private String onPremisesStatus;
+    private List<String> privacyBigBird;
     
     /**
-     * Hybrid status
+     * Privacy Reformer
      */
-    private String hybridStatus;
+    private List<String> privacyReformer;
     
     /**
-     * Multi-cloud status
+     * Privacy Linformer
      */
-    private String multiCloudStatus;
+    private List<String> privacyLinformer;
     
     /**
-     * Edge status
+     * Privacy Performer
      */
-    private String edgeStatus;
+    private List<String> privacyPerformer;
     
     /**
-     * Mobile status
+     * Privacy Nyströmformer
      */
-    private String mobileStatus;
+    private List<String> privacyNystromformer;
     
     /**
-     * IoT status
+     * Privacy Sparse Transformer
      */
-    private String iotStatus;
+    private List<String> privacySparseTransformer;
     
     /**
-     * AI status
+     * Privacy Switch Transformer
      */
-    private String aiStatus;
+    private List<String> privacySwitchTransformer;
     
     /**
-     * ML status
+     * Privacy GLaM
      */
-    private String mlStatus;
+    private List<String> privacyGLaM;
     
     /**
-     * DL status
+     * Privacy PaLM
      */
-    private String dlStatus;
+    private List<String> privacyPaLM;
     
     /**
-     * NLP status
+     * Privacy LaMDA
      */
-    private String nlpStatus;
+    private List<String> privacyLaMDA;
     
     /**
-     * CV status
+     * Privacy Chinchilla
      */
-    private String cvStatus;
+    private List<String> privacyChinchilla;
     
     /**
-     * RL status
+     * Privacy Gopher
      */
-    private String rlStatus;
+    private List<String> privacyGopher;
     
     /**
-     * GAN status
+     * Privacy Megatron-Turing NLG
      */
-    private String ganStatus;
+    private List<String> privacyMegatronTuringNLG;
     
     /**
-     * Transformer status
+     * Privacy Jurassic-1
      */
-    private String transformerStatus;
+    private List<String> privacyJurassic1;
     
     /**
-     * BERT status
+     * Privacy Jurassic-2
      */
-    private String bertStatus;
+    private List<String> privacyJurassic2;
     
     /**
-     * GPT status
+     * Privacy Codex
      */
-    private String gptStatus;
+    private List<String> privacyCodex;
     
     /**
-     * T5 status
+     * Privacy CodeT5
      */
-    private String t5Status;
+    private List<String> privacyCodeT5;
     
     /**
-     * RoBERTa status
+     * Privacy CodeBERT
      */
-    private String robertaStatus;
+    private List<String> privacyCodeBERT;
     
     /**
-     * DistilBERT status
+     * Privacy GraphCodeBERT
      */
-    private String distilbertStatus;
+    private List<String> privacyGraphCodeBERT;
     
     /**
-     * ALBERT status
+     * Privacy PLBART
      */
-    private String albertStatus;
+    private List<String> privacyPLBART;
     
     /**
-     * ELECTRA status
+     * Privacy CodeT5+
      */
-    private String electraStatus;
+    private List<String> privacyCodeT5Plus;
     
     /**
-     * DeBERTa status
+     * Privacy Codex-Davinci
      */
-    private String debertaStatus;
+    private List<String> privacyCodexDavinci;
     
     /**
-     * Longformer status
+     * Privacy Codex-Cushman
      */
-    private String longformerStatus;
+    private List<String> privacyCodexCushman;
     
     /**
-     * BigBird status
+     * Privacy Codex-Babbage
      */
-    private String bigbirdStatus;
+    private List<String> privacyCodexBabbage;
     
     /**
-     * Reformer status
+     * Privacy Codex-Ada
      */
-    private String reformerStatus;
+    private List<String> privacyCodexAda;
     
     /**
-     * Linformer status
+     * Privacy Codex-Curie
      */
-    private String linformerStatus;
+    private List<String> privacyCodexCurie;
     
     /**
-     * Performer status
+     * Privacy Codex-GPT-3.5-turbo
      */
-    private String performerStatus;
+    private List<String> privacyCodexGpt35Turbo;
     
     /**
-     * Nyströmformer status
+     * Privacy Codex-GPT-4
      */
-    private String nystromformerStatus;
+    private List<String> privacyCodexGpt4;
     
     /**
-     * Sparse Transformer status
+     * Privacy Codex-GPT-4-turbo
      */
-    private String sparseTransformerStatus;
+    private List<String> privacyCodexGpt4Turbo;
     
     /**
-     * Switch Transformer status
+     * Privacy Codex-GPT-4o
      */
-    private String switchTransformerStatus;
+    private List<String> privacyCodexGpt4o;
     
     /**
-     * GLaM status
+     * Privacy Codex-GPT-4o-mini
      */
-    private String glamStatus;
+    private List<String> privacyCodexGpt4oMini;
     
     /**
-     * PaLM status
+     * Privacy Codex-Claude-3-opus
      */
-    private String palmStatus;
+    private List<String> privacyCodexClaude3Opus;
     
     /**
-     * LaMDA status
+     * Privacy Codex-Claude-3-sonnet
      */
-    private String lamdaStatus;
+    private List<String> privacyCodexClaude3Sonnet;
     
     /**
-     * Chinchilla status
+     * Privacy Codex-Claude-3-haiku
      */
-    private String chinchillaStatus;
+    private List<String> privacyCodexClaude3Haiku;
     
     /**
-     * Gopher status
+     * Privacy Codex-Claude-3.5-sonnet
      */
-    private String gopherStatus;
+    private List<String> privacyCodexClaude35Sonnet;
     
     /**
-     * Megatron-Turing NLG status
+     * Privacy Codex-Gemini-pro
      */
-    private String megatronTuringNlgStatus;
+    private List<String> privacyCodexGeminiPro;
     
     /**
-     * Jurassic-1 status
+     * Privacy Codex-Gemini-pro-vision
      */
-    private String jurassic1Status;
+    private List<String> privacyCodexGeminiProVision;
     
     /**
-     * Jurassic-2 status
+     * Privacy Codex-Gemini-1.5-pro
      */
-    private String jurassic2Status;
+    private List<String> privacyCodexGemini15Pro;
     
     /**
-     * Codex status
+     * Privacy Codex-Gemini-1.5-flash
      */
-    private String codexStatus;
+    private List<String> privacyCodexGemini15Flash;
     
     /**
-     * CodeT5 status
+     * Privacy Codex-Gemini-2.0-flash
      */
-    private String codet5Status;
+    private List<String> privacyCodexGemini20Flash;
     
     /**
-     * CodeBERT status
+     * Privacy Codex-Llama-2
      */
-    private String codebertStatus;
+    private List<String> privacyCodexLlama2;
     
     /**
-     * GraphCodeBERT status
+     * Privacy Codex-Llama-3
      */
-    private String graphcodebertStatus;
+    private List<String> privacyCodexLlama3;
     
     /**
-     * PLBART status
+     * Privacy Codex-Llama-3.1
      */
-    private String plbartStatus;
+    private List<String> privacyCodexLlama31;
     
     /**
-     * CodeT5+ status
+     * Privacy Codex-Mistral-7B
      */
-    private String codet5plusStatus;
+    private List<String> privacyCodexMistral7b;
     
     /**
-     * Codex-Davinci status
+     * Privacy Codex-Mistral-8x7B
      */
-    private String codexDavinciStatus;
+    private List<String> privacyCodexMistral8x7b;
     
     /**
-     * Codex-Cushman status
+     * Privacy Codex-Mixtral-8x7B
      */
-    private String codexCushmanStatus;
+    private List<String> privacyCodexMixtral8x7b;
     
     /**
-     * Codex-Babbage status
+     * Privacy Codex-Mixtral-8x22B
      */
-    private String codexBabbageStatus;
+    private List<String> privacyCodexMixtral8x22b;
     
     /**
-     * Codex-Ada status
+     * Privacy Codex-Codestral-22B
      */
-    private String codexAdaStatus;
+    private List<String> privacyCodexCodestral22b;
     
     /**
-     * Codex-Curie status
+     * Privacy Codex-DeepSeek-Coder
      */
-    private String codexCurieStatus;
+    private List<String> privacyCodexDeepseekCoder;
     
     /**
-     * Codex-GPT-3.5-turbo status
+     * Privacy Codex-DeepSeek-Coder-2
      */
-    private String codexGpt35TurboStatus;
+    private List<String> privacyCodexDeepseekCoder2;
     
     /**
-     * Codex-GPT-4 status
+     * Privacy Codex-DeepSeek-Coder-6.7B
      */
-    private String codexGpt4Status;
+    private List<String> privacyCodexDeepseekCoder67b;
     
     /**
-     * Codex-GPT-4-turbo status
+     * Privacy Codex-DeepSeek-Coder-33B
      */
-    private String codexGpt4TurboStatus;
+    private List<String> privacyCodexDeepseekCoder33b;
     
     /**
-     * Codex-GPT-4o status
+     * Privacy Codex-DeepSeek-Coder-1.3B
      */
-    private String codexGpt4oStatus;
+    private List<String> privacyCodexDeepseekCoder13b;
     
     /**
-     * Codex-GPT-4o-mini status
+     * Privacy Codex-DeepSeek-Coder-6.7B-instruct
      */
-    private String codexGpt4oMiniStatus;
+    private List<String> privacyCodexDeepseekCoder67bInstruct;
     
     /**
-     * Codex-Claude-3-opus status
+     * Privacy Codex-DeepSeek-Coder-33B-instruct
      */
-    private String codexClaude3OpusStatus;
+    private List<String> privacyCodexDeepseekCoder33bInstruct;
     
     /**
-     * Codex-Claude-3-sonnet status
+     * Privacy Codex-DeepSeek-Coder-1.3B-instruct
      */
-    private String codexClaude3SonnetStatus;
+    private List<String> privacyCodexDeepseekCoder13bInstruct;
     
     /**
-     * Codex-Claude-3-haiku status
+     * Privacy Codex-DeepSeek-Coder-6.7B-chat
      */
-    private String codexClaude3HaikuStatus;
+    private List<String> privacyCodexDeepseekCoder67bChat;
     
     /**
-     * Codex-Claude-3.5-sonnet status
+     * Privacy Codex-DeepSeek-Coder-33B-chat
      */
-    private String codexClaude35SonnetStatus;
+    private List<String> privacyCodexDeepseekCoder33bChat;
     
     /**
-     * Codex-Gemini-pro status
+     * Privacy Codex-DeepSeek-Coder-1.3B-chat
      */
-    private String codexGeminiProStatus;
+    private List<String> privacyCodexDeepseekCoder13bChat;
     
     /**
-     * Codex-Gemini-pro-vision status
+     * Privacy Codex-DeepSeek-Coder-6.7B-python
      */
-    private String codexGeminiProVisionStatus;
+    private List<String> privacyCodexDeepseekCoder67bPython;
     
     /**
-     * Codex-Gemini-1.5-pro status
+     * Privacy Codex-DeepSeek-Coder-33B-python
      */
-    private String codexGemini15ProStatus;
+    private List<String> privacyCodexDeepseekCoder33bPython;
     
     /**
-     * Codex-Gemini-1.5-flash status
+     * Privacy Codex-DeepSeek-Coder-1.3B-python
      */
-    private String codexGemini15FlashStatus;
+    private List<String> privacyCodexDeepseekCoder13bPython;
     
     /**
-     * Codex-Gemini-2.0-flash status
+     * Privacy Codex-DeepSeek-Coder-6.7B-java
      */
-    private String codexGemini20FlashStatus;
+    private List<String> privacyCodexDeepseekCoder67bJava;
     
     /**
-     * Codex-Llama-2 status
+     * Privacy Codex-DeepSeek-Coder-33B-java
      */
-    private String codexLlama2Status;
+    private List<String> privacyCodexDeepseekCoder33bJava;
     
     /**
-     * Codex-Llama-3 status
+     * Privacy Codex-DeepSeek-Coder-1.3B-java
      */
-    private String codexLlama3Status;
+    private List<String> privacyCodexDeepseekCoder13bJava;
     
     /**
-     * Codex-Llama-3.1 status
+     * Privacy Codex-DeepSeek-Coder-6.7B-cpp
      */
-    private String codexLlama31Status;
+    private List<String> privacyCodexDeepseekCoder67bCpp;
     
     /**
-     * Codex-Mistral-7B status
+     * Privacy Codex-DeepSeek-Coder-33B-cpp
      */
-    private String codexMistral7bStatus;
+    private List<String> privacyCodexDeepseekCoder33bCpp;
     
     /**
-     * Codex-Mistral-8x7B status
+     * Privacy Codex-DeepSeek-Coder-1.3B-cpp
      */
-    private String codexMistral8x7bStatus;
+    private List<String> privacyCodexDeepseekCoder13bCpp;
     
     /**
-     * Codex-Mixtral-8x7B status
+     * Privacy Codex-DeepSeek-Coder-6.7B-javascript
      */
-    private String codexMixtral8x7bStatus;
+    private List<String> privacyCodexDeepseekCoder67bJavascript;
     
     /**
-     * Codex-Mixtral-8x22B status
+     * Privacy Codex-DeepSeek-Coder-33B-javascript
      */
-    private String codexMixtral8x22bStatus;
+    private List<String> privacyCodexDeepseekCoder33bJavascript;
     
     /**
-     * Codex-Codestral-22B status
+     * Privacy Codex-DeepSeek-Coder-1.3B-javascript
      */
-    private String codexCodestral22bStatus;
+    private List<String> privacyCodexDeepseekCoder13bJavascript;
     
     /**
-     * Codex-DeepSeek-Coder status
+     * Privacy Codex-DeepSeek-Coder-6.7B-typescript
      */
-    private String codexDeepseekCoderStatus;
+    private List<String> privacyCodexDeepseekCoder67bTypescript;
     
     /**
-     * Codex-DeepSeek-Coder-2 status
+     * Privacy Codex-DeepSeek-Coder-33B-typescript
      */
-    private String codexDeepseekCoder2Status;
+    private List<String> privacyCodexDeepseekCoder33bTypescript;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B status
+     * Privacy Codex-DeepSeek-Coder-1.3B-typescript
      */
-    private String codexDeepseekCoder67bStatus;
+    private List<String> privacyCodexDeepseekCoder13bTypescript;
     
     /**
-     * Codex-DeepSeek-Coder-33B status
+     * Privacy Codex-DeepSeek-Coder-6.7B-go
      */
-    private String codexDeepseekCoder33bStatus;
+    private List<String> privacyCodexDeepseekCoder67bGo;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B status
+     * Privacy Codex-DeepSeek-Coder-33B-go
      */
-    private String codexDeepseekCoder13bStatus;
+    private List<String> privacyCodexDeepseekCoder33bGo;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-instruct status
+     * Privacy Codex-DeepSeek-Coder-1.3B-go
      */
-    private String codexDeepseekCoder67bInstructStatus;
+    private List<String> privacyCodexDeepseekCoder13bGo;
     
     /**
-     * Codex-DeepSeek-Coder-33B-instruct status
+     * Privacy Codex-DeepSeek-Coder-6.7B-rust
      */
-    private String codexDeepseekCoder33bInstructStatus;
+    private List<String> privacyCodexDeepseekCoder67bRust;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-instruct status
+     * Privacy Codex-DeepSeek-Coder-33B-rust
      */
-    private String codexDeepseekCoder13bInstructStatus;
+    private List<String> privacyCodexDeepseekCoder33bRust;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-chat status
+     * Privacy Codex-DeepSeek-Coder-1.3B-rust
      */
-    private String codexDeepseekCoder67bChatStatus;
+    private List<String> privacyCodexDeepseekCoder13bRust;
     
     /**
-     * Codex-DeepSeek-Coder-33B-chat status
+     * Privacy Codex-DeepSeek-Coder-6.7B-php
      */
-    private String codexDeepseekCoder33bChatStatus;
+    private List<String> privacyCodexDeepseekCoder67bPhp;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-chat status
+     * Privacy Codex-DeepSeek-Coder-33B-php
      */
-    private String codexDeepseekCoder13bChatStatus;
+    private List<String> privacyCodexDeepseekCoder33bPhp;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-python status
+     * Privacy Codex-DeepSeek-Coder-1.3B-php
      */
-    private String codexDeepseekCoder67bPythonStatus;
+    private List<String> privacyCodexDeepseekCoder13bPhp;
     
     /**
-     * Codex-DeepSeek-Coder-33B-python status
+     * Privacy Codex-DeepSeek-Coder-6.7B-ruby
      */
-    private String codexDeepseekCoder33bPythonStatus;
+    private List<String> privacyCodexDeepseekCoder67bRuby;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-python status
+     * Privacy Codex-DeepSeek-Coder-33B-ruby
      */
-    private String codexDeepseekCoder13bPythonStatus;
+    private List<String> privacyCodexDeepseekCoder33bRuby;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-java status
+     * Privacy Codex-DeepSeek-Coder-1.3B-ruby
      */
-    private String codexDeepseekCoder67bJavaStatus;
+    private List<String> privacyCodexDeepseekCoder13bRuby;
     
     /**
-     * Codex-DeepSeek-Coder-33B-java status
+     * Privacy Codex-DeepSeek-Coder-6.7B-scala
      */
-    private String codexDeepseekCoder33bJavaStatus;
+    private List<String> privacyCodexDeepseekCoder67bScala;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-java status
+     * Privacy Codex-DeepSeek-Coder-33B-scala
      */
-    private String codexDeepseekCoder13bJavaStatus;
+    private List<String> privacyCodexDeepseekCoder33bScala;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-cpp status
+     * Privacy Codex-DeepSeek-Coder-1.3B-scala
      */
-    private String codexDeepseekCoder67bCppStatus;
+    private List<String> privacyCodexDeepseekCoder13bScala;
     
     /**
-     * Codex-DeepSeek-Coder-33B-cpp status
+     * Privacy Codex-DeepSeek-Coder-6.7B-kotlin
      */
-    private String codexDeepseekCoder33bCppStatus;
+    private List<String> privacyCodexDeepseekCoder67bKotlin;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-cpp status
+     * Privacy Codex-DeepSeek-Coder-33B-kotlin
      */
-    private String codexDeepseekCoder13bCppStatus;
+    private List<String> privacyCodexDeepseekCoder33bKotlin;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-javascript status
+     * Privacy Codex-DeepSeek-Coder-1.3B-kotlin
      */
-    private String codexDeepseekCoder67bJavascriptStatus;
+    private List<String> privacyCodexDeepseekCoder13bKotlin;
     
     /**
-     * Codex-DeepSeek-Coder-33B-javascript status
+     * Privacy Codex-DeepSeek-Coder-6.7B-swift
      */
-    private String codexDeepseekCoder33bJavascriptStatus;
+    private List<String> privacyCodexDeepseekCoder67bSwift;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-javascript status
+     * Privacy Codex-DeepSeek-Coder-33B-swift
      */
-    private String codexDeepseekCoder13bJavascriptStatus;
+    private List<String> privacyCodexDeepseekCoder33bSwift;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-typescript status
+     * Privacy Codex-DeepSeek-Coder-1.3B-swift
      */
-    private String codexDeepseekCoder67bTypescriptStatus;
+    private List<String> privacyCodexDeepseekCoder13bSwift;
     
     /**
-     * Codex-DeepSeek-Coder-33B-typescript status
+     * Privacy Codex-DeepSeek-Coder-6.7B-dart
      */
-    private String codexDeepseekCoder33bTypescriptStatus;
+    private List<String> privacyCodexDeepseekCoder67bDart;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-typescript status
+     * Privacy Codex-DeepSeek-Coder-33B-dart
      */
-    private String codexDeepseekCoder13bTypescriptStatus;
+    private List<String> privacyCodexDeepseekCoder33bDart;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-go status
+     * Privacy Codex-DeepSeek-Coder-1.3B-dart
      */
-    private String codexDeepseekCoder67bGoStatus;
+    private List<String> privacyCodexDeepseekCoder13bDart;
     
     /**
-     * Codex-DeepSeek-Coder-33B-go status
+     * Privacy Codex-DeepSeek-Coder-6.7B-csharp
      */
-    private String codexDeepseekCoder33bGoStatus;
+    private List<String> privacyCodexDeepseekCoder67bCsharp;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-go status
+     * Privacy Codex-DeepSeek-Coder-33B-csharp
      */
-    private String codexDeepseekCoder13bGoStatus;
+    private List<String> privacyCodexDeepseekCoder33bCsharp;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-rust status
+     * Privacy Codex-DeepSeek-Coder-1.3B-csharp
      */
-    private String codexDeepseekCoder67bRustStatus;
+    private List<String> privacyCodexDeepseekCoder13bCsharp;
     
     /**
-     * Codex-DeepSeek-Coder-33B-rust status
+     * Privacy Codex-DeepSeek-Coder-6.7B-vbnet
      */
-    private String codexDeepseekCoder33bRustStatus;
+    private List<String> privacyCodexDeepseekCoder67bVbnet;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-rust status
+     * Privacy Codex-DeepSeek-Coder-33B-vbnet
      */
-    private String codexDeepseekCoder13bRustStatus;
+    private List<String> privacyCodexDeepseekCoder33bVbnet;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-php status
+     * Privacy Codex-DeepSeek-Coder-1.3B-vbnet
      */
-    private String codexDeepseekCoder67bPhpStatus;
+    private List<String> privacyCodexDeepseekCoder13bVbnet;
     
     /**
-     * Codex-DeepSeek-Coder-33B-php status
+     * Privacy Codex-DeepSeek-Coder-6.7B-fsharp
      */
-    private String codexDeepseekCoder33bPhpStatus;
+    private List<String> privacyCodexDeepseekCoder67bFsharp;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-php status
+     * Privacy Codex-DeepSeek-Coder-33B-fsharp
      */
-    private String codexDeepseekCoder13bPhpStatus;
+    private List<String> privacyCodexDeepseekCoder33bFsharp;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-ruby status
+     * Privacy Codex-DeepSeek-Coder-1.3B-fsharp
      */
-    private String codexDeepseekCoder67bRubyStatus;
+    private List<String> privacyCodexDeepseekCoder13bFsharp;
     
     /**
-     * Codex-DeepSeek-Coder-33B-ruby status
+     * Privacy Codex-DeepSeek-Coder-6.7B-haskell
      */
-    private String codexDeepseekCoder33bRubyStatus;
+    private List<String> privacyCodexDeepseekCoder67bHaskell;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-ruby status
+     * Privacy Codex-DeepSeek-Coder-33B-haskell
      */
-    private String codexDeepseekCoder13bRubyStatus;
+    private List<String> privacyCodexDeepseekCoder33bHaskell;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-scala status
+     * Privacy Codex-DeepSeek-Coder-1.3B-haskell
      */
-    private String codexDeepseekCoder67bScalaStatus;
+    private List<String> privacyCodexDeepseekCoder13bHaskell;
     
     /**
-     * Codex-DeepSeek-Coder-33B-scala status
+     * Privacy Codex-DeepSeek-Coder-6.7B-clojure
      */
-    private String codexDeepseekCoder33bScalaStatus;
+    private List<String> privacyCodexDeepseekCoder67bClojure;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-scala status
+     * Privacy Codex-DeepSeek-Coder-33B-clojure
      */
-    private String codexDeepseekCoder13bScalaStatus;
+    private List<String> privacyCodexDeepseekCoder33bClojure;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-kotlin status
+     * Privacy Codex-DeepSeek-Coder-1.3B-clojure
      */
-    private String codexDeepseekCoder67bKotlinStatus;
+    private List<String> privacyCodexDeepseekCoder13bClojure;
     
     /**
-     * Codex-DeepSeek-Coder-33B-kotlin status
+     * Privacy Codex-DeepSeek-Coder-6.7B-erlang
      */
-    private String codexDeepseekCoder33bKotlinStatus;
+    private List<String> privacyCodexDeepseekCoder67bErlang;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-kotlin status
+     * Privacy Codex-DeepSeek-Coder-33B-erlang
      */
-    private String codexDeepseekCoder13bKotlinStatus;
+    private List<String> privacyCodexDeepseekCoder33bErlang;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-swift status
+     * Privacy Codex-DeepSeek-Coder-1.3B-erlang
      */
-    private String codexDeepseekCoder67bSwiftStatus;
+    private List<String> privacyCodexDeepseekCoder13bErlang;
     
     /**
-     * Codex-DeepSeek-Coder-33B-swift status
+     * Privacy Codex-DeepSeek-Coder-6.7B-elixir
      */
-    private String codexDeepseekCoder33bSwiftStatus;
+    private List<String> privacyCodexDeepseekCoder67bElixir;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-swift status
+     * Privacy Codex-DeepSeek-Coder-33B-elixir
      */
-    private String codexDeepseekCoder13bSwiftStatus;
+    private List<String> privacyCodexDeepseekCoder33bElixir;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-dart status
+     * Privacy Codex-DeepSeek-Coder-1.3B-elixir
      */
-    private String codexDeepseekCoder67bDartStatus;
+    private List<String> privacyCodexDeepseekCoder13bElixir;
     
     /**
-     * Codex-DeepSeek-Coder-33B-dart status
+     * Privacy Codex-DeepSeek-Coder-6.7B-ocaml
      */
-    private String codexDeepseekCoder33bDartStatus;
+    private List<String> privacyCodexDeepseekCoder67bOcaml;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-dart status
+     * Privacy Codex-DeepSeek-Coder-33B-ocaml
      */
-    private String codexDeepseekCoder13bDartStatus;
+    private List<String> privacyCodexDeepseekCoder33bOcaml;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-csharp status
+     * Privacy Codex-DeepSeek-Coder-1.3B-ocaml
      */
-    private String codexDeepseekCoder67bCsharpStatus;
+    private List<String> privacyCodexDeepseekCoder13bOcaml;
     
     /**
-     * Codex-DeepSeek-Coder-33B-csharp status
+     * Privacy Codex-DeepSeek-Coder-6.7B-racket
      */
-    private String codexDeepseekCoder33bCsharpStatus;
+    private List<String> privacyCodexDeepseekCoder67bRacket;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-csharp status
+     * Privacy Codex-DeepSeek-Coder-33B-racket
      */
-    private String codexDeepseekCoder13bCsharpStatus;
+    private List<String> privacyCodexDeepseekCoder33bRacket;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-vbnet status
+     * Privacy Codex-DeepSeek-Coder-1.3B-racket
      */
-    private String codexDeepseekCoder67bVbnetStatus;
+    private List<String> privacyCodexDeepseekCoder13bRacket;
     
     /**
-     * Codex-DeepSeek-Coder-33B-vbnet status
+     * Privacy Codex-DeepSeek-Coder-6.7B-scheme
      */
-    private String codexDeepseekCoder33bVbnetStatus;
+    private List<String> privacyCodexDeepseekCoder67bScheme;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-vbnet status
+     * Privacy Codex-DeepSeek-Coder-33B-scheme
      */
-    private String codexDeepseekCoder13bVbnetStatus;
+    private List<String> privacyCodexDeepseekCoder33bScheme;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-fsharp status
+     * Privacy Codex-DeepSeek-Coder-1.3B-scheme
      */
-    private String codexDeepseekCoder67bFsharpStatus;
+    private List<String> privacyCodexDeepseekCoder13bScheme;
     
     /**
-     * Codex-DeepSeek-Coder-33B-fsharp status
+     * Privacy Codex-DeepSeek-Coder-6.7B-lisp
      */
-    private String codexDeepseekCoder33bFsharpStatus;
+    private List<String> privacyCodexDeepseekCoder67bLisp;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-fsharp status
+     * Privacy Codex-DeepSeek-Coder-33B-lisp
      */
-    private String codexDeepseekCoder13bFsharpStatus;
+    private List<String> privacyCodexDeepseekCoder33bLisp;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-haskell status
+     * Privacy Codex-DeepSeek-Coder-1.3B-lisp
      */
-    private String codexDeepseekCoder67bHaskellStatus;
+    private List<String> privacyCodexDeepseekCoder13bLisp;
     
     /**
-     * Codex-DeepSeek-Coder-33B-haskell status
+     * Privacy Codex-DeepSeek-Coder-6.7B-prolog
      */
-    private String codexDeepseekCoder33bHaskellStatus;
+    private List<String> privacyCodexDeepseekCoder67bProlog;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-haskell status
+     * Privacy Codex-DeepSeek-Coder-33B-prolog
      */
-    private String codexDeepseekCoder13bHaskellStatus;
+    private List<String> privacyCodexDeepseekCoder33bProlog;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-clojure status
+     * Privacy Codex-DeepSeek-Coder-1.3B-prolog
      */
-    private String codexDeepseekCoder67bClojureStatus;
+    private List<String> privacyCodexDeepseekCoder13bProlog;
     
     /**
-     * Codex-DeepSeek-Coder-33B-clojure status
+     * Privacy Codex-DeepSeek-Coder-6.7B-sql
      */
-    private String codexDeepseekCoder33bClojureStatus;
+    private List<String> privacyCodexDeepseekCoder67bSql;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-clojure status
+     * Privacy Codex-DeepSeek-Coder-33B-sql
      */
-    private String codexDeepseekCoder13bClojureStatus;
+    private List<String> privacyCodexDeepseekCoder33bSql;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-erlang status
+     * Privacy Codex-DeepSeek-Coder-1.3B-sql
      */
-    private String codexDeepseekCoder67bErlangStatus;
+    private List<String> privacyCodexDeepseekCoder13bSql;
     
     /**
-     * Codex-DeepSeek-Coder-33B-erlang status
+     * Privacy Codex-DeepSeek-Coder-6.7B-html
      */
-    private String codexDeepseekCoder33bErlangStatus;
+    private List<String> privacyCodexDeepseekCoder67bHtml;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-erlang status
+     * Privacy Codex-DeepSeek-Coder-33B-html
      */
-    private String codexDeepseekCoder13bErlangStatus;
+    private List<String> privacyCodexDeepseekCoder33bHtml;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-elixir status
+     * Privacy Codex-DeepSeek-Coder-1.3B-html
      */
-    private String codexDeepseekCoder67bElixirStatus;
+    private List<String> privacyCodexDeepseekCoder13bHtml;
     
     /**
-     * Codex-DeepSeek-Coder-33B-elixir status
+     * Privacy Codex-DeepSeek-Coder-6.7B-css
      */
-    private String codexDeepseekCoder33bElixirStatus;
+    private List<String> privacyCodexDeepseekCoder67bCss;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-elixir status
+     * Privacy Codex-DeepSeek-Coder-33B-css
      */
-    private String codexDeepseekCoder13bElixirStatus;
+    private List<String> privacyCodexDeepseekCoder33bCss;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-ocaml status
+     * Privacy Codex-DeepSeek-Coder-1.3B-css
      */
-    private String codexDeepseekCoder67bOcamlStatus;
+    private List<String> privacyCodexDeepseekCoder13bCss;
     
     /**
-     * Codex-DeepSeek-Coder-33B-ocaml status
+     * Privacy Codex-DeepSeek-Coder-6.7B-xml
      */
-    private String codexDeepseekCoder33bOcamlStatus;
+    private List<String> privacyCodexDeepseekCoder67bXml;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-ocaml status
+     * Privacy Codex-DeepSeek-Coder-33B-xml
      */
-    private String codexDeepseekCoder13bOcamlStatus;
+    private List<String> privacyCodexDeepseekCoder33bXml;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-racket status
+     * Privacy Codex-DeepSeek-Coder-1.3B-xml
      */
-    private String codexDeepseekCoder67bRacketStatus;
+    private List<String> privacyCodexDeepseekCoder13bXml;
     
     /**
-     * Codex-DeepSeek-Coder-33B-racket status
+     * Privacy Codex-DeepSeek-Coder-6.7B-json
      */
-    private String codexDeepseekCoder33bRacketStatus;
+    private List<String> privacyCodexDeepseekCoder67bJson;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-racket status
+     * Privacy Codex-DeepSeek-Coder-33B-json
      */
-    private String codexDeepseekCoder13bRacketStatus;
+    private List<String> privacyCodexDeepseekCoder33bJson;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-scheme status
+     * Privacy Codex-DeepSeek-Coder-1.3B-json
      */
-    private String codexDeepseekCoder67bSchemeStatus;
+    private List<String> privacyCodexDeepseekCoder13bJson;
     
     /**
-     * Codex-DeepSeek-Coder-33B-scheme status
+     * Privacy Codex-DeepSeek-Coder-6.7B-yaml
      */
-    private String codexDeepseekCoder33bSchemeStatus;
+    private List<String> privacyCodexDeepseekCoder67bYaml;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-scheme status
+     * Privacy Codex-DeepSeek-Coder-33B-yaml
      */
-    private String codexDeepseekCoder13bSchemeStatus;
+    private List<String> privacyCodexDeepseekCoder33bYaml;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-lisp status
+     * Privacy Codex-DeepSeek-Coder-1.3B-yaml
      */
-    private String codexDeepseekCoder67bLispStatus;
+    private List<String> privacyCodexDeepseekCoder13bYaml;
     
     /**
-     * Codex-DeepSeek-Coder-33B-lisp status
+     * Privacy Codex-DeepSeek-Coder-6.7B-toml
      */
-    private String codexDeepseekCoder33bLispStatus;
+    private List<String> privacyCodexDeepseekCoder67bToml;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-lisp status
+     * Privacy Codex-DeepSeek-Coder-33B-toml
      */
-    private String codexDeepseekCoder13bLispStatus;
+    private List<String> privacyCodexDeepseekCoder33bToml;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-prolog status
+     * Privacy Codex-DeepSeek-Coder-1.3B-toml
      */
-    private String codexDeepseekCoder67bPrologStatus;
+    private List<String> privacyCodexDeepseekCoder13bToml;
     
     /**
-     * Codex-DeepSeek-Coder-33B-prolog status
+     * Privacy Codex-DeepSeek-Coder-6.7B-ini
      */
-    private String codexDeepseekCoder33bPrologStatus;
+    private List<String> privacyCodexDeepseekCoder67bIni;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-prolog status
+     * Privacy Codex-DeepSeek-Coder-33B-ini
      */
-    private String codexDeepseekCoder13bPrologStatus;
+    private List<String> privacyCodexDeepseekCoder33bIni;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-sql status
+     * Privacy Codex-DeepSeek-Coder-1.3B-ini
      */
-    private String codexDeepseekCoder67bSqlStatus;
+    private List<String> privacyCodexDeepseekCoder13bIni;
     
     /**
-     * Codex-DeepSeek-Coder-33B-sql status
+     * Privacy Codex-DeepSeek-Coder-6.7B-csv
      */
-    private String codexDeepseekCoder33bSqlStatus;
+    private List<String> privacyCodexDeepseekCoder67bCsv;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-sql status
+     * Privacy Codex-DeepSeek-Coder-33B-csv
      */
-    private String codexDeepseekCoder13bSqlStatus;
+    private List<String> privacyCodexDeepseekCoder33bCsv;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-html status
+     * Privacy Codex-DeepSeek-Coder-1.3B-csv
      */
-    private String codexDeepseekCoder67bHtmlStatus;
+    private List<String> privacyCodexDeepseekCoder13bCsv;
     
     /**
-     * Codex-DeepSeek-Coder-33B-html status
+     * Privacy Codex-DeepSeek-Coder-6.7B-tsv
      */
-    private String codexDeepseekCoder33bHtmlStatus;
+    private List<String> privacyCodexDeepseekCoder67bTsv;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-html status
+     * Privacy Codex-DeepSeek-Coder-33B-tsv
      */
-    private String codexDeepseekCoder13bHtmlStatus;
+    private List<String> privacyCodexDeepseekCoder33bTsv;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-css status
+     * Privacy Codex-DeepSeek-Coder-1.3B-tsv
      */
-    private String codexDeepseekCoder67bCssStatus;
+    private List<String> privacyCodexDeepseekCoder13bTsv;
     
     /**
-     * Codex-DeepSeek-Coder-33B-css status
+     * Privacy Codex-DeepSeek-Coder-6.7B-psv
      */
-    private String codexDeepseekCoder33bCssStatus;
+    private List<String> privacyCodexDeepseekCoder67bPsv;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-css status
+     * Privacy Codex-DeepSeek-Coder-33B-psv
      */
-    private String codexDeepseekCoder13bCssStatus;
+    private List<String> privacyCodexDeepseekCoder33bPsv;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-xml status
+     * Privacy Codex-DeepSeek-Coder-1.3B-psv
      */
-    private String codexDeepseekCoder67bXmlStatus;
+    private List<String> privacyCodexDeepseekCoder13bPsv;
     
     /**
-     * Codex-DeepSeek-Coder-33B-xml status
+     * Privacy Codex-DeepSeek-Coder-6.7B-fixed
      */
-    private String codexDeepseekCoder33bXmlStatus;
+    private List<String> privacyCodexDeepseekCoder67bFixed;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-xml status
+     * Privacy Codex-DeepSeek-Coder-33B-fixed
      */
-    private String codexDeepseekCoder13bXmlStatus;
+    private List<String> privacyCodexDeepseekCoder33bFixed;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-json status
+     * Privacy Codex-DeepSeek-Coder-1.3B-fixed
      */
-    private String codexDeepseekCoder67bJsonStatus;
+    private List<String> privacyCodexDeepseekCoder13bFixed;
     
     /**
-     * Codex-DeepSeek-Coder-33B-json status
+     * Privacy Codex-DeepSeek-Coder-6.7B-jsonl
      */
-    private String codexDeepseekCoder33bJsonStatus;
+    private List<String> privacyCodexDeepseekCoder67bJsonl;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-json status
+     * Privacy Codex-DeepSeek-Coder-33B-jsonl
      */
-    private String codexDeepseekCoder13bJsonStatus;
+    private List<String> privacyCodexDeepseekCoder33bJsonl;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-yaml status
+     * Privacy Codex-DeepSeek-Coder-1.3B-jsonl
      */
-    private String codexDeepseekCoder67bYamlStatus;
+    private List<String> privacyCodexDeepseekCoder13bJsonl;
     
     /**
-     * Codex-DeepSeek-Coder-33B-yaml status
+     * Privacy Codex-DeepSeek-Coder-6.7B-ndjson
      */
-    private String codexDeepseekCoder33bYamlStatus;
+    private List<String> privacyCodexDeepseekCoder67bNdjson;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-yaml status
+     * Privacy Codex-DeepSeek-Coder-33B-ndjson
      */
-    private String codexDeepseekCoder13bYamlStatus;
+    private List<String> privacyCodexDeepseekCoder33bNdjson;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-toml status
+     * Privacy Codex-DeepSeek-Coder-1.3B-ndjson
      */
-    private String codexDeepseekCoder67bTomlStatus;
+    private List<String> privacyCodexDeepseekCoder13bNdjson;
     
     /**
-     * Codex-DeepSeek-Coder-33B-toml status
+     * Privacy Codex-DeepSeek-Coder-6.7B-ldjson
      */
-    private String codexDeepseekCoder33bTomlStatus;
+    private List<String> privacyCodexDeepseekCoder67bLdjson;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-toml status
+     * Privacy Codex-DeepSeek-Coder-33B-ldjson
      */
-    private String codexDeepseekCoder13bTomlStatus;
+    private List<String> privacyCodexDeepseekCoder33bLdjson;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-ini status
+     * Privacy Codex-DeepSeek-Coder-1.3B-ldjson
      */
-    private String codexDeepseekCoder67bIniStatus;
+    private List<String> privacyCodexDeepseekCoder13bLdjson;
     
     /**
-     * Codex-DeepSeek-Coder-33B-ini status
+     * Privacy Codex-DeepSeek-Coder-6.7B-jsonc
      */
-    private String codexDeepseekCoder33bIniStatus;
+    private List<String> privacyCodexDeepseekCoder67bJsonc;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-ini status
+     * Privacy Codex-DeepSeek-Coder-33B-jsonc
      */
-    private String codexDeepseekCoder13bIniStatus;
+    private List<String> privacyCodexDeepseekCoder33bJsonc;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-csv status
+     * Privacy Codex-DeepSeek-Coder-1.3B-jsonc
      */
-    private String codexDeepseekCoder67bCsvStatus;
+    private List<String> privacyCodexDeepseekCoder13bJsonc;
     
     /**
-     * Codex-DeepSeek-Coder-33B-csv status
+     * Privacy Codex-DeepSeek-Coder-6.7B-json5
      */
-    private String codexDeepseekCoder33bCsvStatus;
+    private List<String> privacyCodexDeepseekCoder67bJson5;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-csv status
+     * Privacy Codex-DeepSeek-Coder-33B-json5
      */
-    private String codexDeepseekCoder13bCsvStatus;
+    private List<String> privacyCodexDeepseekCoder33bJson5;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-tsv status
+     * Privacy Codex-DeepSeek-Coder-1.3B-json5
      */
-    private String codexDeepseekCoder67bTsvStatus;
+    private List<String> privacyCodexDeepseekCoder13bJson5;
     
     /**
-     * Codex-DeepSeek-Coder-33B-tsv status
+     * Privacy Codex-DeepSeek-Coder-6.7B-hjson
      */
-    private String codexDeepseekCoder33bTsvStatus;
+    private List<String> privacyCodexDeepseekCoder67bHjson;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-tsv status
+     * Privacy Codex-DeepSeek-Coder-33B-hjson
      */
-    private String codexDeepseekCoder13bTsvStatus;
+    private List<String> privacyCodexDeepseekCoder33bHjson;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-psv status
+     * Privacy Codex-DeepSeek-Coder-1.3B-hjson
      */
-    private String codexDeepseekCoder67bPsvStatus;
+    private List<String> privacyCodexDeepseekCoder13bHjson;
     
     /**
-     * Codex-DeepSeek-Coder-33B-psv status
+     * Privacy Codex-DeepSeek-Coder-6.7B-cson
      */
-    private String codexDeepseekCoder33bPsvStatus;
+    private List<String> privacyCodexDeepseekCoder67bCson;
     
     /**
-     * Codex-DeepSeek-Coder-1.3B-psv status
+     * Privacy Codex-DeepSeek-Coder-33B-cson
      */
-    private String codexDeepseekCoder13bPsvStatus;
+    private List<String> privacyCodexDeepseekCoder33bCson;
     
     /**
-     * Codex-DeepSeek-Coder-6.7B-fixed status
+     * Privacy Codex-DeepSeek-Coder-1.3B-cson
      */
-    private String codexDeepseekCoder67bFixedStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-33B-fixed status
-     */
-    private String codexDeepseekCoder33bFixedStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-1.3B-fixed status
-     */
-    private String codexDeepseekCoder13bFixedStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-6.7B-jsonl status
-     */
-    private String codexDeepseekCoder67bJsonlStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-33B-jsonl status
-     */
-    private String codexDeepseekCoder33bJsonlStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-1.3B-jsonl status
-     */
-    private String codexDeepseekCoder13bJsonlStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-6.7B-ndjson status
-     */
-    private String codexDeepseekCoder67bNdjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-33B-ndjson status
-     */
-    private String codexDeepseekCoder33bNdjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-1.3B-ndjson status
-     */
-    private String codexDeepseekCoder13bNdjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-6.7B-ldjson status
-     */
-    private String codexDeepseekCoder67bLdjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-33B-ldjson status
-     */
-    private String codexDeepseekCoder33bLdjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-1.3B-ldjson status
-     */
-    private String codexDeepseekCoder13bLdjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-6.7B-jsonc status
-     */
-    private String codexDeepseekCoder67bJsoncStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-33B-jsonc status
-     */
-    private String codexDeepseekCoder33bJsoncStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-1.3B-jsonc status
-     */
-    private String codexDeepseekCoder13bJsoncStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-6.7B-json5 status
-     */
-    private String codexDeepseekCoder67bJson5Status;
-    
-    /**
-     * Codex-DeepSeek-Coder-33B-json5 status
-     */
-    private String codexDeepseekCoder33bJson5Status;
-    
-    /**
-     * Codex-DeepSeek-Coder-1.3B-json5 status
-     */
-    private String codexDeepseekCoder13bJson5Status;
-    
-    /**
-     * Codex-DeepSeek-Coder-6.7B-hjson status
-     */
-    private String codexDeepseekCoder67bHjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-33B-hjson status
-     */
-    private String codexDeepseekCoder33bHjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-1.3B-hjson status
-     */
-    private String codexDeepseekCoder13bHjsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-6.7B-cson status
-     */
-    private String codexDeepseekCoder67bCsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-33B-cson status
-     */
-    private String codexDeepseekCoder33bCsonStatus;
-    
-    /**
-     * Codex-DeepSeek-Coder-1.3B-cson status
-     */
-    private String codexDeepseekCoder13bCsonStatus;
+    private List<String> privacyCodexDeepseekCoder13bCson;
     
     /**
      * Additional privacy metrics
