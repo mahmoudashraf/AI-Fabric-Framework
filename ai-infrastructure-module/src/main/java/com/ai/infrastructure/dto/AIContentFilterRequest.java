@@ -34,19 +34,34 @@ public class AIContentFilterRequest {
     private String content;
     
     /**
-     * Request context
+     * Content type
      */
-    private String context;
+    private String contentType;
     
     /**
-     * Filter type
+     * Content language
      */
-    private String filterType;
+    private String language;
     
     /**
-     * Filter level
+     * Content category
      */
-    private String filterLevel;
+    private String category;
+    
+    /**
+     * Content tags
+     */
+    private List<String> tags;
+    
+    /**
+     * Content metadata
+     */
+    private Map<String, Object> metadata;
+    
+    /**
+     * Filter settings
+     */
+    private Map<String, Object> filterSettings;
     
     /**
      * Maximum violations allowed
@@ -59,29 +74,79 @@ public class AIContentFilterRequest {
     private Double minContentScore;
     
     /**
-     * Filter categories
+     * Content age in days
      */
-    private List<String> filterCategories;
+    private Integer contentAge;
     
     /**
-     * Blocked content patterns
+     * Content source
      */
-    private List<String> blockedPatterns;
+    private String contentSource;
     
     /**
-     * Allowed content patterns
+     * Content author
      */
-    private List<String> allowedPatterns;
+    private String contentAuthor;
     
     /**
-     * Custom filter rules
+     * Content publisher
      */
-    private List<String> customRules;
+    private String contentPublisher;
     
     /**
-     * Request metadata
+     * Content license
      */
-    private Map<String, Object> metadata;
+    private String contentLicense;
+    
+    /**
+     * Content copyright
+     */
+    private String contentCopyright;
+    
+    /**
+     * Content version
+     */
+    private String contentVersion;
+    
+    /**
+     * Content status
+     */
+    private String contentStatus;
+    
+    /**
+     * Content priority
+     */
+    private String contentPriority;
+    
+    /**
+     * Content severity
+     */
+    private String contentSeverity;
+    
+    /**
+     * Content confidentiality level
+     */
+    private String contentConfidentialityLevel;
+    
+    /**
+     * Content retention period
+     */
+    private Integer contentRetentionPeriod;
+    
+    /**
+     * Content archive status
+     */
+    private Boolean contentArchived;
+    
+    /**
+     * Content archive date
+     */
+    private LocalDateTime contentArchivedDate;
+    
+    /**
+     * Content archive reason
+     */
+    private String contentArchiveReason;
     
     /**
      * Request timestamp
@@ -101,12 +166,12 @@ public class AIContentFilterRequest {
     /**
      * Request category
      */
-    private String category;
+    private String requestCategory;
     
     /**
      * Request tags
      */
-    private List<String> tags;
+    private List<String> requestTags;
     
     /**
      * Request notes

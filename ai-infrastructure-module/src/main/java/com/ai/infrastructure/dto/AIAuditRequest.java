@@ -64,7 +64,7 @@ public class AIAuditRequest {
     private String resourceId;
     
     /**
-     * Action to perform
+     * Action to be performed
      */
     private String action;
     
@@ -77,6 +77,141 @@ public class AIAuditRequest {
      * Request metadata
      */
     private Map<String, Object> metadata;
+    
+    /**
+     * Security level
+     */
+    private String securityLevel;
+    
+    /**
+     * Risk level
+     */
+    private String riskLevel;
+    
+    /**
+     * Compliance requirements
+     */
+    private List<String> complianceRequirements;
+    
+    /**
+     * Data classification
+     */
+    private String dataClassification;
+    
+    /**
+     * Purpose of the operation
+     */
+    private String purpose;
+    
+    /**
+     * Legal basis
+     */
+    private String legalBasis;
+    
+    /**
+     * Data controller
+     */
+    private String dataController;
+    
+    /**
+     * Data processor
+     */
+    private String dataProcessor;
+    
+    /**
+     * Data protection officer
+     */
+    private String dpo;
+    
+    /**
+     * Supervisory authority
+     */
+    private String supervisoryAuthority;
+    
+    /**
+     * Consent given
+     */
+    private Boolean consentGiven;
+    
+    /**
+     * Consent timestamp
+     */
+    private LocalDateTime consentTimestamp;
+    
+    /**
+     * Data retention period
+     */
+    private Integer dataRetentionPeriod;
+    
+    /**
+     * Cross-border transfer
+     */
+    private Boolean crossBorderTransfer;
+    
+    /**
+     * Safeguards
+     */
+    private List<String> safeguards;
+    
+    /**
+     * Data categories
+     */
+    private List<String> dataCategories;
+    
+    /**
+     * Special categories
+     */
+    private List<String> specialCategories;
+    
+    /**
+     * Recipients
+     */
+    private List<String> recipients;
+    
+    /**
+     * Third countries
+     */
+    private List<String> thirdCountries;
+    
+    /**
+     * Data subject rights
+     */
+    private List<String> dataSubjectRights;
+    
+    /**
+     * Processing activities
+     */
+    private List<String> processingActivities;
+    
+    /**
+     * Risk assessment
+     */
+    private String riskAssessment;
+    
+    /**
+     * Impact assessment
+     */
+    private String impactAssessment;
+    
+    /**
+     * Mitigation measures
+     */
+    private List<String> mitigationMeasures;
+    
+    /**
+     * Monitoring measures
+     */
+    private List<String> monitoringMeasures;
+    
+    /**
+     * Review date
+     */
+    private LocalDateTime reviewDate;
+    
+    /**
+     * Next review date
+     */
+    private LocalDateTime nextReviewDate;
     
     /**
      * Request priority

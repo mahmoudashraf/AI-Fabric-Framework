@@ -39,7 +39,7 @@ public class AIAuditResponse {
     private String riskLevel;
     
     /**
-     * Has anomalies
+     * Whether anomalies were detected
      */
     private Boolean hasAnomalies;
     
@@ -69,19 +69,19 @@ public class AIAuditResponse {
     private String errorMessage;
     
     /**
-     * Audit metrics
+     * Audit log details
      */
-    private Map<String, Object> auditMetrics;
+    private AIAuditLog auditLog;
     
     /**
-     * Security recommendations
+     * Security assessment
      */
-    private List<String> securityRecommendations;
+    private String securityAssessment;
     
     /**
-     * Compliance recommendations
+     * Compliance assessment
      */
-    private List<String> complianceRecommendations;
+    private String complianceAssessment;
     
     /**
      * Risk assessment
@@ -89,142 +89,147 @@ public class AIAuditResponse {
     private String riskAssessment;
     
     /**
-     * Threat level
+     * Impact assessment
      */
-    private String threatLevel;
+    private String impactAssessment;
     
     /**
-     * Confidence score
+     * Recommendations
      */
-    private Double confidenceScore;
+    private List<String> recommendations;
     
     /**
-     * False positive probability
+     * Mitigation measures
      */
-    private Double falsePositiveProbability;
+    private List<String> mitigationMeasures;
     
     /**
-     * True positive probability
+     * Monitoring measures
      */
-    private Double truePositiveProbability;
+    private List<String> monitoringMeasures;
     
     /**
-     * Event severity
+     * Review recommendations
      */
-    private String severity;
+    private List<String> reviewRecommendations;
     
     /**
-     * Event category
+     * Next review date
      */
-    private String category;
+    private LocalDateTime nextReviewDate;
     
     /**
-     * Event source
+     * Audit metrics
      */
-    private String source;
+    private Map<String, Object> auditMetrics;
     
     /**
-     * Event hash
+     * Security metrics
      */
-    private String eventHash;
+    private Map<String, Object> securityMetrics;
     
     /**
-     * Related event IDs
+     * Compliance metrics
      */
-    private List<String> relatedEventIds;
+    private Map<String, Object> complianceMetrics;
     
     /**
-     * Event tags
+     * Risk metrics
      */
-    private List<String> tags;
+    private Map<String, Object> riskMetrics;
     
     /**
-     * Geographic location
+     * Impact metrics
      */
-    private String location;
+    private Map<String, Object> impactMetrics;
     
     /**
-     * Device information
+     * Anomaly details
      */
-    private String deviceInfo;
+    private String anomalyDetails;
     
     /**
-     * Event duration in milliseconds
+     * Anomaly score
      */
-    private Long durationMs;
+    private Double anomalyScore;
     
     /**
-     * Event impact level
+     * Anomaly type
      */
-    private String impactLevel;
+    private String anomalyType;
     
     /**
-     * Event escalation level
+     * Anomaly severity
      */
-    private Integer escalationLevel;
+    private String anomalySeverity;
     
     /**
-     * Event priority
+     * Anomaly status
      */
-    private String priority;
+    private String anomalyStatus;
     
     /**
-     * Source IP country
+     * Anomaly resolution
      */
-    private String sourceCountry;
+    private String anomalyResolution;
     
     /**
-     * Source IP city
+     * Anomaly resolution date
      */
-    private String sourceCity;
+    private LocalDateTime anomalyResolutionDate;
     
     /**
-     * Source IP organization
+     * Anomaly resolution notes
      */
-    private String sourceOrganization;
+    private String anomalyResolutionNotes;
     
     /**
-     * Source IP ISP
+     * Anomaly resolution author
      */
-    private String sourceISP;
+    private String anomalyResolutionAuthor;
     
     /**
-     * Threat intelligence
+     * Anomaly resolution reviewer
      */
-    private Map<String, Object> threatIntelligence;
+    private String anomalyResolutionReviewer;
     
     /**
-     * Remediation actions
+     * Anomaly resolution approver
      */
-    private List<String> remediationActions;
+    private String anomalyResolutionApprover;
     
     /**
-     * Compliance status
+     * Anomaly resolution approval date
      */
-    private String complianceStatus;
+    private LocalDateTime anomalyResolutionApprovalDate;
     
     /**
-     * Data classification
+     * Anomaly resolution distribution list
      */
-    private String dataClassification;
+    private List<String> anomalyResolutionDistributionList;
     
     /**
-     * Retention period in days
+     * Anomaly resolution confidentiality level
      */
-    private Integer retentionPeriodDays;
+    private String anomalyResolutionConfidentialityLevel;
     
     /**
-     * Archive status
+     * Anomaly resolution retention period
      */
-    private Boolean archived;
+    private Integer anomalyResolutionRetentionPeriod;
     
     /**
-     * Archive timestamp
+     * Anomaly resolution archive status
      */
-    private LocalDateTime archivedAt;
+    private Boolean anomalyResolutionArchived;
     
     /**
-     * Archive reason
+     * Anomaly resolution archive date
      */
-    private String archiveReason;
+    private LocalDateTime anomalyResolutionArchivedDate;
+    
+    /**
+     * Anomaly resolution archive reason
+     */
+    private String anomalyResolutionArchiveReason;
 }

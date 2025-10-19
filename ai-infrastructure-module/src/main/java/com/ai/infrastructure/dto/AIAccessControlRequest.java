@@ -10,18 +10,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * DTO for AI Audit Logs
+ * DTO for AI Access Control Requests
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AIAuditLog {
-    
-    /**
-     * Log ID
-     */
-    private String logId;
+public class AIAccessControlRequest {
     
     /**
      * Request ID
@@ -34,14 +29,34 @@ public class AIAuditLog {
     private String userId;
     
     /**
+     * Resource ID
+     */
+    private String resourceId;
+    
+    /**
      * Operation type
      */
     private String operationType;
     
     /**
-     * Log timestamp
+     * Required roles
      */
-    private LocalDateTime timestamp;
+    private List<String> requiredRoles;
+    
+    /**
+     * Required permissions
+     */
+    private List<String> requiredPermissions;
+    
+    /**
+     * User attributes
+     */
+    private Map<String, Object> userAttributes;
+    
+    /**
+     * Request context
+     */
+    private String context;
     
     /**
      * IP address
@@ -59,39 +74,39 @@ public class AIAuditLog {
     private String sessionId;
     
     /**
-     * Resource type
+     * Request timestamp
      */
-    private String resourceType;
+    private LocalDateTime timestamp;
     
     /**
-     * Resource ID
+     * Time window in hours
      */
-    private String resourceId;
+    private Integer timeWindow;
     
     /**
-     * Action performed
+     * Allowed IP ranges
      */
-    private String action;
+    private List<String> allowedIpRanges;
     
     /**
-     * Result of the action
+     * Blocked IP ranges
      */
-    private String result;
+    private List<String> blockedIpRanges;
     
     /**
-     * Additional details
+     * Accessible resources
      */
-    private String details;
+    private List<String> accessibleResources;
     
     /**
-     * Log metadata
+     * Restricted resources
+     */
+    private List<String> restrictedResources;
+    
+    /**
+     * Request metadata
      */
     private Map<String, Object> metadata;
-    
-    /**
-     * Risk level: LOW, MEDIUM, HIGH, CRITICAL
-     */
-    private String riskLevel;
     
     /**
      * Security level
@@ -99,9 +114,14 @@ public class AIAuditLog {
     private String securityLevel;
     
     /**
-     * Compliance status
+     * Risk level
      */
-    private String complianceStatus;
+    private String riskLevel;
+    
+    /**
+     * Compliance requirements
+     */
+    private List<String> complianceRequirements;
     
     /**
      * Data classification
@@ -109,7 +129,7 @@ public class AIAuditLog {
     private String dataClassification;
     
     /**
-     * Purpose of the operation
+     * Purpose of the request
      */
     private String purpose;
     
@@ -224,192 +244,87 @@ public class AIAuditLog {
     private LocalDateTime nextReviewDate;
     
     /**
-     * Log status
-     */
-    private String status;
-    
-    /**
-     * Log priority
+     * Request priority
      */
     private String priority;
     
     /**
-     * Log severity
+     * Request severity
      */
     private String severity;
     
     /**
-     * Log category
+     * Request category
      */
     private String category;
     
     /**
-     * Log tags
+     * Request tags
      */
     private List<String> tags;
     
     /**
-     * Log notes
+     * Request notes
      */
     private String notes;
     
     /**
-     * Log attachments
+     * Request attachments
      */
     private List<String> attachments;
     
     /**
-     * Log version
+     * Request version
      */
     private String version;
     
     /**
-     * Log author
+     * Request author
      */
     private String author;
     
     /**
-     * Log reviewer
+     * Request reviewer
      */
     private String reviewer;
     
     /**
-     * Log approver
+     * Request approver
      */
     private String approver;
     
     /**
-     * Log approval date
+     * Request approval date
      */
     private LocalDateTime approvalDate;
     
     /**
-     * Log distribution list
+     * Request distribution list
      */
     private List<String> distributionList;
     
     /**
-     * Log confidentiality level
+     * Request confidentiality level
      */
     private String confidentialityLevel;
     
     /**
-     * Log retention period
+     * Request retention period
      */
-    private Integer logRetentionPeriod;
+    private Integer requestRetentionPeriod;
     
     /**
-     * Log archive status
+     * Request archive status
      */
     private Boolean archived;
     
     /**
-     * Log archive date
+     * Request archive date
      */
     private LocalDateTime archivedDate;
     
     /**
-     * Log archive reason
+     * Request archive reason
      */
     private String archiveReason;
-    
-    /**
-     * Log insights
-     */
-    private List<String> insights;
-    
-    /**
-     * Has anomalies
-     */
-    private Boolean hasAnomalies;
-    
-    /**
-     * Anomaly details
-     */
-    private String anomalyDetails;
-    
-    /**
-     * Anomaly score
-     */
-    private Double anomalyScore;
-    
-    /**
-     * Anomaly type
-     */
-    private String anomalyType;
-    
-    /**
-     * Anomaly severity
-     */
-    private String anomalySeverity;
-    
-    /**
-     * Anomaly status
-     */
-    private String anomalyStatus;
-    
-    /**
-     * Anomaly resolution
-     */
-    private String anomalyResolution;
-    
-    /**
-     * Anomaly resolution date
-     */
-    private LocalDateTime anomalyResolutionDate;
-    
-    /**
-     * Anomaly resolution notes
-     */
-    private String anomalyResolutionNotes;
-    
-    /**
-     * Anomaly resolution author
-     */
-    private String anomalyResolutionAuthor;
-    
-    /**
-     * Anomaly resolution reviewer
-     */
-    private String anomalyResolutionReviewer;
-    
-    /**
-     * Anomaly resolution approver
-     */
-    private String anomalyResolutionApprover;
-    
-    /**
-     * Anomaly resolution approval date
-     */
-    private LocalDateTime anomalyResolutionApprovalDate;
-    
-    /**
-     * Anomaly resolution distribution list
-     */
-    private List<String> anomalyResolutionDistributionList;
-    
-    /**
-     * Anomaly resolution confidentiality level
-     */
-    private String anomalyResolutionConfidentialityLevel;
-    
-    /**
-     * Anomaly resolution retention period
-     */
-    private Integer anomalyResolutionRetentionPeriod;
-    
-    /**
-     * Anomaly resolution archive status
-     */
-    private Boolean anomalyResolutionArchived;
-    
-    /**
-     * Anomaly resolution archive date
-     */
-    private LocalDateTime anomalyResolutionArchivedDate;
-    
-    /**
-     * Anomaly resolution archive reason
-     */
-    private String anomalyResolutionArchiveReason;
 }

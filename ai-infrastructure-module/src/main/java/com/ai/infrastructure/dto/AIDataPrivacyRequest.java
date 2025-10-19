@@ -34,11 +34,6 @@ public class AIDataPrivacyRequest {
     private String content;
     
     /**
-     * Request context
-     */
-    private String context;
-    
-    /**
      * Data classification
      */
     private String dataClassification;
@@ -84,9 +79,19 @@ public class AIDataPrivacyRequest {
     private LocalDateTime consentTimestamp;
     
     /**
+     * Consent type
+     */
+    private String consentType;
+    
+    /**
      * Data retention period
      */
     private Integer dataRetentionPeriod;
+    
+    /**
+     * Data age in days
+     */
+    private Integer dataAge;
     
     /**
      * Cross-border transfer
