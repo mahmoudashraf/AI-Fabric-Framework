@@ -1,0 +1,132 @@
+# Backend AI Integration Test Configuration
+# This configuration integrates the backend with AI infrastructure module
+
+# AI Configuration for Testing
+ai:
+  provider:
+    openai:
+      mock-responses: true
+      api-key: test-openai-key
+      model: gpt-4o-mini
+      embedding-model: text-embedding-3-small
+    anthropic:
+      mock-responses: true
+      api-key: test-anthropic-key
+      model: claude-3-sonnet-20240229
+    cohere:
+      mock-responses: true
+      api-key: test-cohere-key
+      model: command
+      embedding-model: embed-english-v3.0
+  
+  vector-db:
+    type: lucene
+    lucene:
+      index-path: ./target/test-lucene-index
+      similarity-threshold: 0.5
+      max-results: 50
+  
+  service:
+    enabled: true
+    auto-configuration: true
+    caching:
+      enabled: false  # Disable caching for tests
+    metrics:
+      enabled: false  # Disable metrics for tests
+    health-checks:
+      enabled: true
+    logging:
+      enabled: true
+    default-timeout: 5000  # Shorter timeout for tests
+    max-retries: 1  # Fewer retries for tests
+    retry-delay: 100
+    async:
+      enabled: false  # Disable async for tests
+      thread-pool-size: 2
+    batch-processing:
+      enabled: false  # Disable batch processing for tests
+      batch-size: 10
+    rate-limiting:
+      enabled: false  # Disable rate limiting for tests
+      rate-limit-per-minute: 1000
+    circuit-breaker:
+      enabled: false  # Disable circuit breaker for tests
+      threshold: 5
+      timeout: 10000
+    feature-flags:
+      enabled: true
+      flags:
+        embedding.enabled: true
+        search.enabled: true
+        rag.enabled: true
+        validation.enabled: true
+        recommendations.enabled: true
+        generation.enabled: true
+    services:
+      embedding:
+        enabled: true
+        rate-limit: 100
+        timeout: 2000
+      search:
+        enabled: true
+        rate-limit: 50
+        timeout: 1000
+      rag:
+        enabled: true
+        rate-limit: 100
+        timeout: 3000
+      validation:
+        enabled: true
+        rate-limit: 50
+        timeout: 500
+      recommendations:
+        enabled: true
+        rate-limit: 50
+        timeout: 1000
+      generation:
+        enabled: true
+        rate-limit: 100
+        timeout: 2000
+
+# Easy Luxury AI Configuration for Testing
+easyluxury:
+  ai:
+    product-index-name: test-products
+    user-index-name: test-users
+    order-index-name: test-orders
+    enable-product-recommendations: true
+    enable-user-behavior-tracking: true
+    enable-smart-validation: true
+    enable-ai-content-generation: true
+    enable-ai-search: true
+    enable-ai-rag: true
+    default-ai-model: gpt-4o-mini
+    default-embedding-model: text-embedding-3-small
+    max-tokens: 1000
+    temperature: 0.3
+    timeout-seconds: 30
+
+# Spring Boot Actuator Configuration for Tests
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  health:
+    ai:
+      enabled: true
+
+# Logging Configuration for Tests
+logging:
+  level:
+    root: WARN
+    com.easyluxury: DEBUG
+    com.ai.infrastructure: DEBUG
+    org.springframework.test: DEBUG
+    org.apache.lucene: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
