@@ -5,14 +5,15 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Response DTO for RAG operations
+ * RAG Response DTO
  * 
- * This DTO contains the results of Retrieval-Augmented Generation
- * operations including retrieved context and generated responses.
+ * Represents the response from a Retrieval-Augmented Generation (RAG) operation.
+ * Contains retrieved documents, relevance scores, and metadata information.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
@@ -24,44 +25,34 @@ import java.util.Map;
 public class RAGResponse {
     
     /**
-     * The generated response
+     * List of retrieved documents with relevance scores
      */
-    private String response;
+    private List<RAGDocument> documents;
     
     /**
-     * Retrieved context used for generation
+     * Total number of results found
      */
-    private String context;
+    private Integer totalResults;
     
     /**
-     * Retrieved documents
+     * Number of results returned in this response
      */
-    private List<Map<String, Object>> documents;
+    private Integer returnedResults;
     
     /**
-     * Total number of documents found
+     * Maximum relevance score among all results
      */
-    private int totalDocuments;
+    private Double maxScore;
     
     /**
-     * Number of documents used in context
+     * Average relevance score of returned results
      */
-    private int usedDocuments;
-    
-    /**
-     * Confidence score for the response
-     */
-    private double confidence;
-    
-    /**
-     * Relevance scores for retrieved documents
-     */
-    private List<Double> relevanceScores;
+    private Double averageScore;
     
     /**
      * Processing time in milliseconds
      */
-    private long processingTimeMs;
+    private Long processingTimeMs;
     
     /**
      * Request ID for tracking
@@ -69,67 +60,197 @@ public class RAGResponse {
     private String requestId;
     
     /**
-     * Model used for generation
-     */
-    private String model;
-    
-    /**
-     * Whether the response was generated successfully
-     */
-    private boolean success;
-    
-    /**
-     * Error message if generation failed
-     */
-    private String errorMessage;
-    
-    /**
-     * Metadata about the generation process
-     */
-    private Map<String, Object> metadata;
-    
-    /**
-     * Search statistics
-     */
-    private Map<String, Object> searchStats;
-    
-    /**
-     * Generation statistics
-     */
-    private Map<String, Object> generationStats;
-    
-    /**
-     * Whether hybrid search was used
-     */
-    private boolean hybridSearchUsed;
-    
-    /**
-     * Whether contextual search was used
-     */
-    private boolean contextualSearchUsed;
-    
-    /**
-     * Query that was processed
+     * Original query that was processed
      */
     private String originalQuery;
     
     /**
-     * Entity type that was searched
+     * Entity type that was queried
      */
     private String entityType;
     
     /**
-     * Knowledge categories that were searched
+     * Model used for processing
      */
-    private List<String> searchedCategories;
+    private String model;
     
     /**
-     * Whether semantic search was used
+     * Timestamp when response was generated
      */
-    private boolean semanticSearchUsed;
+    private LocalDateTime timestamp;
     
     /**
-     * Whether keyword search was used
+     * Additional metadata about the response
      */
-    private boolean keywordSearchUsed;
+    private Map<String, Object> metadata;
+    
+    /**
+     * Whether the response was served from cache
+     */
+    private Boolean fromCache;
+    
+    /**
+     * Cache hit rate for this request
+     */
+    private Double cacheHitRate;
+    
+    /**
+     * Error message if any errors occurred
+     */
+    private String errorMessage;
+    
+    /**
+     * Warning messages if any warnings occurred
+     */
+    private List<String> warnings;
+    
+    /**
+     * Suggestions for improving the query
+     */
+    private List<String> suggestions;
+    
+    /**
+     * Related queries that might be of interest
+     */
+    private List<String> relatedQueries;
+    
+    /**
+     * Facets for filtering results
+     */
+    private Map<String, List<String>> facets;
+    
+    /**
+     * Aggregations for analytics
+     */
+    private Map<String, Object> aggregations;
+    
+    /**
+     * Confidence score for the overall response quality
+     */
+    private Double confidenceScore;
+    
+    /**
+     * Whether the response quality meets the threshold
+     */
+    private Boolean qualityThresholdMet;
+    
+    /**
+     * RAG Document inner class
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RAGDocument {
+        
+        /**
+         * Document ID
+         */
+        private String id;
+        
+        /**
+         * Document content
+         */
+        private String content;
+        
+        /**
+         * Document title
+         */
+        private String title;
+        
+        /**
+         * Document type
+         */
+        private String type;
+        
+        /**
+         * Relevance score (0.0 to 1.0)
+         */
+        private Double score;
+        
+        /**
+         * Similarity score
+         */
+        private Double similarity;
+        
+        /**
+         * Document metadata
+         */
+        private Map<String, Object> metadata;
+        
+        /**
+         * Document embeddings (if requested)
+         */
+        private List<Double> embeddings;
+        
+        /**
+         * Highlighted content with search terms
+         */
+        private String highlightedContent;
+        
+        /**
+         * Document source
+         */
+        private String source;
+        
+        /**
+         * Document URL or reference
+         */
+        private String url;
+        
+        /**
+         * Document creation date
+         */
+        private LocalDateTime createdAt;
+        
+        /**
+         * Document last modified date
+         */
+        private LocalDateTime modifiedAt;
+        
+        /**
+         * Document author
+         */
+        private String author;
+        
+        /**
+         * Document tags
+         */
+        private List<String> tags;
+        
+        /**
+         * Document language
+         */
+        private String language;
+        
+        /**
+         * Document size in characters
+         */
+        private Integer size;
+        
+        /**
+         * Document word count
+         */
+        private Integer wordCount;
+        
+        /**
+         * Document reading time in minutes
+         */
+        private Double readingTimeMinutes;
+        
+        /**
+         * Document quality score
+         */
+        private Double qualityScore;
+        
+        /**
+         * Document freshness score
+         */
+        private Double freshnessScore;
+        
+        /**
+         * Document authority score
+         */
+        private Double authorityScore;
+    }
 }

@@ -1,21 +1,29 @@
 package com.ai.infrastructure.config;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
  * AI Service Configuration
  * 
- * This configuration class manages AI service settings, feature toggles,
- * and service-specific configurations.
+ * Centralized configuration for AI services including provider settings,
+ * performance tuning, and feature flags.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Component
 @ConfigurationProperties(prefix = "ai.service")
 public class AIServiceConfig {
@@ -23,137 +31,323 @@ public class AIServiceConfig {
     /**
      * Whether AI services are enabled
      */
-    private boolean enabled = true;
+    @Builder.Default
+    private Boolean enabled = true;
     
     /**
-     * Whether to enable auto-configuration
+     * Default AI provider
      */
-    private boolean autoConfiguration = true;
+    @Builder.Default
+    private String defaultProvider = "openai";
     
     /**
-     * Whether to enable caching
+     * Fallback AI provider
      */
-    private boolean cachingEnabled = true;
+    @Builder.Default
+    private String fallbackProvider = "anthropic";
     
     /**
-     * Whether to enable metrics collection
+     * Request timeout configuration
      */
-    private boolean metricsEnabled = true;
+    private TimeoutConfig timeout;
     
     /**
-     * Whether to enable health checks
+     * Retry configuration
      */
-    private boolean healthChecksEnabled = true;
+    private RetryConfig retry;
     
     /**
-     * Whether to enable logging
+     * Rate limiting configuration
      */
-    private boolean loggingEnabled = true;
+    private RateLimitConfig rateLimit;
     
     /**
-     * Default timeout for AI operations in milliseconds
+     * Caching configuration
      */
-    private long defaultTimeout = 30000;
+    private CacheConfig cache;
     
     /**
-     * Maximum retry attempts for AI operations
+     * Performance configuration
      */
-    private int maxRetries = 3;
+    private PerformanceConfig performance;
     
     /**
-     * Retry delay in milliseconds
+     * Feature flags
      */
-    private long retryDelay = 1000;
+    private FeatureFlags features;
     
     /**
-     * Whether to enable async processing
+     * Provider-specific configurations
      */
-    private boolean asyncEnabled = true;
+    private Map<String, ProviderConfig> providers;
     
     /**
-     * Thread pool size for async operations
+     * Model configurations
      */
-    private int threadPoolSize = 10;
+    private Map<String, ModelConfig> models;
     
     /**
-     * Whether to enable batch processing
+     * Security configuration
      */
-    private boolean batchProcessingEnabled = true;
+    private SecurityConfig security;
     
     /**
-     * Batch size for processing
+     * Monitoring configuration
      */
-    private int batchSize = 100;
+    private MonitoringConfig monitoring;
     
     /**
-     * Whether to enable rate limiting
-     */
-    private boolean rateLimitingEnabled = true;
-    
-    /**
-     * Rate limit per minute
-     */
-    private int rateLimitPerMinute = 1000;
-    
-    /**
-     * Whether to enable circuit breaker
-     */
-    private boolean circuitBreakerEnabled = true;
-    
-    /**
-     * Circuit breaker failure threshold
-     */
-    private int circuitBreakerThreshold = 5;
-    
-    /**
-     * Circuit breaker timeout in milliseconds
-     */
-    private long circuitBreakerTimeout = 60000;
-    
-    /**
-     * Whether to enable feature flags
-     */
-    private boolean featureFlagsEnabled = true;
-    
-    /**
-     * Feature flags configuration
-     */
-    private Map<String, Boolean> featureFlags = Map.of(
-        "embedding.enabled", true,
-        "search.enabled", true,
-        "rag.enabled", true,
-        "validation.enabled", true,
-        "recommendations.enabled", true,
-        "generation.enabled", true
-    );
-    
-    /**
-     * Service-specific configurations
-     */
-    private Map<String, ServiceConfig> services = Map.of(
-        "embedding", new ServiceConfig(true, 1000, 5000),
-        "search", new ServiceConfig(true, 500, 3000),
-        "rag", new ServiceConfig(true, 2000, 10000),
-        "validation", new ServiceConfig(true, 100, 1000),
-        "recommendations", new ServiceConfig(true, 300, 2000),
-        "generation", new ServiceConfig(true, 1000, 5000)
-    );
-    
-    /**
-     * Service configuration class
+     * Timeout Configuration
      */
     @Data
-    public static class ServiceConfig {
-        private boolean enabled;
-        private int rateLimit;
-        private long timeout;
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TimeoutConfig {
+        @Builder.Default
+        private Duration defaultTimeout = Duration.ofSeconds(30);
         
-        public ServiceConfig() {}
+        @Builder.Default
+        private Duration embeddingTimeout = Duration.ofSeconds(15);
         
-        public ServiceConfig(boolean enabled, int rateLimit, long timeout) {
-            this.enabled = enabled;
-            this.rateLimit = rateLimit;
-            this.timeout = timeout;
-        }
+        @Builder.Default
+        private Duration generationTimeout = Duration.ofSeconds(60);
+        
+        @Builder.Default
+        private Duration searchTimeout = Duration.ofSeconds(10);
+        
+        @Builder.Default
+        private Duration ragTimeout = Duration.ofSeconds(45);
+    }
+    
+    /**
+     * Retry Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RetryConfig {
+        @Builder.Default
+        private Integer maxAttempts = 3;
+        
+        @Builder.Default
+        private Duration initialDelay = Duration.ofMillis(1000);
+        
+        @Builder.Default
+        private Double backoffMultiplier = 2.0;
+        
+        @Builder.Default
+        private Duration maxDelay = Duration.ofSeconds(30);
+        
+        @Builder.Default
+        private List<Integer> retryableStatusCodes = List.of(429, 500, 502, 503, 504);
+    }
+    
+    /**
+     * Rate Limit Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RateLimitConfig {
+        @Builder.Default
+        private Integer requestsPerMinute = 60;
+        
+        @Builder.Default
+        private Integer requestsPerHour = 1000;
+        
+        @Builder.Default
+        private Integer requestsPerDay = 10000;
+        
+        @Builder.Default
+        private Boolean enabled = true;
+        
+        @Builder.Default
+        private String strategy = "sliding_window";
+    }
+    
+    /**
+     * Cache Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CacheConfig {
+        @Builder.Default
+        private Boolean enabled = true;
+        
+        @Builder.Default
+        private Duration defaultTtl = Duration.ofHours(1);
+        
+        @Builder.Default
+        private Long maxSize = 10000L;
+        
+        @Builder.Default
+        private String evictionPolicy = "LRU";
+        
+        @Builder.Default
+        private Boolean enableMetrics = true;
+    }
+    
+    /**
+     * Performance Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PerformanceConfig {
+        @Builder.Default
+        private Integer maxConcurrentRequests = 10;
+        
+        @Builder.Default
+        private Integer threadPoolSize = 20;
+        
+        @Builder.Default
+        private Boolean enableAsyncProcessing = true;
+        
+        @Builder.Default
+        private Boolean enableBatching = true;
+        
+        @Builder.Default
+        private Integer batchSize = 10;
+        
+        @Builder.Default
+        private Duration batchTimeout = Duration.ofMillis(100);
+    }
+    
+    /**
+     * Feature Flags
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FeatureFlags {
+        @Builder.Default
+        private Boolean enableRAG = true;
+        
+        @Builder.Default
+        private Boolean enableEmbeddings = true;
+        
+        @Builder.Default
+        private Boolean enableSearch = true;
+        
+        @Builder.Default
+        private Boolean enableGeneration = true;
+        
+        @Builder.Default
+        private Boolean enableCaching = true;
+        
+        @Builder.Default
+        private Boolean enableMonitoring = true;
+        
+        @Builder.Default
+        private Boolean enableAnalytics = true;
+        
+        @Builder.Default
+        private Boolean enableHealthChecks = true;
+        
+        @Builder.Default
+        private Boolean enableAutoScaling = false;
+        
+        @Builder.Default
+        private Boolean enableMultiProvider = true;
+    }
+    
+    /**
+     * Provider Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProviderConfig {
+        private String name;
+        private String apiKey;
+        private String baseUrl;
+        private String defaultModel;
+        private Integer priority;
+        private Boolean enabled;
+        private Map<String, Object> parameters;
+    }
+    
+    /**
+     * Model Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ModelConfig {
+        private String name;
+        private String provider;
+        private String type;
+        private Integer maxTokens;
+        private Double temperature;
+        private Double topP;
+        private Integer topK;
+        private Boolean enabled;
+        private Map<String, Object> parameters;
+    }
+    
+    /**
+     * Security Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SecurityConfig {
+        @Builder.Default
+        private Boolean enableEncryption = true;
+        
+        @Builder.Default
+        private Boolean enableAuditLogging = true;
+        
+        @Builder.Default
+        private Boolean enableDataMasking = false;
+        
+        @Builder.Default
+        private List<String> allowedOrigins = List.of("*");
+        
+        @Builder.Default
+        private Boolean requireAuthentication = false;
+        
+        @Builder.Default
+        private String encryptionAlgorithm = "AES-256-GCM";
+    }
+    
+    /**
+     * Monitoring Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MonitoringConfig {
+        @Builder.Default
+        private Boolean enableMetrics = true;
+        
+        @Builder.Default
+        private Boolean enableTracing = true;
+        
+        @Builder.Default
+        private Boolean enableLogging = true;
+        
+        @Builder.Default
+        private String metricsPrefix = "ai.service";
+        
+        @Builder.Default
+        private Duration metricsInterval = Duration.ofSeconds(30);
+        
+        @Builder.Default
+        private Boolean enableHealthChecks = true;
+        
+        @Builder.Default
+        private Duration healthCheckInterval = Duration.ofMinutes(1);
     }
 }

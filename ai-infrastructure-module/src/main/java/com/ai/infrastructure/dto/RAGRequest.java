@@ -9,10 +9,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Request DTO for RAG operations
+ * RAG Request DTO
  * 
- * This DTO contains all necessary information for performing
- * Retrieval-Augmented Generation operations.
+ * Represents a request for Retrieval-Augmented Generation (RAG) operations.
+ * Contains query parameters, context preferences, and filtering options.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
@@ -24,84 +24,100 @@ import java.util.Map;
 public class RAGRequest {
     
     /**
-     * The query or question to process
+     * The query text for RAG processing
      */
     private String query;
     
     /**
-     * Entity type to search within
+     * The type of entity being queried
      */
     private String entityType;
     
     /**
      * Maximum number of results to retrieve
      */
-    private int limit;
+    @Builder.Default
+    private Integer limit = 10;
     
     /**
-     * Similarity threshold for results
+     * Similarity threshold for results (0.0 to 1.0)
      */
-    private double threshold;
+    @Builder.Default
+    private Double threshold = 0.7;
     
     /**
-     * Context for the query
+     * Context parameters for enhanced retrieval
      */
-    private String context;
+    private Map<String, Object> context;
     
     /**
-     * Additional filters to apply
+     * Search preferences and filters
      */
     private Map<String, Object> filters;
     
     /**
-     * Whether to include metadata in results
+     * Additional metadata for the request
      */
-    private boolean includeMetadata;
+    private Map<String, Object> metadata;
     
     /**
-     * Whether to enable hybrid search
+     * User ID for personalized results
      */
-    private boolean enableHybridSearch;
+    private String userId;
     
     /**
-     * Whether to enable contextual search
+     * Session ID for tracking
      */
-    private boolean enableContextualSearch;
+    private String sessionId;
     
     /**
-     * Custom search parameters
+     * Whether to include embeddings in response
      */
-    private Map<String, Object> searchParams;
+    @Builder.Default
+    private Boolean includeEmbeddings = false;
     
     /**
-     * Knowledge categories to search
+     * Whether to include metadata in response
      */
-    private List<String> categories;
+    @Builder.Default
+    private Boolean includeMetadata = true;
     
     /**
-     * Whether to enable semantic search
+     * Language preference for results
      */
-    private boolean enableSemanticSearch;
+    private String language;
     
     /**
-     * Whether to enable keyword search
+     * Specific fields to search in
      */
-    private boolean enableKeywordSearch;
+    private List<String> searchFields;
     
     /**
-     * Maximum context length for generation
+     * Sort preferences
      */
-    private int maxContextLength;
+    private Map<String, String> sortBy;
     
     /**
-     * Whether to rank results by relevance
+     * Request timeout in milliseconds
      */
-    private boolean rankByRelevance;
+    @Builder.Default
+    private Long timeoutMs = 30000L;
     
     /**
-     * Custom ranking parameters
+     * Whether to use hybrid search (vector + text)
      */
-    private Map<String, Object> rankingParams;
+    @Builder.Default
+    private Boolean useHybridSearch = true;
+    
+    /**
+     * Boost factors for different fields
+     */
+    private Map<String, Double> boostFactors;
+    
+    /**
+     * Custom scoring function
+     */
+    private String scoringFunction;
     
     /**
      * Request ID for tracking
@@ -109,12 +125,25 @@ public class RAGRequest {
     private String requestId;
     
     /**
-     * User ID for personalization
+     * Timestamp when request was created
      */
-    private String userId;
+    private Long timestamp;
     
     /**
-     * Session ID for context
+     * Priority level for processing
      */
-    private String sessionId;
+    @Builder.Default
+    private Integer priority = 1;
+    
+    /**
+     * Whether to cache the results
+     */
+    @Builder.Default
+    private Boolean cacheable = true;
+    
+    /**
+     * Cache TTL in seconds
+     */
+    @Builder.Default
+    private Long cacheTtlSeconds = 3600L;
 }

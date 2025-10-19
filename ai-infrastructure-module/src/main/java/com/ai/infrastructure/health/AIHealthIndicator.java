@@ -1,21 +1,23 @@
 package com.ai.infrastructure.health;
 
-import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.dto.AIHealthDto;
+import com.ai.infrastructure.monitoring.AIHealthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-// Health indicator without Spring Boot Actuator dependency
+import org.springframework.boot.actuator.health.Health;
+import org.springframework.boot.actuator.health.HealthIndicator;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
  * AI Health Indicator
  * 
- * This component provides health checks for AI services and configuration.
- * It integrates with Spring Boot Actuator for monitoring and health endpoints.
+ * Spring Boot Actuator health indicator for AI infrastructure services.
+ * Provides health status for AI services, providers, and overall system health.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
@@ -23,196 +25,214 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class AIHealthIndicator {
+public class AIHealthIndicator implements HealthIndicator {
     
-    private final AIProviderConfig providerConfig;
-    private final AIServiceConfig serviceConfig;
+    private final AIHealthService aiHealthService;
+    private final AIConfigurationService configurationService;
+    private final AIServiceConfig aiServiceConfig;
     
-    /**
-     * Perform health check
-     * 
-     * @return health status map
-     */
-    public Map<String, Object> health() {
+    @Override
+    public Health health() {
         try {
             log.debug("Performing AI health check");
             
-            Map<String, Object> details = new HashMap<>();
-            
             // Check if AI services are enabled
-            if (!serviceConfig.isEnabled()) {
-                details.put("status", "DISABLED");
-                details.put("message", "AI services are disabled");
-                details.put("healthy", false);
-                return details;
+            if (!aiServiceConfig.getEnabled()) {
+                return Health.down()
+                    .withDetail("status", "AI services disabled")
+                    .withDetail("timestamp", LocalDateTime.now())
+                    .build();
             }
             
-            // Check configuration validity
-            boolean configValid = isConfigurationValid();
-            if (!configValid) {
-                details.put("status", "INVALID_CONFIG");
-                details.put("message", "AI configuration is invalid");
-                details.put("healthy", false);
-                return details;
-            }
+            // Get comprehensive health information
+            AIHealthDto healthInfo = aiHealthService.getHealthStatus();
             
-            // Check provider configuration
-            boolean providerValid = isProviderConfigurationValid();
-            if (!providerValid) {
-                details.put("status", "INVALID_PROVIDER_CONFIG");
-                details.put("message", "AI provider configuration is invalid");
-                details.put("healthy", false);
-                return details;
-            }
+            // Determine overall health status
+            Health.Builder healthBuilder = determineHealthStatus(healthInfo);
             
-            // Check service configuration
-            boolean serviceValid = isServiceConfigurationValid();
-            if (!serviceValid) {
-                details.put("status", "INVALID_SERVICE_CONFIG");
-                details.put("message", "AI service configuration is invalid");
-                details.put("healthy", false);
-                return details;
-            }
+            // Add detailed health information
+            addHealthDetails(healthBuilder, healthInfo);
             
-            // All checks passed
-            details.put("status", "UP");
-            details.put("message", "AI services are healthy");
-            details.put("healthy", true);
-            details.put("enabled", serviceConfig.isEnabled());
-            details.put("featuresEnabled", serviceConfig.getFeatureFlags().values().stream().mapToInt(b -> b ? 1 : 0).sum());
-            details.put("totalFeatures", serviceConfig.getFeatureFlags().size());
-            details.put("servicesEnabled", serviceConfig.getServices().values().stream().mapToInt(s -> s.isEnabled() ? 1 : 0).sum());
-            details.put("totalServices", serviceConfig.getServices().size());
-            details.put("cachingEnabled", serviceConfig.isCachingEnabled());
-            details.put("metricsEnabled", serviceConfig.isMetricsEnabled());
-            details.put("healthChecksEnabled", serviceConfig.isHealthChecksEnabled());
-            details.put("asyncEnabled", serviceConfig.isAsyncEnabled());
-            details.put("batchProcessingEnabled", serviceConfig.isBatchProcessingEnabled());
-            details.put("rateLimitingEnabled", serviceConfig.isRateLimitingEnabled());
-            details.put("circuitBreakerEnabled", serviceConfig.isCircuitBreakerEnabled());
+            // Add configuration information
+            addConfigurationDetails(healthBuilder);
             
-            log.debug("AI health check completed successfully");
-            return details;
+            // Add system information
+            addSystemDetails(healthBuilder);
+            
+            Health health = healthBuilder.build();
+            log.debug("AI health check completed: {}", health.getStatus());
+            
+            return health;
             
         } catch (Exception e) {
-            log.error("Error during AI health check", e);
-            Map<String, Object> errorDetails = new HashMap<>();
-            errorDetails.put("status", "ERROR");
-            errorDetails.put("message", "Error during health check: " + e.getMessage());
-            errorDetails.put("healthy", false);
-            errorDetails.put("error", e.getClass().getSimpleName());
-            return errorDetails;
+            log.error("AI health check failed", e);
+            return Health.down()
+                .withDetail("error", e.getMessage())
+                .withDetail("timestamp", LocalDateTime.now())
+                .withException(e)
+                .build();
         }
+    }
+    
+    /**
+     * Determine the overall health status based on health information
+     */
+    private Health.Builder determineHealthStatus(AIHealthDto healthInfo) {
+        boolean isHealthy = healthInfo.isHealthy();
+        String status = healthInfo.getStatus();
+        
+        if (isHealthy && "UP".equals(status)) {
+            return Health.up();
+        } else if ("DEGRADED".equals(status)) {
+            return Health.status("DEGRADED");
+        } else {
+            return Health.down();
+        }
+    }
+    
+    /**
+     * Add detailed health information to the health response
+     */
+    private void addHealthDetails(Health.Builder healthBuilder, AIHealthDto healthInfo) {
+        healthBuilder
+            .withDetail("ai.health.status", healthInfo.getStatus())
+            .withDetail("ai.health.healthy", healthInfo.isHealthy())
+            .withDetail("ai.health.timestamp", healthInfo.getLastUpdated())
+            .withDetail("ai.health.version", healthInfo.getVersion());
+        
+        // Add error message if present
+        if (healthInfo.getErrorMessage() != null && !healthInfo.getErrorMessage().isEmpty()) {
+            healthBuilder.withDetail("ai.health.error", healthInfo.getErrorMessage());
+        }
+        
+        // Add performance metrics
+        if (healthInfo.getPerformanceMetrics() != null) {
+            healthBuilder.withDetail("ai.health.performance", healthInfo.getPerformanceMetrics());
+        }
+        
+        // Add provider status
+        if (healthInfo.getProviderStatus() != null) {
+            healthBuilder.withDetail("ai.health.providers", healthInfo.getProviderStatus());
+        }
+        
+        // Add service status
+        if (healthInfo.getServiceStatus() != null) {
+            healthBuilder.withDetail("ai.health.services", healthInfo.getServiceStatus());
+        }
+        
+        // Add system status
+        if (healthInfo.getSystemStatus() != null) {
+            healthBuilder.withDetail("ai.health.system", healthInfo.getSystemStatus());
+        }
+    }
+    
+    /**
+     * Add configuration details to the health response
+     */
+    private void addConfigurationDetails(Health.Builder healthBuilder) {
+        try {
+            Map<String, Object> configSummary = configurationService.getConfigurationSummary();
+            healthBuilder.withDetail("ai.config", configSummary);
+            
+            // Add specific configuration details
+            healthBuilder
+                .withDetail("ai.config.enabled", aiServiceConfig.getEnabled())
+                .withDetail("ai.config.defaultProvider", aiServiceConfig.getDefaultProvider())
+                .withDetail("ai.config.fallbackProvider", aiServiceConfig.getFallbackProvider());
+            
+            // Add feature flags
+            if (aiServiceConfig.getFeatures() != null) {
+                healthBuilder.withDetail("ai.config.features", Map.of(
+                    "rag", aiServiceConfig.getFeatures().getEnableRAG(),
+                    "embeddings", aiServiceConfig.getFeatures().getEnableEmbeddings(),
+                    "search", aiServiceConfig.getFeatures().getEnableSearch(),
+                    "generation", aiServiceConfig.getFeatures().getEnableGeneration(),
+                    "caching", aiServiceConfig.getFeatures().getEnableCaching(),
+                    "monitoring", aiServiceConfig.getFeatures().getEnableMonitoring()
+                ));
+            }
+            
+        } catch (Exception e) {
+            log.warn("Failed to add configuration details to health check", e);
+            healthBuilder.withDetail("ai.config.error", "Failed to load configuration details");
+        }
+    }
+    
+    /**
+     * Add system details to the health response
+     */
+    private void addSystemDetails(Health.Builder healthBuilder) {
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            long totalMemory = runtime.totalMemory();
+            long freeMemory = runtime.freeMemory();
+            long usedMemory = totalMemory - freeMemory;
+            long maxMemory = runtime.maxMemory();
+            
+            healthBuilder
+                .withDetail("ai.system.memory.total", totalMemory)
+                .withDetail("ai.system.memory.used", usedMemory)
+                .withDetail("ai.system.memory.free", freeMemory)
+                .withDetail("ai.system.memory.max", maxMemory)
+                .withDetail("ai.system.memory.usagePercent", (double) usedMemory / maxMemory * 100)
+                .withDetail("ai.system.processors", runtime.availableProcessors())
+                .withDetail("ai.system.uptime", System.currentTimeMillis() - getStartTime());
+            
+        } catch (Exception e) {
+            log.warn("Failed to add system details to health check", e);
+            healthBuilder.withDetail("ai.system.error", "Failed to load system details");
+        }
+    }
+    
+    /**
+     * Get application start time (simplified implementation)
+     */
+    private long getStartTime() {
+        // This is a simplified implementation
+        // In a real application, you might want to track the actual start time
+        return System.currentTimeMillis() - (24 * 60 * 60 * 1000); // Assume 24 hours ago
     }
     
     /**
      * Get detailed health information
-     * 
-     * @return detailed health information
      */
     public AIHealthDto getDetailedHealth() {
-        log.debug("Retrieving detailed AI health information");
-        
-        AIHealthDto health = new AIHealthDto();
-        
-        // Basic status
-        health.setEnabled(serviceConfig.isEnabled());
-        health.setStatus(serviceConfig.isEnabled() ? "UP" : "DOWN");
-        
-        // Configuration status
-        health.setConfigurationValid(isConfigurationValid());
-        health.setProviderConfigurationValid(isProviderConfigurationValid());
-        health.setServiceConfigurationValid(isServiceConfigurationValid());
-        
-        // Feature status
-        health.setFeaturesEnabled(serviceConfig.getFeatureFlags().values().stream().mapToInt(b -> b ? 1 : 0).sum());
-        health.setTotalFeatures(serviceConfig.getFeatureFlags().size());
-        
-        // Service status
-        health.setServicesEnabled(serviceConfig.getServices().values().stream().mapToInt(s -> s.isEnabled() ? 1 : 0).sum());
-        health.setTotalServices(serviceConfig.getServices().size());
-        
-        // Capability status
-        health.setCachingEnabled(serviceConfig.isCachingEnabled());
-        health.setMetricsEnabled(serviceConfig.isMetricsEnabled());
-        health.setHealthChecksEnabled(serviceConfig.isHealthChecksEnabled());
-        health.setAsyncEnabled(serviceConfig.isAsyncEnabled());
-        health.setBatchProcessingEnabled(serviceConfig.isBatchProcessingEnabled());
-        health.setRateLimitingEnabled(serviceConfig.isRateLimitingEnabled());
-        health.setCircuitBreakerEnabled(serviceConfig.isCircuitBreakerEnabled());
-        
-        // Provider information
-        health.setOpenaiConfigured(providerConfig.getOpenaiApiKey() != null && !providerConfig.getOpenaiApiKey().trim().isEmpty());
-        health.setPineconeConfigured(providerConfig.getPineconeApiKey() != null && !providerConfig.getPineconeApiKey().trim().isEmpty());
-        
-        return health;
+        return aiHealthService.getHealthStatus();
     }
     
     /**
-     * Check if configuration is valid
-     * 
-     * @return true if configuration is valid
+     * Check if AI services are healthy
      */
-    private boolean isConfigurationValid() {
+    public boolean isHealthy() {
         try {
-            // Check basic configuration
-            return serviceConfig.getDefaultTimeout() > 0 &&
-                   serviceConfig.getMaxRetries() >= 0 &&
-                   serviceConfig.getRetryDelay() >= 0 &&
-                   serviceConfig.getThreadPoolSize() > 0 &&
-                   serviceConfig.getBatchSize() > 0 &&
-                   serviceConfig.getRateLimitPerMinute() > 0 &&
-                   serviceConfig.getCircuitBreakerThreshold() > 0 &&
-                   serviceConfig.getCircuitBreakerTimeout() > 0;
+            AIHealthDto healthInfo = aiHealthService.getHealthStatus();
+            return healthInfo.isHealthy() && "UP".equals(healthInfo.getStatus());
         } catch (Exception e) {
-            log.warn("Error validating configuration", e);
+            log.error("Failed to check AI health status", e);
             return false;
         }
     }
     
     /**
-     * Check if provider configuration is valid
-     * 
-     * @return true if provider configuration is valid
+     * Get health status summary
      */
-    private boolean isProviderConfigurationValid() {
+    public Map<String, Object> getHealthSummary() {
         try {
-            // Check OpenAI configuration
-            boolean openaiValid = providerConfig.getOpenaiApiKey() != null && 
-                                !providerConfig.getOpenaiApiKey().trim().isEmpty() &&
-                                providerConfig.getOpenaiModel() != null && 
-                                !providerConfig.getOpenaiModel().trim().isEmpty() &&
-                                providerConfig.getOpenaiEmbeddingModel() != null && 
-                                !providerConfig.getOpenaiEmbeddingModel().trim().isEmpty();
-            
-            // Check Pinecone configuration (optional)
-            boolean pineconeValid = providerConfig.getPineconeApiKey() == null || 
-                                  providerConfig.getPineconeApiKey().trim().isEmpty() ||
-                                  (providerConfig.getPineconeEnvironment() != null && 
-                                   !providerConfig.getPineconeEnvironment().trim().isEmpty() &&
-                                   providerConfig.getPineconeIndexName() != null && 
-                                   !providerConfig.getPineconeIndexName().trim().isEmpty());
-            
-            return openaiValid && pineconeValid;
+            AIHealthDto healthInfo = aiHealthService.getHealthStatus();
+            return Map.of(
+                "status", healthInfo.getStatus(),
+                "healthy", healthInfo.isHealthy(),
+                "timestamp", healthInfo.getLastUpdated(),
+                "version", healthInfo.getVersion()
+            );
         } catch (Exception e) {
-            log.warn("Error validating provider configuration", e);
-            return false;
-        }
-    }
-    
-    /**
-     * Check if service configuration is valid
-     * 
-     * @return true if service configuration is valid
-     */
-    private boolean isServiceConfigurationValid() {
-        try {
-            // Check service configurations
-            return serviceConfig.getServices().values().stream()
-                .allMatch(service -> service.getRateLimit() > 0 && service.getTimeout() > 0);
-        } catch (Exception e) {
-            log.warn("Error validating service configuration", e);
-            return false;
+            log.error("Failed to get health summary", e);
+            return Map.of(
+                "status", "ERROR",
+                "healthy", false,
+                "error", e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            );
         }
     }
 }
