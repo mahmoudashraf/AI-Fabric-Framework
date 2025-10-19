@@ -1,343 +1,388 @@
 package com.ai.infrastructure.cache;
 
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.dto.AIGenerationResponse;
-import com.ai.infrastructure.dto.AIEmbeddingRequest;
-import com.ai.infrastructure.dto.AIEmbeddingResponse;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
-import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 
 /**
- * AI Intelligent Caching Service
+ * AI Intelligent Cache Service Interface
  * 
- * This service provides intelligent caching capabilities for AI operations
- * with automatic cache invalidation, similarity-based caching, and
- * performance optimization.
+ * Service for intelligent caching of AI responses with smart invalidation,
+ * performance optimization, and analytics.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class AIIntelligentCacheService {
-    
-    // Cache storage for different AI operations
-    private final Map<String, CacheEntry> contentGenerationCache = new ConcurrentHashMap<>();
-    private final Map<String, CacheEntry> embeddingCache = new ConcurrentHashMap<>();
-    private final Map<String, CacheEntry> searchCache = new ConcurrentHashMap<>();
-    
-    // Cache statistics
-    private final AtomicLong cacheHits = new AtomicLong(0);
-    private final AtomicLong cacheMisses = new AtomicLong(0);
-    private final AtomicLong cacheEvictions = new AtomicLong(0);
-    
-    // Cache configuration
-    private static final int MAX_CACHE_SIZE = 1000;
-    private static final long CACHE_TTL_MS = 3600000; // 1 hour
-    private static final double SIMILARITY_THRESHOLD = 0.95;
+public interface AIIntelligentCacheService {
     
     /**
-     * Cache AI content generation response
+     * Get cached value by key
      * 
-     * @param request the AI generation request
-     * @param response the AI generation response
+     * @param key the cache key
+     * @param type the expected type
+     * @return the cached value or null if not found
      */
-    @CachePut(value = "ai-content-generation", key = "#request.hashCode()")
-    public AIGenerationResponse cacheContentGeneration(AIGenerationRequest request, AIGenerationResponse response) {
-        log.debug("Caching content generation response for request: {}", request.getPrompt().substring(0, Math.min(50, request.getPrompt().length())));
-        
-        String cacheKey = generateCacheKey(request);
-        CacheEntry entry = CacheEntry.builder()
-            .key(cacheKey)
-            .value(response)
-            .timestamp(LocalDateTime.now())
-            .accessCount(1)
-            .lastAccessed(LocalDateTime.now())
-            .build();
-        
-        contentGenerationCache.put(cacheKey, entry);
-        evictIfNecessary(contentGenerationCache);
-        
-        return response;
-    }
+    <T> T get(String key, Class<T> type);
     
     /**
-     * Get cached AI content generation response
+     * Put value in cache with TTL
      * 
-     * @param request the AI generation request
-     * @return cached response or null if not found
+     * @param key the cache key
+     * @param value the value to cache
+     * @param ttl the time to live
      */
-    @Cacheable(value = "ai-content-generation", key = "#request.hashCode()")
-    public AIGenerationResponse getCachedContentGeneration(AIGenerationRequest request) {
-        log.debug("Checking cache for content generation request: {}", request.getPrompt().substring(0, Math.min(50, request.getPrompt().length())));
-        
-        String cacheKey = generateCacheKey(request);
-        CacheEntry entry = contentGenerationCache.get(cacheKey);
-        
-        if (entry != null && !isExpired(entry)) {
-            entry.setAccessCount(entry.getAccessCount() + 1);
-            entry.setLastAccessed(LocalDateTime.now());
-            cacheHits.incrementAndGet();
-            log.debug("Cache hit for content generation request");
-            return (AIGenerationResponse) entry.getValue();
-        }
-        
-        cacheMisses.incrementAndGet();
-        log.debug("Cache miss for content generation request");
-        return null;
-    }
+    void put(String key, Object value, Duration ttl);
     
     /**
-     * Cache AI embedding response
+     * Put value in cache with default TTL
      * 
-     * @param request the AI embedding request
-     * @param response the AI embedding response
+     * @param key the cache key
+     * @param value the value to cache
      */
-    @CachePut(value = "ai-embeddings", key = "#request.hashCode()")
-    public AIEmbeddingResponse cacheEmbedding(AIEmbeddingRequest request, AIEmbeddingResponse response) {
-        log.debug("Caching embedding response for text: {}", request.getText().substring(0, Math.min(50, request.getText().length())));
-        
-        String cacheKey = generateCacheKey(request);
-        CacheEntry entry = CacheEntry.builder()
-            .key(cacheKey)
-            .value(response)
-            .timestamp(LocalDateTime.now())
-            .accessCount(1)
-            .lastAccessed(LocalDateTime.now())
-            .build();
-        
-        embeddingCache.put(cacheKey, entry);
-        evictIfNecessary(embeddingCache);
-        
-        return response;
-    }
+    void put(String key, Object value);
     
     /**
-     * Get cached AI embedding response
+     * Evict specific key from cache
      * 
-     * @param request the AI embedding request
-     * @return cached response or null if not found
+     * @param key the key to evict
      */
-    @Cacheable(value = "ai-embeddings", key = "#request.hashCode()")
-    public AIEmbeddingResponse getCachedEmbedding(AIEmbeddingRequest request) {
-        log.debug("Checking cache for embedding request: {}", request.getText().substring(0, Math.min(50, request.getText().length())));
-        
-        String cacheKey = generateCacheKey(request);
-        CacheEntry entry = embeddingCache.get(cacheKey);
-        
-        if (entry != null && !isExpired(entry)) {
-            entry.setAccessCount(entry.getAccessCount() + 1);
-            entry.setLastAccessed(LocalDateTime.now());
-            cacheHits.incrementAndGet();
-            log.debug("Cache hit for embedding request");
-            return (AIEmbeddingResponse) entry.getValue();
-        }
-        
-        cacheMisses.incrementAndGet();
-        log.debug("Cache miss for embedding request");
-        return null;
-    }
+    void evict(String key);
     
     /**
-     * Cache AI search response
+     * Evict keys matching pattern
      * 
-     * @param request the AI search request
-     * @param response the AI search response
+     * @param pattern the pattern to match
      */
-    @CachePut(value = "ai-search", key = "#request.hashCode()")
-    public AISearchResponse cacheSearch(AISearchRequest request, AISearchResponse response) {
-        log.debug("Caching search response for query: {}", request.getQuery());
-        
-        String cacheKey = generateCacheKey(request);
-        CacheEntry entry = CacheEntry.builder()
-            .key(cacheKey)
-            .value(response)
-            .timestamp(LocalDateTime.now())
-            .accessCount(1)
-            .lastAccessed(LocalDateTime.now())
-            .build();
-        
-        searchCache.put(cacheKey, entry);
-        evictIfNecessary(searchCache);
-        
-        return response;
-    }
+    void evictByPattern(String pattern);
     
     /**
-     * Get cached AI search response
+     * Evict keys by tag
      * 
-     * @param request the AI search request
-     * @return cached response or null if not found
+     * @param tag the tag to evict
      */
-    @Cacheable(value = "ai-search", key = "#request.hashCode()")
-    public AISearchResponse getCachedSearch(AISearchRequest request) {
-        log.debug("Checking cache for search request: {}", request.getQuery());
-        
-        String cacheKey = generateCacheKey(request);
-        CacheEntry entry = searchCache.get(cacheKey);
-        
-        if (entry != null && !isExpired(entry)) {
-            entry.setAccessCount(entry.getAccessCount() + 1);
-            entry.setLastAccessed(LocalDateTime.now());
-            cacheHits.incrementAndGet();
-            log.debug("Cache hit for search request");
-            return (AISearchResponse) entry.getValue();
-        }
-        
-        cacheMisses.incrementAndGet();
-        log.debug("Cache miss for search request");
-        return null;
-    }
+    void evictByTag(String tag);
     
     /**
-     * Find similar cached content based on semantic similarity
+     * Evict keys by tags
      * 
-     * @param request the AI generation request
-     * @return similar cached response or null if not found
+     * @param tags the tags to evict
      */
-    public AIGenerationResponse findSimilarCachedContent(AIGenerationRequest request) {
-        log.debug("Searching for similar cached content for request: {}", request.getPrompt().substring(0, Math.min(50, request.getPrompt().length())));
-        
-        String requestPrompt = request.getPrompt().toLowerCase();
-        double bestSimilarity = 0.0;
-        AIGenerationResponse bestResponse = null;
-        
-        for (CacheEntry entry : contentGenerationCache.values()) {
-            if (isExpired(entry)) continue;
-            
-            AIGenerationRequest cachedRequest = (AIGenerationRequest) entry.getMetadata().get("request");
-            if (cachedRequest == null) continue;
-            
-            String cachedPrompt = cachedRequest.getPrompt().toLowerCase();
-            double similarity = calculateTextSimilarity(requestPrompt, cachedPrompt);
-            
-            if (similarity > SIMILARITY_THRESHOLD && similarity > bestSimilarity) {
-                bestSimilarity = similarity;
-                bestResponse = (AIGenerationResponse) entry.getValue();
-            }
-        }
-        
-        if (bestResponse != null) {
-            cacheHits.incrementAndGet();
-            log.debug("Found similar cached content with similarity: {}", bestSimilarity);
-        } else {
-            cacheMisses.incrementAndGet();
-            log.debug("No similar cached content found");
-        }
-        
-        return bestResponse;
-    }
-    
-    /**
-     * Clear all caches
-     */
-    @CacheEvict(value = {"ai-content-generation", "ai-embeddings", "ai-search"}, allEntries = true)
-    public void clearAllCaches() {
-        log.info("Clearing all AI caches");
-        
-        contentGenerationCache.clear();
-        embeddingCache.clear();
-        searchCache.clear();
-        
-        cacheHits.set(0);
-        cacheMisses.set(0);
-        cacheEvictions.set(0);
-        
-        log.info("All AI caches cleared");
-    }
+    void evictByTags(List<String> tags);
     
     /**
      * Get cache statistics
      * 
      * @return cache statistics
      */
-    public Map<String, Object> getCacheStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        
-        long totalRequests = cacheHits.get() + cacheMisses.get();
-        double hitRate = totalRequests > 0 ? (double) cacheHits.get() / totalRequests : 0.0;
-        
-        stats.put("cacheHits", cacheHits.get());
-        stats.put("cacheMisses", cacheMisses.get());
-        stats.put("cacheEvictions", cacheEvictions.get());
-        stats.put("hitRate", hitRate);
-        stats.put("contentGenerationCacheSize", contentGenerationCache.size());
-        stats.put("embeddingCacheSize", embeddingCache.size());
-        stats.put("searchCacheSize", searchCache.size());
-        stats.put("totalCacheSize", contentGenerationCache.size() + embeddingCache.size() + searchCache.size());
-        
-        return stats;
-    }
+    CacheStatistics getStatistics();
     
     /**
-     * Generate cache key for request
+     * Clear all cache entries
      */
-    private String generateCacheKey(Object request) {
-        return String.valueOf(request.hashCode());
-    }
+    void clear();
     
     /**
-     * Check if cache entry is expired
+     * Check if cache is enabled
+     * 
+     * @return true if enabled, false otherwise
      */
-    private boolean isExpired(CacheEntry entry) {
-        return entry.getTimestamp().plusNanos(CACHE_TTL_MS * 1_000_000).isBefore(LocalDateTime.now());
-    }
+    boolean isEnabled();
     
     /**
-     * Evict entries if cache is full
+     * Check if key exists in cache
+     * 
+     * @param key the key to check
+     * @return true if exists, false otherwise
      */
-    private void evictIfNecessary(Map<String, CacheEntry> cache) {
-        if (cache.size() > MAX_CACHE_SIZE) {
-            // Remove least recently used entries
-            cache.entrySet().stream()
-                .sorted(Map.Entry.comparingByValue(Comparator.comparing(CacheEntry::getLastAccessed)))
-                .limit(cache.size() - MAX_CACHE_SIZE + 10) // Remove 10 extra entries
-                .forEach(entry -> {
-                    cache.remove(entry.getKey());
-                    cacheEvictions.incrementAndGet();
-                });
-        }
-    }
+    boolean exists(String key);
     
     /**
-     * Calculate text similarity using simple word overlap
+     * Get cache size
+     * 
+     * @return number of entries in cache
      */
-    private double calculateTextSimilarity(String text1, String text2) {
-        Set<String> words1 = new HashSet<>(Arrays.asList(text1.split("\\s+")));
-        Set<String> words2 = new HashSet<>(Arrays.asList(text2.split("\\s+")));
-        
-        Set<String> intersection = new HashSet<>(words1);
-        intersection.retainAll(words2);
-        
-        Set<String> union = new HashSet<>(words1);
-        union.addAll(words2);
-        
-        return union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
-    }
+    long size();
     
     /**
-     * Cache entry
+     * Get cache memory usage
+     * 
+     * @return memory usage in bytes
      */
-    @lombok.Data
-    @lombok.Builder
-    public static class CacheEntry {
-        private String key;
-        private Object value;
-        private LocalDateTime timestamp;
-        private int accessCount;
-        private LocalDateTime lastAccessed;
-        private Map<String, Object> metadata;
-    }
+    long getMemoryUsage();
+    
+    /**
+     * Get cache hit rate
+     * 
+     * @return hit rate as percentage
+     */
+    double getHitRate();
+    
+    /**
+     * Get cache miss rate
+     * 
+     * @return miss rate as percentage
+     */
+    double getMissRate();
+    
+    /**
+     * Get cache eviction count
+     * 
+     * @return number of evictions
+     */
+    long getEvictionCount();
+    
+    /**
+     * Get cache expiration count
+     * 
+     * @return number of expirations
+     */
+    long getExpirationCount();
+    
+    /**
+     * Get cache load count
+     * 
+     * @return number of loads
+     */
+    long getLoadCount();
+    
+    /**
+     * Get cache load time
+     * 
+     * @return total load time in milliseconds
+     */
+    long getLoadTime();
+    
+    /**
+     * Get cache average load time
+     * 
+     * @return average load time in milliseconds
+     */
+    double getAverageLoadTime();
+    
+    /**
+     * Get cache hit count
+     * 
+     * @return number of hits
+     */
+    long getHitCount();
+    
+    /**
+     * Get cache miss count
+     * 
+     * @return number of misses
+     */
+    long getMissCount();
+    
+    /**
+     * Get cache request count
+     * 
+     * @return total number of requests
+     */
+    long getRequestCount();
+    
+    /**
+     * Get cache average response time
+     * 
+     * @return average response time in milliseconds
+     */
+    double getAverageResponseTime();
+    
+    /**
+     * Get cache top keys by usage
+     * 
+     * @param limit maximum number of keys to return
+     * @return list of top keys
+     */
+    List<String> getTopKeys(int limit);
+    
+    /**
+     * Get cache keys by pattern
+     * 
+     * @param pattern the pattern to match
+     * @return list of matching keys
+     */
+    List<String> getKeysByPattern(String pattern);
+    
+    /**
+     * Get cache keys by tag
+     * 
+     * @param tag the tag to match
+     * @return list of matching keys
+     */
+    List<String> getKeysByTag(String tag);
+    
+    /**
+     * Get cache keys by tags
+     * 
+     * @param tags the tags to match
+     * @return list of matching keys
+     */
+    List<String> getKeysByTags(List<String> tags);
+    
+    /**
+     * Tag a cache key
+     * 
+     * @param key the cache key
+     * @param tag the tag to add
+     */
+    void tag(String key, String tag);
+    
+    /**
+     * Tag a cache key with multiple tags
+     * 
+     * @param key the cache key
+     * @param tags the tags to add
+     */
+    void tag(String key, List<String> tags);
+    
+    /**
+     * Remove tag from cache key
+     * 
+     * @param key the cache key
+     * @param tag the tag to remove
+     */
+    void untag(String key, String tag);
+    
+    /**
+     * Remove tags from cache key
+     * 
+     * @param key the cache key
+     * @param tags the tags to remove
+     */
+    void untag(String key, List<String> tags);
+    
+    /**
+     * Get tags for a cache key
+     * 
+     * @param key the cache key
+     * @return list of tags
+     */
+    List<String> getTags(String key);
+    
+    /**
+     * Get all tags in cache
+     * 
+     * @return list of all tags
+     */
+    List<String> getAllTags();
+    
+    /**
+     * Get cache configuration
+     * 
+     * @return cache configuration
+     */
+    CacheConfig getConfiguration();
+    
+    /**
+     * Update cache configuration
+     * 
+     * @param config the new configuration
+     */
+    void updateConfiguration(CacheConfig config);
+    
+    /**
+     * Warm up cache with data
+     * 
+     * @param data the data to warm up with
+     */
+    void warmUp(Map<String, Object> data);
+    
+    /**
+     * Preload cache with data
+     * 
+     * @param data the data to preload
+     */
+    void preload(Map<String, Object> data);
+    
+    /**
+     * Refresh cache entry
+     * 
+     * @param key the key to refresh
+     */
+    void refresh(String key);
+    
+    /**
+     * Refresh cache entries by pattern
+     * 
+     * @param pattern the pattern to refresh
+     */
+    void refreshByPattern(String pattern);
+    
+    /**
+     * Refresh cache entries by tag
+     * 
+     * @param tag the tag to refresh
+     */
+    void refreshByTag(String tag);
+    
+    /**
+     * Refresh cache entries by tags
+     * 
+     * @param tags the tags to refresh
+     */
+    void refreshByTags(List<String> tags);
+    
+    /**
+     * Get cache health status
+     * 
+     * @return health status
+     */
+    Map<String, Object> getHealthStatus();
+    
+    /**
+     * Get cache metrics
+     * 
+     * @return cache metrics
+     */
+    Map<String, Object> getMetrics();
+    
+    /**
+     * Get cache recommendations
+     * 
+     * @return cache optimization recommendations
+     */
+    List<String> getRecommendations();
+    
+    /**
+     * Optimize cache based on usage patterns
+     */
+    void optimize();
+    
+    /**
+     * Reset cache statistics
+     */
+    void resetStatistics();
+    
+    /**
+     * Export cache data
+     * 
+     * @return cache data as map
+     */
+    Map<String, Object> exportData();
+    
+    /**
+     * Import cache data
+     * 
+     * @param data the data to import
+     */
+    void importData(Map<String, Object> data);
+    
+    /**
+     * Backup cache data
+     * 
+     * @return backup data
+     */
+    Map<String, Object> backup();
+    
+    /**
+     * Restore cache data from backup
+     * 
+     * @param backup the backup data
+     */
+    void restore(Map<String, Object> backup);
+    
+    /**
+     * Shutdown cache service
+     */
+    void shutdown();
 }
