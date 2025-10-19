@@ -322,4 +322,34 @@ public @interface AIEmbedding {
      * The lifecycle methods for this embedding
      */
     String[] lifecycleMethods() default {};
+    
+    /**
+     * Weight for this embedding
+     */
+    double weight() default 1.0;
+    
+    /**
+     * Whether this embedding is required
+     */
+    boolean required() default false;
+    
+    /**
+     * Whether to preprocess this embedding
+     */
+    boolean preprocess() default true;
+    
+    /**
+     * Whether to include in similarity calculations
+     */
+    boolean includeInSimilarity() default true;
+    
+    /**
+     * Chunking strategy for this embedding
+     */
+    String chunkingStrategy() default "sentence";
+    
+    /**
+     * Maximum chunk size
+     */
+    int maxChunkSize() default 1000;
 }

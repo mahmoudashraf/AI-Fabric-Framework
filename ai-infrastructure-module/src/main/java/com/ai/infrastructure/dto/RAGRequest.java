@@ -146,4 +146,11 @@ public class RAGRequest {
      */
     @Builder.Default
     private Long cacheTtlSeconds = 3600L;
+    
+    // Additional fields for compatibility
+    @Builder.Default
+    private Boolean enableHybridSearch = true;
+    @Builder.Default
+    private Boolean enableContextualSearch = true;
+    private List<String> categories;
 }

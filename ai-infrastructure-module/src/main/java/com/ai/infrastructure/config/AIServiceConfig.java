@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Map;
 
 /**
  * AI Service Configuration
@@ -33,6 +34,124 @@ public class AIServiceConfig {
      */
     @Builder.Default
     private Boolean enabled = true;
+    
+    /**
+     * Whether auto-configuration is enabled
+     */
+    @Builder.Default
+    private Boolean autoConfiguration = true;
+    
+    /**
+     * Whether caching is enabled
+     */
+    @Builder.Default
+    private Boolean cachingEnabled = true;
+    
+    /**
+     * Whether metrics are enabled
+     */
+    @Builder.Default
+    private Boolean metricsEnabled = true;
+    
+    /**
+     * Whether health checks are enabled
+     */
+    @Builder.Default
+    private Boolean healthChecksEnabled = true;
+    
+    /**
+     * Whether logging is enabled
+     */
+    @Builder.Default
+    private Boolean loggingEnabled = true;
+    
+    /**
+     * Default timeout in seconds
+     */
+    @Builder.Default
+    private Integer defaultTimeout = 30;
+    
+    /**
+     * Maximum retries
+     */
+    @Builder.Default
+    private Integer maxRetries = 3;
+    
+    /**
+     * Retry delay in milliseconds
+     */
+    @Builder.Default
+    private Long retryDelay = 1000L;
+    
+    /**
+     * Whether async processing is enabled
+     */
+    @Builder.Default
+    private Boolean asyncEnabled = true;
+    
+    /**
+     * Thread pool size
+     */
+    @Builder.Default
+    private Integer threadPoolSize = 10;
+    
+    /**
+     * Whether batch processing is enabled
+     */
+    @Builder.Default
+    private Boolean batchProcessingEnabled = false;
+    
+    /**
+     * Batch size
+     */
+    @Builder.Default
+    private Integer batchSize = 100;
+    
+    /**
+     * Whether rate limiting is enabled
+     */
+    @Builder.Default
+    private Boolean rateLimitingEnabled = true;
+    
+    /**
+     * Rate limit per minute
+     */
+    @Builder.Default
+    private Integer rateLimitPerMinute = 60;
+    
+    /**
+     * Whether circuit breaker is enabled
+     */
+    @Builder.Default
+    private Boolean circuitBreakerEnabled = true;
+    
+    /**
+     * Circuit breaker threshold
+     */
+    @Builder.Default
+    private Integer circuitBreakerThreshold = 5;
+    
+    /**
+     * Circuit breaker timeout in seconds
+     */
+    @Builder.Default
+    private Integer circuitBreakerTimeout = 30;
+    
+    /**
+     * Whether feature flags are enabled
+     */
+    @Builder.Default
+    private Boolean featureFlagsEnabled = true;
+    
+    /**
+     * Feature flags
+     */
+    private Map<String, Boolean> featureFlags;
+    
+    /**
+     * Service configurations
+     */
+    private Map<String, ServiceConfig> services;
     
     /**
      * Default AI provider
@@ -349,5 +468,27 @@ public class AIServiceConfig {
         
         @Builder.Default
         private Duration healthCheckInterval = Duration.ofMinutes(1);
+    }
+    
+    /**
+     * Service Configuration
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ServiceConfig {
+        private String name;
+        private Boolean enabled;
+        private String provider;
+        private Map<String, Object> configuration;
+        private TimeoutConfig timeout;
+        private RetryConfig retry;
+        private RateLimitConfig rateLimit;
+        private Map<String, Object> metadata;
+        
+        public boolean isEnabled() {
+            return enabled != null && enabled;
+        }
     }
 }

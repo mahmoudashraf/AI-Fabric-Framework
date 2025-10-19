@@ -732,23 +732,6 @@ public class CacheConfig {
         @Builder.Default
         private Boolean enableDataLineage = false;
         
-        @Builder.Default
-        private Boolean enableDataGovernance = false;
-        
-        @Builder.Default
-        private Boolean enableDataCompliance = false;
-        
-        @Builder.Default
-        private Boolean enableDataSecurity = false;
-        
-        @Builder.Default
-        private Boolean enableDataPrivacy = false;
-        
-        @Builder.Default
-        private Boolean enableDataRetention = false;
-        
-        @Builder.Default
-        private Boolean enableDataLifecycle = false;
         
         @Builder.Default
         private Boolean enableDataMaintenance = false;

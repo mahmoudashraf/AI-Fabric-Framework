@@ -6,8 +6,6 @@ import com.ai.infrastructure.dto.AIHealthDto;
 import com.ai.infrastructure.monitoring.AIHealthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.actuator.health.Health;
-import org.springframework.boot.actuator.health.HealthIndicator;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -25,179 +23,135 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class AIHealthIndicator implements HealthIndicator {
+public class AIHealthIndicator {
     
     private final AIHealthService aiHealthService;
     private final AIConfigurationService configurationService;
     private final AIServiceConfig aiServiceConfig;
     
-    @Override
-    public Health health() {
+    /**
+     * Get health status
+     */
+    public Map<String, Object> health() {
         try {
-            log.debug("Performing AI health check");
+            log.debug("Checking AI infrastructure health...");
             
             // Check if AI services are enabled
             if (!aiServiceConfig.getEnabled()) {
-                return Health.down()
-                    .withDetail("status", "AI services disabled")
-                    .withDetail("timestamp", LocalDateTime.now())
-                    .build();
+                return Map.of(
+                    "status", "DOWN",
+                    "reason", "AI services are disabled",
+                    "timestamp", LocalDateTime.now()
+                );
             }
             
             // Get comprehensive health information
             AIHealthDto healthInfo = aiHealthService.getHealthStatus();
             
             // Determine overall health status
-            Health.Builder healthBuilder = determineHealthStatus(healthInfo);
+            String status = determineHealthStatus(healthInfo);
             
-            // Add detailed health information
-            addHealthDetails(healthBuilder, healthInfo);
+            // Build health response
+            Map<String, Object> healthResponse = Map.of(
+                "status", status,
+                "enabled", healthInfo.isEnabled(),
+                "configurationValid", healthInfo.isConfigurationValid(),
+                "featuresEnabled", healthInfo.getFeaturesEnabled(),
+                "totalFeatures", healthInfo.getTotalFeatures(),
+                "servicesEnabled", healthInfo.getServicesEnabled(),
+                "totalServices", healthInfo.getTotalServices(),
+                "timestamp", LocalDateTime.now()
+            );
             
-            // Add configuration information
-            addConfigurationDetails(healthBuilder);
-            
-            // Add system information
-            addSystemDetails(healthBuilder);
-            
-            Health health = healthBuilder.build();
-            log.debug("AI health check completed: {}", health.getStatus());
-            
-            return health;
-            
-        } catch (Exception e) {
-            log.error("AI health check failed", e);
-            return Health.down()
-                .withDetail("error", e.getMessage())
-                .withDetail("timestamp", LocalDateTime.now())
-                .withException(e)
-                .build();
-        }
-    }
-    
-    /**
-     * Determine the overall health status based on health information
-     */
-    private Health.Builder determineHealthStatus(AIHealthDto healthInfo) {
-        boolean isHealthy = healthInfo.isHealthy();
-        String status = healthInfo.getStatus();
-        
-        if (isHealthy && "UP".equals(status)) {
-            return Health.up();
-        } else if ("DEGRADED".equals(status)) {
-            return Health.status("DEGRADED");
-        } else {
-            return Health.down();
-        }
-    }
-    
-    /**
-     * Add detailed health information to the health response
-     */
-    private void addHealthDetails(Health.Builder healthBuilder, AIHealthDto healthInfo) {
-        healthBuilder
-            .withDetail("ai.health.status", healthInfo.getStatus())
-            .withDetail("ai.health.healthy", healthInfo.isHealthy())
-            .withDetail("ai.health.timestamp", healthInfo.getLastUpdated())
-            .withDetail("ai.health.version", healthInfo.getVersion());
-        
-        // Add error message if present
-        if (healthInfo.getErrorMessage() != null && !healthInfo.getErrorMessage().isEmpty()) {
-            healthBuilder.withDetail("ai.health.error", healthInfo.getErrorMessage());
-        }
-        
-        // Add performance metrics
-        if (healthInfo.getPerformanceMetrics() != null) {
-            healthBuilder.withDetail("ai.health.performance", healthInfo.getPerformanceMetrics());
-        }
-        
-        // Add provider status
-        if (healthInfo.getProviderStatus() != null) {
-            healthBuilder.withDetail("ai.health.providers", healthInfo.getProviderStatus());
-        }
-        
-        // Add service status
-        if (healthInfo.getServiceStatus() != null) {
-            healthBuilder.withDetail("ai.health.services", healthInfo.getServiceStatus());
-        }
-        
-        // Add system status
-        if (healthInfo.getSystemStatus() != null) {
-            healthBuilder.withDetail("ai.health.system", healthInfo.getSystemStatus());
-        }
-    }
-    
-    /**
-     * Add configuration details to the health response
-     */
-    private void addConfigurationDetails(Health.Builder healthBuilder) {
-        try {
-            Map<String, Object> configSummary = configurationService.getConfigurationSummary();
-            healthBuilder.withDetail("ai.config", configSummary);
-            
-            // Add specific configuration details
-            healthBuilder
-                .withDetail("ai.config.enabled", aiServiceConfig.getEnabled())
-                .withDetail("ai.config.defaultProvider", aiServiceConfig.getDefaultProvider())
-                .withDetail("ai.config.fallbackProvider", aiServiceConfig.getFallbackProvider());
-            
-            // Add feature flags
-            if (aiServiceConfig.getFeatures() != null) {
-                healthBuilder.withDetail("ai.config.features", Map.of(
-                    "rag", aiServiceConfig.getFeatures().getEnableRAG(),
-                    "embeddings", aiServiceConfig.getFeatures().getEnableEmbeddings(),
-                    "search", aiServiceConfig.getFeatures().getEnableSearch(),
-                    "generation", aiServiceConfig.getFeatures().getEnableGeneration(),
-                    "caching", aiServiceConfig.getFeatures().getEnableCaching(),
-                    "monitoring", aiServiceConfig.getFeatures().getEnableMonitoring()
-                ));
+            // Add detailed information if available
+            if (healthInfo.getPerformanceMetrics() != null) {
+                healthResponse.put("performanceMetrics", healthInfo.getPerformanceMetrics());
             }
             
+            if (healthInfo.getProviderStatus() != null) {
+                healthResponse.put("providerStatus", healthInfo.getProviderStatus());
+            }
+            
+            if (healthInfo.getServiceStatus() != null) {
+                healthResponse.put("serviceStatus", healthInfo.getServiceStatus());
+            }
+            
+            if (healthInfo.getSystemStatus() != null) {
+                healthResponse.put("systemStatus", healthInfo.getSystemStatus());
+            }
+            
+            if (healthInfo.getErrorMessage() != null) {
+                healthResponse.put("errorMessage", healthInfo.getErrorMessage());
+            }
+            
+            log.debug("AI infrastructure health check completed: {}", status);
+            return healthResponse;
+            
         } catch (Exception e) {
-            log.warn("Failed to add configuration details to health check", e);
-            healthBuilder.withDetail("ai.config.error", "Failed to load configuration details");
+            log.error("Error checking AI infrastructure health", e);
+            return Map.of(
+                "status", "DOWN",
+                "error", e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            );
         }
     }
     
     /**
-     * Add system details to the health response
+     * Determine overall health status
      */
-    private void addSystemDetails(Health.Builder healthBuilder) {
+    private String determineHealthStatus(AIHealthDto healthInfo) {
+        if (!healthInfo.isEnabled()) {
+            return "DOWN";
+        }
+        
+        if (!healthInfo.isConfigurationValid()) {
+            return "DOWN";
+        }
+        
+        if (healthInfo.getErrorMessage() != null && !healthInfo.getErrorMessage().trim().isEmpty()) {
+            return "DOWN";
+        }
+        
+        if (healthInfo.getFeaturesEnabled() == 0) {
+            return "DOWN";
+        }
+        
+        if (healthInfo.getServicesEnabled() == 0) {
+            return "DOWN";
+        }
+        
+        return "UP";
+    }
+    
+    /**
+     * Get health summary
+     */
+    public Map<String, Object> getHealthSummary() {
         try {
-            Runtime runtime = Runtime.getRuntime();
-            long totalMemory = runtime.totalMemory();
-            long freeMemory = runtime.freeMemory();
-            long usedMemory = totalMemory - freeMemory;
-            long maxMemory = runtime.maxMemory();
+            AIHealthDto healthInfo = aiHealthService.getHealthStatus();
             
-            healthBuilder
-                .withDetail("ai.system.memory.total", totalMemory)
-                .withDetail("ai.system.memory.used", usedMemory)
-                .withDetail("ai.system.memory.free", freeMemory)
-                .withDetail("ai.system.memory.max", maxMemory)
-                .withDetail("ai.system.memory.usagePercent", (double) usedMemory / maxMemory * 100)
-                .withDetail("ai.system.processors", runtime.availableProcessors())
-                .withDetail("ai.system.uptime", System.currentTimeMillis() - getStartTime());
-            
+            return Map.of(
+                "enabled", healthInfo.isEnabled(),
+                "status", healthInfo.getStatus(),
+                "featuresEnabled", healthInfo.getFeaturesEnabled(),
+                "totalFeatures", healthInfo.getTotalFeatures(),
+                "servicesEnabled", healthInfo.getServicesEnabled(),
+                "totalServices", healthInfo.getTotalServices(),
+                "lastUpdated", healthInfo.getLastUpdated(),
+                "configurationValid", healthInfo.isConfigurationValid(),
+                "providerConfigurationValid", healthInfo.isProviderConfigurationValid(),
+                "serviceConfigurationValid", healthInfo.isServiceConfigurationValid()
+            );
         } catch (Exception e) {
-            log.warn("Failed to add system details to health check", e);
-            healthBuilder.withDetail("ai.system.error", "Failed to load system details");
+            log.error("Error getting health summary", e);
+            return Map.of(
+                "enabled", false,
+                "status", "ERROR",
+                "error", e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            );
         }
-    }
-    
-    /**
-     * Get application start time (simplified implementation)
-     */
-    private long getStartTime() {
-        // This is a simplified implementation
-        // In a real application, you might want to track the actual start time
-        return System.currentTimeMillis() - (24 * 60 * 60 * 1000); // Assume 24 hours ago
-    }
-    
-    /**
-     * Get detailed health information
-     */
-    public AIHealthDto getDetailedHealth() {
-        return aiHealthService.getHealthStatus();
     }
     
     /**
@@ -205,34 +159,18 @@ public class AIHealthIndicator implements HealthIndicator {
      */
     public boolean isHealthy() {
         try {
-            AIHealthDto healthInfo = aiHealthService.getHealthStatus();
-            return healthInfo.isHealthy() && "UP".equals(healthInfo.getStatus());
+            Map<String, Object> health = health();
+            return "UP".equals(health.get("status"));
         } catch (Exception e) {
-            log.error("Failed to check AI health status", e);
+            log.error("Error checking health status", e);
             return false;
         }
     }
     
     /**
-     * Get health status summary
+     * Get detailed health information
      */
-    public Map<String, Object> getHealthSummary() {
-        try {
-            AIHealthDto healthInfo = aiHealthService.getHealthStatus();
-            return Map.of(
-                "status", healthInfo.getStatus(),
-                "healthy", healthInfo.isHealthy(),
-                "timestamp", healthInfo.getLastUpdated(),
-                "version", healthInfo.getVersion()
-            );
-        } catch (Exception e) {
-            log.error("Failed to get health summary", e);
-            return Map.of(
-                "status", "ERROR",
-                "healthy", false,
-                "error", e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            );
-        }
+    public Map<String, Object> getDetailedHealth() {
+        return health();
     }
 }

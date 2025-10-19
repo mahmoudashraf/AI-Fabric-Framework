@@ -42,7 +42,8 @@ public class AIHealthService {
     public AIHealthDto getHealthStatus() {
         log.debug("Retrieving comprehensive AI health status");
         
-        AIHealthDto health = healthIndicator.getDetailedHealth();
+        Map<String, Object> healthMap = healthIndicator.getDetailedHealth();
+        AIHealthDto health = convertToAIHealthDto(healthMap);
         
         // Add performance metrics
         health.setPerformanceMetrics(metricsService.getPerformanceMetrics());
@@ -130,22 +131,40 @@ public class AIHealthService {
         
         // Core services
         Map<String, Object> coreServices = new HashMap<>();
-        coreServices.put("aiCoreService", serviceConfig.getServices().get("aiCoreService").isEnabled());
-        coreServices.put("aiEmbeddingService", serviceConfig.getServices().get("aiEmbeddingService").isEnabled());
-        coreServices.put("aiSearchService", serviceConfig.getServices().get("aiSearchService").isEnabled());
+        Map<String, AIServiceConfig.ServiceConfig> services = serviceConfig.getServices();
+        if (services != null) {
+            coreServices.put("aiCoreService", services.getOrDefault("aiCoreService", AIServiceConfig.ServiceConfig.builder().enabled(false).build()).isEnabled());
+            coreServices.put("aiEmbeddingService", services.getOrDefault("aiEmbeddingService", AIServiceConfig.ServiceConfig.builder().enabled(false).build()).isEnabled());
+            coreServices.put("aiSearchService", services.getOrDefault("aiSearchService", AIServiceConfig.ServiceConfig.builder().enabled(false).build()).isEnabled());
+        } else {
+            coreServices.put("aiCoreService", false);
+            coreServices.put("aiEmbeddingService", false);
+            coreServices.put("aiSearchService", false);
+        }
         serviceStatus.put("core", coreServices);
         
         // RAG services
         Map<String, Object> ragServices = new HashMap<>();
-        ragServices.put("ragService", serviceConfig.getServices().get("ragService").isEnabled());
-        ragServices.put("vectorDatabaseService", serviceConfig.getServices().get("vectorDatabaseService").isEnabled());
+        if (services != null) {
+            ragServices.put("ragService", services.getOrDefault("ragService", AIServiceConfig.ServiceConfig.builder().enabled(false).build()).isEnabled());
+            ragServices.put("vectorDatabaseService", services.getOrDefault("vectorDatabaseService", AIServiceConfig.ServiceConfig.builder().enabled(false).build()).isEnabled());
+        } else {
+            ragServices.put("ragService", false);
+            ragServices.put("vectorDatabaseService", false);
+        }
         serviceStatus.put("rag", ragServices);
         
         // Advanced services
         Map<String, Object> advancedServices = new HashMap<>();
-        advancedServices.put("behaviorTrackingService", serviceConfig.getServices().get("behaviorTrackingService").isEnabled());
-        advancedServices.put("recommendationEngine", serviceConfig.getServices().get("recommendationEngine").isEnabled());
-        advancedServices.put("smartValidationService", serviceConfig.getServices().get("smartValidationService").isEnabled());
+        if (services != null) {
+            advancedServices.put("behaviorTrackingService", services.getOrDefault("behaviorTrackingService", AIServiceConfig.ServiceConfig.builder().enabled(false).build()).isEnabled());
+            advancedServices.put("recommendationEngine", services.getOrDefault("recommendationEngine", AIServiceConfig.ServiceConfig.builder().enabled(false).build()).isEnabled());
+            advancedServices.put("smartValidationService", services.getOrDefault("smartValidationService", AIServiceConfig.ServiceConfig.builder().enabled(false).build()).isEnabled());
+        } else {
+            advancedServices.put("behaviorTrackingService", false);
+            advancedServices.put("recommendationEngine", false);
+            advancedServices.put("smartValidationService", false);
+        }
         serviceStatus.put("advanced", advancedServices);
         
         return serviceStatus;
@@ -205,12 +224,42 @@ public class AIHealthService {
         Map<String, Object> summary = new HashMap<>();
         
         summary.put("healthy", isHealthy());
-        summary.put("enabled", serviceConfig.isEnabled());
+        summary.put("enabled", serviceConfig.getEnabled());
         summary.put("totalRequests", metricsService.getTotalRequests());
         summary.put("successRate", metricsService.getSuccessRate());
         summary.put("averageResponseTime", metricsService.getAverageResponseTime());
         summary.put("lastUpdated", LocalDateTime.now());
         
         return summary;
+    }
+    
+    /**
+     * Convert health map to AIHealthDto
+     */
+    private AIHealthDto convertToAIHealthDto(Map<String, Object> healthMap) {
+        return AIHealthDto.builder()
+            .enabled((Boolean) healthMap.getOrDefault("enabled", false))
+            .status((String) healthMap.getOrDefault("status", "UNKNOWN"))
+            .configurationValid((Boolean) healthMap.getOrDefault("configurationValid", false))
+            .featuresEnabled((Integer) healthMap.getOrDefault("featuresEnabled", 0))
+            .totalFeatures((Integer) healthMap.getOrDefault("totalFeatures", 0))
+            .servicesEnabled((Integer) healthMap.getOrDefault("servicesEnabled", 0))
+            .totalServices((Integer) healthMap.getOrDefault("totalServices", 0))
+            .cachingEnabled((Boolean) healthMap.getOrDefault("cachingEnabled", false))
+            .metricsEnabled((Boolean) healthMap.getOrDefault("metricsEnabled", false))
+            .healthChecksEnabled((Boolean) healthMap.getOrDefault("healthChecksEnabled", false))
+            .asyncEnabled((Boolean) healthMap.getOrDefault("asyncEnabled", false))
+            .batchProcessingEnabled((Boolean) healthMap.getOrDefault("batchProcessingEnabled", false))
+            .rateLimitingEnabled((Boolean) healthMap.getOrDefault("rateLimitingEnabled", false))
+            .circuitBreakerEnabled((Boolean) healthMap.getOrDefault("circuitBreakerEnabled", false))
+            .openaiConfigured((Boolean) healthMap.getOrDefault("openaiConfigured", false))
+            .pineconeConfigured((Boolean) healthMap.getOrDefault("pineconeConfigured", false))
+            .performanceMetrics((Map<String, Object>) healthMap.getOrDefault("performanceMetrics", new HashMap<>()))
+            .providerStatus((Map<String, Object>) healthMap.getOrDefault("providerStatus", new HashMap<>()))
+            .serviceStatus((Map<String, Object>) healthMap.getOrDefault("serviceStatus", new HashMap<>()))
+            .systemStatus((Map<String, Object>) healthMap.getOrDefault("systemStatus", new HashMap<>()))
+            .lastUpdated((LocalDateTime) healthMap.getOrDefault("lastUpdated", LocalDateTime.now()))
+            .errorMessage((String) healthMap.getOrDefault("errorMessage", null))
+            .build();
     }
 }

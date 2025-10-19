@@ -191,8 +191,6 @@ public @interface AIKnowledge {
     /**
      * Whether this knowledge is validatable
      */
-    boolean validatable() default true;
-    
     /**
      * The validation rules for this knowledge
      */
@@ -492,4 +490,29 @@ public @interface AIKnowledge {
      * The lifecycle settings for this knowledge
      */
     String[] lifecycleSettings() default {};
+    
+    /**
+     * Importance level of this knowledge
+     */
+    int importance() default 1;
+    
+    /**
+     * Whether to include in RAG
+     */
+    boolean includeInRAG() default true;
+    
+    /**
+     * Keywords for this knowledge
+     */
+    String[] keywords() default {};
+    
+    /**
+     * Whether to enable semantic search
+     */
+    boolean enableSemanticSearch() default true;
+    
+    /**
+     * Whether to enable keyword search
+     */
+    boolean enableKeywordSearch() default true;
 }

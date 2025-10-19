@@ -30,6 +30,36 @@ public class RAGResponse {
     private List<RAGDocument> documents;
     
     /**
+     * Generated response text
+     */
+    private String response;
+    
+    /**
+     * Context used for generation
+     */
+    private String context;
+    
+    /**
+     * Total documents found
+     */
+    private Integer totalDocuments;
+    
+    /**
+     * Number of documents used
+     */
+    private Integer usedDocuments;
+    
+    /**
+     * Relevance scores for the documents
+     */
+    private List<Double> relevanceScores;
+    
+    /**
+     * Whether the response was successful
+     */
+    private Boolean success;
+    
+    /**
      * Total number of results found
      */
     private Integer totalResults;

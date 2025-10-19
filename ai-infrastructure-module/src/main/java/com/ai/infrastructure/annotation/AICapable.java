@@ -264,4 +264,9 @@ public @interface AICapable {
      * Whether to enable AI-powered data lifecycle management
      */
     boolean enableDataLifecycleManagement() default false;
+    
+    /**
+     * Whether to enable validation
+     */
+    boolean enableValidation() default true;
 }

@@ -195,10 +195,10 @@ public class RAGService {
             
             // Perform search
             AISearchResponse searchResponse;
-            if (request.isEnableHybridSearch()) {
+            if (request.getEnableHybridSearch()) {
                 searchResponse = performHybridSearch(queryVector, request.getQuery(), searchRequest);
-            } else if (request.isEnableContextualSearch()) {
-                searchResponse = performContextualSearch(queryVector, request.getContext(), searchRequest);
+            } else if (request.getEnableContextualSearch()) {
+                searchResponse = performContextualSearch(queryVector, request.getContext().toString(), searchRequest);
             } else {
                 searchResponse = vectorDatabase.search(queryVector, searchRequest);
             }
@@ -214,10 +214,10 @@ public class RAGService {
             return RAGResponse.builder()
                 .response(response)
                 .context(context)
-                .documents(searchResponse.getResults())
+                .documents(convertToRAGDocuments(searchResponse.getResults()))
                 .totalDocuments(searchResponse.getTotalResults())
                 .usedDocuments(Math.min(searchResponse.getTotalResults(), request.getLimit()))
-                .confidence(calculateConfidence(searchResponse))
+                .confidenceScore(calculateConfidence(searchResponse))
                 .relevanceScores(searchResponse.getResults().stream()
                     .map(doc -> (Double) doc.get("similarity"))
                     .collect(Collectors.toList()))
@@ -225,8 +225,8 @@ public class RAGService {
                 .requestId(request.getRequestId())
                 .model(config.getOpenaiEmbeddingModel())
                 .success(true)
-                .hybridSearchUsed(request.isEnableHybridSearch())
-                .contextualSearchUsed(request.isEnableContextualSearch())
+                .hybridSearchUsed(request.getEnableHybridSearch())
+                .contextualSearchUsed(request.getEnableContextualSearch())
                 .originalQuery(request.getQuery())
                 .entityType(request.getEntityType())
                 .searchedCategories(request.getCategories())
@@ -240,7 +240,7 @@ public class RAGService {
                 .documents(Collections.emptyList())
                 .totalDocuments(0)
                 .usedDocuments(0)
-                .confidence(0.0)
+                .confidenceScore(0.0)
                 .relevanceScores(Collections.emptyList())
                 .processingTimeMs(0)
                 .requestId(request.getRequestId())
@@ -295,5 +295,29 @@ public class RAGService {
             .mapToDouble(doc -> (Double) doc.get("similarity"))
             .average()
             .orElse(0.0);
+    }
+    
+    /**
+     * Convert search results to RAG documents
+     */
+    private List<RAGResponse.RAGDocument> convertToRAGDocuments(List<Map<String, Object>> results) {
+        return results.stream()
+            .map(this::convertToRAGDocument)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Convert a single search result to RAG document
+     */
+    private RAGResponse.RAGDocument convertToRAGDocument(Map<String, Object> result) {
+        return RAGResponse.RAGDocument.builder()
+            .id((String) result.get("id"))
+            .content((String) result.get("content"))
+            .title((String) result.get("title"))
+            .type((String) result.get("type"))
+            .score(((Number) result.getOrDefault("score", 0.0)).doubleValue())
+            .similarity(((Number) result.getOrDefault("similarity", 0.0)).doubleValue())
+            .metadata((Map<String, Object>) result.getOrDefault("metadata", new HashMap<>()))
+            .build();
     }
 }
