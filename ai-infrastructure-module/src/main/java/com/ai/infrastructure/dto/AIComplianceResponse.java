@@ -104,24 +104,9 @@ public class AIComplianceResponse {
     private String riskAssessment;
     
     /**
-     * Impact assessment
+     * Mitigation recommendations
      */
-    private String impactAssessment;
-    
-    /**
-     * Mitigation measures
-     */
-    private List<String> mitigationMeasures;
-    
-    /**
-     * Monitoring measures
-     */
-    private List<String> monitoringMeasures;
-    
-    /**
-     * Review recommendations
-     */
-    private List<String> reviewRecommendations;
+    private List<String> mitigationRecommendations;
     
     /**
      * Next review date
@@ -129,124 +114,14 @@ public class AIComplianceResponse {
     private LocalDateTime nextReviewDate;
     
     /**
-     * Compliance metrics
+     * Compliance certificate
      */
-    private Map<String, Object> complianceMetrics;
+    private String complianceCertificate;
     
     /**
-     * Regulatory requirements
+     * Compliance badge
      */
-    private List<String> regulatoryRequirements;
-    
-    /**
-     * Data protection requirements
-     */
-    private List<String> dataProtectionRequirements;
-    
-    /**
-     * Privacy requirements
-     */
-    private List<String> privacyRequirements;
-    
-    /**
-     * Security requirements
-     */
-    private List<String> securityRequirements;
-    
-    /**
-     * Audit requirements
-     */
-    private List<String> auditRequirements;
-    
-    /**
-     * Retention requirements
-     */
-    private List<String> retentionRequirements;
-    
-    /**
-     * Consent requirements
-     */
-    private List<String> consentRequirements;
-    
-    /**
-     * Data subject rights
-     */
-    private List<String> dataSubjectRights;
-    
-    /**
-     * Processing activities
-     */
-    private List<String> processingActivities;
-    
-    /**
-     * Data categories
-     */
-    private List<String> dataCategories;
-    
-    /**
-     * Special categories
-     */
-    private List<String> specialCategories;
-    
-    /**
-     * Recipients
-     */
-    private List<String> recipients;
-    
-    /**
-     * Third countries
-     */
-    private List<String> thirdCountries;
-    
-    /**
-     * Safeguards
-     */
-    private List<String> safeguards;
-    
-    /**
-     * Legal basis
-     */
-    private String legalBasis;
-    
-    /**
-     * Data controller
-     */
-    private String dataController;
-    
-    /**
-     * Data processor
-     */
-    private String dataProcessor;
-    
-    /**
-     * Data protection officer
-     */
-    private String dpo;
-    
-    /**
-     * Supervisory authority
-     */
-    private String supervisoryAuthority;
-    
-    /**
-     * Consent status
-     */
-    private Boolean consentGiven;
-    
-    /**
-     * Consent timestamp
-     */
-    private LocalDateTime consentTimestamp;
-    
-    /**
-     * Data retention period
-     */
-    private Integer dataRetentionPeriod;
-    
-    /**
-     * Cross-border transfer
-     */
-    private Boolean crossBorderTransfer;
+    private String complianceBadge;
     
     /**
      * Compliance level
@@ -264,1182 +139,1302 @@ public class AIComplianceResponse {
     private List<String> complianceGaps;
     
     /**
-     * Compliance improvements
+     * Compliance strengths
      */
-    private List<String> complianceImprovements;
+    private List<String> complianceStrengths;
     
     /**
-     * Compliance training needs
+     * Compliance trends
      */
-    private List<String> complianceTrainingNeeds;
+    private Map<String, Object> complianceTrends;
     
     /**
-     * Compliance documentation
+     * Compliance benchmarks
      */
-    private List<String> complianceDocumentation;
+    private Map<String, Object> complianceBenchmarks;
     
     /**
-     * Compliance policies
+     * Compliance metrics
      */
-    private List<String> compliancePolicies;
+    private Map<String, Object> complianceMetrics;
     
     /**
-     * Compliance procedures
+     * Compliance alerts
      */
-    private List<String> complianceProcedures;
+    private List<String> complianceAlerts;
     
     /**
-     * Compliance guidelines
+     * Compliance warnings
      */
-    private List<String> complianceGuidelines;
+    private List<String> complianceWarnings;
     
     /**
-     * Compliance standards
+     * Compliance errors
      */
-    private List<String> complianceStandards;
+    private List<String> complianceErrors;
     
     /**
-     * Compliance frameworks
+     * Compliance info
      */
-    private List<String> complianceFrameworks;
+    private List<String> complianceInfo;
     
     /**
-     * Compliance methodologies
+     * Compliance debug
      */
-    private List<String> complianceMethodologies;
+    private List<String> complianceDebug;
     
     /**
-     * Compliance tools
+     * Compliance trace
      */
-    private List<String> complianceTools;
+    private List<String> complianceTrace;
     
     /**
-     * Compliance technologies
+     * Compliance verbose
      */
-    private List<String> complianceTechnologies;
+    private List<String> complianceVerbose;
     
     /**
-     * Compliance platforms
+     * Compliance detailed
      */
-    private List<String> compliancePlatforms;
+    private List<String> complianceDetailed;
     
     /**
-     * Compliance services
+     * Compliance summary
      */
-    private List<String> complianceServices;
+    private String complianceSummary;
     
     /**
-     * Compliance products
+     * Compliance overview
      */
-    private List<String> complianceProducts;
+    private String complianceOverview;
     
     /**
-     * Compliance solutions
+     * Compliance executive summary
      */
-    private List<String> complianceSolutions;
+    private String complianceExecutiveSummary;
     
     /**
-     * Compliance systems
+     * Compliance technical summary
      */
-    private List<String> complianceSystems;
+    private String complianceTechnicalSummary;
     
     /**
-     * Compliance applications
+     * Compliance business summary
      */
-    private List<String> complianceApplications;
+    private String complianceBusinessSummary;
     
     /**
-     * Compliance databases
+     * Compliance legal summary
      */
-    private List<String> complianceDatabases;
+    private String complianceLegalSummary;
     
     /**
-     * Compliance networks
+     * Compliance regulatory summary
      */
-    private List<String> complianceNetworks;
+    private String complianceRegulatorySummary;
     
     /**
-     * Compliance infrastructure
+     * Compliance audit summary
      */
-    private List<String> complianceInfrastructure;
+    private String complianceAuditSummary;
     
     /**
-     * Compliance cloud
+     * Compliance privacy summary
      */
-    private List<String> complianceCloud;
+    private String compliancePrivacySummary;
     
     /**
-     * Compliance on-premises
+     * Compliance security summary
      */
-    private List<String> complianceOnPremises;
+    private String complianceSecuritySummary;
     
     /**
-     * Compliance hybrid
+     * Compliance data summary
      */
-    private List<String> complianceHybrid;
+    private String complianceDataSummary;
     
     /**
-     * Compliance multi-cloud
+     * Compliance process summary
      */
-    private List<String> complianceMultiCloud;
+    private String complianceProcessSummary;
     
     /**
-     * Compliance edge
+     * Compliance procedure summary
      */
-    private List<String> complianceEdge;
+    private String complianceProcedureSummary;
     
     /**
-     * Compliance mobile
+     * Compliance policy summary
      */
-    private List<String> complianceMobile;
+    private String compliancePolicySummary;
     
     /**
-     * Compliance IoT
+     * Compliance guideline summary
      */
-    private List<String> complianceIoT;
+    private String complianceGuidelineSummary;
     
     /**
-     * Compliance AI
+     * Compliance standard summary
      */
-    private List<String> complianceAI;
+    private String complianceStandardSummary;
     
     /**
-     * Compliance ML
+     * Compliance framework summary
      */
-    private List<String> complianceML;
+    private String complianceFrameworkSummary;
     
     /**
-     * Compliance DL
+     * Compliance methodology summary
      */
-    private List<String> complianceDL;
+    private String complianceMethodologySummary;
     
     /**
-     * Compliance NLP
+     * Compliance tool summary
      */
-    private List<String> complianceNLP;
+    private String complianceToolSummary;
     
     /**
-     * Compliance CV
+     * Compliance technology summary
      */
-    private List<String> complianceCV;
+    private String complianceTechnologySummary;
     
     /**
-     * Compliance RL
+     * Compliance platform summary
      */
-    private List<String> complianceRL;
+    private String compliancePlatformSummary;
     
     /**
-     * Compliance GAN
+     * Compliance service summary
      */
-    private List<String> complianceGAN;
+    private String complianceServiceSummary;
     
     /**
-     * Compliance Transformer
+     * Compliance product summary
      */
-    private List<String> complianceTransformer;
+    private String complianceProductSummary;
     
     /**
-     * Compliance BERT
+     * Compliance solution summary
      */
-    private List<String> complianceBERT;
+    private String complianceSolutionSummary;
     
     /**
-     * Compliance GPT
+     * Compliance system summary
      */
-    private List<String> complianceGPT;
+    private String complianceSystemSummary;
     
     /**
-     * Compliance T5
+     * Compliance application summary
      */
-    private List<String> complianceT5;
+    private String complianceApplicationSummary;
     
     /**
-     * Compliance RoBERTa
+     * Compliance database summary
      */
-    private List<String> complianceRoBERTa;
+    private String complianceDatabaseSummary;
     
     /**
-     * Compliance DistilBERT
+     * Compliance network summary
      */
-    private List<String> complianceDistilBERT;
+    private String complianceNetworkSummary;
     
     /**
-     * Compliance ALBERT
+     * Compliance infrastructure summary
      */
-    private List<String> complianceALBERT;
+    private String complianceInfrastructureSummary;
     
     /**
-     * Compliance ELECTRA
+     * Compliance cloud summary
      */
-    private List<String> complianceELECTRA;
+    private String complianceCloudSummary;
     
     /**
-     * Compliance DeBERTa
+     * Compliance on-premises summary
      */
-    private List<String> complianceDeBERTa;
+    private String complianceOnPremisesSummary;
     
     /**
-     * Compliance Longformer
+     * Compliance hybrid summary
      */
-    private List<String> complianceLongformer;
+    private String complianceHybridSummary;
     
     /**
-     * Compliance BigBird
+     * Compliance multi-cloud summary
      */
-    private List<String> complianceBigBird;
+    private String complianceMultiCloudSummary;
     
     /**
-     * Compliance Reformer
+     * Compliance edge summary
      */
-    private List<String> complianceReformer;
+    private String complianceEdgeSummary;
     
     /**
-     * Compliance Linformer
+     * Compliance mobile summary
      */
-    private List<String> complianceLinformer;
+    private String complianceMobileSummary;
     
     /**
-     * Compliance Performer
+     * Compliance IoT summary
      */
-    private List<String> compliancePerformer;
+    private String complianceIoTSummary;
     
     /**
-     * Compliance Nyströmformer
+     * Compliance AI summary
      */
-    private List<String> complianceNystromformer;
+    private String complianceAISummary;
     
     /**
-     * Compliance Sparse Transformer
+     * Compliance ML summary
      */
-    private List<String> complianceSparseTransformer;
+    private String complianceMLSummary;
     
     /**
-     * Compliance Switch Transformer
+     * Compliance DL summary
      */
-    private List<String> complianceSwitchTransformer;
+    private String complianceDLSummary;
     
     /**
-     * Compliance GLaM
+     * Compliance NLP summary
      */
-    private List<String> complianceGLaM;
+    private String complianceNLPSummary;
     
     /**
-     * Compliance PaLM
+     * Compliance CV summary
      */
-    private List<String> compliancePaLM;
+    private String complianceCVSummary;
     
     /**
-     * Compliance LaMDA
+     * Compliance RL summary
      */
-    private List<String> complianceLaMDA;
+    private String complianceRLSummary;
     
     /**
-     * Compliance Chinchilla
+     * Compliance GAN summary
      */
-    private List<String> complianceChinchilla;
+    private String complianceGANSummary;
     
     /**
-     * Compliance Gopher
+     * Compliance Transformer summary
      */
-    private List<String> complianceGopher;
+    private String complianceTransformerSummary;
     
     /**
-     * Compliance Megatron-Turing NLG
+     * Compliance BERT summary
      */
-    private List<String> complianceMegatronTuringNLG;
+    private String complianceBERTSummary;
     
     /**
-     * Compliance Jurassic-1
+     * Compliance GPT summary
      */
-    private List<String> complianceJurassic1;
+    private String complianceGPTSummary;
     
     /**
-     * Compliance Jurassic-2
+     * Compliance T5 summary
      */
-    private List<String> complianceJurassic2;
+    private String complianceT5Summary;
     
     /**
-     * Compliance Codex
+     * Compliance RoBERTa summary
      */
-    private List<String> complianceCodex;
+    private String complianceRoBERTaSummary;
     
     /**
-     * Compliance CodeT5
+     * Compliance DistilBERT summary
      */
-    private List<String> complianceCodeT5;
+    private String complianceDistilBERTSummary;
     
     /**
-     * Compliance CodeBERT
+     * Compliance ALBERT summary
      */
-    private List<String> complianceCodeBERT;
+    private String complianceALBERTSummary;
     
     /**
-     * Compliance GraphCodeBERT
+     * Compliance ELECTRA summary
      */
-    private List<String> complianceGraphCodeBERT;
+    private String complianceELECTRASummary;
     
     /**
-     * Compliance PLBART
+     * Compliance DeBERTa summary
      */
-    private List<String> compliancePLBART;
+    private String complianceDeBERTaSummary;
     
     /**
-     * Compliance CodeT5+
+     * Compliance Longformer summary
      */
-    private List<String> complianceCodeT5Plus;
+    private String complianceLongformerSummary;
     
     /**
-     * Compliance Codex-Davinci
+     * Compliance BigBird summary
      */
-    private List<String> complianceCodexDavinci;
+    private String complianceBigBirdSummary;
     
     /**
-     * Compliance Codex-Cushman
+     * Compliance Reformer summary
      */
-    private List<String> complianceCodexCushman;
+    private String complianceReformerSummary;
     
     /**
-     * Compliance Codex-Babbage
+     * Compliance Linformer summary
      */
-    private List<String> complianceCodexBabbage;
+    private String complianceLinformerSummary;
     
     /**
-     * Compliance Codex-Ada
+     * Compliance Performer summary
      */
-    private List<String> complianceCodexAda;
+    private String compliancePerformerSummary;
     
     /**
-     * Compliance Codex-Curie
+     * Compliance Nyströmformer summary
      */
-    private List<String> complianceCodexCurie;
+    private String complianceNystromformerSummary;
     
     /**
-     * Compliance Codex-GPT-3.5-turbo
+     * Compliance Sparse Transformer summary
      */
-    private List<String> complianceCodexGpt35Turbo;
+    private String complianceSparseTransformerSummary;
     
     /**
-     * Compliance Codex-GPT-4
+     * Compliance Switch Transformer summary
      */
-    private List<String> complianceCodexGpt4;
+    private String complianceSwitchTransformerSummary;
     
     /**
-     * Compliance Codex-GPT-4-turbo
+     * Compliance GLaM summary
      */
-    private List<String> complianceCodexGpt4Turbo;
+    private String complianceGLaMSummary;
     
     /**
-     * Compliance Codex-GPT-4o
+     * Compliance PaLM summary
      */
-    private List<String> complianceCodexGpt4o;
+    private String compliancePaLMSummary;
     
     /**
-     * Compliance Codex-GPT-4o-mini
+     * Compliance LaMDA summary
      */
-    private List<String> complianceCodexGpt4oMini;
+    private String complianceLaMDASummary;
     
     /**
-     * Compliance Codex-Claude-3-opus
+     * Compliance Chinchilla summary
      */
-    private List<String> complianceCodexClaude3Opus;
+    private String complianceChinchillaSummary;
     
     /**
-     * Compliance Codex-Claude-3-sonnet
+     * Compliance Gopher summary
      */
-    private List<String> complianceCodexClaude3Sonnet;
+    private String complianceGopherSummary;
     
     /**
-     * Compliance Codex-Claude-3-haiku
+     * Compliance Megatron-Turing NLG summary
      */
-    private List<String> complianceCodexClaude3Haiku;
+    private String complianceMegatronTuringNLGSummary;
     
     /**
-     * Compliance Codex-Claude-3.5-sonnet
+     * Compliance Jurassic-1 summary
      */
-    private List<String> complianceCodexClaude35Sonnet;
+    private String complianceJurassic1Summary;
     
     /**
-     * Compliance Codex-Gemini-pro
+     * Compliance Jurassic-2 summary
      */
-    private List<String> complianceCodexGeminiPro;
+    private String complianceJurassic2Summary;
     
     /**
-     * Compliance Codex-Gemini-pro-vision
+     * Compliance Codex summary
      */
-    private List<String> complianceCodexGeminiProVision;
+    private String complianceCodexSummary;
     
     /**
-     * Compliance Codex-Gemini-1.5-pro
+     * Compliance CodeT5 summary
      */
-    private List<String> complianceCodexGemini15Pro;
+    private String complianceCodeT5Summary;
     
     /**
-     * Compliance Codex-Gemini-1.5-flash
+     * Compliance CodeBERT summary
      */
-    private List<String> complianceCodexGemini15Flash;
+    private String complianceCodeBERTSummary;
     
     /**
-     * Compliance Codex-Gemini-2.0-flash
+     * Compliance GraphCodeBERT summary
      */
-    private List<String> complianceCodexGemini20Flash;
+    private String complianceGraphCodeBERTSummary;
     
     /**
-     * Compliance Codex-Llama-2
+     * Compliance PLBART summary
      */
-    private List<String> complianceCodexLlama2;
+    private String compliancePLBARTSummary;
     
     /**
-     * Compliance Codex-Llama-3
+     * Compliance CodeT5+ summary
      */
-    private List<String> complianceCodexLlama3;
+    private String complianceCodeT5PlusSummary;
     
     /**
-     * Compliance Codex-Llama-3.1
+     * Compliance Codex-Davinci summary
      */
-    private List<String> complianceCodexLlama31;
+    private String complianceCodexDavinciSummary;
     
     /**
-     * Compliance Codex-Mistral-7B
+     * Compliance Codex-Cushman summary
      */
-    private List<String> complianceCodexMistral7b;
+    private String complianceCodexCushmanSummary;
     
     /**
-     * Compliance Codex-Mistral-8x7B
+     * Compliance Codex-Babbage summary
      */
-    private List<String> complianceCodexMistral8x7b;
+    private String complianceCodexBabbageSummary;
     
     /**
-     * Compliance Codex-Mixtral-8x7B
+     * Compliance Codex-Ada summary
      */
-    private List<String> complianceCodexMixtral8x7b;
+    private String complianceCodexAdaSummary;
     
     /**
-     * Compliance Codex-Mixtral-8x22B
+     * Compliance Codex-Curie summary
      */
-    private List<String> complianceCodexMixtral8x22b;
+    private String complianceCodexCurieSummary;
     
     /**
-     * Compliance Codex-Codestral-22B
+     * Compliance Codex-GPT-3.5-turbo summary
      */
-    private List<String> complianceCodexCodestral22b;
+    private String complianceCodexGPT35TurboSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder
+     * Compliance Codex-GPT-4 summary
      */
-    private List<String> complianceCodexDeepseekCoder;
+    private String complianceCodexGPT4Summary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-2
+     * Compliance Codex-GPT-4-turbo summary
      */
-    private List<String> complianceCodexDeepseekCoder2;
+    private String complianceCodexGPT4TurboSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B
+     * Compliance Codex-GPT-4o summary
      */
-    private List<String> complianceCodexDeepseekCoder67b;
+    private String complianceCodexGPT4oSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B
+     * Compliance Codex-GPT-4o-mini summary
      */
-    private List<String> complianceCodexDeepseekCoder33b;
+    private String complianceCodexGPT4oMiniSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B
+     * Compliance Codex-Claude-3-opus summary
      */
-    private List<String> complianceCodexDeepseekCoder13b;
+    private String complianceCodexClaude3OpusSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-instruct
+     * Compliance Codex-Claude-3-sonnet summary
      */
-    private List<String> complianceCodexDeepseekCoder67bInstruct;
+    private String complianceCodexClaude3SonnetSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-instruct
+     * Compliance Codex-Claude-3-haiku summary
      */
-    private List<String> complianceCodexDeepseekCoder33bInstruct;
+    private String complianceCodexClaude3HaikuSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-instruct
+     * Compliance Codex-Claude-3.5-sonnet summary
      */
-    private List<String> complianceCodexDeepseekCoder13bInstruct;
+    private String complianceCodexClaude35SonnetSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-chat
+     * Compliance Codex-Gemini-pro summary
      */
-    private List<String> complianceCodexDeepseekCoder67bChat;
+    private String complianceCodexGeminiProSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-chat
+     * Compliance Codex-Gemini-pro-vision summary
      */
-    private List<String> complianceCodexDeepseekCoder33bChat;
+    private String complianceCodexGeminiProVisionSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-chat
+     * Compliance Codex-Gemini-1.5-pro summary
      */
-    private List<String> complianceCodexDeepseekCoder13bChat;
+    private String complianceCodexGemini15ProSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-python
+     * Compliance Codex-Gemini-1.5-flash summary
      */
-    private List<String> complianceCodexDeepseekCoder67bPython;
+    private String complianceCodexGemini15FlashSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-python
+     * Compliance Codex-Gemini-2.0-flash summary
      */
-    private List<String> complianceCodexDeepseekCoder33bPython;
+    private String complianceCodexGemini20FlashSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-python
+     * Compliance Codex-Llama-2 summary
      */
-    private List<String> complianceCodexDeepseekCoder13bPython;
+    private String complianceCodexLlama2Summary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-java
+     * Compliance Codex-Llama-3 summary
      */
-    private List<String> complianceCodexDeepseekCoder67bJava;
+    private String complianceCodexLlama3Summary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-java
+     * Compliance Codex-Llama-3.1 summary
      */
-    private List<String> complianceCodexDeepseekCoder33bJava;
+    private String complianceCodexLlama31Summary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-java
+     * Compliance Codex-Mistral-7B summary
      */
-    private List<String> complianceCodexDeepseekCoder13bJava;
+    private String complianceCodexMistral7bSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-cpp
+     * Compliance Codex-Mistral-8x7B summary
      */
-    private List<String> complianceCodexDeepseekCoder67bCpp;
+    private String complianceCodexMistral8x7bSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-cpp
+     * Compliance Codex-Mixtral-8x7B summary
      */
-    private List<String> complianceCodexDeepseekCoder33bCpp;
+    private String complianceCodexMixtral8x7bSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-cpp
+     * Compliance Codex-Mixtral-8x22B summary
      */
-    private List<String> complianceCodexDeepseekCoder13bCpp;
+    private String complianceCodexMixtral8x22bSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-javascript
+     * Compliance Codex-Codestral-22B summary
      */
-    private List<String> complianceCodexDeepseekCoder67bJavascript;
+    private String complianceCodexCodestral22bSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-javascript
+     * Compliance Codex-DeepSeek-Coder summary
      */
-    private List<String> complianceCodexDeepseekCoder33bJavascript;
+    private String complianceCodexDeepseekCoderSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-javascript
+     * Compliance Codex-DeepSeek-Coder-2 summary
      */
-    private List<String> complianceCodexDeepseekCoder13bJavascript;
+    private String complianceCodexDeepseekCoder2Summary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-typescript
+     * Compliance Codex-DeepSeek-Coder-6.7B summary
      */
-    private List<String> complianceCodexDeepseekCoder67bTypescript;
+    private String complianceCodexDeepseekCoder67bSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-typescript
+     * Compliance Codex-DeepSeek-Coder-33B summary
      */
-    private List<String> complianceCodexDeepseekCoder33bTypescript;
+    private String complianceCodexDeepseekCoder33bSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-typescript
+     * Compliance Codex-DeepSeek-Coder-1.3B summary
      */
-    private List<String> complianceCodexDeepseekCoder13bTypescript;
+    private String complianceCodexDeepseekCoder13bSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-go
+     * Compliance Codex-DeepSeek-Coder-6.7B-instruct summary
      */
-    private List<String> complianceCodexDeepseekCoder67bGo;
+    private String complianceCodexDeepseekCoder67bInstructSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-go
+     * Compliance Codex-DeepSeek-Coder-33B-instruct summary
      */
-    private List<String> complianceCodexDeepseekCoder33bGo;
+    private String complianceCodexDeepseekCoder33bInstructSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-go
+     * Compliance Codex-DeepSeek-Coder-1.3B-instruct summary
      */
-    private List<String> complianceCodexDeepseekCoder13bGo;
+    private String complianceCodexDeepseekCoder13bInstructSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-rust
+     * Compliance Codex-DeepSeek-Coder-6.7B-chat summary
      */
-    private List<String> complianceCodexDeepseekCoder67bRust;
+    private String complianceCodexDeepseekCoder67bChatSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-rust
+     * Compliance Codex-DeepSeek-Coder-33B-chat summary
      */
-    private List<String> complianceCodexDeepseekCoder33bRust;
+    private String complianceCodexDeepseekCoder33bChatSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-rust
+     * Compliance Codex-DeepSeek-Coder-1.3B-chat summary
      */
-    private List<String> complianceCodexDeepseekCoder13bRust;
+    private String complianceCodexDeepseekCoder13bChatSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-php
+     * Compliance Codex-DeepSeek-Coder-6.7B-python summary
      */
-    private List<String> complianceCodexDeepseekCoder67bPhp;
+    private String complianceCodexDeepseekCoder67bPythonSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-php
+     * Compliance Codex-DeepSeek-Coder-33B-python summary
      */
-    private List<String> complianceCodexDeepseekCoder33bPhp;
+    private String complianceCodexDeepseekCoder33bPythonSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-php
+     * Compliance Codex-DeepSeek-Coder-1.3B-python summary
      */
-    private List<String> complianceCodexDeepseekCoder13bPhp;
+    private String complianceCodexDeepseekCoder13bPythonSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-ruby
+     * Compliance Codex-DeepSeek-Coder-6.7B-java summary
      */
-    private List<String> complianceCodexDeepseekCoder67bRuby;
+    private String complianceCodexDeepseekCoder67bJavaSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-ruby
+     * Compliance Codex-DeepSeek-Coder-33B-java summary
      */
-    private List<String> complianceCodexDeepseekCoder33bRuby;
+    private String complianceCodexDeepseekCoder33bJavaSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-ruby
+     * Compliance Codex-DeepSeek-Coder-1.3B-java summary
      */
-    private List<String> complianceCodexDeepseekCoder13bRuby;
+    private String complianceCodexDeepseekCoder13bJavaSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-scala
+     * Compliance Codex-DeepSeek-Coder-6.7B-cpp summary
      */
-    private List<String> complianceCodexDeepseekCoder67bScala;
+    private String complianceCodexDeepseekCoder67bCppSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-scala
+     * Compliance Codex-DeepSeek-Coder-33B-cpp summary
      */
-    private List<String> complianceCodexDeepseekCoder33bScala;
+    private String complianceCodexDeepseekCoder33bCppSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-scala
+     * Compliance Codex-DeepSeek-Coder-1.3B-cpp summary
      */
-    private List<String> complianceCodexDeepseekCoder13bScala;
+    private String complianceCodexDeepseekCoder13bCppSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-kotlin
+     * Compliance Codex-DeepSeek-Coder-6.7B-javascript summary
      */
-    private List<String> complianceCodexDeepseekCoder67bKotlin;
+    private String complianceCodexDeepseekCoder67bJavascriptSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-kotlin
+     * Compliance Codex-DeepSeek-Coder-33B-javascript summary
      */
-    private List<String> complianceCodexDeepseekCoder33bKotlin;
+    private String complianceCodexDeepseekCoder33bJavascriptSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-kotlin
+     * Compliance Codex-DeepSeek-Coder-1.3B-javascript summary
      */
-    private List<String> complianceCodexDeepseekCoder13bKotlin;
+    private String complianceCodexDeepseekCoder13bJavascriptSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-swift
+     * Compliance Codex-DeepSeek-Coder-6.7B-typescript summary
      */
-    private List<String> complianceCodexDeepseekCoder67bSwift;
+    private String complianceCodexDeepseekCoder67bTypescriptSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-swift
+     * Compliance Codex-DeepSeek-Coder-33B-typescript summary
      */
-    private List<String> complianceCodexDeepseekCoder33bSwift;
+    private String complianceCodexDeepseekCoder33bTypescriptSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-swift
+     * Compliance Codex-DeepSeek-Coder-1.3B-typescript summary
      */
-    private List<String> complianceCodexDeepseekCoder13bSwift;
+    private String complianceCodexDeepseekCoder13bTypescriptSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-dart
+     * Compliance Codex-DeepSeek-Coder-6.7B-go summary
      */
-    private List<String> complianceCodexDeepseekCoder67bDart;
+    private String complianceCodexDeepseekCoder67bGoSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-dart
+     * Compliance Codex-DeepSeek-Coder-33B-go summary
      */
-    private List<String> complianceCodexDeepseekCoder33bDart;
+    private String complianceCodexDeepseekCoder33bGoSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-dart
+     * Compliance Codex-DeepSeek-Coder-1.3B-go summary
      */
-    private List<String> complianceCodexDeepseekCoder13bDart;
+    private String complianceCodexDeepseekCoder13bGoSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-csharp
+     * Compliance Codex-DeepSeek-Coder-6.7B-rust summary
      */
-    private List<String> complianceCodexDeepseekCoder67bCsharp;
+    private String complianceCodexDeepseekCoder67bRustSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-csharp
+     * Compliance Codex-DeepSeek-Coder-33B-rust summary
      */
-    private List<String> complianceCodexDeepseekCoder33bCsharp;
+    private String complianceCodexDeepseekCoder33bRustSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-csharp
+     * Compliance Codex-DeepSeek-Coder-1.3B-rust summary
      */
-    private List<String> complianceCodexDeepseekCoder13bCsharp;
+    private String complianceCodexDeepseekCoder13bRustSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-vbnet
+     * Compliance Codex-DeepSeek-Coder-6.7B-php summary
      */
-    private List<String> complianceCodexDeepseekCoder67bVbnet;
+    private String complianceCodexDeepseekCoder67bPhpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-vbnet
+     * Compliance Codex-DeepSeek-Coder-33B-php summary
      */
-    private List<String> complianceCodexDeepseekCoder33bVbnet;
+    private String complianceCodexDeepseekCoder33bPhpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-vbnet
+     * Compliance Codex-DeepSeek-Coder-1.3B-php summary
      */
-    private List<String> complianceCodexDeepseekCoder13bVbnet;
+    private String complianceCodexDeepseekCoder13bPhpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-fsharp
+     * Compliance Codex-DeepSeek-Coder-6.7B-ruby summary
      */
-    private List<String> complianceCodexDeepseekCoder67bFsharp;
+    private String complianceCodexDeepseekCoder67bRubySummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-fsharp
+     * Compliance Codex-DeepSeek-Coder-33B-ruby summary
      */
-    private List<String> complianceCodexDeepseekCoder33bFsharp;
+    private String complianceCodexDeepseekCoder33bRubySummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-fsharp
+     * Compliance Codex-DeepSeek-Coder-1.3B-ruby summary
      */
-    private List<String> complianceCodexDeepseekCoder13bFsharp;
+    private String complianceCodexDeepseekCoder13bRubySummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-haskell
+     * Compliance Codex-DeepSeek-Coder-6.7B-scala summary
      */
-    private List<String> complianceCodexDeepseekCoder67bHaskell;
+    private String complianceCodexDeepseekCoder67bScalaSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-haskell
+     * Compliance Codex-DeepSeek-Coder-33B-scala summary
      */
-    private List<String> complianceCodexDeepseekCoder33bHaskell;
+    private String complianceCodexDeepseekCoder33bScalaSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-haskell
+     * Compliance Codex-DeepSeek-Coder-1.3B-scala summary
      */
-    private List<String> complianceCodexDeepseekCoder13bHaskell;
+    private String complianceCodexDeepseekCoder13bScalaSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-clojure
+     * Compliance Codex-DeepSeek-Coder-6.7B-kotlin summary
      */
-    private List<String> complianceCodexDeepseekCoder67bClojure;
+    private String complianceCodexDeepseekCoder67bKotlinSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-clojure
+     * Compliance Codex-DeepSeek-Coder-33B-kotlin summary
      */
-    private List<String> complianceCodexDeepseekCoder33bClojure;
+    private String complianceCodexDeepseekCoder33bKotlinSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-clojure
+     * Compliance Codex-DeepSeek-Coder-1.3B-kotlin summary
      */
-    private List<String> complianceCodexDeepseekCoder13bClojure;
+    private String complianceCodexDeepseekCoder13bKotlinSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-erlang
+     * Compliance Codex-DeepSeek-Coder-6.7B-swift summary
      */
-    private List<String> complianceCodexDeepseekCoder67bErlang;
+    private String complianceCodexDeepseekCoder67bSwiftSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-erlang
+     * Compliance Codex-DeepSeek-Coder-33B-swift summary
      */
-    private List<String> complianceCodexDeepseekCoder33bErlang;
+    private String complianceCodexDeepseekCoder33bSwiftSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-erlang
+     * Compliance Codex-DeepSeek-Coder-1.3B-swift summary
      */
-    private List<String> complianceCodexDeepseekCoder13bErlang;
+    private String complianceCodexDeepseekCoder13bSwiftSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-elixir
+     * Compliance Codex-DeepSeek-Coder-6.7B-dart summary
      */
-    private List<String> complianceCodexDeepseekCoder67bElixir;
+    private String complianceCodexDeepseekCoder67bDartSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-elixir
+     * Compliance Codex-DeepSeek-Coder-33B-dart summary
      */
-    private List<String> complianceCodexDeepseekCoder33bElixir;
+    private String complianceCodexDeepseekCoder33bDartSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-elixir
+     * Compliance Codex-DeepSeek-Coder-1.3B-dart summary
      */
-    private List<String> complianceCodexDeepseekCoder13bElixir;
+    private String complianceCodexDeepseekCoder13bDartSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-ocaml
+     * Compliance Codex-DeepSeek-Coder-6.7B-csharp summary
      */
-    private List<String> complianceCodexDeepseekCoder67bOcaml;
+    private String complianceCodexDeepseekCoder67bCsharpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-ocaml
+     * Compliance Codex-DeepSeek-Coder-33B-csharp summary
      */
-    private List<String> complianceCodexDeepseekCoder33bOcaml;
+    private String complianceCodexDeepseekCoder33bCsharpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-ocaml
+     * Compliance Codex-DeepSeek-Coder-1.3B-csharp summary
      */
-    private List<String> complianceCodexDeepseekCoder13bOcaml;
+    private String complianceCodexDeepseekCoder13bCsharpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-racket
+     * Compliance Codex-DeepSeek-Coder-6.7B-vbnet summary
      */
-    private List<String> complianceCodexDeepseekCoder67bRacket;
+    private String complianceCodexDeepseekCoder67bVbnetSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-racket
+     * Compliance Codex-DeepSeek-Coder-33B-vbnet summary
      */
-    private List<String> complianceCodexDeepseekCoder33bRacket;
+    private String complianceCodexDeepseekCoder33bVbnetSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-racket
+     * Compliance Codex-DeepSeek-Coder-1.3B-vbnet summary
      */
-    private List<String> complianceCodexDeepseekCoder13bRacket;
+    private String complianceCodexDeepseekCoder13bVbnetSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-scheme
+     * Compliance Codex-DeepSeek-Coder-6.7B-fsharp summary
      */
-    private List<String> complianceCodexDeepseekCoder67bScheme;
+    private String complianceCodexDeepseekCoder67bFsharpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-scheme
+     * Compliance Codex-DeepSeek-Coder-33B-fsharp summary
      */
-    private List<String> complianceCodexDeepseekCoder33bScheme;
+    private String complianceCodexDeepseekCoder33bFsharpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-scheme
+     * Compliance Codex-DeepSeek-Coder-1.3B-fsharp summary
      */
-    private List<String> complianceCodexDeepseekCoder13bScheme;
+    private String complianceCodexDeepseekCoder13bFsharpSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-lisp
+     * Compliance Codex-DeepSeek-Coder-6.7B-haskell summary
      */
-    private List<String> complianceCodexDeepseekCoder67bLisp;
+    private String complianceCodexDeepseekCoder67bHaskellSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-lisp
+     * Compliance Codex-DeepSeek-Coder-33B-haskell summary
      */
-    private List<String> complianceCodexDeepseekCoder33bLisp;
+    private String complianceCodexDeepseekCoder33bHaskellSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-lisp
+     * Compliance Codex-DeepSeek-Coder-1.3B-haskell summary
      */
-    private List<String> complianceCodexDeepseekCoder13bLisp;
+    private String complianceCodexDeepseekCoder13bHaskellSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-prolog
+     * Compliance Codex-DeepSeek-Coder-6.7B-clojure summary
      */
-    private List<String> complianceCodexDeepseekCoder67bProlog;
+    private String complianceCodexDeepseekCoder67bClojureSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-prolog
+     * Compliance Codex-DeepSeek-Coder-33B-clojure summary
      */
-    private List<String> complianceCodexDeepseekCoder33bProlog;
+    private String complianceCodexDeepseekCoder33bClojureSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-prolog
+     * Compliance Codex-DeepSeek-Coder-1.3B-clojure summary
      */
-    private List<String> complianceCodexDeepseekCoder13bProlog;
+    private String complianceCodexDeepseekCoder13bClojureSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-sql
+     * Compliance Codex-DeepSeek-Coder-6.7B-erlang summary
      */
-    private List<String> complianceCodexDeepseekCoder67bSql;
+    private String complianceCodexDeepseekCoder67bErlangSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-sql
+     * Compliance Codex-DeepSeek-Coder-33B-erlang summary
      */
-    private List<String> complianceCodexDeepseekCoder33bSql;
+    private String complianceCodexDeepseekCoder33bErlangSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-sql
+     * Compliance Codex-DeepSeek-Coder-1.3B-erlang summary
      */
-    private List<String> complianceCodexDeepseekCoder13bSql;
+    private String complianceCodexDeepseekCoder13bErlangSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-html
+     * Compliance Codex-DeepSeek-Coder-6.7B-elixir summary
      */
-    private List<String> complianceCodexDeepseekCoder67bHtml;
+    private String complianceCodexDeepseekCoder67bElixirSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-html
+     * Compliance Codex-DeepSeek-Coder-33B-elixir summary
      */
-    private List<String> complianceCodexDeepseekCoder33bHtml;
+    private String complianceCodexDeepseekCoder33bElixirSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-html
+     * Compliance Codex-DeepSeek-Coder-1.3B-elixir summary
      */
-    private List<String> complianceCodexDeepseekCoder13bHtml;
+    private String complianceCodexDeepseekCoder13bElixirSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-css
+     * Compliance Codex-DeepSeek-Coder-6.7B-ocaml summary
      */
-    private List<String> complianceCodexDeepseekCoder67bCss;
+    private String complianceCodexDeepseekCoder67bOcamlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-css
+     * Compliance Codex-DeepSeek-Coder-33B-ocaml summary
      */
-    private List<String> complianceCodexDeepseekCoder33bCss;
+    private String complianceCodexDeepseekCoder33bOcamlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-css
+     * Compliance Codex-DeepSeek-Coder-1.3B-ocaml summary
      */
-    private List<String> complianceCodexDeepseekCoder13bCss;
+    private String complianceCodexDeepseekCoder13bOcamlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-xml
+     * Compliance Codex-DeepSeek-Coder-6.7B-racket summary
      */
-    private List<String> complianceCodexDeepseekCoder67bXml;
+    private String complianceCodexDeepseekCoder67bRacketSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-xml
+     * Compliance Codex-DeepSeek-Coder-33B-racket summary
      */
-    private List<String> complianceCodexDeepseekCoder33bXml;
+    private String complianceCodexDeepseekCoder33bRacketSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-xml
+     * Compliance Codex-DeepSeek-Coder-1.3B-racket summary
      */
-    private List<String> complianceCodexDeepseekCoder13bXml;
+    private String complianceCodexDeepseekCoder13bRacketSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-json
+     * Compliance Codex-DeepSeek-Coder-6.7B-scheme summary
      */
-    private List<String> complianceCodexDeepseekCoder67bJson;
+    private String complianceCodexDeepseekCoder67bSchemeSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-json
+     * Compliance Codex-DeepSeek-Coder-33B-scheme summary
      */
-    private List<String> complianceCodexDeepseekCoder33bJson;
+    private String complianceCodexDeepseekCoder33bSchemeSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-json
+     * Compliance Codex-DeepSeek-Coder-1.3B-scheme summary
      */
-    private List<String> complianceCodexDeepseekCoder13bJson;
+    private String complianceCodexDeepseekCoder13bSchemeSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-yaml
+     * Compliance Codex-DeepSeek-Coder-6.7B-lisp summary
      */
-    private List<String> complianceCodexDeepseekCoder67bYaml;
+    private String complianceCodexDeepseekCoder67bLispSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-yaml
+     * Compliance Codex-DeepSeek-Coder-33B-lisp summary
      */
-    private List<String> complianceCodexDeepseekCoder33bYaml;
+    private String complianceCodexDeepseekCoder33bLispSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-yaml
+     * Compliance Codex-DeepSeek-Coder-1.3B-lisp summary
      */
-    private List<String> complianceCodexDeepseekCoder13bYaml;
+    private String complianceCodexDeepseekCoder13bLispSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-toml
+     * Compliance Codex-DeepSeek-Coder-6.7B-prolog summary
      */
-    private List<String> complianceCodexDeepseekCoder67bToml;
+    private String complianceCodexDeepseekCoder67bPrologSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-toml
+     * Compliance Codex-DeepSeek-Coder-33B-prolog summary
      */
-    private List<String> complianceCodexDeepseekCoder33bToml;
+    private String complianceCodexDeepseekCoder33bPrologSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-toml
+     * Compliance Codex-DeepSeek-Coder-1.3B-prolog summary
      */
-    private List<String> complianceCodexDeepseekCoder13bToml;
+    private String complianceCodexDeepseekCoder13bPrologSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-ini
+     * Compliance Codex-DeepSeek-Coder-6.7B-sql summary
      */
-    private List<String> complianceCodexDeepseekCoder67bIni;
+    private String complianceCodexDeepseekCoder67bSqlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-ini
+     * Compliance Codex-DeepSeek-Coder-33B-sql summary
      */
-    private List<String> complianceCodexDeepseekCoder33bIni;
+    private String complianceCodexDeepseekCoder33bSqlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-ini
+     * Compliance Codex-DeepSeek-Coder-1.3B-sql summary
      */
-    private List<String> complianceCodexDeepseekCoder13bIni;
+    private String complianceCodexDeepseekCoder13bSqlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-csv
+     * Compliance Codex-DeepSeek-Coder-6.7B-html summary
      */
-    private List<String> complianceCodexDeepseekCoder67bCsv;
+    private String complianceCodexDeepseekCoder67bHtmlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-csv
+     * Compliance Codex-DeepSeek-Coder-33B-html summary
      */
-    private List<String> complianceCodexDeepseekCoder33bCsv;
+    private String complianceCodexDeepseekCoder33bHtmlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-csv
+     * Compliance Codex-DeepSeek-Coder-1.3B-html summary
      */
-    private List<String> complianceCodexDeepseekCoder13bCsv;
+    private String complianceCodexDeepseekCoder13bHtmlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-tsv
+     * Compliance Codex-DeepSeek-Coder-6.7B-css summary
      */
-    private List<String> complianceCodexDeepseekCoder67bTsv;
+    private String complianceCodexDeepseekCoder67bCssSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-tsv
+     * Compliance Codex-DeepSeek-Coder-33B-css summary
      */
-    private List<String> complianceCodexDeepseekCoder33bTsv;
+    private String complianceCodexDeepseekCoder33bCssSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-tsv
+     * Compliance Codex-DeepSeek-Coder-1.3B-css summary
      */
-    private List<String> complianceCodexDeepseekCoder13bTsv;
+    private String complianceCodexDeepseekCoder13bCssSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-psv
+     * Compliance Codex-DeepSeek-Coder-6.7B-xml summary
      */
-    private List<String> complianceCodexDeepseekCoder67bPsv;
+    private String complianceCodexDeepseekCoder67bXmlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-psv
+     * Compliance Codex-DeepSeek-Coder-33B-xml summary
      */
-    private List<String> complianceCodexDeepseekCoder33bPsv;
+    private String complianceCodexDeepseekCoder33bXmlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-psv
+     * Compliance Codex-DeepSeek-Coder-1.3B-xml summary
      */
-    private List<String> complianceCodexDeepseekCoder13bPsv;
+    private String complianceCodexDeepseekCoder13bXmlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-fixed
+     * Compliance Codex-DeepSeek-Coder-6.7B-json summary
      */
-    private List<String> complianceCodexDeepseekCoder67bFixed;
+    private String complianceCodexDeepseekCoder67bJsonSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-fixed
+     * Compliance Codex-DeepSeek-Coder-33B-json summary
      */
-    private List<String> complianceCodexDeepseekCoder33bFixed;
+    private String complianceCodexDeepseekCoder33bJsonSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-fixed
+     * Compliance Codex-DeepSeek-Coder-1.3B-json summary
      */
-    private List<String> complianceCodexDeepseekCoder13bFixed;
+    private String complianceCodexDeepseekCoder13bJsonSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-jsonl
+     * Compliance Codex-DeepSeek-Coder-6.7B-yaml summary
      */
-    private List<String> complianceCodexDeepseekCoder67bJsonl;
+    private String complianceCodexDeepseekCoder67bYamlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-jsonl
+     * Compliance Codex-DeepSeek-Coder-33B-yaml summary
      */
-    private List<String> complianceCodexDeepseekCoder33bJsonl;
+    private String complianceCodexDeepseekCoder33bYamlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-jsonl
+     * Compliance Codex-DeepSeek-Coder-1.3B-yaml summary
      */
-    private List<String> complianceCodexDeepseekCoder13bJsonl;
+    private String complianceCodexDeepseekCoder13bYamlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-ndjson
+     * Compliance Codex-DeepSeek-Coder-6.7B-toml summary
      */
-    private List<String> complianceCodexDeepseekCoder67bNdjson;
+    private String complianceCodexDeepseekCoder67bTomlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-ndjson
+     * Compliance Codex-DeepSeek-Coder-33B-toml summary
      */
-    private List<String> complianceCodexDeepseekCoder33bNdjson;
+    private String complianceCodexDeepseekCoder33bTomlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-ndjson
+     * Compliance Codex-DeepSeek-Coder-1.3B-toml summary
      */
-    private List<String> complianceCodexDeepseekCoder13bNdjson;
+    private String complianceCodexDeepseekCoder13bTomlSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-ldjson
+     * Compliance Codex-DeepSeek-Coder-6.7B-ini summary
      */
-    private List<String> complianceCodexDeepseekCoder67bLdjson;
+    private String complianceCodexDeepseekCoder67bIniSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-ldjson
+     * Compliance Codex-DeepSeek-Coder-33B-ini summary
      */
-    private List<String> complianceCodexDeepseekCoder33bLdjson;
+    private String complianceCodexDeepseekCoder33bIniSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-ldjson
+     * Compliance Codex-DeepSeek-Coder-1.3B-ini summary
      */
-    private List<String> complianceCodexDeepseekCoder13bLdjson;
+    private String complianceCodexDeepseekCoder13bIniSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-jsonc
+     * Compliance Codex-DeepSeek-Coder-6.7B-csv summary
      */
-    private List<String> complianceCodexDeepseekCoder67bJsonc;
+    private String complianceCodexDeepseekCoder67bCsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-jsonc
+     * Compliance Codex-DeepSeek-Coder-33B-csv summary
      */
-    private List<String> complianceCodexDeepseekCoder33bJsonc;
+    private String complianceCodexDeepseekCoder33bCsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-jsonc
+     * Compliance Codex-DeepSeek-Coder-1.3B-csv summary
      */
-    private List<String> complianceCodexDeepseekCoder13bJsonc;
+    private String complianceCodexDeepseekCoder13bCsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-json5
+     * Compliance Codex-DeepSeek-Coder-6.7B-tsv summary
      */
-    private List<String> complianceCodexDeepseekCoder67bJson5;
+    private String complianceCodexDeepseekCoder67bTsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-json5
+     * Compliance Codex-DeepSeek-Coder-33B-tsv summary
      */
-    private List<String> complianceCodexDeepseekCoder33bJson5;
+    private String complianceCodexDeepseekCoder33bTsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-json5
+     * Compliance Codex-DeepSeek-Coder-1.3B-tsv summary
      */
-    private List<String> complianceCodexDeepseekCoder13bJson5;
+    private String complianceCodexDeepseekCoder13bTsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-hjson
+     * Compliance Codex-DeepSeek-Coder-6.7B-psv summary
      */
-    private List<String> complianceCodexDeepseekCoder67bHjson;
+    private String complianceCodexDeepseekCoder67bPsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-hjson
+     * Compliance Codex-DeepSeek-Coder-33B-psv summary
      */
-    private List<String> complianceCodexDeepseekCoder33bHjson;
+    private String complianceCodexDeepseekCoder33bPsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-hjson
+     * Compliance Codex-DeepSeek-Coder-1.3B-psv summary
      */
-    private List<String> complianceCodexDeepseekCoder13bHjson;
+    private String complianceCodexDeepseekCoder13bPsvSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-6.7B-cson
+     * Compliance Codex-DeepSeek-Coder-6.7B-fixed summary
      */
-    private List<String> complianceCodexDeepseekCoder67bCson;
+    private String complianceCodexDeepseekCoder67bFixedSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-33B-cson
+     * Compliance Codex-DeepSeek-Coder-33B-fixed summary
      */
-    private List<String> complianceCodexDeepseekCoder33bCson;
+    private String complianceCodexDeepseekCoder33bFixedSummary;
     
     /**
-     * Compliance Codex-DeepSeek-Coder-1.3B-cson
+     * Compliance Codex-DeepSeek-Coder-1.3B-fixed summary
      */
-    private List<String> complianceCodexDeepseekCoder13bCson;
+    private String complianceCodexDeepseekCoder13bFixedSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-6.7B-jsonl summary
+     */
+    private String complianceCodexDeepseekCoder67bJsonlSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-33B-jsonl summary
+     */
+    private String complianceCodexDeepseekCoder33bJsonlSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-1.3B-jsonl summary
+     */
+    private String complianceCodexDeepseekCoder13bJsonlSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-6.7B-ndjson summary
+     */
+    private String complianceCodexDeepseekCoder67bNdjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-33B-ndjson summary
+     */
+    private String complianceCodexDeepseekCoder33bNdjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-1.3B-ndjson summary
+     */
+    private String complianceCodexDeepseekCoder13bNdjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-6.7B-ldjson summary
+     */
+    private String complianceCodexDeepseekCoder67bLdjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-33B-ldjson summary
+     */
+    private String complianceCodexDeepseekCoder33bLdjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-1.3B-ldjson summary
+     */
+    private String complianceCodexDeepseekCoder13bLdjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-6.7B-jsonc summary
+     */
+    private String complianceCodexDeepseekCoder67bJsoncSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-33B-jsonc summary
+     */
+    private String complianceCodexDeepseekCoder33bJsoncSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-1.3B-jsonc summary
+     */
+    private String complianceCodexDeepseekCoder13bJsoncSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-6.7B-json5 summary
+     */
+    private String complianceCodexDeepseekCoder67bJson5Summary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-33B-json5 summary
+     */
+    private String complianceCodexDeepseekCoder33bJson5Summary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-1.3B-json5 summary
+     */
+    private String complianceCodexDeepseekCoder13bJson5Summary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-6.7B-hjson summary
+     */
+    private String complianceCodexDeepseekCoder67bHjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-33B-hjson summary
+     */
+    private String complianceCodexDeepseekCoder33bHjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-1.3B-hjson summary
+     */
+    private String complianceCodexDeepseekCoder13bHjsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-6.7B-cson summary
+     */
+    private String complianceCodexDeepseekCoder67bCsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-33B-cson summary
+     */
+    private String complianceCodexDeepseekCoder33bCsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-1.3B-cson summary
+     */
+    private String complianceCodexDeepseekCoder13bCsonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-6.7B-ron summary
+     */
+    private String complianceCodexDeepseekCoder67bRonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-33B-ron summary
+     */
+    private String complianceCodexDeepseekCoder33bRonSummary;
+    
+    /**
+     * Compliance Codex-DeepSeek-Coder-1.3B-ron summary
+     */
+    private String complianceCodexDeepseekCoder13bRonSummary;
     
     /**
      * Additional compliance metrics
      */
-    private Map<String, Object> additionalComplianceMetrics;
+    private Map<String, Object> additionalMetrics;
 }
