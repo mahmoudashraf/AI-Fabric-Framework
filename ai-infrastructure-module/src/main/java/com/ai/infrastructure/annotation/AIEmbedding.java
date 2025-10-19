@@ -352,4 +352,9 @@ public @interface AIEmbedding {
      * Maximum chunk size
      */
     int maxChunkSize() default 1000;
+    
+    /**
+     * Field name for this embedding
+     */
+    String fieldName() default "";
 }

@@ -46,25 +46,25 @@ public class AIConfigurationService {
         config.setPineconeIndexName(providerConfig.getPineconeIndexName());
         
         // Service configuration
-        config.setEnabled(serviceConfig.isEnabled());
-        config.setAutoConfiguration(serviceConfig.isAutoConfiguration());
-        config.setCachingEnabled(serviceConfig.isCachingEnabled());
-        config.setMetricsEnabled(serviceConfig.isMetricsEnabled());
-        config.setHealthChecksEnabled(serviceConfig.isHealthChecksEnabled());
-        config.setLoggingEnabled(serviceConfig.isLoggingEnabled());
+        config.setEnabled(serviceConfig.getEnabled());
+        config.setAutoConfiguration(serviceConfig.getAutoConfiguration());
+        config.setCachingEnabled(serviceConfig.getCachingEnabled());
+        config.setMetricsEnabled(serviceConfig.getMetricsEnabled());
+        config.setHealthChecksEnabled(serviceConfig.getHealthChecksEnabled());
+        config.setLoggingEnabled(serviceConfig.getLoggingEnabled());
         config.setDefaultTimeout(serviceConfig.getDefaultTimeout());
         config.setMaxRetries(serviceConfig.getMaxRetries());
         config.setRetryDelay(serviceConfig.getRetryDelay());
-        config.setAsyncEnabled(serviceConfig.isAsyncEnabled());
+        config.setAsyncEnabled(serviceConfig.getAsyncEnabled());
         config.setThreadPoolSize(serviceConfig.getThreadPoolSize());
-        config.setBatchProcessingEnabled(serviceConfig.isBatchProcessingEnabled());
+        config.setBatchProcessingEnabled(serviceConfig.getBatchProcessingEnabled());
         config.setBatchSize(serviceConfig.getBatchSize());
-        config.setRateLimitingEnabled(serviceConfig.isRateLimitingEnabled());
+        config.setRateLimitingEnabled(serviceConfig.getRateLimitingEnabled());
         config.setRateLimitPerMinute(serviceConfig.getRateLimitPerMinute());
-        config.setCircuitBreakerEnabled(serviceConfig.isCircuitBreakerEnabled());
+        config.setCircuitBreakerEnabled(serviceConfig.getCircuitBreakerEnabled());
         config.setCircuitBreakerThreshold(serviceConfig.getCircuitBreakerThreshold());
         config.setCircuitBreakerTimeout(serviceConfig.getCircuitBreakerTimeout());
-        config.setFeatureFlagsEnabled(serviceConfig.isFeatureFlagsEnabled());
+        config.setFeatureFlagsEnabled(serviceConfig.getFeatureFlagsEnabled());
         config.setFeatureFlags(serviceConfig.getFeatureFlags());
         config.setServices((Map<String, Object>) (Map<?, ?>) serviceConfig.getServices());
         
@@ -100,25 +100,25 @@ public class AIConfigurationService {
         log.debug("Retrieving service configuration");
         
         Map<String, Object> config = new HashMap<>();
-        config.put("enabled", serviceConfig.isEnabled());
-        config.put("autoConfiguration", serviceConfig.isAutoConfiguration());
-        config.put("cachingEnabled", serviceConfig.isCachingEnabled());
-        config.put("metricsEnabled", serviceConfig.isMetricsEnabled());
-        config.put("healthChecksEnabled", serviceConfig.isHealthChecksEnabled());
-        config.put("loggingEnabled", serviceConfig.isLoggingEnabled());
+        config.put("enabled", serviceConfig.getEnabled());
+        config.put("autoConfiguration", serviceConfig.getAutoConfiguration());
+        config.put("cachingEnabled", serviceConfig.getCachingEnabled());
+        config.put("metricsEnabled", serviceConfig.getMetricsEnabled());
+        config.put("healthChecksEnabled", serviceConfig.getHealthChecksEnabled());
+        config.put("loggingEnabled", serviceConfig.getLoggingEnabled());
         config.put("defaultTimeout", serviceConfig.getDefaultTimeout());
         config.put("maxRetries", serviceConfig.getMaxRetries());
         config.put("retryDelay", serviceConfig.getRetryDelay());
-        config.put("asyncEnabled", serviceConfig.isAsyncEnabled());
+        config.put("asyncEnabled", serviceConfig.getAsyncEnabled());
         config.put("threadPoolSize", serviceConfig.getThreadPoolSize());
-        config.put("batchProcessingEnabled", serviceConfig.isBatchProcessingEnabled());
+        config.put("batchProcessingEnabled", serviceConfig.getBatchProcessingEnabled());
         config.put("batchSize", serviceConfig.getBatchSize());
-        config.put("rateLimitingEnabled", serviceConfig.isRateLimitingEnabled());
+        config.put("rateLimitingEnabled", serviceConfig.getRateLimitingEnabled());
         config.put("rateLimitPerMinute", serviceConfig.getRateLimitPerMinute());
-        config.put("circuitBreakerEnabled", serviceConfig.isCircuitBreakerEnabled());
+        config.put("circuitBreakerEnabled", serviceConfig.getCircuitBreakerEnabled());
         config.put("circuitBreakerThreshold", serviceConfig.getCircuitBreakerThreshold());
         config.put("circuitBreakerTimeout", serviceConfig.getCircuitBreakerTimeout());
-        config.put("featureFlagsEnabled", serviceConfig.isFeatureFlagsEnabled());
+        config.put("featureFlagsEnabled", serviceConfig.getFeatureFlagsEnabled());
         config.put("featureFlags", serviceConfig.getFeatureFlags());
         config.put("services", serviceConfig.getServices());
         
@@ -132,7 +132,7 @@ public class AIConfigurationService {
      * @return true if feature is enabled
      */
     public boolean isFeatureEnabled(String featureName) {
-        if (!serviceConfig.isFeatureFlagsEnabled()) {
+        if (!serviceConfig.getFeatureFlagsEnabled()) {
             return true; // All features enabled if feature flags disabled
         }
         
@@ -245,18 +245,18 @@ public class AIConfigurationService {
         log.debug("Generating configuration summary");
         
         Map<String, Object> summary = new HashMap<>();
-        summary.put("enabled", serviceConfig.isEnabled());
+        summary.put("enabled", serviceConfig.getEnabled());
         summary.put("featuresEnabled", serviceConfig.getFeatureFlags().values().stream().mapToInt(b -> b ? 1 : 0).sum());
         summary.put("totalFeatures", serviceConfig.getFeatureFlags().size());
         summary.put("servicesEnabled", serviceConfig.getServices().values().stream().mapToInt(s -> s.isEnabled() ? 1 : 0).sum());
         summary.put("totalServices", serviceConfig.getServices().size());
-        summary.put("cachingEnabled", serviceConfig.isCachingEnabled());
-        summary.put("metricsEnabled", serviceConfig.isMetricsEnabled());
-        summary.put("healthChecksEnabled", serviceConfig.isHealthChecksEnabled());
-        summary.put("asyncEnabled", serviceConfig.isAsyncEnabled());
-        summary.put("batchProcessingEnabled", serviceConfig.isBatchProcessingEnabled());
-        summary.put("rateLimitingEnabled", serviceConfig.isRateLimitingEnabled());
-        summary.put("circuitBreakerEnabled", serviceConfig.isCircuitBreakerEnabled());
+        summary.put("cachingEnabled", serviceConfig.getCachingEnabled());
+        summary.put("metricsEnabled", serviceConfig.getMetricsEnabled());
+        summary.put("healthChecksEnabled", serviceConfig.getHealthChecksEnabled());
+        summary.put("asyncEnabled", serviceConfig.getAsyncEnabled());
+        summary.put("batchProcessingEnabled", serviceConfig.getBatchProcessingEnabled());
+        summary.put("rateLimitingEnabled", serviceConfig.getRateLimitingEnabled());
+        summary.put("circuitBreakerEnabled", serviceConfig.getCircuitBreakerEnabled());
         
         return summary;
     }

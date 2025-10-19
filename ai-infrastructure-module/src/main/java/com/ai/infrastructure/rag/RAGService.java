@@ -242,7 +242,7 @@ public class RAGService {
                 .usedDocuments(0)
                 .confidenceScore(0.0)
                 .relevanceScores(Collections.emptyList())
-                .processingTimeMs(0)
+                .processingTimeMs(0L)
                 .requestId(request.getRequestId())
                 .model(config.getOpenaiEmbeddingModel())
                 .success(false)

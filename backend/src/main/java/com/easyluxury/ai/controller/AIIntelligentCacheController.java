@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.HashMap;
+import com.ai.infrastructure.cache.CacheStatistics;
 
 /**
  * AI Intelligent Cache Controller
@@ -39,7 +41,8 @@ public class AIIntelligentCacheController {
         log.info("AI Cache: Statistics request received");
         
         try {
-            Map<String, Object> statistics = aiIntelligentCacheService.getCacheStatistics();
+            CacheStatistics cacheStats = aiIntelligentCacheService.getCacheStatistics();
+            Map<String, Object> statistics = convertCacheStatisticsToMap(cacheStats);
             
             log.info("AI Cache: Statistics retrieved successfully");
             return ResponseEntity.ok(statistics);
@@ -88,7 +91,8 @@ public class AIIntelligentCacheController {
         log.info("AI Cache: Health check request received");
         
         try {
-            Map<String, Object> statistics = aiIntelligentCacheService.getCacheStatistics();
+            CacheStatistics cacheStats = aiIntelligentCacheService.getCacheStatistics();
+            Map<String, Object> statistics = convertCacheStatisticsToMap(cacheStats);
             
             // Calculate health metrics
             long totalRequests = (Long) statistics.get("cacheHits") + (Long) statistics.get("cacheMisses");
@@ -172,5 +176,112 @@ public class AIIntelligentCacheController {
             log.error("AI Cache: Warm-up failed", e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+    
+    /**
+     * Convert CacheStatistics to Map for API response
+     */
+    private Map<String, Object> convertCacheStatisticsToMap(CacheStatistics stats) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("hitCount", stats.getHitCount());
+        result.put("missCount", stats.getMissCount());
+        result.put("hitRate", stats.getHitRate());
+        result.put("missRate", stats.getMissRate());
+        result.put("requestCount", stats.getRequestCount());
+        result.put("totalSize", stats.getTotalSize());
+        result.put("maxSize", stats.getMaxSize());
+        result.put("memoryUsage", stats.getMemoryUsage());
+        result.put("maxMemoryUsage", stats.getMaxMemoryUsage());
+        result.put("memoryUsagePercentage", stats.getMemoryUsagePercentage());
+        result.put("evictionCount", stats.getEvictionCount());
+        result.put("expirationCount", stats.getExpirationCount());
+        result.put("loadCount", stats.getLoadCount());
+        result.put("loadTime", stats.getLoadTime());
+        result.put("averageLoadTime", stats.getAverageLoadTime());
+        result.put("totalResponseTime", stats.getTotalResponseTime());
+        result.put("averageResponseTime", stats.getAverageResponseTime());
+        result.put("minResponseTime", stats.getMinResponseTime());
+        result.put("maxResponseTime", stats.getMaxResponseTime());
+        result.put("efficiencyScore", stats.getEfficiencyScore());
+        result.put("performanceScore", stats.getPerformanceScore());
+        result.put("healthScore", stats.getHealthScore());
+        result.put("utilizationPercentage", stats.getUtilizationPercentage());
+        result.put("fragmentationPercentage", stats.getFragmentationPercentage());
+        result.put("compressionRatio", stats.getCompressionRatio());
+        result.put("deduplicationRatio", stats.getDeduplicationRatio());
+        result.put("optimizationRatio", stats.getOptimizationRatio());
+        result.put("status", stats.getStatus());
+        result.put("healthStatus", stats.getHealthStatus());
+        result.put("performanceStatus", stats.getPerformanceStatus());
+        result.put("efficiencyStatus", stats.getEfficiencyStatus());
+        result.put("utilizationStatus", stats.getUtilizationStatus());
+        result.put("fragmentationStatus", stats.getFragmentationStatus());
+        result.put("compressionStatus", stats.getCompressionStatus());
+        result.put("deduplicationStatus", stats.getDeduplicationStatus());
+        result.put("optimizationStatus", stats.getOptimizationStatus());
+        result.put("monitoringStatus", stats.getMonitoringStatus());
+        result.put("alertingStatus", stats.getAlertingStatus());
+        result.put("backupStatus", stats.getBackupStatus());
+        result.put("recoveryStatus", stats.getRecoveryStatus());
+        result.put("scalingStatus", stats.getScalingStatus());
+        result.put("securityStatus", stats.getSecurityStatus());
+        result.put("complianceStatus", stats.getComplianceStatus());
+        result.put("governanceStatus", stats.getGovernanceStatus());
+        result.put("lifecycleStatus", stats.getLifecycleStatus());
+        result.put("maintenanceStatus", stats.getMaintenanceStatus());
+        result.put("supportStatus", stats.getSupportStatus());
+        result.put("trainingStatus", stats.getTrainingStatus());
+        result.put("documentationStatus", stats.getDocumentationStatus());
+        result.put("communicationStatus", stats.getCommunicationStatus());
+        result.put("stakeholderStatus", stats.getStakeholderStatus());
+        result.put("recommendations", stats.getRecommendations());
+        result.put("warnings", stats.getWarnings());
+        result.put("errors", stats.getErrors());
+        result.put("alerts", stats.getAlerts());
+        result.put("notifications", stats.getNotifications());
+        result.put("reports", stats.getReports());
+        result.put("dashboards", stats.getDashboards());
+        result.put("metrics", stats.getMetrics());
+        result.put("logs", stats.getLogs());
+        result.put("traces", stats.getTraces());
+        result.put("profiles", stats.getProfiles());
+        result.put("debugInfo", stats.getDebugInfo());
+        result.put("testResults", stats.getTestResults());
+        result.put("validationResults", stats.getValidationResults());
+        result.put("sanitizationResults", stats.getSanitizationResults());
+        result.put("auditResults", stats.getAuditResults());
+        result.put("complianceResults", stats.getComplianceResults());
+        result.put("governanceResults", stats.getGovernanceResults());
+        result.put("lifecycleResults", stats.getLifecycleResults());
+        result.put("maintenanceResults", stats.getMaintenanceResults());
+        result.put("supportResults", stats.getSupportResults());
+        result.put("trainingResults", stats.getTrainingResults());
+        result.put("documentationResults", stats.getDocumentationResults());
+        result.put("communicationResults", stats.getCommunicationResults());
+        result.put("stakeholderResults", stats.getStakeholderResults());
+        result.put("successCriteria", stats.getSuccessCriteria());
+        result.put("acceptanceCriteria", stats.getAcceptanceCriteria());
+        result.put("qualityCriteria", stats.getQualityCriteria());
+        result.put("performanceCriteria", stats.getPerformanceCriteria());
+        result.put("securityCriteria", stats.getSecurityCriteria());
+        result.put("complianceCriteria", stats.getComplianceCriteria());
+        result.put("governanceCriteria", stats.getGovernanceCriteria());
+        result.put("lifecycleCriteria", stats.getLifecycleCriteria());
+        result.put("maintenanceCriteria", stats.getMaintenanceCriteria());
+        result.put("supportCriteria", stats.getSupportCriteria());
+        result.put("trainingCriteria", stats.getTrainingCriteria());
+        result.put("documentationCriteria", stats.getDocumentationCriteria());
+        result.put("communicationCriteria", stats.getCommunicationCriteria());
+        result.put("stakeholderCriteria", stats.getStakeholderCriteria());
+        result.put("generatedAt", stats.getGeneratedAt());
+        result.put("lastUpdated", stats.getLastUpdated());
+        result.put("generatedBy", stats.getGeneratedBy());
+        result.put("generatorVersion", stats.getGeneratorVersion());
+        result.put("valid", stats.getValid());
+        result.put("validationErrors", stats.getValidationErrors());
+        result.put("summary", stats.getSummary());
+        result.put("details", stats.getDetails());
+        result.put("statisticsMetadata", stats.getStatisticsMetadata());
+        return result;
     }
 }

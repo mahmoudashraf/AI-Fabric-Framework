@@ -1,6 +1,7 @@
 package com.ai.infrastructure.api;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * AI Auto Generator Service Interface
@@ -170,4 +171,9 @@ public interface AIAutoGeneratorService {
      * @return service metrics
      */
     java.util.Map<String, Object> getMetrics();
+    
+    // Additional methods for backend compatibility
+    APIEndpointDefinition generateAPIEndpoint(String entityType, Map<String, String> parameters);
+    APISpecification generateCompleteAPISpecification();
+    String generateClientSDK(String language, APISpecification specification);
 }

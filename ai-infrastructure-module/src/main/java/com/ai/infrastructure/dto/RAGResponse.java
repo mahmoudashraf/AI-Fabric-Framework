@@ -60,6 +60,21 @@ public class RAGResponse {
     private Boolean success;
     
     /**
+     * Whether hybrid search was used
+     */
+    private Boolean hybridSearchUsed;
+    
+    /**
+     * Whether contextual search was used
+     */
+    private Boolean contextualSearchUsed;
+    
+    /**
+     * Categories that were searched
+     */
+    private List<String> searchedCategories;
+    
+    /**
      * Total number of results found
      */
     private Integer totalResults;

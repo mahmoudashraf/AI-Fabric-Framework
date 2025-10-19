@@ -156,7 +156,7 @@ public class AICapableProcessor {
                 fieldInfo.put("includeInSimilarity", annotation.includeInSimilarity());
                 fieldInfo.put("model", annotation.model());
                 fieldInfo.put("autoGenerate", annotation.autoGenerate());
-                fieldInfo.put("chunkingStrategy", annotation.chunkingStrategy().name());
+                fieldInfo.put("chunkingStrategy", annotation.chunkingStrategy());
                 fieldInfo.put("maxChunkSize", annotation.maxChunkSize());
                 
                 // Get field value
@@ -200,7 +200,7 @@ public class AICapableProcessor {
                 fieldInfo.put("includeInRAG", annotation.includeInRAG());
                 fieldInfo.put("keywords", Arrays.asList(annotation.keywords()));
                 fieldInfo.put("indexable", annotation.indexable());
-                fieldInfo.put("type", annotation.type().name());
+                fieldInfo.put("type", annotation.type());
                 fieldInfo.put("enableSemanticSearch", annotation.enableSemanticSearch());
                 fieldInfo.put("enableKeywordSearch", annotation.enableKeywordSearch());
                 

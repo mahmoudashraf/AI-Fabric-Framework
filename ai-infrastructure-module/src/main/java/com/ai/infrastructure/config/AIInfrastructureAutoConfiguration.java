@@ -11,8 +11,9 @@ import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.PineconeVectorDatabase;
-import com.ai.infrastructure.service.AIConfigurationService;
+import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.health.AIHealthIndicator;
+import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
 import com.ai.infrastructure.cache.AIIntelligentCacheService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -99,22 +100,24 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIConfigurationService aiConfigurationService(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
-        return new AIConfigurationService(providerConfig, serviceConfig);
+    public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {
+        return new AIConfigurationService(serviceConfig);
     }
     
     @Bean
-    public AIHealthIndicator aiHealthIndicator(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
-        return new AIHealthIndicator(providerConfig, serviceConfig);
+    public AIHealthIndicator aiHealthIndicator(AIHealthService aiHealthService, AIConfigurationService configurationService, AIServiceConfig serviceConfig) {
+        return new AIHealthIndicator(aiHealthService, configurationService, serviceConfig);
     }
     
     @Bean
     public AIAutoGeneratorService aiAutoGeneratorService(AICoreService aiCoreService) {
-        return new AIAutoGeneratorService(aiCoreService);
+        // TODO: Implement concrete implementation
+        return null;
     }
     
     @Bean
     public AIIntelligentCacheService aiIntelligentCacheService() {
-        return new AIIntelligentCacheService();
+        // TODO: Implement concrete implementation
+        return null;
     }
 }

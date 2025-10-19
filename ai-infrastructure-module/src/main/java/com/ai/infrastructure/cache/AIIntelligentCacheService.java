@@ -385,4 +385,8 @@ public interface AIIntelligentCacheService {
      * Shutdown cache service
      */
     void shutdown();
+    
+    // Additional methods for backend compatibility
+    CacheStatistics getCacheStatistics();
+    void clearAllCaches();
 }

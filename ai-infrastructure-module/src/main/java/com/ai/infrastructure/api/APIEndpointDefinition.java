@@ -532,4 +532,9 @@ public class APIEndpointDefinition {
         private String dashboard;
         private String logs;
     }
+    
+    // Additional methods for backend compatibility
+    public String getEndpointPath() {
+        return path;
+    }
 }

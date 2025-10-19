@@ -269,4 +269,9 @@ public @interface AICapable {
      * Whether to enable validation
      */
     boolean enableValidation() default true;
+    
+    /**
+     * Features enabled for this entity
+     */
+    String[] features() default {};
 }

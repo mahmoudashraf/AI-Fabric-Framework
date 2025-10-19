@@ -515,4 +515,9 @@ public @interface AIKnowledge {
      * Whether to enable keyword search
      */
     boolean enableKeywordSearch() default true;
+    
+    /**
+     * Field name for this knowledge
+     */
+    String fieldName() default "";
 }

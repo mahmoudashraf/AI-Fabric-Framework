@@ -46,7 +46,7 @@ public class AIHealthService {
         try {
             // Get basic health from AI module
             Map<String, Object> healthMap = aiHealthIndicator.health();
-            AIHealthDto detailedHealth = aiHealthIndicator.getDetailedHealth();
+            Map<String, Object> detailedHealthMap = aiHealthIndicator.getDetailedHealth();
             
             // Build Easy Luxury specific health status
             AIHealthStatusDto status = new AIHealthStatusDto();
@@ -107,14 +107,14 @@ public class AIHealthService {
         );
         
         // Check service configuration
-        configStatus.setAiServicesEnabled(aiServiceConfig.isEnabled());
-        configStatus.setCachingEnabled(aiServiceConfig.isCachingEnabled());
-        configStatus.setMetricsEnabled(aiServiceConfig.isMetricsEnabled());
-        configStatus.setHealthChecksEnabled(aiServiceConfig.isHealthChecksEnabled());
-        configStatus.setAsyncEnabled(aiServiceConfig.isAsyncEnabled());
-        configStatus.setBatchProcessingEnabled(aiServiceConfig.isBatchProcessingEnabled());
-        configStatus.setRateLimitingEnabled(aiServiceConfig.isRateLimitingEnabled());
-        configStatus.setCircuitBreakerEnabled(aiServiceConfig.isCircuitBreakerEnabled());
+        configStatus.setAiServicesEnabled(aiServiceConfig.getEnabled());
+        configStatus.setCachingEnabled(aiServiceConfig.getCachingEnabled());
+        configStatus.setMetricsEnabled(aiServiceConfig.getMetricsEnabled());
+        configStatus.setHealthChecksEnabled(aiServiceConfig.getHealthChecksEnabled());
+        configStatus.setAsyncEnabled(aiServiceConfig.getAsyncEnabled());
+        configStatus.setBatchProcessingEnabled(aiServiceConfig.getBatchProcessingEnabled());
+        configStatus.setRateLimitingEnabled(aiServiceConfig.getRateLimitingEnabled());
+        configStatus.setCircuitBreakerEnabled(aiServiceConfig.getCircuitBreakerEnabled());
         
         // Check Easy Luxury specific settings
         configStatus.setProductRecommendationsEnabled(aiSettings.getEnableProductRecommendations());
