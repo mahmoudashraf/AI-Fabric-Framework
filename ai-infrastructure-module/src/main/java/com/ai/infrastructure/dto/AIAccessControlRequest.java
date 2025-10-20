@@ -327,4 +327,18 @@ public class AIAccessControlRequest {
      * Request archive reason
      */
     private String archiveReason;
+    
+    /**
+     * Whether access is granted
+     */
+    private Boolean accessGranted;
+    
+    // Manual getters/setters for Lombok compatibility
+    public Boolean isAccessGranted() {
+        return accessGranted;
+    }
+    
+    public void setAccessGranted(Boolean accessGranted) {
+        this.accessGranted = accessGranted;
+    }
 }

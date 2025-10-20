@@ -412,4 +412,39 @@ public class AIAuditLog {
      * Anomaly resolution archive reason
      */
     private String anomalyResolutionArchiveReason;
+    
+    /**
+     * Violations found
+     */
+    private List<String> violations;
+    
+    /**
+     * Regulation types
+     */
+    private List<String> regulationTypes;
+    
+    // Manual getters/setters for Lombok compatibility
+    public Boolean isHasAnomalies() {
+        return hasAnomalies;
+    }
+    
+    public void setHasAnomalies(Boolean hasAnomalies) {
+        this.hasAnomalies = hasAnomalies;
+    }
+    
+    public List<String> getViolations() {
+        return violations;
+    }
+    
+    public void setViolations(List<String> violations) {
+        this.violations = violations;
+    }
+    
+    public List<String> getRegulationTypes() {
+        return regulationTypes;
+    }
+    
+    public void setRegulationTypes(List<String> regulationTypes) {
+        this.regulationTypes = regulationTypes;
+    }
 }

@@ -1,1 +1,0 @@
-/bin/sh -c cd /workspace/ai-infrastructure-module && javac @/workspace/ai-infrastructure-module/target/org.codehaus.plexus.compiler.javac.JavacCompiler12719612749897300945arguments -J-Xmx512m -J-Xms128m

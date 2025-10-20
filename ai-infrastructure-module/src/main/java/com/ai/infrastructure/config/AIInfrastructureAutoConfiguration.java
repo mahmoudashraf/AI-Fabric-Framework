@@ -61,8 +61,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public RAGService ragService(AIProviderConfig config, AIEmbeddingService embeddingService, VectorDatabaseService vectorDatabaseService, VectorDatabase vectorDatabase) {
-        return new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase);
+    public RAGService ragService(AIProviderConfig config, AIEmbeddingService embeddingService, VectorDatabaseService vectorDatabaseService, VectorDatabase vectorDatabase, AISearchService searchService) {
+        return new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService);
     }
     
     @Bean

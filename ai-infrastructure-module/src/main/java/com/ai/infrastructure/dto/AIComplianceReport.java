@@ -297,4 +297,45 @@ public class AIComplianceReport {
      * Report archive reason
      */
     private String archiveReason;
+    
+    // Manual getters/setters for Lombok compatibility
+    public Boolean isDataPrivacyCompliant() {
+        return dataPrivacyCompliant;
+    }
+    
+    public void setDataPrivacyCompliant(Boolean dataPrivacyCompliant) {
+        this.dataPrivacyCompliant = dataPrivacyCompliant;
+    }
+    
+    public Boolean isRegulatoryCompliant() {
+        return regulatoryCompliant;
+    }
+    
+    public void setRegulatoryCompliant(Boolean regulatoryCompliant) {
+        this.regulatoryCompliant = regulatoryCompliant;
+    }
+    
+    public Boolean isAuditCompliant() {
+        return auditCompliant;
+    }
+    
+    public void setAuditCompliant(Boolean auditCompliant) {
+        this.auditCompliant = auditCompliant;
+    }
+    
+    public Boolean isRetentionCompliant() {
+        return retentionCompliant;
+    }
+    
+    public void setRetentionCompliant(Boolean retentionCompliant) {
+        this.retentionCompliant = retentionCompliant;
+    }
+    
+    public Boolean isOverallCompliant() {
+        return overallCompliant;
+    }
+    
+    public void setOverallCompliant(Boolean overallCompliant) {
+        this.overallCompliant = overallCompliant;
+    }
 }

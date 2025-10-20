@@ -297,4 +297,31 @@ public class AIAuditRequest {
      * Request archive reason
      */
     private String archiveReason;
+    
+    /**
+     * Result of the audit
+     */
+    private String result;
+    
+    /**
+     * Additional details
+     */
+    private String details;
+    
+    // Manual getters/setters for Lombok compatibility
+    public String getResult() {
+        return result;
+    }
+    
+    public void setResult(String result) {
+        this.result = result;
+    }
+    
+    public String getDetails() {
+        return details;
+    }
+    
+    public void setDetails(String details) {
+        this.details = details;
+    }
 }

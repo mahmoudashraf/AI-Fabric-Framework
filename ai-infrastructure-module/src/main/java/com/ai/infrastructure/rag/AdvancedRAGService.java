@@ -1,5 +1,6 @@
 package com.ai.infrastructure.rag;
 
+import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.RAGRequest;
@@ -57,14 +58,34 @@ public class AdvancedRAGService {
             
             long processingTime = System.currentTimeMillis() - startTime;
             
+            // Convert RAGResponse.RAGDocument to AdvancedRAGResponse.RAGDocument
+            List<AdvancedRAGResponse.RAGDocument> convertedDocuments = rerankedDocuments.stream()
+                .map(doc -> AdvancedRAGResponse.RAGDocument.builder()
+                    .id(doc.getId())
+                    .content(doc.getContent())
+                    .title(doc.getTitle())
+                    .type(doc.getType())
+                    .score(doc.getScore())
+                    .similarity(doc.getSimilarity())
+                    .metadata(doc.getMetadata())
+                    .source(doc.getSource())
+                    .createdAt(doc.getCreatedAt())
+                    .author(doc.getAuthor())
+                    .tags(doc.getTags())
+                    .category(doc.getType()) // Use type as category
+                    .wordCount(doc.getWordCount())
+                    .language(doc.getLanguage())
+                    .build())
+                .collect(Collectors.toList());
+            
             return AdvancedRAGResponse.builder()
                 .query(request.getQuery())
                 .expandedQueries(expandedQueries)
                 .response(generatedResponse)
                 .context(optimizedContext)
-                .documents(rerankedDocuments)
-                .totalDocuments(rerankedDocuments.size())
-                .usedDocuments(Math.min(rerankedDocuments.size(), request.getMaxDocuments()))
+                .documents(convertedDocuments)
+                .totalDocuments(convertedDocuments.size())
+                .usedDocuments(Math.min(convertedDocuments.size(), request.getMaxDocuments()))
                 .relevanceScores(extractRelevanceScores(rerankedDocuments))
                 .confidenceScore(calculateConfidence(rerankedDocuments))
                 .processingTimeMs(processingTime)
@@ -124,7 +145,7 @@ public class AdvancedRAGService {
                 try {
                     RAGRequest ragRequest = RAGRequest.builder()
                         .query(query)
-                        .maxResults(request.getMaxResults())
+                        .limit(request.getMaxResults())
                         .enableHybridSearch(request.getEnableHybridSearch())
                         .enableContextualSearch(request.getEnableContextualSearch())
                         .categories(request.getCategories())
@@ -134,7 +155,7 @@ public class AdvancedRAGService {
                 } catch (Exception e) {
                     log.warn("Search failed for query: {}", query, e);
                     return RAGResponse.builder()
-                        .query(query)
+                        .originalQuery(query)
                         .success(false)
                         .errorMessage(e.getMessage())
                         .build();
@@ -179,13 +200,19 @@ public class AdvancedRAGService {
         
         try {
             // Get query embedding
-            List<Double> queryEmbedding = aiEmbeddingService.generateEmbedding(query);
+            AIEmbeddingRequest queryRequest = AIEmbeddingRequest.builder()
+                .text(query)
+                .build();
+            List<Double> queryEmbedding = aiEmbeddingService.generateEmbedding(queryRequest).getEmbedding();
             
             // Calculate semantic similarity for each document
             return documents.stream()
                 .map(doc -> {
                     try {
-                        List<Double> docEmbedding = aiEmbeddingService.generateEmbedding(doc.getContent());
+                        AIEmbeddingRequest docRequest = AIEmbeddingRequest.builder()
+                            .text(doc.getContent())
+                            .build();
+                        List<Double> docEmbedding = aiEmbeddingService.generateEmbedding(docRequest).getEmbedding();
                         double similarity = calculateCosineSimilarity(queryEmbedding, docEmbedding);
                         doc.setSimilarity(similarity);
                         return doc;

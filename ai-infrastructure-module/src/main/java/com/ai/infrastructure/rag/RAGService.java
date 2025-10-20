@@ -2,7 +2,9 @@ package com.ai.infrastructure.rag;
 
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.core.AIEmbeddingService;
+import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
+import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGRequest;
@@ -34,6 +36,7 @@ public class RAGService {
     private final AIEmbeddingService embeddingService;
     private final VectorDatabaseService vectorDatabaseService;
     private final VectorDatabase vectorDatabase;
+    private final AISearchService searchService;
     
     /**
      * Index content for RAG
@@ -319,5 +322,86 @@ public class RAGService {
             .similarity(((Number) result.getOrDefault("similarity", 0.0)).doubleValue())
             .metadata((Map<String, Object>) result.getOrDefault("metadata", new HashMap<>()))
             .build();
+    }
+    
+    /**
+     * Perform RAG operation
+     * 
+     * @param request the RAG request
+     * @return RAG response
+     */
+    public RAGResponse performRag(RAGRequest request) {
+        try {
+            log.debug("Performing RAG operation for query: {}", request.getQuery());
+            
+            // Generate embedding for the query
+            AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
+                .text(request.getQuery())
+                .build();
+            
+            AIEmbeddingResponse embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
+            List<Double> queryVector = embeddingResponse.getEmbedding();
+            
+            // Perform semantic search using the existing search method
+            String contextString = null;
+            if (request.getContext() != null) {
+                contextString = request.getContext().toString();
+            }
+            
+            String filtersString = null;
+            if (request.getFilters() != null) {
+                filtersString = request.getFilters().toString();
+            }
+            
+            AISearchRequest searchRequest = AISearchRequest.builder()
+                .query(request.getQuery())
+                .entityType(request.getEntityType())
+                .limit(request.getLimit())
+                .threshold(request.getThreshold())
+                .context(contextString)
+                .filters(filtersString)
+                .build();
+            
+            AISearchResponse searchResponse = searchService.search(queryVector, searchRequest);
+            
+            // Convert search results to RAG response
+            List<RAGResponse.RAGDocument> documents = searchResponse.getResults().stream()
+                .map(result -> RAGResponse.RAGDocument.builder()
+                    .id((String) result.get("id"))
+                    .content((String) result.get("content"))
+                    .title((String) result.get("title"))
+                    .type((String) result.get("type"))
+                    .score((Double) result.get("score"))
+                    .similarity((Double) result.get("similarity"))
+                    .metadata((Map<String, Object>) result.get("metadata"))
+                    .build())
+                .collect(Collectors.toList());
+            
+            return RAGResponse.builder()
+                .documents(documents)
+                .totalDocuments(searchResponse.getTotalResults())
+                .usedDocuments(documents.size())
+                .relevanceScores(documents.stream().map(RAGResponse.RAGDocument::getScore).collect(Collectors.toList()))
+                .success(true)
+                .totalResults(searchResponse.getTotalResults())
+                .returnedResults(documents.size())
+                .maxScore(documents.stream().mapToDouble(RAGResponse.RAGDocument::getScore).max().orElse(0.0))
+                .averageScore(documents.stream().mapToDouble(RAGResponse.RAGDocument::getScore).average().orElse(0.0))
+                .processingTimeMs(searchResponse.getProcessingTimeMs())
+                .requestId(request.getRequestId())
+                .originalQuery(request.getQuery())
+                .entityType(request.getEntityType())
+                .model(config.getOpenaiModel())
+                .timestamp(java.time.LocalDateTime.now())
+                .metadata(request.getMetadata())
+                .build();
+                
+        } catch (Exception e) {
+            log.error("Error performing RAG operation", e);
+            return RAGResponse.builder()
+                .success(false)
+                .errorMessage("Failed to perform RAG operation: " + e.getMessage())
+                .build();
+        }
     }
 }

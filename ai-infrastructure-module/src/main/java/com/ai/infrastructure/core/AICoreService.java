@@ -260,4 +260,33 @@ public class AICoreService {
             );
         }
     }
+    
+    /**
+     * Generate text using AI with simple string input
+     */
+    public String generateText(String prompt) {
+        try {
+            initializeOpenAI();
+            
+            if (openAiService == null) {
+                throw new AIServiceException("OpenAI service not available");
+            }
+            
+            ChatCompletionRequest chatRequest = ChatCompletionRequest.builder()
+                .model(aiProviderConfig.getOpenaiModel())
+                .messages(List.of(new ChatMessage(ChatMessageRole.USER.value(), prompt)))
+                .maxTokens(1000)
+                .temperature(0.7)
+                .build();
+            
+            var completion = openAiService.createChatCompletion(chatRequest);
+            var message = completion.getChoices().get(0).getMessage();
+            
+            return message.getContent();
+                
+        } catch (Exception e) {
+            log.error("Error generating text: {}", e.getMessage(), e);
+            throw new AIServiceException("Failed to generate text: " + e.getMessage(), e);
+        }
+    }
 }

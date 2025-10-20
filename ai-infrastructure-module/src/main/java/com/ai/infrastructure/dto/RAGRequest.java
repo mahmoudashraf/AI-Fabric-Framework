@@ -153,4 +153,13 @@ public class RAGRequest {
     @Builder.Default
     private Boolean enableContextualSearch = true;
     private List<String> categories;
+    
+    // Manual getters/setters for Lombok compatibility
+    public Integer getMaxResults() {
+        return limit;
+    }
+    
+    public void setMaxResults(Integer maxResults) {
+        this.limit = maxResults;
+    }
 }

@@ -257,4 +257,130 @@ public class AIComplianceRequest {
      * Request archive reason
      */
     private String archiveReason;
+    
+    /**
+     * Whether audit logging is enabled
+     */
+    private Boolean auditLoggingEnabled;
+    
+    /**
+     * Whether internal controls are enabled
+     */
+    private Boolean internalControlsEnabled;
+    
+    /**
+     * Whether data encryption is enabled
+     */
+    private Boolean dataEncryptionEnabled;
+    
+    /**
+     * Whether access control is enabled
+     */
+    private Boolean accessControlEnabled;
+    
+    /**
+     * Whether network security is enabled
+     */
+    private Boolean networkSecurityEnabled;
+    
+    /**
+     * Operation type
+     */
+    private String operationType;
+    
+    /**
+     * Data age in days
+     */
+    private Integer dataAge;
+    
+    /**
+     * IP address
+     */
+    private String ipAddress;
+    
+    /**
+     * User agent
+     */
+    private String userAgent;
+    
+    // Manual getters/setters for Lombok compatibility
+    public Boolean isAuditLoggingEnabled() {
+        return auditLoggingEnabled;
+    }
+    
+    public void setAuditLoggingEnabled(Boolean auditLoggingEnabled) {
+        this.auditLoggingEnabled = auditLoggingEnabled;
+    }
+    
+    public Boolean isConsentGiven() {
+        return consentGiven;
+    }
+    
+    public void setConsentGiven(Boolean consentGiven) {
+        this.consentGiven = consentGiven;
+    }
+    
+    public Boolean isInternalControlsEnabled() {
+        return internalControlsEnabled;
+    }
+    
+    public void setInternalControlsEnabled(Boolean internalControlsEnabled) {
+        this.internalControlsEnabled = internalControlsEnabled;
+    }
+    
+    public Boolean isDataEncryptionEnabled() {
+        return dataEncryptionEnabled;
+    }
+    
+    public void setDataEncryptionEnabled(Boolean dataEncryptionEnabled) {
+        this.dataEncryptionEnabled = dataEncryptionEnabled;
+    }
+    
+    public Boolean isAccessControlEnabled() {
+        return accessControlEnabled;
+    }
+    
+    public void setAccessControlEnabled(Boolean accessControlEnabled) {
+        this.accessControlEnabled = accessControlEnabled;
+    }
+    
+    public Boolean isNetworkSecurityEnabled() {
+        return networkSecurityEnabled;
+    }
+    
+    public void setNetworkSecurityEnabled(Boolean networkSecurityEnabled) {
+        this.networkSecurityEnabled = networkSecurityEnabled;
+    }
+    
+    public String getOperationType() {
+        return operationType;
+    }
+    
+    public void setOperationType(String operationType) {
+        this.operationType = operationType;
+    }
+    
+    public Integer getDataAge() {
+        return dataAge;
+    }
+    
+    public void setDataAge(Integer dataAge) {
+        this.dataAge = dataAge;
+    }
+    
+    public String getIpAddress() {
+        return ipAddress;
+    }
+    
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+    
+    public String getUserAgent() {
+        return userAgent;
+    }
+    
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
+    }
 }

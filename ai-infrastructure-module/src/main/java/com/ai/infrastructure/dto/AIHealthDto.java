@@ -142,4 +142,18 @@ public class AIHealthDto {
      * Error message if any
      */
     private String errorMessage;
+    
+    /**
+     * Last checked timestamp
+     */
+    private String lastChecked;
+    
+    // Manual getters/setters for Lombok compatibility
+    public String getLastChecked() {
+        return lastChecked;
+    }
+    
+    public void setLastChecked(String lastChecked) {
+        this.lastChecked = lastChecked;
+    }
 }

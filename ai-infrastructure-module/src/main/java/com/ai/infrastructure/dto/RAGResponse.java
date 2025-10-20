@@ -298,4 +298,13 @@ public class RAGResponse {
          */
         private Double authorityScore;
     }
+    
+    // Manual getters/setters for Lombok compatibility
+    public String getQuery() {
+        return originalQuery;
+    }
+    
+    public void setQuery(String query) {
+        this.originalQuery = query;
+    }
 }

@@ -257,4 +257,26 @@ public class AIDataPrivacyRequest {
      * Request archive reason
      */
     private String archiveReason;
+    
+    /**
+     * Whether consent is required
+     */
+    private Boolean consentRequired;
+    
+    // Manual getters/setters for Lombok compatibility
+    public Boolean isConsentRequired() {
+        return consentRequired;
+    }
+    
+    public void setConsentRequired(Boolean consentRequired) {
+        this.consentRequired = consentRequired;
+    }
+    
+    public Boolean isConsentGiven() {
+        return consentGiven;
+    }
+    
+    public void setConsentGiven(Boolean consentGiven) {
+        this.consentGiven = consentGiven;
+    }
 }
