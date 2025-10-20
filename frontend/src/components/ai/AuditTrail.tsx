@@ -360,7 +360,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
             Filters & Search
           </Typography>
           <Grid container spacing={2} alignItems="center">
-            <Grid xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 label="Search"
                 value={searchQuery}
@@ -376,7 +376,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 }}
               />
             </Grid>
-            <Grid xs={12} md={2}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <TextField
                 label="User ID"
                 value={filter.userId}
@@ -385,7 +385,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 size="small"
               />
             </Grid>
-            <Grid xs={12} md={2}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Risk Level</InputLabel>
                 <Select
@@ -400,7 +400,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid xs={12} md={2}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Anomalies</InputLabel>
                 <Select
@@ -413,7 +413,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid xs={12} md={2}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Result</InputLabel>
                 <Select
@@ -570,7 +570,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 </AccordionSummary>
                 <AccordionDetails>
                   <Grid container spacing={3}>
-                    <Grid xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <Typography variant="h6" gutterBottom>
                         Operation Details
                       </Typography>
@@ -602,7 +602,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                       </List>
                     </Grid>
                     
-                    <Grid xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <Typography variant="h6" gutterBottom>
                         AI Insights
                       </Typography>
@@ -618,7 +618,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                       </List>
                     </Grid>
                     
-                    <Grid xs={12}>
+                    <Grid size={{ xs: 12 }}>
                       <Typography variant="h6" gutterBottom>
                         Additional Details
                       </Typography>

@@ -15,17 +15,13 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
 } from '@mui/material';
 import {
   Gavel as GavelIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
   Refresh as RefreshIcon,
   Assessment as AssessmentIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
   Security as SecurityIcon,
 } from '@mui/icons-material';
 
@@ -89,6 +85,8 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
       const interval = setInterval(loadMetrics, refreshInterval);
       return () => clearInterval(interval);
     }
+    
+    return undefined;
   }, [refreshInterval]);
 
   const loadMetrics = async () => {
@@ -264,7 +262,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
 
       <Grid container spacing={3}>
         {/* Key Metrics */}
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -282,7 +280,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -300,7 +298,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -324,7 +322,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -343,14 +341,14 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
         </Grid>
 
         {/* Compliance Breakdown */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Compliance Breakdown
               </Typography>
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">
                       Data Privacy
@@ -366,7 +364,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">
                       Regulatory
@@ -382,7 +380,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">
                       Audit
@@ -398,7 +396,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">
                       Retention
@@ -420,7 +418,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
         </Grid>
 
         {/* Violations by Type */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -446,7 +444,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
         </Grid>
 
         {/* Recent Violations */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -456,7 +454,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
                 {metrics.recentViolations.map((violation) => (
                   <ListItem
                     key={violation.id}
-                    button
+                    component="button"
                     onClick={() => onViolationClick?.(violation)}
                     sx={{
                       border: '1px solid',
@@ -505,7 +503,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
         </Grid>
 
         {/* Upcoming Reviews */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -515,7 +513,7 @@ const ComplianceMonitor: React.FC<ComplianceMonitorProps> = ({
                 {metrics.upcomingReviews.map((review) => (
                   <ListItem
                     key={review.id}
-                    button
+                    component="button"
                     onClick={() => onReviewClick?.(review)}
                     sx={{
                       border: '1px solid',

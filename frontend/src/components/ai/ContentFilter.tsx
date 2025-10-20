@@ -20,7 +20,6 @@ import {
   ListItemIcon,
   ListItemSecondaryAction,
   Chip,
-  Divider,
   Accordion,
   AccordionSummary,
   AccordionDetails,
