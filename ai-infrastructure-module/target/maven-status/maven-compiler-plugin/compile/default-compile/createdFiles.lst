@@ -155,6 +155,7 @@ com/ai/infrastructure/dto/AIComplianceReport$AIComplianceReportBuilder.class
 com/ai/infrastructure/audit/AIAuditService.class
 com/ai/infrastructure/cache/CacheConfig$MaintenanceConfig$MaintenanceConfigBuilder.class
 com/ai/infrastructure/vector/VectorDatabase$VectorData.class
+com/ai/infrastructure/dto/AISecurityResponse$AISecurityResponseBuilder.class
 com/ai/infrastructure/cache/CacheConfig$CommunicationConfig$CommunicationConfigBuilder.class
 com/ai/infrastructure/api/APISpecification$ComponentsDefinition$ComponentsDefinitionBuilder.class
 com/ai/infrastructure/api/APIEndpointDefinition$MonitoringConfig$MonitoringConfigBuilder.class

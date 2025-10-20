@@ -360,6 +360,7 @@ public class RAGService {
                 .threshold(request.getThreshold())
                 .context(contextString)
                 .filters(filtersString)
+                .metadata(request.getMetadata())
                 .build();
             
             AISearchResponse searchResponse = searchService.search(queryVector, searchRequest);

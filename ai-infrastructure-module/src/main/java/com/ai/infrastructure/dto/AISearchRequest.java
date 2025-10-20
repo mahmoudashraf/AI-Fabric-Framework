@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 
+import java.util.Map;
+
 /**
  * Request DTO for AI semantic search
  * 
@@ -35,4 +37,9 @@ public class AISearchRequest {
     private String sortBy;
     
     private String context;
+    
+    /**
+     * Additional metadata for the request
+     */
+    private Map<String, Object> metadata;
 }
