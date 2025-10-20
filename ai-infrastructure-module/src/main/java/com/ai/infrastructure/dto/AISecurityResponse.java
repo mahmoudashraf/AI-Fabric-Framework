@@ -13,10 +13,286 @@ import java.util.Map;
  * DTO for AI Security Responses
  */
 @Data
-@Builder
 @NoArgsConstructor
-@AllArgsConstructor
 public class AISecurityResponse {
+    
+    // Custom builder method to avoid Lombok constructor issues
+    public static AISecurityResponseBuilder builder() {
+        return new AISecurityResponseBuilder();
+    }
+    
+    public static class AISecurityResponseBuilder {
+        private AISecurityResponse response = new AISecurityResponse();
+        
+        public AISecurityResponseBuilder requestId(String requestId) {
+            response.setRequestId(requestId);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder userId(String userId) {
+            response.setUserId(userId);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder threatsDetected(List<String> threatsDetected) {
+            response.setThreatsDetected(threatsDetected);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder securityScore(Double securityScore) {
+            response.setSecurityScore(securityScore);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder accessAllowed(Boolean accessAllowed) {
+            response.setAccessAllowed(accessAllowed);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder rateLimitExceeded(Boolean rateLimitExceeded) {
+            response.setRateLimitExceeded(rateLimitExceeded);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder shouldBlock(Boolean shouldBlock) {
+            response.setShouldBlock(shouldBlock);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder recommendations(List<String> recommendations) {
+            response.setRecommendations(recommendations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder processingTimeMs(Long processingTimeMs) {
+            response.setProcessingTimeMs(processingTimeMs);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder timestamp(LocalDateTime timestamp) {
+            response.setTimestamp(timestamp);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder success(Boolean success) {
+            response.setSuccess(success);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder errorMessage(String errorMessage) {
+            response.setErrorMessage(errorMessage);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder securityLevel(String securityLevel) {
+            response.setSecurityLevel(securityLevel);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder riskLevel(String riskLevel) {
+            response.setRiskLevel(riskLevel);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder threatLevel(String threatLevel) {
+            response.setThreatLevel(threatLevel);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder confidenceScore(Double confidenceScore) {
+            response.setConfidenceScore(confidenceScore);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder falsePositiveProbability(Double falsePositiveProbability) {
+            response.setFalsePositiveProbability(falsePositiveProbability);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder truePositiveProbability(Double truePositiveProbability) {
+            response.setTruePositiveProbability(truePositiveProbability);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder securityMetrics(Map<String, Object> securityMetrics) {
+            response.setSecurityMetrics(securityMetrics);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder threatIntelligence(Map<String, Object> threatIntelligence) {
+            response.setThreatIntelligence(threatIntelligence);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder securityContext(Map<String, Object> securityContext) {
+            response.setSecurityContext(securityContext);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder complianceStatus(String complianceStatus) {
+            response.setComplianceStatus(complianceStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder complianceViolations(List<String> complianceViolations) {
+            response.setComplianceViolations(complianceViolations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder complianceRecommendations(List<String> complianceRecommendations) {
+            response.setComplianceRecommendations(complianceRecommendations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder dataProtectionStatus(String dataProtectionStatus) {
+            response.setDataProtectionStatus(dataProtectionStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder dataProtectionViolations(List<String> dataProtectionViolations) {
+            response.setDataProtectionViolations(dataProtectionViolations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder dataProtectionRecommendations(List<String> dataProtectionRecommendations) {
+            response.setDataProtectionRecommendations(dataProtectionRecommendations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder privacyStatus(String privacyStatus) {
+            response.setPrivacyStatus(privacyStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder privacyViolations(List<String> privacyViolations) {
+            response.setPrivacyViolations(privacyViolations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder privacyRecommendations(List<String> privacyRecommendations) {
+            response.setPrivacyRecommendations(privacyRecommendations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder accessControlStatus(String accessControlStatus) {
+            response.setAccessControlStatus(accessControlStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder accessControlViolations(List<String> accessControlViolations) {
+            response.setAccessControlViolations(accessControlViolations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder accessControlRecommendations(List<String> accessControlRecommendations) {
+            response.setAccessControlRecommendations(accessControlRecommendations);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder authenticationStatus(String authenticationStatus) {
+            response.setAuthenticationStatus(authenticationStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder authorizationStatus(String authorizationStatus) {
+            response.setAuthorizationStatus(authorizationStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder sessionStatus(String sessionStatus) {
+            response.setSessionStatus(sessionStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder tokenStatus(String tokenStatus) {
+            response.setTokenStatus(tokenStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder certificateStatus(String certificateStatus) {
+            response.setCertificateStatus(certificateStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder encryptionStatus(String encryptionStatus) {
+            response.setEncryptionStatus(encryptionStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder integrityStatus(String integrityStatus) {
+            response.setIntegrityStatus(integrityStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder availabilityStatus(String availabilityStatus) {
+            response.setAvailabilityStatus(availabilityStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder confidentialityStatus(String confidentialityStatus) {
+            response.setConfidentialityStatus(confidentialityStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder nonRepudiationStatus(String nonRepudiationStatus) {
+            response.setNonRepudiationStatus(nonRepudiationStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder auditStatus(String auditStatus) {
+            response.setAuditStatus(auditStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder monitoringStatus(String monitoringStatus) {
+            response.setMonitoringStatus(monitoringStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder incidentStatus(String incidentStatus) {
+            response.setIncidentStatus(incidentStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder responseStatus(String responseStatus) {
+            response.setResponseStatus(responseStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder recoveryStatus(String recoveryStatus) {
+            response.setRecoveryStatus(recoveryStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder businessContinuityStatus(String businessContinuityStatus) {
+            response.setBusinessContinuityStatus(businessContinuityStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder disasterRecoveryStatus(String disasterRecoveryStatus) {
+            response.setDisasterRecoveryStatus(disasterRecoveryStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder backupStatus(String backupStatus) {
+            response.setBackupStatus(backupStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder restoreStatus(String restoreStatus) {
+            response.setRestoreStatus(restoreStatus);
+            return this;
+        }
+        
+        public AISecurityResponseBuilder additionalMetrics(Map<String, Object> additionalMetrics) {
+            response.setAdditionalMetrics(additionalMetrics);
+            return this;
+        }
+        
+        public AISecurityResponse build() {
+            return response;
+        }
+    }
     
     /**
      * Request ID
