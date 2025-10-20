@@ -23,40 +23,22 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   IconButton,
   Tooltip,
   LinearProgress,
-  Badge,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
 } from '@mui/material';
 import {
   FilterList as FilterIcon,
   Security as SecurityIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
   Warning as WarningIcon,
   Refresh as RefreshIcon,
-  Settings as SettingsIcon,
   ExpandMore as ExpandMoreIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
   Block as BlockIcon,
-  Check as CheckIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
   Flag as FlagIcon,
-  Report as ReportIcon,
 } from '@mui/icons-material';
 
 interface FilterSettings {
@@ -140,9 +122,6 @@ interface ContentFilterProps {
 const ContentFilter: React.FC<ContentFilterProps> = ({
   refreshInterval = 30000,
   onSettingsChange,
-  onViolationClick,
-  onPolicyClick,
-  onRefresh,
 }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [settings, setSettings] = useState<FilterSettings>({
