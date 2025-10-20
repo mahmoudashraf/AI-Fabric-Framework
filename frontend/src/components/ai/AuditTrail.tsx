@@ -275,7 +275,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
 
     return (
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -293,7 +293,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
           </Card>
         </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -311,7 +311,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
           </Card>
         </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -329,7 +329,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
           </Card>
         </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
