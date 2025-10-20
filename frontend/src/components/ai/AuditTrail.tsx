@@ -275,7 +275,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
 
     return (
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -293,7 +293,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -311,7 +311,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -329,7 +329,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -360,7 +360,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
             Filters & Search
           </Typography>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <TextField
                 label="Search"
                 value={searchQuery}
@@ -376,7 +376,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={2}>
+            <Grid xs={12} md={2}>
               <TextField
                 label="User ID"
                 value={filter.userId}
@@ -385,7 +385,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 size="small"
               />
             </Grid>
-            <Grid item xs={12} md={2}>
+            <Grid xs={12} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Risk Level</InputLabel>
                 <Select
@@ -400,7 +400,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={2}>
+            <Grid xs={12} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Anomalies</InputLabel>
                 <Select
@@ -413,7 +413,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={2}>
+            <Grid xs={12} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Result</InputLabel>
                 <Select
@@ -570,7 +570,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                 </AccordionSummary>
                 <AccordionDetails>
                   <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
+                    <Grid xs={12} md={6}>
                       <Typography variant="h6" gutterBottom>
                         Operation Details
                       </Typography>
@@ -602,7 +602,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                       </List>
                     </Grid>
                     
-                    <Grid item xs={12} md={6}>
+                    <Grid xs={12} md={6}>
                       <Typography variant="h6" gutterBottom>
                         AI Insights
                       </Typography>
@@ -618,7 +618,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
                       </List>
                     </Grid>
                     
-                    <Grid item xs={12}>
+                    <Grid xs={12}>
                       <Typography variant="h6" gutterBottom>
                         Additional Details
                       </Typography>
