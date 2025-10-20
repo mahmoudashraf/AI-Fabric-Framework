@@ -3,7 +3,6 @@ package com.ai.infrastructure.health;
 import com.ai.infrastructure.config.AIServiceConfig;
 import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.dto.AIHealthDto;
-import com.ai.infrastructure.monitoring.AIHealthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -25,9 +24,21 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AIHealthIndicator {
     
-    private final AIHealthService aiHealthService;
     private final AIConfigurationService configurationService;
     private final AIServiceConfig aiServiceConfig;
+    
+    /**
+     * Get health status as DTO
+     */
+    public AIHealthDto getHealthStatus() {
+        Map<String, Object> healthMap = health();
+        return AIHealthDto.builder()
+                .enabled(aiServiceConfig.getEnabled())
+                .status((String) healthMap.get("status"))
+                .configurationValid((Boolean) healthMap.get("configurationValid"))
+                .lastChecked(LocalDateTime.now().toString())
+                .build();
+    }
     
     /**
      * Get health status
@@ -46,7 +57,7 @@ public class AIHealthIndicator {
             }
             
             // Get comprehensive health information
-            AIHealthDto healthInfo = aiHealthService.getHealthStatus();
+            AIHealthDto healthInfo = getHealthStatus();
             
             // Determine overall health status
             String status = determineHealthStatus(healthInfo);
@@ -129,7 +140,7 @@ public class AIHealthIndicator {
      */
     public Map<String, Object> getHealthSummary() {
         try {
-            AIHealthDto healthInfo = aiHealthService.getHealthStatus();
+            AIHealthDto healthInfo = getHealthStatus();
             
             return Map.of(
                 "enabled", healthInfo.isEnabled(),

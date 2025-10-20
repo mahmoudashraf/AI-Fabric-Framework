@@ -6,7 +6,17 @@ import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.security.AISecurityService;
+import com.ai.infrastructure.compliance.AIComplianceService;
+import com.ai.infrastructure.audit.AIAuditService;
+import com.ai.infrastructure.privacy.AIDataPrivacyService;
+import com.ai.infrastructure.filter.AIContentFilterService;
+import com.ai.infrastructure.access.AIAccessControlService;
+import com.ai.infrastructure.rag.LuceneVectorDatabaseService;
+import com.ai.infrastructure.rag.PineconeVectorDatabaseService;
+import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
@@ -55,6 +65,41 @@ public class AIInfrastructureAutoConfiguration {
         return new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase);
     }
     
+    @Bean
+    public AdvancedRAGService advancedRAGService(AISearchService aiSearchService, AIEmbeddingService aiEmbeddingService, AICoreService aiCoreService, RAGService ragService) {
+        return new AdvancedRAGService(aiSearchService, aiEmbeddingService, aiCoreService, ragService);
+    }
+    
+    @Bean
+    public AISecurityService aiSecurityService(AICoreService aiCoreService) {
+        return new AISecurityService(aiCoreService);
+    }
+    
+    @Bean
+    public AIComplianceService aiComplianceService(AICoreService aiCoreService) {
+        return new AIComplianceService(aiCoreService);
+    }
+    
+    @Bean
+    public AIAuditService aiAuditService(AICoreService aiCoreService) {
+        return new AIAuditService(aiCoreService);
+    }
+    
+    @Bean
+    public AIDataPrivacyService aiDataPrivacyService(AICoreService aiCoreService) {
+        return new AIDataPrivacyService(aiCoreService);
+    }
+    
+    @Bean
+    public AIContentFilterService aiContentFilterService(AICoreService aiCoreService) {
+        return new AIContentFilterService(aiCoreService);
+    }
+    
+    @Bean
+    public AIAccessControlService aiAccessControlService(AICoreService aiCoreService) {
+        return new AIAccessControlService(aiCoreService);
+    }
+    
     // VectorDatabaseService is now an interface with multiple implementations
     // The specific implementation is selected based on configuration:
     // - LuceneVectorDatabaseService (default)
@@ -84,19 +129,19 @@ public class AIInfrastructureAutoConfiguration {
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
     public VectorDatabaseService luceneVectorDatabaseService(AIProviderConfig config) {
-        return new com.ai.infrastructure.rag.LuceneVectorDatabaseService(config);
+        return new LuceneVectorDatabaseService(config);
     }
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
     public VectorDatabaseService pineconeVectorDatabaseService(AIProviderConfig config) {
-        return new com.ai.infrastructure.rag.PineconeVectorDatabaseService(config);
+        return new PineconeVectorDatabaseService(config);
     }
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
     public VectorDatabaseService inMemoryVectorDatabaseService(AIProviderConfig config) {
-        return new com.ai.infrastructure.rag.InMemoryVectorDatabaseService(config);
+        return new InMemoryVectorDatabaseService(config);
     }
     
     @Bean
@@ -105,8 +150,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIHealthIndicator aiHealthIndicator(AIHealthService aiHealthService, AIConfigurationService configurationService, AIServiceConfig serviceConfig) {
-        return new AIHealthIndicator(aiHealthService, configurationService, serviceConfig);
+    public AIHealthIndicator aiHealthIndicator(AIConfigurationService configurationService, AIServiceConfig serviceConfig) {
+        return new AIHealthIndicator(configurationService, serviceConfig);
     }
     
     @Bean
