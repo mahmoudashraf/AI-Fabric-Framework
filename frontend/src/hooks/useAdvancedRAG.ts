@@ -347,3 +347,4 @@ const useAdvancedRAG = (options: UseAdvancedRAGOptions = {}): UseAdvancedRAGRetu
 };
 
 export default useAdvancedRAG;
+export { useAdvancedRAG };

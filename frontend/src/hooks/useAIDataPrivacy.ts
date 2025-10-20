@@ -673,3 +673,4 @@ const useAIDataPrivacy = (options: UseAIDataPrivacyOptions = {}): UseAIDataPriva
 };
 
 export default useAIDataPrivacy;
+export { useAIDataPrivacy };

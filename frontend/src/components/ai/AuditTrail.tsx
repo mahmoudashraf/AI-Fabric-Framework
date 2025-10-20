@@ -22,7 +22,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Button,
   Badge,
   Accordion,
   AccordionSummary,
@@ -40,12 +39,9 @@ import {
   Error as ErrorIcon,
   Refresh as RefreshIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
   ExpandMore as ExpandMoreIcon,
   Visibility as VisibilityIcon,
   Download as DownloadIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
 } from '@mui/icons-material';
 
 interface AuditLog {
@@ -94,7 +90,6 @@ interface AuditTrailProps {
 
 const AuditTrail: React.FC<AuditTrailProps> = ({
   refreshInterval = 30000,
-  onLogClick,
   onRefresh,
   showFilters = true,
   showStats = true,
@@ -121,6 +116,8 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
       const interval = setInterval(loadData, refreshInterval);
       return () => clearInterval(interval);
     }
+    
+    return undefined;
   }, [refreshInterval]);
 
   const loadData = async () => {
@@ -130,8 +127,8 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
       const mockLogs: AuditLog[] = Array.from({ length: 50 }, (_, i) => ({
         logId: `AUDIT_${String(i + 1).padStart(3, '0')}`,
         userId: `user${Math.floor(Math.random() * 100) + 1}`,
-        operationType: ['CREATE', 'READ', 'UPDATE', 'DELETE'][Math.floor(Math.random() * 4)],
-        riskLevel: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'][Math.floor(Math.random() * 4)] as any,
+        operationType: (['CREATE', 'READ', 'UPDATE', 'DELETE'][Math.floor(Math.random() * 4)]) as string,
+        riskLevel: (['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'][Math.floor(Math.random() * 4)]) as any,
         hasAnomalies: Math.random() > 0.8,
         insights: [
           'Normal operation pattern detected',
@@ -142,9 +139,9 @@ const AuditTrail: React.FC<AuditTrailProps> = ({
         timestamp: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
         ipAddress: `192.168.1.${Math.floor(Math.random() * 255)}`,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        resourceType: ['USER', 'PRODUCT', 'ORDER', 'PAYMENT'][Math.floor(Math.random() * 4)],
+        resourceType: (['USER', 'PRODUCT', 'ORDER', 'PAYMENT'][Math.floor(Math.random() * 4)]) as string,
         resourceId: `RES_${Math.floor(Math.random() * 1000)}`,
-        action: ['LOGIN', 'VIEW', 'EDIT', 'DELETE', 'CREATE'][Math.floor(Math.random() * 5)],
+        action: (['LOGIN', 'VIEW', 'EDIT', 'DELETE', 'CREATE'][Math.floor(Math.random() * 5)]) as string,
         result: ['SUCCESS', 'FAILURE', 'PENDING'][Math.floor(Math.random() * 3)] as any,
         details: 'Operation completed successfully with standard security checks',
         metadata: {

@@ -466,3 +466,4 @@ const useAIAudit = (options: UseAIAuditOptions = {}): UseAIAuditReturn => {
 };
 
 export default useAIAudit;
+export { useAIAudit };

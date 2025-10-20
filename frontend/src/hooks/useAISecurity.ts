@@ -497,3 +497,4 @@ const useAISecurity = (options: UseAISecurityOptions = {}): UseAISecurityReturn 
 };
 
 export default useAISecurity;
+export { useAISecurity };

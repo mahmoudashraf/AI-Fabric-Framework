@@ -581,3 +581,4 @@ const useAICompliance = (options: UseAIComplianceOptions = {}): UseAIComplianceR
 };
 
 export default useAICompliance;
+export { useAICompliance };
