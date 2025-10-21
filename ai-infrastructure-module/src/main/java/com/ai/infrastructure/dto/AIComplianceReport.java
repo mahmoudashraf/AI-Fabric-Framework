@@ -224,6 +224,11 @@ public class AIComplianceReport {
     private String category;
     
     /**
+     * Compliance framework
+     */
+    private String framework;
+    
+    /**
      * Report tags
      */
     private List<String> tags;

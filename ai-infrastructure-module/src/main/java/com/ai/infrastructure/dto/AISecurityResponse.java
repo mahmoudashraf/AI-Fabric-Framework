@@ -94,6 +94,11 @@ public class AISecurityResponse {
             return this;
         }
         
+        public AISecurityResponseBuilder riskScore(Double riskScore) {
+            response.setRiskScore(riskScore);
+            return this;
+        }
+        
         public AISecurityResponseBuilder threatLevel(String threatLevel) {
             response.setThreatLevel(threatLevel);
             return this;
@@ -363,6 +368,11 @@ public class AISecurityResponse {
      * Risk level
      */
     private String riskLevel;
+    
+    /**
+     * Risk score (0-100)
+     */
+    private Double riskScore;
     
     /**
      * Threat level

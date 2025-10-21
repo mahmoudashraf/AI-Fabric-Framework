@@ -82,7 +82,7 @@ class AIHealthServiceTest {
             .build();
         
         when(aiHealthIndicator.health()).thenReturn(healthMap);
-        when(aiHealthIndicator.getDetailedHealth()).thenReturn(detailedHealth);
+        when(aiHealthIndicator.getDetailedHealth()).thenReturn(Map.of("health", detailedHealth));
         when(aiSettings.getEnableProductRecommendations()).thenReturn(true);
         when(aiSettings.getEnableUserBehaviorTracking()).thenReturn(true);
         when(aiSettings.getEnableSmartValidation()).thenReturn(true);
@@ -188,14 +188,14 @@ class AIHealthServiceTest {
     @Test
     void testGetPerformanceMetrics() {
         // Given
-        when(aiServiceConfig.getDefaultTimeout()).thenReturn(30000L);
+        when(aiServiceConfig.getDefaultTimeout()).thenReturn(30000);
         when(aiServiceConfig.getMaxRetries()).thenReturn(3);
         when(aiServiceConfig.getRetryDelay()).thenReturn(1000L);
         when(aiServiceConfig.getThreadPoolSize()).thenReturn(10);
         when(aiServiceConfig.getBatchSize()).thenReturn(100);
         when(aiServiceConfig.getRateLimitPerMinute()).thenReturn(1000);
         when(aiServiceConfig.getCircuitBreakerThreshold()).thenReturn(5);
-        when(aiServiceConfig.getCircuitBreakerTimeout()).thenReturn(60000L);
+        when(aiServiceConfig.getCircuitBreakerTimeout()).thenReturn(60000);
         when(aiServiceConfig.getFeatureFlags()).thenReturn(Map.of("embedding.enabled", true));
         when(aiServiceConfig.getServices()).thenReturn(Map.of());
 

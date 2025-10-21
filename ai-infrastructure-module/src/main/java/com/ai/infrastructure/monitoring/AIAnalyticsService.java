@@ -65,6 +65,13 @@ public class AIAnalyticsService {
     }
     
     /**
+     * Get analytics - alias for getAnalyticsReport
+     */
+    public Map<String, Object> getAnalytics() {
+        return getAnalyticsReport();
+    }
+    
+    /**
      * Record analytics data point
      * 
      * @param serviceName service name

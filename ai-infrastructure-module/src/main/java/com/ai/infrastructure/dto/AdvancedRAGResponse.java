@@ -19,6 +19,11 @@ import java.util.Map;
 public class AdvancedRAGResponse {
     
     /**
+     * Request ID for tracking
+     */
+    private String requestId;
+    
+    /**
      * Original query
      */
     private String query;

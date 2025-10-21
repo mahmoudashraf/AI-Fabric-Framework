@@ -148,6 +148,11 @@ public class AIHealthDto {
      */
     private String lastChecked;
     
+    /**
+     * Processing time in milliseconds
+     */
+    private Long processingTimeMs;
+    
     // Manual getters/setters for Lombok compatibility
     public String getLastChecked() {
         return lastChecked;

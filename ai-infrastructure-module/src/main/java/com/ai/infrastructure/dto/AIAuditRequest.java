@@ -308,6 +308,11 @@ public class AIAuditRequest {
      */
     private String details;
     
+    /**
+     * Request description
+     */
+    private String description;
+    
     // Manual getters/setters for Lombok compatibility
     public String getResult() {
         return result;

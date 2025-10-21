@@ -189,6 +189,11 @@ public class AIComplianceRequest {
     private String category;
     
     /**
+     * Compliance framework
+     */
+    private String framework;
+    
+    /**
      * Request tags
      */
     private List<String> tags;

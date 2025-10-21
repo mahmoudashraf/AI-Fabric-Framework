@@ -84,6 +84,13 @@ public class AISecurityService {
     }
 
     /**
+     * Analyze security - alias for analyzeRequest
+     */
+    public AISecurityResponse analyzeSecurity(AISecurityRequest request) {
+        return analyzeRequest(request);
+    }
+
+    /**
      * Detect security threats in the request
      */
     private List<String> detectThreats(AISecurityRequest request) {

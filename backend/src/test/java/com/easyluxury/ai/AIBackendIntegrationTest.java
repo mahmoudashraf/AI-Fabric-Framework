@@ -18,6 +18,7 @@ import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.monitoring.AIMetricsService;
 import com.ai.infrastructure.monitoring.AIAnalyticsService;
 import com.ai.infrastructure.provider.AIProviderManager;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -299,7 +300,7 @@ public class AIBackendIntegrationTest {
         // Test RAG processing
         var ragRequest = com.ai.infrastructure.dto.RAGRequest.builder()
             .query("What are the features of luxury watches?")
-            .context("product")
+            .context(Map.of("type", "product"))
             .maxResults(5)
             .build();
 

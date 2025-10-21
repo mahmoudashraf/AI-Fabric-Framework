@@ -36,6 +36,21 @@ public class EasyLuxuryAIConfig {
         return new EasyLuxuryAISettings();
     }
     
+    // Alias methods for boolean getters
+    public Boolean isEnableProductRecommendations() { return easyLuxuryAISettings().getEnableProductRecommendations(); }
+    public Boolean isEnableUserBehaviorTracking() { return easyLuxuryAISettings().getEnableUserBehaviorTracking(); }
+    public Boolean isEnableSmartValidation() { return easyLuxuryAISettings().getEnableSmartValidation(); }
+    public Boolean isEnableAIContentGeneration() { return easyLuxuryAISettings().getEnableAIContentGeneration(); }
+    public Boolean isEnableAISearch() { return easyLuxuryAISettings().getEnableAISearch(); }
+    public Boolean isEnableAIRAG() { return easyLuxuryAISettings().getEnableAIRAG(); }
+    
+    // Alias methods for other getters
+    public String getDefaultAIModel() { return easyLuxuryAISettings().getDefaultAIModel(); }
+    public String getDefaultEmbeddingModel() { return easyLuxuryAISettings().getDefaultEmbeddingModel(); }
+    public Integer getMaxTokens() { return easyLuxuryAISettings().getMaxTokens(); }
+    public Double getTemperature() { return easyLuxuryAISettings().getTemperature(); }
+    public Long getTimeoutSeconds() { return easyLuxuryAISettings().getTimeoutSeconds(); }
+    
     /**
      * Easy Luxury specific AI settings
      */

@@ -24,6 +24,11 @@ public class AIAuditResponse {
     private String logId;
     
     /**
+     * Request ID
+     */
+    private String requestId;
+    
+    /**
      * User ID
      */
     private String userId;
@@ -232,4 +237,9 @@ public class AIAuditResponse {
      * Anomaly resolution archive reason
      */
     private String anomalyResolutionArchiveReason;
+    
+    // Manual getter for success field
+    public Boolean isSuccess() {
+        return success;
+    }
 }

@@ -470,6 +470,18 @@ public class AIServiceConfig {
         private Duration healthCheckInterval = Duration.ofMinutes(1);
     }
     
+    // Alias methods for boolean getters
+    public boolean isEnabled() { return enabled != null && enabled; }
+    public boolean isAutoConfiguration() { return autoConfiguration != null && autoConfiguration; }
+    public boolean isCachingEnabled() { return cachingEnabled != null && cachingEnabled; }
+    public boolean isMetricsEnabled() { return metricsEnabled != null && metricsEnabled; }
+    public boolean isHealthChecksEnabled() { return healthChecksEnabled != null && healthChecksEnabled; }
+    public boolean isLoggingEnabled() { return loggingEnabled != null && loggingEnabled; }
+    public boolean isAsyncEnabled() { return asyncEnabled != null && asyncEnabled; }
+    public boolean isBatchProcessingEnabled() { return batchProcessingEnabled != null && batchProcessingEnabled; }
+    public boolean isRateLimitingEnabled() { return rateLimitingEnabled != null && rateLimitingEnabled; }
+    public boolean isCircuitBreakerEnabled() { return circuitBreakerEnabled != null && circuitBreakerEnabled; }
+    
     /**
      * Service Configuration
      */

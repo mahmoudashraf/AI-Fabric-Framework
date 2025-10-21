@@ -2,7 +2,7 @@ package com.easyluxury.ai.config;
 
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIServiceConfig;
-import com.ai.infrastructure.service.AIConfigurationService;
+import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
