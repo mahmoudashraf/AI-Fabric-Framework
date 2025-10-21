@@ -301,13 +301,13 @@ public class AIBackendIntegrationTest {
         var ragRequest = com.ai.infrastructure.dto.RAGRequest.builder()
             .query("What are the features of luxury watches?")
             .context(Map.of("type", "product"))
-            .maxResults(5)
+            .limit(5)
             .build();
 
-        var ragResponse = ragService.processRAG(ragRequest);
+        var ragResponse = ragService.performRag(ragRequest);
         assertNotNull(ragResponse);
-        assertNotNull(ragResponse.getAnswer());
-        assertFalse(ragResponse.getAnswer().isEmpty());
+        assertNotNull(ragResponse.getResponse());
+        assertFalse(ragResponse.getResponse().isEmpty());
         assertTrue(ragResponse.getProcessingTimeMs() > 0);
     }
 
