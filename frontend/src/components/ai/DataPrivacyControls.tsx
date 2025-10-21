@@ -8,7 +8,6 @@ import {
   Switch,
   FormControlLabel,
   Slider,
-  TextField,
   Button,
   Alert,
   CircularProgress,
@@ -20,34 +19,17 @@ import {
   ListItemIcon,
   ListItemSecondaryAction,
   Chip,
-  Divider,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   IconButton,
   Tooltip,
-  LinearProgress,
 } from '@mui/material';
 import {
-  Privacy as PrivacyIcon,
-  Security as SecurityIcon,
-  CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
   Refresh as RefreshIcon,
-  Settings as SettingsIcon,
-  ExpandMore as ExpandMoreIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
   Add as AddIcon,
   Shield as ShieldIcon,
-  Lock as LockIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Lock as PrivacyIcon,
 } from '@mui/icons-material';
 
 interface PrivacySettings {
@@ -128,7 +110,6 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
   onSettingsChange,
   onViolationClick,
   onDataSubjectClick,
-  onRefresh,
 }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [settings, setSettings] = useState<PrivacySettings>({
@@ -170,6 +151,8 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
       const interval = setInterval(loadData, refreshInterval);
       return () => clearInterval(interval);
     }
+    
+    return () => {};
   }, [refreshInterval]);
 
   const loadData = async () => {
@@ -292,7 +275,7 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
     onSettingsChange?.(newSettings);
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
@@ -341,7 +324,7 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
 
   const renderSettings = () => (
     <Grid container spacing={3}>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -398,7 +381,7 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -455,7 +438,7 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -503,7 +486,7 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -629,7 +612,7 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
           {violations.map((violation) => (
             <ListItem
               key={violation.id}
-              button
+              component="button"
               onClick={() => onViolationClick?.(violation)}
               sx={{
                 border: '1px solid',
@@ -687,7 +670,7 @@ const DataPrivacyControls: React.FC<DataPrivacyControlsProps> = ({
           {dataSubjects.map((subject) => (
             <ListItem
               key={subject.id}
-              button
+              component="button"
               onClick={() => onDataSubjectClick?.(subject)}
               sx={{
                 border: '1px solid',

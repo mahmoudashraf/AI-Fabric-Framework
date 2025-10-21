@@ -158,6 +158,8 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
       const interval = setInterval(loadData, refreshInterval);
       return () => clearInterval(interval);
     }
+    
+    return () => {};
   }, [refreshInterval]);
 
   const loadData = async () => {
@@ -304,7 +306,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
     onSettingsChange?.(newSettings);
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
@@ -370,7 +372,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
 
     return (
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -388,7 +390,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -406,7 +408,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -430,7 +432,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -453,7 +455,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
 
   const renderSettings = () => (
     <Grid container spacing={3}>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -510,7 +512,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -567,7 +569,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -630,7 +632,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
         </Card>
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -763,7 +765,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
           {violations.map((violation) => (
             <ListItem
               key={violation.id}
-              button
+              component="button"
               onClick={() => toggleViolationExpansion(violation.id)}
               sx={{
                 border: '1px solid',
@@ -829,7 +831,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
               </AccordionSummary>
               <AccordionDetails>
                 <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Typography variant="h6" gutterBottom>
                       Content Details
                     </Typography>
@@ -841,7 +843,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
                     </Typography>
                   </Grid>
                   
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Typography variant="h6" gutterBottom>
                       Detection Information
                     </Typography>
@@ -873,7 +875,7 @@ const ContentFilter: React.FC<ContentFilterProps> = ({
                     </List>
                   </Grid>
                   
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <Typography variant="h6" gutterBottom>
                       Metadata
                     </Typography>
