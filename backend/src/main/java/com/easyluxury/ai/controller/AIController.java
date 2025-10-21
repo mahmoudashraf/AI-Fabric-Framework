@@ -12,9 +12,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.easyluxury.ai.config.EasyLuxuryAIConfig;
 
 /**
  * AI Controller
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
+@ConditionalOnBean(EasyLuxuryAIConfig.EasyLuxuryAISettings.class)
 @Tag(name = "AI Operations", description = "AI-powered operations including generation, embeddings, search, and RAG")
 public class AIController {
     

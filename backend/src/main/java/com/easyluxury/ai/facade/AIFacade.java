@@ -15,7 +15,9 @@ import com.easyluxury.ai.service.SimpleAIService;
 import com.easyluxury.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
+import com.easyluxury.ai.config.EasyLuxuryAIConfig;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -36,6 +38,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnBean(EasyLuxuryAIConfig.EasyLuxuryAISettings.class)
 public class AIFacade {
     
     private final AICoreService aiCoreService;

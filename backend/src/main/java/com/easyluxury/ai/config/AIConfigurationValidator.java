@@ -6,6 +6,7 @@ import com.ai.infrastructure.config.AIConfigurationService;
 import com.easyluxury.ai.config.EasyLuxuryAIConfig.EasyLuxuryAISettings;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
@@ -27,6 +28,7 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnBean(AIProviderConfig.class)
 public class AIConfigurationValidator {
     
     private final Environment environment;

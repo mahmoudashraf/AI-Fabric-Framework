@@ -62,44 +62,49 @@ ai:
     pinecone-index-name: easyluxury-dev
     pinecone-dimensions: 1536
     
-    vector-db-type: memory
-    vector-db-similarity-threshold: 0.6
-    vector-db-max-results: 50
-    
+    vector-db-type: lucene
     enable-rag: true
     enable-behavioral-ai: true
     enable-smart-validation: true
     enable-auto-generation: true
-    
-    max-concurrent-requests: 5
-    cache-timeout-minutes: 30
-    enable-caching: false
-
+  
+  # Vector Database Configuration for Development
+  vector-db:
+    type: lucene  # Use Lucene for development
+    lucene:
+      index-path: ./data/dev-lucene-vector-index
+      similarity-threshold: 0.6  # Lower threshold for dev
+      max-results: 50  # Fewer results for dev
+      create-index-if-not-exists: true
+      analyzer: standard
+      use-compound-file: false  # Faster for dev
+      max-buffered-docs: 100  # Smaller buffer for dev
+  
   service:
     enabled: true
     auto-configuration: true
     caching:
-      enabled: false
+      enabled: false  # Disable caching for dev
     metrics:
       enabled: true
     health-checks:
       enabled: true
     logging:
       enabled: true
-    default-timeout: 10000
-    max-retries: 1
+    default-timeout: 10000  # Shorter timeout for dev
+    max-retries: 1  # Fewer retries for dev
     retry-delay: 500
     async:
-      enabled: false
+      enabled: false  # Disable async for dev
       thread-pool-size: 2
     batch-processing:
-      enabled: false
+      enabled: false  # Disable batch processing for dev
       batch-size: 10
     rate-limiting:
-      enabled: false
+      enabled: false  # Disable rate limiting for dev
       rate-limit-per-minute: 10000
     circuit-breaker:
-      enabled: false
+      enabled: false  # Disable circuit breaker for dev
       threshold: 10
       timeout: 30000
 
@@ -125,9 +130,59 @@ easyluxury:
     # AI Model Configuration
     default-ai-model: gpt-4o-mini
     default-embedding-model: text-embedding-3-small
-    max-tokens: 1000
+    max-tokens: 1000  # Shorter for dev
     temperature: 0.3
-    timeout-seconds: 30
+    timeout-seconds: 30  # Shorter timeout for dev
+    
+    # Product-Specific AI Settings
+    product:
+      description-generation:
+        enabled: true
+        max-length: 300  # Shorter for dev
+        style: luxury
+      categorization:
+        enabled: true
+        categories: luxury,premium,exclusive,limited-edition
+      tagging:
+        enabled: true
+        max-tags: 5  # Fewer tags for dev
+        tag-types: material,style,occasion,price-range,season
+      search:
+        enabled: true
+        similarity-threshold: 0.6  # Lower threshold for dev
+        max-results: 10  # Fewer results for dev
+      recommendations:
+        enabled: true
+        max-recommendations: 5  # Fewer recommendations for dev
+        algorithm: collaborative-filtering
+    
+    # User-Specific AI Settings
+    user:
+      behavior-tracking:
+        enabled: true
+        track-views: true
+        track-purchases: true
+        track-searches: true
+        retention-days: 30  # Shorter retention for dev
+      preferences:
+        learning-enabled: true
+        update-frequency: hourly  # More frequent for dev
+        min-interactions: 2  # Lower threshold for dev
+      recommendations:
+        enabled: true
+        max-recommendations: 8  # Fewer for dev
+        diversity-factor: 0.5  # Higher diversity for dev
+    
+    # Order-Specific AI Settings
+    order:
+      analysis:
+        enabled: true
+        pattern-recognition: true
+        fraud-detection: false  # Disable for dev
+      insights:
+        enabled: true
+        trend-analysis: true
+        seasonal-patterns: false  # Disable for dev
 
 # Supabase Configuration for Development
 supabase:
