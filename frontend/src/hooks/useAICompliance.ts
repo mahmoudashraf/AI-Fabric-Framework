@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   ComplianceViolation, 
@@ -85,7 +85,7 @@ const useAICompliance = (options: UseAIComplianceOptions = {}): UseAIComplianceR
   } = options;
 
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   // Query keys
   const queryKeys = {
@@ -523,10 +523,10 @@ const useAICompliance = (options: UseAIComplianceOptions = {}): UseAIComplianceR
   return {
     // Data
     violations,
-    metrics,
-    frameworks,
-    requirements,
-    reports,
+    metrics: metrics || null,
+    frameworks: frameworks || [],
+    requirements: requirements || [],
+    reports: reports || [],
     
     // Loading states
     isLoading,
@@ -537,12 +537,12 @@ const useAICompliance = (options: UseAIComplianceOptions = {}): UseAIComplianceR
     isReportsLoading,
     
     // Error states
-    error: overallError,
-    violationsError,
-    metricsError,
-    frameworksError,
-    requirementsError,
-    reportsError,
+    error: overallError instanceof Error ? overallError.message : overallError || null,
+    violationsError: violationsError instanceof Error ? violationsError.message : violationsError || null,
+    metricsError: metricsError instanceof Error ? metricsError.message : metricsError || null,
+    frameworksError: frameworksError instanceof Error ? frameworksError.message : frameworksError || null,
+    requirementsError: requirementsError instanceof Error ? requirementsError.message : requirementsError || null,
+    reportsError: reportsError instanceof Error ? reportsError.message : reportsError || null,
     
     // Actions
     checkCompliance,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   AuditLog, 
@@ -80,7 +80,7 @@ const useAIAudit = (options: UseAIAuditOptions = {}): UseAIAuditReturn => {
   } = options;
 
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   // Query keys
   const queryKeys = {
@@ -413,10 +413,10 @@ const useAIAudit = (options: UseAIAuditOptions = {}): UseAIAuditReturn => {
   return {
     // Data
     logs,
-    metrics,
-    configuration,
-    policies,
-    reports,
+    metrics: metrics || null,
+    configuration: configuration || null,
+    policies: policies || [],
+    reports: reports || [],
     
     // Loading states
     isLoading,
@@ -427,12 +427,12 @@ const useAIAudit = (options: UseAIAuditOptions = {}): UseAIAuditReturn => {
     isReportsLoading,
     
     // Error states
-    error: overallError,
-    logsError,
-    metricsError,
-    configurationError,
-    policiesError,
-    reportsError,
+    error: overallError instanceof Error ? overallError.message : overallError || null,
+    logsError: logsError instanceof Error ? logsError.message : logsError || null,
+    metricsError: metricsError instanceof Error ? metricsError.message : metricsError || null,
+    configurationError: configurationError instanceof Error ? configurationError.message : configurationError || null,
+    policiesError: policiesError instanceof Error ? policiesError.message : policiesError || null,
+    reportsError: reportsError instanceof Error ? reportsError.message : reportsError || null,
     
     // Actions
     searchLogs,

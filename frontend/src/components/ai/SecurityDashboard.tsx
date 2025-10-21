@@ -67,6 +67,8 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
       const interval = setInterval(loadMetrics, refreshInterval);
       return () => clearInterval(interval);
     }
+    
+    return () => {};
   }, [refreshInterval]);
 
   const loadMetrics = async () => {
@@ -191,7 +193,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
 
       <Grid container spacing={3}>
         {/* Key Metrics */}
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -209,7 +211,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -227,7 +229,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -250,7 +252,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -269,32 +271,32 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
         </Grid>
 
         {/* Risk Level Distribution */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Risk Level Distribution
               </Typography>
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Box display="flex" alignItems="center" gap={1}>
                     <Chip label="Critical" color="error" size="small" />
                     <Typography variant="h6">{metrics.criticalEvents}</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Box display="flex" alignItems="center" gap={1}>
                     <Chip label="High" color="warning" size="small" />
                     <Typography variant="h6">{metrics.highRiskEvents}</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Box display="flex" alignItems="center" gap={1}>
                     <Chip label="Medium" color="info" size="small" />
                     <Typography variant="h6">{metrics.mediumRiskEvents}</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{ xs: 6 }}>
                   <Box display="flex" alignItems="center" gap={1}>
                     <Chip label="Low" color="success" size="small" />
                     <Typography variant="h6">{metrics.lowRiskEvents}</Typography>
@@ -306,7 +308,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
         </Grid>
 
         {/* Performance Metrics */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -330,7 +332,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
         </Grid>
 
         {/* Threat Types */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -356,7 +358,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({
         </Grid>
 
         {/* Recent Events */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
