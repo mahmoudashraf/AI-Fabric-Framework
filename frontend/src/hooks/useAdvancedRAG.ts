@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   SearchRequest, 
@@ -72,7 +72,7 @@ const useAdvancedRAG = (options: UseAdvancedRAGOptions = {}): UseAdvancedRAGRetu
   } = options;
 
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<SearchRequest[]>([]);
   const [savedSearches, setSavedSearches] = useState<SearchRequest[]>([]);
 
@@ -257,7 +257,7 @@ const useAdvancedRAG = (options: UseAdvancedRAGOptions = {}): UseAdvancedRAGRetu
     setSearchHistory([]);
   }, []);
 
-  const saveSearch = useCallback((request: SearchRequest, response: SearchResponse) => {
+  const saveSearch = useCallback((request: SearchRequest, _response: SearchResponse) => {
     setSavedSearches(prev => {
       const exists = prev.some(saved => 
         saved.query === request.query && 
@@ -303,8 +303,8 @@ const useAdvancedRAG = (options: UseAdvancedRAGOptions = {}): UseAdvancedRAGRetu
     // Data
     searchHistory,
     documents,
-    configuration,
-    metrics,
+    configuration: configuration || null,
+    metrics: metrics || null,
     
     // Loading states
     isLoading,
@@ -314,11 +314,11 @@ const useAdvancedRAG = (options: UseAdvancedRAGOptions = {}): UseAdvancedRAGRetu
     isMetricsLoading,
     
     // Error states
-    error: overallError,
+    error: overallError instanceof Error ? overallError.message : overallError || null,
     searchError: searchMutation.error?.message || null,
-    documentsError,
-    configurationError,
-    metricsError,
+    documentsError: documentsError instanceof Error ? documentsError.message : documentsError || null,
+    configurationError: configurationError instanceof Error ? configurationError.message : configurationError || null,
+    metricsError: metricsError instanceof Error ? metricsError.message : metricsError || null,
     
     // Actions
     search,

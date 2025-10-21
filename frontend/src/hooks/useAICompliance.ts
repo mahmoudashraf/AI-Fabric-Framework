@@ -73,7 +73,7 @@ interface UseAIComplianceReturn {
   reportCount: number;
   complianceScore: number;
   violationTrend: 'increasing' | 'decreasing' | 'stable';
-  complianceTrend: 'improving' | 'declining' | 'stable';
+  complianceTrend: 'increasing' | 'decreasing' | 'stable';
 }
 
 const useAICompliance = (options: UseAIComplianceOptions = {}): UseAIComplianceReturn => {

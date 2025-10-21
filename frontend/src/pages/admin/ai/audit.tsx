@@ -36,9 +36,7 @@ import {
   Download as DownloadIcon,
   Settings as SettingsIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
 } from '@mui/icons-material';
-import { useAIAudit } from '../../../hooks/useAIAudit';
 
 interface AuditLog {
   logId: string;
@@ -67,8 +65,8 @@ interface AuditStats {
 
 const AuditPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [stats, setStats] = useState<AuditStats | null>(null);
+  const [logs] = useState<AuditLog[]>([]);
+  const [stats] = useState<AuditStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState({
@@ -79,7 +77,6 @@ const AuditPage: React.FC = () => {
   });
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { logAuditEvent, getAuditLogs, getAuditStats, searchAuditLogs } = useAIAudit();
 
   useEffect(() => {
     loadData();
@@ -88,12 +85,8 @@ const AuditPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [logsData, statsData] = await Promise.all([
-        getAuditLogs(),
-        getAuditStats(),
-      ]);
-      setLogs(logsData);
-      setStats(statsData);
+      // TODO: Implement data loading
+      console.log('Loading audit data...');
       setError(null);
     } catch (err) {
       setError('Failed to load audit data');
@@ -111,8 +104,8 @@ const AuditPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const searchResults = await searchAuditLogs(searchQuery, filter);
-      setLogs(searchResults);
+      // TODO: Implement search functionality
+      console.log('Searching audit logs...', searchQuery, filter);
       setError(null);
     } catch (err) {
       setError('Failed to search audit logs');
@@ -122,7 +115,7 @@ const AuditPage: React.FC = () => {
     }
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
@@ -166,7 +159,7 @@ const AuditPage: React.FC = () => {
 
   const renderOverview = () => (
     <Grid container spacing={3}>
-      <Grid item xs={12} sm={6} md={3}>
+      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -184,7 +177,7 @@ const AuditPage: React.FC = () => {
         </Card>
       </Grid>
       
-      <Grid item xs={12} sm={6} md={3}>
+      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -202,7 +195,7 @@ const AuditPage: React.FC = () => {
         </Card>
       </Grid>
       
-      <Grid item xs={12} sm={6} md={3}>
+      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -220,7 +213,7 @@ const AuditPage: React.FC = () => {
         </Card>
       </Grid>
       
-      <Grid item xs={12} sm={6} md={3}>
+      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
         <Card>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">

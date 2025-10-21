@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   SecurityThreat, 
@@ -81,7 +81,7 @@ const useAISecurity = (options: UseAISecurityOptions = {}): UseAISecurityReturn 
   } = options;
 
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   // Query keys
   const queryKeys = {
@@ -443,10 +443,10 @@ const useAISecurity = (options: UseAISecurityOptions = {}): UseAISecurityReturn 
   return {
     // Data
     threats,
-    metrics,
-    incidents,
-    policies,
-    configuration,
+    metrics: metrics || null,
+    incidents: incidents || [],
+    policies: policies || [],
+    configuration: configuration || null,
     
     // Loading states
     isLoading,
@@ -457,12 +457,12 @@ const useAISecurity = (options: UseAISecurityOptions = {}): UseAISecurityReturn 
     isConfigurationLoading,
     
     // Error states
-    error: overallError,
-    threatsError,
-    metricsError,
-    incidentsError,
-    policiesError,
-    configurationError,
+    error: overallError instanceof Error ? overallError.message : overallError || null,
+    threatsError: threatsError instanceof Error ? threatsError.message : threatsError || null,
+    metricsError: metricsError instanceof Error ? metricsError.message : metricsError || null,
+    incidentsError: incidentsError instanceof Error ? incidentsError.message : incidentsError || null,
+    policiesError: policiesError instanceof Error ? policiesError.message : policiesError || null,
+    configurationError: configurationError instanceof Error ? configurationError.message : configurationError || null,
     
     // Actions
     detectThreats,

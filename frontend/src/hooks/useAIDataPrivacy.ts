@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   DataSubject, 
@@ -88,7 +88,7 @@ interface UseAIDataPrivacyReturn {
   complianceScore: number;
   consentRate: number;
   violationTrend: 'increasing' | 'decreasing' | 'stable';
-  complianceTrend: 'improving' | 'declining' | 'stable';
+  complianceTrend: 'increasing' | 'decreasing' | 'stable';
 }
 
 const useAIDataPrivacy = (options: UseAIDataPrivacyOptions = {}): UseAIDataPrivacyReturn => {
@@ -100,7 +100,7 @@ const useAIDataPrivacy = (options: UseAIDataPrivacyOptions = {}): UseAIDataPriva
   } = options;
 
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   // Query keys
   const queryKeys = {
@@ -604,10 +604,10 @@ const useAIDataPrivacy = (options: UseAIDataPrivacyOptions = {}): UseAIDataPriva
     dataSubjects,
     violations,
     classifications,
-    settings,
-    metrics,
-    retentionPolicies,
-    audits,
+    settings: settings || null,
+    metrics: metrics || null,
+    retentionPolicies: retentionPolicies || [],
+    audits: audits || [],
     
     // Loading states
     isLoading,
@@ -620,14 +620,14 @@ const useAIDataPrivacy = (options: UseAIDataPrivacyOptions = {}): UseAIDataPriva
     isAuditsLoading,
     
     // Error states
-    error: overallError,
-    dataSubjectsError,
-    violationsError,
-    classificationsError,
-    settingsError,
-    metricsError,
-    retentionPoliciesError,
-    auditsError,
+    error: overallError instanceof Error ? overallError.message : overallError || null,
+    dataSubjectsError: dataSubjectsError instanceof Error ? dataSubjectsError.message : dataSubjectsError || null,
+    violationsError: violationsError instanceof Error ? violationsError.message : violationsError || null,
+    classificationsError: classificationsError instanceof Error ? classificationsError.message : classificationsError || null,
+    settingsError: settingsError instanceof Error ? settingsError.message : settingsError || null,
+    metricsError: metricsError instanceof Error ? metricsError.message : metricsError || null,
+    retentionPoliciesError: retentionPoliciesError instanceof Error ? retentionPoliciesError.message : retentionPoliciesError || null,
+    auditsError: auditsError instanceof Error ? auditsError.message : auditsError || null,
     
     // Actions
     updateConsent,
