@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,6 +26,7 @@ import com.ai.infrastructure.cache.CacheStatistics;
 @RestController
 @RequestMapping("/api/v1/ai/cache")
 @RequiredArgsConstructor
+@ConditionalOnBean(AIIntelligentCacheService.class)
 @Tag(name = "AI Intelligent Cache", description = "AI intelligent caching management endpoints")
 public class AIIntelligentCacheController {
     

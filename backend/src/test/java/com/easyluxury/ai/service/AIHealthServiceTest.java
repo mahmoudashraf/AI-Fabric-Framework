@@ -4,7 +4,7 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIServiceConfig;
 import com.ai.infrastructure.dto.AIHealthDto;
 import com.ai.infrastructure.health.AIHealthIndicator;
-import com.ai.infrastructure.service.AIConfigurationService;
+import com.ai.infrastructure.config.AIConfigurationService;
 import com.easyluxury.ai.config.EasyLuxuryAIConfig.EasyLuxuryAISettings;
 import com.easyluxury.ai.dto.AIHealthStatusDto;
 import com.easyluxury.ai.dto.AIConfigurationStatusDto;
@@ -219,12 +219,7 @@ class AIHealthServiceTest {
     @Test
     void testValidateConfiguration() {
         // Given
-        Map<String, Object> mockValidation = Map.of(
-            "valid", true,
-            "errors", new HashMap<String, String>()
-        );
-        
-        when(aiConfigurationService.validateConfiguration()).thenReturn(mockValidation);
+        when(aiConfigurationService.validateConfiguration()).thenReturn(true);
         when(aiSettings.getMaxTokens()).thenReturn(2000);
         when(aiSettings.getTemperature()).thenReturn(0.5);
         when(aiSettings.getTimeoutSeconds()).thenReturn(60L);
@@ -246,12 +241,7 @@ class AIHealthServiceTest {
     @Test
     void testValidateConfigurationWithErrors() {
         // Given
-        Map<String, Object> mockValidation = Map.of(
-            "valid", true,
-            "errors", new HashMap<String, String>()
-        );
-        
-        when(aiConfigurationService.validateConfiguration()).thenReturn(mockValidation);
+        when(aiConfigurationService.validateConfiguration()).thenReturn(true);
         when(aiSettings.getMaxTokens()).thenReturn(-1);
         when(aiSettings.getTemperature()).thenReturn(3.0);
         when(aiSettings.getTimeoutSeconds()).thenReturn(-1L);

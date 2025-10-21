@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@SpringBootTest
+@SpringBootTest(classes = {com.easyluxury.EasyLuxuryApplication.class, com.ai.infrastructure.config.AIInfrastructureAutoConfiguration.class})
 @ActiveProfiles("test")
 class EasyLuxuryAIConfigTest {
 

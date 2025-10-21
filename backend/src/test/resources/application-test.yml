@@ -46,13 +46,16 @@ ai:
       environment: test
       index-name: test-index
   
+  # Vector Database Configuration for Testing
+  vector-db:
+    type: memory
+    memory:
+      similarity-threshold: 0.6
+      max-results: 50
+  
   service:
     enabled: true
     auto-configuration: true
-
-# Enable AI auto-configuration
-  autoconfigure:
-    exclude: []
     caching:
       enabled: false  # Disable caching for tests
     metrics:
@@ -77,40 +80,6 @@ ai:
       enabled: false  # Disable circuit breaker for tests
       threshold: 5
       timeout: 10000
-    feature-flags:
-      enabled: true
-      flags:
-        embedding.enabled: true
-        search.enabled: true
-        rag.enabled: true
-        validation.enabled: true
-        recommendations.enabled: true
-        generation.enabled: true
-    services:
-      embedding:
-        enabled: true
-        rate-limit: 100
-        timeout: 2000
-      search:
-        enabled: true
-        rate-limit: 50
-        timeout: 1000
-      rag:
-        enabled: true
-        rate-limit: 100
-        timeout: 3000
-      validation:
-        enabled: true
-        rate-limit: 50
-        timeout: 500
-      recommendations:
-        enabled: true
-        rate-limit: 50
-        timeout: 1000
-      generation:
-        enabled: true
-        rate-limit: 100
-        timeout: 2000
 
 # Easy Luxury AI Configuration for Testing
 easyluxury:

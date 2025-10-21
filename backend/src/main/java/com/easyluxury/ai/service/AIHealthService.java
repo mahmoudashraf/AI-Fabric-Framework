@@ -4,7 +4,7 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIServiceConfig;
 import com.ai.infrastructure.dto.AIHealthDto;
 import com.ai.infrastructure.health.AIHealthIndicator;
-import com.ai.infrastructure.service.AIConfigurationService;
+import com.ai.infrastructure.config.AIConfigurationService;
 import com.easyluxury.ai.config.EasyLuxuryAIConfig.EasyLuxuryAISettings;
 import com.easyluxury.ai.dto.AIHealthStatusDto;
 import com.easyluxury.ai.dto.AIConfigurationStatusDto;
@@ -176,12 +176,12 @@ public class AIHealthService {
     public Map<String, Object> validateConfiguration() {
         log.debug("Validating AI configuration");
         
-        Map<String, Object> validation = aiConfigurationService.validateConfiguration();
+        boolean isValid = aiConfigurationService.validateConfiguration();
         
         // Add Easy Luxury specific validation
-        Map<String, String> errors = (Map<String, String>) validation.get("errors");
-        if (errors == null) {
-            errors = new HashMap<>();
+        Map<String, String> errors = new HashMap<>();
+        if (!isValid) {
+            errors.put("ai_configuration", "AI configuration validation failed");
         }
         
         // Validate Easy Luxury specific settings
@@ -209,6 +209,7 @@ public class AIHealthService {
             errors.put("orderIndexName", "Order index name is required");
         }
         
+        Map<String, Object> validation = new HashMap<>();
         validation.put("errors", errors);
         validation.put("valid", errors.isEmpty());
         

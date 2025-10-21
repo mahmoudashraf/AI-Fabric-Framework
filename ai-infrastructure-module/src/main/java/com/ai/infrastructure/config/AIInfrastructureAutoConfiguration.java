@@ -155,12 +155,14 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
+    @ConditionalOnProperty(name = "ai.service.auto-generator.enabled", havingValue = "true", matchIfMissing = false)
     public AIAutoGeneratorService aiAutoGeneratorService(AICoreService aiCoreService) {
         // TODO: Implement concrete implementation
         return null;
     }
     
     @Bean
+    @ConditionalOnProperty(name = "ai.service.intelligent-cache.enabled", havingValue = "true", matchIfMissing = false)
     public AIIntelligentCacheService aiIntelligentCacheService() {
         // TODO: Implement concrete implementation
         return null;
