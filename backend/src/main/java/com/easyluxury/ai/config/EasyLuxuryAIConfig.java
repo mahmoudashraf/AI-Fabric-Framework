@@ -24,7 +24,6 @@ import org.springframework.context.annotation.Primary;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnBean(AIProviderConfig.class)
 public class EasyLuxuryAIConfig {
     
     private final AIProviderConfig aiProviderConfig;

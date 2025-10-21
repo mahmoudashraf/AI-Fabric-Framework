@@ -25,7 +25,7 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Component
+// @Component
 @ConfigurationProperties(prefix = "ai.service")
 public class AIServiceConfig {
     

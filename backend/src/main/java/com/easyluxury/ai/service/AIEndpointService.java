@@ -2,8 +2,10 @@ package com.easyluxury.ai.service;
 
 import com.easyluxury.ai.dto.*;
 import com.easyluxury.ai.facade.AIFacade;
+import com.easyluxury.ai.config.EasyLuxuryAIConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnBean(EasyLuxuryAIConfig.EasyLuxuryAISettings.class)
 public class AIEndpointService {
     
     private final AIFacade aiFacade;

@@ -49,6 +49,7 @@ spring:
 
 # AI Configuration for Development
 ai:
+  enabled: true
   providers:
     openai-api-key: ${OPENAI_API_KEY:sk-dev-key}
     openai-model: gpt-4o-mini

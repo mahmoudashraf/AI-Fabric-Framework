@@ -5,11 +5,13 @@ import com.ai.infrastructure.config.AIServiceConfig;
 import com.ai.infrastructure.dto.AIHealthDto;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.config.AIConfigurationService;
+import com.easyluxury.ai.config.EasyLuxuryAIConfig;
 import com.easyluxury.ai.config.EasyLuxuryAIConfig.EasyLuxuryAISettings;
 import com.easyluxury.ai.dto.AIHealthStatusDto;
 import com.easyluxury.ai.dto.AIConfigurationStatusDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -27,6 +29,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnBean(EasyLuxuryAIConfig.EasyLuxuryAISettings.class)
 public class AIHealthService {
     
     private final AIHealthIndicator aiHealthIndicator;
