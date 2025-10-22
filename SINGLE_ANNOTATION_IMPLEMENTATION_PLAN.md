@@ -94,7 +94,7 @@ public @interface AICapable {
 }
 ```
 
-### 1.2 Create AI Processing Annotations
+### 1.2 Create AI Processing Annotation
 
 #### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AIProcess.java`
 
@@ -146,103 +146,7 @@ public @interface AIProcess {
 }
 ```
 
-#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AISearchable.java`
-
-```java
-package com.ai.infrastructure.annotation;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
-/**
- * AISearchable Annotation
- * 
- * Marks fields as searchable for AI processing.
- * Used for field-level AI configuration.
- * 
- * @author AI Infrastructure Team
- * @version 1.0.0
- */
-@Target(ElementType.FIELD)
-@Retention(RetentionPolicy.RUNTIME)
-@Documented
-public @interface AISearchable {
-    
-    /**
-     * Field name for AI processing
-     */
-    String fieldName() default "";
-    
-    /**
-     * Include in RAG processing
-     * Default: true
-     */
-    boolean includeInRAG() default true;
-    
-    /**
-     * Enable semantic search
-     * Default: true
-     */
-    boolean enableSemanticSearch() default true;
-    
-    /**
-     * Field weight for search relevance
-     * Default: 1.0
-     */
-    double weight() default 1.0;
-}
-```
-
-#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AIEmbeddable.java`
-
-```java
-package com.ai.infrastructure.annotation;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
-/**
- * AIEmbeddable Annotation
- * 
- * Marks fields as embeddable for AI processing.
- * Used for field-level embedding configuration.
- * 
- * @author AI Infrastructure Team
- * @version 1.0.0
- */
-@Target(ElementType.FIELD)
-@Retention(RetentionPolicy.RUNTIME)
-@Documented
-public @interface AIEmbeddable {
-    
-    /**
-     * Field name for AI processing
-     */
-    String fieldName() default "";
-    
-    /**
-     * Embedding model to use
-     * Default: text-embedding-3-small
-     */
-    String model() default "text-embedding-3-small";
-    
-    /**
-     * Auto-generate embedding
-     * Default: true
-     */
-    boolean autoGenerate() default true;
-    
-    /**
-     * Include in similarity search
-     * Default: true
-     */
-    boolean includeInSimilarity() default true;
-}
-```
+**Note**: We don't need @AISearchable and @AIEmbeddable annotations because all field-level configuration is handled through the YAML configuration file. The AICapabilityService uses reflection to extract field values based on the YAML configuration, making field-level annotations unnecessary.
 
 ---
 
@@ -1988,11 +1892,15 @@ package com.ai.infrastructure.config;
 import com.ai.infrastructure.aspect.AICapableAspect;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.AIEntityConfigurationLoader;
+import com.ai.infrastructure.core.AIEmbeddingService;
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.core.io.ResourceLoader;
 
 /**
  * AI Infrastructure Auto-Configuration
@@ -2009,20 +1917,25 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public AIEntityConfigurationLoader aiEntityConfigurationLoader() {
-        return new AIEntityConfigurationLoader(null);
+    public AIEntityConfigurationLoader aiEntityConfigurationLoader(ResourceLoader resourceLoader) {
+        return new AIEntityConfigurationLoader(resourceLoader);
     }
     
     @Bean
     @ConditionalOnMissingBean
-    public AICapabilityService aiCapabilityService() {
-        return new AICapabilityService(null, null, null);
+    public AICapabilityService aiCapabilityService(
+            AIEmbeddingService embeddingService,
+            AICoreService aiCoreService,
+            AISearchableEntityRepository searchableEntityRepository) {
+        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository);
     }
     
     @Bean
     @ConditionalOnMissingBean
-    public AICapableAspect aiCapableAspect() {
-        return new AICapableAspect(null, null);
+    public AICapableAspect aiCapableAspect(
+            AIEntityConfigurationLoader configLoader,
+            AICapabilityService aiCapabilityService) {
+        return new AICapableAspect(configLoader, aiCapabilityService);
     }
 }
 ```
@@ -2184,9 +2097,9 @@ class AIAnnotationIntegrationTest {
 ### **Phase 1: Core Infrastructure**
 - [ ] Create `@AICapable` annotation
 - [ ] Create `@AIProcess` annotation
-- [ ] Create `@AISearchable` annotation
-- [ ] Create `@AIEmbeddable` annotation
 - [ ] Test annotations
+
+**Note**: We don't need `@AISearchable` and `@AIEmbeddable` annotations because all field-level configuration is handled through the YAML configuration file.
 
 ### **Phase 2: Configuration System**
 - [ ] Create `ai-entity-config.yml` configuration file
