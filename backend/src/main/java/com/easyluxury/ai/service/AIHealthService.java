@@ -227,7 +227,7 @@ public class AIHealthService {
     public Map<String, Object> getConfigurationSummary() {
         log.debug("Retrieving AI configuration summary");
         
-        Map<String, Object> summary = aiConfigurationService.getConfigurationSummary();
+        Map<String, Object> summary = new HashMap<>(aiConfigurationService.getConfigurationSummary());
         
         // Add Easy Luxury specific summary
         Map<String, Object> easyluxurySettings = new HashMap<>();

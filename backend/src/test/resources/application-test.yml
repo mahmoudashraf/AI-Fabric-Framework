@@ -36,11 +36,13 @@ spring:
 
 # AI Configuration for Testing
 ai:
+  enabled: true
   provider:
     openai:
       api-key: test-key
       model: gpt-4o-mini
       embedding-model: text-embedding-3-small
+      mock-responses: true
     pinecone:
       api-key: test-pinecone-key
       environment: test

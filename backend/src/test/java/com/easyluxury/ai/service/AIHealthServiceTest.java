@@ -131,14 +131,14 @@ class AIHealthServiceTest {
         // Given
         when(aiProviderConfig.getOpenaiApiKey()).thenReturn("test-key");
         when(aiProviderConfig.getPineconeApiKey()).thenReturn(null);
-        when(aiServiceConfig.isEnabled()).thenReturn(true);
-        when(aiServiceConfig.isCachingEnabled()).thenReturn(true);
-        when(aiServiceConfig.isMetricsEnabled()).thenReturn(true);
-        when(aiServiceConfig.isHealthChecksEnabled()).thenReturn(true);
-        when(aiServiceConfig.isAsyncEnabled()).thenReturn(true);
-        when(aiServiceConfig.isBatchProcessingEnabled()).thenReturn(true);
-        when(aiServiceConfig.isRateLimitingEnabled()).thenReturn(true);
-        when(aiServiceConfig.isCircuitBreakerEnabled()).thenReturn(true);
+        when(aiServiceConfig.getEnabled()).thenReturn(true);
+        when(aiServiceConfig.getCachingEnabled()).thenReturn(true);
+        when(aiServiceConfig.getMetricsEnabled()).thenReturn(true);
+        when(aiServiceConfig.getHealthChecksEnabled()).thenReturn(true);
+        when(aiServiceConfig.getAsyncEnabled()).thenReturn(true);
+        when(aiServiceConfig.getBatchProcessingEnabled()).thenReturn(true);
+        when(aiServiceConfig.getRateLimitingEnabled()).thenReturn(true);
+        when(aiServiceConfig.getCircuitBreakerEnabled()).thenReturn(true);
         when(aiSettings.getEnableProductRecommendations()).thenReturn(true);
         when(aiSettings.getEnableUserBehaviorTracking()).thenReturn(true);
         when(aiSettings.getEnableSmartValidation()).thenReturn(true);
@@ -204,14 +204,14 @@ class AIHealthServiceTest {
 
         // Then
         assertNotNull(metrics);
-        assertEquals(30000L, metrics.get("defaultTimeout"));
+        assertEquals(30000, metrics.get("defaultTimeout"));
         assertEquals(3, metrics.get("maxRetries"));
         assertEquals(1000L, metrics.get("retryDelay"));
         assertEquals(10, metrics.get("threadPoolSize"));
         assertEquals(100, metrics.get("batchSize"));
         assertEquals(1000, metrics.get("rateLimitPerMinute"));
         assertEquals(5, metrics.get("circuitBreakerThreshold"));
-        assertEquals(60000L, metrics.get("circuitBreakerTimeout"));
+        assertEquals(60000, metrics.get("circuitBreakerTimeout"));
         assertNotNull(metrics.get("featureFlags"));
         assertNotNull(metrics.get("services"));
     }

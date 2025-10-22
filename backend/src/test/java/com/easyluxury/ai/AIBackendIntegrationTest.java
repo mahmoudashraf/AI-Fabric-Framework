@@ -18,6 +18,7 @@ import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.monitoring.AIMetricsService;
 import com.ai.infrastructure.monitoring.AIAnalyticsService;
 import com.ai.infrastructure.provider.AIProviderManager;
+import com.ai.infrastructure.config.AIConfigurationService;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.TestConstructor;
+import org.springframework.context.annotation.Import;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -44,11 +46,12 @@ import static org.junit.jupiter.api.Assertions.*;
     "ai.provider.openai.mock-responses=true",
     "ai.provider.anthropic.mock-responses=true",
     "ai.provider.cohere.mock-responses=true",
-    "ai.vector-db.type=lucene",
+    "ai.vector-db.type=memory",
     "ai.service.caching.enabled=false",
     "ai.service.metrics.enabled=false",
     "ai.service.async.enabled=false"
 })
+@Import(com.easyluxury.ai.config.TestAIConfiguration.class)
 public class AIBackendIntegrationTest {
 
     // AI Infrastructure Services

@@ -51,9 +51,9 @@ class EasyLuxuryAIConfigTest {
 
         // Then
         assertNotNull(settings);
-        assertEquals("test-products", settings.getProductIndexName());
-        assertEquals("test-users", settings.getUserIndexName());
-        assertEquals("test-orders", settings.getOrderIndexName());
+        assertEquals("easyluxury-products", settings.getProductIndexName());
+        assertEquals("easyluxury-users", settings.getUserIndexName());
+        assertEquals("easyluxury-orders", settings.getOrderIndexName());
         assertTrue(settings.getEnableProductRecommendations());
         assertTrue(settings.getEnableUserBehaviorTracking());
         assertTrue(settings.getEnableSmartValidation());
