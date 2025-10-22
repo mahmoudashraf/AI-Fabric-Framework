@@ -6,7 +6,7 @@ This document provides a comprehensive implementation plan for the single annota
 
 ## Implementation Strategy
 
-### **Phase 1: Core Infrastructure (Single Annotation System)**
+### **Phase 1: Core Infrastructure (Two-Level Annotation System)**
 ### **Phase 2: Configuration System**
 ### **Phase 3: AI Processing Aspect**
 ### **Phase 4: Domain Entity Integration**
@@ -16,9 +16,9 @@ This document provides a comprehensive implementation plan for the single annota
 
 ---
 
-## Phase 1: Core Infrastructure (Single Annotation System)
+## Phase 1: Core Infrastructure (Two-Level Annotation System)
 
-### 1.1 Create the Single Annotation
+### 1.1 Create the Entity-Level Annotation
 
 #### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/annotation/AICapable.java`
 
@@ -33,13 +33,13 @@ import java.lang.annotation.Target;
 /**
  * AICapable Annotation
  * 
- * Single annotation to enable AI capabilities for any entity or method.
+ * Entity-level annotation to enable AI capabilities for classes.
  * AI behavior is defined in the configuration file.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface AICapable {
@@ -109,8 +109,8 @@ import java.lang.annotation.Target;
 /**
  * AIProcess Annotation
  * 
- * Marks methods for automatic AI processing.
- * Used in combination with @AICapable for method-level AI processing.
+ * Method-level annotation for automatic AI processing.
+ * Contains both entity type and processing configuration.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
@@ -119,6 +119,12 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface AIProcess {
+    
+    /**
+     * Entity type for AI processing
+     * Used to lookup configuration in ai-entity-config.yml
+     */
+    String entityType() default "";
     
     /**
      * AI processing type
@@ -1579,8 +1585,7 @@ public class ProductService {
      * Create a new product
      * AI processing: Automatic embedding generation, search indexing
      */
-    @AICapable(entityType = "product")
-    @AIProcess(processType = "create")
+    @AIProcess(entityType = "product", processType = "create")
     @Transactional
     public Product createProduct(Product product) {
         log.info("Creating product: {}", product.getName());
@@ -1591,8 +1596,7 @@ public class ProductService {
      * Update an existing product
      * AI processing: Automatic embedding regeneration, search re-indexing, analysis
      */
-    @AICapable(entityType = "product")
-    @AIProcess(processType = "update")
+    @AIProcess(entityType = "product", processType = "update")
     @Transactional
     public Product updateProduct(String id, Product product) {
         log.info("Updating product: {}", id);
