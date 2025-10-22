@@ -1,25 +1,5 @@
-import axios from 'axios';
+import apiClient from '@/lib/api-client';
 import { AIProfile, AIProfileData, GenerateProfileRequest } from '@/types/ai-profile';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add auth token to requests - using the standard axios defaults
-// The authentication context should set axios.defaults.headers.common.Authorization
-// This follows the project guidelines of not mixing mocks into main components
-apiClient.interceptors.request.use((config) => {
-  // Use the global axios authorization header that's set by the auth context
-  if (axios.defaults.headers.common.Authorization) {
-    config.headers.Authorization = axios.defaults.headers.common.Authorization;
-  }
-  return config;
-});
 
 export const aiProfileApi = {
   /**

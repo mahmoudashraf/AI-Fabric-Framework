@@ -20,7 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,8 +111,9 @@ public class AIProfileFacade {
         String contentType = file.getContentType();
         if (contentType == null || (!contentType.equals("application/pdf") && 
             !contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") &&
-            !contentType.equals("application/msword"))) {
-            throw new IllegalArgumentException("Only PDF and Word documents are supported");
+            !contentType.equals("application/msword") &&
+            !contentType.equals("text/plain"))) {
+            throw new IllegalArgumentException("Only PDF, Word documents, and text files are supported");
         }
         
         // Extract text from file
@@ -287,6 +290,16 @@ public class AIProfileFacade {
             try (XWPFDocument document = new XWPFDocument(file.getInputStream());
                  XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
                 return extractor.getText();
+            }
+        } else if ("text/plain".equals(contentType)) {
+            // Extract text from plain text file
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+                return content.toString();
             }
         } else {
             throw new IllegalArgumentException("Unsupported file type: " + contentType);

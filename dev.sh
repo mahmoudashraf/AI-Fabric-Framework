@@ -207,8 +207,23 @@ fi
 echo -e "${GREEN}✓${NC} Ports 3000 and 8080 are available"
 echo ""
 
-# Step 6: Recompile backend
-echo -e "${BLUE}Step 6/9:${NC} Recompiling backend..."
+# Step 6: Build AI Infrastructure Module
+echo -e "${BLUE}Step 6/10:${NC} Building AI Infrastructure Module..."
+cd ai-infrastructure-module
+echo "Cleaning and installing AI module to local repository..."
+export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+if mvn clean install -q; then
+    echo -e "${GREEN}✓${NC} AI Infrastructure Module built and installed"
+else
+    echo -e "${RED}❌ AI Infrastructure Module build failed${NC}"
+    echo "Check the output above for compilation errors"
+    exit 1
+fi
+cd ..
+echo ""
+
+# Step 7: Recompile backend
+echo -e "${BLUE}Step 7/10:${NC} Recompiling backend..."
 cd backend
 echo "Cleaning and compiling backend..."
 export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
@@ -222,8 +237,8 @@ fi
 cd ..
 echo ""
 
-# Step 7: Run database migrations
-echo -e "${BLUE}Step 7/9:${NC} Running database migrations..."
+# Step 8: Run database migrations
+echo -e "${BLUE}Step 8/10:${NC} Running database migrations..."
 cd backend
 if mvn liquibase:update -q 2>/dev/null; then
     echo -e "${GREEN}✓${NC} Database migrations completed"
@@ -233,8 +248,8 @@ fi
 cd ..
 echo ""
 
-# Step 8: Install frontend dependencies
-echo -e "${BLUE}Step 8/9:${NC} Checking frontend dependencies..."
+# Step 9: Install frontend dependencies
+echo -e "${BLUE}Step 9/10:${NC} Checking frontend dependencies..."
 if [ ! -d "frontend/node_modules" ]; then
     echo "Installing frontend dependencies..."
     cd frontend
@@ -246,8 +261,8 @@ else
 fi
 echo ""
 
-# Step 9: Start services
-echo -e "${BLUE}Step 9/9:${NC} Starting services..."
+# Step 10: Start services
+echo -e "${BLUE}Step 10/10:${NC} Starting services..."
 
 # Start backend
 echo "Starting backend..."
@@ -255,13 +270,13 @@ cd backend
 export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 # Load backend development environment variables (including OPENAI_API_KEY)
-echo "Loading backend env (env.dev or .env) ..."
-if [ -f "env.dev" ]; then
+echo "Loading backend env (.env.dev or .env) ..."
+if [ -f ".env.dev" ]; then
   set -a
   # shellcheck disable=SC1091
-  . ./env.dev
+  . ./.env.dev
   set +a
-  echo "Loaded backend/env.dev"
+  echo "Loaded backend/.env.dev"
 elif [ -f ".env" ]; then
   set -a
   # shellcheck disable=SC1091

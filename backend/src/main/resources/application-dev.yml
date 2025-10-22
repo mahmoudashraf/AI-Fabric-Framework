@@ -147,8 +147,8 @@ aws:
     endpoint: http://localhost:9000
     region: us-east-1
     bucket: easyluxury-dev
-    access-key: dev-access-key
-    secret-key: dev-secret-key
+    access-key: minioadmin
+    secret-key: minioadmin
     presigned-url-duration: 900
 
 # Logging for Development
