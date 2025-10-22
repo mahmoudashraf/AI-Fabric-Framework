@@ -4,57 +4,42 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.annotation.Documented;
 
 /**
- * AICapable Annotation
+ * AIProcess Annotation
  * 
- * Marks an entity as AI-capable, enabling AI-powered features like search,
- * recommendations, and content generation. This annotation provides configuration
- * options for AI behavior and capabilities.
+ * Marks methods for automatic AI processing.
+ * Used in combination with @AICapable for method-level AI processing.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface AICapable {
+public @interface AIProcess {
     
     /**
-     * The type of entity for AI processing
-     * Used for categorization and specialized AI handling
+     * AI processing type
+     * Options: create, update, delete, search, analyze
      */
-    String entityType() default "";
+    String processType() default "create";
     
     /**
-     * Whether to enable AI-powered search for this entity
+     * Whether to generate embeddings for this method
      */
-    boolean enableSearch() default true;
+    boolean generateEmbedding() default true;
     
     /**
-     * Whether to enable AI-powered recommendations for this entity
+     * Whether to index for search for this method
      */
-    boolean enableRecommendations() default true;
+    boolean indexForSearch() default true;
     
     /**
-     * Whether to enable automatic embedding generation
+     * Whether to enable analysis for this method
      */
-    boolean autoEmbedding() default true;
-    
-    /**
-     * Whether this entity should be indexed for AI operations
-     */
-    boolean indexable() default true;
-    
-    /**
-     * Priority level for AI processing (1-10, higher = more priority)
-     */
-    int priority() default 5;
-    
-    /**
-     * AI model to use for this entity type
-     */
-    String model() default "";
+    boolean enableAnalysis() default false;
     
     /**
      * Custom AI configuration parameters
@@ -62,34 +47,9 @@ public @interface AICapable {
     String[] parameters() default {};
     
     /**
-     * Whether to enable content generation for this entity
+     * Priority level for AI processing (1-10, higher = more priority)
      */
-    boolean enableContentGeneration() default false;
-    
-    /**
-     * Whether to enable smart validation for this entity
-     */
-    boolean enableSmartValidation() default false;
-    
-    /**
-     * Whether to enable behavioral analysis for this entity
-     */
-    boolean enableBehavioralAnalysis() default false;
-    
-    /**
-     * Whether to enable RAG (Retrieval-Augmented Generation) for this entity
-     */
-    boolean enableRAG() default true;
-    
-    /**
-     * Custom search fields for this entity
-     */
-    String[] searchFields() default {};
-    
-    /**
-     * Custom recommendation fields for this entity
-     */
-    String[] recommendationFields() default {};
+    int priority() default 5;
     
     /**
      * Whether to enable real-time AI processing
@@ -97,19 +57,14 @@ public @interface AICapable {
     boolean enableRealTimeProcessing() default false;
     
     /**
-     * Cache TTL for AI operations on this entity (in seconds)
+     * Cache TTL for AI operations (in seconds)
      */
     long cacheTtlSeconds() default 3600L;
     
     /**
-     * Whether to enable AI analytics for this entity
+     * Custom AI processing rules
      */
-    boolean enableAnalytics() default true;
-    
-    /**
-     * Custom metadata for AI processing
-     */
-    String[] metadata() default {};
+    String[] processingRules() default {};
     
     /**
      * Whether to enable AI-powered data validation
@@ -127,7 +82,7 @@ public @interface AICapable {
     boolean enableDataEnrichment() default false;
     
     /**
-     * Custom AI processing pipeline for this entity
+     * Custom AI processing pipeline
      */
     String[] processingPipeline() default {};
     
@@ -142,7 +97,7 @@ public @interface AICapable {
     boolean enablePrivacyControls() default false;
     
     /**
-     * Custom AI feature flags for this entity
+     * Custom AI feature flags
      */
     String[] featureFlags() default {};
     
@@ -160,11 +115,6 @@ public @interface AICapable {
      * Whether to enable AI-powered data backup
      */
     boolean enableDataBackup() default false;
-    
-    /**
-     * Custom AI processing rules for this entity
-     */
-    String[] processingRules() default {};
     
     /**
      * Whether to enable AI-powered data migration
@@ -192,7 +142,7 @@ public @interface AICapable {
     boolean enableDataDeduplication() default false;
     
     /**
-     * Whether to enable AI-powered data compression
+     * Whether to enable AI-powered data optimization
      */
     boolean enableDataOptimization() default false;
     
@@ -265,14 +215,4 @@ public @interface AICapable {
      * Whether to enable AI-powered data lifecycle management
      */
     boolean enableDataLifecycleManagement() default false;
-    
-    /**
-     * Whether to enable validation
-     */
-    boolean enableValidation() default true;
-    
-    /**
-     * Features enabled for this entity
-     */
-    String[] features() default {};
 }
