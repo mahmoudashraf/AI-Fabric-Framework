@@ -4,6 +4,50 @@
 
 This document provides a comprehensive implementation plan for the single annotation approach with configuration-driven AI processing, including AICapable and AIProcess annotations with entity-type support and AOP implementation. This plan follows the transformation patterns established in the AI_INFRASTRUCTURE_TRANSFORMATION_PLAN.md and FILE_MIGRATION_CHECKLIST.md.
 
+## ⚠️ CRITICAL GAPS IDENTIFIED IN CURRENT CODEBASE
+
+### **1. Annotation Mismatch Issues**
+- **Current AICapable**: Has 200+ parameters (overly complex)
+- **Plan AICapable**: Simplified with only essential parameters
+- **Action Required**: Simplify current annotation to match plan
+
+### **2. Missing AIProcess Annotation**
+- **Current State**: AIProcess exists but missing `entityType()` parameter
+- **Plan Requirement**: AIProcess needs `entityType()` for configuration lookup
+- **Action Required**: Add `entityType()` parameter to AIProcess annotation
+
+### **3. Missing Core Components**
+- **AISearchableEntity**: Not implemented in AI infrastructure module
+- **AISearchableEntityRepository**: Not implemented
+- **AICapableAspect**: Not implemented (critical for AOP)
+- **AIEntityConfigurationLoader**: Not implemented
+- **AICapabilityService**: Not implemented
+
+### **4. Entity Cleaning Required**
+- **User.java**: Currently has AI coupling (needs cleaning)
+- **Product.java**: Currently has AI coupling (needs cleaning)  
+- **Order.java**: Currently has AI coupling (needs cleaning)
+- **Action Required**: Remove AI annotations and fields from domain entities
+
+### **5. Service Migration Gaps**
+- **Missing Services**: Several services from backend not included in migration plan
+- **Missing DTOs**: Many DTOs from backend not included in migration plan
+- **Missing Controllers**: Several controllers not included in migration plan
+
+### **6. Configuration System Missing**
+- **YAML Configuration**: Not implemented
+- **Configuration Classes**: Missing DTOs for YAML parsing
+- **Auto-Configuration**: Missing Spring Boot auto-configuration
+
+## IMPLEMENTATION PRIORITY ORDER
+
+1. **Phase 1**: Fix annotation mismatches and create missing core components
+2. **Phase 2**: Implement configuration system and AOP
+3. **Phase 3**: Clean domain entities and create AISearchableEntity
+4. **Phase 4**: Migrate services and create adapters
+5. **Phase 5**: Update domain services with new annotations
+6. **Phase 6**: Testing and validation
+
 ## Implementation Strategy
 
 ### **Phase 1: Core Infrastructure (Two-Level Annotation System)**
