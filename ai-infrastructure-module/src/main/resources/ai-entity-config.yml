@@ -1,0 +1,210 @@
+# AI Entity Configuration
+# Defines AI behavior for all entities
+
+ai-entities:
+  # Product Entity Configuration
+  product:
+    entity-type: "product"
+    features: ["embedding", "search", "rag", "recommendation"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: true
+    auto-embedding: true
+    indexable: true
+    
+    # Searchable Fields Configuration
+    searchable-fields:
+      - name: "name"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 1.0
+      - name: "description"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.8
+      - name: "category"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.6
+      - name: "tags"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.4
+    
+    # Embeddable Fields Configuration
+    embeddable-fields:
+      - name: "name"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "description"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "category"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    # Metadata Fields Configuration
+    metadata-fields:
+      - name: "price"
+        type: "number"
+        include-in-search: true
+      - name: "rating"
+        type: "number"
+        include-in-search: true
+      - name: "availability"
+        type: "boolean"
+        include-in-search: true
+    
+    # CRUD Operations Configuration
+    crud-operations:
+      create:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: false
+      update:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: true
+      delete:
+        remove-from-search: true
+        cleanup-embeddings: true
+        enable-analysis: false
+
+  # User Entity Configuration
+  user:
+    entity-type: "user"
+    features: ["embedding", "search", "rag", "behavioral"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: false
+    auto-embedding: true
+    indexable: true
+    
+    searchable-fields:
+      - name: "firstName"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.6
+      - name: "lastName"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.6
+      - name: "email"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.8
+      - name: "bio"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.4
+    
+    embeddable-fields:
+      - name: "firstName"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "lastName"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "bio"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    metadata-fields:
+      - name: "age"
+        type: "number"
+        include-in-search: true
+      - name: "location"
+        type: "string"
+        include-in-search: true
+      - name: "preferences"
+        type: "object"
+        include-in-search: true
+    
+    crud-operations:
+      create:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: false
+      update:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: true
+      delete:
+        remove-from-search: true
+        cleanup-embeddings: true
+        enable-analysis: false
+
+  # Order Entity Configuration
+  order:
+    entity-type: "order"
+    features: ["embedding", "search", "rag", "analysis"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: false
+    auto-embedding: true
+    indexable: true
+    
+    searchable-fields:
+      - name: "orderNumber"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.8
+      - name: "notes"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.6
+      - name: "status"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.4
+    
+    embeddable-fields:
+      - name: "orderNumber"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "notes"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    metadata-fields:
+      - name: "totalAmount"
+        type: "number"
+        include-in-search: true
+      - name: "orderDate"
+        type: "date"
+        include-in-search: true
+      - name: "status"
+        type: "string"
+        include-in-search: true
+    
+    crud-operations:
+      create:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: false
+      update:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: true
+      delete:
+        remove-from-search: true
+        cleanup-embeddings: true
+        enable-analysis: false
+
+# Global AI Configuration
+ai-config:
+  default-embedding-model: "text-embedding-3-small"
+  default-search-limit: 10
+  default-similarity-threshold: 0.7
+  enable-caching: true
+  cache-ttl: 3600
+  enable-monitoring: true
+  enable-health-checks: true

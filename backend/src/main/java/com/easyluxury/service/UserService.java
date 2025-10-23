@@ -1,5 +1,7 @@
 package com.easyluxury.service;
 
+import com.ai.infrastructure.annotation.AICapable;
+import com.ai.infrastructure.annotation.AIProcess;
 import com.easyluxury.dto.UserDto;
 import com.easyluxury.entity.User;
 import com.easyluxury.exception.ResourceNotFoundException;
@@ -40,6 +42,11 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
+    /**
+     * Update user
+     * AI processing: Automatic embedding regeneration, search re-indexing, analysis
+     */
+    @AIProcess(entityType = "user", processType = "update")
     @Transactional
     public UserDto updateUser(UUID userId, UserDto userDto) {
         User user = userRepository.findById(userId)
