@@ -28,8 +28,10 @@ public class AISearchRequest {
     
     @Min(value = 1, message = "Limit must be at least 1")
     @Max(value = 100, message = "Limit cannot exceed 100")
+    @Builder.Default
     private Integer limit = 10;
     
+    @Builder.Default
     private Double threshold = 0.7;
     
     private String filters;

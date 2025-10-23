@@ -1,8 +1,10 @@
 package com.ai.infrastructure.it;
 
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
@@ -16,6 +18,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * @version 1.0.0
  */
 @SpringBootApplication
+@Import(AIInfrastructureAutoConfiguration.class)
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
     "com.ai.infrastructure.it.entity"
