@@ -1,0 +1,175 @@
+# AI Entity Configuration for Integration Tests
+# This file defines test entities and their AI processing configurations
+
+entities:
+  # Test Product Entity
+  - entityType: "test-product"
+    className: "com.ai.infrastructure.it.entity.TestProduct"
+    searchableFields:
+      - fieldName: "name"
+        fieldType: "TEXT"
+        weight: 1.0
+        searchable: true
+        embeddable: true
+      - fieldName: "description"
+        fieldType: "TEXT"
+        weight: 0.8
+        searchable: true
+        embeddable: true
+      - fieldName: "category"
+        fieldType: "TEXT"
+        weight: 0.6
+        searchable: true
+        embeddable: false
+      - fieldName: "price"
+        fieldType: "NUMERIC"
+        weight: 0.4
+        searchable: false
+        embeddable: false
+    embeddableFields:
+      - fieldName: "name"
+        fieldType: "TEXT"
+        weight: 1.0
+      - fieldName: "description"
+        fieldType: "TEXT"
+        weight: 0.8
+    metadataFields:
+      - fieldName: "category"
+        fieldType: "TEXT"
+      - fieldName: "price"
+        fieldType: "NUMERIC"
+      - fieldName: "brand"
+        fieldType: "TEXT"
+    crudOperations:
+      - operation: "CREATE"
+        enabled: true
+        aiProcessing: true
+      - operation: "UPDATE"
+        enabled: true
+        aiProcessing: true
+      - operation: "DELETE"
+        enabled: true
+        aiProcessing: false
+
+  # Test User Entity
+  - entityType: "test-user"
+    className: "com.ai.infrastructure.it.entity.TestUser"
+    searchableFields:
+      - fieldName: "firstName"
+        fieldType: "TEXT"
+        weight: 0.8
+        searchable: true
+        embeddable: true
+      - fieldName: "lastName"
+        fieldType: "TEXT"
+        weight: 0.8
+        searchable: true
+        embeddable: true
+      - fieldName: "email"
+        fieldType: "TEXT"
+        weight: 0.6
+        searchable: true
+        embeddable: false
+      - fieldName: "bio"
+        fieldType: "TEXT"
+        weight: 1.0
+        searchable: true
+        embeddable: true
+    embeddableFields:
+      - fieldName: "firstName"
+        fieldType: "TEXT"
+        weight: 0.8
+      - fieldName: "lastName"
+        fieldType: "TEXT"
+        weight: 0.8
+      - fieldName: "bio"
+        fieldType: "TEXT"
+        weight: 1.0
+    metadataFields:
+      - fieldName: "email"
+        fieldType: "TEXT"
+      - fieldName: "age"
+        fieldType: "NUMERIC"
+      - fieldName: "location"
+        fieldType: "TEXT"
+    crudOperations:
+      - operation: "CREATE"
+        enabled: true
+        aiProcessing: true
+      - operation: "UPDATE"
+        enabled: true
+        aiProcessing: true
+      - operation: "DELETE"
+        enabled: true
+        aiProcessing: false
+
+  # Test Article Entity
+  - entityType: "test-article"
+    className: "com.ai.infrastructure.it.entity.TestArticle"
+    searchableFields:
+      - fieldName: "title"
+        fieldType: "TEXT"
+        weight: 1.0
+        searchable: true
+        embeddable: true
+      - fieldName: "content"
+        fieldType: "TEXT"
+        weight: 0.9
+        searchable: true
+        embeddable: true
+      - fieldName: "summary"
+        fieldType: "TEXT"
+        weight: 0.7
+        searchable: true
+        embeddable: true
+      - fieldName: "tags"
+        fieldType: "TEXT"
+        weight: 0.5
+        searchable: true
+        embeddable: false
+    embeddableFields:
+      - fieldName: "title"
+        fieldType: "TEXT"
+        weight: 1.0
+      - fieldName: "content"
+        fieldType: "TEXT"
+        weight: 0.9
+      - fieldName: "summary"
+        fieldType: "TEXT"
+        weight: 0.7
+    metadataFields:
+      - fieldName: "tags"
+        fieldType: "TEXT"
+      - fieldName: "author"
+        fieldType: "TEXT"
+      - fieldName: "publishDate"
+        fieldType: "DATE"
+      - fieldName: "readTime"
+        fieldType: "NUMERIC"
+    crudOperations:
+      - operation: "CREATE"
+        enabled: true
+        aiProcessing: true
+      - operation: "UPDATE"
+        enabled: true
+        aiProcessing: true
+      - operation: "DELETE"
+        enabled: true
+        aiProcessing: false
+
+# Global AI Processing Configuration
+global:
+  enableEmbeddingGeneration: true
+  enableAIAnalysis: true
+  enableValidation: true
+  enableRecommendations: true
+  enableCleanup: true
+  
+  # Batch Processing
+  batchSize: 10
+  maxConcurrentRequests: 5
+  
+  # Performance Settings
+  timeoutSeconds: 30
+  retryAttempts: 3
+  retryDelayMs: 1000

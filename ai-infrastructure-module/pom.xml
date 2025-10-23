@@ -8,10 +8,14 @@
     <groupId>com.ai.infrastructure</groupId>
     <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
     <version>1.0.0</version>
-    <packaging>jar</packaging>
+    <packaging>pom</packaging>
 
     <name>AI Infrastructure Spring Boot Starter</name>
     <description>Generic AI Infrastructure module for Spring Boot applications with RAG, behavioral AI, and smart features</description>
+
+    <modules>
+        <module>integration-tests</module>
+    </modules>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
