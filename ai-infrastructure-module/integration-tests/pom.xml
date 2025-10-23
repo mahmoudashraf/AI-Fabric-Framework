@@ -97,6 +97,13 @@
             <artifactId>javafaker</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Lombok for test entities -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>
