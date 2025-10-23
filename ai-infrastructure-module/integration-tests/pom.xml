@@ -27,7 +27,6 @@
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-core</artifactId>
-            <version>${project.version}</version>
         </dependency>
 
         <!-- Spring Boot Test Dependencies -->
@@ -83,14 +82,12 @@
         <dependency>
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-core</artifactId>
-            <version>1.37</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-generator-annprocess</artifactId>
-            <version>1.37</version>
             <scope>test</scope>
         </dependency>
 
@@ -98,7 +95,6 @@
         <dependency>
             <groupId>com.github.javafaker</groupId>
             <artifactId>javafaker</artifactId>
-            <version>1.0.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
