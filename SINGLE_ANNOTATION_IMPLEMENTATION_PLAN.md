@@ -1115,6 +1115,70 @@ public class AISearchableEntity {
 }
 ```
 
+#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/repository/AISearchableEntityRepository.java`
+
+```java
+package com.ai.infrastructure.repository;
+
+import com.ai.infrastructure.entity.AISearchableEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Repository for AI Searchable Entity
+ * 
+ * Provides data access methods for AI searchable entities.
+ */
+@Repository
+public interface AISearchableEntityRepository extends JpaRepository<AISearchableEntity, UUID> {
+    
+    /**
+     * Find by entity type and entity ID
+     */
+    Optional<AISearchableEntity> findByEntityTypeAndEntityId(String entityType, String entityId);
+    
+    /**
+     * Find all by entity type
+     */
+    List<AISearchableEntity> findByEntityType(String entityType);
+    
+    /**
+     * Find all by entity ID (across all types)
+     */
+    List<AISearchableEntity> findByEntityId(String entityId);
+    
+    /**
+     * Delete by entity type and entity ID
+     */
+    void deleteByEntityTypeAndEntityId(String entityType, String entityId);
+    
+    /**
+     * Delete all by entity type
+     */
+    void deleteByEntityType(String entityType);
+    
+    /**
+     * Search by content similarity (for vector search)
+     */
+    @Query("SELECT e FROM AISearchableEntity e WHERE e.entityType = :entityType " +
+           "AND SIMILARITY(e.searchableContent, :query) > :threshold")
+    List<AISearchableEntity> findByContentSimilarity(@Param("entityType") String entityType, 
+                                                     @Param("query") String query, 
+                                                     @Param("threshold") double threshold);
+    
+    /**
+     * Count by entity type
+     */
+    long countByEntityType(String entityType);
+}
+```
+
 ---
 
 ## Phase 5: Domain Service Integration
@@ -1892,6 +1956,512 @@ ai-entities:
 - [ ] Create configuration files
 - [ ] Test migration
 
+## Phase 9: Comprehensive File Migration
+
+### 9.1 Complete File Structure After Migration
+
+#### **AI Infrastructure Module Structure**
+```
+ai-infrastructure-module/
+├── src/main/java/com/ai/infrastructure/
+│   ├── annotation/
+│   │   ├── AICapable.java
+│   │   └── AIProcess.java
+│   ├── aspect/
+│   │   ├── AICapableAspect.java
+│   │   └── AIAspectConfiguration.java
+│   ├── config/
+│   │   ├── AIEntityConfigurationLoader.java
+│   │   ├── AIEntityRegistry.java
+│   │   ├── AIEntityConfig.java
+│   │   ├── AISearchableField.java
+│   │   ├── AIEmbeddableField.java
+│   │   ├── AIMetadataField.java
+│   │   ├── AICrudOperation.java
+│   │   └── GenericAIConfigurationValidator.java
+│   ├── entity/
+│   │   ├── AISearchableEntity.java
+│   │   ├── Behavior.java (moved from UserBehavior)
+│   │   └── AIProfile.java
+│   ├── repository/
+│   │   ├── AISearchableEntityRepository.java
+│   │   └── BehaviorRepository.java
+│   ├── service/
+│   │   ├── AICapabilityService.java
+│   │   ├── AISearchService.java
+│   │   ├── AIEmbeddingService.java
+│   │   ├── RAGService.java
+│   │   ├── behavior/
+│   │   │   └── GenericBehaviorTrackingService.java
+│   │   ├── validation/
+│   │   │   ├── GenericContentValidationService.java
+│   │   │   ├── GenericAISmartValidation.java
+│   │   │   └── GenericValidationRuleEngine.java
+│   │   ├── personalization/
+│   │   │   └── GenericUIAdaptationService.java
+│   │   ├── recommendation/
+│   │   │   └── GenericRecommendationEngine.java
+│   │   ├── monitoring/
+│   │   │   └── GenericAIMonitoringService.java
+│   │   └── util/
+│   │       └── GenericAIHelperService.java
+│   ├── controller/
+│   │   ├── GenericBehavioralAIController.java
+│   │   ├── GenericSmartValidationController.java
+│   │   └── GenericAIController.java
+│   ├── dto/
+│   │   ├── GenericBehaviorAnalysisResult.java
+│   │   ├── GenericTextValidationResult.java
+│   │   ├── GenericRecommendationResult.java
+│   │   └── GenericAIHealthStatus.java
+│   └── core/
+│       ├── AIEmbeddingService.java
+│       └── AICoreService.java
+└── src/main/resources/
+    ├── ai-entity-config.yml
+    └── META-INF/
+        └── spring.factories
+```
+
+#### **Backend Module Structure (After Migration)**
+```
+backend/
+├── src/main/java/com/easyluxury/
+│   ├── entity/
+│   │   ├── User.java (cleaned - no AI coupling)
+│   │   ├── Product.java (cleaned - no AI coupling)
+│   │   ├── Order.java (cleaned - no AI coupling)
+│   │   └── Address.java
+│   ├── service/
+│   │   ├── UserService.java (with @AICapable annotations)
+│   │   ├── ProductService.java (with @AICapable annotations)
+│   │   └── OrderService.java (with @AICapable annotations)
+│   ├── ai/
+│   │   ├── adapter/
+│   │   │   ├── UserAIAdapter.java
+│   │   │   ├── ProductAIAdapter.java
+│   │   │   └── OrderAIAdapter.java
+│   │   ├── service/
+│   │   │   ├── UserAIService.java (updated to use adapters)
+│   │   │   ├── ProductAIService.java (updated to use adapters)
+│   │   │   └── OrderAIService.java (updated to use adapters)
+│   │   ├── controller/
+│   │   │   ├── UserAIController.java (updated)
+│   │   │   ├── ProductAIController.java (updated)
+│   │   │   └── OrderAIController.java (updated)
+│   │   └── facade/
+│   │       ├── UserAIFacade.java (updated)
+│   │       ├── ProductAIFacade.java (updated)
+│   │       └── OrderAIFacade.java (updated)
+│   └── config/
+│       └── EasyLuxuryAIEntityConfiguration.java
+└── src/main/resources/
+    └── ai-entity-config.yml
+```
+
+### 9.2 Detailed Migration Commands
+
+#### **Phase 1: Move Generic AI Services**
+
+```bash
+# Create directory structure
+mkdir -p ai-infrastructure-module/src/main/java/com/ai/infrastructure/behavior
+mkdir -p ai-infrastructure-module/src/main/java/com/ai/infrastructure/validation
+mkdir -p ai-infrastructure-module/src/main/java/com/ai/infrastructure/personalization
+mkdir -p ai-infrastructure-module/src/main/java/com/ai/infrastructure/recommendation
+mkdir -p ai-infrastructure-module/src/main/java/com/ai/infrastructure/monitoring
+mkdir -p ai-infrastructure-module/src/main/java/com/ai/infrastructure/util
+mkdir -p ai-infrastructure-module/src/main/java/com/ai/infrastructure/controller
+mkdir -p ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto
+
+# Move AI services
+mv backend/src/main/java/com/easyluxury/ai/service/BehaviorTrackingService.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/behavior/GenericBehaviorTrackingService.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/ContentValidationService.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/validation/GenericContentValidationService.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/UIAdaptationService.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/personalization/GenericUIAdaptationService.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/RecommendationEngine.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/recommendation/GenericRecommendationEngine.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/AISmartValidation.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/validation/GenericAISmartValidation.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/ValidationRuleEngine.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/validation/GenericValidationRuleEngine.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/AIMonitoringService.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/monitoring/GenericAIMonitoringService.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/AIHelperService.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/util/GenericAIHelperService.java
+```
+
+#### **Phase 2: Move Generic Controllers and DTOs**
+
+```bash
+# Move controllers
+mv backend/src/main/java/com/easyluxury/ai/controller/BehavioralAIController.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/controller/GenericBehavioralAIController.java
+
+mv backend/src/main/java/com/easyluxury/ai/controller/SmartValidationController.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/controller/GenericSmartValidationController.java
+
+mv backend/src/main/java/com/easyluxury/ai/controller/AIController.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/controller/GenericAIController.java
+
+# Move DTOs
+mv backend/src/main/java/com/easyluxury/ai/dto/BehaviorAnalysisResult.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/GenericBehaviorAnalysisResult.java
+
+mv backend/src/main/java/com/easyluxury/ai/dto/TextValidationResult.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/GenericTextValidationResult.java
+
+mv backend/src/main/java/com/easyluxury/ai/dto/RecommendationResult.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/GenericRecommendationResult.java
+
+mv backend/src/main/java/com/easyluxury/ai/dto/AIHealthStatus.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/dto/GenericAIHealthStatus.java
+```
+
+#### **Phase 3: Move AI Entities and Repositories**
+
+```bash
+# Move AI entities
+mv backend/src/main/java/com/easyluxury/entity/UserBehavior.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/entity/Behavior.java
+
+mv backend/src/main/java/com/easyluxury/entity/AIProfile.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/entity/AIProfile.java
+
+# Move AI repositories
+mv backend/src/main/java/com/easyluxury/repository/UserBehaviorRepository.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/repository/BehaviorRepository.java
+```
+
+#### **Phase 4: Move Configuration**
+
+```bash
+# Move configuration
+mv backend/src/main/java/com/easyluxury/ai/config/AIConfigurationValidator.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/GenericAIConfigurationValidator.java
+```
+
+### 9.3 Code Updates Required
+
+#### **Update Generic Services (Remove Domain Coupling)**
+
+```java
+// Example: GenericBehaviorTrackingService.java
+@Service
+public class GenericBehaviorTrackingService {
+    
+    @Autowired
+    private BehaviorRepository behaviorRepository;
+    
+    public void trackBehavior(String entityId, String entityType, String action, Map<String, Object> context) {
+        // Generic behavior tracking - no domain coupling
+        Behavior behavior = Behavior.builder()
+            .entityId(entityId)
+            .entityType(entityType)
+            .action(action)
+            .context(context)
+            .timestamp(LocalDateTime.now())
+            .build();
+            
+        behaviorRepository.save(behavior);
+    }
+}
+```
+
+#### **Create Domain Adapters**
+
+```java
+// File: backend/src/main/java/com/easyluxury/ai/adapter/UserAIAdapter.java
+@Service
+public class UserAIAdapter {
+    
+    @Autowired
+    private GenericBehaviorTrackingService behaviorService;
+    
+    @Autowired
+    private GenericContentValidationService validationService;
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    public void trackUserBehavior(UUID userId, String action, Map<String, Object> context) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null) {
+            behaviorService.trackBehavior(userId.toString(), "user", action, context);
+        }
+    }
+    
+    public boolean validateUserContent(User user) {
+        return validationService.validateContent(user.getFirstName() + " " + user.getLastName());
+    }
+}
+```
+
+#### **Update Domain Services**
+
+```java
+// File: backend/src/main/java/com/easyluxury/service/UserService.java
+@Service
+public class UserService {
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private UserAIAdapter userAIAdapter;
+    
+    @AICapable(entityType = "user")
+    @AIProcess(entityType = "user", processType = "create")
+    public User createUser(User user) {
+        // AI processing handled automatically by AOP
+        return userRepository.save(user);
+    }
+    
+    @AICapable(entityType = "user")
+    @AIProcess(entityType = "user", processType = "update")
+    public User updateUser(User user) {
+        // AI processing handled automatically by AOP
+        return userRepository.save(user);
+    }
+    
+    @AICapable(entityType = "user")
+    @AIProcess(entityType = "user", processType = "delete")
+    public void deleteUser(UUID userId) {
+        // AI processing handled automatically by AOP
+        userRepository.deleteById(userId);
+    }
+}
+```
+
+### 9.4 Configuration Files
+
+#### **AI Infrastructure Configuration**
+
+```yaml
+# File: ai-infrastructure-module/src/main/resources/ai-entity-config.yml
+ai-entities:
+  # Generic configurations for common entity types
+  default:
+    entity-type: "default"
+    features: ["embedding", "search"]
+    auto-process: true
+    searchable-fields:
+      - name: "name"
+        include-in-rag: true
+        enable-semantic-search: true
+    embeddable-fields:
+      - name: "name"
+        model: "text-embedding-3-small"
+        auto-generate: true
+    metadata-fields:
+      - "id"
+      - "createdAt"
+    crud-operations:
+      create:
+        auto-index: true
+        generate-embedding: true
+        enable-search: true
+      update:
+        auto-index: true
+        generate-embedding: true
+        enable-search: true
+      delete:
+        auto-cleanup: true
+        remove-from-search: true
+        cleanup-embeddings: true
+```
+
+#### **Backend Domain Configuration**
+
+```yaml
+# File: backend/src/main/resources/ai-entity-config.yml
+ai-entities:
+  user:
+    entity-type: "user"
+    features: ["embedding", "search", "behavioral-tracking", "content-validation"]
+    auto-process: true
+    searchable-fields:
+      - name: "firstName"
+        include-in-rag: true
+        enable-semantic-search: true
+      - name: "lastName"
+        include-in-rag: true
+        enable-semantic-search: true
+    embeddable-fields:
+      - name: "firstName"
+        model: "text-embedding-3-small"
+        auto-generate: true
+      - name: "lastName"
+        model: "text-embedding-3-small"
+        auto-generate: true
+    metadata-fields:
+      - "email"
+      - "createdAt"
+    crud-operations:
+      create:
+        auto-index: true
+        generate-embedding: true
+        enable-search: true
+        enable-behavioral-tracking: true
+        enable-content-validation: true
+      update:
+        auto-index: true
+        generate-embedding: true
+        enable-search: true
+        enable-behavioral-tracking: true
+        enable-content-validation: true
+      delete:
+        auto-cleanup: true
+        remove-from-search: true
+        cleanup-embeddings: true
+
+  product:
+    entity-type: "product"
+    features: ["embedding", "search", "recommendation", "content-validation"]
+    auto-process: true
+    searchable-fields:
+      - name: "name"
+        include-in-rag: true
+        enable-semantic-search: true
+      - name: "description"
+        include-in-rag: true
+        enable-semantic-search: true
+    embeddable-fields:
+      - name: "name"
+        model: "text-embedding-3-small"
+        auto-generate: true
+      - name: "description"
+        model: "text-embedding-3-small"
+        auto-generate: true
+    metadata-fields:
+      - "price"
+      - "category"
+      - "brand"
+    crud-operations:
+      create:
+        auto-index: true
+        generate-embedding: true
+        enable-search: true
+        enable-recommendation: true
+        enable-content-validation: true
+      update:
+        auto-index: true
+        generate-embedding: true
+        enable-search: true
+        enable-recommendation: true
+        enable-content-validation: true
+      delete:
+        auto-cleanup: true
+        remove-from-search: true
+        cleanup-embeddings: true
+
+  order:
+    entity-type: "order"
+    features: ["embedding", "search", "behavioral-tracking", "pattern-analysis"]
+    auto-process: true
+    searchable-fields:
+      - name: "notes"
+        include-in-rag: true
+        enable-semantic-search: true
+    embeddable-fields:
+      - name: "notes"
+        model: "text-embedding-3-small"
+        auto-generate: true
+    metadata-fields:
+      - "orderNumber"
+      - "totalAmount"
+      - "status"
+      - "createdAt"
+    crud-operations:
+      create:
+        auto-index: true
+        generate-embedding: true
+        enable-search: true
+        enable-behavioral-tracking: true
+        enable-pattern-analysis: true
+      update:
+        auto-index: true
+        generate-embedding: true
+        enable-search: true
+        enable-behavioral-tracking: true
+        enable-pattern-analysis: true
+      delete:
+        auto-cleanup: true
+        remove-from-search: true
+        cleanup-embeddings: true
+```
+
+### 9.5 Testing Strategy
+
+#### **Unit Tests for AI Infrastructure**
+
+```java
+// File: ai-infrastructure-module/src/test/java/com/ai/infrastructure/aspect/AICapableAspectTest.java
+@ExtendWith(MockitoExtension.class)
+class AICapableAspectTest {
+    
+    @Mock
+    private AIEntityConfigurationLoader configLoader;
+    
+    @Mock
+    private AICapabilityService aiCapabilityService;
+    
+    @InjectMocks
+    private AICapableAspect aspect;
+    
+    @Test
+    void testProcessAICapableMethod() {
+        // Test AOP aspect functionality
+    }
+}
+```
+
+#### **Integration Tests for Backend**
+
+```java
+// File: backend/src/test/java/com/easyluxury/ai/integration/UserAIIntegrationTest.java
+@SpringBootTest
+@TestPropertySource(properties = {
+    "ai.infrastructure.auto-process=true",
+    "ai.infrastructure.config-file=ai-entity-config.yml"
+})
+class UserAIIntegrationTest {
+    
+    @Autowired
+    private UserService userService;
+    
+    @Test
+    void testUserCreationWithAIProcessing() {
+        // Test end-to-end AI processing
+    }
+}
+```
+
+### 9.6 Migration Checklist
+
+- [ ] **Phase 1**: Move all generic AI services to AI infrastructure module
+- [ ] **Phase 2**: Move all generic controllers and DTOs to AI infrastructure module  
+- [ ] **Phase 3**: Move AI-specific entities and repositories to AI infrastructure module
+- [ ] **Phase 4**: Move generic configuration to AI infrastructure module
+- [ ] **Phase 5**: Create domain-specific AI adapters
+- [ ] **Phase 6**: Update domain services with @AICapable and @AIProcess annotations
+- [ ] **Phase 7**: Clean domain entities (remove AI coupling)
+- [ ] **Phase 8**: Create configuration files for each domain
+- [ ] **Phase 9**: Update dependencies in both modules
+- [ ] **Phase 10**: Create comprehensive test suite
+- [ ] **Phase 11**: Test backward compatibility
+- [ ] **Phase 12**: Test performance impact
+- [ ] **Phase 13**: Update documentation
+
 ## Summary
 
 This implementation plan provides a complete roadmap for implementing the single annotation approach with configuration-driven AI processing. The key benefits are:
@@ -1905,5 +2475,8 @@ This implementation plan provides a complete roadmap for implementing the single
 7. **Entity-Type Support**: AIProcess annotation includes entity-type for configuration lookup
 8. **AOP Implementation**: Comprehensive AOP implementation for automatic AI processing
 9. **Migration Path**: Clear migration path from current approach following established patterns
+10. **Complete File Migration**: Comprehensive migration of all common AI modules to AI infrastructure
+11. **AISearchableEntity**: Complete entity and repository for AI search functionality
+12. **Generic Services**: All AI services made generic and reusable
 
 The result is a truly generic, reusable AI infrastructure that can enable AI capabilities in any application with minimal code and maximum flexibility.
