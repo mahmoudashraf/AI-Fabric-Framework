@@ -1013,625 +1013,9 @@ public class AIAspectConfiguration {
 
 ---
 
-## Phase 4: AI Processing Aspect
+## Phase 4: Domain Entity Integration
 
-### 3.1 Create AI Processing Aspect
-
-#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/aspect/AICapableAspect.java`
-
-```java
-package com.ai.infrastructure.aspect;
-
-import com.ai.infrastructure.annotation.AICapable;
-import com.ai.infrastructure.annotation.AIProcess;
-import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.dto.AIEntityConfig;
-import com.ai.infrastructure.service.AICapabilityService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.Around;
-import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.stereotype.Component;
-
-import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
-
-/**
- * AICapable Aspect
- * 
- * Spring AOP aspect that intercepts methods annotated with @AICapable
- * and triggers automatic AI processing based on configuration.
- * 
- * @author AI Infrastructure Team
- * @version 1.0.0
- */
-@Slf4j
-@Aspect
-@Component
-@RequiredArgsConstructor
-public class AICapableAspect {
-    
-    private final AIEntityConfigurationLoader configLoader;
-    private final AICapabilityService aiCapabilityService;
-    
-    @Around("@annotation(aiCapable)")
-    public Object processAICapableMethod(ProceedingJoinPoint joinPoint, AICapable aiCapable) throws Throwable {
-        try {
-            log.debug("Processing AI-capable method: {}", joinPoint.getSignature().getName());
-            
-            // Get method signature
-            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-            Method method = signature.getMethod();
-            
-            // Get entity type from annotation or method name
-            String entityType = getEntityType(aiCapable, method);
-            
-            // Load configuration for entity type
-            AIEntityConfig config = configLoader.getEntityConfig(entityType);
-            if (config == null) {
-                log.warn("No configuration found for entity type: {}", entityType);
-                return joinPoint.proceed();
-            }
-            
-            // Check if auto-processing is enabled
-            if (!config.isAutoProcess()) {
-                log.debug("Auto-processing disabled for entity type: {}", entityType);
-                return joinPoint.proceed();
-            }
-            
-            // Process before method execution
-            processBeforeMethod(joinPoint, config, entityType);
-            
-            // Execute the original method
-            Object result = joinPoint.proceed();
-            
-            // Process after method execution
-            processAfterMethod(joinPoint, result, config, entityType);
-            
-            return result;
-            
-        } catch (Exception e) {
-            log.error("Error processing AI-capable method: {}", joinPoint.getSignature().getName(), e);
-            // Don't fail the original method if AI processing fails
-            return joinPoint.proceed();
-        }
-    }
-    
-    @Around("@annotation(aiProcess)")
-    public Object processAIMethod(ProceedingJoinPoint joinPoint, AIProcess aiProcess) throws Throwable {
-        try {
-            log.debug("Processing AI method: {}", joinPoint.getSignature().getName());
-            
-            // Get method signature
-            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-            Method method = signature.getMethod();
-            
-            // Get entity type from method name or class
-            String entityType = getEntityTypeFromMethod(method);
-            
-            // Load configuration for entity type
-            AIEntityConfig config = configLoader.getEntityConfig(entityType);
-            if (config == null) {
-                log.warn("No configuration found for entity type: {}", entityType);
-                return joinPoint.proceed();
-            }
-            
-            // Process before method execution
-            processBeforeMethod(joinPoint, config, entityType);
-            
-            // Execute the original method
-            Object result = joinPoint.proceed();
-            
-            // Process after method execution
-            processAfterMethod(joinPoint, result, config, entityType);
-            
-            return result;
-            
-        } catch (Exception e) {
-            log.error("Error processing AI method: {}", joinPoint.getSignature().getName(), e);
-            // Don't fail the original method if AI processing fails
-            return joinPoint.proceed();
-        }
-    }
-    
-    private String getEntityType(AICapable aiCapable, Method method) {
-        if (!aiCapable.entityType().isEmpty()) {
-            return aiCapable.entityType();
-        }
-        return getEntityTypeFromMethod(method);
-    }
-    
-    private String getEntityTypeFromMethod(Method method) {
-        String methodName = method.getName().toLowerCase();
-        
-        if (methodName.contains("product")) {
-            return "product";
-        } else if (methodName.contains("user")) {
-            return "user";
-        } else if (methodName.contains("order")) {
-            return "order";
-        }
-        
-        // Default to method name
-        return methodName;
-    }
-    
-    private void processBeforeMethod(ProceedingJoinPoint joinPoint, AIEntityConfig config, String entityType) {
-        try {
-            log.debug("Processing before method for entity type: {}", entityType);
-            
-            // Extract entity data from method arguments
-            Object[] args = joinPoint.getArgs();
-            if (args.length > 0) {
-                Object entity = args[0];
-                
-                // Validate entity if needed
-                if (config.getFeatures().contains("validation")) {
-                    aiCapabilityService.validateEntity(entity, config);
-                }
-            }
-            
-        } catch (Exception e) {
-            log.error("Error processing before method for entity type: {}", entityType, e);
-        }
-    }
-    
-    private void processAfterMethod(ProceedingJoinPoint joinPoint, Object result, AIEntityConfig config, String entityType) {
-        try {
-            log.debug("Processing after method for entity type: {}", entityType);
-            
-            if (result != null) {
-                // Determine operation type
-                String operation = getOperationType(joinPoint);
-                
-                // Get CRUD operation configuration
-                var crudOp = config.getCrudOperations().get(operation);
-                if (crudOp == null) {
-                    log.warn("No CRUD operation configuration found for: {}", operation);
-                    return;
-                }
-                
-                // Process entity based on configuration
-                if (crudOp.isGenerateEmbedding()) {
-                    aiCapabilityService.generateEmbeddings(result, config);
-                }
-                
-                if (crudOp.isIndexForSearch()) {
-                    aiCapabilityService.indexForSearch(result, config);
-                }
-                
-                if (crudOp.isEnableAnalysis()) {
-                    aiCapabilityService.analyzeEntity(result, config);
-                }
-                
-                if (crudOp.isRemoveFromSearch()) {
-                    aiCapabilityService.removeFromSearch(result, config);
-                }
-                
-                if (crudOp.isCleanupEmbeddings()) {
-                    aiCapabilityService.cleanupEmbeddings(result, config);
-                }
-            }
-            
-        } catch (Exception e) {
-            log.error("Error processing after method for entity type: {}", entityType, e);
-        }
-    }
-    
-    private String getOperationType(ProceedingJoinPoint joinPoint) {
-        String methodName = joinPoint.getSignature().getName().toLowerCase();
-        
-        if (methodName.startsWith("create") || methodName.startsWith("save") || methodName.startsWith("add")) {
-            return "create";
-        } else if (methodName.startsWith("update") || methodName.startsWith("modify") || methodName.startsWith("edit")) {
-            return "update";
-        } else if (methodName.startsWith("delete") || methodName.startsWith("remove")) {
-            return "delete";
-        } else if (methodName.startsWith("search") || methodName.startsWith("find")) {
-            return "search";
-        } else if (methodName.startsWith("analyze")) {
-            return "analyze";
-        }
-        
-        return "create"; // Default
-    }
-}
-```
-
-### 3.2 Create AI Capability Service
-
-#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/service/AICapabilityService.java`
-
-```java
-package com.ai.infrastructure.service;
-
-import com.ai.infrastructure.dto.AIEntityConfig;
-import com.ai.infrastructure.dto.AISearchableField;
-import com.ai.infrastructure.dto.AIEmbeddableField;
-import com.ai.infrastructure.dto.AIMetadataField;
-import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
-import com.ai.infrastructure.core.AIEmbeddingService;
-import com.ai.infrastructure.core.AICoreService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.lang.reflect.Field;
-import java.util.*;
-import java.util.stream.Collectors;
-
-/**
- * AI Capability Service
- * 
- * Core service that performs AI processing based on entity configuration.
- * Handles embedding generation, search indexing, and AI analysis.
- * 
- * @author AI Infrastructure Team
- * @version 1.0.0
- */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class AICapabilityService {
-    
-    private final AIEmbeddingService embeddingService;
-    private final AICoreService aiCoreService;
-    private final AISearchableEntityRepository searchableEntityRepository;
-    
-    /**
-     * Validate entity based on configuration
-     */
-    public void validateEntity(Object entity, AIEntityConfig config) {
-        try {
-            log.debug("Validating entity of type: {}", config.getEntityType());
-            
-            // Extract searchable content
-            String searchableContent = extractSearchableContent(entity, config);
-            
-            // Validate content if needed
-            if (config.getFeatures().contains("validation")) {
-                // Perform AI-powered validation
-                boolean isValid = aiCoreService.validateContent(searchableContent);
-                if (!isValid) {
-                    throw new RuntimeException("Entity validation failed");
-                }
-            }
-            
-        } catch (Exception e) {
-            log.error("Error validating entity", e);
-            throw new RuntimeException("Entity validation failed", e);
-        }
-    }
-    
-    /**
-     * Generate embeddings for entity based on configuration
-     */
-    @Transactional
-    public void generateEmbeddings(Object entity, AIEntityConfig config) {
-        try {
-            log.debug("Generating embeddings for entity of type: {}", config.getEntityType());
-            
-            if (!config.isAutoEmbedding()) {
-                log.debug("Auto-embedding disabled for entity type: {}", config.getEntityType());
-                return;
-            }
-            
-            // Extract embeddable content
-            String embeddableContent = extractEmbeddableContent(entity, config);
-            
-            if (embeddableContent == null || embeddableContent.trim().isEmpty()) {
-                log.warn("No embeddable content found for entity");
-                return;
-            }
-            
-            // Generate embeddings
-            List<Double> embeddings = embeddingService.generateEmbedding(embeddableContent);
-            
-            // Store in searchable entity
-            storeSearchableEntity(entity, config, embeddableContent, embeddings);
-            
-        } catch (Exception e) {
-            log.error("Error generating embeddings for entity", e);
-        }
-    }
-    
-    /**
-     * Index entity for search based on configuration
-     */
-    @Transactional
-    public void indexForSearch(Object entity, AIEntityConfig config) {
-        try {
-            log.debug("Indexing entity for search of type: {}", config.getEntityType());
-            
-            if (!config.isIndexable()) {
-                log.debug("Indexing disabled for entity type: {}", config.getEntityType());
-                return;
-            }
-            
-            // Extract searchable content
-            String searchableContent = extractSearchableContent(entity, config);
-            
-            if (searchableContent == null || searchableContent.trim().isEmpty()) {
-                log.warn("No searchable content found for entity");
-                return;
-            }
-            
-            // Generate embeddings if not already done
-            List<Double> embeddings = embeddingService.generateEmbedding(searchableContent);
-            
-            // Store in searchable entity
-            storeSearchableEntity(entity, config, searchableContent, embeddings);
-            
-        } catch (Exception e) {
-            log.error("Error indexing entity for search", e);
-        }
-    }
-    
-    /**
-     * Analyze entity based on configuration
-     */
-    public void analyzeEntity(Object entity, AIEntityConfig config) {
-        try {
-            log.debug("Analyzing entity of type: {}", config.getEntityType());
-            
-            // Extract content for analysis
-            String content = extractSearchableContent(entity, config);
-            
-            if (content == null || content.trim().isEmpty()) {
-                log.warn("No content found for analysis");
-                return;
-            }
-            
-            // Perform AI analysis
-            String analysis = aiCoreService.analyzeContent(content, config.getEntityType());
-            
-            // Store analysis result
-            storeAnalysisResult(entity, config, analysis);
-            
-        } catch (Exception e) {
-            log.error("Error analyzing entity", e);
-        }
-    }
-    
-    /**
-     * Remove entity from search index
-     */
-    @Transactional
-    public void removeFromSearch(Object entity, AIEntityConfig config) {
-        try {
-            log.debug("Removing entity from search index of type: {}", config.getEntityType());
-            
-            // Get entity ID
-            String entityId = getEntityId(entity);
-            if (entityId == null) {
-                log.warn("No entity ID found for removal");
-                return;
-            }
-            
-            // Remove from searchable entity repository
-            searchableEntityRepository.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
-            
-        } catch (Exception e) {
-            log.error("Error removing entity from search index", e);
-        }
-    }
-    
-    /**
-     * Cleanup embeddings for entity
-     */
-    @Transactional
-    public void cleanupEmbeddings(Object entity, AIEntityConfig config) {
-        try {
-            log.debug("Cleaning up embeddings for entity of type: {}", config.getEntityType());
-            
-            // Get entity ID
-            String entityId = getEntityId(entity);
-            if (entityId == null) {
-                log.warn("No entity ID found for cleanup");
-                return;
-            }
-            
-            // Remove embeddings from searchable entity repository
-            searchableEntityRepository.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
-            
-        } catch (Exception e) {
-            log.error("Error cleaning up embeddings for entity", e);
-        }
-    }
-    
-    private String extractSearchableContent(Object entity, AIEntityConfig config) {
-        try {
-            List<String> contentParts = new ArrayList<>();
-            
-            for (AISearchableField field : config.getSearchableFields()) {
-                String value = getFieldValue(entity, field.getName());
-                if (value != null && !value.trim().isEmpty()) {
-                    contentParts.add(value);
-                }
-            }
-            
-            return String.join(" ", contentParts);
-            
-        } catch (Exception e) {
-            log.error("Error extracting searchable content", e);
-            return "";
-        }
-    }
-    
-    private String extractEmbeddableContent(Object entity, AIEntityConfig config) {
-        try {
-            List<String> contentParts = new ArrayList<>();
-            
-            for (AIEmbeddableField field : config.getEmbeddableFields()) {
-                String value = getFieldValue(entity, field.getName());
-                if (value != null && !value.trim().isEmpty()) {
-                    contentParts.add(value);
-                }
-            }
-            
-            return String.join(" ", contentParts);
-            
-        } catch (Exception e) {
-            log.error("Error extracting embeddable content", e);
-            return "";
-        }
-    }
-    
-    private String getFieldValue(Object entity, String fieldName) {
-        try {
-            Field field = entity.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            Object value = field.get(entity);
-            return value != null ? value.toString() : "";
-        } catch (Exception e) {
-            log.debug("Field not found or accessible: {}", fieldName);
-            return "";
-        }
-    }
-    
-    private String getEntityId(Object entity) {
-        try {
-            Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true);
-            Object id = idField.get(entity);
-            return id != null ? id.toString() : null;
-        } catch (Exception e) {
-            log.debug("ID field not found or accessible");
-            return null;
-        }
-    }
-    
-    private void storeSearchableEntity(Object entity, AIEntityConfig config, String content, List<Double> embeddings) {
-        try {
-            String entityId = getEntityId(entity);
-            if (entityId == null) {
-                log.warn("No entity ID found for storing searchable entity");
-                return;
-            }
-            
-            AISearchableEntity searchableEntity = AISearchableEntity.builder()
-                .entityType(config.getEntityType())
-                .entityId(entityId)
-                .searchableContent(content)
-                .embeddings(embeddings)
-                .metadata(extractMetadata(entity, config))
-                .build();
-            
-            searchableEntityRepository.save(searchableEntity);
-            
-        } catch (Exception e) {
-            log.error("Error storing searchable entity", e);
-        }
-    }
-    
-    private Map<String, Object> extractMetadata(Object entity, AIEntityConfig config) {
-        Map<String, Object> metadata = new HashMap<>();
-        
-        try {
-            for (AIMetadataField field : config.getMetadataFields()) {
-                String value = getFieldValue(entity, field.getName());
-                if (value != null && !value.trim().isEmpty()) {
-                    metadata.put(field.getName(), value);
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error extracting metadata", e);
-        }
-        
-        return metadata;
-    }
-    
-    private void storeAnalysisResult(Object entity, AIEntityConfig config, String analysis) {
-        try {
-            String entityId = getEntityId(entity);
-            if (entityId == null) {
-                log.warn("No entity ID found for storing analysis result");
-                return;
-            }
-            
-            // Store analysis result in searchable entity
-            Optional<AISearchableEntity> existing = searchableEntityRepository
-                .findByEntityTypeAndEntityId(config.getEntityType(), entityId);
-            
-            if (existing.isPresent()) {
-                AISearchableEntity entityToUpdate = existing.get();
-                entityToUpdate.setAiAnalysis(analysis);
-                searchableEntityRepository.save(entityToUpdate);
-            }
-            
-        } catch (Exception e) {
-            log.error("Error storing analysis result", e);
-        }
-    }
-}
-```
-
----
-
-## Phase 4: Migration from Current Approach
-
-### 4.1 Current State Analysis
-
-Based on the AI_INFRASTRUCTURE_TRANSFORMATION_PLAN.md and FILE_MIGRATION_CHECKLIST.md, the current system has:
-
-#### **Existing AI Infrastructure Module**
-- **Location**: `/workspace/ai-infrastructure-module/`
-- **Type**: Spring Boot Starter
-- **Current Features**: Basic AI services, RAG capabilities, vector search
-- **Dependencies**: OpenAI, Lucene, Spring Boot
-
-#### **Backend Module AI Services**
-- **Location**: `/workspace/backend/src/main/java/com/easyluxury/ai/`
-- **Current Services**: 15+ AI services with domain coupling
-- **Issues**: Tightly coupled to domain entities, not reusable
-
-#### **Domain Entities with AI Coupling**
-- **User**: Mixed domain/AI fields
-- **Product**: Mixed domain/AI fields  
-- **Order**: Mixed domain/AI fields
-- **UserBehavior**: Primarily AI-specific
-- **AIProfile**: Primarily AI-specific
-
-### 4.2 Migration Strategy
-
-#### **Phase 4.1: Move Generic AI Services**
-
-Following the FILE_MIGRATION_CHECKLIST.md, move generic AI services from backend to AI infrastructure:
-
-```bash
-# Move generic AI services to AI infrastructure
-mv backend/src/main/java/com/easyluxury/ai/service/BehaviorTrackingService.java \
-   ai-infrastructure-module/src/main/java/com/ai/infrastructure/behavior/GenericBehaviorTrackingService.java
-
-mv backend/src/main/java/com/easyluxury/ai/service/ContentValidationService.java \
-   ai-infrastructure-module/src/main/java/com/ai/infrastructure/validation/GenericContentValidationService.java
-
-mv backend/src/main/java/com/easyluxury/ai/service/UIAdaptationService.java \
-   ai-infrastructure-module/src/main/java/com/ai/infrastructure/personalization/GenericUIAdaptationService.java
-
-mv backend/src/main/java/com/easyluxury/ai/service/RecommendationEngine.java \
-   ai-infrastructure-module/src/main/java/com/ai/infrastructure/recommendation/GenericRecommendationEngine.java
-```
-
-#### **Phase 4.2: Move AI-Specific Entities**
-
-Move AI-specific entities from backend to AI infrastructure:
-
-```bash
-# Move AI entities to AI infrastructure
-mv backend/src/main/java/com/easyluxury/entity/UserBehavior.java \
-   ai-infrastructure-module/src/main/java/com/ai/infrastructure/entity/Behavior.java
-
-mv backend/src/main/java/com/easyluxury/entity/AIProfile.java \
-   ai-infrastructure-module/src/main/java/com/ai/infrastructure/entity/AIProfile.java
-```
-
-#### **Phase 4.3: Clean Domain Entities**
+### 4.1 Clean Domain Entities
 
 Remove AI coupling from domain entities:
 
@@ -1672,7 +1056,70 @@ public class User {
 }
 ```
 
-#### **Phase 4.4: Update Domain Services**
+### 4.2 Create AI Searchable Entity
+
+#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/entity/AISearchableEntity.java`
+
+```java
+package com.ai.infrastructure.entity;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/**
+ * AI Searchable Entity
+ * 
+ * Generic entity for storing AI search data.
+ * This entity is used to store searchable content and embeddings
+ * for any AI-capable entity.
+ * 
+ * @author AI Infrastructure Team
+ * @version 1.0.0
+ */
+@Entity
+@Table(name = "ai_searchable_entities")
+@Data
+public class AISearchableEntity {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+    
+    @Column(name = "entity_type", nullable = false)
+    private String entityType;
+    
+    @Column(name = "entity_id", nullable = false)
+    private String entityId;
+    
+    @Column(name = "searchable_content", columnDefinition = "TEXT")
+    private String searchableContent;
+    
+    @Column(name = "search_vector", columnDefinition = "TEXT")
+    private String searchVector;
+    
+    @Column(name = "ai_metadata", columnDefinition = "TEXT")
+    private String aiMetadata;
+    
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+    
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+}
+```
+
+---
+
+## Phase 5: Domain Service Integration
+
+### 5.1 Update Domain Services
 
 Add @AICapable and @AIProcess annotations to domain services:
 
@@ -1721,7 +1168,491 @@ public class UserService {
 }
 ```
 
-#### **Phase 4.5: Create Domain-Specific Adapters**
+### 5.2 Create AI Capability Service
+
+#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/service/AICapabilityService.java`
+
+```java
+package com.ai.infrastructure.service;
+
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.dto.AIEntityConfig;
+import com.ai.infrastructure.dto.AIEmbeddableField;
+import com.ai.infrastructure.dto.AISearchableField;
+import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * AI Capability Service
+ * 
+ * Core service for managing AI capabilities of entities.
+ * Handles automatic AI processing based on configuration.
+ * 
+ * @author AI Infrastructure Team
+ * @version 1.0.0
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AICapabilityService {
+    
+    private final AIEntityConfigurationLoader configLoader;
+    private final AISearchableEntityRepository aiSearchableEntityRepository;
+    private final AIEmbeddingService aiEmbeddingService;
+    private final AISearchService aiSearchService;
+    
+    public void prepareEntityForAI(Object entity, String entityType, AIEntityConfig config) {
+        try {
+            log.debug("Preparing entity for AI processing: {}", entityType);
+            
+            // Extract searchable content
+            String searchableContent = extractSearchableContent(entity, config);
+            
+            // Generate embeddings if enabled
+            if (config.isAutoEmbedding()) {
+                generateEmbeddings(entity, config);
+            }
+            
+        } catch (Exception e) {
+            log.error("Error preparing entity for AI: {}", entityType, e);
+        }
+    }
+    
+    public void processEntityAfterAI(Object entity, String entityType, AIEntityConfig config) {
+        try {
+            log.debug("Processing entity after AI: {}", entityType);
+            
+            // Extract entity ID
+            String entityId = extractEntityId(entity);
+            
+            // Extract searchable content
+            String searchableContent = extractSearchableContent(entity, config);
+            
+            // Generate search vector
+            String searchVector = generateSearchVector(entity, config);
+            
+            // Create AI searchable entity
+            AISearchableEntity aiEntity = AISearchableEntity.builder()
+                .entityType(entityType)
+                .entityId(entityId)
+                .searchableContent(searchableContent)
+                .searchVector(searchVector)
+                .aiMetadata(extractMetadata(entity, config))
+                .build();
+            
+            // Save to database
+            aiSearchableEntityRepository.save(aiEntity);
+            
+            log.debug("Successfully processed entity for AI: {}", entityType);
+            
+        } catch (Exception e) {
+            log.error("Error processing entity after AI: {}", entityType, e);
+        }
+    }
+    
+    private String extractSearchableContent(Object entity, AIEntityConfig config) {
+        StringBuilder content = new StringBuilder();
+        
+        if (config.getSearchableFields() != null) {
+            for (AISearchableField field : config.getSearchableFields()) {
+                try {
+                    Field entityField = entity.getClass().getDeclaredField(field.getName());
+                    entityField.setAccessible(true);
+                    Object value = entityField.get(entity);
+                    
+                    if (value != null) {
+                        content.append(value.toString()).append(" ");
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not extract field {} from entity: {}", field.getName(), e.getMessage());
+                }
+            }
+        }
+        
+        return content.toString().trim();
+    }
+    
+    private String generateSearchVector(Object entity, AIEntityConfig config) {
+        try {
+            if (config.getEmbeddableFields() != null && !config.getEmbeddableFields().isEmpty()) {
+                List<String> texts = new ArrayList<>();
+                
+                for (AIEmbeddableField field : config.getEmbeddableFields()) {
+                    try {
+                        Field entityField = entity.getClass().getDeclaredField(field.getName());
+                        entityField.setAccessible(true);
+                        Object value = entityField.get(entity);
+                        
+                        if (value != null) {
+                            texts.add(value.toString());
+                        }
+                    } catch (Exception e) {
+                        log.warn("Could not extract field {} from entity: {}", field.getName(), e.getMessage());
+                    }
+                }
+                
+                if (!texts.isEmpty()) {
+                    return aiEmbeddingService.generateEmbedding(String.join(" ", texts));
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error generating search vector", e);
+        }
+        
+        return null;
+    }
+    
+    private void generateEmbeddings(Object entity, AIEntityConfig config) {
+        // Implementation for generating embeddings
+        // This would call the AI embedding service
+    }
+    
+    private String extractEntityId(Object entity) {
+        try {
+            Field idField = entity.getClass().getDeclaredField("id");
+            idField.setAccessible(true);
+            Object id = idField.get(entity);
+            return id != null ? id.toString() : UUID.randomUUID().toString();
+        } catch (Exception e) {
+            log.warn("Could not extract entity ID, generating new one");
+            return UUID.randomUUID().toString();
+        }
+    }
+    
+    private String extractMetadata(Object entity, AIEntityConfig config) {
+        // Implementation for extracting metadata
+        return "{}";
+    }
+    
+    public void trackBehavioralData(Object entity, String entityType, AIEntityConfig config) {
+        // Implementation for behavioral tracking
+    }
+    
+    public void validateContent(Object entity, String entityType, AIEntityConfig config) {
+        // Implementation for content validation
+    }
+    
+    public void adaptUI(Object entity, String entityType, AIEntityConfig config) {
+        // Implementation for UI adaptation
+    }
+}
+```
+
+---
+
+## Phase 6: Auto-Configuration
+
+### 6.1 Create Auto-Configuration
+
+#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIInfrastructureAutoConfiguration.java`
+
+```java
+package com.ai.infrastructure.config;
+
+import com.ai.infrastructure.aspect.AICapableAspect;
+import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.service.AIEmbeddingService;
+import com.ai.infrastructure.service.AISearchService;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
+
+/**
+ * AI Infrastructure Auto-Configuration
+ * 
+ * Auto-configuration for AI infrastructure module.
+ * Enables automatic configuration when the module is included.
+ * 
+ * @author AI Infrastructure Team
+ * @version 1.0.0
+ */
+@Configuration
+@ConditionalOnClass(AICapableAspect.class)
+@EnableAspectJAutoProxy
+public class AIInfrastructureAutoConfiguration {
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public AICapableAspect aiCapableAspect() {
+        return new AICapableAspect();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public AIEntityConfigurationLoader aiEntityConfigurationLoader() {
+        return new AIEntityConfigurationLoader(null);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public AICapabilityService aiCapabilityService() {
+        return new AICapabilityService(null, null, null, null);
+    }
+}
+```
+
+### 6.2 Create Spring Boot Starter
+
+#### **File**: `ai-infrastructure-module/src/main/resources/META-INF/spring.factories`
+
+```properties
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.ai.infrastructure.config.AIInfrastructureAutoConfiguration
+```
+
+---
+
+## Phase 7: Testing & Validation
+
+### 7.1 Unit Tests
+
+#### **File**: `ai-infrastructure-module/src/test/java/com/ai/infrastructure/aspect/AICapableAspectTest.java`
+
+```java
+package com.ai.infrastructure.aspect;
+
+import com.ai.infrastructure.annotation.AICapable;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.dto.AIEntityConfig;
+import com.ai.infrastructure.service.AICapabilityService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+@SpringJUnitConfig
+class AICapableAspectTest {
+    
+    @Mock
+    private AIEntityConfigurationLoader configLoader;
+    
+    @Mock
+    private AICapabilityService aiCapabilityService;
+    
+    private AICapableAspect aspect;
+    
+    @BeforeEach
+    void setUp() {
+        aspect = new AICapableAspect(configLoader, aiCapabilityService);
+    }
+    
+    @Test
+    void testProcessAICapableMethod() {
+        // Test implementation
+    }
+    
+    @Test
+    void testProcessAIMethod() {
+        // Test implementation
+    }
+}
+```
+
+### 7.2 Integration Tests
+
+#### **File**: `ai-infrastructure-module/src/test/java/com/ai/infrastructure/integration/AIInfrastructureIntegrationTest.java`
+
+```java
+package com.ai.infrastructure.integration;
+
+import com.ai.infrastructure.annotation.AICapable;
+import com.ai.infrastructure.annotation.AIProcess;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
+
+@SpringBootTest
+@TestPropertySource(properties = {
+    "ai.config.default-file=test-ai-entity-config.yml"
+})
+class AIInfrastructureIntegrationTest {
+    
+    @Test
+    void testAICapableAnnotationProcessing() {
+        // Test AI-capable annotation processing
+    }
+    
+    @Test
+    void testAIProcessAnnotationProcessing() {
+        // Test AI process annotation processing
+    }
+    
+    @Test
+    void testConfigurationLoading() {
+        // Test configuration loading
+    }
+}
+```
+
+---
+
+## Phase 8: Migration from Current Approach
+
+### 8.1 Current State Analysis
+
+Based on the AI_INFRASTRUCTURE_TRANSFORMATION_PLAN.md and FILE_MIGRATION_CHECKLIST.md, the current system has:
+
+#### **Existing AI Infrastructure Module**
+- **Location**: `/workspace/ai-infrastructure-module/`
+- **Type**: Spring Boot Starter
+- **Current Features**: Basic AI services, RAG capabilities, vector search
+- **Dependencies**: OpenAI, Lucene, Spring Boot
+
+#### **Backend Module AI Services**
+- **Location**: `/workspace/backend/src/main/java/com/easyluxury/ai/`
+- **Current Services**: 15+ AI services with domain coupling
+- **Issues**: Tightly coupled to domain entities, not reusable
+
+#### **Domain Entities with AI Coupling**
+- **User**: Mixed domain/AI fields
+- **Product**: Mixed domain/AI fields  
+- **Order**: Mixed domain/AI fields
+- **UserBehavior**: Primarily AI-specific
+- **AIProfile**: Primarily AI-specific
+
+### 8.2 Migration Strategy
+
+#### **Phase 8.1: Move Generic AI Services**
+
+Following the FILE_MIGRATION_CHECKLIST.md, move generic AI services from backend to AI infrastructure:
+
+```bash
+# Move generic AI services to AI infrastructure
+mv backend/src/main/java/com/easyluxury/ai/service/BehaviorTrackingService.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/behavior/GenericBehaviorTrackingService.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/ContentValidationService.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/validation/GenericContentValidationService.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/UIAdaptationService.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/personalization/GenericUIAdaptationService.java
+
+mv backend/src/main/java/com/easyluxury/ai/service/RecommendationEngine.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/recommendation/GenericRecommendationEngine.java
+```
+
+#### **Phase 8.2: Move AI-Specific Entities**
+
+Move AI-specific entities from backend to AI infrastructure:
+
+```bash
+# Move AI entities to AI infrastructure
+mv backend/src/main/java/com/easyluxury/entity/UserBehavior.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/entity/Behavior.java
+
+mv backend/src/main/java/com/easyluxury/entity/AIProfile.java \
+   ai-infrastructure-module/src/main/java/com/ai/infrastructure/entity/AIProfile.java
+```
+
+#### **Phase 8.3: Clean Domain Entities**
+
+Remove AI coupling from domain entities:
+
+```java
+// Before: User.java with AI coupling
+@Entity
+@Table(name = "users")
+@AICapable(entityType = "user")
+public class User {
+    @Id
+    private UUID id;
+    
+    @AIKnowledge
+    private String firstName;
+    
+    @AIEmbedding
+    private String lastName;
+    
+    private String searchVector;
+    private Double behaviorScore;
+    private String aiInsights;
+    
+    // ... other fields
+}
+
+// After: User.java cleaned
+@Entity
+@Table(name = "users")
+public class User {
+    @Id
+    private UUID id;
+    
+    private String firstName;
+    private String lastName;
+    private String email;
+    
+    // ... other domain fields (no AI coupling)
+}
+```
+
+#### **Phase 8.4: Update Domain Services**
+
+Add @AICapable and @AIProcess annotations to domain services:
+
+```java
+// Before: UserService.java with manual AI processing
+@Service
+public class UserService {
+    
+    public User createUser(User user) {
+        // Manual AI processing
+        if (user.getFirstName() != null) {
+            // Generate embedding
+            String embedding = aiEmbeddingService.generateEmbedding(user.getFirstName());
+            user.setSearchVector(embedding);
+        }
+        
+        // Save user
+        return userRepository.save(user);
+    }
+}
+
+// After: UserService.java with automatic AI processing
+@Service
+public class UserService {
+    
+    @AICapable(entityType = "user")
+    @AIProcess(entityType = "user", processType = "create")
+    public User createUser(User user) {
+        // No manual AI processing needed - handled by AOP
+        return userRepository.save(user);
+    }
+    
+    @AICapable(entityType = "user")
+    @AIProcess(entityType = "user", processType = "update")
+    public User updateUser(User user) {
+        // No manual AI processing needed - handled by AOP
+        return userRepository.save(user);
+    }
+    
+    @AICapable(entityType = "user")
+    @AIProcess(entityType = "user", processType = "delete")
+    public void deleteUser(UUID userId) {
+        // No manual AI processing needed - handled by AOP
+        userRepository.deleteById(userId);
+    }
+}
+```
+
+#### **Phase 8.5: Create Domain-Specific Adapters**
 
 Create adapters to bridge between domain and AI infrastructure:
 
@@ -1760,9 +1691,7 @@ public class UserAIAdapter {
 }
 ```
 
-### 4.3 Configuration Migration
-
-#### **Phase 4.6: Create Configuration Files**
+#### **Phase 8.6: Create Configuration Files**
 
 Create YAML configuration files for each domain:
 
@@ -1913,1225 +1842,55 @@ ai-entities:
 
 ---
 
-## Phase 5: AOP Implementation Details
-
-### 5.1 AOP Processing Flow
-
-The AOP implementation follows this flow:
-
-```
-1. Method Execution Triggered
-   ↓
-2. AICapableAspect Intercepts (@AICapable or @AIProcess)
-   ↓
-3. Load AI Configuration for Entity Type
-   ↓
-4. Process Before Method (if needed)
-   ↓
-5. Execute Original Method
-   ↓
-6. Process After Method (AI Processing)
-   ↓
-7. Return Result
-```
-
-### 5.2 AOP Pointcuts
-
-#### **Entity-Level Processing (@AICapable)**
-```java
-@Around("@annotation(aiCapable)")
-public Object processAICapableMethod(ProceedingJoinPoint joinPoint, AICapable aiCapable)
-```
-
-#### **Method-Level Processing (@AIProcess)**
-```java
-@Around("@annotation(aiProcess)")
-public Object processAIMethod(ProceedingJoinPoint joinPoint, AIProcess aiProcess)
-```
-
-### 5.3 AI Processing Service
-
-#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/service/AICapabilityService.java`
-
-```java
-package com.ai.infrastructure.service;
-
-import com.ai.infrastructure.dto.AIEntityConfig;
-import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
-import java.lang.reflect.Field;
-import java.util.*;
-
-/**
- * AI Capability Service
- * 
- * Core service for AI processing of entities.
- * Handles embedding generation, search indexing, and AI analysis.
- * 
- * @author AI Infrastructure Team
- * @version 1.0.0
- */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class AICapabilityService {
-    
-    private final AISearchableEntityRepository searchableEntityRepository;
-    private final AIEmbeddingService embeddingService;
-    private final AISearchService searchService;
-    private final AIAnalysisService analysisService;
-    
-    /**
-     * Prepare entity for AI processing before method execution
-     */
-    public void prepareEntityForAI(Object entity, String entityType, AIEntityConfig config) {
-        try {
-            log.debug("Preparing entity for AI processing: {}", entityType);
-            
-            // Validate entity
-            if (entity == null) {
-                log.warn("Entity is null, skipping AI preparation");
-                return;
-            }
-            
-            // Check if entity is already processed
-            if (isEntityAlreadyProcessed(entity, entityType)) {
-                log.debug("Entity already processed, skipping preparation");
-                return;
-            }
-            
-            // Prepare for AI processing based on configuration
-            if (config.isAutoEmbedding()) {
-                prepareEmbeddingFields(entity, config);
-            }
-            
-        } catch (Exception e) {
-            log.error("Error preparing entity for AI processing: {}", entityType, e);
-        }
-    }
-    
-    /**
-     * Process entity after AI method execution
-     */
-    public void processEntityAfterAI(Object entity, String entityType, AIEntityConfig config) {
-        try {
-            log.debug("Processing entity after AI method: {}", entityType);
-            
-            // Validate entity
-            if (entity == null) {
-                log.warn("Entity is null, skipping AI processing");
-                return;
-            }
-            
-            // Generate embeddings if enabled
-            if (config.isAutoEmbedding()) {
-                generateEmbeddings(entity, entityType, config);
-            }
-            
-            // Index for search if enabled
-            if (config.isIndexable()) {
-                indexForSearch(entity, entityType, config);
-            }
-            
-            // Perform AI analysis if enabled
-            if (config.getFeatures().contains("analysis")) {
-                performAIAnalysis(entity, entityType, config);
-            }
-            
-        } catch (Exception e) {
-            log.error("Error processing entity after AI method: {}", entityType, e);
-        }
-    }
-    
-    /**
-     * Track behavioral data
-     */
-    public void trackBehavioralData(Object entity, String entityType, AIEntityConfig config) {
-        try {
-            log.debug("Tracking behavioral data for entity: {}", entityType);
-            
-            // Extract behavioral data from entity
-            Map<String, Object> behavioralData = extractBehavioralData(entity, config);
-            
-            // Track behavior using generic service
-            // This would integrate with the moved GenericBehaviorTrackingService
-            
-        } catch (Exception e) {
-            log.error("Error tracking behavioral data for entity: {}", entityType, e);
-        }
-    }
-    
-    /**
-     * Validate content
-     */
-    public void validateContent(Object entity, String entityType, AIEntityConfig config) {
-        try {
-            log.debug("Validating content for entity: {}", entityType);
-            
-            // Extract content from entity
-            String content = extractContent(entity, config);
-            
-            // Validate content using generic service
-            // This would integrate with the moved GenericContentValidationService
-            
-        } catch (Exception e) {
-            log.error("Error validating content for entity: {}", entityType, e);
-        }
-    }
-    
-    /**
-     * Adapt UI
-     */
-    public void adaptUI(Object entity, String entityType, AIEntityConfig config) {
-        try {
-            log.debug("Adapting UI for entity: {}", entityType);
-            
-            // Extract UI data from entity
-            Map<String, Object> uiData = extractUIData(entity, config);
-            
-            // Adapt UI using generic service
-            // This would integrate with the moved GenericUIAdaptationService
-            
-        } catch (Exception e) {
-            log.error("Error adapting UI for entity: {}", entityType, e);
-        }
-    }
-    
-    private void generateEmbeddings(Object entity, String entityType, AIEntityConfig config) {
-        try {
-            // Get embeddable fields from configuration
-            List<AIEmbeddableField> embeddableFields = config.getEmbeddableFields();
-            if (embeddableFields == null || embeddableFields.isEmpty()) {
-                return;
-            }
-            
-            // Extract text content from embeddable fields
-            StringBuilder content = new StringBuilder();
-            for (AIEmbeddableField field : embeddableFields) {
-                String fieldValue = getFieldValue(entity, field.getName());
-                if (fieldValue != null && !fieldValue.trim().isEmpty()) {
-                    content.append(fieldValue).append(" ");
-                }
-            }
-            
-            // Generate embedding
-            if (content.length() > 0) {
-                String embedding = embeddingService.generateEmbedding(content.toString(), field.getModel());
-                
-                // Store embedding in searchable entity
-                storeEmbedding(entity, entityType, embedding, config);
-            }
-            
-        } catch (Exception e) {
-            log.error("Error generating embeddings for entity: {}", entityType, e);
-        }
-    }
-    
-    private void indexForSearch(Object entity, String entityType, AIEntityConfig config) {
-        try {
-            // Get searchable fields from configuration
-            List<AISearchableField> searchableFields = config.getSearchableFields();
-            if (searchableFields == null || searchableFields.isEmpty()) {
-                return;
-            }
-            
-            // Extract searchable content
-            StringBuilder searchableContent = new StringBuilder();
-            for (AISearchableField field : searchableFields) {
-                String fieldValue = getFieldValue(entity, field.getName());
-                if (fieldValue != null && !fieldValue.trim().isEmpty()) {
-                    searchableContent.append(fieldValue).append(" ");
-                }
-            }
-            
-            // Create searchable entity
-            AISearchableEntity searchableEntity = new AISearchableEntity();
-            searchableEntity.setId(UUID.randomUUID());
-            searchableEntity.setEntityType(entityType);
-            searchableEntity.setEntityId(getEntityId(entity));
-            searchableEntity.setSearchableContent(searchableContent.toString());
-            searchableEntity.setCreatedAt(LocalDateTime.now());
-            searchableEntity.setUpdatedAt(LocalDateTime.now());
-            
-            // Save to searchable entity repository
-            searchableEntityRepository.save(searchableEntity);
-            
-        } catch (Exception e) {
-            log.error("Error indexing entity for search: {}", entityType, e);
-        }
-    }
-    
-    private void performAIAnalysis(Object entity, String entityType, AIEntityConfig config) {
-        try {
-            // Perform AI analysis based on configuration
-            // This would integrate with the moved GenericAIAnalysisService
-            
-        } catch (Exception e) {
-            log.error("Error performing AI analysis for entity: {}", entityType, e);
-        }
-    }
-    
-    private String getFieldValue(Object entity, String fieldName) {
-        try {
-            Field field = entity.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            Object value = field.get(entity);
-            return value != null ? value.toString() : null;
-        } catch (Exception e) {
-            log.warn("Could not access field {} on entity {}", fieldName, entity.getClass().getSimpleName());
-            return null;
-        }
-    }
-    
-    private String getEntityId(Object entity) {
-        try {
-            Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true);
-            Object id = idField.get(entity);
-            return id != null ? id.toString() : null;
-        } catch (Exception e) {
-            log.warn("Could not access id field on entity {}", entity.getClass().getSimpleName());
-            return null;
-        }
-    }
-    
-    private boolean isEntityAlreadyProcessed(Object entity, String entityType) {
-        try {
-            String entityId = getEntityId(entity);
-            if (entityId == null) {
-                return false;
-            }
-            
-            return searchableEntityRepository.existsByEntityTypeAndEntityId(entityType, entityId);
-        } catch (Exception e) {
-            log.warn("Could not check if entity is already processed", e);
-            return false;
-        }
-    }
-    
-    private Map<String, Object> extractBehavioralData(Object entity, AIEntityConfig config) {
-        // Extract behavioral data based on configuration
-        Map<String, Object> behavioralData = new HashMap<>();
-        
-        // This would be implemented based on the specific behavioral tracking requirements
-        // and would integrate with the moved GenericBehaviorTrackingService
-        
-        return behavioralData;
-    }
-    
-    private String extractContent(Object entity, AIEntityConfig config) {
-        // Extract content for validation based on configuration
-        StringBuilder content = new StringBuilder();
-        
-        // This would be implemented based on the specific content validation requirements
-        // and would integrate with the moved GenericContentValidationService
-        
-        return content.toString();
-    }
-    
-    private Map<String, Object> extractUIData(Object entity, AIEntityConfig config) {
-        // Extract UI data for adaptation based on configuration
-        Map<String, Object> uiData = new HashMap<>();
-        
-        // This would be implemented based on the specific UI adaptation requirements
-        // and would integrate with the moved GenericUIAdaptationService
-        
-        return uiData;
-    }
-    
-    private void storeEmbedding(Object entity, String entityType, String embedding, AIEntityConfig config) {
-        try {
-            String entityId = getEntityId(entity);
-            if (entityId == null) {
-                return;
-            }
-            
-            // Update or create searchable entity with embedding
-            AISearchableEntity searchableEntity = searchableEntityRepository
-                .findByEntityTypeAndEntityId(entityType, entityId)
-                .orElse(new AISearchableEntity());
-            
-            searchableEntity.setEntityType(entityType);
-            searchableEntity.setEntityId(entityId);
-            searchableEntity.setSearchVector(embedding);
-            searchableEntity.setUpdatedAt(LocalDateTime.now());
-            
-            if (searchableEntity.getId() == null) {
-                searchableEntity.setId(UUID.randomUUID());
-                searchableEntity.setCreatedAt(LocalDateTime.now());
-            }
-            
-            searchableEntityRepository.save(searchableEntity);
-            
-        } catch (Exception e) {
-            log.error("Error storing embedding for entity: {}", entityType, e);
-        }
-    }
-}
-```
-
----
-
-## Phase 6: Domain Entity Integration
-
-### 4.1 Clean Domain Entities
-
-#### **File**: `backend/src/main/java/com/easyluxury/entity/Product.java` (Updated)
-
-```java
-package com.easyluxury.entity;
-
-import com.ai.infrastructure.annotation.AICapable;
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
-
-/**
- * Product Entity
- * 
- * Clean domain entity with single AI annotation.
- * AI behavior is defined in configuration file.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
- */
-@Entity
-@Table(name = "products")
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-@AICapable(entityType = "product")
-public class Product {
-    
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
-    
-    @Column(nullable = false)
-    private String name;
-    
-    @Column(columnDefinition = "TEXT")
-    private String description;
-    
-    @Column(nullable = false)
-    private BigDecimal price;
-    
-    @Column(nullable = false)
-    private String category;
-    
-    @ElementCollection
-    @CollectionTable(name = "product_tags", joinColumns = @JoinColumn(name = "product_id"))
-    @Column(name = "tag")
-    private List<String> tags;
-    
-    @Column(nullable = false)
-    private boolean available;
-    
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-    
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-    
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-    
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-}
-```
-
-#### **File**: `backend/src/main/java/com/easyluxury/entity/User.java` (Updated)
-
-```java
-package com.easyluxury.entity;
-
-import com.ai.infrastructure.annotation.AICapable;
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
-import java.util.List;
-
-/**
- * User Entity
- * 
- * Clean domain entity with single AI annotation.
- * AI behavior is defined in configuration file.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
- */
-@Entity
-@Table(name = "users")
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-@AICapable(entityType = "user")
-public class User {
-    
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
-    
-    @Column(nullable = false)
-    private String firstName;
-    
-    @Column(nullable = false)
-    private String lastName;
-    
-    @Column(nullable = false, unique = true)
-    private String email;
-    
-    @Column(columnDefinition = "TEXT")
-    private String bio;
-    
-    @Column
-    private Integer age;
-    
-    @Column
-    private String location;
-    
-    @ElementCollection
-    @CollectionTable(name = "user_preferences", joinColumns = @JoinColumn(name = "user_id"))
-    @Column(name = "preference")
-    private List<String> preferences;
-    
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-    
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-    
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-    
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-}
-```
-
-#### **File**: `backend/src/main/java/com/easyluxury/entity/Order.java` (Updated)
-
-```java
-package com.easyluxury.entity;
-
-import com.ai.infrastructure.annotation.AICapable;
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
-
-/**
- * Order Entity
- * 
- * Clean domain entity with single AI annotation.
- * AI behavior is defined in configuration file.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
- */
-@Entity
-@Table(name = "orders")
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-@AICapable(entityType = "order")
-public class Order {
-    
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
-    
-    @Column(nullable = false, unique = true)
-    private String orderNumber;
-    
-    @Column(nullable = false)
-    private String userId;
-    
-    @Column(nullable = false)
-    private BigDecimal totalAmount;
-    
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private OrderStatus status;
-    
-    @Column(columnDefinition = "TEXT")
-    private String notes;
-    
-    @ElementCollection
-    @CollectionTable(name = "order_items", joinColumns = @JoinColumn(name = "order_id"))
-    private List<OrderItem> items;
-    
-    @Column(name = "order_date")
-    private LocalDateTime orderDate;
-    
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-    
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-    
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-        if (orderDate == null) {
-            orderDate = LocalDateTime.now();
-        }
-    }
-    
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-    
-    public enum OrderStatus {
-        PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
-    }
-    
-    @Embeddable
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class OrderItem {
-        private String productId;
-        private String productName;
-        private Integer quantity;
-        private BigDecimal price;
-    }
-}
-```
-
----
-
-## Phase 5: Domain Service Integration
-
-### 5.1 Update Domain Services
-
-#### **File**: `backend/src/main/java/com/easyluxury/service/ProductService.java` (Updated)
-
-```java
-package com.easyluxury.service;
-
-import com.ai.infrastructure.annotation.AICapable;
-import com.ai.infrastructure.annotation.AIProcess;
-import com.easyluxury.entity.Product;
-import com.easyluxury.repository.ProductRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Optional;
-
-/**
- * Product Service
- * 
- * Domain service with AI capabilities enabled via annotations.
- * AI processing happens automatically via AOP aspects.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
- */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class ProductService {
-    
-    private final ProductRepository productRepository;
-    
-    /**
-     * Create a new product
-     * AI processing: Automatic embedding generation, search indexing
-     */
-    @AIProcess(entityType = "product", processType = "create")
-    @Transactional
-    public Product createProduct(Product product) {
-        log.info("Creating product: {}", product.getName());
-        return productRepository.save(product);
-    }
-    
-    /**
-     * Update an existing product
-     * AI processing: Automatic embedding regeneration, search re-indexing, analysis
-     */
-    @AIProcess(entityType = "product", processType = "update")
-    @Transactional
-    public Product updateProduct(String id, Product product) {
-        log.info("Updating product: {}", id);
-        
-        Product existingProduct = productRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Product not found: " + id));
-        
-        existingProduct.setName(product.getName());
-        existingProduct.setDescription(product.getDescription());
-        existingProduct.setPrice(product.getPrice());
-        existingProduct.setCategory(product.getCategory());
-        existingProduct.setTags(product.getTags());
-        existingProduct.setAvailable(product.isAvailable());
-        
-        return productRepository.save(existingProduct);
-    }
-    
-    /**
-     * Delete a product
-     * AI processing: Automatic removal from search index, cleanup
-     */
-    @AICapable(entityType = "product")
-    @AIProcess(processType = "delete")
-    @Transactional
-    public void deleteProduct(String id) {
-        log.info("Deleting product: {}", id);
-        
-        Product product = productRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Product not found: " + id));
-        
-        productRepository.delete(product);
-    }
-    
-    /**
-     * Find product by ID
-     */
-    public Optional<Product> findById(String id) {
-        return productRepository.findById(id);
-    }
-    
-    /**
-     * Find all products
-     */
-    public List<Product> findAll() {
-        return productRepository.findAll();
-    }
-    
-    /**
-     * Find products by category
-     */
-    public List<Product> findByCategory(String category) {
-        return productRepository.findByCategory(category);
-    }
-    
-    /**
-     * Find available products
-     */
-    public List<Product> findAvailableProducts() {
-        return productRepository.findByAvailableTrue();
-    }
-}
-```
-
-#### **File**: `backend/src/main/java/com/easyluxury/service/UserService.java` (Updated)
-
-```java
-package com.easyluxury.service;
-
-import com.ai.infrastructure.annotation.AICapable;
-import com.ai.infrastructure.annotation.AIProcess;
-import com.easyluxury.entity.User;
-import com.easyluxury.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Optional;
-
-/**
- * User Service
- * 
- * Domain service with AI capabilities enabled via annotations.
- * AI processing happens automatically via AOP aspects.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
- */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class UserService {
-    
-    private final UserRepository userRepository;
-    
-    /**
-     * Create a new user
-     * AI processing: Automatic embedding generation, search indexing
-     */
-    @AICapable(entityType = "user")
-    @AIProcess(processType = "create")
-    @Transactional
-    public User createUser(User user) {
-        log.info("Creating user: {}", user.getEmail());
-        return userRepository.save(user);
-    }
-    
-    /**
-     * Update an existing user
-     * AI processing: Automatic embedding regeneration, search re-indexing, analysis
-     */
-    @AICapable(entityType = "user")
-    @AIProcess(processType = "update")
-    @Transactional
-    public User updateUser(String id, User user) {
-        log.info("Updating user: {}", id);
-        
-        User existingUser = userRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("User not found: " + id));
-        
-        existingUser.setFirstName(user.getFirstName());
-        existingUser.setLastName(user.getLastName());
-        existingUser.setEmail(user.getEmail());
-        existingUser.setBio(user.getBio());
-        existingUser.setAge(user.getAge());
-        existingUser.setLocation(user.getLocation());
-        existingUser.setPreferences(user.getPreferences());
-        
-        return userRepository.save(existingUser);
-    }
-    
-    /**
-     * Delete a user
-     * AI processing: Automatic removal from search index, cleanup
-     */
-    @AICapable(entityType = "user")
-    @AIProcess(processType = "delete")
-    @Transactional
-    public void deleteUser(String id) {
-        log.info("Deleting user: {}", id);
-        
-        User user = userRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("User not found: " + id));
-        
-        userRepository.delete(user);
-    }
-    
-    /**
-     * Find user by ID
-     */
-    public Optional<User> findById(String id) {
-        return userRepository.findById(id);
-    }
-    
-    /**
-     * Find user by email
-     */
-    public Optional<User> findByEmail(String email) {
-        return userRepository.findByEmail(email);
-    }
-    
-    /**
-     * Find all users
-     */
-    public List<User> findAll() {
-        return userRepository.findAll();
-    }
-}
-```
-
-#### **File**: `backend/src/main/java/com/easyluxury/service/OrderService.java` (Updated)
-
-```java
-package com.easyluxury.service;
-
-import com.ai.infrastructure.annotation.AICapable;
-import com.ai.infrastructure.annotation.AIProcess;
-import com.easyluxury.entity.Order;
-import com.easyluxury.repository.OrderRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Optional;
-
-/**
- * Order Service
- * 
- * Domain service with AI capabilities enabled via annotations.
- * AI processing happens automatically via AOP aspects.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
- */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class OrderService {
-    
-    private final OrderRepository orderRepository;
-    
-    /**
-     * Create a new order
-     * AI processing: Automatic embedding generation, search indexing
-     */
-    @AICapable(entityType = "order")
-    @AIProcess(processType = "create")
-    @Transactional
-    public Order createOrder(Order order) {
-        log.info("Creating order: {}", order.getOrderNumber());
-        return orderRepository.save(order);
-    }
-    
-    /**
-     * Update an existing order
-     * AI processing: Automatic embedding regeneration, search re-indexing, analysis
-     */
-    @AICapable(entityType = "order")
-    @AIProcess(processType = "update")
-    @Transactional
-    public Order updateOrder(String id, Order order) {
-        log.info("Updating order: {}", id);
-        
-        Order existingOrder = orderRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Order not found: " + id));
-        
-        existingOrder.setOrderNumber(order.getOrderNumber());
-        existingOrder.setUserId(order.getUserId());
-        existingOrder.setTotalAmount(order.getTotalAmount());
-        existingOrder.setStatus(order.getStatus());
-        existingOrder.setNotes(order.getNotes());
-        existingOrder.setItems(order.getItems());
-        
-        return orderRepository.save(existingOrder);
-    }
-    
-    /**
-     * Delete an order
-     * AI processing: Automatic removal from search index, cleanup
-     */
-    @AICapable(entityType = "order")
-    @AIProcess(processType = "delete")
-    @Transactional
-    public void deleteOrder(String id) {
-        log.info("Deleting order: {}", id);
-        
-        Order order = orderRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Order not found: " + id));
-        
-        orderRepository.delete(order);
-    }
-    
-    /**
-     * Find order by ID
-     */
-    public Optional<Order> findById(String id) {
-        return orderRepository.findById(id);
-    }
-    
-    /**
-     * Find order by order number
-     */
-    public Optional<Order> findByOrderNumber(String orderNumber) {
-        return orderRepository.findByOrderNumber(orderNumber);
-    }
-    
-    /**
-     * Find orders by user ID
-     */
-    public List<Order> findByUserId(String userId) {
-        return orderRepository.findByUserId(userId);
-    }
-    
-    /**
-     * Find all orders
-     */
-    public List<Order> findAll() {
-        return orderRepository.findAll();
-    }
-}
-```
-
----
-
-## Phase 6: Auto-Configuration
-
-### 6.1 Create Auto-Configuration
-
-#### **File**: `ai-infrastructure-module/src/main/java/com/ai/infrastructure/config/AIInfrastructureAutoConfiguration.java`
-
-```java
-package com.ai.infrastructure.config;
-
-import com.ai.infrastructure.aspect.AICapableAspect;
-import com.ai.infrastructure.service.AICapabilityService;
-import com.ai.infrastructure.service.AIEntityConfigurationLoader;
-import com.ai.infrastructure.core.AIEmbeddingService;
-import com.ai.infrastructure.core.AICoreService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
-import org.springframework.core.io.ResourceLoader;
-
-/**
- * AI Infrastructure Auto-Configuration
- * 
- * Auto-configures AI infrastructure components when the module is included.
- * 
- * @author AI Infrastructure Team
- * @version 1.0.0
- */
-@Configuration
-@ConditionalOnClass(AICapableAspect.class)
-@EnableAspectJAutoProxy
-public class AIInfrastructureAutoConfiguration {
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public AIEntityConfigurationLoader aiEntityConfigurationLoader(ResourceLoader resourceLoader) {
-        return new AIEntityConfigurationLoader(resourceLoader);
-    }
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public AICapabilityService aiCapabilityService(
-            AIEmbeddingService embeddingService,
-            AICoreService aiCoreService,
-            AISearchableEntityRepository searchableEntityRepository) {
-        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository);
-    }
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public AICapableAspect aiCapableAspect(
-            AIEntityConfigurationLoader configLoader,
-            AICapabilityService aiCapabilityService) {
-        return new AICapableAspect(configLoader, aiCapabilityService);
-    }
-}
-```
-
-### 6.2 Create Spring Boot Starter
-
-#### **File**: `ai-infrastructure-module/src/main/resources/META-INF/spring.factories`
-
-```properties
-# Auto-configuration
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.ai.infrastructure.config.AIInfrastructureAutoConfiguration
-```
-
----
-
-## Phase 7: Testing & Validation
-
-### 7.1 Create Integration Tests
-
-#### **File**: `ai-infrastructure-module/src/test/java/com/ai/infrastructure/AIInfrastructureIntegrationTest.java`
-
-```java
-package com.ai.infrastructure;
-
-import com.ai.infrastructure.annotation.AICapable;
-import com.ai.infrastructure.annotation.AIProcess;
-import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.service.AICapabilityService;
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-/**
- * AI Infrastructure Integration Test
- * 
- * Tests the complete AI infrastructure functionality.
- * 
- * @author AI Infrastructure Team
- * @version 1.0.0
- */
-@SpringBootTest
-@TestPropertySource(properties = {
-    "ai.config.default-file=test-ai-entity-config.yml"
-})
-class AIInfrastructureIntegrationTest {
-    
-    @Test
-    void testConfigurationLoading() {
-        // Test configuration loading
-        AIEntityConfigurationLoader loader = new AIEntityConfigurationLoader(null);
-        assertNotNull(loader);
-    }
-    
-    @Test
-    void testAICapabilityService() {
-        // Test AI capability service
-        AICapabilityService service = new AICapabilityService(null, null, null);
-        assertNotNull(service);
-    }
-    
-    @Test
-    void testAICapableAnnotation() {
-        // Test @AICapable annotation
-        AICapable annotation = TestEntity.class.getAnnotation(AICapable.class);
-        assertNotNull(annotation);
-        assertEquals("test", annotation.entityType());
-    }
-    
-    @Test
-    void testAIProcessAnnotation() {
-        // Test @AIProcess annotation
-        AIProcess annotation = TestService.class.getMethod("testMethod").getAnnotation(AIProcess.class);
-        assertNotNull(annotation);
-        assertEquals("create", annotation.processType());
-    }
-    
-    @AICapable(entityType = "test")
-    static class TestEntity {
-        private String id;
-        private String name;
-    }
-    
-    static class TestService {
-        @AIProcess(processType = "create")
-        public void testMethod() {
-            // Test method
-        }
-    }
-}
-```
-
-### 7.2 Create Backend Integration Tests
-
-#### **File**: `backend/src/test/java/com/easyluxury/ai/AIAnnotationIntegrationTest.java`
-
-```java
-package com.easyluxury.ai;
-
-import com.ai.infrastructure.annotation.AICapable;
-import com.ai.infrastructure.annotation.AIProcess;
-import com.easyluxury.entity.Product;
-import com.easyluxury.service.ProductService;
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-/**
- * AI Annotation Integration Test
- * 
- * Tests the AI annotation system in the backend.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
- */
-@SpringBootTest
-@TestPropertySource(properties = {
-    "ai.config.default-file=ai-entity-config.yml"
-})
-class AIAnnotationIntegrationTest {
-    
-    @Test
-    void testProductEntityAnnotation() {
-        // Test Product entity has @AICapable annotation
-        AICapable annotation = Product.class.getAnnotation(AICapable.class);
-        assertNotNull(annotation);
-        assertEquals("product", annotation.entityType());
-    }
-    
-    @Test
-    void testProductServiceAnnotations() {
-        // Test ProductService methods have AI annotations
-        try {
-            var createMethod = ProductService.class.getMethod("createProduct", Product.class);
-            var createAnnotation = createMethod.getAnnotation(AICapable.class);
-            assertNotNull(createAnnotation);
-            assertEquals("product", createAnnotation.entityType());
-            
-            var updateMethod = ProductService.class.getMethod("updateProduct", String.class, Product.class);
-            var updateAnnotation = updateMethod.getAnnotation(AICapable.class);
-            assertNotNull(updateAnnotation);
-            assertEquals("product", updateAnnotation.entityType());
-            
-        } catch (NoSuchMethodException e) {
-            fail("Method not found: " + e.getMessage());
-        }
-    }
-}
-```
-
----
-
 ## Implementation Checklist
 
 ### **Phase 1: Core Infrastructure**
 - [ ] Create `@AICapable` annotation
 - [ ] Create `@AIProcess` annotation
-- [ ] Test annotations
-
-**Note**: We don't need `@AISearchable` and `@AIEmbeddable` annotations because all field-level configuration is handled through the YAML configuration file.
+- [ ] Add annotation processing dependencies
+- [ ] Test annotation compilation
 
 ### **Phase 2: Configuration System**
-- [ ] Create `ai-entity-config.yml` configuration file
-- [ ] Create `AIEntityConfigurationLoader` class
-- [ ] Create configuration DTOs (`AIEntityConfig`, `AISearchableField`, etc.)
+- [ ] Create YAML configuration schema
+- [ ] Implement `AIEntityConfigurationLoader`
+- [ ] Create configuration DTOs
 - [ ] Test configuration loading
 
-### **Phase 3: AI Processing Aspect**
-- [ ] Create `AICapableAspect` class
-- [ ] Create `AICapabilityService` class
-- [ ] Test aspect functionality
+### **Phase 3: AOP Implementation**
+- [ ] Implement `AICapableAspect`
+- [ ] Create AOP configuration
+- [ ] Test aspect execution
+- [ ] Test automatic AI processing
 
 ### **Phase 4: Domain Entity Integration**
-- [ ] Clean `Product` entity (remove old AI annotations)
-- [ ] Clean `User` entity (remove old AI annotations)
-- [ ] Clean `Order` entity (remove old AI annotations)
-- [ ] Add single `@AICapable` annotation to entities
-- [ ] Test entity annotations
+- [ ] Clean domain entities
+- [ ] Create `AISearchableEntity`
+- [ ] Test entity separation
 
 ### **Phase 5: Domain Service Integration**
-- [ ] Update `ProductService` with AI annotations
-- [ ] Update `UserService` with AI annotations
-- [ ] Update `OrderService` with AI annotations
-- [ ] Test service annotations
+- [ ] Update domain services with annotations
+- [ ] Create `AICapabilityService`
+- [ ] Test service integration
 
 ### **Phase 6: Auto-Configuration**
-- [ ] Create `AIInfrastructureAutoConfiguration` class
-- [ ] Create `spring.factories` file
+- [ ] Create auto-configuration
+- [ ] Create Spring Boot starter
 - [ ] Test auto-configuration
 
 ### **Phase 7: Testing & Validation**
+- [ ] Create unit tests
 - [ ] Create integration tests
-- [ ] Create backend integration tests
 - [ ] Test complete AI processing flow
 - [ ] Validate configuration-driven behavior
+
+### **Phase 8: Migration from Current Approach**
+- [ ] Move generic AI services
+- [ ] Move AI-specific entities
+- [ ] Clean domain entities
+- [ ] Update domain services
+- [ ] Create domain adapters
+- [ ] Create configuration files
+- [ ] Test migration
 
 ## Summary
 
@@ -3143,5 +1902,8 @@ This implementation plan provides a complete roadmap for implementing the single
 4. **Clean Domain Code**: No AI coupling in domain entities
 5. **Easy Maintenance**: AI behavior can be modified without code changes
 6. **Spring Integration**: Leverages Spring AOP for automatic processing
+7. **Entity-Type Support**: AIProcess annotation includes entity-type for configuration lookup
+8. **AOP Implementation**: Comprehensive AOP implementation for automatic AI processing
+9. **Migration Path**: Clear migration path from current approach following established patterns
 
 The result is a truly generic, reusable AI infrastructure that can enable AI capabilities in any application with minimal code and maximum flexibility.
