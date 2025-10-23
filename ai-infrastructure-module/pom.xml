@@ -14,6 +14,7 @@
     <description>Generic AI Infrastructure module for Spring Boot applications with RAG, behavioral AI, and smart features</description>
 
     <modules>
+        <module>ai-infrastructure-core</module>
         <module>integration-tests</module>
     </modules>
 
