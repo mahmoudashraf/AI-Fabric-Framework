@@ -80,13 +80,12 @@ public class AICapableProcessor {
             features.add("SEARCH");
         }
         
-        if (annotation.enableValidation()) {
-            features.add("VALIDATION");
-        }
-        
         if (annotation.enableRecommendations()) {
             features.add("RECOMMENDATIONS");
         }
+        
+        // Add features from the features array
+        features.addAll(Arrays.asList(annotation.features()));
         
         return features;
     }
@@ -122,10 +121,11 @@ public class AICapableProcessor {
             AICapable annotation = entityClass.getAnnotation(AICapable.class);
             config.put("autoEmbedding", annotation.autoEmbedding());
             config.put("enableSearch", annotation.enableSearch());
-            config.put("enableValidation", annotation.enableValidation());
             config.put("enableRecommendations", annotation.enableRecommendations());
             config.put("entityType", annotation.entityType());
-            config.put("priority", annotation.priority());
+            config.put("autoProcess", annotation.autoProcess());
+            config.put("indexable", annotation.indexable());
+            config.put("features", Arrays.asList(annotation.features()));
         }
         
         return config;

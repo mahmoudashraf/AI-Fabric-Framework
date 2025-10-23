@@ -21,14 +21,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@AICapable(
-    entityType = "user",
-    features = {"embedding", "search", "validation", "recommendation", "behavioral_tracking"},
-    enableSearch = true,
-    enableRecommendations = true,
-    autoEmbedding = true,
-    indexable = true
-)
+@AICapable(entityType = "user")
 public class User {
 
     @Id
@@ -61,42 +54,15 @@ public class User {
 
     // AI-specific fields
     @Column(name = "ai_preferences")
-    @AIKnowledge(
-        fieldName = "preferences",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiPreferences;
 
     @Column(name = "ai_behavior_profile")
-    @AIKnowledge(
-        fieldName = "behavior_profile",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiBehaviorProfile;
 
     @Column(name = "ai_interests")
-    @AIKnowledge(
-        fieldName = "interests",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiInterests;
 
     @Column(name = "search_vector")
-    @AIEmbedding(
-        fieldName = "search_vector",
-        model = "text-embedding-3-small",
-        autoGenerate = true,
-        includeInSimilarity = true
-    )
     private String searchVector;
 
     @Column(name = "recommendation_score")
@@ -112,13 +78,6 @@ public class User {
     private Long totalInteractions = 0L;
 
     @Column(name = "ai_insights")
-    @AIKnowledge(
-        fieldName = "ai_insights",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiInsights;
 
     public enum UserRole {

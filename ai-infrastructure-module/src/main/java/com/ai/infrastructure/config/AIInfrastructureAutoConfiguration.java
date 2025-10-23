@@ -1,5 +1,8 @@
 package com.ai.infrastructure.config;
 
+import com.ai.infrastructure.aspect.AICapableAspect;
+import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
@@ -26,10 +29,14 @@ import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
 import com.ai.infrastructure.cache.AIIntelligentCacheService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.core.io.ResourceLoader;
 
 /**
  * Auto-configuration for AI Infrastructure module
@@ -42,6 +49,8 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class})
+@ConditionalOnClass(AICapableAspect.class)
+@EnableAspectJAutoProxy
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     
@@ -105,6 +114,29 @@ public class AIInfrastructureAutoConfiguration {
     // - LuceneVectorDatabaseService (default)
     // - PineconeVectorDatabaseService
     // - InMemoryVectorDatabaseService
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public AIEntityConfigurationLoader aiEntityConfigurationLoader(ResourceLoader resourceLoader) {
+        return new AIEntityConfigurationLoader(resourceLoader);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public AICapabilityService aiCapabilityService(
+            AIEmbeddingService embeddingService,
+            AICoreService aiCoreService,
+            AISearchableEntityRepository searchableEntityRepository) {
+        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public AICapableAspect aiCapableAspect(
+            AIEntityConfigurationLoader configLoader,
+            AICapabilityService aiCapabilityService) {
+        return new AICapableAspect(configLoader, aiCapabilityService);
+    }
     
     @Bean
     public AICapableProcessor aiCapableProcessor() {

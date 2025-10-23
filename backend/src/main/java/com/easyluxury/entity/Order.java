@@ -34,14 +34,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@AICapable(
-    entityType = "order",
-    features = {"embedding", "search", "validation", "analysis", "pattern_recognition"},
-    enableSearch = true,
-    enableRecommendations = false,
-    autoEmbedding = true,
-    indexable = true
-)
+@AICapable(entityType = "order")
 public class Order {
     
     @Id
@@ -62,73 +55,25 @@ public class Order {
     private OrderStatus status;
     
     @Column(name = "shipping_address")
-    @AIKnowledge(
-        fieldName = "shipping_address",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String shippingAddress;
     
     @Column(name = "billing_address")
-    @AIKnowledge(
-        fieldName = "billing_address",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String billingAddress;
     
     @Column(name = "payment_method")
-    @AIKnowledge(
-        fieldName = "payment_method",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String paymentMethod;
     
     @Column(name = "notes")
-    @AIKnowledge(
-        fieldName = "notes",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String notes;
     
     @Column(name = "search_vector")
-    @AIEmbedding(
-        fieldName = "search_vector",
-        model = "text-embedding-3-small",
-        autoGenerate = true,
-        includeInSimilarity = true
-    )
     private String searchVector;
     
     // AI Analysis fields
     @Column(name = "ai_analysis")
-    @AIKnowledge(
-        fieldName = "ai_analysis",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiAnalysis;
     
     @Column(name = "ai_patterns")
-    @AIKnowledge(
-        fieldName = "ai_patterns",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiPatterns;
     
     @Column(name = "fraud_score")
@@ -139,13 +84,6 @@ public class Order {
     private RiskLevel riskLevel;
     
     @Column(name = "ai_insights")
-    @AIKnowledge(
-        fieldName = "ai_insights",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiInsights;
     
     @Column(name = "pattern_flags")
