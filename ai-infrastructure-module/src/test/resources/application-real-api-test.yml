@@ -1,0 +1,42 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  h2:
+    console:
+      enabled: true
+
+# AI Configuration for Real API Tests
+ai:
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    model: gpt-3.5-turbo
+    embedding-model: text-embedding-ada-002
+    max-tokens: 2000
+    temperature: 0.7
+    timeout: 30s
+  infrastructure:
+    config:
+      file: ai-entity-config.yml
+    embedding:
+      model: text-embedding-ada-002
+      dimensions: 1536
+    search:
+      max-results: 100
+      similarity-threshold: 0.7
+
+logging:
+  level:
+    com.ai.infrastructure: DEBUG
+    com.theokanning.openai: DEBUG
+    org.springframework.aop: DEBUG
+    org.hibernate.SQL: DEBUG
