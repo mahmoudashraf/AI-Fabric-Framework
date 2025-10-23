@@ -5,7 +5,10 @@ import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
+import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIEntityConfig;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.AICapabilityService;
@@ -30,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * To run these tests, set the environment variable:
  * export OPENAI_API_KEY=your_actual_openai_api_key
  */
-@SpringBootTest
+@SpringBootTest(classes = {com.ai.infrastructure.config.AIInfrastructureAutoConfiguration.class})
 @TestPropertySource(properties = {
     "ai.openai.api-key=${OPENAI_API_KEY:}",
     "ai.openai.model=gpt-3.5-turbo",
@@ -68,7 +71,8 @@ public class AIInfrastructureRealAPITest {
             .build();
 
         // When
-        List<Double> embeddings = embeddingService.generateEmbedding(request);
+        AIEmbeddingResponse response = embeddingService.generateEmbedding(request);
+        List<Double> embeddings = response.getEmbedding();
 
         // Then
         assertNotNull(embeddings, "Embeddings should not be null");
@@ -95,14 +99,15 @@ public class AIInfrastructureRealAPITest {
             .build();
 
         // When
-        String response = aiCoreService.generateContent(request);
+        AIGenerationResponse response = aiCoreService.generateContent(request);
+        String content = response.getContent();
 
         // Then
-        assertNotNull(response, "AI response should not be null");
-        assertFalse(response.trim().isEmpty(), "AI response should not be empty");
-        assertTrue(response.length() > 10, "AI response should be substantial");
+        assertNotNull(content, "AI response should not be null");
+        assertFalse(content.trim().isEmpty(), "AI response should not be empty");
+        assertTrue(content.length() > 10, "AI response should be substantial");
         
-        System.out.println("AI Analysis: " + response);
+        System.out.println("AI Analysis: " + content);
     }
 
     @Test
