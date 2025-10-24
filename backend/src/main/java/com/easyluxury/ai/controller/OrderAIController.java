@@ -1,7 +1,13 @@
 package com.easyluxury.ai.controller;
 
+import com.ai.infrastructure.dto.BehaviorAnalysisResult;
+import com.ai.infrastructure.dto.BehaviorResponse;
+import com.easyluxury.ai.adapter.OrderAIAdapter;
 import com.easyluxury.ai.dto.*;
-import com.easyluxury.ai.facade.OrderAIFacade;
+import com.easyluxury.entity.Order;
+import com.easyluxury.entity.User;
+import com.easyluxury.repository.OrderRepository;
+import com.easyluxury.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -32,7 +38,151 @@ import java.util.UUID;
 @Tag(name = "Order AI", description = "AI-powered order operations")
 public class OrderAIController {
     
-    private final OrderAIFacade orderAIFacade;
+    private final OrderAIAdapter orderAIAdapter;
+    private final OrderRepository orderRepository;
+    private final UserRepository userRepository;
+    
+    /**
+     * Track order creation behavior
+     */
+    @PostMapping("/{orderId}/track-creation")
+    @Operation(summary = "Track order creation", description = "Track when an order is created")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Order creation tracked successfully"),
+        @ApiResponse(responseCode = "404", description = "Order or user not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<BehaviorResponse> trackOrderCreation(
+            @Parameter(description = "Order ID") @PathVariable UUID orderId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        log.info("Order creation tracking request for order: {} and user: {}", orderId, userId);
+        
+        try {
+            Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            BehaviorResponse response = orderAIAdapter.trackOrderCreation(user, order);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error tracking order creation: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Track order update behavior
+     */
+    @PostMapping("/{orderId}/track-update")
+    @Operation(summary = "Track order update", description = "Track when an order is updated")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Order update tracked successfully"),
+        @ApiResponse(responseCode = "404", description = "Order or user not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<BehaviorResponse> trackOrderUpdate(
+            @Parameter(description = "Order ID") @PathVariable UUID orderId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        log.info("Order update tracking request for order: {} and user: {}", orderId, userId);
+        
+        try {
+            Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            BehaviorResponse response = orderAIAdapter.trackOrderUpdate(user, order);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error tracking order update: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Track order completion behavior
+     */
+    @PostMapping("/{orderId}/track-completion")
+    @Operation(summary = "Track order completion", description = "Track when an order is completed")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Order completion tracked successfully"),
+        @ApiResponse(responseCode = "404", description = "Order or user not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<BehaviorResponse> trackOrderCompletion(
+            @Parameter(description = "Order ID") @PathVariable UUID orderId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        log.info("Order completion tracking request for order: {} and user: {}", orderId, userId);
+        
+        try {
+            Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            BehaviorResponse response = orderAIAdapter.trackOrderCompletion(user, order);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error tracking order completion: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Get order behaviors
+     */
+    @GetMapping("/{orderId}/behaviors")
+    @Operation(summary = "Get order behaviors", description = "Get all behaviors for an order")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Behaviors retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "Order not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<List<BehaviorResponse>> getOrderBehaviors(
+            @Parameter(description = "Order ID") @PathVariable UUID orderId) {
+        log.info("Order behaviors request for order: {}", orderId);
+        
+        try {
+            Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            
+            List<BehaviorResponse> response = orderAIAdapter.getOrderBehaviors(order);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting order behaviors: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Analyze order behaviors
+     */
+    @GetMapping("/{orderId}/analyze")
+    @Operation(summary = "Analyze order behaviors", description = "Analyze behaviors for an order")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Analysis completed successfully"),
+        @ApiResponse(responseCode = "404", description = "Order not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<BehaviorAnalysisResult> analyzeOrderBehaviors(
+            @Parameter(description = "Order ID") @PathVariable UUID orderId) {
+        log.info("Order behavior analysis request for order: {}", orderId);
+        
+        try {
+            Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+            
+            BehaviorAnalysisResult response = orderAIAdapter.analyzeOrderBehaviors(order);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error analyzing order behaviors: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
     
     /**
      * Analyze order patterns

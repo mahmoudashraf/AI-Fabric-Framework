@@ -1,7 +1,13 @@
 package com.easyluxury.ai.controller;
 
+import com.ai.infrastructure.dto.BehaviorAnalysisResult;
+import com.ai.infrastructure.dto.BehaviorResponse;
+import com.easyluxury.ai.adapter.ProductAIAdapter;
 import com.easyluxury.ai.dto.*;
-import com.easyluxury.ai.facade.ProductAIFacade;
+import com.easyluxury.entity.Product;
+import com.easyluxury.entity.User;
+import com.easyluxury.repository.ProductRepository;
+import com.easyluxury.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -13,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -31,7 +38,151 @@ import java.util.UUID;
 @Tag(name = "Product AI", description = "AI-powered product operations")
 public class ProductAIController {
     
-    private final ProductAIFacade productAIFacade;
+    private final ProductAIAdapter productAIAdapter;
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+    
+    /**
+     * Track product view behavior
+     */
+    @PostMapping("/{productId}/view")
+    @Operation(summary = "Track product view", description = "Track when a user views a product")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "View tracked successfully"),
+        @ApiResponse(responseCode = "404", description = "Product or user not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<BehaviorResponse> trackProductView(
+            @Parameter(description = "Product ID") @PathVariable UUID productId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        log.info("Product view tracking request for product: {} and user: {}", productId, userId);
+        
+        try {
+            Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+            
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            BehaviorResponse response = productAIAdapter.trackProductView(user, product);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error tracking product view: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Track product click behavior
+     */
+    @PostMapping("/{productId}/click")
+    @Operation(summary = "Track product click", description = "Track when a user clicks on a product")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Click tracked successfully"),
+        @ApiResponse(responseCode = "404", description = "Product or user not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<BehaviorResponse> trackProductClick(
+            @Parameter(description = "Product ID") @PathVariable UUID productId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        log.info("Product click tracking request for product: {} and user: {}", productId, userId);
+        
+        try {
+            Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+            
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            BehaviorResponse response = productAIAdapter.trackProductClick(user, product);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error tracking product click: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Track add to cart behavior
+     */
+    @PostMapping("/{productId}/add-to-cart")
+    @Operation(summary = "Track add to cart", description = "Track when a user adds a product to cart")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Add to cart tracked successfully"),
+        @ApiResponse(responseCode = "404", description = "Product or user not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<BehaviorResponse> trackAddToCart(
+            @Parameter(description = "Product ID") @PathVariable UUID productId,
+            @Parameter(description = "User ID") @RequestParam UUID userId) {
+        log.info("Add to cart tracking request for product: {} and user: {}", productId, userId);
+        
+        try {
+            Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+            
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            BehaviorResponse response = productAIAdapter.trackAddToCart(user, product);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error tracking add to cart: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Get product behaviors
+     */
+    @GetMapping("/{productId}/behaviors")
+    @Operation(summary = "Get product behaviors", description = "Get all behaviors for a product")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Behaviors retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "Product not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<List<BehaviorResponse>> getProductBehaviors(
+            @Parameter(description = "Product ID") @PathVariable UUID productId) {
+        log.info("Product behaviors request for product: {}", productId);
+        
+        try {
+            Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+            
+            List<BehaviorResponse> response = productAIAdapter.getProductBehaviors(product);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting product behaviors: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Analyze product behaviors
+     */
+    @GetMapping("/{productId}/analyze")
+    @Operation(summary = "Analyze product behaviors", description = "Analyze behaviors for a product")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Analysis completed successfully"),
+        @ApiResponse(responseCode = "404", description = "Product not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<BehaviorAnalysisResult> analyzeProductBehaviors(
+            @Parameter(description = "Product ID") @PathVariable UUID productId) {
+        log.info("Product behavior analysis request for product: {}", productId);
+        
+        try {
+            Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+            
+            BehaviorAnalysisResult response = productAIAdapter.analyzeProductBehaviors(product);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error analyzing product behaviors: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
     
     /**
      * Search products using AI-powered semantic search
