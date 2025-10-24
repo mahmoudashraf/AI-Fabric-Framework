@@ -1,13 +1,10 @@
 package com.easyluxury.ai.service;
 
-import com.ai.infrastructure.core.AICoreService;
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.dto.AIGenerationResponse;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.dto.BehaviorAnalysisResult;
+import com.ai.infrastructure.dto.BehaviorResponse;
+import com.easyluxury.ai.adapter.OrderAIAdapter;
 import com.easyluxury.entity.Order;
+import com.easyluxury.entity.User;
 import com.easyluxury.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,8 +31,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderAIService {
     
-    private final AICoreService aiCoreService;
-    private final RAGService ragService;
+    private final OrderAIAdapter orderAIAdapter;
     private final OrderRepository orderRepository;
     
     /**
@@ -398,6 +394,104 @@ public class OrderAIService {
             return Order.RiskLevel.MEDIUM;
         } else {
             return Order.RiskLevel.LOW;
+        }
+    }
+    
+    /**
+     * Track order creation behavior using AI infrastructure
+     * 
+     * @param user the user
+     * @param order the order
+     * @return behavior response
+     */
+    @Transactional
+    public BehaviorResponse trackOrderCreation(User user, Order order) {
+        try {
+            log.debug("Tracking order creation for user {} and order {}", user.getId(), order.getId());
+            
+            return orderAIAdapter.trackOrderCreation(user, order);
+            
+        } catch (Exception e) {
+            log.error("Error tracking order creation for user {} and order {}", user.getId(), order.getId(), e);
+            throw new RuntimeException("Failed to track order creation", e);
+        }
+    }
+    
+    /**
+     * Track order update behavior using AI infrastructure
+     * 
+     * @param user the user
+     * @param order the order
+     * @return behavior response
+     */
+    @Transactional
+    public BehaviorResponse trackOrderUpdate(User user, Order order) {
+        try {
+            log.debug("Tracking order update for user {} and order {}", user.getId(), order.getId());
+            
+            return orderAIAdapter.trackOrderUpdate(user, order);
+            
+        } catch (Exception e) {
+            log.error("Error tracking order update for user {} and order {}", user.getId(), order.getId(), e);
+            throw new RuntimeException("Failed to track order update", e);
+        }
+    }
+    
+    /**
+     * Track order completion behavior using AI infrastructure
+     * 
+     * @param user the user
+     * @param order the order
+     * @return behavior response
+     */
+    @Transactional
+    public BehaviorResponse trackOrderCompletion(User user, Order order) {
+        try {
+            log.debug("Tracking order completion for user {} and order {}", user.getId(), order.getId());
+            
+            return orderAIAdapter.trackOrderCompletion(user, order);
+            
+        } catch (Exception e) {
+            log.error("Error tracking order completion for user {} and order {}", user.getId(), order.getId(), e);
+            throw new RuntimeException("Failed to track order completion", e);
+        }
+    }
+    
+    /**
+     * Get order behaviors using AI infrastructure
+     * 
+     * @param order the order
+     * @return list of order behaviors
+     */
+    @Transactional(readOnly = true)
+    public List<BehaviorResponse> getOrderBehaviors(Order order) {
+        try {
+            log.debug("Getting behaviors for order {}", order.getId());
+            
+            return orderAIAdapter.getOrderBehaviors(order);
+            
+        } catch (Exception e) {
+            log.error("Error getting behaviors for order {}", order.getId(), e);
+            throw new RuntimeException("Failed to get order behaviors", e);
+        }
+    }
+    
+    /**
+     * Analyze order behaviors using AI infrastructure
+     * 
+     * @param order the order
+     * @return behavior analysis result
+     */
+    @Transactional(readOnly = true)
+    public BehaviorAnalysisResult analyzeOrderBehaviors(Order order) {
+        try {
+            log.debug("Analyzing behaviors for order {}", order.getId());
+            
+            return orderAIAdapter.analyzeOrderBehaviors(order);
+            
+        } catch (Exception e) {
+            log.error("Error analyzing behaviors for order {}", order.getId(), e);
+            throw new RuntimeException("Failed to analyze order behaviors", e);
         }
     }
     

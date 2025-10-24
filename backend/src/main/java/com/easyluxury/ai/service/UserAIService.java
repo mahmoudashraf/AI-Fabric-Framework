@@ -1,17 +1,12 @@
 package com.easyluxury.ai.service;
 
-import com.ai.infrastructure.core.AICoreService;
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.core.AIEmbeddingService;
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.dto.AIGenerationResponse;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.dto.BehaviorAnalysisResult;
+import com.ai.infrastructure.dto.BehaviorResponse;
+import com.ai.infrastructure.dto.AIProfileResponse;
+import com.easyluxury.ai.adapter.UserAIAdapter;
 import com.easyluxury.entity.User;
 import com.easyluxury.entity.UserBehavior;
 import com.easyluxury.repository.UserRepository;
-import com.easyluxury.repository.UserBehaviorRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,11 +31,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserAIService {
     
-    private final AICoreService aiCoreService;
-    private final AIEmbeddingService embeddingService;
-    private final RAGService ragService;
+    private final UserAIAdapter userAIAdapter;
     private final UserRepository userRepository;
-    private final UserBehaviorRepository userBehaviorRepository;
     
     /**
      * Track user behavior for AI analysis
@@ -54,12 +46,15 @@ public class UserAIService {
      * @param metadata additional metadata
      */
     @Transactional
-    public void trackUserBehavior(UUID userId, UserBehavior.BehaviorType behaviorType, 
+    public BehaviorResponse trackUserBehavior(UUID userId, UserBehavior.BehaviorType behaviorType, 
                                  String entityType, String entityId, String action, 
                                  String context, Map<String, Object> metadata) {
         try {
             log.debug("Tracking user behavior for user {}: {} on {} {}", 
                 userId, behaviorType, entityType, entityId);
+            
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
             // Create behavior record
             UserBehavior behavior = UserBehavior.builder()
@@ -73,8 +68,8 @@ public class UserAIService {
                 .createdAt(LocalDateTime.now())
                 .build();
             
-            // Save behavior
-            userBehaviorRepository.save(behavior);
+            // Use AI adapter to track behavior
+            BehaviorResponse response = userAIAdapter.trackUserBehavior(user, behavior);
             
             // Update user activity
             updateUserActivity(userId);
@@ -85,6 +80,8 @@ public class UserAIService {
             }
             
             log.debug("Successfully tracked user behavior for user {}", userId);
+            
+            return response;
             
         } catch (Exception e) {
             log.error("Error tracking user behavior for user {}", userId, e);
@@ -99,55 +96,24 @@ public class UserAIService {
      * @return AI-generated insights
      */
     @Transactional
-    public String analyzeUserBehavior(UUID userId) {
+    public BehaviorAnalysisResult analyzeUserBehavior(UUID userId) {
         try {
             log.debug("Analyzing user behavior for user {}", userId);
             
             User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
-            // Get recent behaviors
-            List<UserBehavior> recentBehaviors = userBehaviorRepository
-                .findByUserIdOrderByCreatedAtDesc(userId);
-            
-            if (recentBehaviors.isEmpty()) {
-                return "No behavioral data available for analysis.";
-            }
-            
-            // Build context for AI analysis
-            StringBuilder context = new StringBuilder();
-            context.append("User: ").append(user.getEmail()).append("\n");
-            context.append("Recent behaviors:\n");
-            
-            recentBehaviors.stream()
-                .limit(10) // Last 10 behaviors
-                .forEach(behavior -> {
-                    context.append("- ").append(behavior.getBehaviorType())
-                        .append(" on ").append(behavior.getEntityType())
-                        .append(" ").append(behavior.getEntityId())
-                        .append(" at ").append(behavior.getCreatedAt())
-                        .append("\n");
-                });
-            
-            // Generate AI insights
-            AIGenerationRequest request = AIGenerationRequest.builder()
-                .prompt("Analyze the following user behavior data and provide insights about user preferences, patterns, and recommendations:")
-                .context(context.toString())
-                .purpose("user_behavior_analysis")
-                .maxTokens(500)
-                .temperature(0.3)
-                .build();
-            
-            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
+            // Use AI adapter to analyze behaviors
+            BehaviorAnalysisResult result = userAIAdapter.analyzeUserBehaviors(user);
             
             // Update user with AI insights
-            user.setAiInsights(response.getContent());
+            user.setAiInsights(result.getSummary());
             user.setLastActivityAt(LocalDateTime.now());
             userRepository.save(user);
             
             log.debug("Successfully analyzed user behavior for user {}", userId);
             
-            return response.getContent();
+            return result;
             
         } catch (Exception e) {
             log.error("Error analyzing user behavior for user {}", userId, e);
@@ -170,32 +136,17 @@ public class UserAIService {
             User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
-            // Build user profile context
-            StringBuilder context = new StringBuilder();
-            context.append("User Profile:\n");
-            context.append("Email: ").append(user.getEmail()).append("\n");
-            context.append("Preferences: ").append(user.getAiPreferences() != null ? user.getAiPreferences() : "None").append("\n");
-            context.append("Interests: ").append(user.getAiInterests() != null ? user.getAiInterests() : "None").append("\n");
-            context.append("Behavior Profile: ").append(user.getAiBehaviorProfile() != null ? user.getAiBehaviorProfile() : "None").append("\n");
+            // Analyze user behaviors to get recommendations
+            BehaviorAnalysisResult analysis = userAIAdapter.analyzeUserBehaviors(user);
             
-            if (user.getAiInsights() != null) {
-                context.append("AI Insights: ").append(user.getAiInsights()).append("\n");
-            }
-            
-            // Generate recommendations
-            AIGenerationRequest request = AIGenerationRequest.builder()
-                .prompt("Based on the user profile and behavior data, generate personalized product recommendations for this luxury e-commerce customer:")
-                .context(context.toString())
-                .purpose("user_recommendations")
-                .maxTokens(300)
-                .temperature(0.4)
-                .build();
-            
-            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
+            // Extract recommendations from analysis
+            String recommendations = analysis.getRecommendations() != null && !analysis.getRecommendations().isEmpty() 
+                ? String.join(", ", analysis.getRecommendations())
+                : "No specific recommendations available at this time.";
             
             log.debug("Successfully generated recommendations for user {}", userId);
             
-            return response.getContent();
+            return recommendations;
             
         } catch (Exception e) {
             log.error("Error generating recommendations for user {}", userId, e);
@@ -217,47 +168,22 @@ public class UserAIService {
             User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
-            // Get user behaviors
-            List<UserBehavior> behaviors = userBehaviorRepository
-                .findByUserIdOrderByCreatedAtDesc(userId);
+            // Analyze user behaviors to learn preferences
+            BehaviorAnalysisResult analysis = userAIAdapter.analyzeUserBehaviors(user);
             
-            if (behaviors.isEmpty()) {
-                return "No behavioral data available for preference learning.";
-            }
-            
-            // Build behavior context
-            StringBuilder context = new StringBuilder();
-            context.append("User behaviors for preference analysis:\n");
-            
-            behaviors.stream()
-                .limit(20) // Last 20 behaviors
-                .forEach(behavior -> {
-                    context.append("- ").append(behavior.getBehaviorType())
-                        .append(": ").append(behavior.getAction())
-                        .append(" on ").append(behavior.getEntityType())
-                        .append(" ").append(behavior.getEntityId())
-                        .append("\n");
-                });
-            
-            // Generate preference insights
-            AIGenerationRequest request = AIGenerationRequest.builder()
-                .prompt("Analyze the user's behavior patterns and extract their preferences, interests, and shopping patterns:")
-                .context(context.toString())
-                .purpose("preference_learning")
-                .maxTokens(400)
-                .temperature(0.2)
-                .build();
-            
-            AIGenerationResponse response = AIGenerationResponse.builder().content("AI analysis placeholder").build();
+            // Extract insights as preferences
+            String preferences = analysis.getInsights() != null && !analysis.getInsights().isEmpty() 
+                ? String.join(", ", analysis.getInsights())
+                : "No specific preferences identified at this time.";
             
             // Update user preferences
-            user.setAiPreferences(response.getContent());
+            user.setAiPreferences(preferences);
             user.setLastActivityAt(LocalDateTime.now());
             userRepository.save(user);
             
             log.debug("Successfully learned preferences for user {}", userId);
             
-            return response.getContent();
+            return preferences;
             
         } catch (Exception e) {
             log.error("Error learning preferences for user {}", userId, e);
@@ -266,32 +192,45 @@ public class UserAIService {
     }
     
     /**
-     * Search users using AI-powered semantic search
+     * Get user behaviors using AI infrastructure
      * 
-     * @param query the search query
-     * @param limit maximum number of results
-     * @return search results
+     * @param userId the user ID
+     * @return list of user behaviors
      */
-    public AISearchResponse searchUsers(String query, int limit) {
+    public List<BehaviorResponse> getUserBehaviors(UUID userId) {
         try {
-            log.debug("Searching users with query: {}", query);
+            log.debug("Getting behaviors for user {}", userId);
             
-            AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(query)
-                .entityType("user")
-                .limit(limit)
-                .threshold(0.7)
-                .build();
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
-            AISearchResponse response = ragService.performRAGQuery(query, "user", limit);
-            
-            log.debug("Found {} users matching query: {}", response.getTotalResults(), query);
-            
-            return response;
+            return userAIAdapter.getUserBehaviors(user);
             
         } catch (Exception e) {
-            log.error("Error searching users with query: {}", query, e);
-            throw new RuntimeException("Failed to search users", e);
+            log.error("Error getting behaviors for user {}", userId, e);
+            throw new RuntimeException("Failed to get user behaviors", e);
+        }
+    }
+    
+    /**
+     * Get user behaviors by type using AI infrastructure
+     * 
+     * @param userId the user ID
+     * @param behaviorType the behavior type
+     * @return list of user behaviors
+     */
+    public List<BehaviorResponse> getUserBehaviorsByType(UUID userId, UserBehavior.BehaviorType behaviorType) {
+        try {
+            log.debug("Getting behaviors for user {} and type {}", userId, behaviorType);
+            
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            return userAIAdapter.getUserBehaviorsByType(user, behaviorType);
+            
+        } catch (Exception e) {
+            log.error("Error getting behaviors for user {} and type {}", userId, behaviorType, e);
+            throw new RuntimeException("Failed to get user behaviors by type", e);
         }
     }
     
