@@ -199,6 +199,128 @@ ai-entities:
         cleanup-embeddings: true
         enable-analysis: false
 
+  # Behavior Entity Configuration
+  behavior:
+    entity-type: "behavior"
+    features: ["embedding", "search", "rag", "analysis", "behavioral"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: false
+    auto-embedding: true
+    indexable: true
+    
+    searchable-fields:
+      - name: "action"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 1.0
+      - name: "context"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.8
+      - name: "metadata"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.6
+    
+    embeddable-fields:
+      - name: "action"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "context"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    metadata-fields:
+      - name: "timestamp"
+        type: "date"
+        include-in-search: true
+      - name: "duration"
+        type: "number"
+        include-in-search: true
+      - name: "score"
+        type: "number"
+        include-in-search: true
+    
+    crud-operations:
+      create:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: true
+      update:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: true
+      delete:
+        remove-from-search: true
+        cleanup-embeddings: true
+        enable-analysis: false
+
+  # AI Profile Entity Configuration
+  ai_profile:
+    entity-type: "ai_profile"
+    features: ["embedding", "search", "rag", "analysis", "behavioral"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: false
+    auto-embedding: true
+    indexable: true
+    
+    searchable-fields:
+      - name: "preferences"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 1.0
+      - name: "interests"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.8
+      - name: "behaviorPatterns"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.6
+    
+    embeddable-fields:
+      - name: "preferences"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "interests"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "behaviorPatterns"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    metadata-fields:
+      - name: "lastUpdated"
+        type: "date"
+        include-in-search: true
+      - name: "confidence"
+        type: "number"
+        include-in-search: true
+      - name: "version"
+        type: "number"
+        include-in-search: true
+    
+    crud-operations:
+      create:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: true
+      update:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: true
+      delete:
+        remove-from-search: true
+        cleanup-embeddings: true
+        enable-analysis: false
+
 # Global AI Configuration
 ai-config:
   default-embedding-model: "text-embedding-3-small"
