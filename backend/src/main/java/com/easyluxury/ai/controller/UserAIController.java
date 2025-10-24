@@ -1,7 +1,13 @@
 package com.easyluxury.ai.controller;
 
+import com.ai.infrastructure.dto.BehaviorAnalysisResult;
+import com.ai.infrastructure.dto.BehaviorResponse;
+import com.ai.infrastructure.dto.AIProfileResponse;
+import com.easyluxury.ai.adapter.UserAIAdapter;
 import com.easyluxury.ai.dto.*;
-import com.easyluxury.ai.facade.UserAIFacade;
+import com.easyluxury.entity.User;
+import com.easyluxury.entity.UserBehavior;
+import com.easyluxury.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -32,7 +38,8 @@ import java.util.UUID;
 @Tag(name = "User AI", description = "AI-powered user operations")
 public class UserAIController {
     
-    private final UserAIFacade userAIFacade;
+    private final UserAIAdapter userAIAdapter;
+    private final UserRepository userRepository;
     
     /**
      * Track user behavior
@@ -44,14 +51,31 @@ public class UserAIController {
         @ApiResponse(responseCode = "400", description = "Invalid behavior request"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<UserBehaviorResponse> trackBehavior(
+    public ResponseEntity<BehaviorResponse> trackBehavior(
             @Valid @RequestBody UserBehaviorRequest request) {
         log.info("User behavior tracking request for user: {} - {}", 
             request.getUserId(), request.getBehaviorType());
         
-        UserBehaviorResponse response = userAIFacade.trackUserBehavior(request);
-        
-        return ResponseEntity.ok(response);
+        try {
+            User user = userRepository.findById(UUID.fromString(request.getUserId()))
+                .orElseThrow(() -> new RuntimeException("User not found: " + request.getUserId()));
+            
+            UserBehavior behavior = UserBehavior.builder()
+                .userId(UUID.fromString(request.getUserId()))
+                .behaviorType(UserBehavior.BehaviorType.valueOf(request.getBehaviorType()))
+                .entityType(request.getEntityType())
+                .entityId(request.getEntityId())
+                .action(request.getAction())
+                .context(request.getContext())
+                .metadata(request.getMetadata())
+                .build();
+            
+            BehaviorResponse response = userAIAdapter.trackUserBehavior(user, behavior);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error tracking user behavior: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
     
     /**
@@ -64,13 +88,20 @@ public class UserAIController {
         @ApiResponse(responseCode = "400", description = "Invalid insights request"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<UserAIInsightsResponse> getUserInsights(
+    public ResponseEntity<BehaviorAnalysisResult> getUserInsights(
             @Valid @RequestBody UserAIInsightsRequest request) {
         log.info("User AI insights request for user: {}", request.getUserId());
         
-        UserAIInsightsResponse response = userAIFacade.getUserInsights(request);
-        
-        return ResponseEntity.ok(response);
+        try {
+            User user = userRepository.findById(UUID.fromString(request.getUserId()))
+                .orElseThrow(() -> new RuntimeException("User not found: " + request.getUserId()));
+            
+            BehaviorAnalysisResult response = userAIAdapter.analyzeUserBehaviors(user);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting user insights: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
     
     /**
@@ -83,13 +114,50 @@ public class UserAIController {
         @ApiResponse(responseCode = "400", description = "Invalid recommendation request"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<UserAIRecommendationResponse> generateRecommendations(
+    public ResponseEntity<String> generateRecommendations(
             @Valid @RequestBody UserAIRecommendationRequest request) {
         log.info("User AI recommendations request for user: {}", request.getUserId());
         
-        UserAIRecommendationResponse response = userAIFacade.generateUserRecommendations(request);
+        try {
+            User user = userRepository.findById(UUID.fromString(request.getUserId()))
+                .orElseThrow(() -> new RuntimeException("User not found: " + request.getUserId()));
+            
+            BehaviorAnalysisResult analysis = userAIAdapter.analyzeUserBehaviors(user);
+            String recommendations = analysis.getRecommendations() != null && !analysis.getRecommendations().isEmpty() 
+                ? String.join(", ", analysis.getRecommendations())
+                : "No specific recommendations available at this time.";
+            
+            return ResponseEntity.ok(recommendations);
+        } catch (Exception e) {
+            log.error("Error generating recommendations: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Get user behaviors
+     */
+    @GetMapping("/{userId}/behaviors")
+    @Operation(summary = "Get user behaviors", description = "Get all behaviors for a user")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Behaviors retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "User not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<List<BehaviorResponse>> getUserBehaviors(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("User behaviors request for user: {}", userId);
         
-        return ResponseEntity.ok(response);
+        try {
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            List<BehaviorResponse> response = userAIAdapter.getUserBehaviors(user);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting user behaviors: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
     
     /**
@@ -102,14 +170,21 @@ public class UserAIController {
         @ApiResponse(responseCode = "404", description = "User not found"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<String> analyzeBehaviorPatterns(
+    public ResponseEntity<BehaviorAnalysisResult> analyzeBehaviorPatterns(
             @Parameter(description = "User ID") @PathVariable UUID userId,
             @Parameter(description = "Number of days to analyze") @RequestParam(defaultValue = "30") int days) {
         log.info("User behavior pattern analysis request for user: {} over {} days", userId, days);
         
-        String patterns = userAIFacade.analyzeBehaviorPatterns(userId, days);
-        
-        return ResponseEntity.ok(patterns);
+        try {
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            
+            BehaviorAnalysisResult response = userAIAdapter.analyzeUserBehaviors(user);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error analyzing behavior patterns: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
     
     /**
