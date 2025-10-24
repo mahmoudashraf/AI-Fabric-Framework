@@ -108,7 +108,7 @@
         <!-- AI Infrastructure Module -->
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
-            <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
+            <artifactId>ai-infrastructure-core</artifactId>
             <version>1.0.0</version>
         </dependency>
 
