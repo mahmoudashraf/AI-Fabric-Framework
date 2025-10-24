@@ -1,13 +1,10 @@
 package com.easyluxury.ai.service;
 
-import com.ai.infrastructure.core.AICoreService;
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.dto.AIGenerationResponse;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.dto.BehaviorAnalysisResult;
+import com.ai.infrastructure.dto.BehaviorResponse;
+import com.easyluxury.ai.adapter.ProductAIAdapter;
 import com.easyluxury.entity.Product;
+import com.easyluxury.entity.User;
 import com.easyluxury.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,34 +28,124 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProductAIService {
     
-    private final AICoreService aiCoreService;
-    private final RAGService ragService;
+    private final ProductAIAdapter productAIAdapter;
     private final ProductRepository productRepository;
     
     /**
-     * Search products using AI-powered semantic search
+     * Track product view behavior using AI infrastructure
      * 
-     * @param request the search request
-     * @return AI-powered search results
+     * @param user the user
+     * @param product the product
+     * @return behavior response
      */
-    @Transactional(readOnly = true)
-    public AISearchResponse searchProducts(AISearchRequest request) {
+    @Transactional
+    public BehaviorResponse trackProductView(User user, Product product) {
         try {
-            log.debug("Searching products with AI for query: {}", request.getQuery());
+            log.debug("Tracking product view for user {} and product {}", user.getId(), product.getId());
             
-            AISearchResponse response = ragService.performRAGQuery(
-                request.getQuery(), 
-                "product", 
-                request.getLimit()
-            );
-            
-            log.debug("Found {} products matching query: {}", response.getTotalResults(), request.getQuery());
-            
-            return response;
+            return productAIAdapter.trackProductView(user, product);
             
         } catch (Exception e) {
-            log.error("Error searching products with AI for query: {}", request.getQuery(), e);
-            throw new RuntimeException("Failed to search products", e);
+            log.error("Error tracking product view for user {} and product {}", user.getId(), product.getId(), e);
+            throw new RuntimeException("Failed to track product view", e);
+        }
+    }
+    
+    /**
+     * Track product click behavior using AI infrastructure
+     * 
+     * @param user the user
+     * @param product the product
+     * @return behavior response
+     */
+    @Transactional
+    public BehaviorResponse trackProductClick(User user, Product product) {
+        try {
+            log.debug("Tracking product click for user {} and product {}", user.getId(), product.getId());
+            
+            return productAIAdapter.trackProductClick(user, product);
+            
+        } catch (Exception e) {
+            log.error("Error tracking product click for user {} and product {}", user.getId(), product.getId(), e);
+            throw new RuntimeException("Failed to track product click", e);
+        }
+    }
+    
+    /**
+     * Track add to cart behavior using AI infrastructure
+     * 
+     * @param user the user
+     * @param product the product
+     * @return behavior response
+     */
+    @Transactional
+    public BehaviorResponse trackAddToCart(User user, Product product) {
+        try {
+            log.debug("Tracking add to cart for user {} and product {}", user.getId(), product.getId());
+            
+            return productAIAdapter.trackAddToCart(user, product);
+            
+        } catch (Exception e) {
+            log.error("Error tracking add to cart for user {} and product {}", user.getId(), product.getId(), e);
+            throw new RuntimeException("Failed to track add to cart", e);
+        }
+    }
+    
+    /**
+     * Track product purchase behavior using AI infrastructure
+     * 
+     * @param user the user
+     * @param product the product
+     * @return behavior response
+     */
+    @Transactional
+    public BehaviorResponse trackProductPurchase(User user, Product product) {
+        try {
+            log.debug("Tracking product purchase for user {} and product {}", user.getId(), product.getId());
+            
+            return productAIAdapter.trackProductPurchase(user, product);
+            
+        } catch (Exception e) {
+            log.error("Error tracking product purchase for user {} and product {}", user.getId(), product.getId(), e);
+            throw new RuntimeException("Failed to track product purchase", e);
+        }
+    }
+    
+    /**
+     * Get product behaviors using AI infrastructure
+     * 
+     * @param product the product
+     * @return list of product behaviors
+     */
+    @Transactional(readOnly = true)
+    public List<BehaviorResponse> getProductBehaviors(Product product) {
+        try {
+            log.debug("Getting behaviors for product {}", product.getId());
+            
+            return productAIAdapter.getProductBehaviors(product);
+            
+        } catch (Exception e) {
+            log.error("Error getting behaviors for product {}", product.getId(), e);
+            throw new RuntimeException("Failed to get product behaviors", e);
+        }
+    }
+    
+    /**
+     * Analyze product behaviors using AI infrastructure
+     * 
+     * @param product the product
+     * @return behavior analysis result
+     */
+    @Transactional(readOnly = true)
+    public BehaviorAnalysisResult analyzeProductBehaviors(Product product) {
+        try {
+            log.debug("Analyzing behaviors for product {}", product.getId());
+            
+            return productAIAdapter.analyzeProductBehaviors(product);
+            
+        } catch (Exception e) {
+            log.error("Error analyzing behaviors for product {}", product.getId(), e);
+            throw new RuntimeException("Failed to analyze product behaviors", e);
         }
     }
     
