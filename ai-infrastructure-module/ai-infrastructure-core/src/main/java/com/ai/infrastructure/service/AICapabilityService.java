@@ -437,6 +437,23 @@ public class AICapabilityService {
                     .includeInSimilarity(true)
                     .build()
             ))
+            .metadataFields(List.of(
+                AIMetadataField.builder()
+                    .name("category")
+                    .type("TEXT")
+                    .includeInSearch(true)
+                    .build(),
+                AIMetadataField.builder()
+                    .name("brand")
+                    .type("TEXT")
+                    .includeInSearch(true)
+                    .build(),
+                AIMetadataField.builder()
+                    .name("price")
+                    .type("NUMERIC")
+                    .includeInSearch(true)
+                    .build()
+            ))
             .features(List.of("embedding", "search", "analysis"))
             .build();
     }

@@ -1,0 +1,86 @@
+# Real API Test Configuration
+# This configuration enables real OpenAI API calls for comprehensive testing
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 20000
+      auto-commit: true
+      pool-name: HikariCP-Test
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+        jdbc:
+          batch_size: 20
+    open-in-view: false
+
+  h2:
+    console:
+      enabled: false
+
+# AI Configuration for Real API Testing
+ai:
+  enabled: true
+  providers:
+    openai-api-key: ${OPENAI_API_KEY}
+    openai-model: gpt-4o-mini
+    openai-embedding-model: text-embedding-3-small
+    openai-max-tokens: 1000
+    openai-temperature: 0.3
+    openai-timeout: 30
+    
+    enable-rag: true
+    enable-behavioral-ai: true
+    enable-smart-validation: true
+    enable-auto-generation: true
+    
+    max-concurrent-requests: 3
+    cache-timeout-minutes: 0
+    enable-caching: false
+
+  service:
+    enabled: true
+    auto-configuration: true
+    caching:
+      enabled: false
+    metrics:
+      enabled: true
+    health-checks:
+      enabled: true
+    logging:
+      enabled: true
+    default-timeout: 30000
+    max-retries: 2
+    retry-delay: 1000
+
+# Logging for Real API Testing
+logging:
+  level:
+    root: INFO
+    com.ai.infrastructure: DEBUG
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management/Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info"
+  endpoint:
+    health:
+      show-details: when-authorized
