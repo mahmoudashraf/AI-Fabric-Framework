@@ -41,6 +41,9 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
     
+    @Column(name = "order_number", unique = true)
+    private String orderNumber;
+    
     @NotNull(message = "User ID is required")
     @Column(name = "user_id", nullable = false)
     private UUID userId;

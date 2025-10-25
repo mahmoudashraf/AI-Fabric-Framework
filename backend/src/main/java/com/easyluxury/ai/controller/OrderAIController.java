@@ -53,15 +53,15 @@ public class OrderAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<BehaviorResponse> trackOrderCreation(
-            @Parameter(description = "Order ID") @PathVariable UUID orderId,
-            @Parameter(description = "User ID") @RequestParam UUID userId) {
+            @Parameter(description = "Order ID") @PathVariable String orderId,
+            @Parameter(description = "User ID") @RequestParam String userId) {
         log.info("Order creation tracking request for order: {} and user: {}", orderId, userId);
         
         try {
-            Order order = orderRepository.findById(orderId)
+            Order order = orderRepository.findById(UUID.fromString(orderId))
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
             
-            User user = userRepository.findById(userId)
+            User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
             BehaviorResponse response = orderAIAdapter.trackOrderCreation(user, order);
@@ -83,15 +83,15 @@ public class OrderAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<BehaviorResponse> trackOrderUpdate(
-            @Parameter(description = "Order ID") @PathVariable UUID orderId,
-            @Parameter(description = "User ID") @RequestParam UUID userId) {
+            @Parameter(description = "Order ID") @PathVariable String orderId,
+            @Parameter(description = "User ID") @RequestParam String userId) {
         log.info("Order update tracking request for order: {} and user: {}", orderId, userId);
         
         try {
-            Order order = orderRepository.findById(orderId)
+            Order order = orderRepository.findById(UUID.fromString(orderId))
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
             
-            User user = userRepository.findById(userId)
+            User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
             BehaviorResponse response = orderAIAdapter.trackOrderUpdate(user, order);
@@ -113,15 +113,15 @@ public class OrderAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<BehaviorResponse> trackOrderCompletion(
-            @Parameter(description = "Order ID") @PathVariable UUID orderId,
-            @Parameter(description = "User ID") @RequestParam UUID userId) {
+            @Parameter(description = "Order ID") @PathVariable String orderId,
+            @Parameter(description = "User ID") @RequestParam String userId) {
         log.info("Order completion tracking request for order: {} and user: {}", orderId, userId);
         
         try {
-            Order order = orderRepository.findById(orderId)
+            Order order = orderRepository.findById(UUID.fromString(orderId))
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
             
-            User user = userRepository.findById(userId)
+            User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
             BehaviorResponse response = orderAIAdapter.trackOrderCompletion(user, order);
@@ -143,11 +143,11 @@ public class OrderAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<List<BehaviorResponse>> getOrderBehaviors(
-            @Parameter(description = "Order ID") @PathVariable UUID orderId) {
+            @Parameter(description = "Order ID") @PathVariable String orderId) {
         log.info("Order behaviors request for order: {}", orderId);
         
         try {
-            Order order = orderRepository.findById(orderId)
+            Order order = orderRepository.findById(UUID.fromString(orderId))
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
             
             List<BehaviorResponse> response = orderAIAdapter.getOrderBehaviors(order);
@@ -169,11 +169,11 @@ public class OrderAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<BehaviorAnalysisResult> analyzeOrderBehaviors(
-            @Parameter(description = "Order ID") @PathVariable UUID orderId) {
+            @Parameter(description = "Order ID") @PathVariable String orderId) {
         log.info("Order behavior analysis request for order: {}", orderId);
         
         try {
-            Order order = orderRepository.findById(orderId)
+            Order order = orderRepository.findById(UUID.fromString(orderId))
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
             
             BehaviorAnalysisResult response = orderAIAdapter.analyzeOrderBehaviors(order);
@@ -199,7 +199,13 @@ public class OrderAIController {
         log.info("Order pattern analysis request for user: {} over {} days", 
             request.getUserId(), request.getDays());
         
-        OrderPatternResponse response = orderAIFacade.analyzeOrderPatterns(request);
+        // TODO: Implement order pattern analysis using AI infrastructure
+        OrderPatternResponse response = OrderPatternResponse.builder()
+                .userId(UUID.fromString(request.getUserId()))
+                .patterns("Order pattern analysis will be implemented using AI infrastructure")
+                .trends("Trend analysis will be implemented using AI infrastructure")
+                .insights("Insights will be generated using AI infrastructure")
+                .build();
         
         return ResponseEntity.ok(response);
     }
@@ -218,7 +224,14 @@ public class OrderAIController {
             @Valid @RequestBody OrderAIAnalysisRequest request) {
         log.info("Order analysis request for order: {}", request.getOrderId());
         
-        OrderAIAnalysisResponse response = orderAIFacade.analyzeOrder(request);
+        // TODO: Implement order analysis using AI infrastructure
+        OrderAIAnalysisResponse response = OrderAIAnalysisResponse.builder()
+                .orderId(UUID.fromString(request.getOrderId()))
+                .analysis("Order analysis will be implemented using AI infrastructure")
+                .riskScore(0.5)
+                .fraudDetected(false)
+                .recommendations("Recommendations will be generated using AI infrastructure")
+                .build();
         
         return ResponseEntity.ok(response);
     }
@@ -237,7 +250,12 @@ public class OrderAIController {
             @Valid @RequestBody OrderAIInsightsRequest request) {
         log.info("Business insights request for last {} days", request.getDays());
         
-        OrderAIInsightsResponse response = orderAIFacade.generateBusinessInsights(request);
+        // TODO: Implement business insights using AI infrastructure
+        OrderAIInsightsResponse response = OrderAIInsightsResponse.builder()
+                .insights("Business insights will be generated using AI infrastructure")
+                .trends("Trend analysis will be implemented using AI infrastructure")
+                .recommendations("Recommendations will be generated using AI infrastructure")
+                .build();
         
         return ResponseEntity.ok(response);
     }
@@ -256,7 +274,8 @@ public class OrderAIController {
             @Parameter(description = "Order ID") @PathVariable UUID orderId) {
         log.info("Fraud detection request for order: {}", orderId);
         
-        String fraudAnalysis = orderAIFacade.detectFraud(orderId);
+        // TODO: Implement fraud detection using AI infrastructure
+        String fraudAnalysis = "Fraud detection will be implemented using AI infrastructure";
         
         return ResponseEntity.ok(fraudAnalysis);
     }
@@ -276,7 +295,8 @@ public class OrderAIController {
             @Parameter(description = "Maximum number of orders to return") @RequestParam(defaultValue = "50") int limit) {
         log.info("Order history request for user: {} with limit: {}", userId, limit);
         
-        List<OrderAIAnalysisResponse> history = orderAIFacade.getOrderHistory(userId, limit);
+        // TODO: Implement order history using AI infrastructure
+        List<OrderAIAnalysisResponse> history = List.of();
         
         return ResponseEntity.ok(history);
     }
@@ -294,7 +314,8 @@ public class OrderAIController {
             @Parameter(description = "Number of months to analyze") @RequestParam(defaultValue = "6") int months) {
         log.info("Seasonal pattern analysis request for last {} months", months);
         
-        String seasonalPatterns = orderAIFacade.analyzeSeasonalPatterns(months);
+        // TODO: Implement seasonal pattern analysis using AI infrastructure
+        String seasonalPatterns = "Seasonal pattern analysis will be implemented using AI infrastructure";
         
         return ResponseEntity.ok(seasonalPatterns);
     }
