@@ -335,6 +335,10 @@ public class AICapabilityService {
         Map<String, Object> metadata = new HashMap<>();
         
         try {
+            log.debug("extractMetadata called with config: entityType={}, metadataFields={}", 
+                config.getEntityType(), 
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            
             if (config.getMetadataFields() != null && !config.getMetadataFields().isEmpty()) {
                 log.debug("Extracting metadata from {} fields for entity type {}", 
                     config.getMetadataFields().size(), config.getEntityType());
@@ -492,6 +496,13 @@ public class AICapabilityService {
                     ". Available types: " + configurationLoader.getSupportedEntityTypes());
             }
             
+            // Debug: Check if this is the same instance as in ConfigurationTest
+            log.debug("Config instance: {}, metadataFields: {}", 
+                config.getClass().getSimpleName(), 
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            log.debug("Config metadataFields instance: {}", 
+                config.getMetadataFields() != null ? config.getMetadataFields().getClass().getSimpleName() : "null");
+            
             // Validate configuration
             validateConfiguration(config, entityType);
             
@@ -511,6 +522,10 @@ public class AICapabilityService {
             // Generate embeddings
             log.debug("About to call generateEmbeddings with config metadata fields: {}", 
                 config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            log.debug("Config object details: entityType={}, metadataFields={}, searchableFields={}", 
+                config.getEntityType(),
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null",
+                config.getSearchableFields() != null ? config.getSearchableFields().size() : "null");
             generateEmbeddings(entity, config);
             
             // Index for search
