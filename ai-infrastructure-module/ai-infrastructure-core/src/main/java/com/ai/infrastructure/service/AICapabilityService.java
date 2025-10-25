@@ -340,14 +340,14 @@ public class AICapabilityService {
         Map<String, Object> metadata = new HashMap<>();
         
         try {
-            log.debug("extractMetadata called with config: entityType={}, metadataFields={}", 
-                config.getEntityType(), 
-                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            // Simple defensive check: if metadataFields is null, return empty metadata
+            if (config == null || config.getMetadataFields() == null) {
+                log.warn("Config or metadata fields are null, skipping metadata extraction");
+                return metadata;
+            }
             
-            if (config.getMetadataFields() != null && !config.getMetadataFields().isEmpty()) {
-                log.debug("Extracting metadata from {} fields for entity type {}", 
-                    config.getMetadataFields().size(), config.getEntityType());
-                for (AIMetadataField field : config.getMetadataFields()) {
+            // Extract metadata from fields
+            for (AIMetadataField field : config.getMetadataFields()) {
                     try {
                         String value = getFieldValue(entity, field.getName());
                         if (value != null && !value.trim().isEmpty()) {
