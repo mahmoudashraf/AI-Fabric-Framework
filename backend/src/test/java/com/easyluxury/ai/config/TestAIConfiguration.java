@@ -14,6 +14,12 @@ import com.ai.infrastructure.monitoring.AIMetricsService;
 import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
+import com.ai.infrastructure.service.BehaviorService;
+import com.ai.infrastructure.service.AIProfileService;
+import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.repository.BehaviorRepository;
+import com.ai.infrastructure.repository.AIProfileRepository;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -109,5 +115,47 @@ public class TestAIConfiguration {
     public EmbeddingProcessor embeddingProcessor(AIProviderConfig config) {
         log.info("Creating EmbeddingProcessor for test context");
         return new EmbeddingProcessor(config);
+    }
+    
+    @Bean
+    @Primary
+    public BehaviorRepository behaviorRepository() {
+        log.info("Creating BehaviorRepository for test context");
+        return null; // Mock repository for testing
+    }
+    
+    @Bean
+    @Primary
+    public AIProfileRepository aiProfileRepository() {
+        log.info("Creating AIProfileRepository for test context");
+        return null; // Mock repository for testing
+    }
+    
+    @Bean
+    @Primary
+    public AISearchableEntityRepository aiSearchableEntityRepository() {
+        log.info("Creating AISearchableEntityRepository for test context");
+        return null; // Mock repository for testing
+    }
+    
+    @Bean
+    @Primary
+    public BehaviorService behaviorService(BehaviorRepository behaviorRepository, AICapabilityService aiCapabilityService) {
+        log.info("Creating BehaviorService for test context");
+        return new BehaviorService(behaviorRepository, aiCapabilityService);
+    }
+    
+    @Bean
+    @Primary
+    public AIProfileService aiProfileService(AIProfileRepository aiProfileRepository, AICapabilityService aiCapabilityService) {
+        log.info("Creating AIProfileService for test context");
+        return new AIProfileService(aiProfileRepository, aiCapabilityService);
+    }
+    
+    @Bean
+    @Primary
+    public AICapabilityService aiCapabilityService(AIEmbeddingService embeddingService, AICoreService aiCoreService, AISearchableEntityRepository searchableEntityRepository) {
+        log.info("Creating AICapabilityService for test context");
+        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository);
     }
 }
