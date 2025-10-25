@@ -325,12 +325,17 @@ public class AICapabilityService {
         
         try {
             if (config.getMetadataFields() != null) {
+                log.debug("Extracting metadata from {} fields for entity type {}", 
+                    config.getMetadataFields().size(), config.getEntityType());
                 for (AIMetadataField field : config.getMetadataFields()) {
                     String value = getFieldValue(entity, field.getName());
                     if (value != null && !value.trim().isEmpty()) {
                         metadata.put(field.getName(), value);
+                        log.debug("Extracted metadata field {}: {}", field.getName(), value);
                     }
                 }
+            } else {
+                log.debug("No metadata fields configured for entity type {}", config.getEntityType());
             }
         } catch (Exception e) {
             log.error("Error extracting metadata", e);
