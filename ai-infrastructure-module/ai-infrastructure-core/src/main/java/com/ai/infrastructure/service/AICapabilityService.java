@@ -348,18 +348,15 @@ public class AICapabilityService {
             
             // Extract metadata from fields
             for (AIMetadataField field : config.getMetadataFields()) {
-                    try {
-                        String value = getFieldValue(entity, field.getName());
-                        if (value != null && !value.trim().isEmpty()) {
-                            metadata.put(field.getName(), value);
-                            log.debug("Extracted metadata field {}: {}", field.getName(), value);
-                        }
-                    } catch (Exception fieldException) {
-                        log.warn("Failed to extract metadata field {}: {}", field.getName(), fieldException.getMessage());
+                try {
+                    String value = getFieldValue(entity, field.getName());
+                    if (value != null && !value.trim().isEmpty()) {
+                        metadata.put(field.getName(), value);
+                        log.debug("Extracted metadata field {}: {}", field.getName(), value);
                     }
+                } catch (Exception fieldException) {
+                    log.warn("Failed to extract metadata field {}: {}", field.getName(), fieldException.getMessage());
                 }
-            } else {
-                log.debug("No metadata fields configured for entity type {}", config.getEntityType());
             }
         } catch (Exception e) {
             log.error("Error extracting metadata", e);

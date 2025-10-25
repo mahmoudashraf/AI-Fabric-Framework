@@ -20,6 +20,7 @@ import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.repository.BehaviorRepository;
 import com.ai.infrastructure.repository.AIProfileRepository;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -121,21 +122,21 @@ public class TestAIConfiguration {
     @Primary
     public BehaviorRepository behaviorRepository() {
         log.info("Creating BehaviorRepository for test context");
-        return null; // Mock repository for testing
+        return org.mockito.Mockito.mock(BehaviorRepository.class);
     }
     
     @Bean
     @Primary
     public AIProfileRepository aiProfileRepository() {
         log.info("Creating AIProfileRepository for test context");
-        return null; // Mock repository for testing
+        return org.mockito.Mockito.mock(AIProfileRepository.class);
     }
     
     @Bean
     @Primary
     public AISearchableEntityRepository aiSearchableEntityRepository() {
         log.info("Creating AISearchableEntityRepository for test context");
-        return null; // Mock repository for testing
+        return org.mockito.Mockito.mock(AISearchableEntityRepository.class);
     }
     
     @Bean
@@ -154,8 +155,15 @@ public class TestAIConfiguration {
     
     @Bean
     @Primary
-    public AICapabilityService aiCapabilityService(AIEmbeddingService embeddingService, AICoreService aiCoreService, AISearchableEntityRepository searchableEntityRepository) {
+    public AIEntityConfigurationLoader aiEntityConfigurationLoader() {
+        log.info("Creating AIEntityConfigurationLoader for test context");
+        return org.mockito.Mockito.mock(AIEntityConfigurationLoader.class);
+    }
+    
+    @Bean
+    @Primary
+    public AICapabilityService aiCapabilityService(AIEmbeddingService embeddingService, AICoreService aiCoreService, AISearchableEntityRepository searchableEntityRepository, AIEntityConfigurationLoader configurationLoader) {
         log.info("Creating AICapabilityService for test context");
-        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository);
+        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, configurationLoader);
     }
 }
