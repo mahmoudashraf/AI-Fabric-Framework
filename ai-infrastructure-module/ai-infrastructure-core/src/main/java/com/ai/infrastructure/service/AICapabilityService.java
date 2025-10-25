@@ -208,10 +208,12 @@ public class AICapabilityService {
         try {
             List<String> contentParts = new ArrayList<>();
             
-            for (AISearchableField field : config.getSearchableFields()) {
-                String value = getFieldValue(entity, field.getName());
-                if (value != null && !value.trim().isEmpty()) {
-                    contentParts.add(value);
+            if (config.getSearchableFields() != null) {
+                for (AISearchableField field : config.getSearchableFields()) {
+                    String value = getFieldValue(entity, field.getName());
+                    if (value != null && !value.trim().isEmpty()) {
+                        contentParts.add(value);
+                    }
                 }
             }
             
@@ -227,10 +229,12 @@ public class AICapabilityService {
         try {
             List<String> contentParts = new ArrayList<>();
             
-            for (AIEmbeddableField field : config.getEmbeddableFields()) {
-                String value = getFieldValue(entity, field.getName());
-                if (value != null && !value.trim().isEmpty()) {
-                    contentParts.add(value);
+            if (config.getEmbeddableFields() != null) {
+                for (AIEmbeddableField field : config.getEmbeddableFields()) {
+                    String value = getFieldValue(entity, field.getName());
+                    if (value != null && !value.trim().isEmpty()) {
+                        contentParts.add(value);
+                    }
                 }
             }
             
@@ -274,15 +278,40 @@ public class AICapabilityService {
                 return;
             }
             
-            AISearchableEntity searchableEntity = AISearchableEntity.builder()
-                .entityType(config.getEntityType())
-                .entityId(entityId)
-                .searchableContent(content)
-                .embeddings(embeddings)
-                .metadata(convertMetadataToJson(extractMetadata(entity, config)))
-                .createdAt(java.time.LocalDateTime.now())
-                .updatedAt(java.time.LocalDateTime.now())
-                .build();
+            // Check if entity already exists and remove duplicates
+            List<AISearchableEntity> existing = searchableEntityRepository
+                .findByEntityType(config.getEntityType())
+                .stream()
+                .filter(e -> entityId.equals(e.getEntityId()))
+                .toList();
+            
+            // Remove duplicates if any
+            if (existing.size() > 1) {
+                for (int i = 1; i < existing.size(); i++) {
+                    searchableEntityRepository.delete(existing.get(i));
+                }
+            }
+            
+            AISearchableEntity searchableEntity;
+            if (!existing.isEmpty()) {
+                // Update existing entity
+                searchableEntity = existing.get(0);
+                searchableEntity.setSearchableContent(content);
+                searchableEntity.setEmbeddings(embeddings);
+                searchableEntity.setMetadata(convertMetadataToJson(extractMetadata(entity, config)));
+                searchableEntity.setUpdatedAt(java.time.LocalDateTime.now());
+            } else {
+                // Create new entity
+                searchableEntity = AISearchableEntity.builder()
+                    .entityType(config.getEntityType())
+                    .entityId(entityId)
+                    .searchableContent(content)
+                    .embeddings(embeddings)
+                    .metadata(convertMetadataToJson(extractMetadata(entity, config)))
+                    .createdAt(java.time.LocalDateTime.now())
+                    .updatedAt(java.time.LocalDateTime.now())
+                    .build();
+            }
             
             searchableEntityRepository.save(searchableEntity);
             
@@ -295,10 +324,12 @@ public class AICapabilityService {
         Map<String, Object> metadata = new HashMap<>();
         
         try {
-            for (AIMetadataField field : config.getMetadataFields()) {
-                String value = getFieldValue(entity, field.getName());
-                if (value != null && !value.trim().isEmpty()) {
-                    metadata.put(field.getName(), value);
+            if (config.getMetadataFields() != null) {
+                for (AIMetadataField field : config.getMetadataFields()) {
+                    String value = getFieldValue(entity, field.getName());
+                    if (value != null && !value.trim().isEmpty()) {
+                        metadata.put(field.getName(), value);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -340,15 +371,25 @@ public class AICapabilityService {
                 return;
             }
             
-            // Store analysis result in searchable entity
-            Optional<AISearchableEntity> existing = searchableEntityRepository
-                .findByEntityTypeAndEntityId(config.getEntityType(), entityId);
+            // Find all matching entities and update the first one
+            List<AISearchableEntity> existing = searchableEntityRepository
+                .findByEntityType(config.getEntityType())
+                .stream()
+                .filter(e -> entityId.equals(e.getEntityId()))
+                .toList();
             
-            if (existing.isPresent()) {
-                AISearchableEntity entityToUpdate = existing.get();
+            if (!existing.isEmpty()) {
+                AISearchableEntity entityToUpdate = existing.get(0);
                 entityToUpdate.setAiAnalysis(analysis);
                 entityToUpdate.setUpdatedAt(java.time.LocalDateTime.now());
                 searchableEntityRepository.save(entityToUpdate);
+                
+                // If there are duplicates, remove them
+                if (existing.size() > 1) {
+                    for (int i = 1; i < existing.size(); i++) {
+                        searchableEntityRepository.delete(existing.get(i));
+                    }
+                }
             }
             
         } catch (Exception e) {
