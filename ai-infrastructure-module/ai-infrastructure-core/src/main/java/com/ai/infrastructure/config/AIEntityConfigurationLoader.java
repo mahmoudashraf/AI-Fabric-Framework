@@ -69,12 +69,16 @@ public class AIEntityConfigurationLoader {
             // Load entity configurations
             if (config.containsKey("ai-entities")) {
                 Map<String, Object> entities = (Map<String, Object>) config.get("ai-entities");
+                log.info("Found {} entities in configuration", entities.size());
                 for (Map.Entry<String, Object> entry : entities.entrySet()) {
                     String entityType = entry.getKey();
                     Map<String, Object> entityConfig = (Map<String, Object>) entry.getValue();
+                    log.info("Processing entity type: {} with config keys: {}", entityType, entityConfig.keySet());
                     AIEntityConfig configObj = parseEntityConfig(entityType, entityConfig);
                     entityConfigs.put(entityType, configObj);
                 }
+            } else {
+                log.warn("No ai-entities found in configuration");
             }
             
         } catch (Exception e) {
@@ -84,6 +88,7 @@ public class AIEntityConfigurationLoader {
     }
     
     private AIEntityConfig parseEntityConfig(String entityType, Map<String, Object> config) {
+        log.debug("Parsing entity config for type: {} with keys: {}", entityType, config.keySet());
         AIEntityConfig.AIEntityConfigBuilder builder = AIEntityConfig.builder()
             .entityType(entityType)
             .features((List<String>) config.getOrDefault("features", Arrays.asList("embedding", "search")))
@@ -126,6 +131,7 @@ public class AIEntityConfigurationLoader {
         // Parse metadata fields
         if (config.containsKey("metadata-fields")) {
             List<Map<String, Object>> metadataFields = (List<Map<String, Object>>) config.get("metadata-fields");
+            log.info("Found {} metadata fields for entity {}", metadataFields.size(), entityType);
             List<AIMetadataField> fields = new ArrayList<>();
             for (Map<String, Object> field : metadataFields) {
                 fields.add(AIMetadataField.builder()
@@ -135,6 +141,9 @@ public class AIEntityConfigurationLoader {
                     .build());
             }
             builder.metadataFields(fields);
+            log.info("Successfully parsed {} metadata fields", fields.size());
+        } else {
+            log.info("No metadata-fields found for entity {}", entityType);
         }
         
         // Parse CRUD operations
