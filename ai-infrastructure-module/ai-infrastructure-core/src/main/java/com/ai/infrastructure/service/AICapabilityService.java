@@ -37,6 +37,14 @@ public class AICapabilityService {
     private final AISearchableEntityRepository searchableEntityRepository;
     private final AIEntityConfigurationLoader configurationLoader;
     
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        log.info("AICapabilityService initialized with configurationLoader: {}", configurationLoader != null ? "present" : "null");
+        if (configurationLoader != null) {
+            log.info("Configuration loader supports entity types: {}", configurationLoader.getSupportedEntityTypes());
+        }
+    }
+    
     /**
      * Validate entity based on configuration
      */
@@ -69,6 +77,7 @@ public class AICapabilityService {
     public void generateEmbeddings(Object entity, AIEntityConfig config) {
         try {
             log.debug("Generating embeddings for entity of type: {}", config.getEntityType());
+            log.debug("Config metadata fields: {}", config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
             
             if (!config.isAutoEmbedding()) {
                 log.debug("Auto-embedding disabled for entity type: {}", config.getEntityType());
@@ -404,36 +413,6 @@ public class AICapabilityService {
         }
     }
     
-    /**
-     * Process entity for AI - combines all AI operations
-     */
-    @Transactional
-    public void processEntityForAI(Object entity, String entityType) {
-        try {
-            log.debug("Processing entity for AI of type: {}", entityType);
-            
-            // Get entity configuration
-            AIEntityConfig config = getEntityConfig(entityType);
-            if (config == null) {
-                log.warn("No configuration found for entity type: {}", entityType);
-                return;
-            }
-            
-            // Generate embeddings
-            generateEmbeddings(entity, config);
-            
-            // Index for search
-            indexForSearch(entity, config);
-            
-            // Analyze entity
-            analyzeEntity(entity, config);
-            
-            log.debug("Successfully processed entity for AI");
-            
-        } catch (Exception e) {
-            log.error("Error processing entity for AI", e);
-        }
-    }
     
     /**
      * Remove entity from AI index
@@ -466,16 +445,26 @@ public class AICapabilityService {
     public void processEntityForAI(Object entity, String entityType) {
         try {
             log.debug("Processing entity for AI of type: {}", entityType);
+            log.debug("Configuration loader is: {}", configurationLoader != null ? "available" : "null");
             
             // Get entity configuration from configuration loader
             AIEntityConfig config = configurationLoader.getEntityConfig(entityType);
             if (config == null) {
                 log.warn("No configuration found for entity type: {}", entityType);
+                log.warn("Available entity types: {}", configurationLoader.getSupportedEntityTypes());
                 return;
             }
             
             log.debug("Retrieved config for entity type: {}, metadata fields: {}", 
                 entityType, config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            
+            if (config.getMetadataFields() == null) {
+                log.warn("Metadata fields are null for entity type: {}", entityType);
+                log.warn("Config details - entityType: {}, searchableFields: {}, embeddableFields: {}", 
+                    config.getEntityType(),
+                    config.getSearchableFields() != null ? config.getSearchableFields().size() : "null",
+                    config.getEmbeddableFields() != null ? config.getEmbeddableFields().size() : "null");
+            }
             
             // Generate embeddings
             generateEmbeddings(entity, config);
@@ -515,6 +504,23 @@ public class AICapabilityService {
                     .model("text-embedding-3-small")
                     .autoGenerate(true)
                     .includeInSimilarity(true)
+                    .build()
+            ))
+            .metadataFields(List.of(
+                AIMetadataField.builder()
+                    .name("category")
+                    .type("TEXT")
+                    .includeInSearch(true)
+                    .build(),
+                AIMetadataField.builder()
+                    .name("price")
+                    .type("NUMERIC")
+                    .includeInSearch(false)
+                    .build(),
+                AIMetadataField.builder()
+                    .name("brand")
+                    .type("TEXT")
+                    .includeInSearch(true)
                     .build()
             ))
             .features(List.of("embedding", "search", "analysis"))
