@@ -37,6 +37,11 @@ public class AICapabilityService {
     private final AISearchableEntityRepository searchableEntityRepository;
     private final AIEntityConfigurationLoader configurationLoader;
     
+    // Debug method to access configurationLoader
+    public AIEntityConfigurationLoader getConfigurationLoader() {
+        return configurationLoader;
+    }
+    
     @jakarta.annotation.PostConstruct
     public void init() {
         log.info("AICapabilityService initialized with configurationLoader: {}", configurationLoader != null ? "present" : "null");
