@@ -364,11 +364,13 @@ public class AICapabilityService {
         try {
             log.debug("Processing entity for AI of type: {}", entityType);
             
-            // Get entity configuration
-            AIEntityConfig config = getEntityConfig(entityType);
+            // Get entity configuration from configuration loader
+            AIEntityConfig config = configurationLoader.getEntityConfig(entityType);
             if (config == null) {
-                log.warn("No configuration found for entity type: {}", entityType);
-                return;
+                log.error("No configuration found for entity type: {}", entityType);
+                log.error("Available entity types: {}", configurationLoader.getSupportedEntityTypes());
+                throw new IllegalArgumentException("No AI configuration found for entity type: " + entityType + 
+                    ". Available types: " + configurationLoader.getSupportedEntityTypes());
             }
             
             // Generate embeddings
@@ -414,26 +416,4 @@ public class AICapabilityService {
     /**
      * Get entity configuration by type
      */
-    private AIEntityConfig getEntityConfig(String entityType) {
-        // This would typically load from configuration
-        // For now, return a basic config
-        return AIEntityConfig.builder()
-            .entityType(entityType)
-            .autoEmbedding(true)
-            .indexable(true)
-            .searchableFields(List.of(
-                AISearchableField.builder()
-                    .fieldName("name")
-                    .weight(1.0)
-                    .build()
-            ))
-            .embeddableFields(List.of(
-                AIEmbeddableField.builder()
-                    .fieldName("description")
-                    .weight(1.0)
-                    .build()
-            ))
-            .features(List.of("embedding", "search", "analysis"))
-            .build();
-    }
 }
