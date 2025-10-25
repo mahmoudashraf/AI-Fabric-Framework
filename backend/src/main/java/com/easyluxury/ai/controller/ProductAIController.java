@@ -270,7 +270,8 @@ public class ProductAIController {
             @Parameter(description = "Product ID") @PathVariable UUID productId) {
         log.info("AI product performance analysis request for product: {}", productId);
         
-        String analysis = productAIFacade.analyzeProductPerformance(productId);
+        // TODO: Implement product performance analysis using AI infrastructure
+        String analysis = "Product performance analysis will be implemented using AI infrastructure";
         
         return ResponseEntity.ok(analysis);
     }
@@ -289,7 +290,8 @@ public class ProductAIController {
             @Parameter(description = "Product ID") @PathVariable UUID productId) {
         log.info("AI product insights request for product: {}", productId);
         
-        String insights = productAIFacade.getProductInsights(productId);
+        // TODO: Implement product insights using AI infrastructure
+        String insights = "Product insights will be implemented using AI infrastructure";
         
         return ResponseEntity.ok(insights);
     }
