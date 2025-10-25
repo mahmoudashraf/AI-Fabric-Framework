@@ -21,6 +21,8 @@ import com.ai.infrastructure.repository.BehaviorRepository;
 import com.ai.infrastructure.repository.AIProfileRepository;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.monitoring.AIAnalyticsService;
+import com.ai.infrastructure.provider.AIProviderManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -165,5 +167,19 @@ public class TestAIConfiguration {
     public AICapabilityService aiCapabilityService(AIEmbeddingService embeddingService, AICoreService aiCoreService, AISearchableEntityRepository searchableEntityRepository, AIEntityConfigurationLoader configurationLoader) {
         log.info("Creating AICapabilityService for test context");
         return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, configurationLoader);
+    }
+    
+    @Bean
+    @Primary
+    public AIAnalyticsService aiAnalyticsService() {
+        log.info("Creating AIAnalyticsService for test context");
+        return org.mockito.Mockito.mock(AIAnalyticsService.class);
+    }
+    
+    @Bean
+    @Primary
+    public AIProviderManager aiProviderManager() {
+        log.info("Creating AIProviderManager for test context");
+        return org.mockito.Mockito.mock(AIProviderManager.class);
     }
 }
