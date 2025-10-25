@@ -467,12 +467,18 @@ public class AICapabilityService {
             }
             
             // Generate embeddings
+            log.debug("About to call generateEmbeddings with config metadata fields: {}", 
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
             generateEmbeddings(entity, config);
             
             // Index for search
+            log.debug("About to call indexForSearch with config metadata fields: {}", 
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
             indexForSearch(entity, config);
             
             // Analyze entity
+            log.debug("About to call analyzeEntity with config metadata fields: {}", 
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
             analyzeEntity(entity, config);
             
             log.debug("Successfully processed entity for AI");
@@ -525,5 +531,55 @@ public class AICapabilityService {
             ))
             .features(List.of("embedding", "search", "analysis"))
             .build();
+    }
+    
+    /**
+     * Process entity for AI capabilities
+     */
+    @Transactional
+    public void processEntityForAI(Object entity, String entityType) {
+        try {
+            log.debug("Processing entity for AI of type: {}", entityType);
+            log.debug("Configuration loader is: {}", configurationLoader != null ? "available" : "null");
+            
+            // Get entity configuration from configuration loader
+            AIEntityConfig config = configurationLoader.getEntityConfig(entityType);
+            if (config == null) {
+                log.warn("No configuration found for entity type: {}", entityType);
+                log.warn("Available entity types: {}", configurationLoader.getSupportedEntityTypes());
+                return;
+            }
+            
+            log.debug("Retrieved config for entity type: {}, metadata fields: {}", 
+                entityType, config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            
+            if (config.getMetadataFields() == null) {
+                log.warn("Metadata fields are null for entity type: {}", entityType);
+                log.warn("Config details - entityType: {}, searchableFields: {}, embeddableFields: {}", 
+                    config.getEntityType(),
+                    config.getSearchableFields() != null ? config.getSearchableFields().size() : "null",
+                    config.getEmbeddableFields() != null ? config.getEmbeddableFields().size() : "null");
+            }
+            
+            // Generate embeddings
+            log.debug("About to call generateEmbeddings with config metadata fields: {}", 
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            generateEmbeddings(entity, config);
+            
+            // Index for search
+            log.debug("About to call indexForSearch with config metadata fields: {}", 
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            indexForSearch(entity, config);
+            
+            // Analyze entity
+            log.debug("About to call analyzeEntity with config metadata fields: {}", 
+                config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            analyzeEntity(entity, config);
+            
+            log.debug("Successfully processed entity for AI");
+            
+        } catch (Exception e) {
+            log.error("Error processing entity for AI", e);
+        }
     }
 }
