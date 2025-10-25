@@ -170,7 +170,12 @@ public class AIEntityConfigurationLoader {
     }
     
     public AIEntityConfig getEntityConfig(String entityType) {
-        return entityConfigs.get(entityType);
+        AIEntityConfig config = entityConfigs.get(entityType);
+        log.debug("getEntityConfig called for entityType: {}, config: {}, metadataFields: {}", 
+            entityType, 
+            config != null ? "found" : "null",
+            config != null && config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+        return config;
     }
     
     public boolean hasEntityConfig(String entityType) {

@@ -45,6 +45,11 @@ public class MetadataFixTest {
         product.setPrice(99.99);
         product.setBrand("TestBrand");
         
+        // Debug: Check configuration before calling processEntityForAI
+        AIEntityConfig config = configurationLoader.getEntityConfig("test-product");
+        System.out.println("Before processEntityForAI - Config metadataFields: " + 
+            (config.getMetadataFields() != null ? config.getMetadataFields().size() : "null"));
+        
         // This should not throw a NullPointerException
         assertDoesNotThrow(() -> {
             capabilityService.processEntityForAI(product, "test-product");
