@@ -1,55 +1,76 @@
 # AI Entity Configuration for Integration Tests
 # This file defines test entities and their AI processing configurations
 
-entities:
+ai-entities:
   # Test Product Entity
-  - entityType: "test-product"
-    className: "com.ai.infrastructure.it.entity.TestProduct"
-    searchableFields:
-      - fieldName: "name"
-        fieldType: "TEXT"
+  test-product:
+    entity-type: "test-product"
+    features: ["embedding", "search", "rag", "recommendation"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: true
+    auto-embedding: true
+    indexable: true
+    
+    # Searchable Fields Configuration
+    searchable-fields:
+      - name: "name"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 1.0
-        searchable: true
-        embeddable: true
-      - fieldName: "description"
-        fieldType: "TEXT"
+      - name: "description"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 0.8
-        searchable: true
-        embeddable: true
-      - fieldName: "category"
-        fieldType: "TEXT"
+      - name: "category"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 0.6
-        searchable: true
-        embeddable: false
-      - fieldName: "price"
-        fieldType: "NUMERIC"
+      - name: "price"
+        include-in-rag: false
+        enable-semantic-search: false
         weight: 0.4
-        searchable: false
-        embeddable: false
-    embeddableFields:
-      - fieldName: "name"
-        fieldType: "TEXT"
-        weight: 1.0
-      - fieldName: "description"
-        fieldType: "TEXT"
-        weight: 0.8
-    metadataFields:
-      - fieldName: "category"
-        fieldType: "TEXT"
-      - fieldName: "price"
-        fieldType: "NUMERIC"
-      - fieldName: "brand"
-        fieldType: "TEXT"
-    crudOperations:
-      - operation: "CREATE"
+    
+    # Embeddable Fields Configuration
+    embeddable-fields:
+      - name: "name"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "description"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    # Metadata Fields Configuration
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+        include-in-search: true
+      - name: "price"
+        type: "NUMERIC"
+        include-in-search: false
+      - name: "brand"
+        type: "TEXT"
+        include-in-search: true
+    
+    # CRUD Operations Configuration
+    crud-operations:
+      CREATE:
         enabled: true
-        aiProcessing: true
-      - operation: "UPDATE"
+        ai-processing: true
+        auto-embedding: true
+        auto-indexing: true
+      UPDATE:
         enabled: true
-        aiProcessing: true
-      - operation: "DELETE"
+        ai-processing: true
+        auto-embedding: true
+        auto-indexing: true
+      DELETE:
         enabled: true
-        aiProcessing: false
+        ai-processing: false
+        auto-embedding: false
+        auto-indexing: false
 
   # Test User Entity
   - entityType: "test-user"
