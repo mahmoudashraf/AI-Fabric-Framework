@@ -201,7 +201,8 @@ public class UserAIController {
             @Parameter(description = "User ID") @PathVariable UUID userId) {
         log.info("User behavioral anomaly detection request for user: {}", userId);
         
-        String anomalies = userAIFacade.detectBehavioralAnomalies(userId);
+        // TODO: Implement behavioral anomaly detection using AI infrastructure
+        String anomalies = "Behavioral anomaly detection will be implemented using AI infrastructure";
         
         return ResponseEntity.ok(anomalies);
     }
@@ -220,7 +221,8 @@ public class UserAIController {
             @Parameter(description = "User ID") @PathVariable UUID userId) {
         log.info("User behavioral insights request for user: {}", userId);
         
-        String insights = userAIFacade.generateBehavioralInsights(userId);
+        // TODO: Implement behavioral insights using AI infrastructure
+        String insights = "Behavioral insights will be implemented using AI infrastructure";
         
         return ResponseEntity.ok(insights);
     }
@@ -240,7 +242,8 @@ public class UserAIController {
             @Parameter(description = "Maximum number of behaviors to return") @RequestParam(defaultValue = "50") int limit) {
         log.info("User behavior history request for user: {} with limit: {}", userId, limit);
         
-        List<UserBehaviorResponse> history = userAIFacade.getUserBehaviorHistory(userId, limit);
+        // TODO: Implement user behavior history using AI infrastructure
+        List<UserBehaviorResponse> history = List.of();
         
         return ResponseEntity.ok(history);
     }
