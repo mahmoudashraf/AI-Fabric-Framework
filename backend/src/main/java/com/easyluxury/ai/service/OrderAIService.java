@@ -1,5 +1,7 @@
 package com.easyluxury.ai.service;
 
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.BehaviorAnalysisResult;
 import com.ai.infrastructure.dto.BehaviorResponse;
 import com.easyluxury.ai.adapter.OrderAIAdapter;

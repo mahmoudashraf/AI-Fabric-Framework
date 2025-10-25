@@ -53,15 +53,15 @@ public class ProductAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<BehaviorResponse> trackProductView(
-            @Parameter(description = "Product ID") @PathVariable UUID productId,
-            @Parameter(description = "User ID") @RequestParam UUID userId) {
+            @Parameter(description = "Product ID") @PathVariable String productId,
+            @Parameter(description = "User ID") @RequestParam String userId) {
         log.info("Product view tracking request for product: {} and user: {}", productId, userId);
         
         try {
             Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
             
-            User user = userRepository.findById(userId)
+            User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
             BehaviorResponse response = productAIAdapter.trackProductView(user, product);
@@ -83,15 +83,15 @@ public class ProductAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<BehaviorResponse> trackProductClick(
-            @Parameter(description = "Product ID") @PathVariable UUID productId,
-            @Parameter(description = "User ID") @RequestParam UUID userId) {
+            @Parameter(description = "Product ID") @PathVariable String productId,
+            @Parameter(description = "User ID") @RequestParam String userId) {
         log.info("Product click tracking request for product: {} and user: {}", productId, userId);
         
         try {
             Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
             
-            User user = userRepository.findById(userId)
+            User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
             BehaviorResponse response = productAIAdapter.trackProductClick(user, product);
@@ -113,15 +113,15 @@ public class ProductAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<BehaviorResponse> trackAddToCart(
-            @Parameter(description = "Product ID") @PathVariable UUID productId,
-            @Parameter(description = "User ID") @RequestParam UUID userId) {
+            @Parameter(description = "Product ID") @PathVariable String productId,
+            @Parameter(description = "User ID") @RequestParam String userId) {
         log.info("Add to cart tracking request for product: {} and user: {}", productId, userId);
         
         try {
             Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
             
-            User user = userRepository.findById(userId)
+            User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
             
             BehaviorResponse response = productAIAdapter.trackAddToCart(user, product);
@@ -143,7 +143,7 @@ public class ProductAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<List<BehaviorResponse>> getProductBehaviors(
-            @Parameter(description = "Product ID") @PathVariable UUID productId) {
+            @Parameter(description = "Product ID") @PathVariable String productId) {
         log.info("Product behaviors request for product: {}", productId);
         
         try {
@@ -169,7 +169,7 @@ public class ProductAIController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<BehaviorAnalysisResult> analyzeProductBehaviors(
-            @Parameter(description = "Product ID") @PathVariable UUID productId) {
+            @Parameter(description = "Product ID") @PathVariable String productId) {
         log.info("Product behavior analysis request for product: {}", productId);
         
         try {
@@ -226,7 +226,7 @@ public class ProductAIController {
         ProductAIRecommendationResponse response = ProductAIRecommendationResponse.builder()
                 .userId(request.getUserId())
                 .recommendations(List.of())
-                .confidence(0.8)
+                .confidenceScore(0.8)
                 .build();
         
         return ResponseEntity.ok(response);
@@ -250,7 +250,7 @@ public class ProductAIController {
         // TODO: Implement product content generation using AI infrastructure
         ProductAIGenerationResponse response = ProductAIGenerationResponse.builder()
                 .productId(request.getProductId())
-                .content("Product content generation will be implemented using AI infrastructure")
+                .generatedContent("Product content generation will be implemented using AI infrastructure")
                 .build();
         
         return ResponseEntity.ok(response);
