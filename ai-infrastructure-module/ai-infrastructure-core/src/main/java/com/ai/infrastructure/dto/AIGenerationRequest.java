@@ -1,26 +1,45 @@
 package com.ai.infrastructure.dto;
 
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import java.util.Map;
 
 /**
- * Request DTO for AI content generation
+ * AIGenerationRequest
+ * 
+ * Request DTO for AI content generation operations.
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class AIGenerationRequest {
     
-    @NotBlank(message = "Prompt cannot be blank")
-    @Size(max = 4000, message = "Prompt cannot exceed 4000 characters")
+    @NotNull(message = "Entity ID is required")
+    private String entityId;
+    
+    @NotNull(message = "Entity type is required")
+    private String entityType;
+    
+    @NotNull(message = "Generation type is required")
+    private String generationType;
+    
     private String prompt;
     
+    private String context;
+    
     private String systemPrompt;
+    
+    private String purpose;
+    
+    private Map<String, Object> parameters;
     
     private String model;
     
@@ -28,9 +47,5 @@ public class AIGenerationRequest {
     
     private Double temperature;
     
-    private String context;
-    
-    private String entityType;
-    
-    private String purpose;
+    private String userId;
 }
