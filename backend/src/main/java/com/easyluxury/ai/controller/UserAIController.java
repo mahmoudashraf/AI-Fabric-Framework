@@ -57,17 +57,17 @@ public class UserAIController {
             request.getUserId(), request.getBehaviorType());
         
         try {
-            User user = userRepository.findById(UUID.fromString(request.getUserId()))
+            User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found: " + request.getUserId()));
             
             UserBehavior behavior = UserBehavior.builder()
-                .userId(UUID.fromString(request.getUserId()))
-                .behaviorType(UserBehavior.BehaviorType.valueOf(request.getBehaviorType()))
+                .userId(request.getUserId())
+                .behaviorType(request.getBehaviorType())
                 .entityType(request.getEntityType())
                 .entityId(request.getEntityId())
                 .action(request.getAction())
                 .context(request.getContext())
-                .metadata(request.getMetadata())
+                .metadata(request.getMetadata() != null ? request.getMetadata().toString() : null)
                 .build();
             
             BehaviorResponse response = userAIAdapter.trackUserBehavior(user, behavior);
@@ -93,7 +93,7 @@ public class UserAIController {
         log.info("User AI insights request for user: {}", request.getUserId());
         
         try {
-            User user = userRepository.findById(UUID.fromString(request.getUserId()))
+            User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found: " + request.getUserId()));
             
             BehaviorAnalysisResult response = userAIAdapter.analyzeUserBehaviors(user);
@@ -119,7 +119,7 @@ public class UserAIController {
         log.info("User AI recommendations request for user: {}", request.getUserId());
         
         try {
-            User user = userRepository.findById(UUID.fromString(request.getUserId()))
+            User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found: " + request.getUserId()));
             
             BehaviorAnalysisResult analysis = userAIAdapter.analyzeUserBehaviors(user);
