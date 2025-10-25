@@ -58,9 +58,8 @@ ai:
     timeout: ${OPENAI_TIMEOUT:30s}
   
   # Infrastructure Configuration
-  infrastructure:
-    config:
-      file: ai-entity-config-test.yml
+  config:
+    default-file: ai-entity-config-test.yml
     embedding:
       model: text-embedding-ada-002
       dimensions: 1536
