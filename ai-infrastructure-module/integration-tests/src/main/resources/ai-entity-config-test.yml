@@ -73,124 +73,169 @@ ai-entities:
         auto-indexing: false
 
   # Test User Entity
-  - entityType: "test-user"
-    className: "com.ai.infrastructure.it.entity.TestUser"
-    searchableFields:
-      - fieldName: "firstName"
-        fieldType: "TEXT"
+  test-user:
+    entity-type: "test-user"
+    features: ["embedding", "search", "rag", "behavioral"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: false
+    auto-embedding: true
+    indexable: true
+    
+    # Searchable Fields Configuration
+    searchable-fields:
+      - name: "firstName"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 0.8
-        searchable: true
-        embeddable: true
-      - fieldName: "lastName"
-        fieldType: "TEXT"
+      - name: "lastName"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 0.8
-        searchable: true
-        embeddable: true
-      - fieldName: "email"
-        fieldType: "TEXT"
+      - name: "email"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 0.6
-        searchable: true
-        embeddable: false
-      - fieldName: "bio"
-        fieldType: "TEXT"
+      - name: "bio"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 1.0
-        searchable: true
-        embeddable: true
-    embeddableFields:
-      - fieldName: "firstName"
-        fieldType: "TEXT"
-        weight: 0.8
-      - fieldName: "lastName"
-        fieldType: "TEXT"
-        weight: 0.8
-      - fieldName: "bio"
-        fieldType: "TEXT"
-        weight: 1.0
-    metadataFields:
-      - fieldName: "email"
-        fieldType: "TEXT"
-      - fieldName: "age"
-        fieldType: "NUMERIC"
-      - fieldName: "location"
-        fieldType: "TEXT"
-    crudOperations:
-      - operation: "CREATE"
+    
+    # Embeddable Fields Configuration
+    embeddable-fields:
+      - name: "firstName"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "lastName"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "bio"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    # Metadata Fields Configuration
+    metadata-fields:
+      - name: "email"
+        type: "TEXT"
+        include-in-search: true
+      - name: "age"
+        type: "NUMERIC"
+        include-in-search: false
+      - name: "location"
+        type: "TEXT"
+        include-in-search: true
+    
+    # CRUD Operations Configuration
+    crud-operations:
+      CREATE:
         enabled: true
-        aiProcessing: true
-      - operation: "UPDATE"
+        ai-processing: true
+        auto-embedding: true
+        auto-indexing: true
+      UPDATE:
         enabled: true
-        aiProcessing: true
-      - operation: "DELETE"
+        ai-processing: true
+        auto-embedding: true
+        auto-indexing: true
+      DELETE:
         enabled: true
-        aiProcessing: false
+        ai-processing: false
+        auto-embedding: false
+        auto-indexing: false
 
   # Test Article Entity
-  - entityType: "test-article"
-    className: "com.ai.infrastructure.it.entity.TestArticle"
-    searchableFields:
-      - fieldName: "title"
-        fieldType: "TEXT"
+  test-article:
+    entity-type: "test-article"
+    features: ["embedding", "search", "rag", "analysis"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: false
+    auto-embedding: true
+    indexable: true
+    
+    # Searchable Fields Configuration
+    searchable-fields:
+      - name: "title"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 1.0
-        searchable: true
-        embeddable: true
-      - fieldName: "content"
-        fieldType: "TEXT"
+      - name: "content"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 0.9
-        searchable: true
-        embeddable: true
-      - fieldName: "summary"
-        fieldType: "TEXT"
+      - name: "summary"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 0.7
-        searchable: true
-        embeddable: true
-      - fieldName: "tags"
-        fieldType: "TEXT"
+      - name: "tags"
+        include-in-rag: true
+        enable-semantic-search: true
         weight: 0.5
-        searchable: true
-        embeddable: false
-    embeddableFields:
-      - fieldName: "title"
-        fieldType: "TEXT"
-        weight: 1.0
-      - fieldName: "content"
-        fieldType: "TEXT"
-        weight: 0.9
-      - fieldName: "summary"
-        fieldType: "TEXT"
-        weight: 0.7
-    metadataFields:
-      - fieldName: "tags"
-        fieldType: "TEXT"
-      - fieldName: "author"
-        fieldType: "TEXT"
-      - fieldName: "publishDate"
-        fieldType: "DATE"
-      - fieldName: "readTime"
-        fieldType: "NUMERIC"
-    crudOperations:
-      - operation: "CREATE"
+    
+    # Embeddable Fields Configuration
+    embeddable-fields:
+      - name: "title"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "content"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "summary"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    # Metadata Fields Configuration
+    metadata-fields:
+      - name: "tags"
+        type: "TEXT"
+        include-in-search: true
+      - name: "author"
+        type: "TEXT"
+        include-in-search: true
+      - name: "publishDate"
+        type: "DATE"
+        include-in-search: false
+      - name: "readTime"
+        type: "NUMERIC"
+        include-in-search: false
+    
+    # CRUD Operations Configuration
+    crud-operations:
+      CREATE:
         enabled: true
-        aiProcessing: true
-      - operation: "UPDATE"
+        ai-processing: true
+        auto-embedding: true
+        auto-indexing: true
+      UPDATE:
         enabled: true
-        aiProcessing: true
-      - operation: "DELETE"
+        ai-processing: true
+        auto-embedding: true
+        auto-indexing: true
+      DELETE:
         enabled: true
-        aiProcessing: false
+        ai-processing: false
+        auto-embedding: false
+        auto-indexing: false
 
 # Global AI Processing Configuration
-global:
-  enableEmbeddingGeneration: true
-  enableAIAnalysis: true
-  enableValidation: true
-  enableRecommendations: true
-  enableCleanup: true
+ai-config:
+  enable-embedding-generation: true
+  enable-ai-analysis: true
+  enable-validation: true
+  enable-recommendations: true
+  enable-cleanup: true
   
   # Batch Processing
-  batchSize: 10
-  maxConcurrentRequests: 5
+  batch-size: 10
+  max-concurrent-requests: 5
   
   # Performance Settings
-  timeoutSeconds: 30
-  retryAttempts: 3
-  retryDelayMs: 1000
+  timeout-seconds: 30
+  retry-attempts: 3
+  retry-delay-ms: 1000
