@@ -8,6 +8,7 @@ import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class AICapabilityService {
     private final AIEmbeddingService embeddingService;
     private final AICoreService aiCoreService;
     private final AISearchableEntityRepository searchableEntityRepository;
+    private final AIEntityConfigurationLoader configurationLoader;
     
     /**
      * Validate entity based on configuration
@@ -454,6 +456,40 @@ public class AICapabilityService {
             
         } catch (Exception e) {
             log.error("Error removing entity from AI index", e);
+        }
+    }
+    
+    /**
+     * Process entity for AI capabilities
+     */
+    @Transactional
+    public void processEntityForAI(Object entity, String entityType) {
+        try {
+            log.debug("Processing entity for AI of type: {}", entityType);
+            
+            // Get entity configuration from configuration loader
+            AIEntityConfig config = configurationLoader.getEntityConfig(entityType);
+            if (config == null) {
+                log.warn("No configuration found for entity type: {}", entityType);
+                return;
+            }
+            
+            log.debug("Retrieved config for entity type: {}, metadata fields: {}", 
+                entityType, config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+            
+            // Generate embeddings
+            generateEmbeddings(entity, config);
+            
+            // Index for search
+            indexForSearch(entity, config);
+            
+            // Analyze entity
+            analyzeEntity(entity, config);
+            
+            log.debug("Successfully processed entity for AI");
+            
+        } catch (Exception e) {
+            log.error("Error processing entity for AI", e);
         }
     }
     

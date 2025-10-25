@@ -196,4 +196,11 @@ public class AIEntityConfigurationLoader {
     public double getDefaultSimilarityThreshold() {
         return ((Number) globalConfig.getOrDefault("default-similarity-threshold", 0.7)).doubleValue();
     }
+    
+    /**
+     * Get entity configuration by type
+     */
+    public AIEntityConfig getEntityConfig(String entityType) {
+        return entityConfigs.get(entityType);
+    }
 }
