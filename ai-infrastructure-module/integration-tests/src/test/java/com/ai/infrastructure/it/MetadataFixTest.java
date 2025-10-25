@@ -49,6 +49,12 @@ public class MetadataFixTest {
         AIEntityConfig config = configurationLoader.getEntityConfig("test-product");
         System.out.println("Before processEntityForAI - Config metadataFields: " + 
             (config.getMetadataFields() != null ? config.getMetadataFields().size() : "null"));
+        System.out.println("ConfigurationLoader instance: " + configurationLoader.getClass().getSimpleName() + "@" + Integer.toHexString(configurationLoader.hashCode()));
+        
+        // Debug: Check if AICapabilityService is using the same configurationLoader
+        System.out.println("AICapabilityService configurationLoader: " + 
+            (capabilityService.getConfigurationLoader() != null ? 
+                capabilityService.getConfigurationLoader().getClass().getSimpleName() + "@" + Integer.toHexString(capabilityService.getConfigurationLoader().hashCode()) : "null"));
         
         // This should not throw a NullPointerException
         assertDoesNotThrow(() -> {
