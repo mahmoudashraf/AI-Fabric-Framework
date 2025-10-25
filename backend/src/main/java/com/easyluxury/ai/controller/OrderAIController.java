@@ -203,8 +203,8 @@ public class OrderAIController {
         OrderPatternResponse response = OrderPatternResponse.builder()
                 .userId(request.getUserId())
                 .patterns("Order pattern analysis will be implemented using AI infrastructure")
-                .trends("Trend analysis will be implemented using AI infrastructure")
-                .insights("Insights will be generated using AI infrastructure")
+                .seasonalPatterns("Seasonal pattern analysis will be implemented using AI infrastructure")
+                .anomalies("Anomaly detection will be implemented using AI infrastructure")
                 .build();
         
         return ResponseEntity.ok(response);
@@ -228,9 +228,9 @@ public class OrderAIController {
         OrderAIAnalysisResponse response = OrderAIAnalysisResponse.builder()
                 .orderId(request.getOrderId())
                 .analysis("Order analysis will be implemented using AI infrastructure")
-                .riskScore(0.5)
-                .fraudDetected(false)
-                .recommendations("Recommendations will be generated using AI infrastructure")
+                .fraudScore(0.5)
+                .riskLevel("LOW")
+                .recommendations(List.of("Recommendations will be generated using AI infrastructure"))
                 .build();
         
         return ResponseEntity.ok(response);
@@ -254,7 +254,7 @@ public class OrderAIController {
         OrderAIInsightsResponse response = OrderAIInsightsResponse.builder()
                 .insights("Business insights will be generated using AI infrastructure")
                 .patterns("Pattern analysis will be implemented using AI infrastructure")
-                .recommendations("Recommendations will be generated using AI infrastructure")
+                .anomalies("Anomaly detection will be implemented using AI infrastructure")
                 .build();
         
         return ResponseEntity.ok(response);
