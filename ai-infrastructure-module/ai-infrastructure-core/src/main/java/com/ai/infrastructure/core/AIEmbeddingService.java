@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @version 1.0.0
  */
 @Slf4j
-@Service
+// @Service // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
 @RequiredArgsConstructor
 public class AIEmbeddingService {
     

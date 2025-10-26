@@ -17,7 +17,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
+@Service("easyLuxuryAIProfileService")
 @RequiredArgsConstructor
 public class AIProfileService {
     

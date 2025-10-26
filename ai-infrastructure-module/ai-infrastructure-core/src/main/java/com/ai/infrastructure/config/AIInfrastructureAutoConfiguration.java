@@ -200,4 +200,37 @@ public class AIInfrastructureAutoConfiguration {
         // TODO: Implement concrete implementation
         return null;
     }
+    
+            @Bean
+            @ConditionalOnMissingBean
+            public com.ai.infrastructure.service.BehaviorService behaviorService(com.ai.infrastructure.repository.BehaviorRepository behaviorRepository, AICapabilityService aiCapabilityService) {
+                return new com.ai.infrastructure.service.BehaviorService(behaviorRepository, aiCapabilityService);
+            }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public com.ai.infrastructure.service.AIInfrastructureProfileService aiInfrastructureProfileService(com.ai.infrastructure.repository.AIInfrastructureProfileRepository aiInfrastructureProfileRepository, AICapabilityService aiCapabilityService) {
+        return new com.ai.infrastructure.service.AIInfrastructureProfileService(aiInfrastructureProfileRepository, aiCapabilityService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public com.ai.infrastructure.provider.ProviderConfig providerConfig(AIProviderConfig aiProviderConfig) {
+        return com.ai.infrastructure.provider.ProviderConfig.builder()
+                .providerName("openai")
+                .apiKey(aiProviderConfig.getOpenaiApiKey())
+                .baseUrl("https://api.openai.com/v1")
+                .defaultModel(aiProviderConfig.getOpenaiModel())
+                .defaultEmbeddingModel(aiProviderConfig.getOpenaiEmbeddingModel())
+                .maxTokens(aiProviderConfig.getOpenaiMaxTokens())
+                .temperature(aiProviderConfig.getOpenaiTemperature())
+                .timeoutSeconds(aiProviderConfig.getOpenaiTimeout())
+                .maxRetries(3)
+                .retryDelayMs(1000L)
+                .rateLimitPerMinute(60)
+                .rateLimitPerDay(10000)
+                .enabled(true)
+                .priority(1)
+                .build();
+    }
 }

@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
  * @version 1.0.0
  */
 @Slf4j
-@Service
+// @Service // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
 @RequiredArgsConstructor
 // @RefreshScope
 public class AIConfigurationService {

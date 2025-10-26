@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Generic Behavior Repository
+ * Generic AI Profile Repository
  * 
- * Repository for behavioral data operations.
+ * Repository for AI profile operations.
  * This repository is domain-agnostic and can be used across different applications.
  * 
  * @author AI Infrastructure Team
@@ -25,34 +25,79 @@ import java.util.UUID;
 public interface BehaviorRepository extends JpaRepository<Behavior, UUID> {
     
     /**
+     * Find AI profile by user ID
+     */
+    Behavior findByUserId(UUID userId);
+    
+    /**
      * Find behaviors by user ID
      */
-    List<Behavior> findByUserId(UUID userId);
+    List<Behavior> findByUserIdOrderByCreatedAtDesc(UUID userId);
     
     /**
      * Find behaviors by user ID with pagination
      */
-    Page<Behavior> findByUserId(UUID userId, Pageable pageable);
+    Page<Behavior> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
     
     /**
-     * Find behaviors by behavior type
+     * Find AI profiles by status
      */
     List<Behavior> findByBehaviorType(Behavior.BehaviorType behaviorType);
     
     /**
-     * Find behaviors by behavior type with pagination
+     * Find AI profiles by status with pagination
      */
     Page<Behavior> findByBehaviorType(Behavior.BehaviorType behaviorType, Pageable pageable);
     
     /**
-     * Find behaviors by user ID and behavior type
+     * Find AI profiles by user ID and status
      */
     List<Behavior> findByUserIdAndBehaviorType(UUID userId, Behavior.BehaviorType behaviorType);
     
+    
+    
     /**
-     * Find behaviors by user ID and behavior type with pagination
+     * Find AI profiles by date range
      */
-    Page<Behavior> findByUserIdAndBehaviorType(UUID userId, Behavior.BehaviorType behaviorType, Pageable pageable);
+    List<Behavior> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
+    
+    /**
+     * Find AI profiles by user ID and date range
+     */
+    List<Behavior> findByUserIdAndCreatedAtBetween(UUID userId, LocalDateTime startDate, LocalDateTime endDate);
+    
+    /**
+     * Find AI profiles by user ID and date range with pagination
+     */
+    Page<Behavior> findByUserIdAndCreatedAtBetween(UUID userId, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable);
+    
+    
+    /**
+     * Find latest behaviors by user ID
+     */
+    @Query("SELECT b FROM Behavior b WHERE b.userId = :userId ORDER BY b.createdAt DESC")
+    List<Behavior> findLatestBehaviorsByUserId(@Param("userId") UUID userId);
+    
+    /**
+     * Find latest behavior by user ID
+     */
+    @Query("SELECT b FROM Behavior b WHERE b.userId = :userId ORDER BY b.createdAt DESC")
+    Behavior findLatestBehaviorByUserId(@Param("userId") UUID userId);
+    
+    /**
+     * Count AI profiles by user ID
+     */
+    long countByUserId(UUID userId);
+    
+    /**
+     * Count AI profiles by status
+     */
+    long countByBehaviorType(Behavior.BehaviorType behaviorType);
+    
+    /**
+     * Count AI profiles by user ID and status
+     */
+    long countByUserIdAndBehaviorType(UUID userId, Behavior.BehaviorType behaviorType);
     
     /**
      * Find behaviors by entity type and entity ID
@@ -63,76 +108,4 @@ public interface BehaviorRepository extends JpaRepository<Behavior, UUID> {
      * Find behaviors by session ID
      */
     List<Behavior> findBySessionId(String sessionId);
-    
-    /**
-     * Find behaviors by date range
-     */
-    List<Behavior> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
-    
-    /**
-     * Find behaviors by user ID and date range
-     */
-    List<Behavior> findByUserIdAndCreatedAtBetween(UUID userId, LocalDateTime startDate, LocalDateTime endDate);
-    
-    /**
-     * Find behaviors by user ID and date range with pagination
-     */
-    Page<Behavior> findByUserIdAndCreatedAtBetween(UUID userId, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable);
-    
-    /**
-     * Count behaviors by user ID
-     */
-    long countByUserId(UUID userId);
-    
-    /**
-     * Count behaviors by behavior type
-     */
-    long countByBehaviorType(Behavior.BehaviorType behaviorType);
-    
-    /**
-     * Count behaviors by user ID and behavior type
-     */
-    long countByUserIdAndBehaviorType(UUID userId, Behavior.BehaviorType behaviorType);
-    
-    /**
-     * Find behaviors with AI analysis
-     */
-    @Query("SELECT b FROM Behavior b WHERE b.aiAnalysis IS NOT NULL AND b.aiAnalysis != ''")
-    List<Behavior> findBehaviorsWithAIAnalysis();
-    
-    /**
-     * Find behaviors with AI insights
-     */
-    @Query("SELECT b FROM Behavior b WHERE b.aiInsights IS NOT NULL AND b.aiInsights != ''")
-    List<Behavior> findBehaviorsWithAIInsights();
-    
-    /**
-     * Find behaviors by pattern flags
-     */
-    @Query("SELECT b FROM Behavior b WHERE b.patternFlags IS NOT NULL AND b.patternFlags != ''")
-    List<Behavior> findBehaviorsWithPatternFlags();
-    
-    /**
-     * Find behaviors by behavior score range
-     */
-    @Query("SELECT b FROM Behavior b WHERE b.behaviorScore BETWEEN :minScore AND :maxScore")
-    List<Behavior> findByBehaviorScoreBetween(@Param("minScore") Double minScore, @Param("maxScore") Double maxScore);
-    
-    /**
-     * Find behaviors by significance score range
-     */
-    @Query("SELECT b FROM Behavior b WHERE b.significanceScore BETWEEN :minScore AND :maxScore")
-    List<Behavior> findBySignificanceScoreBetween(@Param("minScore") Double minScore, @Param("maxScore") Double maxScore);
-    
-    /**
-     * Find top behaviors by score
-     */
-    @Query("SELECT b FROM Behavior b WHERE b.behaviorScore IS NOT NULL ORDER BY b.behaviorScore DESC")
-    List<Behavior> findTopBehaviorsByScore(Pageable pageable);
-    
-    /**
-     * Find top behaviors by significance score
-     */
-    @Query("SELECT b FROM Behavior b WHERE b.significanceScore IS NOT NULL ORDER BY b.significanceScore DESC")
-    List<Behavior> findTopBehaviorsBySignificanceScore(Pageable pageable);
 }

@@ -6,7 +6,7 @@ import com.ai.infrastructure.dto.BehaviorResponse;
 import com.ai.infrastructure.dto.AIProfileRequest;
 import com.ai.infrastructure.dto.AIProfileResponse;
 import com.ai.infrastructure.service.BehaviorService;
-import com.ai.infrastructure.service.AIProfileService;
+import com.ai.infrastructure.service.AIInfrastructureProfileService;
 import com.easyluxury.entity.User;
 import com.easyluxury.entity.UserBehavior;
 import com.easyluxury.entity.AIProfile;
@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 public class UserAIAdapter {
     
     private final BehaviorService behaviorService;
-    private final AIProfileService aiProfileService;
+    private final AIInfrastructureProfileService aiProfileService;
     
     /**
      * Track user behavior using AI infrastructure
@@ -105,7 +105,7 @@ public class UserAIAdapter {
                 .version(1)
                 .build();
         
-        return aiProfileService.createAIProfile(request);
+        return aiProfileService.createAIInfrastructureProfile(request);
     }
     
     /**
@@ -114,7 +114,7 @@ public class UserAIAdapter {
     public AIProfileResponse getUserAIProfile(User user) {
         log.info("Getting AI profile for user: {}", user.getId());
         
-        return aiProfileService.getAIProfileByUserId(user.getId());
+        return aiProfileService.getAIInfrastructureProfileByUserId(user.getId());
     }
     
     /**
@@ -134,7 +134,7 @@ public class UserAIAdapter {
                 .version(1)
                 .build();
         
-        return aiProfileService.updateAIProfileByUserId(user.getId(), request);
+        return aiProfileService.updateAIInfrastructureProfileByUserId(user.getId(), request);
     }
     
     /**
@@ -143,7 +143,7 @@ public class UserAIAdapter {
     public void deleteUserAIProfile(User user) {
         log.info("Deleting AI profile for user: {}", user.getId());
         
-        aiProfileService.deleteAIProfileByUserId(user.getId());
+        aiProfileService.deleteAIInfrastructureProfileByUserId(user.getId());
     }
     
     /**

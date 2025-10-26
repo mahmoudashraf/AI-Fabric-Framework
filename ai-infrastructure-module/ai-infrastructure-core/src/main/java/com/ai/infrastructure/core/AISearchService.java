@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  * @version 1.0.0
  */
 @Slf4j
-@Service
+// @Service // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
 public class AISearchService {
     
     private final AIProviderConfig config;

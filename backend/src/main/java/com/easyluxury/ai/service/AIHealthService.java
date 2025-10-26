@@ -27,7 +27,7 @@ import java.util.Map;
  * @version 1.0.0
  */
 @Slf4j
-@Service
+@Service("easyLuxuryAIHealthService")
 @RequiredArgsConstructor
 @ConditionalOnBean(EasyLuxuryAIConfig.EasyLuxuryAISettings.class)
 public class AIHealthService {

@@ -15,10 +15,10 @@ import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.service.BehaviorService;
-import com.ai.infrastructure.service.AIProfileService;
+import com.ai.infrastructure.service.AIInfrastructureProfileService;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.repository.BehaviorRepository;
-import com.ai.infrastructure.repository.AIProfileRepository;
+import com.ai.infrastructure.repository.AIInfrastructureProfileRepository;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.monitoring.AIAnalyticsService;
@@ -129,9 +129,9 @@ public class TestAIConfiguration {
     
     @Bean
     @Primary
-    public AIProfileRepository aiProfileRepository() {
-        log.info("Creating AIProfileRepository for test context");
-        return org.mockito.Mockito.mock(AIProfileRepository.class);
+    public AIInfrastructureProfileRepository aiProfileRepository() {
+        log.info("Creating AIInfrastructureProfileRepository for test context");
+        return org.mockito.Mockito.mock(AIInfrastructureProfileRepository.class);
     }
     
     @Bean
@@ -150,9 +150,9 @@ public class TestAIConfiguration {
     
     @Bean
     @Primary
-    public AIProfileService aiProfileService(AIProfileRepository aiProfileRepository, AICapabilityService aiCapabilityService) {
-        log.info("Creating AIProfileService for test context");
-        return new AIProfileService(aiProfileRepository, aiCapabilityService);
+    public AIInfrastructureProfileService aiProfileService(AIInfrastructureProfileRepository aiProfileRepository, AICapabilityService aiCapabilityService) {
+        log.info("Creating AIInfrastructureProfileService for test context");
+        return new AIInfrastructureProfileService(aiProfileRepository, aiCapabilityService);
     }
     
     @Bean

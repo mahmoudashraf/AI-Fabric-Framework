@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
  * @version 1.0.0
  */
 @Data
-@Configuration
+// @Configuration // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
 @ConfigurationProperties(prefix = "ai.providers")
 public class AIProviderConfig {
     

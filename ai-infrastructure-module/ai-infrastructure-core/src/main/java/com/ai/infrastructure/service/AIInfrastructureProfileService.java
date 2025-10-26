@@ -2,8 +2,8 @@ package com.ai.infrastructure.service;
 
 import com.ai.infrastructure.dto.AIProfileRequest;
 import com.ai.infrastructure.dto.AIProfileResponse;
-import com.ai.infrastructure.entity.AIProfile;
-import com.ai.infrastructure.repository.AIProfileRepository;
+import com.ai.infrastructure.entity.AIInfrastructureProfile;
+import com.ai.infrastructure.repository.AIInfrastructureProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,29 +29,29 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
-public class AIProfileService {
+public class AIInfrastructureProfileService {
     
-    private final AIProfileRepository aiProfileRepository;
+    private final AIInfrastructureProfileRepository aiProfileRepository;
     private final AICapabilityService aiCapabilityService;
     
     /**
      * Create a new AI profile
      */
-    public AIProfileResponse createAIProfile(AIProfileRequest request) {
+    public AIProfileResponse createAIInfrastructureProfile(AIProfileRequest request) {
         log.info("Creating AI profile for user: {}", request.getUserId());
         
-        AIProfile aiProfile = AIProfile.builder()
+        AIInfrastructureProfile aiProfile = AIInfrastructureProfile.builder()
                 .userId(UUID.fromString(request.getUserId()))
                 .preferences(request.getPreferences())
                 .interests(request.getInterests())
                 .behaviorPatterns(request.getBehaviorPatterns())
                 .cvFileUrl(request.getCvFileUrl())
-                .status(AIProfile.AIProfileStatus.valueOf(request.getStatus() != null ? request.getStatus() : "ACTIVE"))
+                .status(AIInfrastructureProfile.AIProfileStatus.valueOf(request.getStatus() != null ? request.getStatus() : "ACTIVE"))
                 .confidenceScore(request.getConfidenceScore())
                 .version(request.getVersion() != null ? request.getVersion() : 1)
                 .build();
         
-        AIProfile savedProfile = aiProfileRepository.save(aiProfile);
+        AIInfrastructureProfile savedProfile = aiProfileRepository.save(aiProfile);
         
         // Process with AI capabilities
         aiCapabilityService.processEntityForAI(savedProfile, "ai_profile");
@@ -63,10 +63,10 @@ public class AIProfileService {
      * Get AI profile by ID
      */
     @Transactional(readOnly = true)
-    public AIProfileResponse getAIProfileById(UUID id) {
+    public AIProfileResponse getAIInfrastructureProfileById(UUID id) {
         log.info("Getting AI profile by ID: {}", id);
         
-        AIProfile aiProfile = aiProfileRepository.findById(id)
+        AIInfrastructureProfile aiProfile = aiProfileRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("AI Profile not found with ID: " + id));
         
         return mapToResponse(aiProfile);
@@ -76,10 +76,10 @@ public class AIProfileService {
      * Get AI profile by user ID
      */
     @Transactional(readOnly = true)
-    public AIProfileResponse getAIProfileByUserId(UUID userId) {
+    public AIProfileResponse getAIInfrastructureProfileByUserId(UUID userId) {
         log.info("Getting AI profile for user: {}", userId);
         
-        AIProfile aiProfile = aiProfileRepository.findByUserId(userId);
+        AIInfrastructureProfile aiProfile = aiProfileRepository.findByUserId(userId);
         if (aiProfile == null) {
             throw new RuntimeException("AI Profile not found for user: " + userId);
         }
@@ -91,10 +91,10 @@ public class AIProfileService {
      * Get AI profiles by status
      */
     @Transactional(readOnly = true)
-    public List<AIProfileResponse> getAIProfilesByStatus(AIProfile.AIProfileStatus status) {
+    public List<AIProfileResponse> getAIInfrastructureProfilesByStatus(AIInfrastructureProfile.AIProfileStatus status) {
         log.info("Getting AI profiles by status: {}", status);
         
-        List<AIProfile> profiles = aiProfileRepository.findByStatus(status);
+        List<AIInfrastructureProfile> profiles = aiProfileRepository.findByStatus(status);
         return profiles.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -104,10 +104,10 @@ public class AIProfileService {
      * Get AI profiles by status with pagination
      */
     @Transactional(readOnly = true)
-    public Page<AIProfileResponse> getAIProfilesByStatus(AIProfile.AIProfileStatus status, Pageable pageable) {
+    public Page<AIProfileResponse> getAIInfrastructureProfilesByStatus(AIInfrastructureProfile.AIProfileStatus status, Pageable pageable) {
         log.info("Getting AI profiles by status: {} with pagination", status);
         
-        Page<AIProfile> profiles = aiProfileRepository.findByStatus(status, pageable);
+        Page<AIInfrastructureProfile> profiles = aiProfileRepository.findByStatus(status, pageable);
         return profiles.map(this::mapToResponse);
     }
     
@@ -115,10 +115,10 @@ public class AIProfileService {
      * Get AI profiles by user ID and status
      */
     @Transactional(readOnly = true)
-    public List<AIProfileResponse> getAIProfilesByUserIdAndStatus(UUID userId, AIProfile.AIProfileStatus status) {
+    public List<AIProfileResponse> getAIInfrastructureProfilesByUserIdAndStatus(UUID userId, AIInfrastructureProfile.AIProfileStatus status) {
         log.info("Getting AI profiles for user: {} and status: {}", userId, status);
         
-        List<AIProfile> profiles = aiProfileRepository.findByUserIdAndStatus(userId, status);
+        List<AIInfrastructureProfile> profiles = aiProfileRepository.findByUserIdAndStatus(userId, status);
         return profiles.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -128,10 +128,10 @@ public class AIProfileService {
      * Get AI profiles by confidence score range
      */
     @Transactional(readOnly = true)
-    public List<AIProfileResponse> getAIProfilesByConfidenceScoreRange(Double minScore, Double maxScore) {
+    public List<AIProfileResponse> getAIInfrastructureProfilesByConfidenceScoreRange(Double minScore, Double maxScore) {
         log.info("Getting AI profiles by confidence score range: {} - {}", minScore, maxScore);
         
-        List<AIProfile> profiles = aiProfileRepository.findByConfidenceScoreBetween(minScore, maxScore);
+        List<AIInfrastructureProfile> profiles = aiProfileRepository.findByConfidenceScoreBetween(minScore, maxScore);
         return profiles.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -141,10 +141,10 @@ public class AIProfileService {
      * Get AI profiles by version
      */
     @Transactional(readOnly = true)
-    public List<AIProfileResponse> getAIProfilesByVersion(Integer version) {
+    public List<AIProfileResponse> getAIInfrastructureProfilesByVersion(Integer version) {
         log.info("Getting AI profiles by version: {}", version);
         
-        List<AIProfile> profiles = aiProfileRepository.findByVersion(version);
+        List<AIInfrastructureProfile> profiles = aiProfileRepository.findByVersion(version);
         return profiles.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -154,10 +154,10 @@ public class AIProfileService {
      * Get AI profiles by user ID and version
      */
     @Transactional(readOnly = true)
-    public List<AIProfileResponse> getAIProfilesByUserIdAndVersion(UUID userId, Integer version) {
+    public List<AIProfileResponse> getAIInfrastructureProfilesByUserIdAndVersion(UUID userId, Integer version) {
         log.info("Getting AI profiles for user: {} and version: {}", userId, version);
         
-        List<AIProfile> profiles = aiProfileRepository.findByUserIdAndVersion(userId, version);
+        List<AIInfrastructureProfile> profiles = aiProfileRepository.findByUserIdAndVersion(userId, version);
         return profiles.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -167,10 +167,10 @@ public class AIProfileService {
      * Get AI profiles by date range
      */
     @Transactional(readOnly = true)
-    public List<AIProfileResponse> getAIProfilesByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
+    public List<AIProfileResponse> getAIInfrastructureProfilesByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
         log.info("Getting AI profiles from {} to {}", startDate, endDate);
         
-        List<AIProfile> profiles = aiProfileRepository.findByCreatedAtBetween(startDate, endDate);
+        List<AIInfrastructureProfile> profiles = aiProfileRepository.findByCreatedAtBetween(startDate, endDate);
         return profiles.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -180,10 +180,10 @@ public class AIProfileService {
      * Get AI profiles by user ID and date range
      */
     @Transactional(readOnly = true)
-    public List<AIProfileResponse> getAIProfilesByUserIdAndDateRange(UUID userId, LocalDateTime startDate, LocalDateTime endDate) {
+    public List<AIProfileResponse> getAIInfrastructureProfilesByUserIdAndDateRange(UUID userId, LocalDateTime startDate, LocalDateTime endDate) {
         log.info("Getting AI profiles for user: {} from {} to {}", userId, startDate, endDate);
         
-        List<AIProfile> profiles = aiProfileRepository.findByUserIdAndCreatedAtBetween(userId, startDate, endDate);
+        List<AIInfrastructureProfile> profiles = aiProfileRepository.findByUserIdAndCreatedAtBetween(userId, startDate, endDate);
         return profiles.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -193,10 +193,10 @@ public class AIProfileService {
      * Get AI profiles by user ID and date range with pagination
      */
     @Transactional(readOnly = true)
-    public Page<AIProfileResponse> getAIProfilesByUserIdAndDateRange(UUID userId, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+    public Page<AIProfileResponse> getAIInfrastructureProfilesByUserIdAndDateRange(UUID userId, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
         log.info("Getting AI profiles for user: {} from {} to {} with pagination", userId, startDate, endDate);
         
-        Page<AIProfile> profiles = aiProfileRepository.findByUserIdAndCreatedAtBetween(userId, startDate, endDate, pageable);
+        Page<AIInfrastructureProfile> profiles = aiProfileRepository.findByUserIdAndCreatedAtBetween(userId, startDate, endDate, pageable);
         return profiles.map(this::mapToResponse);
     }
     
@@ -204,10 +204,10 @@ public class AIProfileService {
      * Get latest AI profile by user ID
      */
     @Transactional(readOnly = true)
-    public AIProfileResponse getLatestAIProfileByUserId(UUID userId) {
+    public AIProfileResponse getLatestAIInfrastructureProfileByUserId(UUID userId) {
         log.info("Getting latest AI profile for user: {}", userId);
         
-        AIProfile aiProfile = aiProfileRepository.findLatestProfileByUserId(userId);
+        AIInfrastructureProfile aiProfile = aiProfileRepository.findLatestProfileByUserId(userId);
         if (aiProfile == null) {
             throw new RuntimeException("No AI Profile found for user: " + userId);
         }
@@ -218,10 +218,10 @@ public class AIProfileService {
     /**
      * Update AI profile
      */
-    public AIProfileResponse updateAIProfile(UUID id, AIProfileRequest request) {
+    public AIProfileResponse updateAIInfrastructureProfile(UUID id, AIProfileRequest request) {
         log.info("Updating AI profile: {}", id);
         
-        AIProfile aiProfile = aiProfileRepository.findById(id)
+        AIInfrastructureProfile aiProfile = aiProfileRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("AI Profile not found with ID: " + id));
         
         aiProfile.setPreferences(request.getPreferences());
@@ -229,14 +229,14 @@ public class AIProfileService {
         aiProfile.setBehaviorPatterns(request.getBehaviorPatterns());
         aiProfile.setCvFileUrl(request.getCvFileUrl());
         if (request.getStatus() != null) {
-            aiProfile.setStatus(AIProfile.AIProfileStatus.valueOf(request.getStatus()));
+            aiProfile.setStatus(AIInfrastructureProfile.AIProfileStatus.valueOf(request.getStatus()));
         }
         aiProfile.setConfidenceScore(request.getConfidenceScore());
         if (request.getVersion() != null) {
             aiProfile.setVersion(request.getVersion());
         }
         
-        AIProfile savedProfile = aiProfileRepository.save(aiProfile);
+        AIInfrastructureProfile savedProfile = aiProfileRepository.save(aiProfile);
         
         // Process with AI capabilities
         aiCapabilityService.processEntityForAI(savedProfile, "ai_profile");
@@ -247,10 +247,10 @@ public class AIProfileService {
     /**
      * Update AI profile by user ID
      */
-    public AIProfileResponse updateAIProfileByUserId(UUID userId, AIProfileRequest request) {
+    public AIProfileResponse updateAIInfrastructureProfileByUserId(UUID userId, AIProfileRequest request) {
         log.info("Updating AI profile for user: {}", userId);
         
-        AIProfile aiProfile = aiProfileRepository.findByUserId(userId);
+        AIInfrastructureProfile aiProfile = aiProfileRepository.findByUserId(userId);
         if (aiProfile == null) {
             throw new RuntimeException("AI Profile not found for user: " + userId);
         }
@@ -260,14 +260,14 @@ public class AIProfileService {
         aiProfile.setBehaviorPatterns(request.getBehaviorPatterns());
         aiProfile.setCvFileUrl(request.getCvFileUrl());
         if (request.getStatus() != null) {
-            aiProfile.setStatus(AIProfile.AIProfileStatus.valueOf(request.getStatus()));
+            aiProfile.setStatus(AIInfrastructureProfile.AIProfileStatus.valueOf(request.getStatus()));
         }
         aiProfile.setConfidenceScore(request.getConfidenceScore());
         if (request.getVersion() != null) {
             aiProfile.setVersion(request.getVersion());
         }
         
-        AIProfile savedProfile = aiProfileRepository.save(aiProfile);
+        AIInfrastructureProfile savedProfile = aiProfileRepository.save(aiProfile);
         
         // Process with AI capabilities
         aiCapabilityService.processEntityForAI(savedProfile, "ai_profile");
@@ -278,10 +278,10 @@ public class AIProfileService {
     /**
      * Delete AI profile
      */
-    public void deleteAIProfile(UUID id) {
+    public void deleteAIInfrastructureProfile(UUID id) {
         log.info("Deleting AI profile: {}", id);
         
-        AIProfile aiProfile = aiProfileRepository.findById(id)
+        AIInfrastructureProfile aiProfile = aiProfileRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("AI Profile not found with ID: " + id));
         
         aiProfileRepository.delete(aiProfile);
@@ -290,10 +290,10 @@ public class AIProfileService {
     /**
      * Delete AI profile by user ID
      */
-    public void deleteAIProfileByUserId(UUID userId) {
+    public void deleteAIInfrastructureProfileByUserId(UUID userId) {
         log.info("Deleting AI profile for user: {}", userId);
         
-        AIProfile aiProfile = aiProfileRepository.findByUserId(userId);
+        AIInfrastructureProfile aiProfile = aiProfileRepository.findByUserId(userId);
         if (aiProfile == null) {
             throw new RuntimeException("AI Profile not found for user: " + userId);
         }
@@ -304,7 +304,7 @@ public class AIProfileService {
     /**
      * Map entity to response DTO
      */
-    private AIProfileResponse mapToResponse(AIProfile aiProfile) {
+    private AIProfileResponse mapToResponse(AIInfrastructureProfile aiProfile) {
         return AIProfileResponse.builder()
                 .id(aiProfile.getId().toString())
                 .userId(aiProfile.getUserId().toString())
