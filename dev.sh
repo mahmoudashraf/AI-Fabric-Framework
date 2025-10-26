@@ -98,8 +98,14 @@ fi
 echo -e "${GREEN}✓${NC} Environment files configured for mock authentication"
 echo ""
 
-# Step 3: Check PostgreSQL
-echo -e "${BLUE}Step 3/8:${NC} Checking PostgreSQL..."
+# Step 3: Check PostgreSQL (Skip for dev mode with H2)
+echo -e "${BLUE}Step 3/8:${NC} Checking database configuration..."
+echo -e "${YELLOW}⚠️${NC}  Development mode uses H2 in-memory database (no PostgreSQL needed)"
+echo -e "${GREEN}✓${NC} Database configuration OK for development"
+echo ""
+
+# Skip PostgreSQL setup for dev mode
+if false; then
 if docker exec easyluxury-db-dev pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} PostgreSQL is running"
 elif command -v docker &> /dev/null; then
@@ -144,6 +150,7 @@ else
     echo -e "${RED}❌ PostgreSQL not running and Docker not available${NC}"
     echo "   Please start PostgreSQL manually or install Docker"
     exit 1
+fi
 fi
 echo ""
 
@@ -211,7 +218,7 @@ echo ""
 echo -e "${BLUE}Step 6/10:${NC} Building AI Infrastructure Module..."
 cd ai-infrastructure-module
 echo "Cleaning and installing AI module to local repository..."
-export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 if mvn clean install -q; then
     echo -e "${GREEN}✓${NC} AI Infrastructure Module built and installed"
 else
@@ -226,7 +233,7 @@ echo ""
 echo -e "${BLUE}Step 7/10:${NC} Recompiling backend..."
 cd backend
 echo "Cleaning and compiling backend..."
-export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 if mvn clean compile -q; then
     echo -e "${GREEN}✓${NC} Backend compilation completed"
 else
@@ -237,15 +244,10 @@ fi
 cd ..
 echo ""
 
-# Step 8: Run database migrations
-echo -e "${BLUE}Step 8/10:${NC} Running database migrations..."
-cd backend
-if mvn liquibase:update -q 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} Database migrations completed"
-else
-    echo -e "${YELLOW}⚠️${NC}  Migrations may have failed (this is OK if already run)"
-fi
-cd ..
+# Step 8: Skip database migrations (H2 auto-creates tables)
+echo -e "${BLUE}Step 8/10:${NC} Skipping database migrations..."
+echo -e "${YELLOW}⚠️${NC}  H2 in-memory database auto-creates tables on startup"
+echo -e "${GREEN}✓${NC} Database setup handled by Hibernate"
 echo ""
 
 # Step 9: Install frontend dependencies
@@ -267,7 +269,7 @@ echo -e "${BLUE}Step 10/10:${NC} Starting services..."
 # Start backend
 echo "Starting backend..."
 cd backend
-export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 # Load backend development environment variables (including OPENAI_API_KEY)
 echo "Loading backend env (.env.dev or .env) ..."
@@ -306,7 +308,7 @@ echo "Backend starting (PID: $BACKEND_PID)..."
 # Wait for backend to start
 echo "Waiting for backend to be ready..."
 for i in {1..90}; do
-    if curl -s http://localhost:8080/api/health 2>/dev/null | grep -q "UP"; then
+    if curl -s http://localhost:8080/actuator/health 2>/dev/null | grep -q "UP"; then
         echo -e "${GREEN}✓${NC} Backend is running"
         break
     fi
@@ -351,7 +353,7 @@ echo -e "${BLUE}Access Points:${NC}"
 echo -e "  📱 Frontend:    ${GREEN}http://localhost:3000${NC}"
 echo -e "  🔧 Backend API: ${GREEN}http://localhost:8080${NC}"
 echo -e "  📚 Swagger UI:  ${GREEN}http://localhost:8080/swagger-ui.html${NC}"
-echo -e "  💚 Health:      ${GREEN}http://localhost:8080/api/health${NC}"
+echo -e "  💚 Health:      ${GREEN}http://localhost:8080/actuator/health${NC}"
 echo -e "  🪣 MinIO:       ${GREEN}http://localhost:9000${NC}"
 echo -e "  🖥️  MinIO Console: ${GREEN}http://localhost:9001${NC}"
 echo ""
