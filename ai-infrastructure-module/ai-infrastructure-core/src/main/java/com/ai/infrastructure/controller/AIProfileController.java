@@ -2,8 +2,8 @@ package com.ai.infrastructure.controller;
 
 import com.ai.infrastructure.dto.AIProfileRequest;
 import com.ai.infrastructure.dto.AIProfileResponse;
-import com.ai.infrastructure.entity.AIProfile;
-import com.ai.infrastructure.service.AIProfileService;
+import com.ai.infrastructure.entity.AIInfrastructureProfile;
+import com.ai.infrastructure.service.AIInfrastructureProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,7 +31,7 @@ import java.util.UUID;
 @Slf4j
 public class AIProfileController {
     
-    private final AIProfileService aiProfileService;
+    private final AIInfrastructureProfileService aiProfileService;
     
     /**
      * Create a new AI profile
@@ -41,7 +41,7 @@ public class AIProfileController {
         log.info("Creating AI profile for user: {}", request.getUserId());
         
         try {
-            AIProfileResponse response = aiProfileService.createAIProfile(request);
+            AIProfileResponse response = aiProfileService.createAIInfrastructureProfile(request);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
             log.error("Error creating AI profile: {}", e.getMessage(), e);
@@ -53,11 +53,11 @@ public class AIProfileController {
      * Get AI profile by ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<AIProfileResponse> getAIProfileById(@PathVariable UUID id) {
+    public ResponseEntity<AIProfileResponse> getAIInfrastructureProfileById(@PathVariable UUID id) {
         log.info("Getting AI profile by ID: {}", id);
         
         try {
-            AIProfileResponse response = aiProfileService.getAIProfileById(id);
+            AIProfileResponse response = aiProfileService.getAIInfrastructureProfileById(id);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             log.error("AI Profile not found: {}", e.getMessage());
@@ -72,11 +72,11 @@ public class AIProfileController {
      * Get AI profile by user ID
      */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<AIProfileResponse> getAIProfileByUserId(@PathVariable UUID userId) {
+    public ResponseEntity<AIProfileResponse> getAIInfrastructureProfileByUserId(@PathVariable UUID userId) {
         log.info("Getting AI profile for user: {}", userId);
         
         try {
-            AIProfileResponse response = aiProfileService.getAIProfileByUserId(userId);
+            AIProfileResponse response = aiProfileService.getAIInfrastructureProfileByUserId(userId);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             log.error("AI Profile not found for user: {}", e.getMessage());
@@ -91,11 +91,11 @@ public class AIProfileController {
      * Get AI profiles by status
      */
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<AIProfileResponse>> getAIProfilesByStatus(@PathVariable String status) {
+    public ResponseEntity<List<AIProfileResponse>> getAIInfrastructureProfilesByStatus(@PathVariable String status) {
         log.info("Getting AI profiles by status: {}", status);
         
         try {
-            List<AIProfileResponse> responses = aiProfileService.getAIProfilesByStatus(AIProfile.AIProfileStatus.valueOf(status));
+            List<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByStatus(AIInfrastructureProfile.AIProfileStatus.valueOf(status));
             return ResponseEntity.ok(responses);
         } catch (IllegalArgumentException e) {
             log.error("Invalid status: {}", status);
@@ -110,13 +110,13 @@ public class AIProfileController {
      * Get AI profiles by status with pagination
      */
     @GetMapping("/status/{status}/page")
-    public ResponseEntity<Page<AIProfileResponse>> getAIProfilesByStatus(
+    public ResponseEntity<Page<AIProfileResponse>> getAIInfrastructureProfilesByStatus(
             @PathVariable String status,
             Pageable pageable) {
         log.info("Getting AI profiles by status: {} with pagination", status);
         
         try {
-            Page<AIProfileResponse> responses = aiProfileService.getAIProfilesByStatus(AIProfile.AIProfileStatus.valueOf(status), pageable);
+            Page<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByStatus(AIInfrastructureProfile.AIProfileStatus.valueOf(status), pageable);
             return ResponseEntity.ok(responses);
         } catch (IllegalArgumentException e) {
             log.error("Invalid status: {}", status);
@@ -131,13 +131,13 @@ public class AIProfileController {
      * Get AI profiles by user ID and status
      */
     @GetMapping("/user/{userId}/status/{status}")
-    public ResponseEntity<List<AIProfileResponse>> getAIProfilesByUserIdAndStatus(
+    public ResponseEntity<List<AIProfileResponse>> getAIInfrastructureProfilesByUserIdAndStatus(
             @PathVariable UUID userId,
             @PathVariable String status) {
         log.info("Getting AI profiles for user: {} and status: {}", userId, status);
         
         try {
-            List<AIProfileResponse> responses = aiProfileService.getAIProfilesByUserIdAndStatus(userId, AIProfile.AIProfileStatus.valueOf(status));
+            List<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByUserIdAndStatus(userId, AIInfrastructureProfile.AIProfileStatus.valueOf(status));
             return ResponseEntity.ok(responses);
         } catch (IllegalArgumentException e) {
             log.error("Invalid status: {}", status);
@@ -152,13 +152,13 @@ public class AIProfileController {
      * Get AI profiles by confidence score range
      */
     @GetMapping("/confidence-score")
-    public ResponseEntity<List<AIProfileResponse>> getAIProfilesByConfidenceScoreRange(
+    public ResponseEntity<List<AIProfileResponse>> getAIInfrastructureProfilesByConfidenceScoreRange(
             @RequestParam Double minScore,
             @RequestParam Double maxScore) {
         log.info("Getting AI profiles by confidence score range: {} - {}", minScore, maxScore);
         
         try {
-            List<AIProfileResponse> responses = aiProfileService.getAIProfilesByConfidenceScoreRange(minScore, maxScore);
+            List<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByConfidenceScoreRange(minScore, maxScore);
             return ResponseEntity.ok(responses);
         } catch (Exception e) {
             log.error("Error getting AI profiles by confidence score range: {}", e.getMessage(), e);
@@ -170,11 +170,11 @@ public class AIProfileController {
      * Get AI profiles by version
      */
     @GetMapping("/version/{version}")
-    public ResponseEntity<List<AIProfileResponse>> getAIProfilesByVersion(@PathVariable Integer version) {
+    public ResponseEntity<List<AIProfileResponse>> getAIInfrastructureProfilesByVersion(@PathVariable Integer version) {
         log.info("Getting AI profiles by version: {}", version);
         
         try {
-            List<AIProfileResponse> responses = aiProfileService.getAIProfilesByVersion(version);
+            List<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByVersion(version);
             return ResponseEntity.ok(responses);
         } catch (Exception e) {
             log.error("Error getting AI profiles by version: {}", e.getMessage(), e);
@@ -186,13 +186,13 @@ public class AIProfileController {
      * Get AI profiles by user ID and version
      */
     @GetMapping("/user/{userId}/version/{version}")
-    public ResponseEntity<List<AIProfileResponse>> getAIProfilesByUserIdAndVersion(
+    public ResponseEntity<List<AIProfileResponse>> getAIInfrastructureProfilesByUserIdAndVersion(
             @PathVariable UUID userId,
             @PathVariable Integer version) {
         log.info("Getting AI profiles for user: {} and version: {}", userId, version);
         
         try {
-            List<AIProfileResponse> responses = aiProfileService.getAIProfilesByUserIdAndVersion(userId, version);
+            List<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByUserIdAndVersion(userId, version);
             return ResponseEntity.ok(responses);
         } catch (Exception e) {
             log.error("Error getting AI profiles for user and version: {}", e.getMessage(), e);
@@ -204,13 +204,13 @@ public class AIProfileController {
      * Get AI profiles by date range
      */
     @GetMapping("/date-range")
-    public ResponseEntity<List<AIProfileResponse>> getAIProfilesByDateRange(
+    public ResponseEntity<List<AIProfileResponse>> getAIInfrastructureProfilesByDateRange(
             @RequestParam LocalDateTime startDate,
             @RequestParam LocalDateTime endDate) {
         log.info("Getting AI profiles from {} to {}", startDate, endDate);
         
         try {
-            List<AIProfileResponse> responses = aiProfileService.getAIProfilesByDateRange(startDate, endDate);
+            List<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByDateRange(startDate, endDate);
             return ResponseEntity.ok(responses);
         } catch (Exception e) {
             log.error("Error getting AI profiles by date range: {}", e.getMessage(), e);
@@ -222,14 +222,14 @@ public class AIProfileController {
      * Get AI profiles by user ID and date range
      */
     @GetMapping("/user/{userId}/date-range")
-    public ResponseEntity<List<AIProfileResponse>> getAIProfilesByUserIdAndDateRange(
+    public ResponseEntity<List<AIProfileResponse>> getAIInfrastructureProfilesByUserIdAndDateRange(
             @PathVariable UUID userId,
             @RequestParam LocalDateTime startDate,
             @RequestParam LocalDateTime endDate) {
         log.info("Getting AI profiles for user: {} from {} to {}", userId, startDate, endDate);
         
         try {
-            List<AIProfileResponse> responses = aiProfileService.getAIProfilesByUserIdAndDateRange(userId, startDate, endDate);
+            List<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByUserIdAndDateRange(userId, startDate, endDate);
             return ResponseEntity.ok(responses);
         } catch (Exception e) {
             log.error("Error getting AI profiles for user and date range: {}", e.getMessage(), e);
@@ -241,7 +241,7 @@ public class AIProfileController {
      * Get AI profiles by user ID and date range with pagination
      */
     @GetMapping("/user/{userId}/date-range/page")
-    public ResponseEntity<Page<AIProfileResponse>> getAIProfilesByUserIdAndDateRange(
+    public ResponseEntity<Page<AIProfileResponse>> getAIInfrastructureProfilesByUserIdAndDateRange(
             @PathVariable UUID userId,
             @RequestParam LocalDateTime startDate,
             @RequestParam LocalDateTime endDate,
@@ -249,7 +249,7 @@ public class AIProfileController {
         log.info("Getting AI profiles for user: {} from {} to {} with pagination", userId, startDate, endDate);
         
         try {
-            Page<AIProfileResponse> responses = aiProfileService.getAIProfilesByUserIdAndDateRange(userId, startDate, endDate, pageable);
+            Page<AIProfileResponse> responses = aiProfileService.getAIInfrastructureProfilesByUserIdAndDateRange(userId, startDate, endDate, pageable);
             return ResponseEntity.ok(responses);
         } catch (Exception e) {
             log.error("Error getting AI profiles for user and date range with pagination: {}", e.getMessage(), e);
@@ -261,11 +261,11 @@ public class AIProfileController {
      * Get latest AI profile by user ID
      */
     @GetMapping("/user/{userId}/latest")
-    public ResponseEntity<AIProfileResponse> getLatestAIProfileByUserId(@PathVariable UUID userId) {
+    public ResponseEntity<AIProfileResponse> getLatestAIInfrastructureProfileByUserId(@PathVariable UUID userId) {
         log.info("Getting latest AI profile for user: {}", userId);
         
         try {
-            AIProfileResponse response = aiProfileService.getLatestAIProfileByUserId(userId);
+            AIProfileResponse response = aiProfileService.getLatestAIInfrastructureProfileByUserId(userId);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             log.error("No AI Profile found for user: {}", e.getMessage());
@@ -280,13 +280,13 @@ public class AIProfileController {
      * Update AI profile
      */
     @PutMapping("/{id}")
-    public ResponseEntity<AIProfileResponse> updateAIProfile(
+    public ResponseEntity<AIProfileResponse> updateAIInfrastructureProfile(
             @PathVariable UUID id,
             @RequestBody AIProfileRequest request) {
         log.info("Updating AI profile: {}", id);
         
         try {
-            AIProfileResponse response = aiProfileService.updateAIProfile(id, request);
+            AIProfileResponse response = aiProfileService.updateAIInfrastructureProfile(id, request);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             log.error("AI Profile not found: {}", e.getMessage());
@@ -301,13 +301,13 @@ public class AIProfileController {
      * Update AI profile by user ID
      */
     @PutMapping("/user/{userId}")
-    public ResponseEntity<AIProfileResponse> updateAIProfileByUserId(
+    public ResponseEntity<AIProfileResponse> updateAIInfrastructureProfileByUserId(
             @PathVariable UUID userId,
             @RequestBody AIProfileRequest request) {
         log.info("Updating AI profile for user: {}", userId);
         
         try {
-            AIProfileResponse response = aiProfileService.updateAIProfileByUserId(userId, request);
+            AIProfileResponse response = aiProfileService.updateAIInfrastructureProfileByUserId(userId, request);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             log.error("AI Profile not found for user: {}", e.getMessage());
@@ -322,11 +322,11 @@ public class AIProfileController {
      * Delete AI profile
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteAIProfile(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteAIInfrastructureProfile(@PathVariable UUID id) {
         log.info("Deleting AI profile: {}", id);
         
         try {
-            aiProfileService.deleteAIProfile(id);
+            aiProfileService.deleteAIInfrastructureProfile(id);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             log.error("AI Profile not found: {}", e.getMessage());
@@ -341,11 +341,11 @@ public class AIProfileController {
      * Delete AI profile by user ID
      */
     @DeleteMapping("/user/{userId}")
-    public ResponseEntity<Void> deleteAIProfileByUserId(@PathVariable UUID userId) {
+    public ResponseEntity<Void> deleteAIInfrastructureProfileByUserId(@PathVariable UUID userId) {
         log.info("Deleting AI profile for user: {}", userId);
         
         try {
-            aiProfileService.deleteAIProfileByUserId(userId);
+            aiProfileService.deleteAIInfrastructureProfileByUserId(userId);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             log.error("AI Profile not found for user: {}", e.getMessage());

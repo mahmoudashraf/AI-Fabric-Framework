@@ -21,7 +21,7 @@ import java.util.UUID;
  * @version 1.0.0
  */
 @Entity
-@Table(name = "ai_profiles")
+@Table(name = "ai_infrastructure_profiles")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -35,7 +35,7 @@ import java.util.UUID;
     autoEmbedding = true,
     indexable = true
 )
-public class AIProfile {
+public class AIInfrastructureProfile {
     
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

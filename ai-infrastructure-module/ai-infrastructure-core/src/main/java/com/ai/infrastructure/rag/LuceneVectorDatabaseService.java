@@ -48,7 +48,6 @@ import java.util.stream.Collectors;
  * @version 1.0.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
 public class LuceneVectorDatabaseService implements VectorDatabaseService {

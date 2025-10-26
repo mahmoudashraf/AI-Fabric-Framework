@@ -84,7 +84,7 @@ public class BehaviorService {
     public List<BehaviorResponse> getBehaviorsByUserId(UUID userId) {
         log.info("Getting behaviors for user: {}", userId);
         
-        List<Behavior> behaviors = behaviorRepository.findByUserId(userId);
+        List<Behavior> behaviors = behaviorRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return behaviors.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -97,7 +97,7 @@ public class BehaviorService {
     public Page<BehaviorResponse> getBehaviorsByUserId(UUID userId, Pageable pageable) {
         log.info("Getting behaviors for user: {} with pagination", userId);
         
-        Page<Behavior> behaviors = behaviorRepository.findByUserId(userId, pageable);
+        Page<Behavior> behaviors = behaviorRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
         return behaviors.map(this::mapToResponse);
     }
     
@@ -208,7 +208,7 @@ public class BehaviorService {
     public BehaviorAnalysisResult analyzeBehaviors(UUID userId) {
         log.info("Analyzing behaviors for user: {}", userId);
         
-        List<Behavior> behaviors = behaviorRepository.findByUserId(userId);
+        List<Behavior> behaviors = behaviorRepository.findByUserIdOrderByCreatedAtDesc(userId);
         
         // Use AI capability service for analysis
         // For now, return a basic analysis result

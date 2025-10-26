@@ -20,7 +20,7 @@ import java.util.Map;
  * @version 1.0.0
  */
 @Slf4j
-@Component
+// @Component // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
 @RequiredArgsConstructor
 public class AIHealthIndicator {
     

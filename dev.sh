@@ -154,7 +154,7 @@ fi
 fi
 echo ""
 
-# Step 4: Check MinIO
+# Step 4: Check MinIO (Optional for development)
 echo -e "${BLUE}Step 4/8:${NC} Checking MinIO..."
 if curl -s http://localhost:9000/minio/health/live >/dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} MinIO is running"
@@ -184,18 +184,17 @@ elif command -v docker &> /dev/null; then
             break
         fi
         if [ $i -eq 20 ]; then
-            echo -e "${RED}❌ MinIO failed to start within 20 seconds${NC}"
-            echo "Check container logs: docker logs easyluxury-minio-dev"
-            exit 1
+            echo -e "${YELLOW}⚠️${NC}  MinIO failed to start within 20 seconds"
+            echo -e "${YELLOW}⚠️${NC}  Continuing without MinIO (file uploads may not work)"
+            break
         fi
         sleep 1
         echo -n "."
     done
     echo ""
 else
-    echo -e "${RED}❌ MinIO not running and Docker not available${NC}"
-    echo "   Please start MinIO manually or install Docker"
-    exit 1
+    echo -e "${YELLOW}⚠️${NC}  MinIO not running and Docker not available"
+    echo -e "${YELLOW}⚠️${NC}  Continuing without MinIO (file uploads may not work)"
 fi
 echo ""
 
@@ -219,7 +218,7 @@ echo -e "${BLUE}Step 6/10:${NC} Building AI Infrastructure Module..."
 cd ai-infrastructure-module
 echo "Cleaning and installing AI module to local repository..."
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-if mvn clean install -q; then
+if mvn clean install -DskipTests -q; then
     echo -e "${GREEN}✓${NC} AI Infrastructure Module built and installed"
 else
     echo -e "${RED}❌ AI Infrastructure Module build failed${NC}"

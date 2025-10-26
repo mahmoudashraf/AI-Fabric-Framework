@@ -20,7 +20,7 @@ import java.util.Map;
  * @version 1.0.0
  */
 @Slf4j
-@Service
+@Service("aiServiceConfigurationService")
 @RequiredArgsConstructor
 public class AIConfigurationService {
     

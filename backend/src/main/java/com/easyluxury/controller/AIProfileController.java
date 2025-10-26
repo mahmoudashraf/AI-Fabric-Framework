@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Slf4j
-@RestController
+@RestController("easyLuxuryAIProfileController")
 @RequestMapping("/api/ai-profile")
 @RequiredArgsConstructor
 @Tag(name = "AI Profile", description = "AI-powered profile generation from CV")
