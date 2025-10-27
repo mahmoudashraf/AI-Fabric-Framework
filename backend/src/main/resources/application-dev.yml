@@ -48,6 +48,15 @@ spring:
       platform: h2
 
 # AI Configuration for Development
+# OpenAI Configuration (for AIService)
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:gpt-4o-mini}
+  max-tokens: 2000
+  temperature: 0.3
+  timeout: 60
+
+# AI Infrastructure Configuration
 ai:
   enabled: true
   providers:
