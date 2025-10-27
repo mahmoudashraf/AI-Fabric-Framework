@@ -217,7 +217,7 @@ echo ""
 echo -e "${BLUE}Step 6/10:${NC} Building AI Infrastructure Module..."
 cd ai-infrastructure-module
 echo "Cleaning and installing AI module to local repository..."
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 if mvn clean install -DskipTests -q; then
     echo -e "${GREEN}✓${NC} AI Infrastructure Module built and installed"
 else
@@ -232,7 +232,7 @@ echo ""
 echo -e "${BLUE}Step 7/10:${NC} Recompiling backend..."
 cd backend
 echo "Cleaning and compiling backend..."
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 if mvn clean compile -q; then
     echo -e "${GREEN}✓${NC} Backend compilation completed"
 else
@@ -268,7 +268,7 @@ echo -e "${BLUE}Step 10/10:${NC} Starting services..."
 # Start backend
 echo "Starting backend..."
 cd backend
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 # Load backend development environment variables (including OPENAI_API_KEY)
 echo "Loading backend env (.env.dev or .env) ..."
