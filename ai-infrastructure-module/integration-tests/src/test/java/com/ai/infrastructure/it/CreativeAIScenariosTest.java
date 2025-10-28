@@ -3,6 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.entity.TestUser;
 import com.ai.infrastructure.it.entity.TestArticle;
@@ -56,6 +57,9 @@ public class CreativeAIScenariosTest {
 
     @Autowired
     private TestArticleRepository articleRepository;
+
+    @Autowired
+    private VectorManagementService vectorManagementService;
 
     private final Random random = new Random();
 
@@ -441,7 +445,12 @@ public class CreativeAIScenariosTest {
 
         // Test that the system handles edge cases gracefully
         for (AISearchableEntity entity : edgeCaseEntities) {
-            assertNotNull(entity.getEmbeddings(), "Each entity should have embeddings");
+            assertNotNull(entity.getVectorId(), "Each entity should have vector ID");
+            assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
+            
+            // Verify vector exists in vector database
+            assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                      "Vector should exist in vector database");
             assertNotNull(entity.getSearchableContent(), "Each entity should have searchable content");
             // Even with edge cases, the system should generate some content
             assertTrue(entity.getSearchableContent().length() >= 0, "Searchable content should be non-null");
