@@ -42,4 +42,54 @@ public interface AISearchableEntityRepository extends JpaRepository<AISearchable
      * Find by searchable content containing (case insensitive)
      */
     List<AISearchableEntity> findBySearchableContentContainingIgnoreCase(String content);
+    
+    /**
+     * Find by vector ID
+     */
+    Optional<AISearchableEntity> findByVectorId(String vectorId);
+    
+    /**
+     * Find all entities with vector IDs (not null)
+     */
+    List<AISearchableEntity> findByVectorIdIsNotNull();
+    
+    /**
+     * Find all entities without vector IDs (null)
+     */
+    List<AISearchableEntity> findByVectorIdIsNull();
+    
+    /**
+     * Find entities by entity type that have vector IDs
+     */
+    List<AISearchableEntity> findByEntityTypeAndVectorIdIsNotNull(String entityType);
+    
+    /**
+     * Find entities by entity type that don't have vector IDs
+     */
+    List<AISearchableEntity> findByEntityTypeAndVectorIdIsNull(String entityType);
+    
+    /**
+     * Count entities by entity type that have vector IDs
+     */
+    long countByEntityTypeAndVectorIdIsNotNull(String entityType);
+    
+    /**
+     * Count entities by entity type that don't have vector IDs
+     */
+    long countByEntityTypeAndVectorIdIsNull(String entityType);
+    
+    /**
+     * Delete by vector ID
+     */
+    void deleteByVectorId(String vectorId);
+    
+    /**
+     * Delete all entities without vector IDs
+     */
+    void deleteByVectorIdIsNull();
+    
+    /**
+     * Delete all entities by entity type that don't have vector IDs
+     */
+    void deleteByEntityTypeAndVectorIdIsNull(String entityType);
 }

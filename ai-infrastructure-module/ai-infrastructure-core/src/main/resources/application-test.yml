@@ -1,0 +1,18 @@
+# Test Configuration - Vector Database
+ai:
+  vector-db:
+    type: memory
+    memory:
+      enablePersistence: false
+      persistencePath: "./data/memory-vector-store.json"
+      maxVectors: 1000
+      enableCleanup: true
+      cleanupIntervalMinutes: 5
+      maxVectorAgeMinutes: 30
+
+# Logging configuration for tests
+logging:
+  level:
+    com.ai.infrastructure.rag: DEBUG
+    com.ai.infrastructure.service.VectorManagementService: DEBUG
+    com.ai.infrastructure.service.AICapabilityService: DEBUG

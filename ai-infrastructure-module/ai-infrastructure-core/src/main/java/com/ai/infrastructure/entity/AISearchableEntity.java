@@ -5,17 +5,17 @@ import lombok.Data;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Type;
 
-import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
  * AI Searchable Entity
  * 
  * Represents an entity that has been processed for AI search capabilities.
- * Contains embeddings and metadata for semantic search.
+ * Contains metadata and references to vectors stored in external vector database.
  * 
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 @Data
 @Builder
@@ -36,10 +36,17 @@ public class AISearchableEntity {
     @Column(name = "searchable_content", columnDefinition = "TEXT")
     private String searchableContent;
     
-    @ElementCollection
-    @CollectionTable(name = "ai_embeddings", joinColumns = @JoinColumn(name = "entity_id"))
-    @Column(name = "embedding_value")
-    private List<Double> embeddings;
+    /**
+     * Vector ID reference in the external vector database
+     */
+    @Column(name = "vector_id", length = 255)
+    private String vectorId;
+    
+    /**
+     * Timestamp when the vector was last updated in the vector database
+     */
+    @Column(name = "vector_updated_at")
+    private LocalDateTime vectorUpdatedAt;
     
     @Column(name = "metadata", columnDefinition = "JSON")
     private String metadata;

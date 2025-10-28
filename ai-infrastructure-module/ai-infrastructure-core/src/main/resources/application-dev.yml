@@ -1,0 +1,19 @@
+# Development Configuration - Vector Database
+ai:
+  vector-db:
+    type: lucene
+    lucene:
+      indexPath: "./data/lucene-vector-index"
+      similarityThreshold: 0.7
+      maxResults: 100
+      createIndexIfNotExists: true
+      analyzer: "standard"
+      useCompoundFile: true
+      maxBufferedDocs: 1000
+
+# Logging configuration for development
+logging:
+  level:
+    com.ai.infrastructure.rag: DEBUG
+    com.ai.infrastructure.service.VectorManagementService: DEBUG
+    com.ai.infrastructure.service.AICapabilityService: DEBUG

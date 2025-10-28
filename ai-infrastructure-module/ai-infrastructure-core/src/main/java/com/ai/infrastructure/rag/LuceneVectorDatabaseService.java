@@ -3,6 +3,7 @@ package com.ai.infrastructure.rag;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
+import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.exception.AIServiceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -125,15 +126,19 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     }
     
     @Override
-    public void storeVector(String entityType, String entityId, String content, 
-                           List<Double> embedding, Map<String, Object> metadata) {
+    public String storeVector(String entityType, String entityId, String content, 
+                             List<Double> embedding, Map<String, Object> metadata) {
         try {
             log.debug("Storing vector in Lucene for entity {} of type {}", entityId, entityType);
+            
+            // Generate unique vector ID
+            String vectorId = UUID.randomUUID().toString();
             
             Document doc = new Document();
             
             // Add basic fields
-            doc.add(new StringField("id", entityId, Field.Store.YES));
+            doc.add(new StringField("vectorId", vectorId, Field.Store.YES));
+            doc.add(new StringField("entityId", entityId, Field.Store.YES));
             doc.add(new StringField("entityType", entityType, Field.Store.YES));
             doc.add(new TextField("content", content, Field.Store.YES));
             
@@ -152,7 +157,10 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             }
             
             // Add timestamp
-            doc.add(new StringField("storedAt", String.valueOf(System.currentTimeMillis()), Field.Store.YES));
+            long currentTime = System.currentTimeMillis();
+            doc.add(new StringField("storedAt", String.valueOf(currentTime), Field.Store.YES));
+            doc.add(new StringField("createdAt", String.valueOf(currentTime), Field.Store.YES));
+            doc.add(new StringField("updatedAt", String.valueOf(currentTime), Field.Store.YES));
             
             // Index the document
             indexWriter.addDocument(doc);
@@ -161,7 +169,10 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             // Refresh reader for immediate searchability
             refreshReader();
             
-            log.debug("Successfully stored vector in Lucene for entity {} of type {}", entityId, entityType);
+            log.debug("Successfully stored vector in Lucene for entity {} of type {} with vectorId {}", 
+                     entityId, entityType, vectorId);
+            
+            return vectorId;
             
         } catch (Exception e) {
             log.error("Error storing vector in Lucene", e);
@@ -194,7 +205,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                 
                 if (similarity >= request.getThreshold()) {
                     Map<String, Object> result = new HashMap<>();
-                    result.put("id", doc.get("id"));
+                    result.put("id", doc.get("entityId"));
+                    result.put("vectorId", doc.get("vectorId"));
                     result.put("content", doc.get("content"));
                     result.put("entityType", doc.get("entityType"));
                     result.put("metadata", doc.get("metadata"));
@@ -230,19 +242,23 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     }
     
     @Override
-    public void removeVector(String entityType, String entityId) {
+    public boolean removeVector(String entityType, String entityId) {
         try {
             log.debug("Removing vector from Lucene for entity {} of type {}", entityId, entityType);
             
-            // Delete by ID
-            Term term = new Term("id", entityId);
-            indexWriter.deleteDocuments(term);
+            // Delete by entityId and entityType
+            Term term = new Term("entityId", entityId);
+            int deletedCount = indexWriter.deleteDocuments(term);
             indexWriter.commit();
             
             // Refresh reader
             refreshReader();
             
-            log.debug("Successfully removed vector from Lucene for entity {} of type {}", entityId, entityType);
+            boolean removed = deletedCount > 0;
+            log.debug("Successfully removed vector from Lucene for entity {} of type {}: {}", 
+                     entityId, entityType, removed);
+            
+            return removed;
             
         } catch (Exception e) {
             log.error("Error removing vector from Lucene", e);
@@ -281,20 +297,342 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     }
     
     @Override
-    public void clearVectors() {
+    public long clearVectors() {
         try {
             log.debug("Clearing all vectors from Lucene");
             
+            long countBefore = indexReader != null ? indexReader.numDocs() : 0;
             indexWriter.deleteAll();
             indexWriter.commit();
             refreshReader();
             
-            log.debug("Successfully cleared all vectors from Lucene");
+            log.debug("Successfully cleared {} vectors from Lucene", countBefore);
+            return countBefore;
             
         } catch (Exception e) {
             log.error("Error clearing vectors from Lucene", e);
             throw new AIServiceException("Failed to clear vectors from Lucene", e);
         }
+    }
+    
+    @Override
+    public boolean updateVector(String vectorId, String entityType, String entityId, 
+                               String content, List<Double> embedding, Map<String, Object> metadata) {
+        try {
+            log.debug("Updating vector {} in Lucene for entity {} of type {}", vectorId, entityId, entityType);
+            
+            // First remove the existing vector
+            Term term = new Term("vectorId", vectorId);
+            int deletedCount = indexWriter.deleteDocuments(term);
+            
+            if (deletedCount > 0) {
+                // Store the updated vector
+                storeVector(entityType, entityId, content, embedding, metadata);
+                log.debug("Successfully updated vector {} in Lucene", vectorId);
+                return true;
+            } else {
+                log.warn("Vector {} not found for update", vectorId);
+                return false;
+            }
+            
+        } catch (Exception e) {
+            log.error("Error updating vector in Lucene", e);
+            throw new AIServiceException("Failed to update vector in Lucene", e);
+        }
+    }
+    
+    @Override
+    public Optional<VectorRecord> getVector(String vectorId) {
+        try {
+            log.debug("Getting vector {} from Lucene", vectorId);
+            
+            Term term = new Term("vectorId", vectorId);
+            Query query = new QueryParser("vectorId", analyzer).parse("vectorId:" + vectorId);
+            
+            TopDocs topDocs = indexSearcher.search(query, 1);
+            if (topDocs.totalHits.value > 0) {
+                Document doc = indexSearcher.doc(topDocs.scoreDocs[0].doc);
+                return Optional.of(convertDocumentToVectorRecord(doc));
+            }
+            
+            return Optional.empty();
+            
+        } catch (Exception e) {
+            log.error("Error getting vector from Lucene", e);
+            return Optional.empty();
+        }
+    }
+    
+    @Override
+    public Optional<VectorRecord> getVectorByEntity(String entityType, String entityId) {
+        try {
+            log.debug("Getting vector from Lucene for entity {} of type {}", entityId, entityType);
+            
+            String queryString = "entityType:" + entityType + " AND entityId:" + entityId;
+            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            
+            TopDocs topDocs = indexSearcher.search(query, 1);
+            if (topDocs.totalHits.value > 0) {
+                Document doc = indexSearcher.doc(topDocs.scoreDocs[0].doc);
+                return Optional.of(convertDocumentToVectorRecord(doc));
+            }
+            
+            return Optional.empty();
+            
+        } catch (Exception e) {
+            log.error("Error getting vector by entity from Lucene", e);
+            return Optional.empty();
+        }
+    }
+    
+    @Override
+    public AISearchResponse searchByEntityType(List<Double> queryVector, String entityType, 
+                                              int limit, double threshold) {
+        AISearchRequest request = AISearchRequest.builder()
+            .query("")
+            .entityType(entityType)
+            .limit(limit)
+            .threshold(threshold)
+            .build();
+        
+        return search(queryVector, request);
+    }
+    
+    @Override
+    public boolean removeVectorById(String vectorId) {
+        try {
+            log.debug("Removing vector {} from Lucene", vectorId);
+            
+            Term term = new Term("vectorId", vectorId);
+            int deletedCount = indexWriter.deleteDocuments(term);
+            indexWriter.commit();
+            
+            // Refresh reader
+            refreshReader();
+            
+            boolean removed = deletedCount > 0;
+            log.debug("Successfully removed vector {} from Lucene: {}", vectorId, removed);
+            
+            return removed;
+            
+        } catch (Exception e) {
+            log.error("Error removing vector by ID from Lucene", e);
+            throw new AIServiceException("Failed to remove vector by ID from Lucene", e);
+        }
+    }
+    
+    @Override
+    public List<String> batchStoreVectors(List<VectorRecord> vectors) {
+        try {
+            log.debug("Batch storing {} vectors in Lucene", vectors.size());
+            
+            List<String> vectorIds = new ArrayList<>();
+            
+            for (VectorRecord vector : vectors) {
+                String vectorId = storeVector(
+                    vector.getEntityType(),
+                    vector.getEntityId(),
+                    vector.getContent(),
+                    vector.getEmbedding(),
+                    vector.getMetadata()
+                );
+                vectorIds.add(vectorId);
+            }
+            
+            log.debug("Successfully batch stored {} vectors in Lucene", vectorIds.size());
+            return vectorIds;
+            
+        } catch (Exception e) {
+            log.error("Error batch storing vectors in Lucene", e);
+            throw new AIServiceException("Failed to batch store vectors in Lucene", e);
+        }
+    }
+    
+    @Override
+    public int batchUpdateVectors(List<VectorRecord> vectors) {
+        try {
+            log.debug("Batch updating {} vectors in Lucene", vectors.size());
+            
+            int updatedCount = 0;
+            
+            for (VectorRecord vector : vectors) {
+                if (updateVector(
+                    vector.getVectorId(),
+                    vector.getEntityType(),
+                    vector.getEntityId(),
+                    vector.getContent(),
+                    vector.getEmbedding(),
+                    vector.getMetadata()
+                )) {
+                    updatedCount++;
+                }
+            }
+            
+            log.debug("Successfully batch updated {} vectors in Lucene", updatedCount);
+            return updatedCount;
+            
+        } catch (Exception e) {
+            log.error("Error batch updating vectors in Lucene", e);
+            throw new AIServiceException("Failed to batch update vectors in Lucene", e);
+        }
+    }
+    
+    @Override
+    public int batchRemoveVectors(List<String> vectorIds) {
+        try {
+            log.debug("Batch removing {} vectors from Lucene", vectorIds.size());
+            
+            int removedCount = 0;
+            
+            for (String vectorId : vectorIds) {
+                if (removeVectorById(vectorId)) {
+                    removedCount++;
+                }
+            }
+            
+            log.debug("Successfully batch removed {} vectors from Lucene", removedCount);
+            return removedCount;
+            
+        } catch (Exception e) {
+            log.error("Error batch removing vectors from Lucene", e);
+            throw new AIServiceException("Failed to batch remove vectors from Lucene", e);
+        }
+    }
+    
+    @Override
+    public List<VectorRecord> getVectorsByEntityType(String entityType) {
+        try {
+            log.debug("Getting all vectors for entity type {} from Lucene", entityType);
+            
+            String queryString = "entityType:" + entityType;
+            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            
+            TopDocs topDocs = indexSearcher.search(query, Integer.MAX_VALUE);
+            List<VectorRecord> vectors = new ArrayList<>();
+            
+            for (ScoreDoc hit : topDocs.scoreDocs) {
+                Document doc = indexSearcher.doc(hit.doc);
+                vectors.add(convertDocumentToVectorRecord(doc));
+            }
+            
+            log.debug("Found {} vectors for entity type {} in Lucene", vectors.size(), entityType);
+            return vectors;
+            
+        } catch (Exception e) {
+            log.error("Error getting vectors by entity type from Lucene", e);
+            throw new AIServiceException("Failed to get vectors by entity type from Lucene", e);
+        }
+    }
+    
+    @Override
+    public long getVectorCountByEntityType(String entityType) {
+        try {
+            String queryString = "entityType:" + entityType;
+            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            
+            TopDocs topDocs = indexSearcher.search(query, 0); // Only count, don't retrieve
+            return topDocs.totalHits.value;
+            
+        } catch (Exception e) {
+            log.error("Error getting vector count by entity type from Lucene", e);
+            return 0;
+        }
+    }
+    
+    @Override
+    public boolean vectorExists(String entityType, String entityId) {
+        try {
+            String queryString = "entityType:" + entityType + " AND entityId:" + entityId;
+            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            
+            TopDocs topDocs = indexSearcher.search(query, 1);
+            return topDocs.totalHits.value > 0;
+            
+        } catch (Exception e) {
+            log.error("Error checking if vector exists in Lucene", e);
+            return false;
+        }
+    }
+    
+    @Override
+    public long clearVectorsByEntityType(String entityType) {
+        try {
+            log.debug("Clearing all vectors for entity type {} from Lucene", entityType);
+            
+            String queryString = "entityType:" + entityType;
+            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            
+            long countBefore = indexSearcher.count(query);
+            indexWriter.deleteDocuments(query);
+            indexWriter.commit();
+            refreshReader();
+            
+            log.debug("Successfully cleared {} vectors for entity type {} from Lucene", countBefore, entityType);
+            return countBefore;
+            
+        } catch (Exception e) {
+            log.error("Error clearing vectors by entity type from Lucene", e);
+            throw new AIServiceException("Failed to clear vectors by entity type from Lucene", e);
+        }
+    }
+    
+    /**
+     * Convert Lucene document to VectorRecord
+     */
+    private VectorRecord convertDocumentToVectorRecord(Document doc) {
+        try {
+            String embeddingText = doc.get("embedding");
+            List<Double> embedding = null;
+            if (embeddingText != null && !embeddingText.trim().isEmpty()) {
+                embedding = Arrays.stream(embeddingText.split(","))
+                    .map(String::trim)
+                    .map(Double::parseDouble)
+                    .collect(Collectors.toList());
+            }
+            
+            Map<String, Object> metadata = new HashMap<>();
+            String metadataJson = doc.get("metadata");
+            if (metadataJson != null && !metadataJson.trim().isEmpty()) {
+                // Simple JSON parsing - in production, use Jackson or Gson
+                // This is a simplified implementation
+                metadata.put("raw", metadataJson);
+            }
+            
+            return VectorRecord.builder()
+                .vectorId(doc.get("vectorId"))
+                .entityType(doc.get("entityType"))
+                .entityId(doc.get("entityId"))
+                .content(doc.get("content"))
+                .embedding(embedding)
+                .metadata(metadata)
+                .createdAt(parseTimestamp(doc.get("createdAt")))
+                .updatedAt(parseTimestamp(doc.get("updatedAt")))
+                .active(true)
+                .version(1)
+                .build();
+                
+        } catch (Exception e) {
+            log.error("Error converting document to VectorRecord", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Parse timestamp from string
+     */
+    private java.time.LocalDateTime parseTimestamp(String timestampStr) {
+        try {
+            if (timestampStr != null) {
+                long timestamp = Long.parseLong(timestampStr);
+                return java.time.LocalDateTime.ofInstant(
+                    java.time.Instant.ofEpochMilli(timestamp),
+                    java.time.ZoneId.systemDefault()
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Error parsing timestamp: {}", timestampStr, e);
+        }
+        return java.time.LocalDateTime.now();
     }
     
     /**
