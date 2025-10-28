@@ -1,0 +1,32 @@
+# Vector Database Configuration for Development Profile
+# Fast in-memory vector database for development and testing
+
+ai:
+  vector-db:
+    type: memory  # Use in-memory vector database for development
+    default-threshold: 0.6  # Lower threshold for development (more results)
+    default-limit: 20       # More results for testing
+    metrics-enabled: true   # Enable metrics for development insights
+    
+    # In-memory database configuration
+    memory:
+      max-vectors: 1000           # Limit for development datasets
+      enable-cleanup: false       # Disable cleanup for development
+      cleanup-interval-minutes: 30
+      max-vector-age-minutes: 120  # 2 hours for development
+
+# Development-specific AI configuration
+ai-dev:
+  vector-db:
+    # Development features
+    debug-mode: true
+    log-search-results: true
+    enable-performance-logging: true
+    
+    # Test data configuration
+    auto-load-test-data: true
+    test-data-size: 100
+    
+    # Development optimizations
+    fast-similarity-calculation: true
+    skip-vector-validation: false

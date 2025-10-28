@@ -1,0 +1,32 @@
+# Vector Database Configuration for Test Profile
+# Optimized for unit and integration testing
+
+ai:
+  vector-db:
+    type: memory  # Always use in-memory for tests
+    default-threshold: 0.5  # Lower threshold for test assertions
+    default-limit: 5        # Small limit for faster tests
+    metrics-enabled: false  # Disable metrics for cleaner test output
+    
+    # In-memory database configuration for testing
+    memory:
+      max-vectors: 100            # Small limit for tests
+      enable-cleanup: false       # No cleanup during tests
+      cleanup-interval-minutes: 1
+      max-vector-age-minutes: 1
+
+# Test-specific configuration
+ai-test:
+  vector-db:
+    # Test features
+    mock-mode: false              # Use real implementation for integration tests
+    deterministic-results: true   # Ensure consistent test results
+    fast-mode: true              # Skip expensive operations in tests
+    
+    # Test data
+    use-fixed-test-vectors: true  # Use predefined test vectors
+    test-vector-dimensions: 5     # Small dimensions for faster tests
+    
+    # Test optimizations
+    skip-similarity-calculation: false
+    mock-search-results: false

@@ -1,0 +1,62 @@
+# Vector Database Configuration for Production Profile
+# Configurable backend selection for production environments
+
+ai:
+  vector-db:
+    type: ${AI_VECTOR_DB_TYPE:memory}  # Environment variable override
+    default-threshold: 0.7             # Higher threshold for production quality
+    default-limit: 10                  # Reasonable limit for production
+    metrics-enabled: true              # Enable metrics for monitoring
+    
+    # In-memory database configuration (fallback)
+    memory:
+      max-vectors: ${AI_MEMORY_MAX_VECTORS:50000}  # Higher limit for production
+      enable-cleanup: true                         # Enable cleanup for memory management
+      cleanup-interval-minutes: ${AI_CLEANUP_INTERVAL:60}
+      max-vector-age-minutes: ${AI_MAX_VECTOR_AGE:1440}  # 24 hours
+    
+    # Pinecone configuration (cloud vector database)
+    pinecone:
+      api-key: ${PINECONE_API_KEY:}
+      environment: ${PINECONE_ENVIRONMENT:us-east-1-aws}
+      index-name: ${PINECONE_INDEX_NAME:easyluxury-prod}
+      dimensions: ${PINECONE_DIMENSIONS:1536}
+      metric: ${PINECONE_METRIC:cosine}
+      pods: ${PINECONE_PODS:1}
+      pod-type: ${PINECONE_POD_TYPE:p1}
+    
+    # Weaviate configuration (self-hosted vector database)
+    weaviate:
+      endpoint: ${WEAVIATE_ENDPOINT:http://localhost:8080}
+      api-key: ${WEAVIATE_API_KEY:}
+      class-name: ${WEAVIATE_CLASS_NAME:AIVector}
+      timeout-ms: ${WEAVIATE_TIMEOUT:30000}
+      batch-enabled: ${WEAVIATE_BATCH_ENABLED:true}
+      batch-size: ${WEAVIATE_BATCH_SIZE:100}
+    
+    # Qdrant configuration (self-hosted vector database)
+    qdrant:
+      endpoint: ${QDRANT_ENDPOINT:http://localhost:6333}
+      api-key: ${QDRANT_API_KEY:}
+      collection-name: ${QDRANT_COLLECTION:ai_vectors}
+      dimensions: ${QDRANT_DIMENSIONS:1536}
+      distance: ${QDRANT_DISTANCE:Cosine}
+      timeout-ms: ${QDRANT_TIMEOUT:30000}
+
+# Production monitoring and optimization
+ai-prod:
+  vector-db:
+    # Performance monitoring
+    enable-detailed-metrics: true
+    enable-health-checks: true
+    health-check-interval-seconds: 30
+    
+    # Production optimizations
+    connection-pooling: true
+    batch-operations: true
+    async-operations: true
+    
+    # Backup and recovery
+    enable-backup: ${AI_ENABLE_BACKUP:false}
+    backup-interval-hours: ${AI_BACKUP_INTERVAL:24}
+    backup-retention-days: ${AI_BACKUP_RETENTION:7}

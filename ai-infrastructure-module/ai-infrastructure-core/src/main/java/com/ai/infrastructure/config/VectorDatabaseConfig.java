@@ -5,13 +5,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Configuration properties for vector database backends
+ * Vector Database Configuration Properties
  * 
- * This class contains configuration properties for different vector database
- * implementations including Lucene, Pinecone, and in-memory stores.
+ * Configuration properties for vector database selection and settings.
+ * Supports different backends based on profiles and environment variables.
  * 
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 @Data
 @Configuration
@@ -19,61 +19,66 @@ import org.springframework.context.annotation.Configuration;
 public class VectorDatabaseConfig {
     
     /**
-     * Vector database type: lucene, pinecone, memory
+     * Vector database type: memory, pinecone, weaviate, qdrant
      */
-    private String type = "lucene";
+    private String type = "memory";
     
     /**
-     * Lucene-specific configuration
+     * Default similarity threshold for searches
      */
-    private LuceneConfig lucene = new LuceneConfig();
+    private double defaultThreshold = 0.7;
     
     /**
-     * Pinecone-specific configuration
+     * Default maximum results for searches
+     */
+    private int defaultLimit = 10;
+    
+    /**
+     * Enable performance metrics collection
+     */
+    private boolean metricsEnabled = true;
+    
+    /**
+     * In-memory database configuration
+     */
+    private InMemoryConfig memory = new InMemoryConfig();
+    
+    /**
+     * Pinecone configuration
      */
     private PineconeConfig pinecone = new PineconeConfig();
     
     /**
-     * Memory-specific configuration
+     * Weaviate configuration
      */
-    private MemoryConfig memory = new MemoryConfig();
+    private WeaviateConfig weaviate = new WeaviateConfig();
+    
+    /**
+     * Qdrant configuration
+     */
+    private QdrantConfig qdrant = new QdrantConfig();
     
     @Data
-    public static class LuceneConfig {
+    public static class InMemoryConfig {
         /**
-         * Path to Lucene index directory
+         * Maximum number of vectors to store in memory
          */
-        private String indexPath = "./data/lucene-vector-index";
+        private int maxVectors = 10000;
         
         /**
-         * Similarity threshold for search results
+         * Enable periodic cleanup of old vectors
          */
-        private Double similarityThreshold = 0.7;
+        private boolean enableCleanup = false;
         
         /**
-         * Maximum number of results to return
+         * Cleanup interval in minutes
          */
-        private Integer maxResults = 100;
+        private int cleanupIntervalMinutes = 60;
         
         /**
-         * Whether to create index directory if it doesn't exist
+         * Maximum age of vectors in minutes before cleanup
          */
-        private Boolean createIndexIfNotExists = true;
-        
-        /**
-         * Lucene analyzer to use
-         */
-        private String analyzer = "standard";
-        
-        /**
-         * Whether to enable compound file format
-         */
-        private Boolean useCompoundFile = true;
-        
-        /**
-         * Maximum number of documents to buffer in memory
-         */
-        private Integer maxBufferedDocs = 1000;
+        private int maxVectorAgeMinutes = 1440; // 24 hours
     }
     
     @Data
@@ -84,71 +89,99 @@ public class VectorDatabaseConfig {
         private String apiKey;
         
         /**
-         * Pinecone environment
+         * Pinecone environment (e.g., "us-east-1-aws")
          */
-        private String environment = "us-east-1-aws";
+        private String environment;
         
         /**
          * Pinecone index name
          */
-        private String indexName = "ai-infrastructure";
+        private String indexName;
         
         /**
-         * Vector dimensions
+         * Vector dimensions (typically 1536 for OpenAI)
          */
-        private Integer dimensions = 1536;
+        private int dimensions = 1536;
         
         /**
-         * Similarity metric: cosine, dotproduct, euclidean
+         * Distance metric: cosine, euclidean, dotproduct
          */
         private String metric = "cosine";
         
         /**
          * Number of pods for the index
          */
-        private Integer pods = 1;
+        private int pods = 1;
         
         /**
-         * Pod type: p1, p2, s1, s2
+         * Pod type (e.g., "p1", "s1")
          */
         private String podType = "p1";
-        
-        /**
-         * Whether to enable metadata filtering
-         */
-        private Boolean enableMetadataFiltering = true;
     }
     
     @Data
-    public static class MemoryConfig {
+    public static class WeaviateConfig {
         /**
-         * Whether to enable persistence to disk
+         * Weaviate endpoint URL
          */
-        private Boolean enablePersistence = false;
+        private String endpoint;
         
         /**
-         * Path to persistence file
+         * Weaviate API key (if authentication is enabled)
          */
-        private String persistencePath = "./data/memory-vector-store.json";
+        private String apiKey;
         
         /**
-         * Maximum number of vectors to store in memory
+         * Weaviate class name for vectors
          */
-        private Integer maxVectors = 10000;
+        private String className = "AIVector";
         
         /**
-         * Whether to enable automatic cleanup of old vectors
+         * Connection timeout in milliseconds
          */
-        private Boolean enableCleanup = true;
+        private int timeoutMs = 30000;
         
         /**
-         * Cleanup interval in minutes
+         * Enable batch operations
          */
-        private Integer cleanupIntervalMinutes = 60;
+        private boolean batchEnabled = true;
         
         /**
-         * Maximum age of vectors in minutes before cleanup
+         * Batch size for bulk operations
          */
-        private Integer maxVectorAgeMinutes = 1440; // 24 hours
+        private int batchSize = 100;
+    }
+    
+    @Data
+    public static class QdrantConfig {
+        /**
+         * Qdrant endpoint URL
+         */
+        private String endpoint;
+        
+        /**
+         * Qdrant API key (if authentication is enabled)
+         */
+        private String apiKey;
+        
+        /**
+         * Qdrant collection name
+         */
+        private String collectionName = "ai_vectors";
+        
+        /**
+         * Vector dimensions
+         */
+        private int dimensions = 1536;
+        
+        /**
+         * Distance metric: Cosine, Euclidean, Dot
+         */
+        private String distance = "Cosine";
+        
+        /**
+         * Connection timeout in milliseconds
+         */
+        private int timeoutMs = 30000;
     }
 }

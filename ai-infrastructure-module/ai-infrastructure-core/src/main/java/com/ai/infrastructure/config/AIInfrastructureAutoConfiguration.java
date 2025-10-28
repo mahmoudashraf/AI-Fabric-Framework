@@ -24,7 +24,10 @@ import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.PineconeVectorDatabase;
+import com.ai.infrastructure.vector.InMemoryVectorDatabase;
+import com.ai.infrastructure.vector.VectorDatabaseService;
 import com.ai.infrastructure.config.AIConfigurationService;
+import com.ai.infrastructure.config.VectorDatabaseConfig;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
@@ -48,7 +51,7 @@ import org.springframework.core.io.ResourceLoader;
  * @version 1.0.0
  */
 @Configuration
-@EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class})
+@EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class, VectorDatabaseConfig.class})
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -154,7 +157,22 @@ public class AIInfrastructureAutoConfiguration {
         return new VectorSearchService(config);
     }
     
+    // New Vector Database Configuration
     @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory", matchIfMissing = true)
+    public VectorDatabase inMemoryVectorDatabase() {
+        return new InMemoryVectorDatabase();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public VectorDatabaseService vectorDatabaseService(VectorDatabase vectorDatabase) {
+        return new VectorDatabaseService(vectorDatabase);
+    }
+    
+    // Legacy Vector Database (for backward compatibility)
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone-legacy")
     public VectorDatabase vectorDatabase(AIProviderConfig config) {
         return new PineconeVectorDatabase(config);
     }
