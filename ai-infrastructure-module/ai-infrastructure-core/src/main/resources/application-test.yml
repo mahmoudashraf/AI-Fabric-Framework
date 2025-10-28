@@ -10,6 +10,16 @@ ai:
       cleanupIntervalMinutes: 5
       maxVectorAgeMinutes: 30
 
+# OpenAI Configuration for Tests
+ai:
+  providers:
+    openai-api-key: ${OPENAI_API_KEY:sk-test-key}
+    openai-model: gpt-4o-mini
+    openai-embedding-model: text-embedding-3-small
+    openai-max-tokens: 1000
+    openai-temperature: 0.3
+    openai-timeout: 30
+
 # Logging configuration for tests
 logging:
   level:
