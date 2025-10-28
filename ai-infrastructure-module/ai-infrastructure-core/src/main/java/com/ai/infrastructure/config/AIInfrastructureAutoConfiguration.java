@@ -117,9 +117,33 @@ public class AIInfrastructureAutoConfiguration {
     // - InMemoryVectorDatabaseService
     
     @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
+    public VectorDatabaseService luceneVectorDatabaseService(AIProviderConfig config) {
+        return new LuceneVectorDatabaseService(config);
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
+    public VectorDatabaseService pineconeVectorDatabaseService(AIProviderConfig config) {
+        return new PineconeVectorDatabaseService(config);
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
+    public VectorDatabaseService inMemoryVectorDatabaseService(AIProviderConfig config) {
+        return new InMemoryVectorDatabaseService(config);
+    }
+    
+    @Bean
     @ConditionalOnMissingBean
     public AIEntityConfigurationLoader aiEntityConfigurationLoader(ResourceLoader resourceLoader) {
         return new AIEntityConfigurationLoader(resourceLoader);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public VectorManagementService vectorManagementService(VectorDatabaseService vectorDatabaseService) {
+        return new VectorManagementService(vectorDatabaseService);
     }
     
     @Bean
@@ -162,22 +186,6 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
-    public VectorDatabaseService luceneVectorDatabaseService(AIProviderConfig config) {
-        return new LuceneVectorDatabaseService(config);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    public VectorDatabaseService pineconeVectorDatabaseService(AIProviderConfig config) {
-        return new PineconeVectorDatabaseService(config);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
-    public VectorDatabaseService inMemoryVectorDatabaseService(AIProviderConfig config) {
-        return new InMemoryVectorDatabaseService(config);
-    }
     
     @Bean
     public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {

@@ -480,7 +480,7 @@ public class MockIntegrationTest {
 
         System.out.println("✅ Mock Batch Processing Test Passed");
         System.out.println("   - Products processed: " + allEntities.size());
-        System.out.println("   - Average embeddings per product: " + 
-            (allEntities.stream().mapToInt(e -> e.getVectorId().size()).sum() / allEntities.size()));
+        System.out.println("   - All products have vector IDs: " + 
+            allEntities.stream().allMatch(e -> e.getVectorId() != null && !e.getVectorId().isEmpty()));
     }
 }
