@@ -248,7 +248,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             
             // Delete by entityId and entityType
             Term term = new Term("entityId", entityId);
-            int deletedCount = indexWriter.deleteDocuments(term);
+            long deletedCount = indexWriter.deleteDocuments(term);
             indexWriter.commit();
             
             // Refresh reader
@@ -323,7 +323,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             
             // First remove the existing vector
             Term term = new Term("vectorId", vectorId);
-            int deletedCount = indexWriter.deleteDocuments(term);
+            long deletedCount = indexWriter.deleteDocuments(term);
             
             if (deletedCount > 0) {
                 // Store the updated vector
@@ -404,7 +404,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             log.debug("Removing vector {} from Lucene", vectorId);
             
             Term term = new Term("vectorId", vectorId);
-            int deletedCount = indexWriter.deleteDocuments(term);
+            long deletedCount = indexWriter.deleteDocuments(term);
             indexWriter.commit();
             
             // Refresh reader

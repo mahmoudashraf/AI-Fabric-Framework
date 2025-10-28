@@ -3,12 +3,14 @@ package com.ai.infrastructure.rag;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
+import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.exception.AIServiceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -20,7 +22,7 @@ import java.util.stream.Collectors;
  * is not required.
  * 
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -29,30 +31,105 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
     
     private final AIProviderConfig config;
     
-    // In-memory vector store
-    private final Map<String, List<Map<String, Object>>> vectorStore = new HashMap<>();
+    // In-memory vector store - using vectorId as key for efficient lookups
+    private final Map<String, VectorRecord> vectorStore = new HashMap<>();
     
     @Override
-    public void storeVector(String entityType, String entityId, String content, 
+    public String storeVector(String entityType, String entityId, String content, 
                            List<Double> embedding, Map<String, Object> metadata) {
         try {
             log.debug("Storing vector in memory for entity {} of type {}", entityId, entityType);
             
-            Map<String, Object> vector = new HashMap<>();
-            vector.put("id", entityId);
-            vector.put("content", content);
-            vector.put("embedding", embedding);
-            vector.put("entityType", entityType);
-            vector.put("metadata", metadata != null ? metadata : new HashMap<>());
-            vector.put("storedAt", System.currentTimeMillis());
+            String vectorId = UUID.randomUUID().toString();
+            LocalDateTime now = LocalDateTime.now();
             
-            vectorStore.computeIfAbsent(entityType, k -> new ArrayList<>()).add(vector);
+            VectorRecord vectorRecord = VectorRecord.builder()
+                .vectorId(vectorId)
+                .entityType(entityType)
+                .entityId(entityId)
+                .content(content)
+                .embedding(embedding)
+                .metadata(metadata != null ? metadata : new HashMap<>())
+                .aiAnalysis(null)
+                .createdAt(now)
+                .updatedAt(now)
+                .vectorMetadata(new HashMap<>())
+                .similarityScore(null)
+                .active(true)
+                .version(1)
+                .build();
             
-            log.debug("Successfully stored vector in memory for entity {} of type {}", entityId, entityType);
+            vectorStore.put(vectorId, vectorRecord);
+            
+            log.debug("Successfully stored vector in memory for entity {} of type {} with vectorId {}", entityId, entityType, vectorId);
+            return vectorId;
             
         } catch (Exception e) {
             log.error("Error storing vector in memory", e);
             throw new AIServiceException("Failed to store vector in memory", e);
+        }
+    }
+    
+    @Override
+    public boolean updateVector(String vectorId, String entityType, String entityId, String content, 
+                              List<Double> embedding, Map<String, Object> metadata) {
+        try {
+            log.debug("Updating vector in memory with vectorId {}", vectorId);
+            
+            VectorRecord existingRecord = vectorStore.get(vectorId);
+            if (existingRecord == null) {
+                log.warn("Vector not found for vectorId: {}", vectorId);
+                return false;
+            }
+            
+            VectorRecord updatedRecord = VectorRecord.builder()
+                .vectorId(existingRecord.getVectorId())
+                .entityType(entityType)
+                .entityId(entityId)
+                .content(content)
+                .embedding(embedding)
+                .metadata(metadata != null ? metadata : new HashMap<>())
+                .aiAnalysis(existingRecord.getAiAnalysis())
+                .createdAt(existingRecord.getCreatedAt())
+                .updatedAt(LocalDateTime.now())
+                .vectorMetadata(existingRecord.getVectorMetadata())
+                .similarityScore(existingRecord.getSimilarityScore())
+                .active(existingRecord.getActive())
+                .version(existingRecord.getVersion() + 1)
+                .build();
+            
+            vectorStore.put(vectorId, updatedRecord);
+            
+            log.debug("Successfully updated vector in memory with vectorId {}", vectorId);
+            return true;
+            
+        } catch (Exception e) {
+            log.error("Error updating vector in memory", e);
+            throw new AIServiceException("Failed to update vector in memory", e);
+        }
+    }
+    
+    @Override
+    public Optional<VectorRecord> getVector(String vectorId) {
+        try {
+            log.debug("Getting vector from memory with vectorId {}", vectorId);
+            return Optional.ofNullable(vectorStore.get(vectorId));
+        } catch (Exception e) {
+            log.error("Error getting vector from memory", e);
+            throw new AIServiceException("Failed to get vector from memory", e);
+        }
+    }
+    
+    @Override
+    public Optional<VectorRecord> getVectorByEntity(String entityType, String entityId) {
+        try {
+            log.debug("Getting vector from memory for entity {} of type {}", entityId, entityType);
+            return vectorStore.values().stream()
+                .filter(record -> entityType.equals(record.getEntityType()) && entityId.equals(record.getEntityId()))
+                .findFirst();
+        } catch (Exception e) {
+            log.error("Error getting vector from memory by entity", e);
+            throw new AIServiceException("Failed to get vector from memory by entity", e);
         }
     }
     
@@ -65,7 +142,9 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
             
             // Get entities to search
             String entityType = request.getEntityType();
-            List<Map<String, Object>> entities = vectorStore.getOrDefault(entityType, new ArrayList<>());
+            List<VectorRecord> entities = vectorStore.values().stream()
+                .filter(record -> entityType.equals(record.getEntityType()))
+                .collect(Collectors.toList());
             
             if (entities.isEmpty()) {
                 log.debug("No entities found for type: {}", entityType);
@@ -82,11 +161,14 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
             
             // Calculate similarity scores
             List<Map<String, Object>> scoredEntities = entities.stream()
-                .map(entity -> {
-                    List<Double> entityVector = (List<Double>) entity.get("embedding");
-                    double similarity = calculateCosineSimilarity(queryVector, entityVector);
+                .map(record -> {
+                    double similarity = calculateCosineSimilarity(queryVector, record.getEmbedding());
                     
-                    Map<String, Object> scoredEntity = new HashMap<>(entity);
+                    Map<String, Object> scoredEntity = new HashMap<>();
+                    scoredEntity.put("vectorId", record.getVectorId());
+                    scoredEntity.put("entityId", record.getEntityId());
+                    scoredEntity.put("content", record.getContent());
+                    scoredEntity.put("metadata", record.getMetadata());
                     scoredEntity.put("similarity", similarity);
                     scoredEntity.put("score", similarity);
                     return scoredEntity;
@@ -117,16 +199,85 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
     }
     
     @Override
-    public void removeVector(String entityType, String entityId) {
+    public AISearchResponse searchByEntityType(List<Double> queryVector, String entityType, int limit, double threshold) {
+        try {
+            log.debug("Searching vectors in memory for entity type: {}", entityType);
+            
+            long startTime = System.currentTimeMillis();
+            
+            List<VectorRecord> entities = vectorStore.values().stream()
+                .filter(record -> entityType.equals(record.getEntityType()))
+                .collect(Collectors.toList());
+            
+            if (entities.isEmpty()) {
+                log.debug("No entities found for type: {}", entityType);
+                return AISearchResponse.builder()
+                    .results(new ArrayList<>())
+                    .totalResults(0)
+                    .maxScore(0.0)
+                    .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .requestId(UUID.randomUUID().toString())
+                    .query("")
+                    .model(config.getOpenaiEmbeddingModel())
+                    .build();
+            }
+            
+            // Calculate similarity scores
+            List<Map<String, Object>> scoredEntities = entities.stream()
+                .map(record -> {
+                    double similarity = calculateCosineSimilarity(queryVector, record.getEmbedding());
+                    
+                    Map<String, Object> scoredEntity = new HashMap<>();
+                    scoredEntity.put("vectorId", record.getVectorId());
+                    scoredEntity.put("entityId", record.getEntityId());
+                    scoredEntity.put("content", record.getContent());
+                    scoredEntity.put("metadata", record.getMetadata());
+                    scoredEntity.put("similarity", similarity);
+                    scoredEntity.put("score", similarity);
+                    return scoredEntity;
+                })
+                .filter(entity -> (Double) entity.get("similarity") >= threshold)
+                .sorted((a, b) -> Double.compare((Double) b.get("similarity"), (Double) a.get("similarity")))
+                .limit(limit)
+                .collect(Collectors.toList());
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            log.debug("Found {} results in memory in {}ms", scoredEntities.size(), processingTime);
+            
+            return AISearchResponse.builder()
+                .results(scoredEntities)
+                .totalResults(scoredEntities.size())
+                .maxScore(scoredEntities.isEmpty() ? 0.0 : (Double) scoredEntities.get(0).get("similarity"))
+                .processingTimeMs(processingTime)
+                .requestId(UUID.randomUUID().toString())
+                .query("")
+                .model(config.getOpenaiEmbeddingModel())
+                .build();
+                
+        } catch (Exception e) {
+            log.error("Error searching vectors in memory by entity type", e);
+            throw new AIServiceException("Failed to search vectors in memory by entity type", e);
+        }
+    }
+    
+    @Override
+    public boolean removeVector(String entityType, String entityId) {
         try {
             log.debug("Removing vector from memory for entity {} of type {}", entityId, entityType);
             
-            List<Map<String, Object>> entities = vectorStore.get(entityType);
-            if (entities != null) {
-                entities.removeIf(entity -> entityId.equals(entity.get("id")));
-            }
+            Optional<VectorRecord> recordToRemove = vectorStore.values().stream()
+                .filter(record -> entityType.equals(record.getEntityType()) && entityId.equals(record.getEntityId()))
+                .findFirst();
             
-            log.debug("Successfully removed vector from memory for entity {} of type {}", entityId, entityType);
+            if (recordToRemove.isPresent()) {
+                vectorStore.remove(recordToRemove.get().getVectorId());
+                log.debug("Successfully removed vector from memory for entity {} of type {}", entityId, entityType);
+                return true;
+            } else {
+                log.warn("Vector not found for entity {} of type {}", entityId, entityType);
+                return false;
+            }
             
         } catch (Exception e) {
             log.error("Error removing vector from memory", e);
@@ -135,20 +286,196 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
     }
     
     @Override
-    public Map<String, Object> getStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("type", "memory");
-        stats.put("totalVectors", vectorStore.values().stream().mapToInt(List::size).sum());
-        stats.put("entityTypes", vectorStore.keySet());
-        stats.put("entityTypeCounts", vectorStore.entrySet().stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size())));
-        return stats;
+    public boolean removeVectorById(String vectorId) {
+        try {
+            log.debug("Removing vector from memory with vectorId {}", vectorId);
+            
+            VectorRecord removed = vectorStore.remove(vectorId);
+            if (removed != null) {
+                log.debug("Successfully removed vector from memory with vectorId {}", vectorId);
+                return true;
+            } else {
+                log.warn("Vector not found for vectorId {}", vectorId);
+                return false;
+            }
+            
+        } catch (Exception e) {
+            log.error("Error removing vector from memory by ID", e);
+            throw new AIServiceException("Failed to remove vector from memory by ID", e);
+        }
     }
     
     @Override
-    public void clearVectors() {
-        log.debug("Clearing vector store from memory");
-        vectorStore.clear();
+    public List<String> batchStoreVectors(List<VectorRecord> vectors) {
+        try {
+            log.debug("Batch storing {} vectors in memory", vectors.size());
+            
+            List<String> vectorIds = new ArrayList<>();
+            for (VectorRecord vector : vectors) {
+                String vectorId = storeVector(
+                    vector.getEntityType(),
+                    vector.getEntityId(),
+                    vector.getContent(),
+                    vector.getEmbedding(),
+                    vector.getMetadata()
+                );
+                vectorIds.add(vectorId);
+            }
+            
+            log.debug("Successfully batch stored {} vectors in memory", vectors.size());
+            return vectorIds;
+            
+        } catch (Exception e) {
+            log.error("Error batch storing vectors in memory", e);
+            throw new AIServiceException("Failed to batch store vectors in memory", e);
+        }
+    }
+    
+    @Override
+    public int batchUpdateVectors(List<VectorRecord> vectors) {
+        try {
+            log.debug("Batch updating {} vectors in memory", vectors.size());
+            
+            int updatedCount = 0;
+            for (VectorRecord vector : vectors) {
+                if (updateVector(
+                    vector.getVectorId(),
+                    vector.getEntityType(),
+                    vector.getEntityId(),
+                    vector.getContent(),
+                    vector.getEmbedding(),
+                    vector.getMetadata()
+                )) {
+                    updatedCount++;
+                }
+            }
+            
+            log.debug("Successfully batch updated {} vectors in memory", updatedCount);
+            return updatedCount;
+            
+        } catch (Exception e) {
+            log.error("Error batch updating vectors in memory", e);
+            throw new AIServiceException("Failed to batch update vectors in memory", e);
+        }
+    }
+    
+    @Override
+    public int batchRemoveVectors(List<String> vectorIds) {
+        try {
+            log.debug("Batch removing {} vectors from memory", vectorIds.size());
+            
+            int removedCount = 0;
+            for (String vectorId : vectorIds) {
+                if (removeVectorById(vectorId)) {
+                    removedCount++;
+                }
+            }
+            
+            log.debug("Successfully batch removed {} vectors from memory", removedCount);
+            return removedCount;
+            
+        } catch (Exception e) {
+            log.error("Error batch removing vectors from memory", e);
+            throw new AIServiceException("Failed to batch remove vectors from memory", e);
+        }
+    }
+    
+    @Override
+    public List<VectorRecord> getVectorsByEntityType(String entityType) {
+        try {
+            log.debug("Getting all vectors from memory for entity type {}", entityType);
+            
+            return vectorStore.values().stream()
+                .filter(record -> entityType.equals(record.getEntityType()))
+                .collect(Collectors.toList());
+                
+        } catch (Exception e) {
+            log.error("Error getting vectors from memory by entity type", e);
+            throw new AIServiceException("Failed to get vectors from memory by entity type", e);
+        }
+    }
+    
+    @Override
+    public long getVectorCountByEntityType(String entityType) {
+        try {
+            log.debug("Getting vector count from memory for entity type {}", entityType);
+            
+            return vectorStore.values().stream()
+                .filter(record -> entityType.equals(record.getEntityType()))
+                .count();
+                
+        } catch (Exception e) {
+            log.error("Error getting vector count from memory by entity type", e);
+            throw new AIServiceException("Failed to get vector count from memory by entity type", e);
+        }
+    }
+    
+    @Override
+    public boolean vectorExists(String entityType, String entityId) {
+        try {
+            log.debug("Checking if vector exists in memory for entity {} of type {}", entityId, entityType);
+            
+            return vectorStore.values().stream()
+                .anyMatch(record -> entityType.equals(record.getEntityType()) && entityId.equals(record.getEntityId()));
+                
+        } catch (Exception e) {
+            log.error("Error checking if vector exists in memory", e);
+            throw new AIServiceException("Failed to check if vector exists in memory", e);
+        }
+    }
+    
+    @Override
+    public long clearVectors() {
+        try {
+            log.debug("Clearing all vectors from memory");
+            
+            int count = vectorStore.size();
+            vectorStore.clear();
+            
+            log.debug("Successfully cleared {} vectors from memory", count);
+            return count;
+            
+        } catch (Exception e) {
+            log.error("Error clearing vectors from memory", e);
+            throw new AIServiceException("Failed to clear vectors from memory", e);
+        }
+    }
+    
+    @Override
+    public long clearVectorsByEntityType(String entityType) {
+        try {
+            log.debug("Clearing vectors from memory for entity type {}", entityType);
+            
+            List<String> vectorIdsToRemove = vectorStore.values().stream()
+                .filter(record -> entityType.equals(record.getEntityType()))
+                .map(VectorRecord::getVectorId)
+                .collect(Collectors.toList());
+            
+            for (String vectorId : vectorIdsToRemove) {
+                vectorStore.remove(vectorId);
+            }
+            
+            log.debug("Successfully cleared {} vectors from memory for entity type {}", vectorIdsToRemove.size(), entityType);
+            return vectorIdsToRemove.size();
+            
+        } catch (Exception e) {
+            log.error("Error clearing vectors from memory by entity type", e);
+            throw new AIServiceException("Failed to clear vectors from memory by entity type", e);
+        }
+    }
+    
+    @Override
+    public Map<String, Object> getStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("type", "memory");
+        stats.put("totalVectors", vectorStore.size());
+        
+        Map<String, Long> entityTypeCounts = vectorStore.values().stream()
+            .collect(Collectors.groupingBy(VectorRecord::getEntityType, Collectors.counting()));
+        
+        stats.put("entityTypes", entityTypeCounts.keySet());
+        stats.put("entityTypeCounts", entityTypeCounts);
+        return stats;
     }
     
     /**

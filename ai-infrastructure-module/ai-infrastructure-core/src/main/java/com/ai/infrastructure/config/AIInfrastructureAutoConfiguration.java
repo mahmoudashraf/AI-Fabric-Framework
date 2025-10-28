@@ -11,6 +11,7 @@ import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.audit.AIAuditService;
@@ -127,8 +128,9 @@ public class AIInfrastructureAutoConfiguration {
             AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
             AISearchableEntityRepository searchableEntityRepository,
-            AIEntityConfigurationLoader entityConfigurationLoader) {
-        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader);
+            AIEntityConfigurationLoader entityConfigurationLoader,
+            VectorManagementService vectorManagementService) {
+        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader, vectorManagementService);
     }
     
     @Bean
