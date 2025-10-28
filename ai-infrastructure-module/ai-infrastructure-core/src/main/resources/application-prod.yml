@@ -1,0 +1,20 @@
+# Production Configuration - Vector Database
+ai:
+  vector-db:
+    type: pinecone
+    pinecone:
+      apiKey: ${PINECONE_API_KEY:}
+      environment: "us-east-1-aws"
+      indexName: "ai-infrastructure-prod"
+      dimensions: 1536
+      metric: "cosine"
+      pods: 2
+      podType: "p1"
+      enableMetadataFiltering: true
+
+# Logging configuration for production
+logging:
+  level:
+    com.ai.infrastructure.rag: INFO
+    com.ai.infrastructure.service.VectorManagementService: INFO
+    com.ai.infrastructure.service.AICapabilityService: INFO

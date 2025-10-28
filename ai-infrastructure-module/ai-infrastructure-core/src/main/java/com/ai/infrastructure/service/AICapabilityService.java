@@ -36,6 +36,7 @@ public class AICapabilityService {
     private final AICoreService aiCoreService;
     private final AISearchableEntityRepository searchableEntityRepository;
     private final AIEntityConfigurationLoader configurationLoader;
+    private final VectorManagementService vectorManagementService;
     
     // Debug method to access configurationLoader
     public AIEntityConfigurationLoader getConfigurationLoader() {
@@ -212,7 +213,15 @@ public class AICapabilityService {
                 return;
             }
             
-            // Remove embeddings from searchable entity repository
+            // Remove vector from vector database
+            boolean vectorRemoved = vectorManagementService.removeVector(config.getEntityType(), entityId);
+            if (vectorRemoved) {
+                log.debug("Successfully removed vector from vector database for entity {} of type {}", entityId, config.getEntityType());
+            } else {
+                log.warn("Vector not found in vector database for entity {} of type {}", entityId, config.getEntityType());
+            }
+            
+            // Remove from searchable entity repository
             searchableEntityRepository.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
             
         } catch (Exception e) {
@@ -308,13 +317,29 @@ public class AICapabilityService {
                 }
             }
             
+            // Store vector in vector database
+            Map<String, Object> metadata = extractMetadata(entity, config);
+            String vectorId = vectorManagementService.storeVector(
+                config.getEntityType(),
+                entityId,
+                content,
+                embeddings,
+                metadata
+            );
+            
+            if (vectorId == null) {
+                log.error("Failed to store vector in vector database for entity {} of type {}", entityId, config.getEntityType());
+                return;
+            }
+            
             AISearchableEntity searchableEntity;
             if (!existing.isEmpty()) {
                 // Update existing entity
                 searchableEntity = existing.get(0);
                 searchableEntity.setSearchableContent(content);
-                searchableEntity.setEmbeddings(embeddings);
-                searchableEntity.setMetadata(convertMetadataToJson(extractMetadata(entity, config)));
+                searchableEntity.setVectorId(vectorId);
+                searchableEntity.setVectorUpdatedAt(java.time.LocalDateTime.now());
+                searchableEntity.setMetadata(convertMetadataToJson(metadata));
                 searchableEntity.setUpdatedAt(java.time.LocalDateTime.now());
             } else {
                 // Create new entity
@@ -322,8 +347,9 @@ public class AICapabilityService {
                     .entityType(config.getEntityType())
                     .entityId(entityId)
                     .searchableContent(content)
-                    .embeddings(embeddings)
-                    .metadata(convertMetadataToJson(extractMetadata(entity, config)))
+                    .vectorId(vectorId)
+                    .vectorUpdatedAt(java.time.LocalDateTime.now())
+                    .metadata(convertMetadataToJson(metadata))
                     .createdAt(java.time.LocalDateTime.now())
                     .updatedAt(java.time.LocalDateTime.now())
                     .build();
