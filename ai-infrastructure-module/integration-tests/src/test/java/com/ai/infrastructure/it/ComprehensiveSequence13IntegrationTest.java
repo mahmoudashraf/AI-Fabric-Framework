@@ -3,6 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.entity.TestUser;
 import com.ai.infrastructure.it.entity.TestArticle;
@@ -68,6 +69,9 @@ public class ComprehensiveSequence13IntegrationTest {
     @Autowired
     private TestArticleRepository articleRepository;
 
+    @Autowired
+    private VectorManagementService vectorManagementService;
+
     @BeforeEach
     public void setUp() {
         // Clean up before each test
@@ -101,13 +105,17 @@ public class ComprehensiveSequence13IntegrationTest {
         assertEquals(1, entities.size(), "Should process one product");
 
         AISearchableEntity entity = entities.get(0);
-        assertNotNull(entity.getEmbeddings(), "Should have embeddings");
-        assertTrue(entity.getEmbeddings().size() >= 100, "Should have substantial embeddings");
+        assertNotNull(entity.getVectorId(), "Should have vector ID");
+        assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
+        
+        // Verify vector exists in vector database
+        assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                  "Vector should exist in vector database");
         assertNotNull(entity.getSearchableContent(), "Should have searchable content");
         assertTrue(entity.getSearchableContent().contains("AI-Powered"), "Should contain product name");
 
         System.out.println("✅ Phase 1 Core AI Services Test Passed");
-        System.out.println("   - Embeddings generated: " + entity.getEmbeddings().size());
+        System.out.println("   - Vector ID: " + entity.getVectorId());
         System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
     }
 
@@ -474,8 +482,12 @@ public class ComprehensiveSequence13IntegrationTest {
 
         // Verify all entities have proper AI processing
         for (AISearchableEntity entity : allEntities) {
-            assertNotNull(entity.getEmbeddings(), "Each entity should have embeddings");
-            assertTrue(entity.getEmbeddings().size() >= 100, "Each entity should have substantial embeddings");
+            assertNotNull(entity.getVectorId(), "Each entity should have vector ID");
+            assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
+            
+            // Verify vector exists in vector database
+            assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                      "Vector should exist in vector database");
             assertNotNull(entity.getSearchableContent(), "Each entity should have searchable content");
             assertTrue(entity.getSearchableContent().length() > 50, "Each entity should have substantial content");
         }
@@ -521,8 +533,12 @@ public class ComprehensiveSequence13IntegrationTest {
 
             // Verify all entities have proper processing
             for (AISearchableEntity entity : concurrentEntities) {
-                assertNotNull(entity.getEmbeddings(), "Each concurrent entity should have embeddings");
-                assertTrue(entity.getEmbeddings().size() >= 100, "Each concurrent entity should have substantial embeddings");
+                assertNotNull(entity.getVectorId(), "Each concurrent entity should have vector ID");
+                assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
+                
+                // Verify vector exists in vector database
+                assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                          "Vector should exist in vector database");
             }
 
             System.out.println("✅ Concurrent Processing Test Passed");
