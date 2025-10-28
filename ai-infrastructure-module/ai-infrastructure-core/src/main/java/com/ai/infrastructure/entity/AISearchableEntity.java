@@ -36,10 +36,8 @@ public class AISearchableEntity {
     @Column(name = "searchable_content", columnDefinition = "TEXT")
     private String searchableContent;
     
-    @ElementCollection
-    @CollectionTable(name = "ai_embeddings", joinColumns = @JoinColumn(name = "entity_id"))
-    @Column(name = "embedding_value")
-    private List<Double> embeddings;
+    // NOTE: Vectors are now stored in vector database, not here
+    // This entity only stores metadata and AI analysis
     
     @Column(name = "metadata", columnDefinition = "JSON")
     private String metadata;

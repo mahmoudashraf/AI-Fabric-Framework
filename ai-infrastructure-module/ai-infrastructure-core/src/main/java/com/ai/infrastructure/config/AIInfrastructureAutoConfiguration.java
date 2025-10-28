@@ -2,7 +2,8 @@ package com.ai.infrastructure.config;
 
 import com.ai.infrastructure.aspect.AICapableAspect;
 import com.ai.infrastructure.service.AICapabilityService;
-import com.ai.infrastructure.service.CleanAICapabilityService;
+import com.ai.infrastructure.service.HybridAICapabilityService;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
@@ -25,6 +26,8 @@ import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.PineconeVectorDatabase;
 import com.ai.infrastructure.vector.InMemoryVectorDatabase;
+import com.ai.infrastructure.vector.LuceneVectorDatabase;
+import com.ai.infrastructure.vector.PineconeVectorDatabase;
 import com.ai.infrastructure.vector.VectorDatabaseService;
 import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.config.VectorDatabaseConfig;
@@ -129,9 +132,10 @@ public class AIInfrastructureAutoConfiguration {
     public AICapabilityService aiCapabilityService(
             AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
-            VectorDatabaseService vectorDatabaseService,
-            AIEntityConfigurationLoader entityConfigurationLoader) {
-        return new CleanAICapabilityService(embeddingService, aiCoreService, entityConfigurationLoader, vectorDatabaseService);
+            AIEntityConfigurationLoader entityConfigurationLoader,
+            AISearchableEntityRepository searchableEntityRepository,
+            VectorDatabaseService vectorDatabaseService) {
+        return new HybridAICapabilityService(embeddingService, aiCoreService, entityConfigurationLoader, searchableEntityRepository, vectorDatabaseService);
     }
     
     @Bean
@@ -157,7 +161,7 @@ public class AIInfrastructureAutoConfiguration {
         return new VectorSearchService(config);
     }
     
-    // New Vector Database Configuration
+    // Vector Database Configuration - All Backends Restored
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory", matchIfMissing = true)
     public VectorDatabase inMemoryVectorDatabase() {
@@ -165,13 +169,22 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene")
+    public VectorDatabase luceneVectorDatabase(VectorDatabaseConfig config) {
+        return new LuceneVectorDatabase(config);
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
+    public VectorDatabase pineconeVectorDatabase(VectorDatabaseConfig config) {
+        return new PineconeVectorDatabase(config);
+    }
+    
+    @Bean
     @ConditionalOnMissingBean
     public VectorDatabaseService vectorDatabaseService(VectorDatabase vectorDatabase) {
         return new VectorDatabaseService(vectorDatabase);
     }
-    
-    // Note: Old VectorDatabaseService implementations removed
-    // Only new VectorDatabase interface implementations are supported
     
     @Bean
     public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {

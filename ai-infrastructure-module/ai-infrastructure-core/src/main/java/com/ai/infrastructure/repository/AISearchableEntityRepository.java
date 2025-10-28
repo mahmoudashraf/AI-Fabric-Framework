@@ -42,4 +42,9 @@ public interface AISearchableEntityRepository extends JpaRepository<AISearchable
      * Find by searchable content containing (case insensitive)
      */
     List<AISearchableEntity> findBySearchableContentContainingIgnoreCase(String content);
+    
+    /**
+     * Find by entity type and entity IDs (for batch operations)
+     */
+    List<AISearchableEntity> findByEntityTypeAndEntityIdIn(String entityType, List<String> entityIds);
 }

@@ -1,341 +1,338 @@
 package com.ai.infrastructure.vector;
 
-import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.config.VectorDatabaseConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
- * Pinecone vector database implementation
+ * Pinecone Vector Database Implementation
  * 
- * This implementation provides Pinecone integration for vector storage
- * and search operations. For now, it uses an in-memory store as a fallback.
+ * Cloud-based vector database implementation using Pinecone service.
+ * Provides scalable, managed vector storage and similarity search.
+ * 
+ * Features:
+ * - Cloud-managed service (no infrastructure)
+ * - Handles millions of vectors
+ * - Advanced indexing algorithms
+ * - Metadata filtering
+ * - Automatic scaling
+ * 
+ * Note: This is a mock implementation for demonstration.
+ * In production, integrate with actual Pinecone SDK.
  * 
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
 public class PineconeVectorDatabase implements VectorDatabase {
     
-    private final AIProviderConfig config;
+    private final VectorDatabaseConfig config;
     
-    // In-memory store for demo purposes
-    // In production, this would be replaced with actual Pinecone client
-    private final Map<String, List<Map<String, Object>>> vectorStore = new ConcurrentHashMap<>();
-    
-    // Performance metrics
-    private final Map<String, Long> operationCounts = new ConcurrentHashMap<>();
-    private final Map<String, Long> operationTimes = new ConcurrentHashMap<>();
+    // Mock storage for demonstration (in production, use Pinecone SDK)
+    private final Map<String, VectorRecord> vectors = new HashMap<>();
+    private final AtomicLong searchCount = new AtomicLong(0);
+    private final AtomicLong totalSearchTime = new AtomicLong(0);
     
     @Override
-    public void storeVector(String entityType, String entityId, String content, 
-                           List<Double> embedding, Map<String, Object> metadata) {
+    public void store(String id, List<Double> vector, Map<String, Object> metadata) {
         try {
-            log.debug("Storing vector for entity {} of type {}", entityId, entityType);
+            log.debug("Storing vector in Pinecone: {}", id);
             
-            Map<String, Object> vector = new HashMap<>();
-            vector.put("id", entityId);
-            vector.put("content", content);
-            vector.put("embedding", embedding);
-            vector.put("entityType", entityType);
-            vector.put("metadata", metadata != null ? metadata : new HashMap<>());
-            vector.put("storedAt", System.currentTimeMillis());
-            vector.put("dimensions", embedding.size());
+            // In production, this would call Pinecone API:
+            // pineconeClient.upsert(indexName, Arrays.asList(
+            //     new UpsertRequest(id, vector, metadata)
+            // ));
             
-            vectorStore.computeIfAbsent(entityType, k -> new ArrayList<>()).add(vector);
+            // Mock implementation
+            VectorRecord record = VectorRecord.builder()
+                .id(id)
+                .vector(new ArrayList<>(vector))
+                .metadata(metadata != null ? new HashMap<>(metadata) : new HashMap<>())
+                .createdAt(java.time.LocalDateTime.now())
+                .build();
             
-            updateMetrics("store", System.currentTimeMillis());
-            log.debug("Successfully stored vector for entity {} of type {}", entityId, entityType);
+            vectors.put(id, record);
+            
+            log.debug("Successfully stored vector in Pinecone: {}", id);
             
         } catch (Exception e) {
-            log.error("Error storing vector", e);
-            throw new AIServiceException("Failed to store vector", e);
+            log.error("Error storing vector in Pinecone: {}", id, e);
+            throw new RuntimeException("Failed to store vector in Pinecone", e);
         }
     }
     
     @Override
-    public AISearchResponse search(List<Double> queryVector, AISearchRequest request) {
+    public void batchStore(List<VectorRecord> vectorRecords) {
         try {
-            log.debug("Searching vectors for query: {}", request.getQuery());
+            log.debug("Batch storing {} vectors in Pinecone", vectorRecords.size());
             
-            long startTime = System.currentTimeMillis();
+            // In production, this would use Pinecone batch upsert:
+            // List<UpsertRequest> requests = vectorRecords.stream()
+            //     .map(record -> new UpsertRequest(record.getId(), record.getVector(), record.getMetadata()))
+            //     .collect(Collectors.toList());
+            // pineconeClient.upsert(indexName, requests);
             
-            String entityType = request.getEntityType();
-            List<Map<String, Object>> entities = vectorStore.getOrDefault(entityType, new ArrayList<>());
-            
-            if (entities.isEmpty()) {
-                log.debug("No entities found for type: {}", entityType);
-                return createEmptyResponse(request, startTime);
+            // Mock implementation
+            for (VectorRecord record : vectorRecords) {
+                if (record.isValid()) {
+                    store(record.getId(), record.getVector(), record.getMetadata());
+                } else {
+                    log.warn("Skipping invalid vector record: {}", record.getId());
+                }
             }
             
-            // Calculate similarity scores
-            List<Map<String, Object>> scoredEntities = entities.stream()
-                .map(entity -> {
-                    List<Double> entityVector = (List<Double>) entity.get("embedding");
-                    double similarity = calculateCosineSimilarity(queryVector, entityVector);
-                    
-                    Map<String, Object> scoredEntity = new HashMap<>(entity);
-                    scoredEntity.put("similarity", similarity);
-                    scoredEntity.put("score", similarity);
-                    return scoredEntity;
+            log.debug("Batch stored {} vectors in Pinecone", vectorRecords.size());
+            
+        } catch (Exception e) {
+            log.error("Error batch storing vectors in Pinecone", e);
+            throw new RuntimeException("Failed to batch store vectors in Pinecone", e);
+        }
+    }
+    
+    @Override
+    public List<VectorSearchResult> search(List<Double> queryVector, int limit, double threshold) {
+        return searchWithFilter(queryVector, null, limit, threshold);
+    }
+    
+    @Override
+    public List<VectorSearchResult> searchWithFilter(List<Double> queryVector, 
+                                                   Map<String, Object> filter, 
+                                                   int limit, 
+                                                   double threshold) {
+        try {
+            long startTime = System.currentTimeMillis();
+            searchCount.incrementAndGet();
+            
+            log.debug("Searching vectors in Pinecone with filter: {}", filter);
+            
+            // In production, this would call Pinecone query API:
+            // QueryRequest request = QueryRequest.builder()
+            //     .vector(queryVector)
+            //     .topK(limit)
+            //     .filter(filter)
+            //     .includeMetadata(true)
+            //     .build();
+            // QueryResponse response = pineconeClient.query(indexName, request);
+            
+            // Mock implementation with similarity calculation
+            List<VectorSearchResult> results = vectors.values().stream()
+                .filter(record -> matchesFilter(record, filter))
+                .map(record -> {
+                    double similarity = calculateCosineSimilarity(queryVector, record.getVector());
+                    return VectorSearchResult.builder()
+                        .record(record)
+                        .similarity(similarity)
+                        .distance(1.0 - similarity)
+                        .searchMetadata(Map.of("pineconeScore", similarity))
+                        .build();
                 })
-                .filter(entity -> (Double) entity.get("similarity") >= request.getThreshold())
-                .sorted((a, b) -> Double.compare((Double) b.get("similarity"), (Double) a.get("similarity")))
-                .limit(request.getLimit())
+                .filter(result -> result.getSimilarity() >= threshold)
+                .sorted((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()))
+                .limit(limit)
                 .collect(Collectors.toList());
             
             long processingTime = System.currentTimeMillis() - startTime;
-            updateMetrics("search", processingTime);
+            totalSearchTime.addAndGet(processingTime);
             
-            log.debug("Found {} results in {}ms", scoredEntities.size(), processingTime);
+            log.debug("Pinecone search completed: {} results in {}ms", results.size(), processingTime);
             
-            return AISearchResponse.builder()
-                .results(scoredEntities)
-                .totalResults(scoredEntities.size())
-                .maxScore(scoredEntities.isEmpty() ? 0.0 : (Double) scoredEntities.get(0).get("similarity"))
-                .processingTimeMs(processingTime)
-                .requestId(UUID.randomUUID().toString())
-                .query(request.getQuery())
-                .model(config.getOpenaiEmbeddingModel())
-                .build();
-                
+            return results;
+            
         } catch (Exception e) {
-            log.error("Error searching vectors", e);
-            throw new AIServiceException("Failed to search vectors", e);
+            log.error("Error searching vectors in Pinecone", e);
+            throw new RuntimeException("Failed to search vectors in Pinecone", e);
         }
     }
     
     @Override
-    public void removeVector(String entityType, String entityId) {
+    public Optional<VectorRecord> get(String id) {
         try {
-            log.debug("Removing vector for entity {} of type {}", entityId, entityType);
+            log.debug("Getting vector from Pinecone: {}", id);
             
-            List<Map<String, Object>> entities = vectorStore.get(entityType);
-            if (entities != null) {
-                entities.removeIf(entity -> entityId.equals(entity.get("id")));
+            // In production, this would call Pinecone fetch API:
+            // FetchResponse response = pineconeClient.fetch(indexName, Arrays.asList(id));
+            // return response.getVectors().get(id);
+            
+            // Mock implementation
+            VectorRecord record = vectors.get(id);
+            return Optional.ofNullable(record);
+            
+        } catch (Exception e) {
+            log.error("Error getting vector from Pinecone: {}", id, e);
+            return Optional.empty();
+        }
+    }
+    
+    @Override
+    public boolean delete(String id) {
+        try {
+            log.debug("Deleting vector from Pinecone: {}", id);
+            
+            // In production, this would call Pinecone delete API:
+            // pineconeClient.delete(indexName, Arrays.asList(id));
+            
+            // Mock implementation
+            VectorRecord removed = vectors.remove(id);
+            boolean deleted = removed != null;
+            
+            if (deleted) {
+                log.debug("Successfully deleted vector from Pinecone: {}", id);
+            } else {
+                log.warn("Vector not found in Pinecone: {}", id);
             }
             
-            updateMetrics("remove", System.currentTimeMillis());
-            log.debug("Successfully removed vector for entity {} of type {}", entityId, entityType);
+            return deleted;
             
         } catch (Exception e) {
-            log.error("Error removing vector", e);
-            throw new AIServiceException("Failed to remove vector", e);
-        }
-    }
-    
-    @Override
-    public void updateVector(String entityType, String entityId, String content, 
-                            List<Double> embedding, Map<String, Object> metadata) {
-        try {
-            log.debug("Updating vector for entity {} of type {}", entityId, entityType);
-            
-            // Remove existing vector
-            removeVector(entityType, entityId);
-            
-            // Store updated vector
-            storeVector(entityType, entityId, content, embedding, metadata);
-            
-            updateMetrics("update", System.currentTimeMillis());
-            log.debug("Successfully updated vector for entity {} of type {}", entityId, entityType);
-            
-        } catch (Exception e) {
-            log.error("Error updating vector", e);
-            throw new AIServiceException("Failed to update vector", e);
-        }
-    }
-    
-    @Override
-    public Map<String, Object> getVector(String entityType, String entityId) {
-        try {
-            log.debug("Getting vector for entity {} of type {}", entityId, entityType);
-            
-            List<Map<String, Object>> entities = vectorStore.get(entityType);
-            if (entities != null) {
-                return entities.stream()
-                    .filter(entity -> entityId.equals(entity.get("id")))
-                    .findFirst()
-                    .orElse(null);
-            }
-            
-            return null;
-            
-        } catch (Exception e) {
-            log.error("Error getting vector", e);
-            throw new AIServiceException("Failed to get vector", e);
-        }
-    }
-    
-    @Override
-    public boolean vectorExists(String entityType, String entityId) {
-        try {
-            return getVector(entityType, entityId) != null;
-        } catch (Exception e) {
-            log.error("Error checking vector existence", e);
+            log.error("Error deleting vector from Pinecone: {}", id, e);
             return false;
         }
     }
     
     @Override
-    public List<Map<String, Object>> getAllVectors(String entityType) {
+    public int batchDelete(List<String> ids) {
         try {
-            log.debug("Getting all vectors for entity type: {}", entityType);
+            log.debug("Batch deleting {} vectors from Pinecone", ids.size());
             
-            return vectorStore.getOrDefault(entityType, new ArrayList<>());
+            // In production, this would use Pinecone batch delete:
+            // pineconeClient.delete(indexName, ids);
+            
+            // Mock implementation
+            int deletedCount = 0;
+            for (String id : ids) {
+                if (delete(id)) {
+                    deletedCount++;
+                }
+            }
+            
+            log.debug("Batch deleted {} vectors from Pinecone", deletedCount);
+            return deletedCount;
             
         } catch (Exception e) {
-            log.error("Error getting all vectors", e);
-            throw new AIServiceException("Failed to get all vectors", e);
-        }
-    }
-    
-    @Override
-    public void clearVectors(String entityType) {
-        try {
-            log.debug("Clearing all vectors for entity type: {}", entityType);
-            
-            vectorStore.remove(entityType);
-            
-            updateMetrics("clear", System.currentTimeMillis());
-            log.debug("Successfully cleared vectors for entity type: {}", entityType);
-            
-        } catch (Exception e) {
-            log.error("Error clearing vectors", e);
-            throw new AIServiceException("Failed to clear vectors", e);
-        }
-    }
-    
-    @Override
-    public void clearAllVectors() {
-        try {
-            log.debug("Clearing all vectors");
-            
-            vectorStore.clear();
-            
-            updateMetrics("clearAll", System.currentTimeMillis());
-            log.debug("Successfully cleared all vectors");
-            
-        } catch (Exception e) {
-            log.error("Error clearing all vectors", e);
-            throw new AIServiceException("Failed to clear all vectors", e);
+            log.error("Error batch deleting vectors from Pinecone", e);
+            return 0;
         }
     }
     
     @Override
     public Map<String, Object> getStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        
         try {
-            Map<String, Object> stats = new HashMap<>();
+            // In production, this would call Pinecone describe_index_stats API:
+            // IndexStats indexStats = pineconeClient.describeIndexStats(indexName);
             
-            // Basic statistics
-            stats.put("totalVectors", vectorStore.values().stream().mapToInt(List::size).sum());
-            stats.put("entityTypes", vectorStore.keySet());
-            stats.put("entityTypeCounts", vectorStore.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size())));
+            // Mock implementation
+            stats.put("type", getType());
+            stats.put("vectorCount", vectors.size());
+            stats.put("searchCount", searchCount.get());
+            stats.put("totalSearchTimeMs", totalSearchTime.get());
             
-            // Operation statistics
-            stats.put("operationCounts", new HashMap<>(operationCounts));
-            stats.put("operationTimes", new HashMap<>(operationTimes));
-            
-            // Calculate average times
-            Map<String, Double> avgTimes = new HashMap<>();
-            for (Map.Entry<String, Long> entry : operationTimes.entrySet()) {
-                String operation = entry.getKey();
-                Long totalTime = entry.getValue();
-                Long count = operationCounts.getOrDefault(operation, 1L);
-                avgTimes.put(operation, (double) totalTime / count);
+            if (searchCount.get() > 0) {
+                stats.put("averageSearchTimeMs", totalSearchTime.get() / (double) searchCount.get());
+            } else {
+                stats.put("averageSearchTimeMs", 0.0);
             }
-            stats.put("averageOperationTimes", avgTimes);
             
-            return stats;
+            // Pinecone-specific stats
+            stats.put("indexName", config.getPinecone().getIndexName());
+            stats.put("dimensions", config.getPinecone().getDimensions());
+            stats.put("metric", config.getPinecone().getMetric());
+            stats.put("pods", config.getPinecone().getPods());
+            
+            // Calculate memory usage estimate
+            long memoryUsage = vectors.values().stream()
+                .mapToLong(this::estimateRecordSize)
+                .sum();
+            stats.put("estimatedMemoryUsageBytes", memoryUsage);
+            stats.put("estimatedMemoryUsageMB", memoryUsage / (1024.0 * 1024.0));
             
         } catch (Exception e) {
-            log.error("Error getting statistics", e);
-            return new HashMap<>();
+            log.error("Error getting Pinecone statistics", e);
+            stats.put("error", "Failed to get statistics");
         }
+        
+        return stats;
     }
     
     @Override
     public boolean isHealthy() {
         try {
-            // Simple health check
+            // In production, this would ping Pinecone service:
+            // return pineconeClient.describeIndex(indexName) != null;
+            
+            // Mock implementation
+            log.debug("Pinecone health check passed");
             return true;
+            
         } catch (Exception e) {
-            log.error("Health check failed", e);
+            log.error("Pinecone health check failed", e);
             return false;
         }
     }
     
     @Override
-    public Map<String, Object> getInfo() {
+    public void clear() {
         try {
-            Map<String, Object> info = new HashMap<>();
-            info.put("type", "PineconeVectorDatabase");
-            info.put("implementation", "InMemory");
-            info.put("version", "1.0.0");
-            info.put("healthy", isHealthy());
-            info.put("totalVectors", vectorStore.values().stream().mapToInt(List::size).sum());
-            return info;
+            log.info("Clearing all vectors from Pinecone");
+            
+            // In production, this would delete and recreate the index:
+            // pineconeClient.deleteIndex(indexName);
+            // pineconeClient.createIndex(indexName, dimensions, metric);
+            
+            // Mock implementation
+            int count = vectors.size();
+            vectors.clear();
+            searchCount.set(0);
+            totalSearchTime.set(0);
+            
+            log.info("Successfully cleared {} vectors from Pinecone", count);
+            
         } catch (Exception e) {
-            log.error("Error getting info", e);
-            return new HashMap<>();
+            log.error("Error clearing vectors from Pinecone", e);
+            throw new RuntimeException("Failed to clear vectors from Pinecone", e);
         }
     }
     
     @Override
-    public void batchStoreVectors(List<VectorData> vectors) {
-        try {
-            log.debug("Batch storing {} vectors", vectors.size());
-            
-            for (VectorData vector : vectors) {
-                storeVector(vector.getEntityType(), vector.getEntityId(), 
-                          vector.getContent(), vector.getEmbedding(), vector.getMetadata());
-            }
-            
-            updateMetrics("batchStore", System.currentTimeMillis());
-            log.debug("Successfully batch stored {} vectors", vectors.size());
-            
-        } catch (Exception e) {
-            log.error("Error batch storing vectors", e);
-            throw new AIServiceException("Failed to batch store vectors", e);
-        }
+    public String getType() {
+        return "pinecone";
     }
     
-    @Override
-    public List<AISearchResponse> batchSearch(List<VectorSearchQuery> queries) {
-        try {
-            log.debug("Batch searching {} queries", queries.size());
-            
-            List<AISearchResponse> responses = new ArrayList<>();
-            for (VectorSearchQuery query : queries) {
-                AISearchResponse response = search(query.getQueryVector(), query.getRequest());
-                responses.add(response);
-            }
-            
-            updateMetrics("batchSearch", System.currentTimeMillis());
-            log.debug("Successfully batch searched {} queries", queries.size());
-            
-            return responses;
-            
-        } catch (Exception e) {
-            log.error("Error batch searching", e);
-            throw new AIServiceException("Failed to batch search", e);
+    private boolean matchesFilter(VectorRecord record, Map<String, Object> filter) {
+        if (filter == null || filter.isEmpty()) {
+            return true;
         }
+        
+        Map<String, Object> metadata = record.getMetadata();
+        if (metadata == null) {
+            return false;
+        }
+        
+        for (Map.Entry<String, Object> filterEntry : filter.entrySet()) {
+            String key = filterEntry.getKey();
+            Object expectedValue = filterEntry.getValue();
+            Object actualValue = metadata.get(key);
+            
+            if (!Objects.equals(expectedValue, actualValue)) {
+                return false;
+            }
+        }
+        
+        return true;
     }
     
-    /**
-     * Calculate cosine similarity between two vectors
-     */
     private double calculateCosineSimilarity(List<Double> vectorA, List<Double> vectorB) {
-        if (vectorA == null || vectorB == null || vectorA.size() != vectorB.size()) {
+        if (vectorA.size() != vectorB.size()) {
             return 0.0;
         }
         
@@ -346,6 +343,7 @@ public class PineconeVectorDatabase implements VectorDatabase {
         for (int i = 0; i < vectorA.size(); i++) {
             double a = vectorA.get(i);
             double b = vectorB.get(i);
+            
             dotProduct += a * b;
             normA += a * a;
             normB += b * b;
@@ -358,26 +356,27 @@ public class PineconeVectorDatabase implements VectorDatabase {
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
     
-    /**
-     * Create empty search response
-     */
-    private AISearchResponse createEmptyResponse(AISearchRequest request, long startTime) {
-        return AISearchResponse.builder()
-            .results(Collections.emptyList())
-            .totalResults(0)
-            .maxScore(0.0)
-            .processingTimeMs(System.currentTimeMillis() - startTime)
-            .requestId(UUID.randomUUID().toString())
-            .query(request.getQuery())
-            .model(config.getOpenaiEmbeddingModel())
-            .build();
-    }
-    
-    /**
-     * Update operation metrics
-     */
-    private void updateMetrics(String operation, long time) {
-        operationCounts.merge(operation, 1L, Long::sum);
-        operationTimes.merge(operation, time, Long::sum);
+    private long estimateRecordSize(VectorRecord record) {
+        long size = 0;
+        
+        // ID string
+        if (record.getId() != null) {
+            size += record.getId().length() * 2; // UTF-16
+        }
+        
+        // Vector (Double objects)
+        if (record.getVector() != null) {
+            size += record.getVector().size() * 8; // 8 bytes per Double
+        }
+        
+        // Metadata (rough estimate)
+        if (record.getMetadata() != null) {
+            size += record.getMetadata().size() * 50; // Rough estimate per entry
+        }
+        
+        // Object overhead
+        size += 64; // Rough estimate for object overhead
+        
+        return size;
     }
 }

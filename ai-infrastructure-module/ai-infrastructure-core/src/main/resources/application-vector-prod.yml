@@ -3,7 +3,7 @@
 
 ai:
   vector-db:
-    type: ${AI_VECTOR_DB_TYPE:memory}  # Environment variable override
+    type: ${AI_VECTOR_DB_TYPE:lucene}  # Default to Lucene for production
     default-threshold: 0.7             # Higher threshold for production quality
     default-limit: 10                  # Reasonable limit for production
     metrics-enabled: true              # Enable metrics for monitoring
