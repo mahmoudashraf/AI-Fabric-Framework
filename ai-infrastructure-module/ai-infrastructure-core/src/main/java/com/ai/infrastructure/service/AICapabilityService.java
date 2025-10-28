@@ -11,6 +11,7 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,8 +37,13 @@ public class AICapabilityService {
     private final AISearchableEntityRepository searchableEntityRepository;
     private final AIEntityConfigurationLoader configurationLoader;
     
-    @Autowired(required = false)
+    // VectorManagementService will be injected by Spring if available
     private VectorManagementService vectorManagementService;
+    
+    @Autowired(required = false)
+    public void setVectorManagementService(VectorManagementService vectorManagementService) {
+        this.vectorManagementService = vectorManagementService;
+    }
     
     public AICapabilityService(AIEmbeddingService embeddingService, 
                               AICoreService aiCoreService, 
