@@ -24,7 +24,6 @@ import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
-import com.ai.infrastructure.vector.PineconeVectorDatabase;
 import com.ai.infrastructure.vector.InMemoryVectorDatabase;
 import com.ai.infrastructure.vector.LuceneVectorDatabase;
 import com.ai.infrastructure.vector.PineconeVectorDatabase;
@@ -129,13 +128,24 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public AICapabilityService aiCapabilityService(
+    public HybridAICapabilityService hybridAICapabilityService(
             AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
             AIEntityConfigurationLoader entityConfigurationLoader,
             AISearchableEntityRepository searchableEntityRepository,
             VectorDatabaseService vectorDatabaseService) {
         return new HybridAICapabilityService(embeddingService, aiCoreService, entityConfigurationLoader, searchableEntityRepository, vectorDatabaseService);
+    }
+    
+    // Keep original AICapabilityService for backward compatibility
+    @Bean
+    @ConditionalOnMissingBean
+    public AICapabilityService aiCapabilityService(
+            AIEmbeddingService embeddingService,
+            AICoreService aiCoreService,
+            AISearchableEntityRepository searchableEntityRepository,
+            AIEntityConfigurationLoader configurationLoader) {
+        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, configurationLoader);
     }
     
     @Bean
