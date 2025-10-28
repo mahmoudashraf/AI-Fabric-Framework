@@ -141,8 +141,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    @ConditionalOnMissingBean
-    public VectorManagementService vectorManagementService(VectorDatabaseService vectorDatabaseService) {
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
+    public VectorManagementService vectorManagementService(InMemoryVectorDatabaseService vectorDatabaseService) {
         return new VectorManagementService(vectorDatabaseService);
     }
     
@@ -153,7 +153,7 @@ public class AIInfrastructureAutoConfiguration {
             AICoreService aiCoreService,
             AISearchableEntityRepository searchableEntityRepository,
             AIEntityConfigurationLoader entityConfigurationLoader,
-            VectorManagementService vectorManagementService) {
+            Optional<VectorManagementService> vectorManagementService) {
         return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader, vectorManagementService);
     }
     
@@ -184,8 +184,6 @@ public class AIInfrastructureAutoConfiguration {
     public VectorDatabase vectorDatabase(AIProviderConfig config) {
         return new PineconeVectorDatabase(config);
     }
-    
-    @Bean
     
     @Bean
     public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {
