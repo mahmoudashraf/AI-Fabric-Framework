@@ -29,14 +29,25 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AICapabilityService {
     
     private final AIEmbeddingService embeddingService;
     private final AICoreService aiCoreService;
     private final AISearchableEntityRepository searchableEntityRepository;
     private final AIEntityConfigurationLoader configurationLoader;
-    private final Optional<VectorManagementService> vectorManagementService;
+    
+    @Autowired(required = false)
+    private VectorManagementService vectorManagementService;
+    
+    public AICapabilityService(AIEmbeddingService embeddingService, 
+                              AICoreService aiCoreService, 
+                              AISearchableEntityRepository searchableEntityRepository, 
+                              AIEntityConfigurationLoader configurationLoader) {
+        this.embeddingService = embeddingService;
+        this.aiCoreService = aiCoreService;
+        this.searchableEntityRepository = searchableEntityRepository;
+        this.configurationLoader = configurationLoader;
+    }
     
     // Debug method to access configurationLoader
     public AIEntityConfigurationLoader getConfigurationLoader() {
@@ -214,8 +225,8 @@ public class AICapabilityService {
             }
             
             // Remove vector from vector database
-            if (vectorManagementService.isPresent()) {
-                boolean vectorRemoved = vectorManagementService.get().removeVector(config.getEntityType(), entityId);
+            if (vectorManagementService != null) {
+                boolean vectorRemoved = vectorManagementService.removeVector(config.getEntityType(), entityId);
                 if (vectorRemoved) {
                     log.debug("Successfully removed vector from vector database for entity {} of type {}", entityId, config.getEntityType());
                 } else {
@@ -324,8 +335,8 @@ public class AICapabilityService {
             // Store vector in vector database
             Map<String, Object> metadata = extractMetadata(entity, config);
             String vectorId = null;
-            if (vectorManagementService.isPresent()) {
-                vectorId = vectorManagementService.get().storeVector(
+            if (vectorManagementService != null) {
+                vectorId = vectorManagementService.storeVector(
                     config.getEntityType(),
                     entityId,
                     content,

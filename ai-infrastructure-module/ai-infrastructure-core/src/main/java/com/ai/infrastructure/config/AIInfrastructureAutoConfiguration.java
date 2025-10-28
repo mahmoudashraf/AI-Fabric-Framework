@@ -142,6 +142,7 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
+    @ConditionalOnMissingBean
     public VectorManagementService vectorManagementService(InMemoryVectorDatabaseService vectorDatabaseService) {
         return new VectorManagementService(vectorDatabaseService);
     }
@@ -152,9 +153,9 @@ public class AIInfrastructureAutoConfiguration {
             AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
             AISearchableEntityRepository searchableEntityRepository,
-            AIEntityConfigurationLoader entityConfigurationLoader,
-            Optional<VectorManagementService> vectorManagementService) {
-        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader, vectorManagementService);
+            AIEntityConfigurationLoader entityConfigurationLoader) {
+        AICapabilityService service = new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader);
+        return service;
     }
     
     @Bean
