@@ -148,6 +148,20 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene")
+    @ConditionalOnMissingBean
+    public VectorManagementService luceneVectorManagementService(LuceneVectorDatabaseService vectorDatabaseService) {
+        return new VectorManagementService(vectorDatabaseService);
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
+    @ConditionalOnMissingBean
+    public VectorManagementService pineconeVectorManagementService(PineconeVectorDatabaseService vectorDatabaseService) {
+        return new VectorManagementService(vectorDatabaseService);
+    }
+    
+    @Bean
     @ConditionalOnMissingBean
     public AICapabilityService aiCapabilityService(
             AIEmbeddingService embeddingService,
