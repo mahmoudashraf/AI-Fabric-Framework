@@ -3,6 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.entity.TestUser;
 import com.ai.infrastructure.it.entity.TestArticle;
@@ -57,6 +58,9 @@ public class ComprehensiveIntegrationTest {
     @Autowired
     private TestArticleRepository articleRepository;
 
+    @Autowired
+    private VectorManagementService vectorManagementService;
+
     @BeforeEach
     public void setUp() {
         // Clean up before each test
@@ -91,14 +95,18 @@ public class ComprehensiveIntegrationTest {
         assertEquals(1, searchableEntities.size(), "Should process one product");
 
         AISearchableEntity entity = searchableEntities.get(0);
-        assertNotNull(entity.getEmbeddings(), "Should have embeddings");
-        assertFalse(entity.getEmbeddings().isEmpty(), "Embeddings should not be empty");
+        assertNotNull(entity.getVectorId(), "Should have vector ID");
+        assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
         assertNotNull(entity.getSearchableContent(), "Should have searchable content");
         assertTrue(entity.getSearchableContent().contains("AI-Powered"), "Should contain product name");
         assertTrue(entity.getSearchableContent().contains("smartwatch"), "Should contain description");
+        
+        // Verify vector exists in vector database
+        assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                  "Vector should exist in vector database");
 
         System.out.println("✅ Product AI Features Test Passed");
-        System.out.println("   - Embeddings generated: " + entity.getEmbeddings().size());
+        System.out.println("   - Vector ID: " + entity.getVectorId());
         System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
     }
 
@@ -128,14 +136,18 @@ public class ComprehensiveIntegrationTest {
         assertEquals(1, searchableEntities.size(), "Should process one user");
 
         AISearchableEntity entity = searchableEntities.get(0);
-        assertNotNull(entity.getEmbeddings(), "Should have embeddings");
-        assertFalse(entity.getEmbeddings().isEmpty(), "Embeddings should not be empty");
+        assertNotNull(entity.getVectorId(), "Should have vector ID");
+        assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
         assertNotNull(entity.getSearchableContent(), "Should have searchable content");
         assertTrue(entity.getSearchableContent().contains("John Doe"), "Should contain user name");
         assertTrue(entity.getSearchableContent().contains("AI and machine learning"), "Should contain bio content");
+        
+        // Verify vector exists in vector database
+        assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                  "Vector should exist in vector database");
 
         System.out.println("✅ User AI Features Test Passed");
-        System.out.println("   - Embeddings generated: " + entity.getEmbeddings().size());
+        System.out.println("   - Vector ID: " + entity.getVectorId());
         System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
     }
 
@@ -165,14 +177,18 @@ public class ComprehensiveIntegrationTest {
         assertEquals(1, searchableEntities.size(), "Should process one article");
 
         AISearchableEntity entity = searchableEntities.get(0);
-        assertNotNull(entity.getEmbeddings(), "Should have embeddings");
-        assertFalse(entity.getEmbeddings().isEmpty(), "Embeddings should not be empty");
+        assertNotNull(entity.getVectorId(), "Should have vector ID");
+        assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
         assertNotNull(entity.getSearchableContent(), "Should have searchable content");
         assertTrue(entity.getSearchableContent().contains("Artificial Intelligence"), "Should contain title");
         assertTrue(entity.getSearchableContent().contains("healthcare"), "Should contain content");
+        
+        // Verify vector exists in vector database
+        assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                  "Vector should exist in vector database");
 
         System.out.println("✅ Article AI Features Test Passed");
-        System.out.println("   - Embeddings generated: " + entity.getEmbeddings().size());
+        System.out.println("   - Vector ID: " + entity.getVectorId());
         System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
     }
 
@@ -386,10 +402,13 @@ public class ComprehensiveIntegrationTest {
 
         AISearchableEntity entity = entities.get(0);
         
-        // Verify embeddings
-        assertNotNull(entity.getEmbeddings(), "Should have embeddings");
-        assertFalse(entity.getEmbeddings().isEmpty(), "Embeddings should not be empty");
-        assertTrue(entity.getEmbeddings().size() > 100, "Should have substantial embeddings");
+        // Verify vector storage
+        assertNotNull(entity.getVectorId(), "Should have vector ID");
+        assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
+        
+        // Verify vector exists in vector database
+        assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                  "Vector should exist in vector database");
 
         // Verify searchable content
         assertNotNull(entity.getSearchableContent(), "Should have searchable content");
@@ -408,7 +427,7 @@ public class ComprehensiveIntegrationTest {
         assertNotNull(entity.getUpdatedAt(), "Should have update timestamp");
 
         System.out.println("✅ AI Analysis and Metadata Test Passed");
-        System.out.println("   - Embeddings count: " + entity.getEmbeddings().size());
+        System.out.println("   - Vector ID: " + entity.getVectorId());
         System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
         System.out.println("   - Metadata length: " + entity.getMetadata().length());
         System.out.println("   - Created at: " + entity.getCreatedAt());
