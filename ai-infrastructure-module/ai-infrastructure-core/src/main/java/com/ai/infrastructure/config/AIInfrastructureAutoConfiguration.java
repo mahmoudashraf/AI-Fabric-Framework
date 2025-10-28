@@ -2,7 +2,7 @@ package com.ai.infrastructure.config;
 
 import com.ai.infrastructure.aspect.AICapableAspect;
 import com.ai.infrastructure.service.AICapabilityService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.service.CleanAICapabilityService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
@@ -129,9 +129,9 @@ public class AIInfrastructureAutoConfiguration {
     public AICapabilityService aiCapabilityService(
             AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
-            AISearchableEntityRepository searchableEntityRepository,
+            VectorDatabaseService vectorDatabaseService,
             AIEntityConfigurationLoader entityConfigurationLoader) {
-        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader);
+        return new CleanAICapabilityService(embeddingService, aiCoreService, entityConfigurationLoader, vectorDatabaseService);
     }
     
     @Bean
@@ -170,30 +170,8 @@ public class AIInfrastructureAutoConfiguration {
         return new VectorDatabaseService(vectorDatabase);
     }
     
-    // Legacy Vector Database (for backward compatibility)
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone-legacy")
-    public VectorDatabase vectorDatabase(AIProviderConfig config) {
-        return new PineconeVectorDatabase(config);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
-    public VectorDatabaseService luceneVectorDatabaseService(AIProviderConfig config) {
-        return new LuceneVectorDatabaseService(config);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    public VectorDatabaseService pineconeVectorDatabaseService(AIProviderConfig config) {
-        return new PineconeVectorDatabaseService(config);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
-    public VectorDatabaseService inMemoryVectorDatabaseService(AIProviderConfig config) {
-        return new InMemoryVectorDatabaseService(config);
-    }
+    // Note: Old VectorDatabaseService implementations removed
+    // Only new VectorDatabase interface implementations are supported
     
     @Bean
     public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {

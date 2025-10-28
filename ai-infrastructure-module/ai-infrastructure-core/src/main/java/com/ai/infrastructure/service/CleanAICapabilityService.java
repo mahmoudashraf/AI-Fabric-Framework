@@ -6,6 +6,8 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIEntityConfig;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.dto.AISearchRequest;
+import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.vector.VectorDatabaseService;
 import com.ai.infrastructure.vector.EntityVector;
 import lombok.RequiredArgsConstructor;
@@ -19,10 +21,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Enhanced AI Capability Service
+ * Clean AI Capability Service
  * 
- * Provides AI processing capabilities using the new vector database.
- * Clean implementation without backward compatibility concerns.
+ * Pure vector database implementation without backward compatibility.
+ * Provides high-performance AI processing using only the vector database.
  * 
  * @author AI Infrastructure Team
  * @version 2.0.0
@@ -30,7 +32,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EnhancedAICapabilityService {
+public class CleanAICapabilityService {
     
     private final AIEmbeddingService embeddingService;
     private final AICoreService aiCoreService;
@@ -38,7 +40,7 @@ public class EnhancedAICapabilityService {
     private final VectorDatabaseService vectorDatabaseService;
     
     /**
-     * Process entity for AI with new vector database
+     * Process entity for AI using vector database only
      * 
      * @param entity The entity to process
      * @param entityType The type of entity
@@ -145,7 +147,60 @@ public class EnhancedAICapabilityService {
     }
     
     /**
-     * Generate embeddings for an entity
+     * Search for similar entities using vector similarity
+     * 
+     * @param queryText The search query text
+     * @param entityType Optional entity type filter
+     * @param limit Maximum number of results
+     * @param threshold Minimum similarity threshold
+     * @return AI search response
+     */
+    public AISearchResponse searchSimilarEntities(String queryText, String entityType, int limit, double threshold) {
+        try {
+            log.debug("Searching for similar entities: query='{}', type='{}', limit={}", queryText, entityType, limit);
+            
+            // Generate embedding for query
+            AIEmbeddingResponse embeddingResponse = embeddingService.generateEmbedding(
+                AIEmbeddingRequest.builder()
+                    .text(queryText)
+                    .build()
+            );
+            
+            // Perform vector search
+            return vectorDatabaseService.searchSimilarEntities(
+                embeddingResponse.getEmbedding(),
+                entityType,
+                limit,
+                threshold
+            );
+            
+        } catch (Exception e) {
+            log.error("Error searching for similar entities", e);
+            return AISearchResponse.builder()
+                .results(new ArrayList<>())
+                .totalResults(0)
+                .query(queryText)
+                .build();
+        }
+    }
+    
+    /**
+     * Search using AI search request
+     * 
+     * @param request The AI search request
+     * @return AI search response
+     */
+    public AISearchResponse search(AISearchRequest request) {
+        return searchSimilarEntities(
+            request.getQuery(),
+            request.getEntityType(),
+            request.getLimit(),
+            request.getThreshold()
+        );
+    }
+    
+    /**
+     * Generate and store embeddings for an entity
      * 
      * @param entity The entity
      * @param config The AI configuration
@@ -181,13 +236,12 @@ public class EnhancedAICapabilityService {
     }
     
     /**
-     * Index entity for search
+     * Index entity for search (same as generating embeddings)
      * 
      * @param entity The entity
      * @param config The AI configuration
      */
     public void indexForSearch(Object entity, AIEntityConfig config) {
-        // This is now handled by the vector database automatically
         generateEmbeddings(entity, config);
     }
     
@@ -202,8 +256,9 @@ public class EnhancedAICapabilityService {
             String content = extractSearchableContent(entity, config);
             
             // Use AI core service for analysis
-            // This could be enhanced with specific analysis prompts
             log.debug("Analyzing entity content: {}", content.substring(0, Math.min(50, content.length())));
+            
+            // Could be enhanced with specific analysis using aiCoreService.generateContent()
             
         } catch (Exception e) {
             log.error("Error analyzing entity", e);
@@ -211,7 +266,7 @@ public class EnhancedAICapabilityService {
     }
     
     /**
-     * Remove entity from search index
+     * Remove entity from vector database
      * 
      * @param entity The entity
      * @param config The AI configuration
@@ -224,18 +279,18 @@ public class EnhancedAICapabilityService {
             boolean deleted = vectorDatabaseService.deleteEntityVector(entityType, entityId);
             
             if (deleted) {
-                log.debug("Removed {} entity {} from search index", entityType, entityId);
+                log.debug("Removed {} entity {} from vector database", entityType, entityId);
             } else {
-                log.warn("Entity {} of type {} not found in search index", entityId, entityType);
+                log.warn("Entity {} of type {} not found in vector database", entityId, entityType);
             }
             
         } catch (Exception e) {
-            log.error("Error removing entity from search index", e);
+            log.error("Error removing entity from vector database", e);
         }
     }
     
     /**
-     * Cleanup embeddings for an entity
+     * Cleanup embeddings for an entity (same as remove)
      * 
      * @param entity The entity
      * @param config The AI configuration
@@ -251,7 +306,6 @@ public class EnhancedAICapabilityService {
      * @param config The AI configuration
      */
     public void validateEntity(Object entity, AIEntityConfig config) {
-        // Add validation logic here
         if (entity == null) {
             throw new IllegalArgumentException("Entity cannot be null");
         }
@@ -260,6 +314,41 @@ public class EnhancedAICapabilityService {
         if (entityId == null || entityId.trim().isEmpty()) {
             throw new IllegalArgumentException("Entity ID cannot be null or empty");
         }
+    }
+    
+    /**
+     * Get vector database statistics
+     * 
+     * @return Statistics map
+     */
+    public Map<String, Object> getStatistics() {
+        return vectorDatabaseService.getStatistics();
+    }
+    
+    /**
+     * Check if the AI system is healthy
+     * 
+     * @return true if healthy
+     */
+    public boolean isHealthy() {
+        return vectorDatabaseService.isHealthy();
+    }
+    
+    /**
+     * Get the vector database type
+     * 
+     * @return Database type string
+     */
+    public String getDatabaseType() {
+        return vectorDatabaseService.getDatabaseType();
+    }
+    
+    /**
+     * Clear all vectors (use with caution!)
+     */
+    public void clearAllVectors() {
+        vectorDatabaseService.clearAllVectors();
+        log.warn("Cleared all vectors from database");
     }
     
     /**
@@ -356,5 +445,4 @@ public class EnhancedAICapabilityService {
             return "unknown-" + entity.hashCode();
         }
     }
-    
 }
