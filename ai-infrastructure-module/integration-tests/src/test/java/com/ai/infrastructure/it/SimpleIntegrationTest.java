@@ -3,6 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,9 @@ public class SimpleIntegrationTest {
     @Autowired
     private TestProductRepository productRepository;
 
+    @Autowired
+    private VectorManagementService vectorManagementService;
+
     @BeforeEach
     public void setUp() {
         // Clean up before each test
@@ -67,10 +71,14 @@ public class SimpleIntegrationTest {
         assertEquals(1, searchableEntities.size(), "Should process one product");
 
         AISearchableEntity entity = searchableEntities.get(0);
-        assertNotNull(entity.getEmbeddings(), "Should have embeddings");
-        assertFalse(entity.getEmbeddings().isEmpty(), "Embeddings should not be empty");
+        assertNotNull(entity.getVectorId(), "Should have vector ID");
+        assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
         assertNotNull(entity.getSearchableContent(), "Should have searchable content");
         assertTrue(entity.getSearchableContent().length() > 0, "Searchable content should not be empty");
+        
+        // Verify vector exists in vector database
+        assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
+                  "Vector should exist in vector database");
 
         System.out.println("✅ Basic entity processing test completed successfully");
         System.out.println("Processed product: " + product.getName());
