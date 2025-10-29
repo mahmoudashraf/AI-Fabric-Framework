@@ -1,4 +1,4 @@
-# Test Configuration - Vector Database
+# Test Configuration - Vector Database and OpenAI
 ai:
   vector-db:
     type: memory
@@ -9,9 +9,6 @@ ai:
       enableCleanup: true
       cleanupIntervalMinutes: 5
       maxVectorAgeMinutes: 30
-
-# OpenAI Configuration for Tests
-ai:
   providers:
     openai-api-key: ${OPENAI_API_KEY:sk-test-key}
     openai-model: gpt-4o-mini
