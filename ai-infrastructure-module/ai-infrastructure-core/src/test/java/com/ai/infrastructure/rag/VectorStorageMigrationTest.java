@@ -1,5 +1,6 @@
 package com.ai.infrastructure.rag;
 
+import com.ai.infrastructure.config.TestConfiguration;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
@@ -7,6 +8,7 @@ import com.ai.infrastructure.service.VectorManagementService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Arrays;
@@ -21,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * This test verifies that vectors are now stored in the external vector database
  * instead of directly in the AISearchableEntity.
  */
-@SpringBootTest
+@SpringBootTest(classes = TestConfiguration.class)
+@Import(TestConfiguration.class)
 @ActiveProfiles("test")
 public class VectorStorageMigrationTest {
 
