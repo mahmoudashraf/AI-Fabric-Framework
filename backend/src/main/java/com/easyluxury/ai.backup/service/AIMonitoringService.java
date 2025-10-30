@@ -1,6 +1,5 @@
 package com.easyluxury.ai.service;
 
-import com.ai.infrastructure.monitoring.AIHealthService;
 import com.easyluxury.ai.dto.AIHealthStatusDto;
 import com.easyluxury.ai.dto.AIConfigurationStatusDto;
 import lombok.RequiredArgsConstructor;
@@ -145,12 +144,11 @@ public class AIMonitoringService {
     @Transactional(readOnly = true)
     public Map<String, Object> getEnhancedHealthStatus() {
         try {
-            // Use AI module's health service
-            var aiHealthDto = aiHealthService.getHealthStatus();
+            AIHealthStatusDto healthStatus = aiHealthService.getAIHealthStatus();
             Map<String, Object> monitoringMetrics = getMonitoringMetrics();
             
             Map<String, Object> enhancedStatus = new HashMap<>();
-            enhancedStatus.put("healthStatus", aiHealthDto);
+            enhancedStatus.put("healthStatus", healthStatus);
             enhancedStatus.put("monitoringMetrics", monitoringMetrics);
             enhancedStatus.put("timestamp", LocalDateTime.now());
             
@@ -173,8 +171,7 @@ public class AIMonitoringService {
     @Transactional(readOnly = true)
     public Map<String, Object> getEnhancedConfigurationStatus() {
         try {
-            // Use AI module's health summary
-            Map<String, Object> configStatus = aiHealthService.getHealthSummary();
+            AIConfigurationStatusDto configStatus = aiHealthService.getConfigurationStatus();
             Map<String, Object> monitoringMetrics = getMonitoringMetrics();
             
             Map<String, Object> enhancedStatus = new HashMap<>();
@@ -216,10 +213,11 @@ public class AIMonitoringService {
     @Transactional(readOnly = true)
     public Map<String, Object> getServiceHealthCheck() {
         try {
-            // Use AI module's health check
-            boolean isHealthy = aiHealthService.isHealthy();
+            AIHealthStatusDto healthStatus = aiHealthService.getAIHealthStatus();
             Map<String, Object> monitoringMetrics = getMonitoringMetrics();
-            var healthStatus = aiHealthService.getHealthStatus();
+            
+            boolean isHealthy = "HEALTHY".equals(healthStatus.getOverallStatus()) || 
+                              "UP".equals(healthStatus.getOverallStatus());
             
             Map<String, Object> healthCheck = new HashMap<>();
             healthCheck.put("service", "AIMonitoringService");

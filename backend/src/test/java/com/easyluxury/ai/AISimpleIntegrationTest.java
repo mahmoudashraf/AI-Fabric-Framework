@@ -6,7 +6,7 @@ import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.easyluxury.ai.config.EasyLuxuryAIConfig;
 import com.easyluxury.ai.facade.AIFacade;
-import com.easyluxury.ai.service.AIHealthService;
+import com.ai.infrastructure.monitoring.AIHealthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
