@@ -67,7 +67,7 @@ ai:
       max-results: 100
       similarity-threshold: 0.7
   
-  # Vector Database Configuration (in-memory for testing)
+  # Vector Database Configuration (can be overridden by profile)
   vector-db:
     type: memory
     lucene:
