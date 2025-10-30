@@ -32,7 +32,7 @@ import java.util.Map;
 @Tag(name = "Smart Validation", description = "AI-powered smart validation services")
 public class SmartValidationController {
     
-    private final AISmartValidation aiSmartValidation;
+    private final AIValidationService validationService;
     private final ContentValidationService contentValidationService;
     private final ValidationRuleEngine validationRuleEngine;
     
@@ -46,7 +46,7 @@ public class SmartValidationController {
         @ApiResponse(responseCode = "400", description = "Invalid content data"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<AISmartValidation.ValidationResult> validateContent(
+    public ResponseEntity<AIValidationService.ValidationResult> validateContent(
             @RequestBody Map<String, Object> validationRequest) {
         log.info("Validating content with AI");
         
@@ -54,7 +54,7 @@ public class SmartValidationController {
         String contentType = (String) validationRequest.get("contentType");
         Map<String, Object> validationRules = (Map<String, Object>) validationRequest.get("validationRules");
         
-        AISmartValidation.ValidationResult result = aiSmartValidation.validateContent(content, contentType, validationRules);
+        AIValidationService.ValidationResult result = validationService.validateContent(content, contentType, validationRules);
         
         return ResponseEntity.ok(result);
     }
@@ -92,14 +92,14 @@ public class SmartValidationController {
         @ApiResponse(responseCode = "400", description = "Invalid data for quality validation"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<AISmartValidation.DataQualityResult> validateDataQuality(
+    public ResponseEntity<AIValidationService.DataQualityResult> validateDataQuality(
             @RequestBody Map<String, Object> qualityValidationRequest) {
         log.info("Validating data quality for type: {}", qualityValidationRequest.get("dataType"));
         
         List<Map<String, Object>> data = (List<Map<String, Object>>) qualityValidationRequest.get("data");
         String dataType = (String) qualityValidationRequest.get("dataType");
         
-        AISmartValidation.DataQualityResult result = aiSmartValidation.validateDataQuality(data, dataType);
+        AIValidationService.DataQualityResult result = validationService.validateDataQuality(data, dataType);
         
         return ResponseEntity.ok(result);
     }
@@ -114,14 +114,14 @@ public class SmartValidationController {
         @ApiResponse(responseCode = "400", description = "Invalid data for business rule validation"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<AISmartValidation.BusinessRuleValidationResult> validateBusinessRules(
+    public ResponseEntity<AIValidationService.BusinessRuleValidationResult> validateBusinessRules(
             @RequestBody Map<String, Object> businessRuleRequest) {
         log.info("Validating business rules");
         
         List<Map<String, Object>> data = (List<Map<String, Object>>) businessRuleRequest.get("data");
         Map<String, Object> businessRules = (Map<String, Object>) businessRuleRequest.get("businessRules");
         
-        AISmartValidation.BusinessRuleValidationResult result = aiSmartValidation.validateBusinessRules(data, businessRules);
+        AIValidationService.BusinessRuleValidationResult result = validationService.validateBusinessRules(data, businessRules);
         
         return ResponseEntity.ok(result);
     }

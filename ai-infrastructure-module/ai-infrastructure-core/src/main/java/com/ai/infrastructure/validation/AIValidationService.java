@@ -1,4 +1,4 @@
-package com.easyluxury.ai.service;
+package com.ai.infrastructure.validation;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
@@ -11,18 +11,20 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 /**
- * AISmartValidation
+ * AI Validation Service
  * 
- * AI-powered validation service that provides intelligent data validation,
+ * Generic AI-powered validation service that provides intelligent data validation,
  * content analysis, and automatic rule generation using machine learning.
  * 
- * @author Easy Luxury Team
+ * This service can be used by any application for AI-powered validation tasks.
+ * 
+ * @author AI Infrastructure Team
  * @version 1.0.0
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AISmartValidation {
+public class AIValidationService {
     
     private final AICoreService aiCoreService;
     private final RAGService ragService;
