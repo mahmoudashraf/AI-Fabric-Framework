@@ -1,0 +1,70 @@
+# Dev Profile Configuration for Integration Tests - Lucene Vector Database
+# This configuration enables Lucene vector database for integration testing
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 20000
+      auto-commit: true
+      pool-name: HikariCP-Test
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+        jdbc:
+          batch_size: 20
+    open-in-view: false
+
+ai:
+  enabled: true
+  providers:
+    openai-api-key: ${OPENAI_API_KEY}
+    openai-model: gpt-4o-mini
+    openai-embedding-model: text-embedding-3-small
+    openai-max-tokens: 1000
+    openai-temperature: 0.3
+    openai-timeout: 30
+    
+  # Vector Database Configuration - Lucene for dev profile
+  vector-db:
+    type: lucene
+    lucene:
+      index-path: ./data/test-lucene-index
+      similarity-threshold: 0.7
+      max-results: 100
+      create-index-if-not-exists: true
+      analyzer: standard
+      use-compound-file: true
+      max-buffered-docs: 1000
+
+# Logging for Dev Profile
+logging:
+  level:
+    root: INFO
+    com.ai.infrastructure: DEBUG
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management/Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info"
+  endpoint:
+    health:
+      show-details: when-authorized
+
