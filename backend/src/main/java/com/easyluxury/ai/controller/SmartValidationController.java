@@ -1,6 +1,7 @@
 package com.easyluxury.ai.controller;
 
-import com.easyluxury.ai.service.AISmartValidation;
+import com.ai.infrastructure.validation.AIValidationService;
+import com.ai.infrastructure.validation.AIValidationService.*;
 import com.easyluxury.ai.service.ContentValidationService;
 import com.easyluxury.ai.service.ValidationRuleEngine;
 import io.swagger.v3.oas.annotations.Operation;
