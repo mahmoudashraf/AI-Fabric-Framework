@@ -28,3 +28,63 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Lucene Vector Database Index Files (generated at runtime)
+**/data/lucene-vector-index/
+**/data/test-lucene-index/
+**/data/test-lucene-vector-index/
+ai-infrastructure-module/data/
+backend/data/
+*.cfe
+*.cfs
+*.si
+*.fdm
+*.fdt
+*.fdx
+*.fnm
+*.nvd
+*.nvm
+*.doc
+*.pos
+*.tim
+*.tip
+*.tmd
+segments_*
+write.lock
+*.lock
+
+# HuggingFace Cache (model downloads cache)
+**/models/**/.cache/
+**/.cache/
+
+# ONNX Model Files - KEEP IN GIT (explicitly included as requested)
+# Do NOT ignore *.onnx files - they are versioned
+# !**/models/embeddings/*.onnx
+# !**/models/embeddings/tokenizer.json
+
+# Java compiled files
+*.class
+*.jar
+!**/src/main/**/*.jar
+!**/src/test/**/*.jar
+
+# Spring Boot
+*.war
+*.ear
+
+# Node modules (already in frontend/.gitignore but adding here for completeness)
+node_modules/
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Package manager locks (keep package.json, ignore locks)
+# Note: Keep these if using them for reproducible builds
+# package-lock.json
+# yarn.lock

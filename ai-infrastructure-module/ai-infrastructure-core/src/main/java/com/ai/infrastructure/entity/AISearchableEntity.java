@@ -1,7 +1,9 @@
 package com.ai.infrastructure.entity;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Type;
 
@@ -18,6 +20,8 @@ import java.util.Map;
  * @version 2.0.0
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 @Entity
 @Table(name = "ai_searchable_entities")

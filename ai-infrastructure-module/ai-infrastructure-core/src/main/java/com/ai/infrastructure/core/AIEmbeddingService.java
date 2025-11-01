@@ -3,17 +3,14 @@ package com.ai.infrastructure.core;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.exception.AIServiceException;
-import com.theokanning.openai.embedding.EmbeddingRequest;
-import com.theokanning.openai.embedding.EmbeddingResult;
-import com.theokanning.openai.service.OpenAiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -24,11 +21,16 @@ import java.util.concurrent.atomic.AtomicLong;
  * Service for AI embedding generation
  * 
  * This service handles the generation of vector embeddings for text content
- * using OpenAI's embedding models. It provides caching and batch processing
- * capabilities for efficient embedding generation.
+ * using swappable embedding providers (ONNX, REST, OpenAI).
+ * It provides caching and batch processing capabilities for efficient embedding generation.
+ * 
+ * Uses EmbeddingProvider abstraction for easy swapping between providers:
+ * - ONNX (default): Local, no API calls
+ * - REST: Docker/sentence-transformers container
+ * - OpenAI: Cloud API (fallback)
  * 
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 @Slf4j
 // @Service // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
@@ -36,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class AIEmbeddingService {
     
     private final AIProviderConfig config;
-    private OpenAiService openAiService;
+    private final EmbeddingProvider embeddingProvider;
     
     // Performance metrics
     private final AtomicLong totalEmbeddingsGenerated = new AtomicLong(0);
@@ -45,39 +47,36 @@ public class AIEmbeddingService {
     private final ConcurrentHashMap<String, Long> cacheMisses = new ConcurrentHashMap<>();
     
     /**
-     * Initialize OpenAI service with configuration
-     */
-    private void initializeOpenAI() {
-        if (openAiService == null) {
-            openAiService = new OpenAiService(
-                config.getOpenaiApiKey(),
-                Duration.ofSeconds(config.getOpenaiTimeout())
-            );
-        }
-    }
-    
-    /**
      * Generate embedding for text content with caching
+     * 
+     * Delegates to configured EmbeddingProvider (ONNX, REST, or OpenAI)
      * 
      * @param request the embedding request
      * @return embedding response with vector data
      */
-    @Cacheable(value = "embeddings", key = "#request.text + '_' + #request.model")
+    @Cacheable(value = "embeddings", key = "#request.text + '_' + #request.model + '_' + #embeddingProvider.getProviderName()")
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
         try {
-            initializeOpenAI();
+            if (embeddingProvider == null || !embeddingProvider.isAvailable()) {
+                throw new AIServiceException("Embedding provider is not available. Provider: " + 
+                    (embeddingProvider != null ? embeddingProvider.getProviderName() : "null"));
+            }
             
-            log.debug("Generating embedding for text: {}", request.getText());
+            // Ensure we're using ONNX (if configured to do so)
+            String providerName = embeddingProvider.getProviderName();
+            if (!providerName.equals("onnx")) {
+                log.warn("WARNING: Not using ONNX provider. Current provider: {}", providerName);
+            } else {
+                log.debug("Using ONNX provider for embedding generation (no fallback)");
+            }
+            
+            log.debug("Generating embedding using {} provider for text: {}", 
+                     providerName, request.getText());
             
             long startTime = System.currentTimeMillis();
             
-            EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
-                .model(request.getModel() != null ? request.getModel() : config.getOpenaiEmbeddingModel())
-                .input(List.of(request.getText()))
-                .build();
-            
-            EmbeddingResult result = openAiService.createEmbeddings(embeddingRequest);
-            var embedding = result.getData().get(0).getEmbedding();
+            // Delegate to embedding provider
+            AIEmbeddingResponse response = embeddingProvider.generateEmbedding(request);
             
             long processingTime = System.currentTimeMillis() - startTime;
             
@@ -85,16 +84,10 @@ public class AIEmbeddingService {
             totalEmbeddingsGenerated.incrementAndGet();
             totalProcessingTime.addAndGet(processingTime);
             
-            log.debug("Successfully generated embedding with {} dimensions in {}ms", 
-                embedding.size(), processingTime);
+            log.debug("Successfully generated embedding with {} dimensions in {}ms using {} provider", 
+                response.getDimensions(), processingTime, embeddingProvider.getProviderName());
             
-            return AIEmbeddingResponse.builder()
-                .embedding(embedding)
-                .model(request.getModel() != null ? request.getModel() : config.getOpenaiEmbeddingModel())
-                .dimensions(embedding.size())
-                .processingTimeMs(processingTime)
-                .requestId(UUID.randomUUID().toString())
-                .build();
+            return response;
                 
         } catch (Exception e) {
             log.error("Error generating embedding", e);
@@ -105,39 +98,34 @@ public class AIEmbeddingService {
     /**
      * Generate embeddings for multiple texts in batch with optimization
      * 
+     * Delegates to configured EmbeddingProvider for batch processing
+     * 
      * @param texts list of texts to embed
      * @param entityType type of entity for context
      * @return list of embedding responses
      */
     public List<AIEmbeddingResponse> generateEmbeddings(List<String> texts, String entityType) {
         try {
-            initializeOpenAI();
+            if (embeddingProvider == null || !embeddingProvider.isAvailable()) {
+                throw new AIServiceException("Embedding provider is not available");
+            }
             
-            log.debug("Generating embeddings for {} texts", texts.size());
+            log.debug("Generating {} embeddings using {} provider", 
+                     texts.size(), embeddingProvider.getProviderName());
             
             long startTime = System.currentTimeMillis();
             
-            EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
-                .model(config.getOpenaiEmbeddingModel())
-                .input(texts)
-                .build();
-            
-            EmbeddingResult result = openAiService.createEmbeddings(embeddingRequest);
+            // Delegate to embedding provider for batch processing
+            List<AIEmbeddingResponse> responses = embeddingProvider.generateEmbeddings(texts);
             
             long processingTime = System.currentTimeMillis() - startTime;
             
-            List<AIEmbeddingResponse> responses = result.getData().stream()
-                .map(data -> AIEmbeddingResponse.builder()
-                    .embedding(data.getEmbedding())
-                    .model(config.getOpenaiEmbeddingModel())
-                    .dimensions(data.getEmbedding().size())
-                    .processingTimeMs(processingTime / texts.size())
-                    .requestId(UUID.randomUUID().toString())
-                    .build())
-                .toList();
+            // Update metrics
+            totalEmbeddingsGenerated.addAndGet(texts.size());
+            totalProcessingTime.addAndGet(processingTime);
             
-            log.debug("Successfully generated {} embeddings in {}ms", 
-                responses.size(), processingTime);
+            log.debug("Successfully generated {} embeddings in {}ms using {} provider", 
+                responses.size(), processingTime, embeddingProvider.getProviderName());
             
             return responses;
                 

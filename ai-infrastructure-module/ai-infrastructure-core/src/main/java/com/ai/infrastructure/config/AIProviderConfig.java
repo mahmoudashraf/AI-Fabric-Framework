@@ -57,4 +57,20 @@ public class AIProviderConfig {
     private Integer maxRetries = 3;
     private Integer retryDelayMs = 1000;
     private Boolean enableFallback = true;
+    
+    // Embedding Provider Configuration
+    private String embeddingProvider = "onnx";  // onnx, rest, openai
+    
+    // ONNX Configuration
+    private String onnxModelPath = "./models/embeddings/all-MiniLM-L6-v2.onnx";
+    private String onnxTokenizerPath = "./models/embeddings/tokenizer.json";
+    private Integer onnxMaxSequenceLength = 512;
+    private Boolean onnxUseGpu = false;
+    
+    // REST Configuration
+    private String restBaseUrl = "http://localhost:8000";
+    private String restEndpoint = "/embed";
+    private String restBatchEndpoint = "/embed/batch";
+    private Integer restTimeout = 30000;
+    private String restModel = "all-MiniLM-L6-v2";
 }

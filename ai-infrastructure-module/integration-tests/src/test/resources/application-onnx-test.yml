@@ -1,0 +1,39 @@
+# ONNX-Only Test Profile Configuration
+# This configuration ONLY uses ONNX embedding provider for debugging
+# NO FALLBACK TO OTHER PROVIDERS
+
+ai:
+  enabled: true
+  providers:
+    # Embedding Provider Configuration - ONNX ONLY (no fallback)
+    embedding-provider: onnx
+    onnx-model-path: ${ONNX_MODEL_PATH:./models/embeddings/all-MiniLM-L6-v2.onnx}
+    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:./models/embeddings/tokenizer.json}
+    onnx-max-sequence-length: 512
+    onnx-use-gpu: false
+    
+    # DISABLE other providers - DO NOT FALLBACK
+    # REST provider will not be created unless embedding-provider=rest
+    # OpenAI provider will not be created unless embedding-provider=openai
+    # openai-api-key: ${OPENAI_API_KEY:}  # Not set - prevents OpenAI provider initialization
+    
+  # Vector Database Configuration - Memory for fast tests
+  vector-db:
+    type: memory
+    lucene:
+      index-path: ./data/test-lucene-index
+
+# Logging for ONNX Test Profile
+logging:
+  level:
+    root: INFO
+    com.ai.infrastructure: DEBUG
+    com.ai.infrastructure.embedding: DEBUG
+    com.ai.infrastructure.config: DEBUG
+    org.springframework.context: DEBUG
+    org.springframework.boot.autoconfigure: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+
+

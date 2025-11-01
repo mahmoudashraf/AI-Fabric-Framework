@@ -135,6 +135,19 @@
             <version>4.0.4</version>
         </dependency>
 
+        <!-- ONNX Runtime for local embedding inference -->
+        <dependency>
+            <groupId>com.microsoft.onnxruntime</groupId>
+            <artifactId>onnxruntime</artifactId>
+            <version>1.16.3</version>
+        </dependency>
+
+        <!-- Note: Hugging Face Tokenizers library is not available in Maven Central.
+             For production use, consider implementing proper tokenization using:
+             - Simple character-based tokenization (current implementation)
+             - Or integrate with Python tokenizers via REST API
+             - Or use Java-based tokenizer libraries -->
+
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

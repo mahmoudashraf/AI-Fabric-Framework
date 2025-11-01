@@ -1,5 +1,6 @@
 # Maven target directory
 target/
+**/target/
 
 # IDE files
 .idea/
@@ -27,3 +28,34 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Lucene Vector Database Index Files (generated at runtime)
+data/
+**/data/lucene-vector-index/
+**/data/test-lucene-index/
+**/data/test-lucene-vector-index/
+*.cfe
+*.cfs
+*.si
+*.fdm
+*.fdt
+*.fdx
+*.fnm
+*.nvd
+*.nvm
+*.doc
+*.pos
+*.tim
+*.tip
+*.tmd
+segments_*
+write.lock
+*.lock
+
+# HuggingFace Cache (model downloads cache - but NOT the actual model files)
+**/models/**/.cache/
+**/.cache/
+
+# ONNX Model Files - KEEP IN GIT (as requested by user)
+# The actual model files (*.onnx) and tokenizer.json are versioned
+# Only ignore the cache directory

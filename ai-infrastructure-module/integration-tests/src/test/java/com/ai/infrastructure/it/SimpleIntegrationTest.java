@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @version 1.0.0
  */
 @SpringBootTest(classes = TestApplication.class)
-@ActiveProfiles("test")
+@ActiveProfiles("onnx-test")
 @Transactional
 public class SimpleIntegrationTest {
 
