@@ -1,14 +1,12 @@
 package com.ai.infrastructure.it;
 
-import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.support.OnnxBackedEmbeddingService;
+import com.ai.infrastructure.it.support.OnnxTestConfiguration;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
@@ -17,15 +15,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StreamUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,8 +36,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
-@Import(OnnxHybridIntegrationTest.OnnxEmbeddingTestConfig.class)
+@Import(OnnxTestConfiguration.class)
 @Transactional
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public class OnnxHybridIntegrationTest {
 
     @Autowired
@@ -80,6 +74,7 @@ public class OnnxHybridIntegrationTest {
         if (Files.exists(indexPath)) {
             Files.walk(indexPath)
                 .sorted(Comparator.reverseOrder())
+                .filter(path -> !path.equals(indexPath))
                 .map(Path::toFile)
                 .forEach(File::delete);
         }
@@ -117,20 +112,5 @@ public class OnnxHybridIntegrationTest {
             .build());
         assertEquals(32, queryEmbedding.getDimensions(), "ONNX embeddings should have deterministic dimensions");
 
-    }
-
-    @TestConfiguration
-    static class OnnxEmbeddingTestConfig {
-
-        @Bean
-        @Primary
-        AIEmbeddingService onnxEmbeddingService(AIProviderConfig config, ResourceLoader resourceLoader) throws IOException {
-            Resource resource = resourceLoader.getResource("classpath:models/text-identity-encoder.onnx");
-            byte[] modelBytes;
-            try (var inputStream = resource.getInputStream()) {
-                modelBytes = StreamUtils.copyToByteArray(inputStream);
-            }
-            return new OnnxBackedEmbeddingService(config, modelBytes);
-        }
     }
 }
