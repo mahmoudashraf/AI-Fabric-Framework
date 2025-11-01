@@ -1,0 +1,34 @@
+# Test Profile Configuration for Integration Tests
+# This configuration ensures ONNX embedding provider is used for tests
+
+ai:
+  enabled: true
+  providers:
+    # Embedding Provider Configuration (ONNX for testing)
+    embedding-provider: ${EMBEDDING_PROVIDER:onnx}
+    onnx-model-path: ${ONNX_MODEL_PATH:./models/embeddings/all-MiniLM-L6-v2.onnx}
+    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:./models/embeddings/tokenizer.json}
+    onnx-max-sequence-length: 512
+    onnx-use-gpu: false
+    
+    # OpenAI Configuration (disabled for tests - use ONNX)
+    openai-api-key: ${OPENAI_API_KEY:test-key}
+    openai-model: gpt-4o-mini
+    openai-embedding-model: text-embedding-3-small
+    
+  # Vector Database Configuration - Memory for fast tests
+  vector-db:
+    type: memory
+    lucene:
+      index-path: ./data/test-lucene-index
+
+# Logging for Test Profile
+logging:
+  level:
+    root: INFO
+    com.ai.infrastructure: DEBUG
+    com.ai.infrastructure.embedding: DEBUG
+    org.springframework: WARN
+
+
+

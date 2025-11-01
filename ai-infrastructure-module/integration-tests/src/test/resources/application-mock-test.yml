@@ -40,21 +40,28 @@ spring:
 ai:
   enabled: true
   
+  providers:
+    # Embedding Provider Configuration (ONNX default for testing)
+    embedding-provider: ${EMBEDDING_PROVIDER:onnx}
+    onnx-model-path: ${ONNX_MODEL_PATH:./models/embeddings/all-MiniLM-L6-v2.onnx}
+    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:./models/embeddings/tokenizer.json}
+    onnx-max-sequence-length: 512
+    onnx-use-gpu: false
+    
+    # OpenAI Configuration (mocked)
+    openai-api-key: mock-key
+    openai-model: gpt-3.5-turbo
+    openai-embedding-model: text-embedding-3-small
+    openai-max-tokens: 1000
+    openai-temperature: 0.3
+    openai-timeout: 30
+  
   # Mock Configuration
   mock:
     enabled: true
     embedding-dimensions: 1536
     embedding-model: text-embedding-3-small
     response-delay-ms: 100
-  
-  # OpenAI Configuration (mocked)
-  openai:
-    api-key: mock-key
-    model: gpt-3.5-turbo
-    embedding-model: text-embedding-3-small
-    max-tokens: 1000
-    temperature: 0.3
-    timeout: 30s
   
   # Infrastructure Configuration
   infrastructure:

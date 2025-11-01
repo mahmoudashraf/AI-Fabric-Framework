@@ -22,6 +22,10 @@ import com.ai.infrastructure.rag.LuceneVectorDatabaseService;
 import com.ai.infrastructure.rag.PineconeVectorDatabaseService;
 import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.search.VectorSearchService;
+import com.ai.infrastructure.embedding.EmbeddingProvider;
+import com.ai.infrastructure.embedding.ONNXEmbeddingProvider;
+import com.ai.infrastructure.embedding.RestEmbeddingProvider;
+import com.ai.infrastructure.embedding.OpenAIEmbeddingProvider;
 import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.PineconeVectorDatabase;
@@ -30,6 +34,7 @@ import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
 import com.ai.infrastructure.cache.AIIntelligentCacheService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -48,6 +53,7 @@ import org.springframework.core.io.ResourceLoader;
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
+@Slf4j
 @Configuration
 @EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class})
 @ConditionalOnClass(AICapableAspect.class)
@@ -55,14 +61,70 @@ import org.springframework.core.io.ResourceLoader;
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     
+    public AIInfrastructureAutoConfiguration() {
+        log.debug("AIInfrastructureAutoConfiguration instance created");
+    }
+    
+    // EmbeddingProvider beans - selected based on configuration
+    // The specific implementation is selected based on ai.providers.embedding-provider:
+    // - ONNXEmbeddingProvider (default when not specified or set to "onnx")
+    // - RestEmbeddingProvider (only when explicitly set to "rest")
+    // - OpenAIEmbeddingProvider (only when explicitly set to "openai")
+    // IMPORTANT: Define EmbeddingProvider BEFORE other beans that depend on it
+    // IMPORTANT: ONNX is marked as @Primary to ensure it's used when multiple providers exist
+    
     @Bean
-    public AICoreService aiCoreService(AIProviderConfig config, AIEmbeddingService embeddingService, AISearchService searchService) {
-        return new AICoreService(config, embeddingService, searchService);
+    @org.springframework.context.annotation.Primary
+    @org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
+    @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "onnx", matchIfMissing = true)
+    public EmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
+        log.info("Creating ONNX Embedding Provider (primary/default)");
+        log.info("ONNX will be used for all embedding generation - no fallback to other providers");
+        ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
+        if (!provider.isAvailable()) {
+            log.warn("WARNING: ONNX Embedding Provider is not available. Model file may be missing.");
+            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnxModelPath());
+        }
+        return provider;
     }
     
     @Bean
-    public AIEmbeddingService aiEmbeddingService(AIProviderConfig config) {
-        return new AIEmbeddingService(config);
+    @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "rest")
+    @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
+    public EmbeddingProvider restEmbeddingProvider(AIProviderConfig config) {
+        log.info("Creating REST Embedding Provider");
+        log.warn("ONNX is NOT being used. Using REST provider instead.");
+        return new RestEmbeddingProvider(config);
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "openai")
+    @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
+    public EmbeddingProvider openaiEmbeddingProvider(AIProviderConfig config) {
+        log.info("Creating OpenAI Embedding Provider");
+        log.warn("ONNX is NOT being used. Using OpenAI provider instead.");
+        return new OpenAIEmbeddingProvider(config);
+    }
+    
+    @Bean
+    public AIEmbeddingService aiEmbeddingService(AIProviderConfig config, EmbeddingProvider embeddingProvider) {
+        String providerName = embeddingProvider != null ? embeddingProvider.getProviderName() : "null";
+        log.info("Creating AIEmbeddingService with provider: {}", providerName);
+        
+        // Validate that ONNX is being used (if that's what we want)
+        if (!"onnx".equals(providerName)) {
+            log.warn("WARNING: AIEmbeddingService is NOT using ONNX provider. Current provider: {}", providerName);
+            log.warn("To use ONNX, ensure ai.providers.embedding-provider=onnx in configuration");
+        } else {
+            log.info("✅ AIEmbeddingService configured to use ONNX provider (no fallback to other providers)");
+        }
+        
+        return new AIEmbeddingService(config, embeddingProvider);
+    }
+    
+    @Bean
+    public AICoreService aiCoreService(AIProviderConfig config, AIEmbeddingService embeddingService, AISearchService searchService) {
+        return new AICoreService(config, embeddingService, searchService);
     }
     
     @Bean
@@ -191,8 +253,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public VectorSearchService vectorSearchService(AIProviderConfig config) {
-        return new VectorSearchService(config);
+    public VectorSearchService vectorSearchService(AIProviderConfig config, VectorDatabaseService vectorDatabaseService) {
+        return new VectorSearchService(config, vectorDatabaseService);
     }
     
     @Bean

@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
@@ -17,9 +18,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -41,12 +44,17 @@ import java.util.stream.Collectors;
 /**
  * Lucene Vector Database Service
  * 
- * This service provides vector database operations using Apache Lucene with k-NN search.
+ * This service provides vector database operations using Apache Lucene 9+ with native k-NN search.
+ * Uses KnnVectorField and KnnVectorQuery for optimized approximate nearest neighbor search.
  * It's designed for development and testing environments where external vector databases
  * are not available or needed.
  * 
+ * This implementation delegates similarity calculations to Lucene's native k-NN implementation,
+ * making it swappable with production vector databases (Pinecone, Qdrant, etc.) that also handle
+ * similarity internally.
+ * 
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -63,6 +71,14 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     
     @Value("${ai.vector-db.lucene.max-results:100}")
     private int maxResults;
+    
+    @Value("${ai.vector-db.lucene.vector-dimension:1536}")
+    private int vectorDimension;
+    
+    private static final String VECTOR_FIELD = "vector";
+    private static final String VECTOR_ID_FIELD = "vectorId";
+    private static final String ENTITY_ID_FIELD = "entityId";
+    private static final String ENTITY_TYPE_FIELD = "entityType";
     
     private Directory directory;
     private IndexWriter indexWriter;
@@ -137,12 +153,23 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             Document doc = new Document();
             
             // Add basic fields
-            doc.add(new StringField("vectorId", vectorId, Field.Store.YES));
-            doc.add(new StringField("entityId", entityId, Field.Store.YES));
-            doc.add(new StringField("entityType", entityType, Field.Store.YES));
+            doc.add(new StringField(VECTOR_ID_FIELD, vectorId, Field.Store.YES));
+            doc.add(new StringField(ENTITY_ID_FIELD, entityId, Field.Store.YES));
+            doc.add(new StringField(ENTITY_TYPE_FIELD, entityType, Field.Store.YES));
             doc.add(new TextField("content", content, Field.Store.YES));
             
-            // Add embedding as a searchable text field (comma-separated values)
+            // Convert List<Double> to float[] for Lucene KnnVectorField
+            // Lucene 9+ uses float[] for vector fields (more efficient than double[])
+            float[] vectorArray = new float[embedding.size()];
+            for (int i = 0; i < embedding.size(); i++) {
+                vectorArray[i] = embedding.get(i).floatValue();
+            }
+            
+            // Use KnnVectorField for native k-NN search (Lucene 9+)
+            // This provides optimized approximate nearest neighbor search
+            doc.add(new KnnVectorField(VECTOR_FIELD, vectorArray, VectorSimilarityFunction.COSINE));
+            
+            // Also store embedding as text for retrieval (backward compatibility)
             String embeddingText = embedding.stream()
                 .map(String::valueOf)
                 .collect(Collectors.joining(","));
@@ -183,47 +210,78 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     @Override
     public AISearchResponse search(List<Double> queryVector, AISearchRequest request) {
         try {
-            log.debug("Searching vectors in Lucene for query: {}", request.getQuery());
+            log.debug("Searching vectors in Lucene using native k-NN for query: {}", request.getQuery());
             
             long startTime = System.currentTimeMillis();
             
-            // Build search query
-            String searchQuery = buildSearchQuery(request, queryVector);
-            Query query = new QueryParser("content", analyzer).parse(searchQuery);
+            // Convert query vector to float[] for Lucene k-NN
+            float[] queryVectorArray = new float[queryVector.size()];
+            for (int i = 0; i < queryVector.size(); i++) {
+                queryVectorArray[i] = queryVector.get(i).floatValue();
+            }
             
-            // Perform search
-            TopDocs topDocs = indexSearcher.search(query, Math.min(request.getLimit(), maxResults));
+            // Use Lucene 9+ native k-NN search with KnnVectorQuery
+            // This provides optimized approximate nearest neighbor search
+            // The vector database handles similarity calculation internally
+            int k = Math.min(request.getLimit() * 2, maxResults * 2); // Get more candidates for threshold filtering
+            KnnVectorQuery vectorQuery = new KnnVectorQuery(VECTOR_FIELD, queryVectorArray, k);
+            
+            // Apply entity type filter if specified
+            Query filterQuery = null;
+            if (request.getEntityType() != null && !request.getEntityType().trim().isEmpty()) {
+                filterQuery = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(
+                    ENTITY_TYPE_FIELD + ":" + request.getEntityType()
+                );
+            }
+            
+            // Perform k-NN search (Lucene handles similarity internally)
+            TopDocs topDocs;
+            if (filterQuery != null) {
+                // Use BooleanQuery to combine vector search with filter
+                org.apache.lucene.search.BooleanQuery.Builder boolQueryBuilder = 
+                    new org.apache.lucene.search.BooleanQuery.Builder();
+                boolQueryBuilder.add(vectorQuery, org.apache.lucene.search.BooleanClause.Occur.MUST);
+                boolQueryBuilder.add(filterQuery, org.apache.lucene.search.BooleanClause.Occur.MUST);
+                topDocs = indexSearcher.search(boolQueryBuilder.build(), k);
+            } else {
+                topDocs = indexSearcher.search(vectorQuery, k);
+            }
+            
             ScoreDoc[] hits = topDocs.scoreDocs;
             
-            // Process results
+            // Process results - Lucene has already calculated similarity scores
             List<Map<String, Object>> results = new ArrayList<>();
             for (ScoreDoc hit : hits) {
                 Document doc = indexSearcher.doc(hit.doc);
                 
-                // Calculate similarity score
-                double similarity = calculateSimilarity(queryVector, doc);
+                // Lucene's k-NN search already provides similarity scores
+                // The score from Lucene is the cosine similarity
+                // Normalize to [0, 1] range if needed (Lucene scores are typically already normalized)
+                double similarity = hit.score;
                 
+                // Apply threshold filter
                 if (similarity >= request.getThreshold()) {
                     Map<String, Object> result = new HashMap<>();
-                    result.put("id", doc.get("entityId"));
-                    result.put("vectorId", doc.get("vectorId"));
+                    result.put("id", doc.get(ENTITY_ID_FIELD));
+                    result.put("vectorId", doc.get(VECTOR_ID_FIELD));
                     result.put("content", doc.get("content"));
-                    result.put("entityType", doc.get("entityType"));
+                    result.put("entityType", doc.get(ENTITY_TYPE_FIELD));
                     result.put("metadata", doc.get("metadata"));
                     result.put("score", similarity);
                     result.put("similarity", similarity);
-                    result.put("luceneScore", hit.score);
                     
                     results.add(result);
+                    
+                    // Stop once we have enough results
+                    if (results.size() >= request.getLimit()) {
+                        break;
+                    }
                 }
             }
             
-            // Sort by similarity score
-            results.sort((a, b) -> Double.compare((Double) b.get("similarity"), (Double) a.get("similarity")));
-            
             long processingTime = System.currentTimeMillis() - startTime;
             
-            log.debug("Found {} results in Lucene in {}ms", results.size(), processingTime);
+            log.debug("Found {} results using Lucene native k-NN in {}ms", results.size(), processingTime);
             
             return AISearchResponse.builder()
                 .results(results)
@@ -247,7 +305,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             log.debug("Removing vector from Lucene for entity {} of type {}", entityId, entityType);
             
             // Delete by entityId and entityType
-            Term term = new Term("entityId", entityId);
+            Term term = new Term(ENTITY_ID_FIELD, entityId);
             long deletedCount = indexWriter.deleteDocuments(term);
             indexWriter.commit();
             
@@ -322,7 +380,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             log.debug("Updating vector {} in Lucene for entity {} of type {}", vectorId, entityId, entityType);
             
             // First remove the existing vector
-            Term term = new Term("vectorId", vectorId);
+            Term term = new Term(VECTOR_ID_FIELD, vectorId);
             long deletedCount = indexWriter.deleteDocuments(term);
             
             if (deletedCount > 0) {
@@ -346,8 +404,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Getting vector {} from Lucene", vectorId);
             
-            Term term = new Term("vectorId", vectorId);
-            Query query = new QueryParser("vectorId", analyzer).parse("vectorId:" + vectorId);
+            Term term = new Term(VECTOR_ID_FIELD, vectorId);
+            Query query = new QueryParser(VECTOR_ID_FIELD, analyzer).parse(VECTOR_ID_FIELD + ":" + vectorId);
             
             TopDocs topDocs = indexSearcher.search(query, 1);
             if (topDocs.totalHits.value > 0) {
@@ -368,8 +426,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Getting vector from Lucene for entity {} of type {}", entityId, entityType);
             
-            String queryString = "entityType:" + entityType + " AND entityId:" + entityId;
-            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            String queryString = ENTITY_TYPE_FIELD + ":" + entityType + " AND " + ENTITY_ID_FIELD + ":" + entityId;
+            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
             
             TopDocs topDocs = indexSearcher.search(query, 1);
             if (topDocs.totalHits.value > 0) {
@@ -403,7 +461,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Removing vector {} from Lucene", vectorId);
             
-            Term term = new Term("vectorId", vectorId);
+            Term term = new Term(VECTOR_ID_FIELD, vectorId);
             long deletedCount = indexWriter.deleteDocuments(term);
             indexWriter.commit();
             
@@ -504,8 +562,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Getting all vectors for entity type {} from Lucene", entityType);
             
-            String queryString = "entityType:" + entityType;
-            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            String queryString = ENTITY_TYPE_FIELD + ":" + entityType;
+            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
             
             TopDocs topDocs = indexSearcher.search(query, Integer.MAX_VALUE);
             List<VectorRecord> vectors = new ArrayList<>();
@@ -527,8 +585,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     @Override
     public long getVectorCountByEntityType(String entityType) {
         try {
-            String queryString = "entityType:" + entityType;
-            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            String queryString = ENTITY_TYPE_FIELD + ":" + entityType;
+            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
             
             TopDocs topDocs = indexSearcher.search(query, 0); // Only count, don't retrieve
             return topDocs.totalHits.value;
@@ -542,8 +600,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     @Override
     public boolean vectorExists(String entityType, String entityId) {
         try {
-            String queryString = "entityType:" + entityType + " AND entityId:" + entityId;
-            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            String queryString = ENTITY_TYPE_FIELD + ":" + entityType + " AND " + ENTITY_ID_FIELD + ":" + entityId;
+            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
             
             TopDocs topDocs = indexSearcher.search(query, 1);
             return topDocs.totalHits.value > 0;
@@ -559,8 +617,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Clearing all vectors for entity type {} from Lucene", entityType);
             
-            String queryString = "entityType:" + entityType;
-            Query query = new QueryParser("entityType", analyzer).parse(queryString);
+            String queryString = ENTITY_TYPE_FIELD + ":" + entityType;
+            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
             
             long countBefore = indexSearcher.count(query);
             indexWriter.deleteDocuments(query);
@@ -636,82 +694,11 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     }
     
     /**
-     * Build search query for Lucene
+     * Note: Similarity calculation is now handled by Lucene's native k-NN search.
+     * This eliminates the need for manual cosine similarity calculations.
+     * The VectorDatabaseService abstraction ensures that all implementations
+     * (Lucene, Pinecone, Qdrant, etc.) handle similarity internally.
      */
-    private String buildSearchQuery(AISearchRequest request, List<Double> queryVector) {
-        StringBuilder queryBuilder = new StringBuilder();
-        
-        // Add text search
-        if (request.getQuery() != null && !request.getQuery().trim().isEmpty()) {
-            queryBuilder.append("content:").append(request.getQuery());
-        }
-        
-        // Add entity type filter
-        if (request.getEntityType() != null && !request.getEntityType().trim().isEmpty()) {
-            if (queryBuilder.length() > 0) {
-                queryBuilder.append(" AND ");
-            }
-            queryBuilder.append("entityType:").append(request.getEntityType());
-        }
-        
-        // If no text query, search for all documents
-        if (queryBuilder.length() == 0) {
-            queryBuilder.append("*:*");
-        }
-        
-        return queryBuilder.toString();
-    }
-    
-    /**
-     * Calculate similarity between query vector and document
-     */
-    private double calculateSimilarity(List<Double> queryVector, Document doc) {
-        try {
-            String embeddingText = doc.get("embedding");
-            if (embeddingText == null || embeddingText.trim().isEmpty()) {
-                return 0.0;
-            }
-            
-            // Parse embedding from stored text
-            List<Double> docVector = Arrays.stream(embeddingText.split(","))
-                .map(String::trim)
-                .map(Double::parseDouble)
-                .collect(Collectors.toList());
-            
-            return calculateCosineSimilarity(queryVector, docVector);
-            
-        } catch (Exception e) {
-            log.warn("Error calculating similarity for document: {}", doc.get("id"), e);
-            return 0.0;
-        }
-    }
-    
-    /**
-     * Calculate cosine similarity between two vectors
-     */
-    private double calculateCosineSimilarity(List<Double> vectorA, List<Double> vectorB) {
-        if (vectorA == null || vectorB == null || vectorA.size() != vectorB.size()) {
-            return 0.0;
-        }
-        
-        double dotProduct = 0.0;
-        double normA = 0.0;
-        double normB = 0.0;
-        
-        for (int i = 0; i < vectorA.size(); i++) {
-            double a = vectorA.get(i);
-            double b = vectorB.get(i);
-            dotProduct += a * b;
-            normA += a * a;
-            normB += b * b;
-        }
-        
-        if (normA == 0.0 || normB == 0.0) {
-            return 0.0;
-        }
-        
-        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-    }
     
     /**
      * Refresh the index reader and searcher

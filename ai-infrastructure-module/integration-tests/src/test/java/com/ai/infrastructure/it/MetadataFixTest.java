@@ -3,15 +3,22 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.AIEntityConfig;
+import com.ai.infrastructure.it.entity.TestProduct;
+import com.ai.infrastructure.it.repository.TestProductRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("real-api-test")
+@Transactional
 public class MetadataFixTest {
     
     @Autowired
@@ -19,6 +26,15 @@ public class MetadataFixTest {
     
     @Autowired
     private AIEntityConfigurationLoader configurationLoader;
+    
+    @Autowired
+    private TestProductRepository productRepository;
+    
+    @BeforeEach
+    public void setUp() {
+        // Clean up before each test
+        productRepository.deleteAll();
+    }
     
     @Test
     public void testConfigurationLoaderHasMetadataFields() {
@@ -36,47 +52,20 @@ public class MetadataFixTest {
     
     @Test
     public void testProcessEntityForAIWithMetadata() {
-        // Create a simple test entity
-        TestProduct product = new TestProduct();
-        product.setId("test-1");
-        product.setName("Test Product");
-        product.setDescription("Test Description");
-        product.setCategory("Electronics");
-        product.setPrice(99.99);
-        product.setBrand("TestBrand");
+        // Create and save a test product entity
+        TestProduct savedProduct = productRepository.save(TestProduct.builder()
+            .name("Test Product")
+            .description("Test Description")
+            .category("Electronics")
+            .price(new BigDecimal("99.99"))
+            .brand("TestBrand")
+            .active(true)
+            .build());
         
-        // This should not throw a NullPointerException
+        // This should not throw a NullPointerException or transaction rollback exception
+        final TestProduct product = savedProduct;
         assertDoesNotThrow(() -> {
             capabilityService.processEntityForAI(product, "test-product");
         }, "processEntityForAI should not throw NullPointerException for metadata fields");
-    }
-    
-    // Simple test entity class
-    public static class TestProduct {
-        private String id;
-        private String name;
-        private String description;
-        private String category;
-        private Double price;
-        private String brand;
-        
-        // Getters and setters
-        public String getId() { return id; }
-        public void setId(String id) { this.id = id; }
-        
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-        
-        public String getCategory() { return category; }
-        public void setCategory(String category) { this.category = category; }
-        
-        public Double getPrice() { return price; }
-        public void setPrice(Double price) { this.price = price; }
-        
-        public String getBrand() { return brand; }
-        public void setBrand(String brand) { this.brand = brand; }
     }
 }

@@ -48,14 +48,28 @@ spring:
 ai:
   enabled: true
   
-  # OpenAI Configuration (can be overridden by environment variables)
-  openai:
-    api-key: ${OPENAI_API_KEY:test-key}
-    model: ${OPENAI_MODEL:gpt-3.5-turbo}
-    embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-ada-002}
-    max-tokens: ${OPENAI_MAX_TOKENS:1000}
-    temperature: ${OPENAI_TEMPERATURE:0.3}
-    timeout: ${OPENAI_TIMEOUT:30s}
+  providers:
+    # Embedding Provider Configuration (ONNX for testing, can override)
+    embedding-provider: ${EMBEDDING_PROVIDER:onnx}
+    onnx-model-path: ${ONNX_MODEL_PATH:./models/embeddings/all-MiniLM-L6-v2.onnx}
+    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:./models/embeddings/tokenizer.json}
+    onnx-max-sequence-length: 512
+    onnx-use-gpu: false
+    
+    # REST Configuration (for Docker service testing)
+    rest-base-url: ${REST_EMBEDDING_URL:http://localhost:8000}
+    rest-endpoint: /embed
+    rest-batch-endpoint: /embed/batch
+    rest-timeout: 30000
+    rest-model: all-MiniLM-L6-v2
+    
+    # OpenAI Configuration (can be overridden by environment variables)
+    openai-api-key: ${OPENAI_API_KEY:test-key}
+    openai-model: ${OPENAI_MODEL:gpt-3.5-turbo}
+    openai-embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-ada-002}
+    openai-max-tokens: ${OPENAI_MAX_TOKENS:1000}
+    openai-temperature: ${OPENAI_TEMPERATURE:0.3}
+    openai-timeout: ${OPENAI_TIMEOUT:60}
   
   # Infrastructure Configuration
   config:
