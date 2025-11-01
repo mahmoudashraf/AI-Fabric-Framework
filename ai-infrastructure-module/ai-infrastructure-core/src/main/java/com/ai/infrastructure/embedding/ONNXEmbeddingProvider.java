@@ -13,10 +13,12 @@ import ai.onnxruntime.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
+import java.nio.LongBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -57,6 +59,10 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     private OrtEnvironment ortEnvironment;
     private OrtSession ortSession;
     private int embeddingDimension = 384; // Default for all-MiniLM-L6-v2
+    
+    // Thread safety: ONNX Runtime sessions are NOT thread-safe
+    // Using ReentrantLock to synchronize access to ortSession
+    private final ReentrantLock sessionLock = new ReentrantLock();
     
     // Special token IDs for BERT-based models (all-MiniLM-L6-v2)
     private static final int TOKEN_CLS = 101;  // [CLS] token
@@ -185,6 +191,7 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     
     @Override
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
+        sessionLock.lock();
         try {
             if (!isAvailable()) {
                 throw new AIServiceException("ONNX Embedding Provider is not available");
@@ -387,32 +394,223 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
         } catch (Exception e) {
             log.error("Error generating ONNX embedding", e);
             throw new AIServiceException("Failed to generate ONNX embedding", e);
+        } finally {
+            sessionLock.unlock();
         }
     }
     
     @Override
     public List<AIEmbeddingResponse> generateEmbeddings(List<String> texts) {
+        if (texts == null || texts.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        if (texts.size() == 1) {
+            // Single item - use single embedding method
+            AIEmbeddingRequest request = AIEmbeddingRequest.builder()
+                .text(texts.get(0))
+                .model("onnx")
+                .build();
+            return Collections.singletonList(generateEmbedding(request));
+        }
+        
+        // True batch processing: single ONNX inference call
+        sessionLock.lock();
         try {
-            log.debug("Generating {} embeddings using ONNX", texts.size());
-            
-            List<AIEmbeddingResponse> responses = new ArrayList<>();
-            
-            // Process in batch if possible, otherwise one by one
-            for (String text : texts) {
-                AIEmbeddingRequest request = AIEmbeddingRequest.builder()
-                    .text(text)
-                    .model("onnx")
-                    .build();
-                responses.add(generateEmbedding(request));
+            if (!isAvailable()) {
+                throw new AIServiceException("ONNX Embedding Provider is not available");
             }
             
-            log.debug("Successfully generated {} ONNX embeddings", responses.size());
-            return responses;
+            log.debug("Generating {} embeddings using ONNX batch processing", texts.size());
+            
+            long startTime = System.currentTimeMillis();
+            
+            // Tokenize all texts
+            List<int[]> tokenizedTexts = new ArrayList<>();
+            int maxSequenceLength = 0;
+            
+            for (String text : texts) {
+                int[] tokens = tokenize(text);
+                tokenizedTexts.add(tokens);
+                maxSequenceLength = Math.max(maxSequenceLength, Math.min(tokens.length, this.maxSequenceLength));
+            }
+            
+            int batchSize = texts.size();
+            int sequenceLength = maxSequenceLength;
+            
+            // Create batch tensors: [batch_size, sequence_length]
+            long[] flatInputIds = new long[batchSize * sequenceLength];
+            long[] flatAttentionMasks = new long[batchSize * sequenceLength];
+            long[] flatTokenTypeIds = new long[batchSize * sequenceLength];
+            
+            // Fill batch tensors
+            for (int b = 0; b < batchSize; b++) {
+                int[] tokens = tokenizedTexts.get(b);
+                int offset = b * sequenceLength;
+                
+                for (int s = 0; s < sequenceLength; s++) {
+                    if (s < tokens.length) {
+                        flatInputIds[offset + s] = tokens[s];
+                        flatAttentionMasks[offset + s] = 1L; // Real token
+                    } else {
+                        flatInputIds[offset + s] = TOKEN_PAD;
+                        flatAttentionMasks[offset + s] = 0L; // Padding
+                    }
+                    flatTokenTypeIds[offset + s] = 0L; // Single sequence
+                }
+            }
+            
+            // Create ONNX tensors with batch shape
+            long[] batchShape = new long[]{batchSize, sequenceLength};
+            LongBuffer inputIdsBuffer = LongBuffer.wrap(flatInputIds);
+            LongBuffer attentionMaskBuffer = LongBuffer.wrap(flatAttentionMasks);
+            LongBuffer tokenTypeIdsBuffer = LongBuffer.wrap(flatTokenTypeIds);
+            
+            OnnxTensor inputIdsTensor = null;
+            OnnxTensor attentionMaskTensor = null;
+            OnnxTensor tokenTypeIdsTensor = null;
+            
+            try {
+                inputIdsTensor = OnnxTensor.createTensor(ortEnvironment, inputIdsBuffer, batchShape);
+                attentionMaskTensor = OnnxTensor.createTensor(ortEnvironment, attentionMaskBuffer, batchShape);
+                tokenTypeIdsTensor = OnnxTensor.createTensor(ortEnvironment, tokenTypeIdsBuffer, batchShape);
+                
+                // Prepare batch inputs
+                Map<String, OnnxTensor> batchInputs = new HashMap<>();
+                batchInputs.put("input_ids", inputIdsTensor);
+                batchInputs.put("attention_mask", attentionMaskTensor);
+                batchInputs.put("token_type_ids", tokenTypeIdsTensor);
+                
+                // Run batch inference (single call for all texts)
+                OrtSession.Result batchOutput = ortSession.run(batchInputs);
+                
+                // Extract batch embeddings
+                OnnxValue embeddingValue = batchOutput.get(0);
+                Object value = embeddingValue.getValue();
+                
+                float[][] batchEmbeddings = extractBatchEmbeddings(value, batchSize);
+                
+                // Convert to responses
+                List<AIEmbeddingResponse> responses = new ArrayList<>();
+                long processingTime = System.currentTimeMillis() - startTime;
+                
+                for (int i = 0; i < batchSize; i++) {
+                    final float[] embeddingArray = batchEmbeddings[i]; // Make final for lambda
+                    List<Double> embedding = IntStream.range(0, embeddingArray.length)
+                        .mapToObj(j -> (double) embeddingArray[j])
+                        .collect(Collectors.toList());
+                    
+                    responses.add(AIEmbeddingResponse.builder()
+                        .embedding(embedding)
+                        .model("onnx:" + Paths.get(modelPath).getFileName().toString())
+                        .dimensions(embedding.size())
+                        .processingTimeMs(processingTime / batchSize)
+                        .requestId(UUID.randomUUID().toString())
+                        .build());
+                }
+                
+                // Cleanup
+                batchOutput.close();
+                
+                log.debug("Successfully generated {} ONNX embeddings in batch in {}ms (avg {}ms per embedding)", 
+                         batchSize, processingTime, processingTime / batchSize);
+                
+                return responses;
+                
+            } finally {
+                // Cleanup tensors
+                if (inputIdsTensor != null) inputIdsTensor.close();
+                if (attentionMaskTensor != null) attentionMaskTensor.close();
+                if (tokenTypeIdsTensor != null) tokenTypeIdsTensor.close();
+            }
             
         } catch (Exception e) {
             log.error("Error generating batch ONNX embeddings", e);
             throw new AIServiceException("Failed to generate batch ONNX embeddings", e);
+        } finally {
+            sessionLock.unlock();
         }
+    }
+    
+    /**
+     * Extract batch embeddings from ONNX output
+     * Handles 2D, 3D, and 4D tensor outputs
+     */
+    private float[][] extractBatchEmbeddings(Object value, int expectedBatchSize) {
+        float[][] embeddings;
+        
+        if (value instanceof float[][][]) {
+            // 3D array: [batch, sequence, embedding_dim]
+            float[][][] tensorValue3D = (float[][][]) value;
+            if (tensorValue3D.length > 0 && tensorValue3D[0].length > 0) {
+                int batchSize = tensorValue3D.length;
+                int seqLength = tensorValue3D[0].length;
+                int embeddingDim = tensorValue3D[0][0].length;
+                embeddings = new float[batchSize][embeddingDim];
+                
+                // Mean pooling for each batch item
+                for (int b = 0; b < batchSize; b++) {
+                    for (int e = 0; e < embeddingDim; e++) {
+                        float sum = 0.0f;
+                        for (int s = 0; s < seqLength; s++) {
+                            sum += tensorValue3D[b][s][e];
+                        }
+                        embeddings[b][e] = sum / seqLength;
+                    }
+                }
+                log.debug("Extracted batch embeddings from 3D tensor [batch={}, sequence={}, embedding={}]", 
+                         batchSize, seqLength, embeddingDim);
+            } else {
+                throw new AIServiceException("Empty 3D array output");
+            }
+        } else if (value instanceof float[][]) {
+            // 2D array: [batch, embedding_dim] - already correct shape
+            embeddings = (float[][]) value;
+            log.debug("Extracted batch embeddings from 2D tensor [batch={}, embedding={}]", 
+                     embeddings.length, embeddings.length > 0 ? embeddings[0].length : 0);
+        } else if (value instanceof float[]) {
+            // 1D array: reshape to 2D
+            float[] flat = (float[]) value;
+            int embeddingDim = flat.length / expectedBatchSize;
+            embeddings = new float[expectedBatchSize][embeddingDim];
+            for (int b = 0; b < expectedBatchSize; b++) {
+                System.arraycopy(flat, b * embeddingDim, embeddings[b], 0, embeddingDim);
+            }
+            log.debug("Reshaped 1D array to batch embeddings [batch={}, embedding={}]", 
+                     expectedBatchSize, embeddingDim);
+        } else if (value instanceof OnnxTensor) {
+            // Extract from OnnxTensor
+            OnnxTensor tensor = (OnnxTensor) value;
+            try {
+                Object tensorValue = tensor.getValue();
+                if (tensorValue instanceof float[][][]) {
+                    return extractBatchEmbeddings(tensorValue, expectedBatchSize);
+                } else if (tensorValue instanceof float[][]) {
+                    return extractBatchEmbeddings(tensorValue, expectedBatchSize);
+                } else {
+                    throw new AIServiceException("Unexpected tensor format: " + tensorValue.getClass().getName());
+                }
+            } catch (Exception e) {
+                throw new AIServiceException("Failed to extract tensor value", e);
+            } finally {
+                try {
+                    tensor.close();
+                } catch (Exception e) {
+                    log.warn("Error closing OnnxTensor", e);
+                }
+            }
+        } else {
+            throw new AIServiceException("Unexpected batch embedding output format: " + 
+                (value != null ? value.getClass().getName() : "null"));
+        }
+        
+        // Validate batch size
+        if (embeddings.length != expectedBatchSize) {
+            throw new AIServiceException(
+                String.format("Batch size mismatch: expected %d, got %d", expectedBatchSize, embeddings.length));
+        }
+        
+        return embeddings;
     }
     
     @Override
