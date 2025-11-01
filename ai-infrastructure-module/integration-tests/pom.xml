@@ -78,6 +78,14 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- ONNX Runtime for local embedding generation in tests -->
+        <dependency>
+            <groupId>com.microsoft.onnxruntime</groupId>
+            <artifactId>onnxruntime</artifactId>
+            <version>1.18.0</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Performance Testing -->
         <dependency>
             <groupId>org.openjdk.jmh</groupId>
