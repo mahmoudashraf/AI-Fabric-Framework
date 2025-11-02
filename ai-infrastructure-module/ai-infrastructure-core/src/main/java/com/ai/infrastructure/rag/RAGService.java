@@ -374,7 +374,7 @@ public class RAGService {
                     .type((String) result.get("type"))
                     .score((Double) result.get("score"))
                     .similarity((Double) result.get("similarity"))
-                    .metadata((Map<String, Object>) result.get("metadata"))
+                    .metadata(normalizeMetadata(result.get("metadata")))
                     .build())
                 .collect(Collectors.toList());
             
@@ -404,5 +404,35 @@ public class RAGService {
                 .errorMessage("Failed to perform RAG operation: " + e.getMessage())
                 .build();
         }
+    }
+    
+    private Map<String, Object> normalizeMetadata(Object metadata) {
+        if (metadata instanceof Map<?, ?> rawMap) {
+            return rawMap.entrySet().stream()
+                .collect(Collectors.toMap(entry -> String.valueOf(entry.getKey()), Map.Entry::getValue));
+        }
+        if (metadata instanceof String metadataJson && !metadataJson.trim().isEmpty()) {
+            String body = metadataJson.trim();
+            if (body.startsWith("{") && body.endsWith("}")) {
+                body = body.substring(1, body.length() - 1);
+            }
+            return Arrays.stream(body.split(","))
+                .map(String::trim)
+                .filter(segment -> !segment.isEmpty() && segment.contains(":"))
+                .map(segment -> segment.split(":", 2))
+                .collect(Collectors.toMap(
+                    parts -> unquote(parts[0]),
+                    parts -> unquote(parts[1])
+                ));
+        }
+        return Collections.emptyMap();
+    }
+    
+    private String unquote(String value) {
+        String trimmed = value.trim();
+        if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length() >= 2) {
+            return trimmed.substring(1, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 }
