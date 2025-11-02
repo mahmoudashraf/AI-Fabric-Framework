@@ -25,6 +25,7 @@ public class AIProviderConfig {
     private Integer openaiMaxTokens = 2000;
     private Double openaiTemperature = 0.3;
     private Integer openaiTimeout = 60;
+    private Boolean openaiMockEnabled = false;
     
     // Vector Database Configuration
     private String vectorDbType = "lucene"; // lucene, pinecone, memory
