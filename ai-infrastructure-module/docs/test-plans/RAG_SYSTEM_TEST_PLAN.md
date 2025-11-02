@@ -417,7 +417,7 @@ RAGRequest request = RAGRequest.builder()
 
 ### TEST-RAG-009: Long Conversation Context
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `RAGLongConversationContextIntegrationTest`)
 
 #### Test Steps
 1. Start conversation with initial query
@@ -437,7 +437,7 @@ RAGRequest request = RAGRequest.builder()
 
 ### TEST-RAG-010: Cross-Entity RAG Queries
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `RAGCrossEntityQueryIntegrationTest`)
 
 #### Test Steps
 1. Index products, users, and orders
