@@ -1,0 +1,170 @@
+package com.ai.infrastructure.it;
+
+import com.ai.infrastructure.dto.AdvancedRAGRequest;
+import com.ai.infrastructure.dto.AdvancedRAGResponse;
+import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
+import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.rag.AdvancedRAGService;
+import com.ai.infrastructure.service.VectorManagementService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+@SpringBootTest(classes = TestApplication.class)
+@ActiveProfiles("dev")
+class AdvancedRAGMultiDocumentContextIntegrationTest {
+
+    private static final String ENTITY_TYPE = "ragproduct-multicontext";
+
+    private static final List<String> CATEGORIES = List.of(
+        "watches",
+        "handbags",
+        "jewelry",
+        "sunglasses",
+        "shoes"
+    );
+
+    @Autowired
+    private RAGService ragService;
+
+    @Autowired
+    private AdvancedRAGService advancedRAGService;
+
+    @Autowired
+    private VectorManagementService vectorManagementService;
+
+    @BeforeEach
+    void setUp() {
+        vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
+        seedCatalog();
+    }
+
+    @AfterEach
+    void tearDown() {
+        vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
+    }
+
+    @Test
+    @DisplayName("RAG aggregates multi-category context for complex queries")
+    void ragBuildsContextFromMultipleDocuments() {
+        String compositeQuery = "I'm preparing a luxury showcase. Recommend standout watches, "
+            + "jewelry, and accessories that pair well together.";
+
+        AdvancedRAGRequest request = AdvancedRAGRequest.builder()
+            .query(compositeQuery)
+            .maxResults(10)
+            .maxDocuments(10)
+            .expansionLevel(3)
+            .enableHybridSearch(true)
+            .enableContextualSearch(true)
+            .categories(CATEGORIES)
+            .build();
+
+        AdvancedRAGResponse response = advancedRAGService.performAdvancedRAG(request);
+
+        assertNotNull(response, "Response should not be null");
+        assertTrue(Boolean.TRUE.equals(response.getSuccess()), "RAG request should succeed");
+
+        List<RAGDocument> documents = Optional.ofNullable(response.getDocuments()).orElse(List.of());
+        assertFalse(documents.isEmpty(), "RAG response should include documents");
+        assertTrue(documents.size() >= 10,
+            "Expected at least 10 documents but got " + documents.size());
+
+        Set<String> categories = documents.stream()
+            .map(RAGDocument::getMetadata)
+            .filter(Objects::nonNull)
+            .map(metadata -> (String) metadata.get("category"))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        assertTrue(categories.size() >= 3,
+            () -> "Context should span multiple categories but had: " + categories);
+
+        List<Double> scores = Optional.ofNullable(response.getRelevanceScores()).orElse(List.of());
+        if (!scores.isEmpty()) {
+            for (int index = 0; index < scores.size() - 1; index++) {
+                assertTrue(scores.get(index) >= scores.get(index + 1) - 1e-9,
+                    "Relevance scores should be non-increasing");
+            }
+        }
+
+        String context = response.getContext();
+        assertNotNull(context, "Context should not be null");
+        assertTrue(context.length() < 16_000,
+            "Context should stay within the approximate token budget (found " + context.length() + " chars)");
+
+        Set<String> documentIds = documents.stream()
+            .map(RAGDocument::getId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        assertTrue(documentIds.size() >= 10,
+            "Expected at least 10 unique document IDs but found " + documentIds.size());
+    }
+
+    private void seedCatalog() {
+        IntStream.range(0, 50)
+            .mapToObj(this::buildDocument)
+            .forEach(document -> ragService.indexContent(
+                ENTITY_TYPE,
+                document.id(),
+                document.content(),
+                document.metadata()
+            ));
+    }
+
+    private ProductDocument buildDocument(int index) {
+        String category = CATEGORIES.get(index % CATEGORIES.size());
+        String brand = switch (category) {
+            case "watches" -> index % 2 == 0 ? "Rolex" : "Omega";
+            case "handbags" -> index % 2 == 0 ? "Hermès" : "Chanel";
+            case "jewelry" -> index % 2 == 0 ? "Cartier" : "Tiffany";
+            case "sunglasses" -> index % 2 == 0 ? "Gucci" : "Prada";
+            default -> index % 2 == 0 ? "Louboutin" : "Jimmy Choo"; // shoes
+        };
+
+        String descriptor = switch (category) {
+            case "watches" -> "chronograph crafted for collectors";
+            case "handbags" -> "artisan leather bag with iconic accents";
+            case "jewelry" -> "statement piece with brilliant-cut diamonds";
+            case "sunglasses" -> "UV400 lenses with couture frames";
+            default -> "limited edition footwear with couture styling";
+        };
+
+        String content = String.format(
+            "Luxury %s %s collection %d featuring %s.",
+            category,
+            brand,
+            index,
+            descriptor
+        );
+
+        Map<String, Object> metadata = Map.of(
+            "category", category,
+            "brand", brand,
+            "collection", "showcase-" + (index % 5),
+            "priceTier", index % 2 == 0 ? "premium" : "ultra-premium"
+        );
+
+        String documentId = String.format("%s_%s_%d", ENTITY_TYPE, category, index);
+        return new ProductDocument(documentId, content, metadata);
+    }
+
+    private record ProductDocument(String id, String content, Map<String, Object> metadata) { }
+}
+
