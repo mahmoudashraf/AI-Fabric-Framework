@@ -44,11 +44,20 @@ public class AICoreService {
     private final AISearchService searchService;
     
     private OpenAiService openAiService;
+
+    private boolean isMockEnabled() {
+        return Boolean.TRUE.equals(aiProviderConfig.getOpenaiMockEnabled());
+    }
     
     /**
      * Initialize OpenAI service with configuration
      */
     private void initializeOpenAI() {
+        if (isMockEnabled()) {
+            log.debug("OpenAI mock mode enabled - skipping real service initialization");
+            return;
+        }
+
         if (openAiService == null) {
             openAiService = new OpenAiService(
                 aiProviderConfig.getOpenaiApiKey(),
@@ -65,6 +74,10 @@ public class AICoreService {
      */
     public AIGenerationResponse generateContent(AIGenerationRequest request) {
         try {
+            if (isMockEnabled()) {
+                return generateMockContent(request);
+            }
+
             initializeOpenAI();
             
             log.debug("Generating AI content for prompt: {}", request.getPrompt());
@@ -104,6 +117,11 @@ public class AICoreService {
      */
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
         try {
+            if (isMockEnabled()) {
+                log.debug("OpenAI mock mode enabled - delegating embedding generation to AIEmbeddingService");
+                return embeddingService.generateEmbedding(request);
+            }
+
             initializeOpenAI();
             
             log.debug("Generating embedding for text: {}", request.getText());
@@ -266,6 +284,10 @@ public class AICoreService {
      */
     public String generateText(String prompt) {
         try {
+            if (isMockEnabled()) {
+                return generateMockText(prompt);
+            }
+
             initializeOpenAI();
             
             if (openAiService == null) {
