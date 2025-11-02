@@ -314,7 +314,7 @@ public void testConcurrentEmbeddingGeneration() throws Exception {
 
 ### TEST-EMBED-006: Large Text Chunking
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED  
+**Status**: ✅ IMPLEMENTED (see `EmbeddingLargeTextChunkingIntegrationTest`)  
 **Pre-requisites**: Chunking logic implemented
 
 #### Test Steps
@@ -348,7 +348,7 @@ List<String> chunks = embeddingService.chunkText(largeText, 1000);
 
 ### TEST-EMBED-007: Multi-language Content
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED  
+**Status**: ✅ IMPLEMENTED (see `EmbeddingMultilanguageIntegrationTest`)  
 **Pre-requisites**: Multi-language support enabled
 
 #### Test Steps
@@ -378,7 +378,7 @@ Map<String, String> texts = Map.of(
 
 ### TEST-EMBED-008: Special Characters Handling
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED  
+**Status**: ✅ IMPLEMENTED (see `EmbeddingSpecialCharactersIntegrationTest`)  
 
 #### Test Steps
 1. Create text with special characters: emoji, symbols, unicode

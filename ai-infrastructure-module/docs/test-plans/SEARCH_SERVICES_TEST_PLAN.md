@@ -77,7 +77,7 @@ Map<String, List<String>> expectedResults = Map.of(
 
 ### TEST-SEARCH-003: Multi-Entity Type Search
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `SearchMultiEntityIntegrationTest`)
 
 #### Test Steps
 1. Index products, users, and articles
@@ -135,7 +135,7 @@ filters = Map.of(
 
 ### TEST-SEARCH-006: Threshold Tuning
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `SearchThresholdTuningIntegrationTest`)
 
 #### Test Steps
 1. Perform searches with thresholds: 0.5, 0.6, 0.7, 0.8, 0.9
