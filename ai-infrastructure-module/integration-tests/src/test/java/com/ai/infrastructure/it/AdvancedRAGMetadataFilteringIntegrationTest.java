@@ -44,6 +44,7 @@ class AdvancedRAGMetadataFilteringIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        vectorManagementService.clearAllVectors();
         vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
         seedProductCatalog();
     }
