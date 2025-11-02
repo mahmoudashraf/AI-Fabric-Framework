@@ -297,7 +297,7 @@ RAGRequest request = RAGRequest.builder()
 
 ### TEST-RAG-005: Query Expansion
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `AdvancedRAGQueryExpansionCoverageIntegrationTest`)
 
 #### Test Steps
 1. Enable query expansion
@@ -336,7 +336,7 @@ AdvancedRAGRequest request = AdvancedRAGRequest.builder()
 
 ### TEST-RAG-006: Result Re-ranking
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `AdvancedRAGResultRerankingIntegrationTest`)
 
 #### Test Steps
 1. Enable result re-ranking
@@ -357,7 +357,7 @@ AdvancedRAGRequest request = AdvancedRAGRequest.builder()
 
 ### TEST-RAG-007: Metadata Filtering
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `AdvancedRAGMetadataFilteringIntegrationTest`)
 
 #### Test Steps
 1. Index products with rich metadata
@@ -396,7 +396,7 @@ RAGRequest request = RAGRequest.builder()
 
 ### TEST-RAG-008: Confidence Score Accuracy
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `AdvancedRAGConfidenceScoreIntegrationTest`)
 
 #### Test Steps
 1. Create test cases with known relevance
