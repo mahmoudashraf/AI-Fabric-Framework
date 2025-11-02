@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
+@TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/basic")
 class LuceneBasicVectorStorageIntegrationTest {
 
     private static final String ENTITY_TYPE = "testvector";
