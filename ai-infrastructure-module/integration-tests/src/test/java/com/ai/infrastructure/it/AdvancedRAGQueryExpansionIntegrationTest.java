@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
+@TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/rag-query-expansion")
 class AdvancedRAGQueryExpansionIntegrationTest {
 
     private static final String ENTITY_TYPE = "ragproduct-expansion";

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("mock-test")
+@TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/mock")
 @Transactional
 public class MockIntegrationTest {
 
