@@ -149,6 +149,7 @@ public class AdvancedRAGService {
                         .enableHybridSearch(request.getEnableHybridSearch())
                         .enableContextualSearch(request.getEnableContextualSearch())
                         .categories(request.getCategories())
+                        .filters(request.getFilters())
                         .build();
                     
                     return ragService.performRag(ragRequest);

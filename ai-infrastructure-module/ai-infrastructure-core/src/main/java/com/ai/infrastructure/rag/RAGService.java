@@ -11,6 +11,8 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.vector.VectorDatabase;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,9 @@ public class RAGService {
     private final VectorDatabaseService vectorDatabaseService;
     private final VectorDatabase vectorDatabase;
     private final AISearchService searchService;
+    
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP_TYPE_REFERENCE = new TypeReference<>() {};
     
     /**
      * Index content for RAG
@@ -365,17 +370,27 @@ public class RAGService {
             
             AISearchResponse searchResponse = searchService.search(queryVector, searchRequest);
             
-            // Convert search results to RAG response
+            Map<String, Object> filters = request.getFilters();
+
+            // Convert search results to RAG response applying metadata filters if provided
             List<RAGResponse.RAGDocument> documents = searchResponse.getResults().stream()
-                .map(result -> RAGResponse.RAGDocument.builder()
-                    .id((String) result.get("id"))
-                    .content((String) result.get("content"))
-                    .title((String) result.get("title"))
-                    .type((String) result.get("type"))
-                    .score((Double) result.get("score"))
-                    .similarity((Double) result.get("similarity"))
-                    .metadata(normalizeMetadata(result.get("metadata")))
-                    .build())
+                .map(result -> {
+                    Map<String, Object> normalizedMetadata = normalizeMetadata(result.get("metadata"));
+                    if (!matchesFilters(normalizedMetadata, filters)) {
+                        return null;
+                    }
+
+                    return RAGResponse.RAGDocument.builder()
+                        .id((String) result.get("id"))
+                        .content((String) result.get("content"))
+                        .title((String) result.get("title"))
+                        .type((String) result.get("type"))
+                        .score((Double) result.get("score"))
+                        .similarity((Double) result.get("similarity"))
+                        .metadata(normalizedMetadata)
+                        .build();
+                })
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             
             return RAGResponse.builder()
@@ -412,18 +427,13 @@ public class RAGService {
                 .collect(Collectors.toMap(entry -> String.valueOf(entry.getKey()), Map.Entry::getValue));
         }
         if (metadata instanceof String metadataJson && !metadataJson.trim().isEmpty()) {
-            String body = metadataJson.trim();
-            if (body.startsWith("{") && body.endsWith("}")) {
-                body = body.substring(1, body.length() - 1);
+            try {
+                Map<String, Object> parsed = OBJECT_MAPPER.readValue(metadataJson, MAP_TYPE_REFERENCE);
+                return parsed != null ? parsed : Collections.emptyMap();
+            } catch (Exception e) {
+                log.debug("Unable to parse metadata JSON: {}", metadataJson, e);
+                return Collections.singletonMap("raw", metadataJson);
             }
-            return Arrays.stream(body.split(","))
-                .map(String::trim)
-                .filter(segment -> !segment.isEmpty() && segment.contains(":"))
-                .map(segment -> segment.split(":", 2))
-                .collect(Collectors.toMap(
-                    parts -> unquote(parts[0]),
-                    parts -> unquote(parts[1])
-                ));
         }
         return Collections.emptyMap();
     }
@@ -434,5 +444,76 @@ public class RAGService {
             return trimmed.substring(1, trimmed.length() - 1);
         }
         return trimmed;
+    }
+
+    private boolean matchesFilters(Map<String, Object> metadata, Map<String, Object> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return true;
+        }
+
+        Map<String, Object> safeMetadata = metadata != null ? metadata : Collections.emptyMap();
+
+        return filters.entrySet().stream()
+            .allMatch(entry -> matchesFilter(safeMetadata, entry.getKey(), entry.getValue()));
+    }
+
+    private boolean matchesFilter(Map<String, Object> metadata, String key, Object expected) {
+        if (expected == null) {
+            return true;
+        }
+
+        Object actual = metadata.get(key);
+        if (actual == null) {
+            return false;
+        }
+
+        if (expected instanceof Collection<?> collection) {
+            return collection.stream().anyMatch(item -> valuesEqual(actual, item));
+        }
+
+        if (expected instanceof Map<?, ?> rangeMap) {
+            Double actualValue = parseDouble(actual);
+            if (actualValue == null) {
+                return false;
+            }
+
+            Double min = parseDouble(rangeMap.get("min"));
+            Double max = parseDouble(rangeMap.get("max"));
+
+            if (min != null && actualValue < min) {
+                return false;
+            }
+            if (max != null && actualValue > max) {
+                return false;
+            }
+            return true;
+        }
+
+        return valuesEqual(actual, expected);
+    }
+
+    private boolean valuesEqual(Object actual, Object expected) {
+        if (actual == null || expected == null) {
+            return false;
+        }
+        return String.valueOf(actual).equalsIgnoreCase(String.valueOf(expected));
+    }
+
+    private Double parseDouble(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            if (value instanceof Number number) {
+                return number.doubleValue();
+            }
+            String normalized = String.valueOf(value).replaceAll("[^0-9.\\-]", "");
+            if (normalized.isEmpty()) {
+                return null;
+            }
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }
