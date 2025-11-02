@@ -1,5 +1,8 @@
 package com.ai.infrastructure.it;
 
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
@@ -26,6 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
@@ -42,8 +48,28 @@ class AdvancedRAGMetadataFilteringIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private AICoreService aiCoreService;
+
     @BeforeEach
     void setUp() {
+        when(aiCoreService.generateText(anyString())).thenAnswer(invocation -> {
+            String prompt = invocation.getArgument(0, String.class);
+            if (prompt != null && prompt.contains("Context:")) {
+                return "Mock contextual synthesis highlighting Rolex watches with premium attributes.";
+            }
+            return "Rolex luxury showcase recommendations\n"
+                + "Premium timepieces for collectors\n"
+                + "Luxury accessories pairing ideas";
+        });
+
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Mock content generated for advanced RAG response.")
+                .model("mock-openai")
+                .build()
+        );
+
         vectorManagementService.clearAllVectors();
         vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
         seedProductCatalog();

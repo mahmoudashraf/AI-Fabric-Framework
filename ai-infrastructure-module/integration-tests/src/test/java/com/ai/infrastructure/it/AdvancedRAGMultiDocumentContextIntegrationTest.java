@@ -1,5 +1,8 @@
 package com.ai.infrastructure.it;
 
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
@@ -25,6 +28,9 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
@@ -49,8 +55,28 @@ class AdvancedRAGMultiDocumentContextIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private AICoreService aiCoreService;
+
     @BeforeEach
     void setUp() {
+        when(aiCoreService.generateText(anyString())).thenAnswer(invocation -> {
+            String prompt = invocation.getArgument(0, String.class);
+            if (prompt != null && prompt.contains("Context:")) {
+                return "Mock response summarizing multi-category luxury showcase recommendations.";
+            }
+            return "Luxury showcase planning ideas\n"
+                + "Premium accessories pairing guide\n"
+                + "High-end watch and jewelry combinations";
+        });
+
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Mock narrative for multi-document context.")
+                .model("mock-openai")
+                .build()
+        );
+
         vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
         seedCatalog();
     }
