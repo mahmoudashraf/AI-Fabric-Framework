@@ -32,7 +32,7 @@ This test plan covers comprehensive integration testing of the Retrieval-Augment
 
 ### TEST-RAG-001: Basic RAG Query
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `RAGBasicQueryIntegrationTest`)
 
 #### Test Steps
 1. Index 20 product documents with descriptions
@@ -134,7 +134,7 @@ public void testBasicRAGQuery() {
 
 ### TEST-RAG-002: Multi-Document Context Building
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `AdvancedRAGMultiDocumentContextIntegrationTest`)
 
 #### Test Steps
 1. Index 50 documents across different categories
@@ -215,7 +215,7 @@ public void testMultiDocumentContextBuilding() {
 
 ### TEST-RAG-003: Hybrid Search (Vector + Text)
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ IMPLEMENTED (see `RAGHybridSearchIntegrationTest`)
 
 #### Test Steps
 1. Index products with keywords and embeddings
