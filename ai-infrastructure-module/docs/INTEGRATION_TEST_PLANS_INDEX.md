@@ -23,12 +23,14 @@ This index provides a comprehensive guide to all integration test plans for the 
 | **Search Services** | 🟡 High | 1 week | 10 tests | Draft | [View Plan](./test-plans/SEARCH_SERVICES_TEST_PLAN.md) |
 | **Provider Management** | 🟢 Medium | 1 week | 10 tests | Draft | [View Plan](./test-plans/PROVIDER_MANAGEMENT_TEST_PLAN.md) |
 | **Entity Processing** | 🟡 High | 1 week | 10 tests | Draft | [View Plan](./test-plans/ENTITY_PROCESSING_TEST_PLAN.md) |
+| **@AIProcess Annotation** | 🔴 Critical | 1.5 weeks | 10 tests | Draft | [View Plan](./test-plans/AI_PROCESS_ANNOTATION_TEST_PLAN.md) |
+| **AISearchableEntity** | 🔴 Critical | 1.5 weeks | 12 tests | Draft | [View Plan](./test-plans/AISEARCHABLE_ENTITY_TEST_PLAN.md) |
 | **Caching** | 🟢 Medium | 3 days | 6 tests | Pending | [Pending] |
 | **Health Monitoring** | 🟢 Medium | 3 days | 6 tests | Pending | [Pending] |
 | **Security & Compliance** | 🟢 Medium | 1 week | 8 tests | Pending | [Pending] |
 
-**Total Test Scenarios**: 80+ integration tests  
-**Total Estimated Effort**: 10-12 weeks  
+**Total Test Scenarios**: 100+ integration tests  
+**Total Estimated Effort**: 12-14 weeks  
 **Current Completion**: ~10% (1 test class passing)  
 
 ---
@@ -226,6 +228,56 @@ This index provides a comprehensive guide to all integration test plans for the 
 
 ---
 
+### 8. @AIProcess Annotation (Method-Level)
+**Priority**: 🔴 CRITICAL  
+**Component**: AICapableAspect, @AIProcess Annotation, Method-Level Processing
+
+#### Test Coverage
+- ❌ TEST-AIPROCESS-001: Service Method with @AIProcess(create) (Critical gap)
+- ❌ TEST-AIPROCESS-002: Service Method with @AIProcess(update)
+- ❌ TEST-AIPROCESS-003: Service Method with @AIProcess(delete)
+- ❌ TEST-AIPROCESS-004: Annotation Configuration Flags (generateEmbedding, indexForSearch, enableAnalysis)
+- ❌ TEST-AIPROCESS-005: Aspect Interception and Processing Order
+- ❌ TEST-AIPROCESS-006: Error Handling When Processing Fails (Critical for reliability)
+- ❌ TEST-AIPROCESS-007: Concurrent Processing with @AIProcess (Thread safety)
+- ❌ TEST-AIPROCESS-008: Entity Type Resolution from Annotation
+- ❌ TEST-AIPROCESS-009: Different Process Types (search, analyze)
+- ❌ TEST-AIPROCESS-010: Transactional Consistency with @AIProcess
+
+**Key Focus**: Method-level processing, aspect interception, configuration flags, error handling
+
+**Note**: This test plan covers the `@AIProcess` annotation which is different from `@AICapable`. `@AIProcess` is method-level annotation for explicit AI processing in service methods, while `@AICapable` is entity-level annotation for automatic processing on entity save/update.
+
+📄 **[Full Test Plan →](./test-plans/AI_PROCESS_ANNOTATION_TEST_PLAN.md)**
+
+---
+
+### 9. AISearchableEntity (Integration Layer)
+**Priority**: 🔴 CRITICAL  
+**Component**: AISearchableEntity, AISearchableEntityRepository, Integration Layer
+
+#### Test Coverage
+- ❌ TEST-AISEARCHABLE-001: Creation When Vector Stored (Critical gap)
+- ❌ TEST-AISEARCHABLE-002: Vector ID Linking Integrity (Critical for consistency)
+- ❌ TEST-AISEARCHABLE-003: Integration with Vector Storage Operations
+- ❌ TEST-AISEARCHABLE-004: Integration with RAG Indexing
+- ❌ TEST-AISEARCHABLE-005: Searchable Content Extraction and Storage
+- ❌ TEST-AISEARCHABLE-006: Metadata Persistence and Retrieval
+- ❌ TEST-AISEARCHABLE-007: Cleanup Operations (Deletion) (Critical for data integrity)
+- ❌ TEST-AISEARCHABLE-008: Update Operations and Vector ID Changes
+- ❌ TEST-AISEARCHABLE-009: Repository Query Operations
+- ❌ TEST-AISEARCHABLE-010: Concurrent Operations (Thread safety)
+- ❌ TEST-AISEARCHABLE-011: Transactional Consistency (Critical)
+- ❌ TEST-AISEARCHABLE-012: Lifecycle Management
+
+**Key Focus**: Integration layer between entities, vectors, and search services, vector ID linking, cleanup operations, transactional consistency
+
+**Note**: `AISearchableEntity` is the persistence layer that connects domain entities with vector storage and search capabilities. It serves as the integration point for all AI processing operations.
+
+📄 **[Full Test Plan →](./test-plans/AISEARCHABLE_ENTITY_TEST_PLAN.md)**
+
+---
+
 ## 🗓️ Implementation Roadmap
 
 ### Phase 1: Critical Tests (Weeks 1-2)
@@ -243,8 +295,11 @@ This index provides a comprehensive guide to all integration test plans for the 
 #### Week 2: Search & Entity Processing
 - [ ] TEST-SEARCH-001: Semantic Search Relevance
 - [ ] TEST-SEARCH-002: Performance at Scale
-- [ ] TEST-ENTITY-001: Automatic Processing
+- [ ] TEST-ENTITY-001: Automatic Processing (@AICapable)
 - [ ] TEST-ENTITY-004: Cleanup on Deletion
+- [ ] TEST-AIPROCESS-001: @AIProcess(create) (Critical)
+- [ ] TEST-AISEARCHABLE-001: AISearchableEntity Creation (Critical)
+- [ ] TEST-AISEARCHABLE-002: Vector ID Linking (Critical)
 - [ ] TEST-EMBED-005: Concurrent Embedding
 
 **Deliverable**: Search and entity processing production-ready
@@ -263,14 +318,18 @@ This index provides a comprehensive guide to all integration test plans for the 
 
 **Deliverable**: RAG system and behavioral AI operational
 
-#### Week 4: Provider Management & Search
+#### Week 4: Provider Management & Integration Layer
 - [ ] TEST-PROVIDER-002: Automatic Failover
 - [ ] TEST-PROVIDER-003: Load Balancing
 - [ ] TEST-SEARCH-004: Search with Filters
-- [ ] TEST-ENTITY-005: Transactional Consistency
+- [ ] TEST-AIPROCESS-002: @AIProcess(update)
+- [ ] TEST-AIPROCESS-003: @AIProcess(delete)
+- [ ] TEST-AIPROCESS-006: Error Handling
+- [ ] TEST-AISEARCHABLE-003: Vector Storage Integration
+- [ ] TEST-AISEARCHABLE-007: AISearchableEntity Cleanup (Critical)
 - [ ] TEST-BEHAVIOR-004: Recommendations
 
-**Deliverable**: Multi-provider support and advanced search working
+**Deliverable**: Multi-provider support and integration layer tested
 
 ---
 
@@ -524,8 +583,16 @@ jobs:
 | BEHAVIOR-001 | Session Track | Behavior | High | 1d | ❌ Missing |
 | BEHAVIOR-002 | Pattern Detect | Behavior | High | 2d | ❌ Missing |
 | PROVIDER-002 | Auto Failover | Provider | Medium | 2d | ❌ Missing |
-| ENTITY-001 | Auto Process | Entity | High | 1d | ❌ Missing |
-| ENTITY-004 | Cleanup | Entity | Critical | 1d | ❌ Missing |
+| ENTITY-001 | Auto Process | Entity (@AICapable) | High | 1d | ❌ Missing |
+| ENTITY-004 | Cleanup | Entity (@AICapable) | Critical | 1d | ❌ Missing |
+| AIPROCESS-001 | @AIProcess(create) | Annotation | Critical | 2d | ❌ Missing |
+| AIPROCESS-002 | @AIProcess(update) | Annotation | Critical | 2d | ❌ Missing |
+| AIPROCESS-003 | @AIProcess(delete) | Annotation | Critical | 1d | ❌ Missing |
+| AIPROCESS-006 | Error Handling | Annotation | Critical | 2d | ❌ Missing |
+| AISEARCHABLE-001 | Creation When Vector Stored | Integration | Critical | 2d | ❌ Missing |
+| AISEARCHABLE-002 | Vector ID Linking | Integration | Critical | 2d | ❌ Missing |
+| AISEARCHABLE-007 | Cleanup Operations | Integration | Critical | 1d | ❌ Missing |
+| AISEARCHABLE-011 | Transactional Consistency | Integration | Critical | 2d | ❌ Missing |
 
 *See individual test plans for complete test listings*
 
