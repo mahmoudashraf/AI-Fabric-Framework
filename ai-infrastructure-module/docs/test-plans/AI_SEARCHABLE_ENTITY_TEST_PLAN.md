@@ -93,7 +93,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-006: Search Pagination & Sorting
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityExtendedIntegrationTest#searchPaginationAndSorting`)
 
 1. Index > 50 documents across multiple entity types.  
 2. Execute paginated queries with different sort orders (score desc, updatedAt desc).  
@@ -102,7 +102,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-007: Concurrent Ingest & Updates
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityExtendedIntegrationTest#concurrentUpdatesRemainConsistent`)
 
 1. Spawn N (e.g., 25) parallel upserts against the same logical entity id.  
 2. Confirm final `AISearchableEntity` state reflects the latest payload.  
@@ -111,7 +111,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-008: Bulk Backfill Import
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityExtendedIntegrationTest#bulkBackfillProcessesAllDocuments`)
 
 1. Feed a bulk ingestion job with hundreds of documents.  
 2. Monitor memory footprint and transaction batching.  
@@ -120,7 +120,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-009: Error Handling & Retries
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityExtendedIntegrationTest#embeddingFailureCanBeRetried`)
 
 1. Force the embedding provider to throw (e.g., temporary IO error).  
 2. Ensure the source entity is still persisted while indexing remains pending.  
@@ -129,7 +129,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-010: Observability & Audit Trail
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityExtendedIntegrationTest#observabilityLogsContainEntityContext`)
 
 1. Trigger create/update/delete flows.  
 2. Confirm structured logs contain correlation ids, entity references, and timing.  
@@ -138,7 +138,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-011: Multi-Tenant Isolation (Optional)
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityExtendedIntegrationTest#multiTenantIsolation`)
 
 1. Configure two tenants/workspaces with isolated prefixes or DB schemas.  
 2. Index data for each tenant and ensure cross-tenant queries return zero results.  
@@ -146,7 +146,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-012: Large Document Handling
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityExtendedIntegrationTest#largeDocumentHandlingMaintainsSearchability`)
 
 1. Index documents near maximum allowed size (e.g., 16 KB textual payload).  
 2. Confirm chunking/preprocessing runs before generating embeddings.  
