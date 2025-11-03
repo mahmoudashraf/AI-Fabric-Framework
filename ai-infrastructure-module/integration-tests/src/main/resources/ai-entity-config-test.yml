@@ -71,6 +71,18 @@ ai-entities:
         ai-processing: false
         auto-embedding: false
         auto-indexing: false
+      SEARCH:
+        generate-embedding: false
+        index-for-search: false
+        enable-analysis: false
+        remove-from-search: false
+        cleanup-embeddings: false
+      ANALYZE:
+        generate-embedding: false
+        index-for-search: false
+        enable-analysis: true
+        remove-from-search: false
+        cleanup-embeddings: false
 
   # Product Entity (alias for @AIProcess methods)
   product:
@@ -133,6 +145,18 @@ ai-entities:
         ai-processing: false
         auto-embedding: false
         auto-indexing: false
+      SEARCH:
+        generate-embedding: false
+        index-for-search: false
+        enable-analysis: false
+        remove-from-search: false
+        cleanup-embeddings: false
+      ANALYZE:
+        generate-embedding: false
+        index-for-search: false
+        enable-analysis: true
+        remove-from-search: false
+        cleanup-embeddings: false
 
   # Test User Entity
   test-user:
