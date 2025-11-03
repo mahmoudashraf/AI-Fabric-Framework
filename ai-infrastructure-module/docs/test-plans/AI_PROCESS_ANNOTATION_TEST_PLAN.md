@@ -44,7 +44,7 @@ This test plan covers comprehensive integration testing of the `@AIProcess` meth
 
 ### TEST-AIPROCESS-001: Service Method with @AIProcess(create)
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessCreateIndexesEntity`)
 
 #### Test Steps
 1. Create service method annotated with `@AIProcess(entityType="product", processType="create")`
@@ -136,7 +136,7 @@ public void testAIProcessCreate() {
 
 ### TEST-AIPROCESS-002: Service Method with @AIProcess(update)
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessUpdateRebuildsEmbedding`)
 
 #### Test Steps
 1. Create product and process it
@@ -232,7 +232,7 @@ public void testAIProcessUpdate() {
 
 ### TEST-AIPROCESS-003: Service Method with @AIProcess(delete)
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessDeleteRemovesIndex`)
 
 #### Test Steps
 1. Create and process product

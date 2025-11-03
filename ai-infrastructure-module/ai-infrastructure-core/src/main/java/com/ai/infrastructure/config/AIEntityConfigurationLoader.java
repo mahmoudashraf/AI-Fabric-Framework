@@ -152,7 +152,7 @@ public class AIEntityConfigurationLoader {
             Map<String, AICrudOperation> operations = new HashMap<>();
             
             for (Map.Entry<String, Object> entry : crudOps.entrySet()) {
-                String operation = entry.getKey();
+                String operation = entry.getKey().toLowerCase(java.util.Locale.ROOT);
                 Map<String, Object> opConfig = (Map<String, Object>) entry.getValue();
                 operations.put(operation, AICrudOperation.builder()
                     .operation(operation)

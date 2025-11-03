@@ -4,7 +4,7 @@
 
 **Priority**: 🔴 CRITICAL  
 **Estimated Effort**: 1.0 week  
-**Status**: Draft
+**Status**: 🚧 In Progress
 
 ---
 
@@ -44,7 +44,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-001: Initial Index Creation
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityLifecycleIntegrationTest#searchableEntityCreatedAfterProductCreation`)
 
 1. Persist an entity eligible for indexing (e.g., product) through the existing ingestion flow.  
 2. Allow the `AICapabilityService` to process and create an `AISearchableEntity`.  
@@ -65,7 +65,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-003: Update & Reindex Consistency
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityLifecycleIntegrationTest#searchableEntityUpdatedAfterProductUpdate`)
 
 1. Create an indexed entity.  
 2. Modify the source content (title/description/price) and trigger reindex.  
@@ -75,7 +75,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-004: Soft Delete & Cleanup
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityLifecycleIntegrationTest#searchableEntityDeletedAfterProductDeletion`)
 
 1. Index a record, then mark it deleted through the service layer.  
 2. Verify cascade cleanup removes `AISearchableEntity` and associated vector(s).  

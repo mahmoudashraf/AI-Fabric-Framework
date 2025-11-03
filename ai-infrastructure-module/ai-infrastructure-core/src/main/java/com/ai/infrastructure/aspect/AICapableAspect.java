@@ -164,11 +164,17 @@ public class AICapableAspect {
             if (result != null) {
                 // Determine operation type
                 String operation = getOperationType(joinPoint);
-                
-                // Get CRUD operation configuration
-                var crudOp = config.getCrudOperations().get(operation);
+
+                // Get CRUD operation configuration (allow both lower and upper case keys)
+                var crudOperations = config.getCrudOperations();
+                var crudOp = crudOperations != null ?
+                    (crudOperations.containsKey(operation)
+                        ? crudOperations.get(operation)
+                        : crudOperations.get(operation.toUpperCase(java.util.Locale.ROOT)))
+                    : null;
                 if (crudOp == null) {
-                    log.warn("No CRUD operation configuration found for: {}", operation);
+                    log.warn("No CRUD operation configuration found for: {}. Available keys: {}", operation,
+                        crudOperations != null ? crudOperations.keySet() : "none");
                     return;
                 }
                 
