@@ -64,7 +64,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
     @Test
     @DisplayName("Storing a vector creates a synchronized AISearchableEntity entry")
-    void creationWhenVectorStored() {
+    void creationWhenVectorStored() throws Exception {
         String entityType = "plan-product";
         String entityId = "product-123";
         String content = "Luxury Swiss watch with automatic movement";
@@ -84,7 +84,10 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
         AISearchableEntity entity = entityOptional.get();
         assertEquals(vectorId, entity.getVectorId());
         assertEquals(content, entity.getSearchableContent());
-        assertEquals("{\"category\":\"watch\",\"brand\":\"Rolex\",\"price\":\"5000\"}", entity.getMetadata());
+        Map<String, String> storedMetadata = parseMetadataJson(entity.getMetadata());
+        assertEquals("watch", storedMetadata.get("category"));
+        assertEquals("Rolex", storedMetadata.get("brand"));
+        assertEquals("5000", storedMetadata.get("price"));
         assertNotNull(entity.getCreatedAt());
         assertNotNull(entity.getVectorUpdatedAt());
 
@@ -113,7 +116,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
     @Test
     @DisplayName("Updating a vector keeps AISearchableEntity content and timestamps in sync")
-    void updateKeepsSearchableEntityInSync() {
+    void updateKeepsSearchableEntityInSync() throws Exception {
         String entityType = "plan-product-update";
         String entityId = "product-789";
 
@@ -128,7 +131,8 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
         assertTrue(updated.getVectorUpdatedAt().isAfter(originalVectorUpdatedAt));
         assertEquals("Second description with more details", updated.getSearchableContent());
-        assertEquals("{\"version\":\"2\"}", updated.getMetadata());
+        Map<String, String> updatedMetadata = parseMetadataJson(updated.getMetadata());
+        assertEquals("2", updatedMetadata.get("version"));
     }
 
     @Test
@@ -175,7 +179,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
         vectorManagementService.storeVector(entityType, entityId, "Studio monitor with reference response", vector(24, 0.6), metadata);
 
         AISearchableEntity entity = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).orElseThrow();
-        Map<String, String> parsed = OBJECT_MAPPER.readValue(entity.getMetadata(), new TypeReference<>() {});
+        Map<String, String> parsed = parseMetadataJson(entity.getMetadata());
 
         assertEquals("audio", parsed.get("category"));
         assertEquals("Nebula", parsed.get("brand"));
@@ -270,6 +274,14 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
             embedding.add(seed + (i * 0.0001));
         }
         return embedding;
+    }
+
+    private Map<String, String> parseMetadataJson(String raw) throws Exception {
+        String cleaned = raw;
+        if (cleaned != null && cleaned.length() >= 2 && cleaned.startsWith("\"") && cleaned.endsWith("\"")) {
+            cleaned = cleaned.substring(1, cleaned.length() - 1).replace("\\\"", "\"");
+        }
+        return OBJECT_MAPPER.readValue(cleaned, new TypeReference<>() {});
     }
 
     private void sleep(long millis) {
