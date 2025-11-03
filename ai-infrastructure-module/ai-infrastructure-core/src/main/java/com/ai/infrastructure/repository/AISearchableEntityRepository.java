@@ -1,6 +1,8 @@
 package com.ai.infrastructure.repository;
 
 import com.ai.infrastructure.entity.AISearchableEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -27,6 +29,11 @@ public interface AISearchableEntityRepository extends JpaRepository<AISearchable
      * Find all by entity type
      */
     List<AISearchableEntity> findByEntityType(String entityType);
+
+    /**
+     * Find all by entity type with pagination support
+     */
+    Page<AISearchableEntity> findByEntityType(String entityType, Pageable pageable);
     
     /**
      * Delete by entity type and entity ID
