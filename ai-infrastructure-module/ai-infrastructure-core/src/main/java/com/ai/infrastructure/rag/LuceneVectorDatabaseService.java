@@ -29,6 +29,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -36,10 +38,13 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -81,11 +86,15 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     private static final String ENTITY_ID_FIELD = "entityId";
     private static final String ENTITY_TYPE_FIELD = "entityType";
     
+    private static final Map<Path, SharedIndex> INDEX_CACHE = new ConcurrentHashMap<>();
+
     private Directory directory;
     private IndexWriter indexWriter;
     private IndexReader indexReader;
     private IndexSearcher indexSearcher;
     private StandardAnalyzer analyzer;
+    private SharedIndex sharedIndex;
+    private Path resolvedIndexPath;
     
     @PostConstruct
     public void initialize() {
@@ -93,19 +102,40 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             log.info("Initializing Lucene Vector Database at: {}", indexPath);
             
             // Create index directory if it doesn't exist
-            Path indexDir = Paths.get(indexPath);
-            if (!Files.exists(indexDir)) {
-                Files.createDirectories(indexDir);
+            resolvedIndexPath = Paths.get(indexPath).toAbsolutePath().normalize();
+            if (!Files.exists(resolvedIndexPath)) {
+                Files.createDirectories(resolvedIndexPath);
             }
-            
-            // Initialize Lucene components
-            directory = FSDirectory.open(indexDir);
+
             analyzer = new StandardAnalyzer();
-            
-            IndexWriterConfig config = new IndexWriterConfig(analyzer);
-            config.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
-            indexWriter = new IndexWriter(directory, config);
-            
+            sharedIndex = INDEX_CACHE.compute(resolvedIndexPath, (path, existing) -> {
+                if (existing != null) {
+                    existing.retain();
+                    return existing;
+                }
+
+                try {
+                    Directory newDirectory = FSDirectory.open(path);
+                    IndexWriterConfig config = new IndexWriterConfig(analyzer);
+                    config.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
+                    IndexWriter writer;
+                    try {
+                        writer = new IndexWriter(newDirectory, config);
+                    } catch (LockObtainFailedException lockException) {
+                        log.warn("Existing Lucene lock detected at {}. Attempting recovery.", path, lockException);
+                        Lock cleanupLock = newDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
+                        cleanupLock.close();
+                        writer = new IndexWriter(newDirectory, config);
+                    }
+                    return new SharedIndex(newDirectory, writer);
+                } catch (IOException ioException) {
+                    throw new UncheckedIOException(ioException);
+                }
+            });
+
+            directory = sharedIndex.directory;
+            indexWriter = sharedIndex.writer;
+
             // Initialize reader and searcher
             refreshReader();
             
@@ -123,13 +153,31 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             log.debug("Closing Lucene Vector Database");
             
             if (indexWriter != null) {
-                indexWriter.close();
-            }
-            if (indexReader != null) {
+                if (indexReader != null) {
+                    indexReader.close();
+                }
+                if (resolvedIndexPath != null) {
+                    if (INDEX_CACHE.computeIfPresent(resolvedIndexPath, (path, shared) -> {
+                        if (shared.release()) {
+                            try {
+                                shared.writer.close();
+                            } catch (IOException e) {
+                                log.warn("Error closing IndexWriter for {}", path, e);
+                            }
+                            try {
+                                shared.directory.close();
+                            } catch (IOException e) {
+                                log.warn("Error closing Directory for {}", path, e);
+                            }
+                            return null;
+                        }
+                        return shared;
+                    }) == null) {
+                        directory = null;
+                    }
+                }
+            } else if (indexReader != null) {
                 indexReader.close();
-            }
-            if (directory != null) {
-                directory.close();
             }
             if (analyzer != null) {
                 analyzer.close();
@@ -723,6 +771,25 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         } catch (Exception e) {
             log.error("Error refreshing Lucene reader", e);
             throw new AIServiceException("Failed to refresh Lucene reader", e);
+        }
+    }
+
+    private static class SharedIndex {
+        private final Directory directory;
+        private final IndexWriter writer;
+        private final AtomicInteger refCount = new AtomicInteger(1);
+
+        private SharedIndex(Directory directory, IndexWriter writer) {
+            this.directory = directory;
+            this.writer = writer;
+        }
+
+        private void retain() {
+            refCount.incrementAndGet();
+        }
+
+        private boolean release() {
+            return refCount.decrementAndGet() == 0;
         }
     }
 }
