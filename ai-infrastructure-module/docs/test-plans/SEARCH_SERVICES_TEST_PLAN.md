@@ -24,7 +24,7 @@ This test plan covers comprehensive integration testing of search services inclu
 
 ### TEST-SEARCH-001: Semantic Search Relevance
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`SearchSemanticRelevanceIntegrationTest#semanticSearchProducesRelevantResults`)
 
 #### Test Steps
 1. Index 100 products with descriptions
@@ -77,7 +77,7 @@ Map<String, List<String>> expectedResults = Map.of(
 
 ### TEST-SEARCH-003: Multi-Entity Type Search
 **Priority**: High  
-**Status**: ✅ IMPLEMENTED (see `SearchMultiEntityIntegrationTest`)
+**Status**: ✅ AUTOMATED (`SearchMultiEntityIntegrationTest#searchAcrossMultipleEntityTypes`)
 
 #### Test Steps
 1. Index products, users, and articles
@@ -90,7 +90,7 @@ Map<String, List<String>> expectedResults = Map.of(
 
 ### TEST-SEARCH-004: Search with Filters
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`SearchFilterIntegrationTest#searchWithFiltersReturnsOnlyMatchingProducts`)
 
 #### Test Steps
 1. Index products with rich metadata
@@ -121,7 +121,7 @@ filters = Map.of(
 
 ### TEST-SEARCH-005: Search Result Pagination
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`SearchPaginationIntegrationTest#searchResultsSupportDeterministicPagination`)
 
 #### Test Steps
 1. Index 1000 products
@@ -135,7 +135,7 @@ filters = Map.of(
 
 ### TEST-SEARCH-006: Threshold Tuning
 **Priority**: Medium  
-**Status**: ✅ IMPLEMENTED (see `SearchThresholdTuningIntegrationTest`)
+**Status**: ✅ AUTOMATED (`SearchThresholdTuningIntegrationTest#tuningThresholdAdjustsResultDensity`)
 
 #### Test Steps
 1. Perform searches with thresholds: 0.5, 0.6, 0.7, 0.8, 0.9
