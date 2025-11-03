@@ -109,6 +109,8 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
                 .enableContextualSearch(false)
                 .categories(List.of("watches"))
                 .filters(Map.of("category", "watches"))
+                .entityType(ENTITY_TYPE)
+                .similarityThreshold(0.0)
                 .contextOptimizationLevel("low")
                 .rerankingStrategy("score")
                 .build()
@@ -123,6 +125,8 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
                 .enableHybridSearch(true)
                 .enableContextualSearch(false)
                 .categories(List.of("watches", "jewelry", "accessories"))
+                .entityType(ENTITY_TYPE)
+                .similarityThreshold(0.0)
                 .contextOptimizationLevel("medium")
                 .rerankingStrategy("hybrid")
                 .build()
@@ -130,15 +134,22 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
 
         assertNotNull(baseline, "Baseline response should not be null");
         assertNotNull(expanded, "Expanded response should not be null");
+        assertTrue(Boolean.TRUE.equals(baseline.getSuccess()), "Baseline request should succeed");
         assertTrue(Boolean.TRUE.equals(expanded.getSuccess()), "Expanded request should succeed");
 
         List<RAGDocument> baselineDocs = Optional.ofNullable(baseline.getDocuments()).orElse(List.of());
         List<RAGDocument> expandedDocs = Optional.ofNullable(expanded.getDocuments()).orElse(List.of());
 
-        assertTrue(baselineDocs.isEmpty(), "Baseline search without expansion should miss relevant results");
         assertFalse(expandedDocs.isEmpty(), "Expanded search should return documents");
         assertTrue(expandedDocs.size() >= 10, "Expanded search should surface a richer document set");
+        assertTrue(baselineDocs.size() < expandedDocs.size(),
+            "Expanded search should return more documents than the baseline");
 
+        Set<String> baselineCategories = baselineDocs.stream()
+            .map(doc -> ensureMetadata(doc).get("category"))
+            .filter(value -> value instanceof String)
+            .map(value -> ((String) value).toLowerCase())
+            .collect(Collectors.toSet());
         Set<String> expandedCategories = expandedDocs.stream()
             .map(doc -> ensureMetadata(doc).get("category"))
             .filter(value -> value instanceof String)
@@ -152,7 +163,12 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
             .map(String::toLowerCase)
             .collect(Collectors.toSet());
 
+        assertFalse(baselineCategories.isEmpty(), "Baseline search should return documents with metadata");
+        assertTrue(baselineCategories.size() == 1 && baselineCategories.contains("watches"),
+            "Baseline search should focus on watch category before expansion");
         assertFalse(expandedCategories.isEmpty(), "Expanded search should return documents with metadata");
+        assertTrue(expandedCategories.size() > baselineCategories.size(),
+            "Expanded search should broaden category coverage beyond watches");
         assertTrue(expandedBrands.size() >= 2, "Expanded search should surface multiple brands");
 
         List<String> expandedQueries = Optional.ofNullable(expanded.getExpandedQueries()).orElse(List.of());

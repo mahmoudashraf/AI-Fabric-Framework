@@ -1,5 +1,6 @@
 package com.ai.infrastructure.it;
 
+import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
@@ -7,11 +8,12 @@ import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.service.VectorManagementService;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
@@ -26,6 +28,8 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 /**
  * Integration test implementation for TEST-RAG-005: Query Expansion.
@@ -50,6 +54,16 @@ class AdvancedRAGQueryExpansionIntegrationTest {
 
     @Autowired
     private VectorManagementService vectorManagementService;
+
+    @MockBean
+    private AICoreService aiCoreService;
+
+    @BeforeEach
+    void setUpMocks() {
+        when(aiCoreService.generateText(anyString())).thenReturn(
+            "luxury timepiece inspirations\npremium watch collections\ncollector chronograph showcase\nmodern horology trends"
+        );
+    }
 
     @BeforeEach
     void setUp() {
