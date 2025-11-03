@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Test-facing service exposing methods annotated with {@link AIProcess} so that
@@ -22,6 +23,12 @@ public class TestProductService {
     @AIProcess(entityType = "product", processType = "create")
     @Transactional
     public TestProduct createProduct(TestProduct product) {
+        return productRepository.save(product);
+    }
+
+    @AIProcess(processType = "create")
+    @Transactional
+    public TestProduct createProductImplicit(TestProduct product) {
         return productRepository.save(product);
     }
 
@@ -51,6 +58,36 @@ public class TestProductService {
             .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
         productRepository.delete(existing);
         return existing;
+    }
+
+    @AIProcess(entityType = "product", processType = "create", generateEmbedding = false, indexForSearch = false)
+    @Transactional
+    public TestProduct createProductWithoutEmbedding(TestProduct product) {
+        return productRepository.save(product);
+    }
+
+    @AIProcess(entityType = "product", processType = "create", indexForSearch = false)
+    @Transactional
+    public TestProduct createProductWithoutIndexing(TestProduct product) {
+        return productRepository.save(product);
+    }
+
+    @AIProcess(entityType = "product", processType = "create", enableAnalysis = true)
+    @Transactional
+    public TestProduct createProductWithAnalysis(TestProduct product) {
+        return productRepository.save(product);
+    }
+
+    @AIProcess(entityType = "product", processType = "search", generateEmbedding = false, indexForSearch = false)
+    public List<TestProduct> searchProducts(String query) {
+        return productRepository.findByNameContainingIgnoreCase(query);
+    }
+
+    @AIProcess(entityType = "product", processType = "analyze", enableAnalysis = true)
+    @Transactional
+    public TestProduct analyzeProduct(Long id) {
+        return productRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
     }
 
     public TestProduct getProduct(Long id) {

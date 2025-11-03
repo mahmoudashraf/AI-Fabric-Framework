@@ -299,7 +299,7 @@ public void testAIProcessDelete() {
 
 ### TEST-AIPROCESS-004: Annotation Configuration Flags
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessCreateWithEmbeddingDisabledSkipsIndexing`, `AIProcessAnnotationIntegrationTest#aiProcessCreateWithIndexingDisabledSkipsRepositorySave`, `AIProcessAnnotationIntegrationTest#aiProcessCreateWithAnalysisCapturesInsights`)
 
 #### Test Steps
 1. Test `@AIProcess` with `generateEmbedding=false`
@@ -347,24 +347,10 @@ public void testAIProcessGenerateEmbeddingFalse() {
     
     // When - Create product via annotated method
     Product saved = productService.createProductWithoutEmbedding(product);
-    
-    // Wait briefly
-    Thread.sleep(1000);
-    
-    // Then - Verify embeddings NOT generated
-    Optional<AISearchableEntity> searchable = 
-        searchableEntityRepository.findByEntityTypeAndEntityId(
-            "product", saved.getId().toString()
-        );
-    
-    if (searchable.isPresent()) {
-        assertNull(searchable.get().getVectorId(), 
-                  "Vector ID should be null when generateEmbedding=false");
-    }
-    
-    // Verify no vector in database
-    assertFalse(vectorManagementService.vectorExists("product", saved.getId().toString()),
-               "Vector should not exist when generateEmbedding=false");
+
+    verify(searchableEntityRepository, never()).save(any());
+    assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId("product", saved.getId().toString()).isEmpty());
+    assertFalse(vectorManagementService.vectorExists("product", saved.getId().toString()));
 }
 
 @Test
@@ -374,18 +360,10 @@ public void testAIProcessIndexForSearchFalse() {
     
     // When - Create product via annotated method
     Product saved = productService.createProductWithoutIndexing(product);
-    
-    // Wait briefly
-    Thread.sleep(1000);
-    
-    // Then - Verify AISearchableEntity NOT created
-    Optional<AISearchableEntity> searchable = 
-        searchableEntityRepository.findByEntityTypeAndEntityId(
-            "product", saved.getId().toString()
-        );
-    
-    assertFalse(searchable.isPresent(), 
-               "AISearchableEntity should not be created when indexForSearch=false");
+
+    verify(searchableEntityRepository, never()).save(any());
+    assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId("product", saved.getId().toString()).isEmpty());
+    assertFalse(vectorManagementService.vectorExists("product", saved.getId().toString()));
 }
 
 @Test
@@ -395,20 +373,15 @@ public void testAIProcessEnableAnalysisTrue() {
     
     // When - Create product via annotated method
     Product saved = productService.createProductWithAnalysis(product);
-    
-    // Wait for processing
-    await().atMost(5, TimeUnit.SECONDS).until(() ->
-        searchableEntityRepository.findByEntityTypeAndEntityId("product", saved.getId().toString()).isPresent()
-    );
-    
-    // Then - Verify AI analysis performed
+
+    await().atMost(10, TimeUnit.SECONDS).until(() -> searchableEntityRepository
+        .findByEntityTypeAndEntityId("product", saved.getId().toString()).isPresent());
+
     AISearchableEntity searchable = searchableEntityRepository
         .findByEntityTypeAndEntityId("product", saved.getId().toString())
         .orElseThrow();
-    
-    assertNotNull(searchable.getAiAnalysis(), 
-                 "AI analysis should be performed when enableAnalysis=true");
-    assertFalse(searchable.getAiAnalysis().isEmpty());
+
+    assertEquals("Product insight summary", searchable.getAiAnalysis());
 }
 ```
 
@@ -416,7 +389,7 @@ public void testAIProcessEnableAnalysisTrue() {
 
 ### TEST-AIPROCESS-005: Aspect Interception and Processing Order
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessAspectInvokesAfterMethodCompletion`)
 
 #### Test Steps
 1. Call service method annotated with `@AIProcess`
@@ -455,25 +428,16 @@ public void testAspectInterceptionOrder() {
     // When - Call annotated method
     long beforeCall = System.currentTimeMillis();
     Product saved = productService.createProduct(product);
-    long afterCall = System.currentTimeMillis();
-    
-    // Then - Verify method executed
-    assertNotNull(saved);
-    assertNotNull(saved.getId());
-    
-    // Verify processing happened after method execution
-    // (AISearchableEntity created asynchronously)
-    await().atMost(5, TimeUnit.SECONDS).until(() ->
-        searchableEntityRepository.findByEntityTypeAndEntityId("product", saved.getId().toString()).isPresent()
+    await().atMost(10, TimeUnit.SECONDS).until(() ->
+        mockingDetails(searchableEntityRepository).getInvocations().stream()
+            .anyMatch(invocation -> invocation.getMethod().getName().equals("save"))
     );
-    
-    // Verify method result unchanged
-    assertEquals(product.getName(), saved.getName());
-    assertEquals(product.getDescription(), saved.getDescription());
-    
-    // Verify no exceptions thrown
-    assertTrue((afterCall - beforeCall) < 1000, 
-              "Method execution should be fast");
+
+    InOrder order = Mockito.inOrder(productRepository, searchableEntityRepository);
+    order.verify(productRepository).save(any(Product.class));
+    order.verify(searchableEntityRepository, atLeastOnce()).save(any(AISearchableEntity.class));
+
+    assertEquals(product.getName(), productRepository.findById(saved.getId()).orElseThrow().getName());
 }
 ```
 
@@ -481,7 +445,7 @@ public void testAspectInterceptionOrder() {
 
 ### TEST-AIPROCESS-006: Error Handling When Processing Fails
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessGracefullyHandlesProcessingErrors`)
 
 #### Test Steps
 1. Configure to simulate API failure (e.g., OpenAI API down)
@@ -521,27 +485,11 @@ public void testErrorHandlingWhenProcessingFails() {
     Product product = createTestProduct();
     
     // When - Call service method (should succeed despite AI failure)
-    Product saved = productService.createProduct(product);
-    
-    // Then - Verify method succeeded
-    assertNotNull(saved);
-    assertNotNull(saved.getId());
-    
-    // Verify error logged
-    verify(logger, atLeastOnce()).error(contains("Error processing AI method"), any(Exception.class));
-    
-    // Verify entity saved despite AI failure
-    Optional<Product> found = productRepository.findById(saved.getId());
-    assertTrue(found.isPresent());
-    
-    // Verify AISearchableEntity may not be created (if processing failed)
-    // But entity should still be saved
-    Optional<AISearchableEntity> searchable = 
-        searchableEntityRepository.findByEntityTypeAndEntityId("product", saved.getId().toString());
-    
-    // AISearchableEntity may or may not be created depending on error handling
-    // But entity should always be saved
-    assertTrue(found.isPresent(), "Entity should always be saved even if AI processing fails");
+    product = productService.createProduct(product);
+
+    assertNotNull(product.getId());
+    assertTrue(productRepository.findById(product.getId()).isPresent());
+    verify(failingService, atLeastOnce()).storeVector(anyString(), anyString(), anyString(), anyList(), anyMap());
 }
 ```
 
@@ -549,7 +497,7 @@ public void testErrorHandlingWhenProcessingFails() {
 
 ### TEST-AIPROCESS-007: Concurrent Processing with @AIProcess
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessConcurrentCreateOperations`)
 
 #### Test Steps
 1. Create 50 products concurrently via service methods annotated with `@AIProcess`
@@ -659,7 +607,7 @@ public void testConcurrentProcessing() throws Exception {
 
 ### TEST-AIPROCESS-008: Entity Type Resolution from Annotation
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessInfersEntityTypeFromMethodName`)
 
 #### Test Steps
 1. Test `@AIProcess` with explicit `entityType="product"`
@@ -739,7 +687,7 @@ public void testImplicitEntityType() {
 
 ### TEST-AIPROCESS-009: Different Process Types (search, analyze)
 **Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessSearchProcessTypeDoesNotIndex`, `AIProcessAnnotationIntegrationTest#aiProcessAnalyzeProcessTypeGeneratesInsights`)
 
 #### Test Steps
 1. Test `@AIProcess` with `processType="search"`
@@ -809,7 +757,7 @@ public void testProcessTypeAnalyze() {
 
 ### TEST-AIPROCESS-010: Transactional Consistency with @AIProcess
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AIProcessAnnotationIntegrationTest#aiProcessTransactionalRollbackPreventsSideEffects`)
 
 #### Test Steps
 1. Start transaction

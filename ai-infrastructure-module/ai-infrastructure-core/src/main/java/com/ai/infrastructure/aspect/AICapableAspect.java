@@ -12,6 +12,8 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -67,7 +69,7 @@ public class AICapableAspect {
             Object result = joinPoint.proceed();
             
             // Process after method execution
-            processAfterMethod(joinPoint, result, config, entityType);
+            processAfterMethod(joinPoint, result, config, entityType, null);
             
             return result;
             
@@ -104,7 +106,7 @@ public class AICapableAspect {
             Object result = joinPoint.proceed();
             
             // Process after method execution
-            processAfterMethod(joinPoint, result, config, entityType);
+            processAfterMethod(joinPoint, result, config, entityType, aiProcess);
             
             return result;
             
@@ -157,7 +159,8 @@ public class AICapableAspect {
         }
     }
     
-    private void processAfterMethod(ProceedingJoinPoint joinPoint, Object result, AIEntityConfig config, String entityType) {
+    private void processAfterMethod(ProceedingJoinPoint joinPoint, Object result, AIEntityConfig config,
+                                    String entityType, AIProcess aiProcess) {
         try {
             log.debug("Processing after method for entity type: {}", entityType);
             
@@ -179,23 +182,65 @@ public class AICapableAspect {
                 }
                 
                 // Process entity based on configuration
-                if (crudOp.isGenerateEmbedding()) {
+                boolean shouldGenerateEmbedding = crudOp.isGenerateEmbedding();
+                boolean shouldIndexForSearch = crudOp.isIndexForSearch();
+                boolean shouldEnableAnalysis = crudOp.isEnableAnalysis();
+                boolean shouldRemoveFromSearch = "delete".equals(operation) && crudOp.isRemoveFromSearch();
+                boolean shouldCleanupEmbeddings = "delete".equals(operation) && crudOp.isCleanupEmbeddings();
+
+                if (aiProcess != null) {
+                    shouldGenerateEmbedding = shouldGenerateEmbedding && aiProcess.generateEmbedding();
+                    shouldIndexForSearch = shouldIndexForSearch && aiProcess.indexForSearch();
+                    shouldEnableAnalysis = shouldEnableAnalysis || aiProcess.enableAnalysis();
+                }
+
+                if (!shouldIndexForSearch) {
+                    // If we are not indexing this invocation, skip embedding generation as well
+                    shouldGenerateEmbedding = false;
+                }
+
+                if ((shouldGenerateEmbedding || shouldIndexForSearch)
+                    && TransactionSynchronizationManager.isSynchronizationActive()) {
+                    final Object entityRef = result;
+                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int status) {
+                            if (status == STATUS_ROLLED_BACK) {
+                                try {
+                                    aiCapabilityService.removeFromSearch(entityRef, config);
+                                } catch (Exception ex) {
+                                    log.warn("Failed to rollback searchable entity for {}:{}", entityType, getOperationType(joinPoint), ex);
+                                }
+                                try {
+                                    aiCapabilityService.cleanupEmbeddings(entityRef, config);
+                                } catch (Exception ex) {
+                                    log.warn("Failed to rollback embeddings for {}:{}", entityType, getOperationType(joinPoint), ex);
+                                }
+                            }
+                        }
+                    });
+                }
+
+                log.debug("AI processing flags resolved for operation {}: generateEmbedding={}, indexForSearch={}, enableAnalysis={} (annotationPresent={})",
+                    operation, shouldGenerateEmbedding, shouldIndexForSearch, shouldEnableAnalysis, aiProcess != null);
+
+                if (shouldGenerateEmbedding) {
                     aiCapabilityService.generateEmbeddings(result, config);
                 }
                 
-                if (crudOp.isIndexForSearch()) {
+                if (shouldIndexForSearch) {
                     aiCapabilityService.indexForSearch(result, config);
                 }
                 
-                if (crudOp.isEnableAnalysis()) {
+                if (shouldEnableAnalysis) {
                     aiCapabilityService.analyzeEntity(result, config);
                 }
                 
-                if (crudOp.isRemoveFromSearch()) {
+                if (shouldRemoveFromSearch) {
                     aiCapabilityService.removeFromSearch(result, config);
                 }
                 
-                if (crudOp.isCleanupEmbeddings()) {
+                if (shouldCleanupEmbeddings) {
                     aiCapabilityService.cleanupEmbeddings(result, config);
                 }
             }

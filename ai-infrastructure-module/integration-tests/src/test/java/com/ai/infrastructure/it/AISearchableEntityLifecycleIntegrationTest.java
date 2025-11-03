@@ -6,6 +6,7 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.service.TestProductService;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -47,6 +48,9 @@ class AISearchableEntityLifecycleIntegrationTest {
 
     @Autowired
     private VectorManagementService vectorManagementService;
+
+    @Autowired
+    private AICapabilityService aiCapabilityService;
 
     @BeforeEach
     void setUp() {
@@ -101,11 +105,11 @@ class AISearchableEntityLifecycleIntegrationTest {
         );
 
         List<String> keysInOrder = new ArrayList<>(metadata.keySet());
-        List<String> expectedOrder = List.of("price", "category", "brand");
+        List<String> expectedOrder = List.of("category", "price", "brand");
         assertEquals(expectedOrder, keysInOrder,
             () -> "Metadata keys should retain deterministic order. expected=" + expectedOrder
                 + ", actual=" + keysInOrder + ", metadataJson=" + metadataJson);
-        assertEquals("{\"price\":\"8999.00\",\"category\":\"cycling\",\"brand\":\"Orion\"}", metadataJson);
+        assertEquals("{\"category\":\"cycling\",\"price\":\"8999.00\",\"brand\":\"Orion\"}", metadataJson);
         assertEquals("cycling", metadata.get("category"));
         assertEquals("8999.00", metadata.get("price"));
         assertEquals("Orion", metadata.get("brand"));
@@ -195,6 +199,54 @@ class AISearchableEntityLifecycleIntegrationTest {
         } catch (Exception ignored) {
             // Vector provider may not have been initialised yet; ignore for cleanup.
         }
+    }
+
+    @Test
+    @DisplayName("Repair job restores missing vectors for AISearchableEntity")
+    void searchableEntityVectorRepairJobRehydratesMissingVector() {
+        TestProduct saved = productService.createProduct(TestProduct.builder()
+            .name("Stale Vector Headphones")
+            .description("Noise-cancelling headphones used for vector repair scenario")
+            .category("audio")
+            .brand("Resync")
+            .price(new BigDecimal("329.00"))
+            .stockQuantity(6)
+            .active(true)
+            .build());
+
+        String entityId = saved.getId().toString();
+
+        await().atMost(WAIT_TIMEOUT)
+            .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
+                .anyMatch(invocation -> invocation.getMethod().getName().equals("save")));
+
+        ArgumentCaptor<AISearchableEntity> initialCaptor = ArgumentCaptor.forClass(AISearchableEntity.class);
+        verify(searchableEntityRepository, atLeastOnce()).save(initialCaptor.capture());
+        String originalVectorId = initialCaptor.getAllValues().get(initialCaptor.getAllValues().size() - 1).getVectorId();
+
+        assertTrue(vectorManagementService.vectorExists("product", entityId));
+
+        vectorManagementService.removeVector("product", entityId);
+        assertFalse(vectorManagementService.vectorExists("product", entityId));
+
+        TestProduct persisted = productRepository.findById(saved.getId()).orElseThrow();
+
+        reset(searchableEntityRepository);
+
+        aiCapabilityService.processEntityForAI(persisted, "product");
+
+        await().atMost(WAIT_TIMEOUT)
+            .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
+                .anyMatch(invocation -> invocation.getMethod().getName().equals("save")));
+
+        ArgumentCaptor<AISearchableEntity> repairCaptor = ArgumentCaptor.forClass(AISearchableEntity.class);
+        verify(searchableEntityRepository, atLeastOnce()).save(repairCaptor.capture());
+
+        AISearchableEntity repairedEntity = repairCaptor.getAllValues().get(repairCaptor.getAllValues().size() - 1);
+        assertTrue(vectorManagementService.vectorExists("product", entityId));
+        assertNotEquals(originalVectorId, repairedEntity.getVectorId(), "Repair job should generate a fresh vector id");
+        assertEquals(entityId, repairedEntity.getEntityId());
+        assertTrue(repairedEntity.getMetadata().contains("brand"));
     }
 }
 

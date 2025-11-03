@@ -84,7 +84,7 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-005: Stale Vector Repair Job
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityLifecycleIntegrationTest#searchableEntityVectorRepairJobRehydratesMissingVector`)
 
 1. Manually create a mismatch (delete vector but keep searchable entity).  
 2. Run the scheduled repair job or service method designed to rehydrate missing vectors.  
