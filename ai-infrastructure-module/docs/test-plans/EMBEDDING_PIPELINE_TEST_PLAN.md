@@ -69,7 +69,7 @@ AIEmbeddingRequest request = AIEmbeddingRequest.builder()
 
 ### TEST-EMBED-002: ONNX Embedding Generation (Local)
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED  
+**Status**: ✅ AUTOMATED (`ONNXEmbeddingIntegrationTest#testOnnxEmbeddingGenerationMatchesOpenAISemantics`)  
 **Pre-requisites**: ONNX model downloaded and configured
 
 #### Test Steps
@@ -168,7 +168,7 @@ ai.embedding.rest.url=http://localhost:8080/embed
 
 ### TEST-EMBED-004: Batch Embedding Processing
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED  
+**Status**: ✅ AUTOMATED (`ONNXBatchEmbeddingIntegrationTest#testBatchEmbeddingProcessingWithONNX`)  
 **Pre-requisites**: OpenAI API key or ONNX configured
 
 #### Test Steps
@@ -229,7 +229,7 @@ public void testBatchEmbeddingProcessing() {
 
 ### TEST-EMBED-005: Concurrent Embedding Generation
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED  
+**Status**: ✅ AUTOMATED (`ONNXConcurrentEmbeddingIntegrationTest#testConcurrentEmbeddingGeneration`)  
 **Pre-requisites**: Thread-safe configuration
 
 #### Test Steps
@@ -314,7 +314,7 @@ public void testConcurrentEmbeddingGeneration() throws Exception {
 
 ### TEST-EMBED-006: Large Text Chunking
 **Priority**: High  
-**Status**: ✅ IMPLEMENTED (see `EmbeddingLargeTextChunkingIntegrationTest`)  
+**Status**: ✅ AUTOMATED (`EmbeddingLargeTextChunkingIntegrationTest#chunkTextAndEmbedEachSegment`)  
 **Pre-requisites**: Chunking logic implemented
 
 #### Test Steps
@@ -348,7 +348,7 @@ List<String> chunks = embeddingService.chunkText(largeText, 1000);
 
 ### TEST-EMBED-007: Multi-language Content
 **Priority**: Medium  
-**Status**: ✅ IMPLEMENTED (see `EmbeddingMultilanguageIntegrationTest`)  
+**Status**: ✅ AUTOMATED (`EmbeddingMultilanguageIntegrationTest#embeddingsAcrossLanguagesRemainSemanticallyAligned`)  
 **Pre-requisites**: Multi-language support enabled
 
 #### Test Steps
@@ -378,7 +378,7 @@ Map<String, String> texts = Map.of(
 
 ### TEST-EMBED-008: Special Characters Handling
 **Priority**: Medium  
-**Status**: ✅ IMPLEMENTED (see `EmbeddingSpecialCharactersIntegrationTest`)  
+**Status**: ✅ AUTOMATED (`EmbeddingSpecialCharactersIntegrationTest#embeddingsHandleSpecialCharacters`)  
 
 #### Test Steps
 1. Create text with special characters: emoji, symbols, unicode

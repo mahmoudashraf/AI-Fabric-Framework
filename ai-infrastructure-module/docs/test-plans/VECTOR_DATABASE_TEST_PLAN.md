@@ -31,7 +31,7 @@ This test plan covers comprehensive integration testing of vector database opera
 
 ### TEST-VECTOR-001: Basic Vector Storage (Lucene)
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`LuceneBasicVectorStorageIntegrationTest#testBasicVectorStorage`)
 
 #### Test Steps
 1. Initialize LuceneVectorDatabaseService
@@ -99,7 +99,7 @@ public void testBasicVectorStorage() {
 
 ### TEST-VECTOR-002: k-NN Search with HNSW
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`LuceneKNNSearchIntegrationTest#testLuceneKNNSearchWithHNSW`)
 
 #### Test Steps
 1. Index 1000 vectors with Lucene HNSW
@@ -183,7 +183,7 @@ public void testKNNSearchWithHNSW() {
 
 ### TEST-VECTOR-003: Concurrent Vector Storage
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`LuceneConcurrentVectorStorageIntegrationTest#testConcurrentVectorStorage`)
 
 #### Test Steps
 1. Create 50 threads
@@ -278,7 +278,7 @@ public void testConcurrentVectorStorage() throws Exception {
 
 ### TEST-VECTOR-004: Index Persistence and Recovery
 **Priority**: Critical  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`LuceneIndexPersistenceIntegrationTest#testIndexPersistenceAndRecovery`)
 
 #### Test Steps
 1. Store 100 vectors in Lucene index
