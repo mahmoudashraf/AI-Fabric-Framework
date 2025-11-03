@@ -70,6 +70,11 @@ public class AdvancedRAGRequest {
     private List<String> categories;
     
     /**
+     * Specific entity type to target in the vector index
+     */
+    private String entityType;
+
+    /**
      * Additional context for the query
      */
     private String context;
@@ -126,6 +131,11 @@ public class AdvancedRAGRequest {
      * Custom filters
      */
     private Map<String, Object> filters;
+
+    /**
+     * Override for similarity threshold when delegating to RAG service
+     */
+    private Double similarityThreshold;
     
     /**
      * Request timeout in milliseconds

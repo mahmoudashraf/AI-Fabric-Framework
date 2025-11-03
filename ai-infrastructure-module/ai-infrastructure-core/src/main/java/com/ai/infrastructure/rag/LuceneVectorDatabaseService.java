@@ -19,13 +19,14 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.springframework.beans.factory.annotation.Value;
@@ -229,19 +230,15 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             // Apply entity type filter if specified
             Query filterQuery = null;
             if (request.getEntityType() != null && !request.getEntityType().trim().isEmpty()) {
-                filterQuery = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(
-                    ENTITY_TYPE_FIELD + ":" + request.getEntityType()
-                );
+                filterQuery = new TermQuery(new Term(ENTITY_TYPE_FIELD, request.getEntityType()));
             }
-            
+
             // Perform k-NN search (Lucene handles similarity internally)
             TopDocs topDocs;
             if (filterQuery != null) {
-                // Use BooleanQuery to combine vector search with filter
-                org.apache.lucene.search.BooleanQuery.Builder boolQueryBuilder = 
-                    new org.apache.lucene.search.BooleanQuery.Builder();
-                boolQueryBuilder.add(vectorQuery, org.apache.lucene.search.BooleanClause.Occur.MUST);
-                boolQueryBuilder.add(filterQuery, org.apache.lucene.search.BooleanClause.Occur.MUST);
+                BooleanQuery.Builder boolQueryBuilder = new BooleanQuery.Builder();
+                boolQueryBuilder.add(vectorQuery, BooleanClause.Occur.MUST);
+                boolQueryBuilder.add(filterQuery, BooleanClause.Occur.FILTER);
                 topDocs = indexSearcher.search(boolQueryBuilder.build(), k);
             } else {
                 topDocs = indexSearcher.search(vectorQuery, k);
@@ -405,8 +402,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             log.debug("Getting vector {} from Lucene", vectorId);
             
             Term term = new Term(VECTOR_ID_FIELD, vectorId);
-            Query query = new QueryParser(VECTOR_ID_FIELD, analyzer).parse(VECTOR_ID_FIELD + ":" + vectorId);
-            
+            Query query = new TermQuery(term);
+
             TopDocs topDocs = indexSearcher.search(query, 1);
             if (topDocs.totalHits.value > 0) {
                 Document doc = indexSearcher.doc(topDocs.scoreDocs[0].doc);
@@ -426,10 +423,11 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Getting vector from Lucene for entity {} of type {}", entityId, entityType);
             
-            String queryString = ENTITY_TYPE_FIELD + ":" + entityType + " AND " + ENTITY_ID_FIELD + ":" + entityId;
-            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
-            
-            TopDocs topDocs = indexSearcher.search(query, 1);
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType)), BooleanClause.Occur.MUST);
+            builder.add(new TermQuery(new Term(ENTITY_ID_FIELD, entityId)), BooleanClause.Occur.MUST);
+
+            TopDocs topDocs = indexSearcher.search(builder.build(), 1);
             if (topDocs.totalHits.value > 0) {
                 Document doc = indexSearcher.doc(topDocs.scoreDocs[0].doc);
                 return Optional.of(convertDocumentToVectorRecord(doc));
@@ -562,9 +560,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Getting all vectors for entity type {} from Lucene", entityType);
             
-            String queryString = ENTITY_TYPE_FIELD + ":" + entityType;
-            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
-            
+            Query query = new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType));
+
             TopDocs topDocs = indexSearcher.search(query, Integer.MAX_VALUE);
             List<VectorRecord> vectors = new ArrayList<>();
             
@@ -585,9 +582,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     @Override
     public long getVectorCountByEntityType(String entityType) {
         try {
-            String queryString = ENTITY_TYPE_FIELD + ":" + entityType;
-            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
-            
+            Query query = new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType));
+
             TopDocs topDocs = indexSearcher.search(query, 0); // Only count, don't retrieve
             return topDocs.totalHits.value;
             
@@ -600,10 +596,11 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     @Override
     public boolean vectorExists(String entityType, String entityId) {
         try {
-            String queryString = ENTITY_TYPE_FIELD + ":" + entityType + " AND " + ENTITY_ID_FIELD + ":" + entityId;
-            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
-            
-            TopDocs topDocs = indexSearcher.search(query, 1);
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType)), BooleanClause.Occur.MUST);
+            builder.add(new TermQuery(new Term(ENTITY_ID_FIELD, entityId)), BooleanClause.Occur.MUST);
+
+            TopDocs topDocs = indexSearcher.search(builder.build(), 1);
             return topDocs.totalHits.value > 0;
             
         } catch (Exception e) {
@@ -617,11 +614,10 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Clearing all vectors for entity type {} from Lucene", entityType);
             
-            String queryString = ENTITY_TYPE_FIELD + ":" + entityType;
-            Query query = new QueryParser(ENTITY_TYPE_FIELD, analyzer).parse(queryString);
-            
+            Query query = new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType));
+
             long countBefore = indexSearcher.count(query);
-            indexWriter.deleteDocuments(query);
+            indexWriter.deleteDocuments(new Term(ENTITY_TYPE_FIELD, entityType));
             indexWriter.commit();
             refreshReader();
             

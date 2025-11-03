@@ -143,14 +143,31 @@ public class AdvancedRAGService {
         List<CompletableFuture<RAGResponse>> futures = queries.stream()
             .map(query -> CompletableFuture.supplyAsync(() -> {
                 try {
-                    RAGRequest ragRequest = RAGRequest.builder()
+                    RAGRequest.RAGRequestBuilder ragRequestBuilder = RAGRequest.builder()
                         .query(query)
                         .limit(request.getMaxResults())
                         .enableHybridSearch(request.getEnableHybridSearch())
                         .enableContextualSearch(request.getEnableContextualSearch())
                         .categories(request.getCategories())
-                        .filters(request.getFilters())
-                        .build();
+                        .filters(request.getFilters());
+
+                    if (request.getEntityType() != null && !request.getEntityType().isBlank()) {
+                        ragRequestBuilder.entityType(request.getEntityType());
+                    }
+
+                    if (request.getSimilarityThreshold() != null) {
+                        ragRequestBuilder.threshold(request.getSimilarityThreshold());
+                    }
+
+                    if (request.getContext() != null && !request.getContext().isBlank()) {
+                        ragRequestBuilder.context(Map.of("userContext", request.getContext()));
+                    }
+
+                    if (request.getMetadata() != null && !request.getMetadata().isEmpty()) {
+                        ragRequestBuilder.metadata(request.getMetadata());
+                    }
+
+                    RAGRequest ragRequest = ragRequestBuilder.build();
                     
                     return ragService.performRag(ragRequest);
                 } catch (Exception e) {
