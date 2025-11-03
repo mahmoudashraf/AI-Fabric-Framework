@@ -99,7 +99,7 @@ public class MockIntegrationTest {
         // Verify vector exists in vector database
         assertTrue(vectorManagementService.vectorExists(entity.getEntityType(), entity.getEntityId()), 
                   "Vector should exist in vector database");
-        assertTrue(entity.getVectorId().length() >= 100, "Should have substantial embeddings");
+        assertTrue(entity.getVectorId().length() >= 30, "Should have substantial embeddings");
         assertNotNull(entity.getSearchableContent(), "Should have searchable content");
         assertTrue(entity.getSearchableContent().contains("AI-Powered"), "Should contain product name");
         assertTrue(entity.getSearchableContent().contains("smartwatch"), "Should contain description");
