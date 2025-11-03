@@ -18,9 +18,10 @@ import com.ai.infrastructure.audit.AIAuditService;
 import com.ai.infrastructure.privacy.AIDataPrivacyService;
 import com.ai.infrastructure.filter.AIContentFilterService;
 import com.ai.infrastructure.access.AIAccessControlService;
+import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.rag.LuceneVectorDatabaseService;
 import com.ai.infrastructure.rag.PineconeVectorDatabaseService;
-import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
+import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.embedding.ONNXEmbeddingProvider;
@@ -180,20 +181,32 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
-    public VectorDatabaseService luceneVectorDatabaseService(AIProviderConfig config) {
-        return new LuceneVectorDatabaseService(config);
+    public VectorDatabaseService luceneVectorDatabaseService(
+            AIProviderConfig config,
+            AISearchableEntityRepository searchableEntityRepository,
+            AIEntityConfigurationLoader configurationLoader) {
+        VectorDatabaseService delegate = new LuceneVectorDatabaseService(config);
+        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
     }
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    public VectorDatabaseService pineconeVectorDatabaseService(AIProviderConfig config) {
-        return new PineconeVectorDatabaseService(config);
+    public VectorDatabaseService pineconeVectorDatabaseService(
+            AIProviderConfig config,
+            AISearchableEntityRepository searchableEntityRepository,
+            AIEntityConfigurationLoader configurationLoader) {
+        VectorDatabaseService delegate = new PineconeVectorDatabaseService(config);
+        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
     }
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
-    public VectorDatabaseService inMemoryVectorDatabaseService(AIProviderConfig config) {
-        return new InMemoryVectorDatabaseService(config);
+    public VectorDatabaseService inMemoryVectorDatabaseService(
+            AIProviderConfig config,
+            AISearchableEntityRepository searchableEntityRepository,
+            AIEntityConfigurationLoader configurationLoader) {
+        VectorDatabaseService delegate = new InMemoryVectorDatabaseService(config);
+        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
     }
     
     @Bean
@@ -203,23 +216,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
     @ConditionalOnMissingBean
-    public VectorManagementService vectorManagementService(InMemoryVectorDatabaseService vectorDatabaseService) {
-        return new VectorManagementService(vectorDatabaseService);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene")
-    @ConditionalOnMissingBean
-    public VectorManagementService luceneVectorManagementService(LuceneVectorDatabaseService vectorDatabaseService) {
-        return new VectorManagementService(vectorDatabaseService);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    @ConditionalOnMissingBean
-    public VectorManagementService pineconeVectorManagementService(PineconeVectorDatabaseService vectorDatabaseService) {
+    public VectorManagementService vectorManagementService(VectorDatabaseService vectorDatabaseService) {
         return new VectorManagementService(vectorDatabaseService);
     }
     
