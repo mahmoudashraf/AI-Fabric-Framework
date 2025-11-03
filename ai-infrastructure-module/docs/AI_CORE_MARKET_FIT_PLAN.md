@@ -50,7 +50,8 @@
 ### 3.3 Enterprise Readiness Track (Weeks 10-24)
 - **Productization Criteria**
   - Define enterprise SLA tiers, support model, and pricing hypotheses.
-  - Identify add-on value: managed control plane, compliance packs, premium connectors (Anthropic, Azure OpenAI), enterprise key management.
+  - Identify add-on value: managed control plane, managed model catalog, compliance packs, premium connectors (Anthropic, Azure OpenAI), enterprise key management.
+  - Draft managed model catalog blueprint: curated, versioned model library with policy tagging, tokenizer/config bundling, integrity checks, telemetry, and upgrade/rollback workflows.
 - **Security & Compliance**
   - Implement role-based access and audit logging enhancements; create sample SOC2 controls mapping.
   - Draft data handling whitepaper (PII treatment, encryption, key rotation).
