@@ -9,6 +9,7 @@ import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.util.MetadataJsonSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -360,13 +361,14 @@ public class AICapabilityService {
             }
             
             AISearchableEntity searchableEntity;
+            String metadataJson = MetadataJsonSerializer.serialize(metadata, config);
             if (!existing.isEmpty()) {
                 // Update existing entity
                 searchableEntity = existing.get(0);
                 searchableEntity.setSearchableContent(content);
                 searchableEntity.setVectorId(vectorId);
                 searchableEntity.setVectorUpdatedAt(java.time.LocalDateTime.now());
-                searchableEntity.setMetadata(convertMetadataToJson(metadata, config));
+                searchableEntity.setMetadata(metadataJson);
                 searchableEntity.setUpdatedAt(java.time.LocalDateTime.now());
             } else {
                 // Create new entity
@@ -376,7 +378,7 @@ public class AICapabilityService {
                     .searchableContent(content)
                     .vectorId(vectorId)
                     .vectorUpdatedAt(java.time.LocalDateTime.now())
-                    .metadata(convertMetadataToJson(metadata, config))
+                    .metadata(metadataJson)
                     .createdAt(java.time.LocalDateTime.now())
                     .updatedAt(java.time.LocalDateTime.now())
                     .build();
@@ -417,50 +419,6 @@ public class AICapabilityService {
         }
         
         return metadata;
-    }
-    
-    private String convertMetadataToJson(Map<String, Object> metadata, AIEntityConfig config) {
-        try {
-            // Simple JSON conversion - in production, use Jackson or Gson
-            if (metadata.isEmpty()) {
-                return "{}";
-            }
-
-            StringBuilder json = new StringBuilder("{");
-            boolean first = true;
-
-            if (config != null && config.getMetadataFields() != null) {
-                for (AIMetadataField field : config.getMetadataFields()) {
-                    String key = field.getName();
-                    if (!metadata.containsKey(key)) {
-                        continue;
-                    }
-                    if (!first) {
-                        json.append(",");
-                    }
-                    json.append("\"").append(key).append("\":\"").append(metadata.get(key)).append("\"");
-                    first = false;
-                }
-            }
-
-            for (Map.Entry<String, Object> entry : metadata.entrySet()) {
-                if (config != null && config.getMetadataFields() != null
-                    && config.getMetadataFields().stream().anyMatch(field -> field.getName().equals(entry.getKey()))) {
-                    continue;
-                }
-                if (!first) {
-                    json.append(",");
-                }
-                json.append("\"").append(entry.getKey()).append("\":\"").append(entry.getValue()).append("\"");
-                first = false;
-            }
-
-            json.append("}");
-            return json.toString();
-        } catch (Exception e) {
-            log.error("Error converting metadata to JSON", e);
-            return "{}";
-        }
     }
     
     private void storeAnalysisResult(Object entity, AIEntityConfig config, String analysis) {
