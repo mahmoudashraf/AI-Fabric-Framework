@@ -43,6 +43,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ResourceLoader;
 
 /**
@@ -181,31 +182,49 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
+    public LuceneVectorDatabaseService luceneVectorDatabaseDelegate(AIProviderConfig config) {
+        return new LuceneVectorDatabaseService(config);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
+    @Primary
     public VectorDatabaseService luceneVectorDatabaseService(
-            AIProviderConfig config,
+            LuceneVectorDatabaseService delegate,
             AISearchableEntityRepository searchableEntityRepository,
             AIEntityConfigurationLoader configurationLoader) {
-        VectorDatabaseService delegate = new LuceneVectorDatabaseService(config);
         return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
     }
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
+    public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config) {
+        return new PineconeVectorDatabaseService(config);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
+    @Primary
     public VectorDatabaseService pineconeVectorDatabaseService(
-            AIProviderConfig config,
+            PineconeVectorDatabaseService delegate,
             AISearchableEntityRepository searchableEntityRepository,
             AIEntityConfigurationLoader configurationLoader) {
-        VectorDatabaseService delegate = new PineconeVectorDatabaseService(config);
         return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
     }
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
+    public InMemoryVectorDatabaseService inMemoryVectorDatabaseDelegate(AIProviderConfig config) {
+        return new InMemoryVectorDatabaseService(config);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
+    @Primary
     public VectorDatabaseService inMemoryVectorDatabaseService(
-            AIProviderConfig config,
+            InMemoryVectorDatabaseService delegate,
             AISearchableEntityRepository searchableEntityRepository,
             AIEntityConfigurationLoader configurationLoader) {
-        VectorDatabaseService delegate = new InMemoryVectorDatabaseService(config);
         return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
     }
     

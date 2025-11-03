@@ -123,9 +123,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                         writer = new IndexWriter(newDirectory, config);
                     } catch (LockObtainFailedException lockException) {
                         log.warn("Existing Lucene lock detected at {}. Attempting recovery.", path, lockException);
-                        Lock cleanupLock = newDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
-                        cleanupLock.close();
-                        writer = new IndexWriter(newDirectory, config);
+                        writer = recoverFromLock(newDirectory, config, path);
                     }
                     return new SharedIndex(newDirectory, writer);
                 } catch (IOException ioException) {
@@ -403,6 +401,10 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     public long clearVectors() {
         try {
             log.debug("Clearing all vectors from Lucene");
+            if (indexWriter == null) {
+                log.debug("IndexWriter not initialized; nothing to clear");
+                return 0;
+            }
             
             long countBefore = indexReader != null ? indexReader.numDocs() : 0;
             indexWriter.deleteAll();
@@ -644,6 +646,10 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     @Override
     public boolean vectorExists(String entityType, String entityId) {
         try {
+            if (indexSearcher == null) {
+                log.debug("IndexSearcher not initialized; vector for entity {} of type {} does not exist", entityId, entityType);
+                return false;
+            }
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType)), BooleanClause.Occur.MUST);
             builder.add(new TermQuery(new Term(ENTITY_ID_FIELD, entityId)), BooleanClause.Occur.MUST);
@@ -661,6 +667,10 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     public long clearVectorsByEntityType(String entityType) {
         try {
             log.debug("Clearing all vectors for entity type {} from Lucene", entityType);
+            if (indexWriter == null) {
+                log.debug("IndexWriter not initialized; nothing to clear for entity type {}", entityType);
+                return 0;
+            }
             
             Query query = new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType));
 
@@ -771,6 +781,49 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         } catch (Exception e) {
             log.error("Error refreshing Lucene reader", e);
             throw new AIServiceException("Failed to refresh Lucene reader", e);
+        }
+    }
+
+    private IndexWriter recoverFromLock(Directory directory, IndexWriterConfig config, Path path) {
+        final long timeoutMillis = 5000L;
+        final long retryDelayMillis = 100L;
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                Lock cleanupLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
+                try {
+                    cleanupLock.close();
+                } catch (IOException closeException) {
+                    log.warn("Error closing Lucene cleanup lock for {}", path, closeException);
+                }
+            } catch (LockObtainFailedException retryException) {
+                log.warn("Lucene lock at {} still held; retrying in {} ms", path, retryDelayMillis);
+                sleep(retryDelayMillis);
+                continue;
+            } catch (IOException ioException) {
+                throw new UncheckedIOException(ioException);
+            }
+
+            try {
+                return new IndexWriter(directory, config);
+            } catch (LockObtainFailedException retryException) {
+                log.warn("Unable to reopen Lucene index at {}; retrying in {} ms", path, retryDelayMillis, retryException);
+                sleep(retryDelayMillis);
+            } catch (IOException ioException) {
+                throw new UncheckedIOException(ioException);
+            }
+        }
+
+        throw new UncheckedIOException(new LockObtainFailedException("Unable to recover Lucene lock at " + path));
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new AIServiceException("Interrupted while waiting for Lucene lock recovery", interruptedException);
         }
     }
 

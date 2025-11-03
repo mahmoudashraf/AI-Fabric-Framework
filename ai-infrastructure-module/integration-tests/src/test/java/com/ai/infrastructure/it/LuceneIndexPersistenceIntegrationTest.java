@@ -45,6 +45,9 @@ class LuceneIndexPersistenceIntegrationTest {
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
 
+    @Autowired
+    private LuceneVectorDatabaseService luceneVectorDatabaseService;
+
     @BeforeEach
     void setUp() {
         vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
@@ -97,9 +100,8 @@ class LuceneIndexPersistenceIntegrationTest {
         assertNotNull(preRestartSearch, "Pre-restart search response should not be null");
         assertFalse(preRestartSearch.getResults().isEmpty(), "Pre-restart search should return results");
 
-        LuceneVectorDatabaseService luceneService = (LuceneVectorDatabaseService) vectorDatabaseService;
-        luceneService.cleanup();
-        luceneService.initialize();
+        luceneVectorDatabaseService.cleanup();
+        luceneVectorDatabaseService.initialize();
 
         List<VectorRecord> afterRestart = vectorManagementService.getVectorsByEntityType(ENTITY_TYPE);
         assertEquals(VECTOR_COUNT, afterRestart.size(), "All vectors should be recovered after restart");
