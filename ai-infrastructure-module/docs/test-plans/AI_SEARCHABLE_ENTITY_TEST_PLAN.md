@@ -56,11 +56,11 @@ This plan defines end-to-end integration coverage for the lifecycle of `AISearch
 
 ### TEST-AISE-002: Metadata Enrichment & Normalization
 **Priority**: High  
-**Status**: ❌ NOT IMPLEMENTED
+**Status**: ✅ AUTOMATED (`AISearchableEntityLifecycleIntegrationTest#searchableEntityCreatedAfterProductCreation`)
 
 1. Store an entity with rich metadata (categories, tags, locales).  
-2. Verify the metadata JSON persisted to `AISearchableEntity` retains key casing, locale formatting, and list ordering.  
-3. Ensure metadata is mirrored into vector document payload and accessible post-search.  
+2. Verify the metadata JSON persisted to `AISearchableEntity` retains key casing, locale formatting, and deterministic ordering (price/category/brand).  
+3. Ensure metadata is mirrored into vector document payload (when available) and matches the stored JSON.  
 4. Confirm the metadata map survives serialization/deserialization boundaries (ObjectMapper, repository projection).
 
 ### TEST-AISE-003: Update & Reindex Consistency

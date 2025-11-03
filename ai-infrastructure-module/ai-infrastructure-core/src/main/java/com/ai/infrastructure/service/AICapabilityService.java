@@ -366,7 +366,7 @@ public class AICapabilityService {
                 searchableEntity.setSearchableContent(content);
                 searchableEntity.setVectorId(vectorId);
                 searchableEntity.setVectorUpdatedAt(java.time.LocalDateTime.now());
-                searchableEntity.setMetadata(convertMetadataToJson(metadata));
+                searchableEntity.setMetadata(convertMetadataToJson(metadata, config));
                 searchableEntity.setUpdatedAt(java.time.LocalDateTime.now());
             } else {
                 // Create new entity
@@ -376,7 +376,7 @@ public class AICapabilityService {
                     .searchableContent(content)
                     .vectorId(vectorId)
                     .vectorUpdatedAt(java.time.LocalDateTime.now())
-                    .metadata(convertMetadataToJson(metadata))
+                    .metadata(convertMetadataToJson(metadata, config))
                     .createdAt(java.time.LocalDateTime.now())
                     .updatedAt(java.time.LocalDateTime.now())
                     .build();
@@ -390,7 +390,7 @@ public class AICapabilityService {
     }
     
     private Map<String, Object> extractMetadata(Object entity, AIEntityConfig config) {
-        Map<String, Object> metadata = new HashMap<>();
+        Map<String, Object> metadata = new LinkedHashMap<>();
         
         try {
             // Simple defensive check: if metadataFields is null, return empty metadata
@@ -419,22 +419,42 @@ public class AICapabilityService {
         return metadata;
     }
     
-    private String convertMetadataToJson(Map<String, Object> metadata) {
+    private String convertMetadataToJson(Map<String, Object> metadata, AIEntityConfig config) {
         try {
             // Simple JSON conversion - in production, use Jackson or Gson
             if (metadata.isEmpty()) {
                 return "{}";
             }
-            
+
             StringBuilder json = new StringBuilder("{");
             boolean first = true;
+
+            if (config != null && config.getMetadataFields() != null) {
+                for (AIMetadataField field : config.getMetadataFields()) {
+                    String key = field.getName();
+                    if (!metadata.containsKey(key)) {
+                        continue;
+                    }
+                    if (!first) {
+                        json.append(",");
+                    }
+                    json.append("\"").append(key).append("\":\"").append(metadata.get(key)).append("\"");
+                    first = false;
+                }
+            }
+
             for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+                if (config != null && config.getMetadataFields() != null
+                    && config.getMetadataFields().stream().anyMatch(field -> field.getName().equals(entry.getKey()))) {
+                    continue;
+                }
                 if (!first) {
                     json.append(",");
                 }
                 json.append("\"").append(entry.getKey()).append("\":\"").append(entry.getValue()).append("\"");
                 first = false;
             }
+
             json.append("}");
             return json.toString();
         } catch (Exception e) {

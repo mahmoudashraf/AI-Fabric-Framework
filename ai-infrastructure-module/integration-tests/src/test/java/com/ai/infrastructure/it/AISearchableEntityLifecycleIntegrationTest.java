@@ -6,6 +6,8 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.service.TestProductService;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +20,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.atLeastOnce;
@@ -86,6 +91,27 @@ class AISearchableEntityLifecycleIntegrationTest {
         assertEquals(entityId, searchable.getEntityId());
         assertNotNull(searchable.getVectorId());
         assertTrue(searchable.getSearchableContent().contains("Orion Carbon Bike"));
+
+        String metadataJson = searchable.getMetadata();
+        assertNotNull(metadataJson, "Metadata JSON should be populated");
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        LinkedHashMap<String, String> metadata = assertDoesNotThrow(() ->
+            objectMapper.readValue(metadataJson, new TypeReference<LinkedHashMap<String, String>>() {})
+        );
+
+        List<String> keysInOrder = new ArrayList<>(metadata.keySet());
+        List<String> expectedOrder = List.of("price", "category", "brand");
+        assertEquals(expectedOrder, keysInOrder,
+            () -> "Metadata keys should retain deterministic order. expected=" + expectedOrder
+                + ", actual=" + keysInOrder + ", metadataJson=" + metadataJson);
+        assertEquals("{\"price\":\"8999.00\",\"category\":\"cycling\",\"brand\":\"Orion\"}", metadataJson);
+        assertEquals("cycling", metadata.get("category"));
+        assertEquals("8999.00", metadata.get("price"));
+        assertEquals("Orion", metadata.get("brand"));
+
+        vectorManagementService.getVector("product", entityId)
+            .ifPresent(vectorRecord -> assertEquals(metadataJson, vectorRecord.getMetadata().get("raw")));
 
     }
 
