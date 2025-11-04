@@ -8,6 +8,8 @@ import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -31,6 +34,7 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
@@ -50,10 +54,16 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    private TransactionTemplate transactionTemplate;
+
     @BeforeEach
     void setUp() {
         searchableEntityRepository.deleteAll();
         vectorManagementService.clearAllVectors();
+        transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @AfterEach
@@ -266,6 +276,56 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
         vectorManagementService.batchRemoveVectors(vectorIds);
         assertTrue(searchableEntityRepository.findByEntityType("plan-batch").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Transaction rollback prevents searchable entity and vector persistence")
+    void transactionalRollbackPreventsPersistence() {
+        String entityType = "plan-transaction";
+        String entityId = "rollback-" + System.nanoTime();
+
+        assertThrows(RuntimeException.class, () -> transactionTemplate.execute(status -> {
+            vectorManagementService.storeVector(entityType, entityId,
+                "Transactional product that should not persist",
+                vector(16, 0.42), Map.of("scenario", "rollback"));
+            throw new RuntimeException("Force rollback");
+        }));
+
+        assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isEmpty(),
+            "Searchable entity should not be persisted after rollback");
+        assertFalse(vectorManagementService.vectorExists(entityType, entityId),
+            "Vector should not exist after transaction rollback");
+    }
+
+    @Test
+    @DisplayName("Successful transaction commits searchable entity and vector")
+    void transactionalCommitPersistsSearchableEntity() throws Exception {
+        String entityType = "plan-transaction";
+        String entityId = "commit-" + System.nanoTime();
+
+        String[] vectorIdHolder = new String[1];
+        transactionTemplate.execute(status -> {
+            vectorIdHolder[0] = vectorManagementService.storeVector(entityType, entityId,
+                "Transactional product that should persist",
+                vector(16, 0.55), Map.of("scenario", "commit"));
+            return null;
+        });
+
+        await().atMost(Duration.ofSeconds(5)).until(() ->
+            searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isPresent());
+
+        AISearchableEntity entity = searchableEntityRepository
+            .findByEntityTypeAndEntityId(entityType, entityId)
+            .orElseThrow();
+
+        assertEquals(vectorIdHolder[0], entity.getVectorId(),
+            "Vector ID from transaction should be persisted on searchable entity");
+        assertTrue(vectorManagementService.vectorExists(entityType, entityId),
+            "Vector should exist after committed transaction");
+
+        Optional<VectorRecord> vectorRecord = vectorManagementService.getVector(entityType, entityId);
+        assertTrue(vectorRecord.isPresent(), "Committed vector should be retrievable");
+        assertEquals(vectorIdHolder[0], vectorRecord.get().getVectorId());
     }
 
     private List<Double> vector(int dimension, double seed) {

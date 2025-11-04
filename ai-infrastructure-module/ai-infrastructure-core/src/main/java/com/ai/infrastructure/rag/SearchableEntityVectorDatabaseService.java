@@ -8,6 +8,9 @@ import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,6 +21,7 @@ import java.util.Optional;
  * Decorator for {@link VectorDatabaseService} that keeps {@link AISearchableEntity} synchronized
  * with vector operations.
  */
+@Slf4j
 public class SearchableEntityVectorDatabaseService implements VectorDatabaseService {
 
     private final VectorDatabaseService delegate;
@@ -36,6 +40,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
     public String storeVector(String entityType, String entityId, String content,
                               List<Double> embedding, Map<String, Object> metadata) {
         String vectorId = delegate.storeVector(entityType, entityId, content, embedding, metadata);
+        registerRollbackCleanup(entityType, entityId, vectorId);
         upsertSearchableEntity(entityType, entityId, content, metadata, vectorId);
         return vectorId;
     }
@@ -94,6 +99,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
         for (int i = 0; i < vectors.size(); i++) {
             VectorRecord record = vectors.get(i);
             if (i < vectorIds.size()) {
+                registerRollbackCleanup(record.getEntityType(), record.getEntityId(), vectorIds.get(i));
                 upsertSearchableEntity(record.getEntityType(), record.getEntityId(), record.getContent(),
                     record.getMetadata(), vectorIds.get(i));
             }
@@ -172,5 +178,24 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
         entity.setMetadata(MetadataJsonSerializer.serialize(metadata, config));
 
         repository.save(entity);
+    }
+
+    private void registerRollbackCleanup(String entityType, String entityId, String vectorId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    try {
+                        delegate.removeVectorById(vectorId);
+                    } catch (Exception ex) {
+                        log.warn("Unable to rollback vector {} for entity {}:{}", vectorId, entityType, entityId, ex);
+                    }
+                }
+            }
+        });
     }
 }
