@@ -47,7 +47,7 @@ public class VectorManagementService {
             
             // Check if vector already exists
             if (vectorDatabaseService.vectorExists(entityType, entityId)) {
-                log.debug("Vector already exists for entity {} of type {}, updating", entityId, entityType);
+                log.debug("Vector already exists for entity {} of type {}, replacing with fresh vector", entityId, entityType);
                 return updateVector(entityType, entityId, content, embedding, metadata);
             }
             
@@ -81,32 +81,27 @@ public class VectorManagementService {
             
             // Get existing vector
             Optional<VectorRecord> existingVector = vectorDatabaseService.getVectorByEntity(entityType, entityId);
-            
-            if (existingVector.isPresent()) {
-                // Update existing vector
-                VectorRecord vector = existingVector.get();
-                boolean updated = vectorDatabaseService.updateVector(
-                    vector.getVectorId(),
-                    entityType,
-                    entityId,
-                    content,
-                    embedding,
-                    metadata
-                );
-                
-                if (updated) {
-                    log.debug("Successfully updated vector {} for entity {} of type {}", 
-                             vector.getVectorId(), entityId, entityType);
-                    return vector.getVectorId();
-                } else {
-                    log.warn("Failed to update vector for entity {} of type {}", entityId, entityType);
-                    return null;
-                }
-            } else {
-                // Create new vector if it doesn't exist
-                log.debug("Vector not found for entity {} of type {}, creating new one", entityId, entityType);
-                return storeVector(entityType, entityId, content, embedding, metadata);
-            }
+
+            String newVectorId = vectorDatabaseService.storeVector(entityType, entityId, content, embedding, metadata);
+            log.debug("Stored new vector {} for entity {} of type {}", newVectorId, entityId, entityType);
+
+            existingVector
+                .map(VectorRecord::getVectorId)
+                .filter(previousVectorId -> previousVectorId != null && !previousVectorId.equals(newVectorId))
+                .ifPresent(previousVectorId -> {
+                    try {
+                        boolean removed = vectorDatabaseService.removeVectorById(previousVectorId);
+                        if (removed) {
+                            log.debug("Removed previous vector {} for entity {} of type {}", previousVectorId, entityId, entityType);
+                        } else {
+                            log.warn("Previous vector {} for entity {} of type {} could not be removed by ID; manual cleanup may be required", previousVectorId, entityId, entityType);
+                        }
+                    } catch (Exception removalException) {
+                        log.warn("Failed to remove previous vector {} for entity {} of type {}", previousVectorId, entityId, entityType, removalException);
+                    }
+                });
+
+            return newVectorId;
             
         } catch (Exception e) {
             log.error("Error updating vector for entity {} of type {}", entityId, entityType, e);

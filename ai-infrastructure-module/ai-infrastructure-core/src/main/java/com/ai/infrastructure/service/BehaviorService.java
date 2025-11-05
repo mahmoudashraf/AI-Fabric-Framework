@@ -351,7 +351,11 @@ public class BehaviorService {
             recommendations.add("Capture additional behavioral signals to surface patterns");
         }
 
-        double confidence = Math.min(0.95, 0.5 + patternFlags.size() * 0.12);
+        double confidence = 0.5 + patternFlags.size() * 0.12;
+        if (funnelDetected) {
+            confidence += 0.1;
+        }
+        confidence = Math.min(0.95, confidence);
         double significance = Math.min(0.9, completionRate * 0.5 + (patternFlags.size() * 0.1) + 0.3);
 
         persistPatternFlags(behaviors, patternFlags);
