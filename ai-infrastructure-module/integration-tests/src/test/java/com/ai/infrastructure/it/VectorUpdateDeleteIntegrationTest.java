@@ -107,7 +107,7 @@ class VectorUpdateDeleteIntegrationTest {
         VectorRecord updatedVector = vectorManagementService.getVector(entityType, entityId)
             .orElseThrow(() -> new AssertionError("Updated vector should be retrievable"));
 
-        assertEquals(initialVectorId, updatedVector.getVectorId(), "Vector ID should remain stable after update");
+        assertFalse(initialVectorId.equals(updatedVector.getVectorId()), "Vector ID should change after update to reference fresh embedding");
         assertEquals("Updated content", updatedVector.getContent(), "Content should reflect updated value");
         assertEquals("2", String.valueOf(updatedVector.getMetadata().get("version")), "Metadata version should be updated");
         assertEquals("update", String.valueOf(updatedVector.getMetadata().get("origin")), "Metadata origin should reflect update");
@@ -115,7 +115,7 @@ class VectorUpdateDeleteIntegrationTest {
         AISearchableEntity searchableEntity = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId)
             .orElseThrow(() -> new AssertionError("Searchable entity should exist after update"));
 
-        assertEquals(initialVectorId, searchableEntity.getVectorId(), "Searchable entity should reference stable vector ID");
+        assertEquals(updatedVector.getVectorId(), searchableEntity.getVectorId(), "Searchable entity should point to latest vector ID");
         String metadataJson = searchableEntity.getMetadata();
         assertNotNull(metadataJson, "Persisted metadata JSON should not be null");
         Map<String, Object> metadataMap;

@@ -325,20 +325,6 @@ public class AICapabilityService {
                 return;
             }
             
-            // Check if entity already exists and remove duplicates
-            List<AISearchableEntity> existing = searchableEntityRepository
-                .findByEntityType(config.getEntityType())
-                .stream()
-                .filter(e -> entityId.equals(e.getEntityId()))
-                .toList();
-            
-            // Remove duplicates if any
-            if (existing.size() > 1) {
-                for (int i = 1; i < existing.size(); i++) {
-                    searchableEntityRepository.delete(existing.get(i));
-                }
-            }
-            
             // Store vector in vector database
             Map<String, Object> metadata = extractMetadata(entity, config);
             String vectorId = null;
@@ -360,30 +346,36 @@ public class AICapabilityService {
                 return;
             }
             
+            // Refresh current entity state after vector storage (decorators may have upserted records)
+            List<AISearchableEntity> matchingEntities = searchableEntityRepository
+                .findByEntityType(config.getEntityType())
+                .stream()
+                .filter(e -> entityId.equals(e.getEntityId()))
+                .toList();
+
             AISearchableEntity searchableEntity;
-            String metadataJson = MetadataJsonSerializer.serialize(metadata, config);
-            if (!existing.isEmpty()) {
-                // Update existing entity
-                searchableEntity = existing.get(0);
-                searchableEntity.setSearchableContent(content);
-                searchableEntity.setVectorId(vectorId);
-                searchableEntity.setVectorUpdatedAt(java.time.LocalDateTime.now());
-                searchableEntity.setMetadata(metadataJson);
-                searchableEntity.setUpdatedAt(java.time.LocalDateTime.now());
+            if (!matchingEntities.isEmpty()) {
+                searchableEntity = matchingEntities.get(0);
+                if (matchingEntities.size() > 1) {
+                    for (int i = 1; i < matchingEntities.size(); i++) {
+                        searchableEntityRepository.delete(matchingEntities.get(i));
+                    }
+                }
             } else {
-                // Create new entity
                 searchableEntity = AISearchableEntity.builder()
                     .entityType(config.getEntityType())
                     .entityId(entityId)
-                    .searchableContent(content)
-                    .vectorId(vectorId)
-                    .vectorUpdatedAt(java.time.LocalDateTime.now())
-                    .metadata(metadataJson)
                     .createdAt(java.time.LocalDateTime.now())
-                    .updatedAt(java.time.LocalDateTime.now())
                     .build();
             }
-            
+
+            String metadataJson = MetadataJsonSerializer.serialize(metadata, config);
+            searchableEntity.setSearchableContent(content);
+            searchableEntity.setVectorId(vectorId);
+            searchableEntity.setVectorUpdatedAt(java.time.LocalDateTime.now());
+            searchableEntity.setMetadata(metadataJson);
+            searchableEntity.setUpdatedAt(java.time.LocalDateTime.now());
+
             searchableEntityRepository.save(searchableEntity);
             
         } catch (Exception e) {
