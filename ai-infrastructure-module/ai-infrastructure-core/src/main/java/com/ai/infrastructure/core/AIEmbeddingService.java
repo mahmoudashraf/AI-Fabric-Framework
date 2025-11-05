@@ -5,9 +5,10 @@ import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.exception.AIServiceException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -34,17 +35,30 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Slf4j
 // @Service // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
-@RequiredArgsConstructor
 public class AIEmbeddingService {
     
     private final AIProviderConfig config;
     private final EmbeddingProvider embeddingProvider;
+    private final CacheManager cacheManager;
+    private final EmbeddingProvider fallbackEmbeddingProvider;
+    private final boolean fallbackEnabled;
     
     // Performance metrics
     private final AtomicLong totalEmbeddingsGenerated = new AtomicLong(0);
     private final AtomicLong totalProcessingTime = new AtomicLong(0);
     private final ConcurrentHashMap<String, Long> cacheHits = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> cacheMisses = new ConcurrentHashMap<>();
+
+    public AIEmbeddingService(AIProviderConfig config,
+                              EmbeddingProvider embeddingProvider,
+                              CacheManager cacheManager,
+                              @Nullable EmbeddingProvider fallbackEmbeddingProvider) {
+        this.config = config;
+        this.embeddingProvider = embeddingProvider;
+        this.cacheManager = cacheManager;
+        this.fallbackEmbeddingProvider = fallbackEmbeddingProvider;
+        this.fallbackEnabled = config.getEnableFallback() != null ? config.getEnableFallback() : true;
+    }
     
     /**
      * Generate embedding for text content with caching
@@ -54,44 +68,41 @@ public class AIEmbeddingService {
      * @param request the embedding request
      * @return embedding response with vector data
      */
-    @Cacheable(value = "embeddings", key = "#request.text + '_' + #request.model + '_' + #embeddingProvider.getProviderName()")
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
+        String providerName = embeddingProvider != null ? embeddingProvider.getProviderName() : "unknown";
+        String cacheKey = buildCacheKey(request, providerName);
+        Cache cache = getEmbeddingCache();
+
+        AIEmbeddingResponse cachedResponse = getFromCache(cache, cacheKey);
+        if (cachedResponse != null) {
+            recordCacheHit(providerName);
+            return cachedResponse;
+        }
+
         try {
-            if (embeddingProvider == null || !embeddingProvider.isAvailable()) {
-                throw new AIServiceException("Embedding provider is not available. Provider: " + 
-                    (embeddingProvider != null ? embeddingProvider.getProviderName() : "null"));
+            return generateAndCache(request, embeddingProvider, cache, cacheKey);
+        } catch (AIServiceException primaryException) {
+            log.warn("Primary embedding provider {} failed: {}", providerName, primaryException.getMessage());
+            if (!fallbackEnabled || fallbackEmbeddingProvider == null || !fallbackEmbeddingProvider.isAvailable()) {
+                throw primaryException;
             }
-            
-            // Ensure we're using ONNX (if configured to do so)
-            String providerName = embeddingProvider.getProviderName();
-            if (!providerName.equals("onnx")) {
-                log.warn("WARNING: Not using ONNX provider. Current provider: {}", providerName);
-            } else {
-                log.debug("Using ONNX provider for embedding generation (no fallback)");
+
+            String fallbackName = fallbackEmbeddingProvider.getProviderName();
+            log.info("Falling back to embedding provider: {}", fallbackName);
+
+            String fallbackCacheKey = buildCacheKey(request, fallbackName);
+            AIEmbeddingResponse fallbackCached = getFromCache(cache, fallbackCacheKey);
+            if (fallbackCached != null) {
+                recordCacheHit(fallbackName);
+                return fallbackCached;
             }
-            
-            log.debug("Generating embedding using {} provider for text: {}", 
-                     providerName, request.getText());
-            
-            long startTime = System.currentTimeMillis();
-            
-            // Delegate to embedding provider
-            AIEmbeddingResponse response = embeddingProvider.generateEmbedding(request);
-            
-            long processingTime = System.currentTimeMillis() - startTime;
-            
-            // Update metrics
-            totalEmbeddingsGenerated.incrementAndGet();
-            totalProcessingTime.addAndGet(processingTime);
-            
-            log.debug("Successfully generated embedding with {} dimensions in {}ms using {} provider", 
-                response.getDimensions(), processingTime, embeddingProvider.getProviderName());
-            
-            return response;
-                
-        } catch (Exception e) {
-            log.error("Error generating embedding", e);
-            throw new AIServiceException("Failed to generate embedding", e);
+
+            try {
+                return generateAndCache(request, fallbackEmbeddingProvider, cache, fallbackCacheKey);
+            } catch (AIServiceException fallbackException) {
+                log.error("Fallback embedding provider {} also failed", fallbackName, fallbackException);
+                throw fallbackException;
+            }
         }
     }
     
@@ -257,5 +268,59 @@ public class AIEmbeddingService {
         totalProcessingTime.set(0);
         cacheHits.clear();
         cacheMisses.clear();
+    }
+
+    private Cache getEmbeddingCache() {
+        return cacheManager != null ? cacheManager.getCache("embeddings") : null;
+    }
+
+    private AIEmbeddingResponse getFromCache(Cache cache, String cacheKey) {
+        if (cache == null) {
+            return null;
+        }
+        return cache.get(cacheKey, AIEmbeddingResponse.class);
+    }
+
+    private AIEmbeddingResponse generateAndCache(AIEmbeddingRequest request,
+                                                 EmbeddingProvider provider,
+                                                 Cache cache,
+                                                 String cacheKey) {
+        if (provider == null || !provider.isAvailable()) {
+            throw new AIServiceException("Embedding provider is not available. Provider: " +
+                (provider != null ? provider.getProviderName() : "null"));
+        }
+
+        String providerName = provider.getProviderName();
+        log.debug("Generating embedding using {} provider for text: {}", providerName, request.getText());
+
+        long startTime = System.currentTimeMillis();
+        AIEmbeddingResponse response = provider.generateEmbedding(request);
+        long processingTime = System.currentTimeMillis() - startTime;
+
+        totalEmbeddingsGenerated.incrementAndGet();
+        totalProcessingTime.addAndGet(processingTime);
+        recordCacheMiss(providerName);
+
+        if (cache != null) {
+            cache.put(cacheKey, response);
+        }
+
+        log.debug("Successfully generated embedding with {} dimensions in {}ms using {} provider",
+            response.getDimensions(), processingTime, providerName);
+
+        return response;
+    }
+
+    private void recordCacheHit(String providerName) {
+        cacheHits.merge(providerName, 1L, Long::sum);
+    }
+
+    private void recordCacheMiss(String providerName) {
+        cacheMisses.merge(providerName, 1L, Long::sum);
+    }
+
+    private String buildCacheKey(AIEmbeddingRequest request, String providerName) {
+        String model = request.getModel() != null ? request.getModel() : (providerName != null ? providerName : "default");
+        return request.getText() + "_" + model + "_" + providerName;
     }
 }

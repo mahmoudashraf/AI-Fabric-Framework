@@ -1,0 +1,149 @@
+package com.ai.infrastructure.it;
+
+import com.ai.infrastructure.cache.AICacheConfig;
+import com.ai.infrastructure.core.AIEmbeddingService;
+import com.ai.infrastructure.dto.AIEmbeddingRequest;
+import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.embedding.EmbeddingProvider;
+import com.ai.infrastructure.exception.AIServiceException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.mock.mockito.MockBean;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+
+@SpringBootTest(classes = TestApplication.class,
+    properties = {
+        "ai.providers.embedding-provider=openai",
+        "ai.providers.enable-fallback=true"
+    })
+@ActiveProfiles("dev")
+@Import(AICacheConfig.class)
+class EmbeddingProviderFailoverIntegrationTest {
+
+    @Autowired
+    private AIEmbeddingService embeddingService;
+
+    @Autowired
+    private CacheManager cacheManager;
+
+    @MockBean(name = "openaiEmbeddingProvider")
+    private EmbeddingProvider primaryEmbeddingProvider;
+
+    @MockBean(name = "onnxFallbackEmbeddingProvider")
+    private EmbeddingProvider fallbackEmbeddingProvider;
+
+    private Cache cache;
+
+    @BeforeEach
+    void setUp() {
+        cache = cacheManager.getCache("embeddings");
+        if (cache != null) {
+            cache.clear();
+        }
+        embeddingService.clearMetrics();
+
+        Mockito.reset(primaryEmbeddingProvider, fallbackEmbeddingProvider);
+        Mockito.when(primaryEmbeddingProvider.getProviderName()).thenReturn("openai");
+        Mockito.when(primaryEmbeddingProvider.isAvailable()).thenReturn(true);
+
+        Mockito.when(fallbackEmbeddingProvider.getProviderName()).thenReturn("onnx");
+        Mockito.when(fallbackEmbeddingProvider.isAvailable()).thenReturn(true);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (cache != null) {
+            cache.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("Embedding service falls back to ONNX when primary fails and recovers when primary is available")
+    void embeddingServiceFallsBackAndRecovers() {
+        AtomicBoolean primaryShouldFail = new AtomicBoolean(true);
+        AtomicReference<AIEmbeddingResponse> primarySuccessResponse = new AtomicReference<>();
+
+        Mockito.when(primaryEmbeddingProvider.generateEmbedding(ArgumentMatchers.any()))
+            .thenAnswer(invocation -> {
+                if (primaryShouldFail.get()) {
+                    throw new AIServiceException("Simulated OpenAI outage");
+                }
+                return primarySuccessResponse.get();
+            });
+
+        AIEmbeddingResponse fallbackResponse = AIEmbeddingResponse.builder()
+            .embedding(List.of(0.11, 0.22, 0.33))
+            .model("onnx-fallback")
+            .dimensions(3)
+            .processingTimeMs(7L)
+            .requestId(UUID.randomUUID().toString())
+            .build();
+
+        Mockito.when(fallbackEmbeddingProvider.generateEmbedding(ArgumentMatchers.any()))
+            .thenReturn(fallbackResponse);
+
+        AIEmbeddingRequest request = AIEmbeddingRequest.builder()
+            .text("simulate outage for embedding")
+            .model("text-embedding-3-small")
+            .build();
+
+        AIEmbeddingResponse firstResponse = embeddingService.generateEmbedding(request);
+        assertSame(fallbackResponse, firstResponse, "Fallback provider should supply embedding during outage");
+
+        assertEquals(1, Mockito.mockingDetails(primaryEmbeddingProvider).getInvocations().stream()
+            .filter(invocation -> invocation.getMethod().getName().equals("generateEmbedding"))
+            .count(), "Primary provider should be attempted once during outage");
+        Mockito.verify(fallbackEmbeddingProvider, Mockito.times(1)).generateEmbedding(ArgumentMatchers.any());
+
+        Map<String, Object> metricsAfterFallback = embeddingService.getPerformanceMetrics();
+        Map<?, ?> misses = (Map<?, ?>) metricsAfterFallback.get("cacheMisses");
+        assertEquals(1L, misses.get("onnx"), "Fallback provider miss should be recorded");
+
+        if (cache != null) {
+            cache.clear();
+        }
+
+        primaryShouldFail.set(false);
+        AIEmbeddingResponse recoveryResponse = AIEmbeddingResponse.builder()
+            .embedding(List.of(0.9, 0.8, 0.7))
+            .model("text-embedding-3-small")
+            .dimensions(3)
+            .processingTimeMs(6L)
+            .requestId(UUID.randomUUID().toString())
+            .build();
+        primarySuccessResponse.set(recoveryResponse);
+
+        AIEmbeddingResponse secondResponse = embeddingService.generateEmbedding(request);
+        assertSame(recoveryResponse, secondResponse, "Service should resume using primary provider once available");
+
+        assertEquals(2, Mockito.mockingDetails(primaryEmbeddingProvider).getInvocations().stream()
+            .filter(invocation -> invocation.getMethod().getName().equals("generateEmbedding"))
+            .count(), "Primary provider should be retried after recovery");
+        Mockito.verify(fallbackEmbeddingProvider, Mockito.times(1)).generateEmbedding(ArgumentMatchers.any());
+
+        Map<String, Object> metrics = embeddingService.getPerformanceMetrics();
+        Map<?, ?> hits = (Map<?, ?>) metrics.get("cacheHits");
+        assertNotNull(hits, "Cache metrics should be available after recovery");
+    }
+
+}
+
