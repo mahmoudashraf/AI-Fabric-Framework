@@ -30,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -123,6 +124,80 @@ class SearchConcurrencyIntegrationTest {
         assertTrue(cacheMisses >= 1, "At least one cache miss is expected on warm-up");
         assertTrue(cacheMisses <= CONCURRENT_CLIENTS, "Cache misses should not exceed total requests");
         assertTrue(cacheHitRate > 0.0, "Cache hit rate should be positive after concurrent warm-up");
+    }
+
+    @Test
+    @DisplayName("Vector search keeps caches warm across mixed concurrent queries")
+    void vectorSearchMaintainsCacheUnderMixedWorkload() throws Exception {
+        List<String> queries = List.of(
+            "artisanal chronograph watch",
+            "carbon fiber dive watch",
+            "modular travel organizer"
+        );
+
+        Map<String, List<Double>> embeddings = queries.stream()
+            .collect(Collectors.toMap(
+                query -> query,
+                query -> embeddingService.generateEmbedding(
+                    AIEmbeddingRequest.builder().text(query).build()
+                ).getEmbedding()
+            ));
+
+        Map<String, AISearchRequest> requests = queries.stream()
+            .collect(Collectors.toMap(
+                query -> query,
+                query -> AISearchRequest.builder()
+                    .query(query)
+                    .entityType(ENTITY_TYPE)
+                    .limit(5)
+                    .threshold(0.0)
+                    .build()
+            ));
+
+        // Warm cache sequentially so each query has a cached response
+        queries.forEach(query -> vectorSearchService.search(embeddings.get(query), requests.get(query)));
+
+        Map<String, Object> warmStats = vectorSearchService.getSearchStatistics();
+        assertEquals(queries.size(), ((Number) warmStats.get("cacheMisses")).longValue(),
+            "Warm-up should incur exactly one miss per unique query");
+        assertEquals(0L, ((Number) warmStats.get("cacheHits")).longValue(),
+            "No cache hits expected during initial warm-up");
+
+        vectorSearchService.clearMetrics();
+
+        ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_CLIENTS);
+        List<Callable<AISearchResponse>> tasks = new ArrayList<>();
+        AtomicInteger position = new AtomicInteger();
+        for (int i = 0; i < CONCURRENT_CLIENTS; i++) {
+            tasks.add(() -> {
+                int index = position.getAndIncrement() % queries.size();
+                String query = queries.get(index);
+                return vectorSearchService.search(embeddings.get(query), requests.get(query));
+            });
+        }
+
+        List<Future<AISearchResponse>> futures = executor.invokeAll(tasks);
+        executor.shutdown();
+        executor.awaitTermination(30, TimeUnit.SECONDS);
+
+        for (Future<AISearchResponse> future : futures) {
+            AISearchResponse response = future.get();
+            assertNotNull(response, "Concurrent mixed query response should not be null");
+            assertTrue(response.getTotalResults() > 0, "Responses should contain vector matches");
+        }
+
+        Map<String, Object> stats = vectorSearchService.getSearchStatistics();
+        long totalSearches = ((Number) stats.get("totalSearches")).longValue();
+        long cacheHits = ((Number) stats.get("cacheHits")).longValue();
+        long cacheMisses = ((Number) stats.get("cacheMisses")).longValue();
+        double cacheHitRate = (Double) stats.get("cacheHitRate");
+
+        assertEquals(CONCURRENT_CLIENTS, totalSearches,
+            "Total search count should equal number of concurrent mixed queries");
+        assertEquals(0L, cacheMisses, "Cache should remain warm during mixed workload");
+        assertEquals(CONCURRENT_CLIENTS, cacheHits, "All concurrent lookups should hit the cache");
+        assertEquals(1.0d, cacheHitRate, 1e-6,
+            "Cache hit rate should be perfect once warm");
     }
 
     private void seedCatalog() {
