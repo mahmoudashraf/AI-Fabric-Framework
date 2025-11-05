@@ -36,15 +36,22 @@ import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
 import com.ai.infrastructure.cache.AIIntelligentCacheService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.lang.Nullable;
+
+import java.util.List;
 
 /**
  * Auto-configuration for AI Infrastructure module
@@ -91,6 +98,7 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
+    @Primary
     @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "rest")
     @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
     public EmbeddingProvider restEmbeddingProvider(AIProviderConfig config) {
@@ -100,6 +108,7 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
+    @Primary
     @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "openai")
     @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
     public EmbeddingProvider openaiEmbeddingProvider(AIProviderConfig config) {
@@ -108,9 +117,31 @@ public class AIInfrastructureAutoConfiguration {
         return new OpenAIEmbeddingProvider(config);
     }
     
+    @Bean(name = "onnxFallbackEmbeddingProvider")
+    @ConditionalOnProperty(name = "ai.providers.enable-fallback", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
+    public EmbeddingProvider onnxFallbackEmbeddingProvider(AIProviderConfig config) {
+        log.info("Creating ONNX fallback Embedding Provider");
+        ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
+        if (!provider.isAvailable()) {
+            log.warn("WARNING: ONNX fallback provider is not available. Model file may be missing.");
+            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnxModelPath());
+        }
+        return provider;
+    }
+    
     @Bean
-    public AIEmbeddingService aiEmbeddingService(AIProviderConfig config, EmbeddingProvider embeddingProvider) {
-        String providerName = embeddingProvider != null ? embeddingProvider.getProviderName() : "null";
+    public AIEmbeddingService aiEmbeddingService(AIProviderConfig config,
+                                                 List<EmbeddingProvider> embeddingProviders,
+                                                 ObjectProvider<CacheManager> cacheManagerProvider,
+                                                 @Qualifier("onnxFallbackEmbeddingProvider") @Nullable EmbeddingProvider fallbackEmbeddingProvider) {
+        EmbeddingProvider selectedProvider = embeddingProviders.stream()
+            .filter(provider -> provider != null && provider.getProviderName() != null)
+            .filter(provider -> provider.getProviderName().equalsIgnoreCase(config.getEmbeddingProvider()))
+            .findFirst()
+            .orElseGet(() -> embeddingProviders.isEmpty() ? null : embeddingProviders.get(0));
+
+        String providerName = selectedProvider != null ? selectedProvider.getProviderName() : "null";
         log.info("Creating AIEmbeddingService with provider: {}", providerName);
         
         // Validate that ONNX is being used (if that's what we want)
@@ -121,7 +152,8 @@ public class AIInfrastructureAutoConfiguration {
             log.info("✅ AIEmbeddingService configured to use ONNX provider (no fallback to other providers)");
         }
         
-        return new AIEmbeddingService(config, embeddingProvider);
+        CacheManager cacheManager = cacheManagerProvider.getIfAvailable(NoOpCacheManager::new);
+        return new AIEmbeddingService(config, selectedProvider, cacheManager, fallbackEmbeddingProvider);
     }
     
     @Bean
