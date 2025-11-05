@@ -5,6 +5,8 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -87,6 +89,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     private static final String ENTITY_TYPE_FIELD = "entityType";
     
     private static final Map<Path, SharedIndex> INDEX_CACHE = new ConcurrentHashMap<>();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private Directory directory;
     private IndexWriter indexWriter;
@@ -193,61 +196,19 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                              List<Double> embedding, Map<String, Object> metadata) {
         try {
             log.debug("Storing vector in Lucene for entity {} of type {}", entityId, entityType);
-            
-            // Generate unique vector ID
+
             String vectorId = UUID.randomUUID().toString();
-            
-            Document doc = new Document();
-            
-            // Add basic fields
-            doc.add(new StringField(VECTOR_ID_FIELD, vectorId, Field.Store.YES));
-            doc.add(new StringField(ENTITY_ID_FIELD, entityId, Field.Store.YES));
-            doc.add(new StringField(ENTITY_TYPE_FIELD, entityType, Field.Store.YES));
-            doc.add(new TextField("content", content, Field.Store.YES));
-            
-            // Convert List<Double> to float[] for Lucene KnnVectorField
-            // Lucene 9+ uses float[] for vector fields (more efficient than double[])
-            float[] vectorArray = new float[embedding.size()];
-            for (int i = 0; i < embedding.size(); i++) {
-                vectorArray[i] = embedding.get(i).floatValue();
-            }
-            
-            // Use KnnVectorField for native k-NN search (Lucene 9+)
-            // This provides optimized approximate nearest neighbor search
-            doc.add(new KnnVectorField(VECTOR_FIELD, vectorArray, VectorSimilarityFunction.COSINE));
-            
-            // Also store embedding as text for retrieval (backward compatibility)
-            String embeddingText = embedding.stream()
-                .map(String::valueOf)
-                .collect(Collectors.joining(","));
-            doc.add(new TextField("embedding", embeddingText, Field.Store.YES));
-            
-            // Add metadata as JSON string
-            if (metadata != null && !metadata.isEmpty()) {
-                String metadataJson = metadata.entrySet().stream()
-                    .map(entry -> "\"" + entry.getKey() + "\":\"" + entry.getValue() + "\"")
-                    .collect(Collectors.joining(",", "{", "}"));
-                doc.add(new TextField("metadata", metadataJson, Field.Store.YES));
-            }
-            
-            // Add timestamp
-            long currentTime = System.currentTimeMillis();
-            doc.add(new StringField("storedAt", String.valueOf(currentTime), Field.Store.YES));
-            doc.add(new StringField("createdAt", String.valueOf(currentTime), Field.Store.YES));
-            doc.add(new StringField("updatedAt", String.valueOf(currentTime), Field.Store.YES));
-            
-            // Index the document
-            indexWriter.addDocument(doc);
+            Document document = buildDocument(vectorId, entityType, entityId, content, embedding, metadata);
+
+            indexWriter.addDocument(document);
             indexWriter.commit();
-            
-            // Refresh reader for immediate searchability
             refreshReader();
-            
-            log.debug("Successfully stored vector in Lucene for entity {} of type {} with vectorId {}", 
-                     entityId, entityType, vectorId);
-            
+
+            log.debug("Successfully stored vector in Lucene for entity {} of type {} with vectorId {}",
+                entityId, entityType, vectorId);
+
             return vectorId;
-            
+
         } catch (Exception e) {
             log.error("Error storing vector in Lucene", e);
             throw new AIServiceException("Failed to store vector in Lucene", e);
@@ -426,24 +387,62 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             log.debug("Updating vector {} in Lucene for entity {} of type {}", vectorId, entityId, entityType);
             
-            // First remove the existing vector
             Term term = new Term(VECTOR_ID_FIELD, vectorId);
             long deletedCount = indexWriter.deleteDocuments(term);
-            
-            if (deletedCount > 0) {
-                // Store the updated vector
-                storeVector(entityType, entityId, content, embedding, metadata);
-                log.debug("Successfully updated vector {} in Lucene", vectorId);
-                return true;
-            } else {
+
+            if (deletedCount == 0) {
                 log.warn("Vector {} not found for update", vectorId);
                 return false;
             }
-            
+
+            Document document = buildDocument(vectorId, entityType, entityId, content, embedding, metadata);
+
+            indexWriter.addDocument(document);
+            indexWriter.commit();
+            refreshReader();
+
+            log.debug("Successfully updated vector {} in Lucene", vectorId);
+            return true;
+
         } catch (Exception e) {
             log.error("Error updating vector in Lucene", e);
             throw new AIServiceException("Failed to update vector in Lucene", e);
         }
+    }
+
+    private Document buildDocument(String vectorId, String entityType, String entityId, String content,
+                                   List<Double> embedding, Map<String, Object> metadata) {
+        Document doc = new Document();
+
+        doc.add(new StringField(VECTOR_ID_FIELD, vectorId, Field.Store.YES));
+        doc.add(new StringField(ENTITY_ID_FIELD, entityId, Field.Store.YES));
+        doc.add(new StringField(ENTITY_TYPE_FIELD, entityType, Field.Store.YES));
+        doc.add(new TextField("content", content, Field.Store.YES));
+
+        float[] vectorArray = new float[embedding.size()];
+        for (int i = 0; i < embedding.size(); i++) {
+            vectorArray[i] = embedding.get(i).floatValue();
+        }
+        doc.add(new KnnVectorField(VECTOR_FIELD, vectorArray, VectorSimilarityFunction.COSINE));
+
+        String embeddingText = embedding.stream()
+            .map(String::valueOf)
+            .collect(Collectors.joining(","));
+        doc.add(new TextField("embedding", embeddingText, Field.Store.YES));
+
+        if (metadata != null && !metadata.isEmpty()) {
+            String metadataJson = metadata.entrySet().stream()
+                .map(entry -> "\"" + entry.getKey() + "\":\"" + entry.getValue() + "\"")
+                .collect(Collectors.joining(",", "{", "}"));
+            doc.add(new TextField("metadata", metadataJson, Field.Store.YES));
+        }
+
+        long currentTime = System.currentTimeMillis();
+        doc.add(new StringField("storedAt", String.valueOf(currentTime), Field.Store.YES));
+        doc.add(new StringField("createdAt", String.valueOf(currentTime), Field.Store.YES));
+        doc.add(new StringField("updatedAt", String.valueOf(currentTime), Field.Store.YES));
+
+        return doc;
     }
     
     @Override
@@ -705,9 +704,13 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             Map<String, Object> metadata = new HashMap<>();
             String metadataJson = doc.get("metadata");
             if (metadataJson != null && !metadataJson.trim().isEmpty()) {
-                // Simple JSON parsing - in production, use Jackson or Gson
-                // This is a simplified implementation
                 metadata.put("raw", metadataJson);
+                try {
+                    Map<String, Object> parsed = OBJECT_MAPPER.readValue(metadataJson, new TypeReference<Map<String, Object>>() {});
+                    metadata.putAll(parsed);
+                } catch (Exception parseException) {
+                    log.warn("Unable to deserialize metadata JSON: {}", metadataJson, parseException);
+                }
             }
             
             return VectorRecord.builder()
