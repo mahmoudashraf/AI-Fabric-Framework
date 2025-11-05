@@ -5,12 +5,16 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.support.NoOpCacheManager;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -31,11 +35,11 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class VectorSearchService {
     
     private final AIProviderConfig config;
     private final VectorDatabaseService vectorDatabaseService;
+    private final CacheManager cacheManager;
     
     // In-memory vector store for backward compatibility (deprecated - use VectorDatabaseService)
     @Deprecated
@@ -46,6 +50,14 @@ public class VectorSearchService {
     private final AtomicLong totalSearchTime = new AtomicLong(0);
     private final AtomicLong cacheHits = new AtomicLong(0);
     private final AtomicLong cacheMisses = new AtomicLong(0);
+
+    public VectorSearchService(AIProviderConfig config,
+                               VectorDatabaseService vectorDatabaseService,
+                               @Nullable CacheManager cacheManager) {
+        this.config = config;
+        this.vectorDatabaseService = vectorDatabaseService;
+        this.cacheManager = cacheManager != null ? cacheManager : new NoOpCacheManager();
+    }
     
     /**
      * Perform vector search - delegates to VectorDatabaseService
@@ -57,30 +69,32 @@ public class VectorSearchService {
      * @param request the search request
      * @return search results with similarity scores calculated by the vector database
      */
-    @Cacheable(value = "vectorSearch", key = "#queryVector.hashCode() + '_' + #request.hashCode()")
     public AISearchResponse search(List<Double> queryVector, AISearchRequest request) {
-        try {
-            log.debug("Performing vector search via VectorDatabaseService for query: {}", request.getQuery());
-            
-            long startTime = System.currentTimeMillis();
-            totalSearches.incrementAndGet();
-            
-            // Delegate to VectorDatabaseService - it handles similarity internally
-            // Lucene uses native k-NN, Pinecone/Qdrant use their own optimized algorithms
-            AISearchResponse response = vectorDatabaseService.search(queryVector, request);
-            
-            long processingTime = System.currentTimeMillis() - startTime;
-            totalSearchTime.addAndGet(processingTime);
-            
-            log.debug("Vector database returned {} results in {}ms", 
-                     response.getTotalResults(), processingTime);
-            
-            return response;
-                
-        } catch (Exception e) {
-            log.error("Error performing vector search", e);
-            throw new AIServiceException("Failed to perform vector search", e);
+        totalSearches.incrementAndGet();
+
+        String cacheKey = buildCacheKey(queryVector, request);
+        Cache cache = getSearchCache();
+
+        AISearchResponse cachedResponse = getFromCache(cache, cacheKey);
+        if (cachedResponse != null) {
+            cacheHits.incrementAndGet();
+            log.debug("Vector search cache hit for query: {}", request.getQuery());
+            return cachedResponse;
         }
+
+        long startTime = System.currentTimeMillis();
+        AISearchResponse response = executeSearch(queryVector, request);
+        long processingTime = System.currentTimeMillis() - startTime;
+
+        totalSearchTime.addAndGet(processingTime);
+        cacheMisses.incrementAndGet();
+
+        if (cache != null) {
+            cache.put(cacheKey, response);
+        }
+
+        log.debug("Vector database returned {} results in {}ms", response.getTotalResults(), processingTime);
+        return response;
     }
     
     /**
@@ -205,13 +219,18 @@ public class VectorSearchService {
         long totalSearchesCount = totalSearches.get();
         long totalSearchTimeMs = totalSearchTime.get();
         double avgSearchTime = totalSearchesCount > 0 ? (double) totalSearchTimeMs / totalSearchesCount : 0.0;
+        long cacheHitsCount = cacheHits.get();
+        long cacheMissesCount = cacheMisses.get();
+        long cacheRequests = cacheHitsCount + cacheMissesCount;
+        double cacheHitRate = cacheRequests > 0 ? (double) cacheHitsCount / cacheRequests : 0.0;
         
         return Map.of(
             "totalSearches", totalSearchesCount,
             "totalSearchTimeMs", totalSearchTimeMs,
             "averageSearchTimeMs", avgSearchTime,
-            "cacheHits", cacheHits.get(),
-            "cacheMisses", cacheMisses.get(),
+            "cacheHits", cacheHitsCount,
+            "cacheMisses", cacheMissesCount,
+            "cacheHitRate", cacheHitRate,
             "totalVectors", vectorStore.values().stream().mapToInt(List::size).sum(),
             "entityTypes", vectorStore.keySet()
         );
@@ -227,4 +246,34 @@ public class VectorSearchService {
      * This abstraction allows swapping between vector databases without changing application code.
      * All implementations handle similarity internally, providing optimized performance.
      */
+
+    public void clearMetrics() {
+        totalSearches.set(0);
+        totalSearchTime.set(0);
+        cacheHits.set(0);
+        cacheMisses.set(0);
+    }
+
+    private AISearchResponse executeSearch(List<Double> queryVector, AISearchRequest request) {
+        try {
+            return vectorDatabaseService.search(queryVector, request);
+        } catch (Exception e) {
+            log.error("Error performing vector search", e);
+            throw new AIServiceException("Failed to perform vector search", e);
+        }
+    }
+
+    private Cache getSearchCache() {
+        return cacheManager.getCache("vectorSearch");
+    }
+
+    private AISearchResponse getFromCache(Cache cache, String cacheKey) {
+        return cache != null ? cache.get(cacheKey, AISearchResponse.class) : null;
+    }
+
+    private String buildCacheKey(List<Double> queryVector, AISearchRequest request) {
+        int vectorHash = queryVector != null ? queryVector.hashCode() : 0;
+        int requestHash = request != null ? request.hashCode() : 0;
+        return vectorHash + "_" + requestHash;
+    }
 }

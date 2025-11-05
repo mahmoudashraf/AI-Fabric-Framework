@@ -302,8 +302,11 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public VectorSearchService vectorSearchService(AIProviderConfig config, VectorDatabaseService vectorDatabaseService) {
-        return new VectorSearchService(config, vectorDatabaseService);
+    public VectorSearchService vectorSearchService(AIProviderConfig config,
+                                                  VectorDatabaseService vectorDatabaseService,
+                                                  ObjectProvider<CacheManager> cacheManagerProvider) {
+        CacheManager cacheManager = cacheManagerProvider.getIfAvailable(NoOpCacheManager::new);
+        return new VectorSearchService(config, vectorDatabaseService, cacheManager);
     }
     
     @Bean
