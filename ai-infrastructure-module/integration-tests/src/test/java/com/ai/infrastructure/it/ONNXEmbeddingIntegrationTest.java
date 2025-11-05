@@ -105,6 +105,7 @@ class ONNXEmbeddingIntegrationTest {
         try {
             result = openAiService.createEmbeddings(request);
         } catch (OpenAiHttpException httpException) {
+            // Treat transient quota or service issues as a skipped comparison rather than a hard failure.
             Assumptions.assumeTrue(false,
                 "Skipping OpenAI embedding comparison due to API error: " + httpException.getMessage());
             throw httpException; // unreachable but required for compilation

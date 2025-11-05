@@ -77,7 +77,7 @@ class VectorUpdateDeleteIntegrationTest {
     }
 
     @Test
-    @DisplayName("Vector updates retain identifier and propagate metadata changes, and deletions remove all artifacts")
+    @DisplayName("Vector updates replace identifier while propagating metadata updates, and deletions remove all artifacts")
     void vectorUpdateAndDeleteStayConsistent() {
         String entityType = "vector-update-" + UUID.randomUUID();
         String entityId = "entity-" + UUID.randomUUID();
