@@ -5,6 +5,9 @@ import com.ai.infrastructure.dto.BehaviorRequest;
 import com.ai.infrastructure.dto.BehaviorResponse;
 import com.ai.infrastructure.entity.Behavior;
 import com.ai.infrastructure.repository.BehaviorRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -12,8 +15,17 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,6 +46,10 @@ public class BehaviorService {
     
     private final BehaviorRepository behaviorRepository;
     private final AICapabilityService aiCapabilityService;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String FUNNEL_PATTERN_FLAG = "FUNNEL_COMPLETED";
+    private static final String EVENING_PATTERN_FLAG = "EVENING_SHOPPER";
+    private static final String WEEKEND_PATTERN_FLAG = "WEEKEND_PREFERENCE";
     
     /**
      * Create a new behavior record
@@ -204,27 +220,201 @@ public class BehaviorService {
     /**
      * Analyze behaviors for a user
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public BehaviorAnalysisResult analyzeBehaviors(UUID userId) {
         log.info("Analyzing behaviors for user: {}", userId);
-        
+
         List<Behavior> behaviors = behaviorRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        
-        // Use AI capability service for analysis
-        // For now, return a basic analysis result
-        // TODO: Implement proper behavior analysis
-        return BehaviorAnalysisResult.builder()
+        if (behaviors.isEmpty()) {
+            return BehaviorAnalysisResult.builder()
                 .analysisId(UUID.randomUUID().toString())
                 .userId(userId.toString())
-                .analysisType("behavior_analysis")
-                .summary("Behavior analysis completed")
-                .insights(List.of("User shows consistent engagement patterns"))
-                .patterns(List.of("Regular usage patterns detected"))
-                .recommendations(List.of("Consider personalized recommendations"))
-                .confidenceScore(0.8)
-                .significanceScore(0.7)
+                .analysisType("behavior_pattern_detection")
+                .summary("No behavioral data available for analysis")
+                .insights(List.of("Collect more behavioral events to enable pattern detection"))
+                .patterns(List.of())
+                .recommendations(List.of("Encourage user engagement to capture behavioral signals"))
+                .confidenceScore(0.3)
+                .significanceScore(0.2)
                 .analyzedAt(LocalDateTime.now())
                 .build();
+        }
+
+        List<Behavior> chronological = new ArrayList<>(behaviors);
+        chronological.sort(Comparator.comparing(Behavior::getCreatedAt));
+
+        int totalEvents = chronological.size();
+        long viewCount = chronological.stream()
+            .filter(b -> b.getBehaviorType() == Behavior.BehaviorType.PRODUCT_VIEW
+                || b.getBehaviorType() == Behavior.BehaviorType.VIEW
+                || b.getBehaviorType() == Behavior.BehaviorType.PAGE_VIEW)
+            .count();
+        long addToCartCount = chronological.stream()
+            .filter(b -> b.getBehaviorType() == Behavior.BehaviorType.ADD_TO_CART)
+            .count();
+        long purchaseCount = chronological.stream()
+            .filter(b -> b.getBehaviorType() == Behavior.BehaviorType.PURCHASE)
+            .count();
+
+        boolean funnelDetected = false;
+        boolean viewSeen = false;
+        boolean cartSeen = false;
+        for (Behavior behavior : chronological) {
+            switch (behavior.getBehaviorType()) {
+                case PRODUCT_VIEW, VIEW, PAGE_VIEW -> viewSeen = true;
+                case ADD_TO_CART -> {
+                    if (viewSeen) {
+                        cartSeen = true;
+                    }
+                }
+                case PURCHASE -> {
+                    if (viewSeen && cartSeen) {
+                        funnelDetected = true;
+                    }
+                }
+                default -> {
+                    // no-op
+                }
+            }
+            if (funnelDetected) {
+                break;
+            }
+        }
+
+        double completionRate = viewCount == 0 ? 0.0 : (double) purchaseCount / viewCount;
+
+        long eveningCount = chronological.stream()
+            .filter(b -> Optional.ofNullable(b.getCreatedAt())
+                .map(LocalDateTime::toLocalTime)
+                .map(time -> !time.isBefore(LocalTime.of(18, 0)) && !time.isAfter(LocalTime.of(21, 59)))
+                .orElse(false))
+            .count();
+        boolean eveningPattern = totalEvents > 0 && (double) eveningCount / totalEvents >= 0.6;
+
+        long weekendCount = chronological.stream()
+            .filter(b -> Optional.ofNullable(b.getCreatedAt())
+                .map(LocalDateTime::getDayOfWeek)
+                .map(day -> day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY)
+                .orElse(false))
+            .count();
+        boolean weekendPreference = totalEvents > 0 && (double) weekendCount / totalEvents >= 0.5;
+
+        Map<String, Long> categoryFrequency = new LinkedHashMap<>();
+        chronological.forEach(behavior -> extractCategory(behavior)
+            .ifPresent(category -> categoryFrequency.merge(category.toLowerCase(), 1L, Long::sum)));
+
+        String topCategory = categoryFrequency.entrySet().stream()
+            .max(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey)
+            .orElse(null);
+        boolean categoryAffinity = topCategory != null && categoryFrequency.get(topCategory) >= Math.max(3, totalEvents * 0.3);
+
+        List<String> patterns = new ArrayList<>();
+        List<String> insights = new ArrayList<>();
+        List<String> recommendations = new ArrayList<>();
+        Set<String> patternFlags = new LinkedHashSet<>();
+
+        if (funnelDetected) {
+            patternFlags.add(FUNNEL_PATTERN_FLAG);
+            patterns.add(String.format("Browse → Cart → Purchase funnel detected (completion rate %.0f%%)", completionRate * 100));
+            insights.add("User completes the purchase funnel after engaging with products");
+            recommendations.add("Reinforce post-cart nudges to maintain funnel completion strength");
+        } else {
+            recommendations.add("Introduce targeted incentives to improve cart-to-purchase conversion");
+        }
+
+        if (eveningPattern) {
+            patternFlags.add(EVENING_PATTERN_FLAG);
+            patterns.add(String.format("Evening shopping preference detected (%d of %d events after 6pm)", eveningCount, totalEvents));
+            insights.add("Behavior peaks during evening hours, schedule campaigns accordingly");
+            recommendations.add("Schedule personalized offers between 6pm and 10pm local time");
+        }
+
+        if (weekendPreference) {
+            patternFlags.add(WEEKEND_PATTERN_FLAG);
+            patterns.add(String.format("Weekend activity spike detected (%d weekend events)", weekendCount));
+            insights.add("User displays stronger engagement on weekends");
+            recommendations.add("Launch exclusive weekend bundles to capitalize on engagement spike");
+        }
+
+        if (categoryAffinity && topCategory != null) {
+            String categoryFlag = "CATEGORY_" + topCategory.toUpperCase();
+            patternFlags.add(categoryFlag);
+            patterns.add(String.format("Category affinity detected: %s (%,d interactions)", topCategory, categoryFrequency.get(topCategory)));
+            insights.add(String.format("User shows sustained interest in %s products", topCategory));
+            recommendations.add(String.format("Curate personalized recommendations for %s items", topCategory));
+        }
+
+        if (patterns.isEmpty()) {
+            patterns.add("No strong behavioral patterns identified");
+            insights.add("Current activity volume is insufficient for reliable pattern detection");
+            recommendations.add("Capture additional behavioral signals to surface patterns");
+        }
+
+        double confidence = Math.min(0.95, 0.5 + patternFlags.size() * 0.12);
+        double significance = Math.min(0.9, completionRate * 0.5 + (patternFlags.size() * 0.1) + 0.3);
+
+        persistPatternFlags(behaviors, patternFlags);
+
+        return BehaviorAnalysisResult.builder()
+            .analysisId(UUID.randomUUID().toString())
+            .userId(userId.toString())
+            .analysisType("behavior_pattern_detection")
+            .summary(String.format("Analyzed %,d behavioral events", totalEvents))
+            .insights(insights)
+            .patterns(patterns)
+            .recommendations(recommendations)
+            .confidenceScore(confidence)
+            .significanceScore(significance)
+            .analyzedAt(LocalDateTime.now())
+            .build();
+    }
+
+    private void persistPatternFlags(List<Behavior> behaviors, Set<String> patternFlags) {
+        String serializedFlags = serializePatternFlags(patternFlags);
+        behaviors.forEach(behavior -> behavior.setPatternFlags(serializedFlags));
+        behaviorRepository.saveAll(behaviors);
+    }
+
+    private String serializePatternFlags(Set<String> patternFlags) {
+        if (patternFlags.isEmpty()) {
+            return "[]";
+        }
+        try {
+            return OBJECT_MAPPER.writeValueAsString(patternFlags);
+        } catch (JsonProcessingException exception) {
+            log.warn("Unable to serialize pattern flags, falling back to comma-separated string", exception);
+            return String.join(",", patternFlags);
+        }
+    }
+
+    private Optional<String> extractCategory(Behavior behavior) {
+        List<String> candidates = new ArrayList<>();
+        if (behavior.getMetadata() != null) {
+            parseMetadataValue(behavior.getMetadata(), "category").ifPresent(candidates::add);
+            parseMetadataValue(behavior.getMetadata(), "categories")
+                .ifPresent(value -> candidates.add(value.split(",")[0]));
+        }
+        if (behavior.getEntityType() != null && behavior.getEntityType().toLowerCase().contains("watch")) {
+            candidates.add("watches");
+        }
+        return candidates.stream().filter(candidate -> !candidate.isBlank()).findFirst();
+    }
+
+    private Optional<String> parseMetadataValue(String metadataJson, String key) {
+        try {
+            Map<String, Object> parsed = OBJECT_MAPPER.readValue(metadataJson, new TypeReference<Map<String, Object>>() {});
+            Object value = parsed.get(key);
+            if (value instanceof String stringValue && !stringValue.isBlank()) {
+                return Optional.of(stringValue);
+            }
+            if (value != null) {
+                return Optional.of(value.toString());
+            }
+        } catch (Exception ignored) {
+            // ignore parsing issues
+        }
+        return Optional.empty();
     }
     
     /**
