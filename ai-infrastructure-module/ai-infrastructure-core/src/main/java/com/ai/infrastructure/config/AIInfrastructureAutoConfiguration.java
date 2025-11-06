@@ -29,7 +29,7 @@ import com.ai.infrastructure.embedding.RestEmbeddingProvider;
 import com.ai.infrastructure.embedding.OpenAIEmbeddingProvider;
 import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
-import com.ai.infrastructure.vector.PineconeVectorDatabase;
+import com.ai.infrastructure.vector.VectorDatabaseServiceAdapter;
 import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIHealthService;
@@ -48,6 +48,7 @@ import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.lang.Nullable;
@@ -66,6 +67,7 @@ import java.util.List;
 @Slf4j
 @Configuration
 @EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class})
+@Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -234,8 +236,9 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config) {
-        return new PineconeVectorDatabaseService(config);
+    public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config,
+                                                                       org.springframework.web.client.RestTemplate restTemplate) {
+        return new PineconeVectorDatabaseService(config, restTemplate);
     }
 
     @Bean
@@ -314,8 +317,9 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public VectorDatabase vectorDatabase(AIProviderConfig config) {
-        return new PineconeVectorDatabase(config);
+    @ConditionalOnMissingBean(VectorDatabase.class)
+    public VectorDatabase vectorDatabase(VectorDatabaseService vectorDatabaseService) {
+        return new VectorDatabaseServiceAdapter(vectorDatabaseService);
     }
     
     @Bean
