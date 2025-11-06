@@ -318,14 +318,22 @@ public class RAGService {
      * Convert a single search result to RAG document
      */
     private RAGResponse.RAGDocument convertToRAGDocument(Map<String, Object> result) {
+        Map<String, Object> metadata = normalizeMetadata(result.get("metadata"));
+
+        Object scoreValue = result.getOrDefault("score", 0.0);
+        Object similarityValue = result.getOrDefault("similarity", 0.0);
+
+        double score = scoreValue instanceof Number number ? number.doubleValue() : parseDouble(scoreValue) != null ? parseDouble(scoreValue) : 0.0;
+        double similarity = similarityValue instanceof Number number ? number.doubleValue() : parseDouble(similarityValue) != null ? parseDouble(similarityValue) : 0.0;
+
         return RAGResponse.RAGDocument.builder()
             .id((String) result.get("id"))
             .content((String) result.get("content"))
             .title((String) result.get("title"))
             .type((String) result.get("type"))
-            .score(((Number) result.getOrDefault("score", 0.0)).doubleValue())
-            .similarity(((Number) result.getOrDefault("similarity", 0.0)).doubleValue())
-            .metadata((Map<String, Object>) result.getOrDefault("metadata", new HashMap<>()))
+            .score(score)
+            .similarity(similarity)
+            .metadata(metadata)
             .build();
     }
     

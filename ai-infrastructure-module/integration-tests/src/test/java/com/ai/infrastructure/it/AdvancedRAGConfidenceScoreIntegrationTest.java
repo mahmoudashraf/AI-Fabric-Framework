@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
@@ -32,11 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = TestApplication.class)
-@ActiveProfiles("test")
+@ActiveProfiles("dev")
 @TestPropertySource(properties = {
     "ai.vector-db.lucene.index-path=./data/test-lucene-index/confidence",
     "ai.vector-db.lucene.similarity-threshold=0.0"
@@ -45,7 +43,7 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
 
     private static final String ENTITY_TYPE = "ragproduct-confidence";
 
-    @SpyBean
+    @Autowired
     private RAGService ragService;
 
     @Autowired
@@ -59,12 +57,6 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        doAnswer(invocation -> {
-            RAGRequest request = invocation.getArgument(0);
-            request.setThreshold(0.0);
-            return invocation.callRealMethod();
-        }).when(ragService).performRag(any(RAGRequest.class));
-
         when(aiCoreService.generateText(anyString())).thenReturn(
             "confidence calibration\nscoring overview"
         );
@@ -97,6 +89,7 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
                 .rerankingStrategy("semantic")
                 .enableHybridSearch(true)
                 .enableContextualSearch(false)
+                .similarityThreshold(0.0)
                 .categories(List.of("watches"))
                 .build()
         );

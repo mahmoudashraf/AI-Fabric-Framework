@@ -6,7 +6,6 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.service.VectorManagementService;
@@ -19,7 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 
 import java.util.List;
 import java.util.Map;
@@ -34,7 +32,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 /**
@@ -51,7 +48,7 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
     private static final String ENTITY_TYPE = "ragproduct-expansion-coverage";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    @SpyBean
+    @Autowired
     private RAGService ragService;
 
     @Autowired
@@ -65,12 +62,6 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        doAnswer(invocation -> {
-            RAGRequest request = invocation.getArgument(0);
-            request.setThreshold(0.0);
-            return invocation.callRealMethod();
-        }).when(ragService).performRag(any(RAGRequest.class));
-
         when(aiCoreService.generateText(anyString())).thenReturn(
             String.join("\n",
                 "luxury watch",
