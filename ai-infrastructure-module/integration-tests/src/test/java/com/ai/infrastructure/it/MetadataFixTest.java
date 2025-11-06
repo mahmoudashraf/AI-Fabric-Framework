@@ -17,7 +17,7 @@ import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes = TestApplication.class)
-@ActiveProfiles("real-api-test")
+@ActiveProfiles("test")
 @Transactional
 public class MetadataFixTest {
     

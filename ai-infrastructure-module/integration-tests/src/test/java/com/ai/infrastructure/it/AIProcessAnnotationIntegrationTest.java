@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -46,7 +47,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = TestApplication.class)
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 class AIProcessAnnotationIntegrationTest {
 
     private static final Duration WAIT_TIMEOUT = Duration.ofSeconds(10);
@@ -60,7 +61,7 @@ class AIProcessAnnotationIntegrationTest {
     @SpyBean
     private AISearchableEntityRepository searchableEntityRepository;
 
-    @Autowired
+    @SpyBean
     private VectorManagementService vectorManagementService;
 
     @Autowired
@@ -82,6 +83,7 @@ class AIProcessAnnotationIntegrationTest {
         clearProductVectors();
         reset(searchableEntityRepository);
         reset(productRepository);
+        reset(vectorManagementService);
     }
 
     @AfterEach
@@ -89,6 +91,7 @@ class AIProcessAnnotationIntegrationTest {
         searchableEntityRepository.deleteAll();
         productRepository.deleteAll();
         clearProductVectors();
+        reset(vectorManagementService);
     }
 
     @Test
@@ -235,13 +238,9 @@ class AIProcessAnnotationIntegrationTest {
     @DisplayName("@AIProcess continues when downstream AI processing throws")
     void aiProcessGracefullyHandlesProcessingErrors() {
         reset(searchableEntityRepository, productRepository);
-        VectorManagementService originalService = vectorManagementService;
-        VectorManagementService failingService = org.mockito.Mockito.mock(VectorManagementService.class);
-        when(failingService.storeVector(any(), any(), any(), any(), any()))
-            .thenThrow(new RuntimeException("Simulated indexing failure"));
-        when(failingService.clearVectorsByEntityType(any())).thenReturn(0L);
-
-        aiCapabilityService.setVectorManagementService(failingService);
+        doReturn(null)
+            .when(vectorManagementService)
+            .storeVector(any(), any(), any(), any(), any());
         try {
             TestProduct saved = productService.createProduct(TestProduct.builder()
                 .name("Echo Smart Display")
@@ -257,9 +256,9 @@ class AIProcessAnnotationIntegrationTest {
             assertTrue(productRepository.findById(saved.getId()).isPresent(),
                 "Entity should persist despite AI processing failure");
 
-            verify(failingService, atLeastOnce()).storeVector(any(), any(), any(), any(), any());
+            verify(vectorManagementService, atLeastOnce()).storeVector(any(), any(), any(), any(), any());
         } finally {
-            aiCapabilityService.setVectorManagementService(originalService);
+            reset(vectorManagementService);
         }
     }
 

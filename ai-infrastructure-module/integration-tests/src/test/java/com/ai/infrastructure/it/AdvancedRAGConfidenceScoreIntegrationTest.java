@@ -36,7 +36,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = TestApplication.class)
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 @TestPropertySource(properties = {
     "ai.vector-db.lucene.index-path=./data/test-lucene-index/confidence",
     "ai.vector-db.lucene.similarity-threshold=0.0"

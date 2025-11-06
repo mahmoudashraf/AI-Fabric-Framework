@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Integration coverage for TEST-SEARCH-006: Threshold Tuning.
  */
 @SpringBootTest(classes = TestApplication.class)
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 class SearchThresholdTuningIntegrationTest {
 
     private static final String ENTITY_TYPE = "searchthreshold_product";

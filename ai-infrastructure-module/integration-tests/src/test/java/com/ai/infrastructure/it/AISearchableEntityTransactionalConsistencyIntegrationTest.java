@@ -1,5 +1,7 @@
 package com.ai.infrastructure.it;
 
+import com.ai.infrastructure.core.AIEmbeddingService;
+import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
@@ -20,7 +22,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.IntStream;
 
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,16 +31,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest(classes = TestApplication.class)
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 class AISearchableEntityTransactionalConsistencyIntegrationTest {
-
-    private static final int EMBEDDING_DIMENSION = 32;
 
     @Autowired
     private VectorManagementService vectorManagementService;
 
     @Autowired
     private AISearchableEntityRepository searchableEntityRepository;
+
+    @Autowired
+    private AIEmbeddingService embeddingService;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -76,7 +78,7 @@ class AISearchableEntityTransactionalConsistencyIntegrationTest {
                 entityType,
                 entityId,
                 "Transactional rollback product",
-                syntheticEmbedding(EMBEDDING_DIMENSION, 1),
+                  embeddingFor("Transactional rollback product"),
                 Map.of("scenario", "rollback")
             );
             throw new RuntimeException("Force rollback for transactional consistency test");
@@ -101,7 +103,7 @@ class AISearchableEntityTransactionalConsistencyIntegrationTest {
             entityType,
             entityId,
             "Transactional commit product",
-            syntheticEmbedding(EMBEDDING_DIMENSION, 2),
+              embeddingFor("Transactional commit product"),
             Map.of("scenario", "commit")
         ));
 
@@ -117,11 +119,12 @@ class AISearchableEntityTransactionalConsistencyIntegrationTest {
         });
     }
 
-    private List<Double> syntheticEmbedding(int dimension, int seed) {
-        return IntStream.range(0, dimension)
-            .mapToDouble(index -> (seed + index + 1) * 0.0003d)
-            .boxed()
-            .toList();
+    private List<Double> embeddingFor(String content) {
+        return embeddingService.generateEmbedding(
+            AIEmbeddingRequest.builder()
+                .text(content)
+                .build()
+        ).getEmbedding();
     }
 }
 
