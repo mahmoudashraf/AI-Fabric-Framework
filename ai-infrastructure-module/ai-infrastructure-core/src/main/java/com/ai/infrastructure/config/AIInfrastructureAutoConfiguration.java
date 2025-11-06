@@ -34,6 +34,7 @@ import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
+import com.ai.infrastructure.api.DefaultAIAutoGeneratorService;
 import com.ai.infrastructure.cache.AIIntelligentCacheService;
 import com.ai.infrastructure.provider.AIProviderManager;
 import lombok.extern.slf4j.Slf4j;
@@ -334,9 +335,8 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnProperty(name = "ai.service.auto-generator.enabled", havingValue = "true", matchIfMissing = false)
-    public AIAutoGeneratorService aiAutoGeneratorService(AICoreService aiCoreService) {
-        // TODO: Implement concrete implementation
-        return null;
+    public AIAutoGeneratorService aiAutoGeneratorService(AICoreService aiCoreService, AIServiceConfig serviceConfig) {
+        return new DefaultAIAutoGeneratorService(aiCoreService, serviceConfig);
     }
     
     @Bean
