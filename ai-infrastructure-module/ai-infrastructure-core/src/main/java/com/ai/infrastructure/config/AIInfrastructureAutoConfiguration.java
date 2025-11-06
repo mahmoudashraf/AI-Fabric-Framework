@@ -36,6 +36,8 @@ import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
 import com.ai.infrastructure.api.DefaultAIAutoGeneratorService;
 import com.ai.infrastructure.cache.AIIntelligentCacheService;
+import com.ai.infrastructure.cache.CacheConfig;
+import com.ai.infrastructure.cache.DefaultAIIntelligentCacheService;
 import com.ai.infrastructure.provider.AIProviderManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -54,6 +56,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.lang.Nullable;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -341,9 +344,8 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnProperty(name = "ai.service.intelligent-cache.enabled", havingValue = "true", matchIfMissing = false)
-    public AIIntelligentCacheService aiIntelligentCacheService() {
-        // TODO: Implement concrete implementation
-        return null;
+    public AIIntelligentCacheService aiIntelligentCacheService(AIServiceConfig serviceConfig) {
+        return new DefaultAIIntelligentCacheService(resolveCacheConfig(serviceConfig));
     }
     
             @Bean
@@ -377,5 +379,38 @@ public class AIInfrastructureAutoConfiguration {
                 .enabled(true)
                 .priority(1)
                 .build();
+    }
+
+    private CacheConfig resolveCacheConfig(AIServiceConfig serviceConfig) {
+        AIServiceConfig.CacheConfig original = serviceConfig != null ? serviceConfig.getCache() : null;
+
+        boolean enabled = serviceConfig == null || serviceConfig.isCachingEnabled();
+        if (original != null && original.getEnabled() != null) {
+            enabled = enabled && original.getEnabled();
+        }
+
+        Duration defaultTtl = original != null && original.getDefaultTtl() != null
+            ? original.getDefaultTtl()
+            : Duration.ofMinutes(10);
+
+        Long maxSize = original != null && original.getMaxSize() != null
+            ? original.getMaxSize()
+            : 10_000L;
+
+        String evictionPolicy = original != null && original.getEvictionPolicy() != null
+            ? original.getEvictionPolicy()
+            : "LRU";
+
+        boolean metricsEnabled = original == null || Boolean.TRUE.equals(original.getEnableMetrics());
+
+        return CacheConfig.builder()
+            .enabled(enabled)
+            .type("memory")
+            .defaultTtl(defaultTtl)
+            .maxSize(maxSize)
+            .evictionPolicy(evictionPolicy)
+            .enableMetrics(metricsEnabled)
+            .enableStatistics(metricsEnabled)
+            .build();
     }
 }
