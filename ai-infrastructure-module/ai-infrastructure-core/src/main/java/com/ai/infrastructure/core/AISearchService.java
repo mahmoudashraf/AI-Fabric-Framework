@@ -5,12 +5,14 @@ import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.search.VectorSearchService;
+import com.ai.infrastructure.service.VectorManagementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Service for AI semantic search
@@ -27,15 +29,15 @@ public class AISearchService {
     
     private final AIProviderConfig config;
     private final VectorSearchService vectorSearchService;
-    
-    public AISearchService(AIProviderConfig config, VectorSearchService vectorSearchService) {
-        this.config = config;
-        this.vectorSearchService = vectorSearchService;
+    private final VectorManagementService vectorManagementService;
+
+    public AISearchService(AIProviderConfig config,
+                           VectorSearchService vectorSearchService,
+                           VectorManagementService vectorManagementService) {
+        this.config = Objects.requireNonNull(config, "AIProviderConfig must not be null");
+        this.vectorSearchService = Objects.requireNonNull(vectorSearchService, "VectorSearchService must not be null");
+        this.vectorManagementService = Objects.requireNonNull(vectorManagementService, "VectorManagementService must not be null");
     }
-    
-    // In-memory storage for demo purposes
-    // In production, this would be replaced with a proper vector database
-    private final Map<String, List<Map<String, Object>>> vectorStore = new HashMap<>();
     
     /**
      * Perform semantic search using vector similarity
@@ -113,18 +115,6 @@ public class AISearchService {
             
             // Use VectorSearchService for advanced indexing
             vectorSearchService.storeVector(entityType, entityId, content, embedding, metadata);
-            
-            // Also maintain backward compatibility with simple store
-            Map<String, Object> entity = new HashMap<>();
-            entity.put("id", entityId);
-            entity.put("content", content);
-            entity.put("embedding", embedding);
-            entity.put("entityType", entityType);
-            entity.put("metadata", metadata != null ? metadata : new HashMap<>());
-            entity.put("indexedAt", System.currentTimeMillis());
-            
-            vectorStore.computeIfAbsent(entityType, k -> new ArrayList<>()).add(entity);
-            
             log.debug("Successfully indexed entity {} of type {}", entityId, entityType);
             
         } catch (Exception e) {
@@ -142,12 +132,7 @@ public class AISearchService {
     public void removeEntity(String entityType, String entityId) {
         try {
             log.debug("Removing entity {} of type {}", entityId, entityType);
-            
-            List<Map<String, Object>> entities = vectorStore.get(entityType);
-            if (entities != null) {
-                entities.removeIf(entity -> entityId.equals(entity.get("id")));
-            }
-            
+            vectorManagementService.removeVector(entityType, entityId);
             log.debug("Successfully removed entity {} of type {}", entityId, entityType);
             
         } catch (Exception e) {
@@ -157,48 +142,15 @@ public class AISearchService {
     }
     
     /**
-     * Calculate cosine similarity between two vectors
-     * 
-     * @param vectorA first vector
-     * @param vectorB second vector
-     * @return cosine similarity score
-     */
-    private double calculateCosineSimilarity(List<Double> vectorA, List<Double> vectorB) {
-        if (vectorA == null || vectorB == null || vectorA.size() != vectorB.size()) {
-            return 0.0;
-        }
-        
-        double dotProduct = 0.0;
-        double normA = 0.0;
-        double normB = 0.0;
-        
-        for (int i = 0; i < vectorA.size(); i++) {
-            double a = vectorA.get(i);
-            double b = vectorB.get(i);
-            dotProduct += a * b;
-            normA += a * a;
-            normB += b * b;
-        }
-        
-        if (normA == 0.0 || normB == 0.0) {
-            return 0.0;
-        }
-        
-        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-    }
-    
-    /**
-     * Get statistics about the vector store
-     * 
+     * Get statistics about the backing vector store and search layer.
+     *
      * @return map of statistics
      */
     public Map<String, Object> getStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalEntities", vectorStore.values().stream().mapToInt(List::size).sum());
-        stats.put("entityTypes", vectorStore.keySet());
-        stats.put("entityTypeCounts", vectorStore.entrySet().stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size())));
-        return stats;
+        return Map.of(
+            "vectorDatabase", vectorManagementService.getStatistics(),
+            "searchMetrics", vectorSearchService.getSearchStatistics()
+        );
     }
     
     /**
@@ -206,7 +158,7 @@ public class AISearchService {
      */
     public void clearIndex() {
         log.debug("Clearing vector store index");
-        vectorStore.clear();
+        vectorManagementService.clearAllVectors();
     }
     
     /**
@@ -215,16 +167,6 @@ public class AISearchService {
      * @return map of search statistics
      */
     public Map<String, Object> getSearchStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalEntities", vectorStore.values().stream().mapToInt(List::size).sum());
-        stats.put("entityTypes", vectorStore.keySet());
-        stats.put("entityTypeCounts", vectorStore.entrySet().stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size())));
-        
-        // Add advanced search statistics
-        Map<String, Object> advancedStats = vectorSearchService.getSearchStatistics();
-        stats.putAll(advancedStats);
-        
-        return stats;
+        return vectorSearchService.getSearchStatistics();
     }
 }

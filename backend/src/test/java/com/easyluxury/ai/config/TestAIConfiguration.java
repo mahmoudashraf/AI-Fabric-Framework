@@ -17,6 +17,7 @@ import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.service.BehaviorService;
 import com.ai.infrastructure.service.AIInfrastructureProfileService;
 import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.repository.BehaviorRepository;
 import com.ai.infrastructure.repository.AIInfrastructureProfileRepository;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
@@ -87,9 +88,11 @@ public class TestAIConfiguration {
     
     @Bean
     @Primary
-    public AISearchService aiSearchService(AIProviderConfig config, VectorSearchService vectorSearchService) {
+    public AISearchService aiSearchService(AIProviderConfig config,
+                                           VectorSearchService vectorSearchService,
+                                           VectorManagementService vectorManagementService) {
         log.info("Creating AISearchService for test context");
-        return new AISearchService(config, vectorSearchService);
+        return new AISearchService(config, vectorSearchService, vectorManagementService);
     }
     
     @Bean
