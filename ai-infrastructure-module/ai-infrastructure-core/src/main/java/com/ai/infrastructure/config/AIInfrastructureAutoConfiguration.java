@@ -8,8 +8,8 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
-import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.AdvancedRAGService;
+import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.security.AISecurityService;
@@ -35,6 +35,7 @@ import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
 import com.ai.infrastructure.cache.AIIntelligentCacheService;
+import com.ai.infrastructure.provider.AIProviderManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -157,8 +158,11 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AICoreService aiCoreService(AIProviderConfig config, AIEmbeddingService embeddingService, AISearchService searchService) {
-        return new AICoreService(config, embeddingService, searchService);
+    public AICoreService aiCoreService(AIProviderConfig config,
+                                      AIEmbeddingService embeddingService,
+                                      AISearchService searchService,
+                                      AIProviderManager providerManager) {
+        return new AICoreService(config, embeddingService, searchService, providerManager);
     }
     
     @Bean
