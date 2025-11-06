@@ -9,8 +9,8 @@
   - `PineconeVectorDatabaseService` now performs authenticated REST calls for upsert, query, fetch, delete, and stats endpoints
   - Legacy `VectorDatabase` wiring delegates to the real service; in-memory fallbacks are removed from production profiles
   - `AIInfrastructureAutoConfiguration` honours `ai.vector-db.type` when wiring vector database beans
-- **Service beans left unimplemented**
-  - `aiAutoGeneratorService` bean (`config/AIInfrastructureAutoConfiguration.java`) returns `null` under the feature flag
+- **Service beans left unimplemented (in progress)**
+  - `aiAutoGeneratorService` now instantiates `DefaultAIAutoGeneratorService`, wiring `AICoreService` and `AIServiceConfig`; regression coverage added in `DefaultAIAutoGeneratorServiceTest`
   - `aiIntelligentCacheService` bean (`config/AIInfrastructureAutoConfiguration.java`) returns `null` under the feature flag
 - **Mocked or fallback-only runtime paths**
   - `AICapabilityService` produces `mock-vector-id-*` identifiers when `VectorManagementService` is absent instead of failing fast
@@ -33,7 +33,7 @@
   - ✅ Update `AIInfrastructureAutoConfiguration.vectorDatabase` to respect `ai.vector-db.type` and align bean lifecycles with the configured backend
   - Add integration tests (e.g., contract tests using Pinecone mock/standalone server) plus smoke scripts for real environments
 - **Phase 2 — Complete feature-flagged services**
-  - Deliver `AIAutoGeneratorService` implementation (define interface contracts, integrate with `AICoreService`, cover error handling and observability)
+  - ✅ Deliver `AIAutoGeneratorService` implementation (define interface contracts, integrate with `AICoreService`, cover error handling and observability)
   - Deliver `AIIntelligentCacheService` with cache warmers, invalidation hooks, and configuration-driven toggles; provide unit tests and configuration docs
   - Harden fallbacks in `AICapabilityService` by requiring `VectorManagementService` (fail startup if missing) or injecting a no-op implementation for non-vector deployments
   - Backfill integration tests to confirm `AICoreService` honors provider selection logic and expose configuration docs for multi-provider deployments
