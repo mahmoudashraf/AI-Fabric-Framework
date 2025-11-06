@@ -17,7 +17,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.ai.infrastructure")
 @Import(AIInfrastructureAutoConfiguration.class)
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
