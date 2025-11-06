@@ -172,8 +172,10 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AISearchService aiSearchService(AIProviderConfig config, VectorSearchService vectorSearchService) {
-        return new AISearchService(config, vectorSearchService);
+    public AISearchService aiSearchService(AIProviderConfig config,
+                                           VectorSearchService vectorSearchService,
+                                           VectorManagementService vectorManagementService) {
+        return new AISearchService(config, vectorSearchService, vectorManagementService);
     }
     
     @Bean

@@ -13,8 +13,7 @@
   - `aiAutoGeneratorService` now instantiates `DefaultAIAutoGeneratorService`, wiring `AICoreService` and `AIServiceConfig`; regression coverage added in `DefaultAIAutoGeneratorServiceTest`
   - `aiIntelligentCacheService` now provisions `DefaultAIIntelligentCacheService` with feature-flag aware configuration, TTL/tag management, and unit coverage in `DefaultAIIntelligentCacheServiceTest`
 - **Mocked or fallback-only runtime paths (in progress)**
-  - `AICapabilityService` now requires `VectorManagementService`; remaining tasks focus on deprecating in-memory search stores and ensuring mock services stay dev-only
-  - `AISearchService` (`core/AISearchService.java`) and `VectorSearchService` (`search/VectorSearchService.java`) still maintain deprecated in-memory stores meant for demos
+  - `AICapabilityService`, `AISearchService`, and `VectorSearchService` now require the real vector stack; remaining tasks focus on ensuring mock services stay dev-only
   - `MockAIService` (`mock/MockAIService.java`) can be enabled via configuration; production profiles must ensure the flag is disabled
 - **Core service provider abstraction (addressed)**
   - `AICoreService` now routes generation through `AIProviderManager` and embeddings through `AIEmbeddingService`; add regression coverage to keep multi-provider support from regressing
@@ -38,7 +37,7 @@
   - ✅ Harden fallbacks in `AICapabilityService` by requiring `VectorManagementService` (fail startup if missing) or injecting a no-op implementation for non-vector deployments
   - Backfill integration tests to confirm `AICoreService` honors provider selection logic and expose configuration docs for multi-provider deployments
 - **Phase 3 — Replace demo logic**
-  - Remove deprecated in-memory stores from `AISearchService` and `VectorSearchService`; if backward compatibility is needed, guard behind explicit dev-only flags
+  - ✅ Remove deprecated in-memory stores from `AISearchService` and `VectorSearchService`; if backward compatibility is needed, guard behind explicit dev-only flags
   - Compute `consistencyScore` and `accuracyScore` in `AIValidationService` using deterministic analytics (schema rule checks, statistical validation) instead of random numbers; document formulas and add regression tests
   - Ensure production builds disable `MockAIService` by default and guard property overrides via profiling / configuration checks
 - **Phase 4 — Configuration and provider hygiene**

@@ -12,12 +12,11 @@ import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 /**
  * Advanced vector search service - delegates to VectorDatabaseService
@@ -40,10 +39,6 @@ public class VectorSearchService {
     private final AIProviderConfig config;
     private final VectorDatabaseService vectorDatabaseService;
     private final CacheManager cacheManager;
-    
-    // In-memory vector store for backward compatibility (deprecated - use VectorDatabaseService)
-    @Deprecated
-    private final Map<String, List<Map<String, Object>>> vectorStore = new ConcurrentHashMap<>();
     
     // Performance metrics
     private final AtomicLong totalSearches = new AtomicLong(0);
@@ -224,16 +219,15 @@ public class VectorSearchService {
         long cacheRequests = cacheHitsCount + cacheMissesCount;
         double cacheHitRate = cacheRequests > 0 ? (double) cacheHitsCount / cacheRequests : 0.0;
         
-        return Map.of(
-            "totalSearches", totalSearchesCount,
-            "totalSearchTimeMs", totalSearchTimeMs,
-            "averageSearchTimeMs", avgSearchTime,
-            "cacheHits", cacheHitsCount,
-            "cacheMisses", cacheMissesCount,
-            "cacheHitRate", cacheHitRate,
-            "totalVectors", vectorStore.values().stream().mapToInt(List::size).sum(),
-            "entityTypes", vectorStore.keySet()
-        );
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalSearches", totalSearchesCount);
+        stats.put("totalSearchTimeMs", totalSearchTimeMs);
+        stats.put("averageSearchTimeMs", avgSearchTime);
+        stats.put("cacheHits", cacheHitsCount);
+        stats.put("cacheMisses", cacheMissesCount);
+        stats.put("cacheHitRate", cacheHitRate);
+        stats.put("vectorDatabase", vectorDatabaseService.getStatistics());
+        return stats;
     }
     
     /**
