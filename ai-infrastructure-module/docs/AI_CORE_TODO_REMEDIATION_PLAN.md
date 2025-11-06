@@ -16,6 +16,8 @@
   - `AICapabilityService` produces `mock-vector-id-*` identifiers when `VectorManagementService` is absent instead of failing fast
   - `AISearchService` (`core/AISearchService.java`) and `VectorSearchService` (`search/VectorSearchService.java`) still maintain deprecated in-memory stores meant for demos
   - `MockAIService` (`mock/MockAIService.java`) can be enabled via configuration; production profiles must ensure the flag is disabled
+- **Core service provider abstraction (addressed)**
+  - `AICoreService` now routes generation through `AIProviderManager` and embeddings through `AIEmbeddingService`; add regression coverage to keep multi-provider support from regressing
 - **Validation heuristics**
   - `AIValidationService` (`validation/AIValidationService.java`) seeds `consistencyScore` and `accuracyScore` with `Math.random()` demo values
 - **Configuration gaps**
@@ -34,6 +36,7 @@
   - Deliver `AIAutoGeneratorService` implementation (define interface contracts, integrate with `AICoreService`, cover error handling and observability)
   - Deliver `AIIntelligentCacheService` with cache warmers, invalidation hooks, and configuration-driven toggles; provide unit tests and configuration docs
   - Harden fallbacks in `AICapabilityService` by requiring `VectorManagementService` (fail startup if missing) or injecting a no-op implementation for non-vector deployments
+  - Backfill integration tests to confirm `AICoreService` honors provider selection logic and expose configuration docs for multi-provider deployments
 - **Phase 3 — Replace demo logic**
   - Remove deprecated in-memory stores from `AISearchService` and `VectorSearchService`; if backward compatibility is needed, guard behind explicit dev-only flags
   - Compute `consistencyScore` and `accuracyScore` in `AIValidationService` using deterministic analytics (schema rule checks, statistical validation) instead of random numbers; document formulas and add regression tests

@@ -1,26 +1,21 @@
 package com.ai.infrastructure.core;
 
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.exception.AIServiceException;
-import com.theokanning.openai.completion.chat.ChatCompletionRequest;
-import com.theokanning.openai.completion.chat.ChatMessage;
-import com.theokanning.openai.completion.chat.ChatMessageRole;
-import com.theokanning.openai.embedding.EmbeddingRequest;
-import com.theokanning.openai.embedding.EmbeddingResult;
-import com.theokanning.openai.service.OpenAiService;
+import com.ai.infrastructure.provider.AIProviderManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Core AI service providing generic AI capabilities
@@ -42,20 +37,7 @@ public class AICoreService {
     private final AIProviderConfig aiProviderConfig;
     private final AIEmbeddingService embeddingService;
     private final AISearchService searchService;
-    
-    private OpenAiService openAiService;
-    
-    /**
-     * Initialize OpenAI service with configuration
-     */
-    private void initializeOpenAI() {
-        if (openAiService == null) {
-            openAiService = new OpenAiService(
-                aiProviderConfig.getOpenaiApiKey(),
-                Duration.ofSeconds(aiProviderConfig.getOpenaiTimeout())
-            );
-        }
-    }
+    private final AIProviderManager providerManager;
     
     /**
      * Generate AI content based on prompt
@@ -65,31 +47,18 @@ public class AICoreService {
      */
     public AIGenerationResponse generateContent(AIGenerationRequest request) {
         try {
-            initializeOpenAI();
-            
-            log.debug("Generating AI content for prompt: {}", request.getPrompt());
-            
-            ChatCompletionRequest chatRequest = ChatCompletionRequest.builder()
-                .model(aiProviderConfig.getOpenaiModel())
-                .messages(List.of(
-                    new ChatMessage(ChatMessageRole.SYSTEM.value(), request.getSystemPrompt()),
-                    new ChatMessage(ChatMessageRole.USER.value(), request.getPrompt())
-                ))
-                .maxTokens(aiProviderConfig.getOpenaiMaxTokens())
-                .temperature(aiProviderConfig.getOpenaiTemperature())
-                .build();
-            
-            var completion = openAiService.createChatCompletion(chatRequest);
-            var message = completion.getChoices().get(0).getMessage();
-            
-            log.debug("Successfully generated AI content");
-            
-            return AIGenerationResponse.builder()
-                .content(message.getContent())
-                .model(aiProviderConfig.getOpenaiModel())
-                .usage(completion.getUsage())
-                .build();
-                
+            AIGenerationRequest generationRequest = applyGenerationDefaults(request);
+
+            log.debug("Generating AI content via provider manager for prompt: {}",
+                generationRequest.getPrompt());
+
+            AIGenerationResponse response = providerManager.generateContent(generationRequest);
+
+            log.debug("Successfully generated AI content using provider response model: {}",
+                response.getModel());
+
+            return response;
+
         } catch (Exception e) {
             log.error("Error generating AI content", e);
             throw new AIServiceException("Failed to generate AI content", e);
@@ -104,26 +73,18 @@ public class AICoreService {
      */
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
         try {
-            initializeOpenAI();
-            
-            log.debug("Generating embedding for text: {}", request.getText());
-            
-            EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
-                .model(aiProviderConfig.getOpenaiEmbeddingModel())
-                .input(List.of(request.getText()))
-                .build();
-            
-            EmbeddingResult result = openAiService.createEmbeddings(embeddingRequest);
-            var embedding = result.getData().get(0).getEmbedding();
-            
-            log.debug("Successfully generated embedding with {} dimensions", embedding.size());
-            
-            return AIEmbeddingResponse.builder()
-                .embedding(embedding)
-                .model(aiProviderConfig.getOpenaiEmbeddingModel())
-                .dimensions(embedding.size())
-                .build();
-                
+            AIEmbeddingRequest embeddingRequest = applyEmbeddingDefaults(request);
+
+            log.debug("Generating embedding via embedding service for entityType={} entityId={}",
+                embeddingRequest.getEntityType(), embeddingRequest.getEntityId());
+
+            AIEmbeddingResponse response = embeddingService.generateEmbedding(embeddingRequest);
+
+            log.debug("Successfully generated embedding with {} dimensions using provider {}",
+                response.getDimensions(), response.getModel());
+
+            return response;
+
         } catch (Exception e) {
             log.error("Error generating embedding", e);
             throw new AIServiceException("Failed to generate embedding", e);
@@ -266,27 +227,68 @@ public class AICoreService {
      */
     public String generateText(String prompt) {
         try {
-            initializeOpenAI();
-            
-            if (openAiService == null) {
-                throw new AIServiceException("OpenAI service not available");
-            }
-            
-            ChatCompletionRequest chatRequest = ChatCompletionRequest.builder()
+            AIGenerationRequest request = AIGenerationRequest.builder()
+                .entityId("adhoc-" + UUID.randomUUID())
+                .entityType("adhoc")
+                .generationType("text")
+                .prompt(prompt)
                 .model(aiProviderConfig.getOpenaiModel())
-                .messages(List.of(new ChatMessage(ChatMessageRole.USER.value(), prompt)))
-                .maxTokens(1000)
-                .temperature(0.7)
+                .maxTokens(Math.min(aiProviderConfig.getOpenaiMaxTokens(), 1000))
+                .temperature(aiProviderConfig.getOpenaiTemperature())
                 .build();
-            
-            var completion = openAiService.createChatCompletion(chatRequest);
-            var message = completion.getChoices().get(0).getMessage();
-            
-            return message.getContent();
+
+            return generateContent(request).getContent();
                 
         } catch (Exception e) {
             log.error("Error generating text: {}", e.getMessage(), e);
             throw new AIServiceException("Failed to generate text: " + e.getMessage(), e);
         }
+    }
+
+    private AIGenerationRequest applyGenerationDefaults(AIGenerationRequest request) {
+        if (request == null) {
+            throw new AIServiceException("Generation request cannot be null");
+        }
+
+        boolean requiresDefaults = request.getModel() == null
+            || request.getMaxTokens() == null
+            || request.getTemperature() == null;
+
+        if (!requiresDefaults) {
+            return request;
+        }
+
+        return AIGenerationRequest.builder()
+            .entityId(request.getEntityId())
+            .entityType(request.getEntityType())
+            .generationType(request.getGenerationType())
+            .prompt(request.getPrompt())
+            .context(request.getContext())
+            .systemPrompt(request.getSystemPrompt())
+            .purpose(request.getPurpose())
+            .parameters(request.getParameters())
+            .userId(request.getUserId())
+            .model(request.getModel() != null ? request.getModel() : aiProviderConfig.getOpenaiModel())
+            .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : aiProviderConfig.getOpenaiMaxTokens())
+            .temperature(request.getTemperature() != null ? request.getTemperature() : aiProviderConfig.getOpenaiTemperature())
+            .build();
+    }
+
+    private AIEmbeddingRequest applyEmbeddingDefaults(AIEmbeddingRequest request) {
+        if (request == null) {
+            throw new AIServiceException("Embedding request cannot be null");
+        }
+
+        if (request.getModel() != null) {
+            return request;
+        }
+
+        return AIEmbeddingRequest.builder()
+            .text(request.getText())
+            .entityType(request.getEntityType())
+            .entityId(request.getEntityId())
+            .metadata(request.getMetadata())
+            .model(aiProviderConfig.getOpenaiEmbeddingModel())
+            .build();
     }
 }
