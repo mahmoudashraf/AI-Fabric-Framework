@@ -165,14 +165,6 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AICoreService aiCoreService(AIProviderConfig config,
-                                      AIEmbeddingService embeddingService,
-                                      AISearchService searchService,
-                                      AIProviderManager providerManager) {
-        return new AICoreService(config, embeddingService, searchService, providerManager);
-    }
-    
-    @Bean
     public AISearchService aiSearchService(AIProviderConfig config,
                                            VectorSearchService vectorSearchService,
                                            VectorManagementService vectorManagementService) {
