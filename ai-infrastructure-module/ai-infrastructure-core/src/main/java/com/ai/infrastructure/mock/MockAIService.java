@@ -24,7 +24,7 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "ai.provider.openai.mock-responses", havingValue = "true")
+@ConditionalOnProperty(prefix = "ai.mock", name = "enabled", havingValue = "true")
 public class MockAIService {
     
     private final AIProviderConfig config;
