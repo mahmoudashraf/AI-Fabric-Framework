@@ -37,6 +37,8 @@ public class AIProviderConfig {
     private String pineconeEnvironment = "us-east-1-aws";
     private String pineconeIndexName = "ai-infrastructure";
     private Integer pineconeDimensions = 1536;
+    private String pineconeProjectId;
+    private String pineconeApiHost;
     
     // AI Features Configuration
     private Boolean enableRAG = true;

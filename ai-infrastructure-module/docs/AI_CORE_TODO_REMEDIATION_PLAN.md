@@ -5,10 +5,10 @@
 - Provide a phased remediation path that lands production-ready services without breaking existing consumers
 
 ### Current Gaps
-- **Vector database integration**
-  - `PineconeVectorDatabaseService` (`rag/PineconeVectorDatabaseService.java`) logs "not yet implemented" in every method and returns placeholders
-  - `PineconeVectorDatabase` (`vector/PineconeVectorDatabase.java`) uses an in-memory `ConcurrentHashMap` rather than the Pinecone API
-  - `AIInfrastructureAutoConfiguration.vectorDatabase` always instantiates `PineconeVectorDatabase`, ignoring `ai.vector-db.type`
+- **Vector database integration (implemented)**
+  - `PineconeVectorDatabaseService` now performs authenticated REST calls for upsert, query, fetch, delete, and stats endpoints
+  - Legacy `VectorDatabase` wiring delegates to the real service; in-memory fallbacks are removed from production profiles
+  - `AIInfrastructureAutoConfiguration` honours `ai.vector-db.type` when wiring vector database beans
 - **Service beans left unimplemented**
   - `aiAutoGeneratorService` bean (`config/AIInfrastructureAutoConfiguration.java`) returns `null` under the feature flag
   - `aiIntelligentCacheService` bean (`config/AIInfrastructureAutoConfiguration.java`) returns `null` under the feature flag
@@ -28,9 +28,9 @@
 
 ### Remediation Strategy
 - **Phase 1 — Vector platform readiness**
-  - Implement a Pinecone client adapter (auth, upsert, query, delete) in `PineconeVectorDatabaseService`
-  - Decide whether `vector/PineconeVectorDatabase` remains as a thin wrapper over the service or is removed; ensure no in-memory fallbacks remain in production profiles
-  - Update `AIInfrastructureAutoConfiguration.vectorDatabase` to select the concrete `VectorDatabase` based on `ai.vector-db.type` (lucene, pinecone, memory) and align its bean lifecycle with `VectorDatabaseService`
+  - ✅ Implement a Pinecone client adapter (auth, upsert, query, delete) in `PineconeVectorDatabaseService`
+  - ✅ Replace the in-memory `PineconeVectorDatabase` with a service-backed adapter and remove fallback behaviour from production paths
+  - ✅ Update `AIInfrastructureAutoConfiguration.vectorDatabase` to respect `ai.vector-db.type` and align bean lifecycles with the configured backend
   - Add integration tests (e.g., contract tests using Pinecone mock/standalone server) plus smoke scripts for real environments
 - **Phase 2 — Complete feature-flagged services**
   - Deliver `AIAutoGeneratorService` implementation (define interface contracts, integrate with `AICoreService`, cover error handling and observability)
