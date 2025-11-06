@@ -38,7 +38,7 @@
   - Backfill integration tests to confirm `AICoreService` honors provider selection logic and expose configuration docs for multi-provider deployments
 - **Phase 3 — Replace demo logic**
   - ✅ Remove deprecated in-memory stores from `AISearchService` and `VectorSearchService`; if backward compatibility is needed, guard behind explicit dev-only flags
-  - Compute `consistencyScore` and `accuracyScore` in `AIValidationService` using deterministic analytics (schema rule checks, statistical validation) instead of random numbers; document formulas and add regression tests
+  - ✅ Compute `consistencyScore` and `accuracyScore` in `AIValidationService` using deterministic analytics (schema rule checks, statistical validation) instead of random numbers; document formulas and add regression tests
   - Ensure production builds disable `MockAIService` by default and guard property overrides via profiling / configuration checks
 - **Phase 4 — Configuration and provider hygiene**
   - Implement `AIConfigurationService.loadFromExternalSources()` to support selected config backends (e.g., Consul, AWS AppConfig); expose refresh cadence via properties

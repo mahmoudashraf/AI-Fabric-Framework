@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 /**
@@ -414,29 +415,44 @@ public class AIValidationService {
     private CompletenessAnalysis analyzeDataCompleteness(List<Map<String, Object>> data) {
         if (data.isEmpty()) {
             return CompletenessAnalysis.builder()
-                .completenessScore(0.0)
+                .completenessScore(1.0)
                 .missingFields(0)
                 .totalFields(0)
                 .build();
         }
-        
-        int totalFields = data.get(0).keySet().size();
+
+        Set<String> allKeys = data.stream()
+            .flatMap(record -> record.keySet().stream())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (allKeys.isEmpty()) {
+            return CompletenessAnalysis.builder()
+                .completenessScore(1.0)
+                .missingFields(0)
+                .totalFields(0)
+                .build();
+        }
+
         int missingFields = 0;
-        
+
         for (Map<String, Object> record : data) {
-            for (Object value : record.values()) {
-                if (value == null || value.toString().trim().isEmpty()) {
+            for (String key : allKeys) {
+                Object value = record.get(key);
+                if (value == null) {
+                    missingFields++;
+                } else if (value instanceof CharSequence sequence && sequence.toString().trim().isEmpty()) {
                     missingFields++;
                 }
             }
         }
-        
-        double completenessScore = 1.0 - (double) missingFields / (data.size() * totalFields);
-        
+
+        int totalCells = data.size() * allKeys.size();
+        double completenessScore = totalCells == 0 ? 1.0 : 1.0 - (double) missingFields / totalCells;
+
         return CompletenessAnalysis.builder()
             .completenessScore(completenessScore)
             .missingFields(missingFields)
-            .totalFields(totalFields)
+            .totalFields(allKeys.size())
             .build();
     }
     
@@ -444,12 +460,54 @@ public class AIValidationService {
      * Analyze data consistency
      */
     private ConsistencyAnalysis analyzeDataConsistency(List<Map<String, Object>> data) {
-        // Simple consistency analysis
-        double consistencyScore = 0.8 + Math.random() * 0.2; // Demo value
-        
+        if (data.isEmpty()) {
+            return ConsistencyAnalysis.builder()
+                .consistencyScore(1.0)
+                .inconsistencies(0)
+                .totalRecords(0)
+                .build();
+        }
+
+        Set<String> allKeys = data.stream()
+            .flatMap(record -> record.keySet().stream())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (allKeys.isEmpty()) {
+            return ConsistencyAnalysis.builder()
+                .consistencyScore(1.0)
+                .inconsistencies(0)
+                .totalRecords(data.size())
+                .build();
+        }
+
+        Map<String, Class<?>> canonicalTypes = new HashMap<>();
+        int typeMismatches = 0;
+        int evaluatedCells = 0;
+
+        for (String key : allKeys) {
+            for (Map<String, Object> record : data) {
+                if (!record.containsKey(key)) {
+                    continue;
+                }
+                Object value = record.get(key);
+                if (value == null) {
+                    continue;
+                }
+
+                evaluatedCells++;
+                Class<?> normalized = normalizeType(value);
+                Class<?> canonical = canonicalTypes.putIfAbsent(key, normalized);
+                if (canonical != null && !canonical.equals(normalized)) {
+                    typeMismatches++;
+                }
+            }
+        }
+
+        double consistencyScore = evaluatedCells == 0 ? 1.0 : 1.0 - (double) typeMismatches / evaluatedCells;
+
         return ConsistencyAnalysis.builder()
             .consistencyScore(consistencyScore)
-            .inconsistencies(0)
+            .inconsistencies(typeMismatches)
             .totalRecords(data.size())
             .build();
     }
@@ -458,12 +516,34 @@ public class AIValidationService {
      * Analyze data accuracy
      */
     private AccuracyAnalysis analyzeDataAccuracy(List<Map<String, Object>> data, String dataType) {
-        // Simple accuracy analysis
-        double accuracyScore = 0.7 + Math.random() * 0.3; // Demo value
-        
+        if (data.isEmpty()) {
+            return AccuracyAnalysis.builder()
+                .accuracyScore(1.0)
+                .errors(0)
+                .totalRecords(0)
+                .build();
+        }
+
+        int totalEvaluatedValues = 0;
+        int suspectValues = 0;
+
+        for (Map<String, Object> record : data) {
+            for (Object value : record.values()) {
+                if (value == null) {
+                    continue;
+                }
+                totalEvaluatedValues++;
+                if (isSuspectValue(value)) {
+                    suspectValues++;
+                }
+            }
+        }
+
+        double accuracyScore = totalEvaluatedValues == 0 ? 1.0 : 1.0 - (double) suspectValues / totalEvaluatedValues;
+
         return AccuracyAnalysis.builder()
             .accuracyScore(accuracyScore)
-            .errors(0)
+            .errors(suspectValues)
             .totalRecords(data.size())
             .build();
     }
@@ -494,6 +574,39 @@ public class AIValidationService {
      */
     private double calculateQualityScore(CompletenessAnalysis completeness, ConsistencyAnalysis consistency, AccuracyAnalysis accuracy) {
         return (completeness.getCompletenessScore() + consistency.getConsistencyScore() + accuracy.getAccuracyScore()) / 3.0;
+    }
+
+    private Class<?> normalizeType(Object value) {
+        if (value instanceof Number) {
+            return Number.class;
+        }
+        if (value instanceof CharSequence) {
+            return CharSequence.class;
+        }
+        if (value instanceof Collection) {
+            return Collection.class;
+        }
+        if (value instanceof Map) {
+            return Map.class;
+        }
+        return value.getClass();
+    }
+
+    private static final Set<String> SUSPECT_STRING_TOKENS = Set.of("n/a", "na", "unknown", "undefined", "none", "null");
+
+    private boolean isSuspectValue(Object value) {
+        if (value instanceof Number number) {
+            double numericValue = number.doubleValue();
+            return Double.isNaN(numericValue) || Double.isInfinite(numericValue);
+        }
+        if (value instanceof CharSequence sequence) {
+            String normalized = sequence.toString().trim();
+            if (normalized.isEmpty()) {
+                return true;
+            }
+            return SUSPECT_STRING_TOKENS.contains(normalized.toLowerCase(Locale.ROOT));
+        }
+        return false;
     }
     
     /**
