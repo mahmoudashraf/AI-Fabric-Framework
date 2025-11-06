@@ -12,12 +12,12 @@ import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -37,23 +37,19 @@ public class AICapabilityService {
     private final AICoreService aiCoreService;
     private final AISearchableEntityRepository searchableEntityRepository;
     private final AIEntityConfigurationLoader configurationLoader;
+    private final VectorManagementService vectorManagementService;
     
-    // VectorManagementService will be injected by Spring if available
-    private VectorManagementService vectorManagementService;
-    
-    @Autowired(required = false)
-    public void setVectorManagementService(VectorManagementService vectorManagementService) {
-        this.vectorManagementService = vectorManagementService;
-    }
-    
-    public AICapabilityService(AIEmbeddingService embeddingService, 
-                              AICoreService aiCoreService, 
-                              AISearchableEntityRepository searchableEntityRepository, 
-                              AIEntityConfigurationLoader configurationLoader) {
+    public AICapabilityService(AIEmbeddingService embeddingService,
+                              AICoreService aiCoreService,
+                              AISearchableEntityRepository searchableEntityRepository,
+                              AIEntityConfigurationLoader configurationLoader,
+                              VectorManagementService vectorManagementService) {
         this.embeddingService = embeddingService;
         this.aiCoreService = aiCoreService;
         this.searchableEntityRepository = searchableEntityRepository;
         this.configurationLoader = configurationLoader;
+        this.vectorManagementService = Objects.requireNonNull(vectorManagementService,
+            "VectorManagementService must be configured for AICapabilityService");
     }
     
     // Debug method to access configurationLoader
@@ -232,15 +228,11 @@ public class AICapabilityService {
             }
             
             // Remove vector from vector database
-            if (vectorManagementService != null) {
-                boolean vectorRemoved = vectorManagementService.removeVector(config.getEntityType(), entityId);
-                if (vectorRemoved) {
-                    log.debug("Successfully removed vector from vector database for entity {} of type {}", entityId, config.getEntityType());
-                } else {
-                    log.warn("Vector not found in vector database for entity {} of type {}", entityId, config.getEntityType());
-                }
+            boolean vectorRemoved = vectorManagementService.removeVector(config.getEntityType(), entityId);
+            if (vectorRemoved) {
+                log.debug("Successfully removed vector from vector database for entity {} of type {}", entityId, config.getEntityType());
             } else {
-                log.warn("VectorManagementService not available, skipping vector removal for entity {} of type {}", entityId, config.getEntityType());
+                log.warn("Vector not found in vector database for entity {} of type {}", entityId, config.getEntityType());
             }
             
             // Remove from searchable entity repository
@@ -327,19 +319,13 @@ public class AICapabilityService {
             
             // Store vector in vector database
             Map<String, Object> metadata = extractMetadata(entity, config);
-            String vectorId = null;
-            if (vectorManagementService != null) {
-                vectorId = vectorManagementService.storeVector(
-                    config.getEntityType(),
-                    entityId,
-                    content,
-                    embeddings,
-                    metadata
-                );
-            } else {
-                log.warn("VectorManagementService not available, generating mock vector ID for entity {} of type {}", entityId, config.getEntityType());
-                vectorId = "mock-vector-id-" + System.currentTimeMillis();
-            }
+            String vectorId = vectorManagementService.storeVector(
+                config.getEntityType(),
+                entityId,
+                content,
+                embeddings,
+                metadata
+            );
             
             if (vectorId == null) {
                 log.error("Failed to store vector in vector database for entity {} of type {}", entityId, config.getEntityType());

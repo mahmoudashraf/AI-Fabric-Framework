@@ -12,8 +12,8 @@
 - **Service beans left unimplemented (addressed)**
   - `aiAutoGeneratorService` now instantiates `DefaultAIAutoGeneratorService`, wiring `AICoreService` and `AIServiceConfig`; regression coverage added in `DefaultAIAutoGeneratorServiceTest`
   - `aiIntelligentCacheService` now provisions `DefaultAIIntelligentCacheService` with feature-flag aware configuration, TTL/tag management, and unit coverage in `DefaultAIIntelligentCacheServiceTest`
-- **Mocked or fallback-only runtime paths**
-  - `AICapabilityService` produces `mock-vector-id-*` identifiers when `VectorManagementService` is absent instead of failing fast
+- **Mocked or fallback-only runtime paths (in progress)**
+  - `AICapabilityService` now requires `VectorManagementService`; remaining tasks focus on deprecating in-memory search stores and ensuring mock services stay dev-only
   - `AISearchService` (`core/AISearchService.java`) and `VectorSearchService` (`search/VectorSearchService.java`) still maintain deprecated in-memory stores meant for demos
   - `MockAIService` (`mock/MockAIService.java`) can be enabled via configuration; production profiles must ensure the flag is disabled
 - **Core service provider abstraction (addressed)**
@@ -35,7 +35,7 @@
 - **Phase 2 — Complete feature-flagged services**
   - ✅ Deliver `AIAutoGeneratorService` implementation (define interface contracts, integrate with `AICoreService`, cover error handling and observability)
   - ✅ Deliver `AIIntelligentCacheService` with cache warmers, invalidation hooks, and configuration-driven toggles; provide unit tests and configuration docs
-  - Harden fallbacks in `AICapabilityService` by requiring `VectorManagementService` (fail startup if missing) or injecting a no-op implementation for non-vector deployments
+  - ✅ Harden fallbacks in `AICapabilityService` by requiring `VectorManagementService` (fail startup if missing) or injecting a no-op implementation for non-vector deployments
   - Backfill integration tests to confirm `AICoreService` honors provider selection logic and expose configuration docs for multi-provider deployments
 - **Phase 3 — Replace demo logic**
   - Remove deprecated in-memory stores from `AISearchService` and `VectorSearchService`; if backward compatibility is needed, guard behind explicit dev-only flags
