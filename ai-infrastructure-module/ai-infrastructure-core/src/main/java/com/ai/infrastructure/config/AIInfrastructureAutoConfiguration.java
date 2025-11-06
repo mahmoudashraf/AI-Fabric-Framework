@@ -289,9 +289,9 @@ public class AIInfrastructureAutoConfiguration {
             AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
             AISearchableEntityRepository searchableEntityRepository,
-            AIEntityConfigurationLoader entityConfigurationLoader) {
-        AICapabilityService service = new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader);
-        return service;
+            AIEntityConfigurationLoader entityConfigurationLoader,
+            VectorManagementService vectorManagementService) {
+        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader, vectorManagementService);
     }
     
     @Bean
