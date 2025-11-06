@@ -39,6 +39,7 @@ import com.ai.infrastructure.cache.AIIntelligentCacheService;
 import com.ai.infrastructure.cache.CacheConfig;
 import com.ai.infrastructure.cache.DefaultAIIntelligentCacheService;
 import com.ai.infrastructure.provider.AIProviderManager;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;

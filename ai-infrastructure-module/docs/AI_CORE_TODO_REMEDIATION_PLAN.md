@@ -12,9 +12,8 @@
 - **Service beans left unimplemented (addressed)**
   - `aiAutoGeneratorService` now instantiates `DefaultAIAutoGeneratorService`, wiring `AICoreService` and `AIServiceConfig`; regression coverage added in `DefaultAIAutoGeneratorServiceTest`
   - `aiIntelligentCacheService` now provisions `DefaultAIIntelligentCacheService` with feature-flag aware configuration, TTL/tag management, and unit coverage in `DefaultAIIntelligentCacheServiceTest`
-- **Mocked or fallback-only runtime paths (in progress)**
-  - `AICapabilityService`, `AISearchService`, and `VectorSearchService` now require the real vector stack; remaining tasks focus on ensuring mock services stay dev-only
-  - `MockAIService` (`mock/MockAIService.java`) can be enabled via configuration; production profiles must ensure the flag is disabled
+- **Mocked or fallback-only runtime paths (addressed)**
+  - `AICapabilityService`, `AISearchService`, and `VectorSearchService` now require the real vector stack; mock pathways are confined to dev/test profiles via `ai.mock.enabled`
 - **Core service provider abstraction (addressed)**
   - `AICoreService` now routes generation through `AIProviderManager` and embeddings through `AIEmbeddingService`; add regression coverage to keep multi-provider support from regressing
 - **Validation heuristics**
