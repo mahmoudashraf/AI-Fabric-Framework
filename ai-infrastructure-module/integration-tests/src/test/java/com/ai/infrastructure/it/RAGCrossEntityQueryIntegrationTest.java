@@ -4,7 +4,6 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.service.VectorManagementService;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
@@ -33,7 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 /**
@@ -52,7 +49,7 @@ class RAGCrossEntityQueryIntegrationTest {
     private static final String ORDER_ENTITY = "ragcrossentityorder";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    @SpyBean
+    @Autowired
     private RAGService ragService;
 
     @Autowired
@@ -66,12 +63,6 @@ class RAGCrossEntityQueryIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        doAnswer(invocation -> {
-            RAGRequest request = invocation.getArgument(0);
-            request.setThreshold(0.0);
-            return invocation.callRealMethod();
-        }).when(ragService).performRag(any(RAGRequest.class));
-
         when(aiCoreService.generateText(anyString())).thenAnswer(invocation -> {
             String prompt = invocation.getArgument(0);
             if (prompt.contains("Generate") && prompt.contains("related queries")) {
@@ -109,6 +100,7 @@ class RAGCrossEntityQueryIntegrationTest {
                 .enableContextualSearch(true)
                 .contextOptimizationLevel("medium")
                 .metadata(Map.of("entityTypes", List.of("product", "customer", "order")))
+                .similarityThreshold(0.0)
                 .build()
         );
 

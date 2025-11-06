@@ -6,7 +6,6 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.service.VectorManagementService;
@@ -14,9 +13,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
@@ -33,7 +32,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = TestApplication.class)
@@ -46,26 +44,20 @@ class AdvancedRAGResultRerankingIntegrationTest {
 
     private static final String ENTITY_TYPE = "ragproduct-reranking";
 
-    @SpyBean
+    @Autowired
     private RAGService ragService;
 
     @MockBean
     private AICoreService aiCoreService;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     private AdvancedRAGService advancedRAGService;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     private VectorManagementService vectorManagementService;
 
     @BeforeEach
     void setUp() {
-        doAnswer(invocation -> {
-            RAGRequest request = invocation.getArgument(0);
-            request.setThreshold(0.0);
-            return invocation.callRealMethod();
-        }).when(ragService).performRag(any(RAGRequest.class));
-
         when(aiCoreService.generateText(anyString())).thenReturn(
             "collector chronograph\nlimited edition timepiece\nflagship mechanical movement"
         );
@@ -99,6 +91,7 @@ class AdvancedRAGResultRerankingIntegrationTest {
                 .enableHybridSearch(true)
                 .enableContextualSearch(false)
                 .categories(List.of("watches"))
+                .similarityThreshold(0.0)
                 .build()
         );
 
@@ -112,6 +105,7 @@ class AdvancedRAGResultRerankingIntegrationTest {
                 .enableHybridSearch(true)
                 .enableContextualSearch(false)
                 .categories(List.of("watches"))
+                .similarityThreshold(0.0)
                 .build()
         );
 
