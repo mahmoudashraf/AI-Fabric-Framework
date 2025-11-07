@@ -104,33 +104,33 @@ TOTAL IMPLEMENTATION TIME: 20-30 hours (3-4 weeks)
 
 **Tasks:**
 1. Create DTOs
-   - [ ] Intent
-   - [ ] MultiIntentResponse
-   - [ ] IntentType enum
-   - [ ] NextStepRecommendation (NEW!)
+   - [x] Intent
+   - [x] MultiIntentResponse
+   - [x] IntentType enum
+   - [x] NextStepRecommendation (NEW!)
    
 2. Implement SystemContextBuilder
-   - [ ] Wire AvailableActionsRegistry
-   - [ ] Wire KnowledgeBaseOverviewService
-   - [ ] Gather system context
+   - [x] Wire AvailableActionsRegistry
+   - [x] Wire KnowledgeBaseOverviewService
+   - [x] Gather system context
    
 3. Implement EnrichedPromptBuilder
-   - [ ] Build system prompt with available actions
-   - [ ] Add KB overview section
-   - [ ] Add next-step recommendation guidance (NEW!)
-   - [ ] Format extraction rules clearly
+   - [x] Build system prompt with available actions
+   - [x] Add KB overview section
+   - [x] Add next-step recommendation guidance (NEW!)
+   - [x] Format extraction rules clearly
    
 4. Implement IntentQueryExtractor
-   - [ ] Call LLM with enriched prompt
-   - [ ] Parse JSON response
-   - [ ] Validate confidence scores
-   - [ ] Handle next-step recommendations
+   - [x] Call LLM with enriched prompt
+   - [x] Parse JSON response
+   - [x] Validate confidence scores
+   - [x] Handle next-step recommendations
    
 5. Test
-   - [ ] Test with ACTION intent
-   - [ ] Test with INFORMATION intent
-   - [ ] Test with OUT_OF_SCOPE
-   - [ ] Test next-step generation
+   - [x] Test with ACTION intent
+   - [x] Test with INFORMATION intent
+   - [x] Test with OUT_OF_SCOPE
+   - [x] Test next-step generation
 
 **Estimated Time:** 4-5 hours
 **Complexity:** Medium
