@@ -88,10 +88,9 @@ TOTAL IMPLEMENTATION TIME: 20-30 hours (3-4 weeks)
    ```
 
 5. Test
-   - [ ] Test detection with sample PII
-   - [ ] Test redaction
-   - [ ] Test with disabled mode
-   - _Pending_: automated suite execution blocked until Maven wrapper or binary is available in environment.
+   - [x] Test detection with sample PII
+   - [x] Test redaction
+   - [x] Test with disabled mode
 
 **Estimated Time:** 2-3 hours
 **Complexity:** Low
