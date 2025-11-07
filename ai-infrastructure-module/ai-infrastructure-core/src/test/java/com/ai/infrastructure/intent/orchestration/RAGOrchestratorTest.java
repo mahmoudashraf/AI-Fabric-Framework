@@ -10,6 +10,7 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
@@ -50,6 +51,9 @@ class RAGOrchestratorTest {
     @Mock
     private ActionHandler actionHandler;
 
+    @Mock
+    private IntentHistoryService intentHistoryService;
+
     private ResponseSanitizer responseSanitizer;
     private SmartSuggestionsProperties smartSuggestionsProperties;
 
@@ -61,7 +65,8 @@ class RAGOrchestratorTest {
         ResponseSanitizationProperties sanitizationProperties = new ResponseSanitizationProperties();
         sanitizationProperties.setEnabled(false);
         responseSanitizer = new ResponseSanitizer(new PIIDetectionService(new PIIDetectionProperties()), sanitizationProperties);
-        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService, responseSanitizer, smartSuggestionsProperties);
+        when(intentHistoryService.recordIntent(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService, responseSanitizer, intentHistoryService, smartSuggestionsProperties);
     }
 
     @Test

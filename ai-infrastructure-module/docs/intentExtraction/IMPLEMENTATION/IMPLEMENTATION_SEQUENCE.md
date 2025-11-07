@@ -276,19 +276,19 @@ ai:
 
 **Tasks:**
 1. Create Entities & Repositories
-   - [ ] IntentHistory entity
-   - [ ] IntentHistoryRepository
+    - [x] IntentHistory entity
+    - [x] IntentHistoryRepository
    
 2. Implement IntentHistoryService
-   - [ ] Save intent (not query)
-   - [ ] Retrieve history
-   - [ ] Search by intent
-   - [ ] Cleanup expired data
+    - [x] Save intent (not query)
+    - [x] Retrieve history
+    - [x] Search by intent
+    - [x] Cleanup expired data
    
 3. Integrate into RAGOrchestrator
-   - [ ] After action execution
-   - [ ] Extract structured intent
-   - [ ] Store with result
+    - [x] After action execution
+    - [x] Extract structured intent
+    - [x] Store with result
    
 4. Configure
    ```yaml
@@ -300,9 +300,10 @@ ai:
    ```
    
 5. Test
-   - [ ] Test intent storage
-   - [ ] Test retrieval
-   - [ ] Test TTL cleanup
+    - [x] Test intent storage
+    - [x] Test retrieval
+    - [x] Test TTL cleanup
+    - [x] `mvn -pl ai-infrastructure-core -am -Dtest=PIIDetectionServiceTest,ResponseSanitizerTest,IntentHistoryServiceTest,VectorActionHandlersTest,RAGOrchestratorTest,RAGOrchestratorLiveHandlersTest test`
 
 **Estimated Time:** 2-3 hours
 **Complexity:** Low-Medium

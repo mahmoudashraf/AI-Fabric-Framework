@@ -19,6 +19,12 @@ ai:
     force-redaction: true
     suggestion-limit: 3
 
+  intent-history:
+    enabled: true
+    retention-days: 30
+    cleanup-cron: "0 0 * * * *"
+    store-encrypted-query: false
+
   providers:
     # Embedding Provider Configuration (ONNX default for local development)
     embedding-provider: onnx

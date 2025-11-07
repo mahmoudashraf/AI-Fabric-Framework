@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -41,6 +42,7 @@ public class RAGOrchestrator {
     private final ActionHandlerRegistry actionHandlerRegistry;
     private final RAGService ragService;
     private final ResponseSanitizer responseSanitizer;
+    private final IntentHistoryService intentHistoryService;
     private final SmartSuggestionsProperties smartSuggestionsProperties;
 
     public OrchestrationResult orchestrate(String query, String userId) {
@@ -68,6 +70,7 @@ public class RAGOrchestrator {
 
         applySmartSuggestions(result, userId);
         result.setSanitizedPayload(responseSanitizer.sanitize(result, userId));
+        persistIntentHistory(query, userId, multiIntentResponse, result);
 
         return result;
     }
@@ -351,6 +354,23 @@ public class RAGOrchestrator {
         } catch (Exception ex) {
             log.debug("Unable to resolve metadata for action {}: {}", actionName, ex.getMessage());
             return null;
+        }
+    }
+
+    private void persistIntentHistory(String originalQuery,
+                                      String userId,
+                                      MultiIntentResponse intents,
+                                      OrchestrationResult result) {
+        try {
+            intentHistoryService.recordIntent(
+                userId,
+                result.getMetadata() != null ? (String) result.getMetadata().get("sessionId") : null,
+                originalQuery,
+                intents,
+                result
+            );
+        } catch (Exception ex) {
+            log.debug("Unable to persist intent history for user {}: {}", userId, ex.getMessage());
         }
     }
 }
