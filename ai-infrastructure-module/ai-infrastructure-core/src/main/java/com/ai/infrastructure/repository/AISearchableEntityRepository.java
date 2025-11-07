@@ -59,6 +59,16 @@ public interface AISearchableEntityRepository extends JpaRepository<AISearchable
      * Find all entities with vector IDs (not null)
      */
     List<AISearchableEntity> findByVectorIdIsNotNull();
+
+    /**
+     * Returns the most recently updated indexed entity, if any.
+     */
+    Optional<AISearchableEntity> findFirstByVectorUpdatedAtIsNotNullOrderByVectorUpdatedAtDesc();
+
+    /**
+     * Counts all entities that have an associated vector.
+     */
+    long countByVectorIdIsNotNull();
     
     /**
      * Find all entities without vector IDs (null)
