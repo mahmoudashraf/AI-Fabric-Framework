@@ -91,7 +91,7 @@ AIEmbeddingRequest request = AIEmbeddingRequest.builder()
 ```java
 // Configuration
 ai.embedding.provider=onnx
-ai.embedding.onnx.model-path=/models/embeddings/all-MiniLM-L6-v2.onnx
+ai.embedding.onnx.model-path=classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
 
 // Test code
 AIEmbeddingRequest request = AIEmbeddingRequest.builder()

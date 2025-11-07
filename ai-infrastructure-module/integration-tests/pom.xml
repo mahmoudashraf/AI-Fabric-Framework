@@ -29,6 +29,13 @@
             <artifactId>ai-infrastructure-core</artifactId>
         </dependency>
 
+        <!-- Optional ONNX starter to supply bundled model/tokenizer assets -->
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-onnx-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Spring Boot Test Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

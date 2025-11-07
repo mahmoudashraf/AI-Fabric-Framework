@@ -150,7 +150,7 @@ ai:
     provider: local  # openai, local, huggingface, onnx
     local:
       model: all-MiniLM-L6-v2  # Sentence transformer model name
-      model-path: ./models/embeddings
+      model-path: classpath:/models/embeddings
       use-gpu: false  # Use GPU if available
       batch-size: 32
     openai:

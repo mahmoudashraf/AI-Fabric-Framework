@@ -281,8 +281,8 @@ if (value instanceof float[][][]) {
 - Quality: Good for most use cases
 
 **Model File Locations**:
-- Core module: `ai-infrastructure-core/models/embeddings/all-MiniLM-L6-v2.onnx`
-- Integration tests: `integration-tests/models/embeddings/all-MiniLM-L6-v2.onnx`
+- ONNX starter: `ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/all-MiniLM-L6-v2.onnx`
+- Bundled tokenizer: `ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/tokenizer.json`
 
 ---
 
@@ -298,8 +298,8 @@ ai:
     embedding-provider: onnx  # Options: onnx (default), rest, openai
     
     # ONNX Configuration
-    onnx-model-path: ./models/embeddings/all-MiniLM-L6-v2.onnx
-    onnx-tokenizer-path: ./models/embeddings/tokenizer.json
+    onnx-model-path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
+    onnx-tokenizer-path: classpath:/models/embeddings/tokenizer.json
     onnx-max-sequence-length: 512
     onnx-use-gpu: false  # Set to true if GPU available (requires onnxruntime_gpu)
 ```
@@ -634,5 +634,5 @@ The current ONNX implementation:
 - [ONNX Runtime Embeddings Guide](./ONNX_RUNTIME_EMBEDDINGS_GUIDE.md) - General ONNX concepts
 - [Embedding Provider Configuration](./EMBEDDING_PROVIDER_CONFIGURATION.md) - Configuration details
 - [User Guide](./USER_GUIDE.md) - General usage
-- [Model README](../ai-infrastructure-core/models/embeddings/README.md) - Model download instructions
+- [Model README](../ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/README.md) - Model download instructions
 

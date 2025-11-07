@@ -41,8 +41,8 @@ Local embedding generation using ONNX Runtime. No external API calls required.
 ai:
   providers:
     embedding-provider: onnx  # Default, can be omitted
-    onnx-model-path: ./models/embeddings/all-MiniLM-L6-v2.onnx
-    onnx-tokenizer-path: ./models/embeddings/tokenizer.json
+    onnx-model-path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
+    onnx-tokenizer-path: classpath:/models/embeddings/tokenizer.json
     onnx-max-sequence-length: 512
     onnx-use-gpu: false
 ```
@@ -58,16 +58,16 @@ Use the provided script to download ONNX models:
 Or manually:
 
 ```bash
-# Create models directory
-mkdir -p ./models/embeddings
+# Create models directory within the ONNX starter module
+mkdir -p ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
 
 # Download model
 wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/model.onnx \
-  -O ./models/embeddings/all-MiniLM-L6-v2.onnx
+  -O ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/all-MiniLM-L6-v2.onnx
 
 # Download tokenizer
 wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json \
-  -O ./models/embeddings/tokenizer.json
+  -O ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/tokenizer.json
 ```
 
 **Supported Models**:

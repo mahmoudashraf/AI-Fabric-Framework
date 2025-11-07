@@ -4,13 +4,13 @@ ai:
     # Embedding Provider Configuration
     # Options: onnx (local), rest (Docker service), openai (cloud API)
     embedding-provider: ${EMBEDDING_PROVIDER:openai}
-    
+
     # ONNX Configuration (for local embeddings)
-    onnx-model-path: ${ONNX_MODEL_PATH:./models/embeddings/all-MiniLM-L6-v2.onnx}
-    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:./models/embeddings/tokenizer.json}
+    onnx-model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
     onnx-max-sequence-length: 512
     onnx-use-gpu: ${ONNX_USE_GPU:false}
-    
+
     # REST Configuration (for Docker/sentence-transformers service)
     rest-base-url: ${REST_EMBEDDING_URL:http://localhost:8000}
     rest-endpoint: /embed
