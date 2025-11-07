@@ -125,6 +125,39 @@ public class PIIDetectionService {
         return result;
     }
 
+    /**
+     * Performs detection without mutating the original payload.
+     *
+     * @param payload free-form text to inspect
+     * @return detection result with the original content untouched
+     */
+    public PIIDetectionResult analyze(String payload) {
+        if (!StringUtils.hasText(payload)) {
+            return emptyResult(payload);
+        }
+
+        if (!properties.isEnabled()) {
+            return buildResult(payload, payload, Collections.emptyList(), false, PIIMode.PASS_THROUGH, Map.of(
+                "analysisOnly", true
+            ));
+        }
+
+        List<DetectionMatch> detections = detect(payload);
+        boolean hasPii = !detections.isEmpty();
+
+        return buildResult(
+            payload,
+            payload,
+            detections.stream().map(DetectionMatch::toDetection).collect(Collectors.toList()),
+            hasPii,
+            PIIMode.DETECT_ONLY,
+            Map.of(
+                "analysisOnly", true,
+                "patternsEvaluated", detectionPatterns.size()
+            )
+        );
+    }
+
     private PIIDetectionResult emptyResult(String query) {
         return PIIDetectionResult.builder()
             .originalQuery(query)

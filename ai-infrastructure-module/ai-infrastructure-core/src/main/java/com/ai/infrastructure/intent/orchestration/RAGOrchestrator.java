@@ -12,6 +12,7 @@ import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.security.ResponseSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class RAGOrchestrator {
     private final IntentQueryExtractor intentQueryExtractor;
     private final ActionHandlerRegistry actionHandlerRegistry;
     private final RAGService ragService;
+    private final ResponseSanitizer responseSanitizer;
     private final SmartSuggestionsProperties smartSuggestionsProperties;
 
     public OrchestrationResult orchestrate(String query, String userId) {
@@ -65,6 +67,7 @@ public class RAGOrchestrator {
         result.setMetadata(Collections.unmodifiableMap(metadata));
 
         applySmartSuggestions(result, userId);
+        result.setSanitizedPayload(responseSanitizer.sanitize(result, userId));
 
         return result;
     }

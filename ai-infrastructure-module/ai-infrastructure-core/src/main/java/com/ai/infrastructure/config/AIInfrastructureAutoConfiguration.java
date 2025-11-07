@@ -76,7 +76,8 @@ import java.util.List;
     AIProviderConfig.class,
     AIServiceConfig.class,
     PIIDetectionProperties.class,
-    SmartSuggestionsProperties.class
+    SmartSuggestionsProperties.class,
+    ResponseSanitizationProperties.class
 })
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)

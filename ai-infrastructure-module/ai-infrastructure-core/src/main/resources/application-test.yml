@@ -12,6 +12,11 @@ ai:
     retrieval-limit: 2
     retrieval-threshold: 0.55
 
+  response-sanitization:
+    enabled: true
+    force-redaction: true
+    suggestion-limit: 2
+
   vector-db:
     type: memory
     memory:

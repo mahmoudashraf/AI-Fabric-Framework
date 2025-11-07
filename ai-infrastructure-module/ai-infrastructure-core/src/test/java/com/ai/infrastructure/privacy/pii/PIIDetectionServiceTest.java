@@ -70,4 +70,23 @@ class PIIDetectionServiceTest {
         assertThat(result.getDetections()).isEmpty();
         assertThat(result.getModeApplied()).isEqualTo(PIIMode.PASS_THROUGH);
     }
+
+    @Test
+    void analyzeShouldDetectMatchesWithoutMutatingPayload() {
+        PIIDetectionProperties properties = new PIIDetectionProperties();
+        properties.setEnabled(true);
+        properties.setMode(PIIMode.PASS_THROUGH);
+
+        PIIDetectionService service = new PIIDetectionService(properties);
+
+        String payload = "Reach me at secure@example.com for details.";
+
+        PIIDetectionResult analysis = service.analyze(payload);
+
+        assertThat(analysis.isPiiDetected()).isTrue();
+        assertThat(analysis.getProcessedQuery()).isEqualTo(payload);
+        assertThat(analysis.getDetections()).hasSize(1);
+        assertThat(analysis.getDetections().getFirst().getType()).isEqualTo("EMAIL");
+        assertThat(analysis.getModeApplied()).isEqualTo(PIIMode.DETECT_ONLY);
+    }
 }
