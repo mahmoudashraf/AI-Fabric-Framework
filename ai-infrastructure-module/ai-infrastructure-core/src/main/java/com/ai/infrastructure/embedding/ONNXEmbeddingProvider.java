@@ -13,10 +13,18 @@ import ai.onnxruntime.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
+import com.huggingface.tokenizers.Encoding;
+import com.huggingface.tokenizers.Tokenizer;
+import com.huggingface.tokenizers.TokenizerException;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.LongBuffer;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -59,6 +67,10 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     private OrtEnvironment ortEnvironment;
     private OrtSession ortSession;
     private int embeddingDimension = 384; // Default for all-MiniLM-L6-v2
+    private Path resolvedModelPath;
+    private Path resolvedTokenizerPath;
+    private Tokenizer tokenizer;
+    private boolean tokenizerReady = false;
     
     // Thread safety: ONNX Runtime sessions are NOT thread-safe
     // Using ReentrantLock to synchronize access to ortSession
@@ -80,85 +92,60 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
             log.info("Tokenizer path: {}", tokenizerPath);
             log.info("Current working directory: {}", System.getProperty("user.dir"));
             log.info("========================================");
-            
-            // Check if model file exists
-            Path modelFilePath = Paths.get(modelPath);
-            
-            // Try to resolve as absolute or relative path
-            if (!modelFilePath.isAbsolute()) {
-                String userDir = System.getProperty("user.dir");
-                Path absolutePath = Paths.get(userDir, modelPath);
-                log.info("Resolved absolute path: {}", absolutePath.toAbsolutePath());
-                if (Files.exists(absolutePath)) {
-                    modelFilePath = absolutePath;
-                    log.info("Found model file at absolute path: {}", absolutePath.toAbsolutePath());
-                } else {
-                    log.warn("Model file not found at absolute path: {}", absolutePath.toAbsolutePath());
-                }
-            }
-            
-            if (!Files.exists(modelFilePath)) {
+
+            resolvedModelPath = resolvePath(modelPath, "model");
+            if (resolvedModelPath == null || !Files.exists(resolvedModelPath)) {
                 log.error("========================================");
-                log.error("ONNX model file not found at: {}", modelFilePath.toAbsolutePath());
+                log.error("ONNX model file not found (requested='{}', resolved='{}')", modelPath, resolvedModelPath);
                 log.error("Provider will not be available.");
-                log.error("Current working directory: {}", System.getProperty("user.dir"));
-                log.error("Absolute path checked: {}", modelFilePath.toAbsolutePath());
                 log.error("========================================");
                 return;
             }
-            
-            log.info("Model file found at: {}", modelFilePath.toAbsolutePath());
-            
-            // Initialize ONNX Runtime environment
+
+            log.info("Model file resolved to: {}", resolvedModelPath.toAbsolutePath());
+
             ortEnvironment = OrtEnvironment.getEnvironment();
-            
-            // Configure session options
             OrtSession.SessionOptions sessionOptions = new OrtSession.SessionOptions();
-            
-            // Set execution provider (CPU or GPU)
+
             if (useGpu) {
                 try {
                     sessionOptions.addCUDA(0);
                     log.info("Using GPU for ONNX inference");
                 } catch (Exception e) {
                     log.warn("GPU not available, falling back to CPU: {}", e.getMessage());
-                    sessionOptions.addCPU(true); // Use optimized CPU execution
+                    sessionOptions.addCPU(true);
                 }
             } else {
-                sessionOptions.addCPU(true); // Use optimized CPU execution
+                sessionOptions.addCPU(true);
                 log.info("Using CPU for ONNX inference");
             }
-            
-            // Load ONNX model
-            ortSession = ortEnvironment.createSession(modelPath, sessionOptions);
-            
-                // Get input info to see what inputs the model expects
-                Map<String, NodeInfo> inputInfo = ortSession.getInputInfo();
-                log.info("Model input names: {}", inputInfo.keySet());
-                for (Map.Entry<String, NodeInfo> entry : inputInfo.entrySet()) {
-                    log.info("  Input: {} - {}", entry.getKey(), entry.getValue().getInfo().toString());
-                }
-                
-                // Get output shape to determine embedding dimension
-                Map<String, NodeInfo> outputInfo = ortSession.getOutputInfo();
-                for (Map.Entry<String, NodeInfo> entry : outputInfo.entrySet()) {
-                    NodeInfo nodeInfo = entry.getValue();
-                    if (nodeInfo.getInfo() instanceof TensorInfo) {
-                        TensorInfo tensorInfo = (TensorInfo) nodeInfo.getInfo();
-                        long[] shape = tensorInfo.getShape();
-                        if (shape.length >= 2) {
-                            embeddingDimension = (int) shape[shape.length - 1];
-                            log.info("Detected embedding dimension: {}", embeddingDimension);
-                        }
+
+            ortSession = ortEnvironment.createSession(resolvedModelPath.toString(), sessionOptions);
+
+            Map<String, NodeInfo> inputInfo = ortSession.getInputInfo();
+            log.info("Model input names: {}", inputInfo.keySet());
+            for (Map.Entry<String, NodeInfo> entry : inputInfo.entrySet()) {
+                log.info("  Input: {} - {}", entry.getKey(), entry.getValue().getInfo().toString());
+            }
+
+            Map<String, NodeInfo> outputInfo = ortSession.getOutputInfo();
+            for (Map.Entry<String, NodeInfo> entry : outputInfo.entrySet()) {
+                NodeInfo nodeInfo = entry.getValue();
+                if (nodeInfo.getInfo() instanceof TensorInfo) {
+                    TensorInfo tensorInfo = (TensorInfo) nodeInfo.getInfo();
+                    long[] shape = tensorInfo.getShape();
+                    if (shape.length >= 2) {
+                        embeddingDimension = (int) shape[shape.length - 1];
+                        log.info("Detected embedding dimension: {}", embeddingDimension);
                     }
                 }
-            
-            log.info("Tokenizer initialized: WordPiece-like tokenization with special tokens");
-            log.info("  [CLS]={}, [SEP]={}, [PAD]={}, [UNK]={}", TOKEN_CLS, TOKEN_SEP, TOKEN_PAD, TOKEN_UNK);
-            log.info("  Using WordPiece-like tokenization algorithm (improved from character-based)");
-            
-            log.info("ONNX Embedding Provider initialized successfully with model: {}", modelPath);
-            
+            }
+
+            resolvedTokenizerPath = resolvePath(tokenizerPath, "tokenizer");
+            initializeTokenizer();
+
+            log.info("ONNX Embedding Provider initialized successfully with model: {}", resolvedModelPath);
+
         } catch (Exception e) {
             log.error("Failed to initialize ONNX Embedding Provider", e);
             throw new AIServiceException("Failed to initialize ONNX Embedding Provider", e);
@@ -175,6 +162,66 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
             log.debug("ONNX Embedding Provider cleaned up");
         } catch (Exception e) {
             log.error("Error cleaning up ONNX Embedding Provider", e);
+        }
+    }
+
+    private void initializeTokenizer() {
+        tokenizerReady = false;
+        if (resolvedTokenizerPath == null) {
+            log.warn("Tokenizer file not configured or could not be resolved. Falling back to legacy tokenization.");
+            return;
+        }
+        try {
+            Path tokenizerPathToUse = Files.exists(resolvedTokenizerPath)
+                ? resolvedTokenizerPath
+                : resolvedTokenizerPath.toAbsolutePath();
+            if (!Files.exists(tokenizerPathToUse)) {
+                log.warn("Tokenizer file not found at: {}. Falling back to legacy tokenization.", tokenizerPathToUse);
+                return;
+            }
+            tokenizer = Tokenizer.fromFile(tokenizerPathToUse.toString());
+            resolvedTokenizerPath = tokenizerPathToUse;
+            tokenizerReady = true;
+            log.info("Tokenizer initialized using Hugging Face tokenizers at {}", tokenizerPathToUse);
+        } catch (Exception ex) {
+            log.error("Failed to initialize tokenizer from {}. Falling back to legacy tokenization.", resolvedTokenizerPath, ex);
+            tokenizerReady = false;
+        }
+    }
+
+    private Path resolvePath(String configuredPath, String descriptor) throws IOException {
+        if (configuredPath == null || configuredPath.isBlank()) {
+            return null;
+        }
+
+        if (configuredPath.startsWith("classpath:")) {
+            String resourcePath = configuredPath.substring("classpath:".length());
+            if (resourcePath.startsWith("/")) {
+                resourcePath = resourcePath.substring(1);
+            }
+            try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+                if (inputStream == null) {
+                    log.warn("Classpath resource '{}' not found for {}", resourcePath, descriptor);
+                    return null;
+                }
+                String suffix = resourcePath.contains(".") ? resourcePath.substring(resourcePath.lastIndexOf('.')) : "";
+                Path tempFile = Files.createTempFile("onnx-" + descriptor + "-", suffix);
+                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                tempFile.toFile().deleteOnExit();
+                return tempFile;
+            }
+        }
+
+        try {
+            Path candidate = Paths.get(configuredPath);
+            if (!candidate.isAbsolute()) {
+                Path absolute = Paths.get(System.getProperty("user.dir")).resolve(candidate).normalize();
+                return absolute;
+            }
+            return candidate.normalize();
+        } catch (InvalidPathException ex) {
+            log.warn("Invalid path '{}' for {}: {}", configuredPath, descriptor, ex.getMessage());
+            return null;
         }
     }
     
@@ -201,196 +248,67 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
             
             long startTime = System.currentTimeMillis();
             
-            // Tokenize text (simple implementation)
-            int[] inputIds = tokenize(request.getText());
-            int sequenceLength = Math.min(inputIds.length, maxSequenceLength);
-            
-            // Pad or truncate to maxSequenceLength
-            long[] inputIdsLong = new long[sequenceLength];
-            long[] attentionMaskLong = new long[sequenceLength];
-            long[] tokenTypeIdsLong = new long[sequenceLength]; // Typically all zeros for single sequence
-            
-            for (int i = 0; i < sequenceLength; i++) {
-                inputIdsLong[i] = i < inputIds.length ? inputIds[i] : 0; // 0 is padding token
-                attentionMaskLong[i] = i < inputIds.length ? 1L : 0L; // 1 for real tokens, 0 for padding
-                tokenTypeIdsLong[i] = 0L; // Single sequence, all zeros
-            }
-            
-            // Create ONNX tensor inputs
-            long[] shape = new long[]{1, sequenceLength}; // Batch size 1, sequence length
-            java.nio.LongBuffer inputIdsBuffer = java.nio.LongBuffer.wrap(inputIdsLong);
-            java.nio.LongBuffer attentionMaskBuffer = java.nio.LongBuffer.wrap(attentionMaskLong);
-            java.nio.LongBuffer tokenTypeIdsBuffer = java.nio.LongBuffer.wrap(tokenTypeIdsLong);
-            
-            OnnxTensor inputIdsTensor = OnnxTensor.createTensor(ortEnvironment, inputIdsBuffer, shape);
-            OnnxTensor attentionMaskTensor = OnnxTensor.createTensor(ortEnvironment, attentionMaskBuffer, shape);
-            OnnxTensor tokenTypeIdsTensor = OnnxTensor.createTensor(ortEnvironment, tokenTypeIdsBuffer, shape);
-            
-            // Prepare inputs - sentence-transformers models typically require:
-            // - input_ids: token IDs
-            // - attention_mask: mask for padding
-            // - token_type_ids: segment IDs (usually all zeros for single sequence)
-            Map<String, OnnxTensor> inputs = new HashMap<>();
-            inputs.put("input_ids", inputIdsTensor);
-            inputs.put("attention_mask", attentionMaskTensor);
-            inputs.put("token_type_ids", tokenTypeIdsTensor);
-            
-            // Run inference
-            OrtSession.Result output = ortSession.run(inputs);
-            
-            // Extract embeddings - try common output keys or use first output
-            OnnxValue embeddingValue = null;
-            
-            // Get the output - ONNX Runtime Result returns values by index
-            // For sentence-transformers models, the output is typically at index 0
-            embeddingValue = output.get(0);
-            log.debug("Using output at index 0");
-            
-            // Log the output type for debugging
-            Object value = embeddingValue.getValue();
-            log.debug("Output value type: {}, class: {}", 
-                     value != null ? value.getClass().getName() : "null",
-                     value != null ? value.getClass().getSimpleName() : "null");
-            
-            float[][] embeddings;
-            
-            // Handle different output formats
-            // Try 3D array first: [batch, sequence, embedding_dim] (common for transformer outputs)
-            if (value instanceof float[][][]) {
-                float[][][] tensorValue3D = (float[][][]) value;
-                if (tensorValue3D.length > 0 && tensorValue3D[0].length > 0) {
-                    // Mean pooling: average over sequence length
-                    int batchSize = tensorValue3D.length;
-                    int seqLength = tensorValue3D[0].length;
-                    int embeddingDim = tensorValue3D[0][0].length;
-                    embeddings = new float[batchSize][embeddingDim];
-                    for (int b = 0; b < batchSize; b++) {
-                        for (int e = 0; e < embeddingDim; e++) {
-                            float sum = 0.0f;
-                            for (int s = 0; s < seqLength; s++) {
-                                sum += tensorValue3D[b][s][e];
-                            }
-                            embeddings[b][e] = sum / seqLength;
-                        }
-                    }
-                    log.debug("Successfully processed 3D array [batch={}, sequence={}, embedding={}] with mean pooling", 
-                             batchSize, seqLength, embeddingDim);
-                } else {
-                    throw new AIServiceException("Empty 3D array output");
-                }
-            } else if (value instanceof float[][]) {
-                embeddings = (float[][]) value;
-            } else if (value instanceof float[]) {
-                float[] flat = (float[]) value;
-                // Reshape to 2D: [batch_size, embedding_dim]
-                embeddings = new float[][]{flat};
-            } else if (value instanceof OnnxTensor) {
-                // Extract tensor values
-                OnnxTensor tensor = (OnnxTensor) value;
+            TokenizationResult tokenization = tokenizeText(request.getText());
+            long[] inputIds = tokenization.getInputIds();
+            long[] attentionMask = tokenization.getAttentionMask();
+            long[] tokenTypeIds = tokenization.getTokenTypeIds();
+
+            long[] shape = new long[]{1, maxSequenceLength};
+            OnnxTensor inputIdsTensor = null;
+            OnnxTensor attentionMaskTensor = null;
+            OnnxTensor tokenTypeIdsTensor = null;
+            try {
+                inputIdsTensor = OnnxTensor.createTensor(ortEnvironment, LongBuffer.wrap(inputIds), shape);
+                attentionMaskTensor = OnnxTensor.createTensor(ortEnvironment, LongBuffer.wrap(attentionMask), shape);
+                tokenTypeIdsTensor = OnnxTensor.createTensor(ortEnvironment, LongBuffer.wrap(tokenTypeIds), shape);
+
+                Map<String, OnnxTensor> inputs = new HashMap<>();
+                inputs.put("input_ids", inputIdsTensor);
+                inputs.put("attention_mask", attentionMaskTensor);
+                inputs.put("token_type_ids", tokenTypeIdsTensor);
+
+                OrtSession.Result output = ortSession.run(inputs);
                 try {
-                    // Try 3D tensor first: [batch, sequence, embedding_dim]
-                    float[][][] tensorValue3D = (float[][][]) tensor.getValue();
-                    if (tensorValue3D.length > 0 && tensorValue3D[0].length > 0) {
-                        // Mean pooling: average over sequence length
-                        int batchSize = tensorValue3D.length;
-                        int seqLength = tensorValue3D[0].length;
-                        int embeddingDim = tensorValue3D[0][0].length;
-                        embeddings = new float[batchSize][embeddingDim];
-                        for (int b = 0; b < batchSize; b++) {
-                            for (int e = 0; e < embeddingDim; e++) {
-                                float sum = 0.0f;
-                                for (int s = 0; s < seqLength; s++) {
-                                    sum += tensorValue3D[b][s][e];
-                                }
-                                embeddings[b][e] = sum / seqLength;
-                            }
-                        }
-                        log.debug("Successfully extracted 3D tensor [batch={}, sequence={}, embedding={}] with mean pooling", 
-                                 batchSize, seqLength, embeddingDim);
-                    } else {
-                        throw new AIServiceException("Empty 3D tensor output");
-                    }
-                } catch (ClassCastException e) {
-                    // Try 4D tensor: [batch, sequence, 1, embedding]
+                    OnnxValue embeddingValue = output.get(0);
+                    float[][] embeddings;
                     try {
-                        float[][][][] tensorValue4D = (float[][][][]) tensor.getValue();
-                        if (tensorValue4D.length > 0 && tensorValue4D[0].length > 0) {
-                            int batchSize = tensorValue4D.length;
-                            int seqLength = tensorValue4D[0].length;
-                            int embeddingDim = tensorValue4D[0][0][0].length;
-                            embeddings = new float[batchSize][embeddingDim];
-                            for (int b2 = 0; b2 < batchSize; b2++) {
-                                for (int e2 = 0; e2 < embeddingDim; e2++) {
-                                    float sum = 0.0f;
-                                    for (int s2 = 0; s2 < seqLength; s2++) {
-                                        sum += tensorValue4D[b2][s2][0][e2];
-                                    }
-                                    embeddings[b2][e2] = sum / seqLength;
-                                }
-                            }
-                            log.debug("Successfully extracted 4D tensor [batch={}, sequence={}, embedding={}] with mean pooling", 
-                                     batchSize, seqLength, embeddingDim);
-                        } else {
-                            throw new AIServiceException("Empty 4D tensor output");
-                        }
-                    } catch (ClassCastException e2) {
-                        // Try 2D tensor
-                        try {
-                            float[][] tensorValue2D = (float[][]) tensor.getValue();
-                            embeddings = tensorValue2D;
-                            log.debug("Successfully extracted 2D tensor");
-                        } catch (ClassCastException e3) {
-                            throw new AIServiceException("Unexpected tensor output format. Tried 3D, 4D, and 2D. Actual: " + 
-                                (value != null ? value.getClass().getName() : "null"), e3);
-                        }
+                        embeddings = extractBatchEmbeddings(embeddingValue, Collections.singletonList(tokenization));
+                    } catch (OrtException ex) {
+                        throw new AIServiceException("Failed to extract ONNX embedding output", ex);
                     }
-                } catch (Exception ex) {
-                    log.error("Error extracting tensor value", ex);
-                    throw new AIServiceException("Failed to extract tensor value", ex);
+                    float[] embeddingVector = embeddings[0];
+
+                    List<Double> embedding = IntStream.range(0, embeddingVector.length)
+                        .mapToObj(i -> (double) embeddingVector[i])
+                        .collect(Collectors.toList());
+
+                    long processingTime = System.currentTimeMillis() - startTime;
+
+                    log.debug("Successfully generated ONNX embedding with {} dimensions in {}ms",
+                            embedding.size(), processingTime);
+
+                    return AIEmbeddingResponse.builder()
+                        .embedding(embedding)
+                        .model("onnx:" + resolveModelName())
+                        .dimensions(embedding.size())
+                        .processingTimeMs(processingTime)
+                        .requestId(UUID.randomUUID().toString())
+                        .build();
                 } finally {
-                    // Close the tensor to prevent resource leak
-                    if (tensor != null) {
-                        try {
-                            tensor.close();
-                        } catch (Exception closeEx) {
-                            log.warn("Error closing OnnxTensor", closeEx);
-                        }
-                    }
+                    output.close();
                 }
-            } else {
-                // Log the actual type for debugging
-                log.error("Unexpected embedding output format. Type: {}, Value: {}", 
-                         value != null ? value.getClass().getName() : "null",
-                         value);
-                throw new AIServiceException("Unexpected embedding output format: " + 
-                    (value != null ? value.getClass().getName() : "null"));
+            } finally {
+                if (inputIdsTensor != null) {
+                    inputIdsTensor.close();
+                }
+                if (attentionMaskTensor != null) {
+                    attentionMaskTensor.close();
+                }
+                if (tokenTypeIdsTensor != null) {
+                    tokenTypeIdsTensor.close();
+                }
             }
             
-            // Convert float[] to List<Double>
-            final float[][] finalEmbeddings = embeddings; // Make final for lambda
-            List<Double> embedding = IntStream.range(0, finalEmbeddings[0].length)
-                .mapToObj(i -> (double) finalEmbeddings[0][i])
-                .collect(Collectors.toList());
-            
-            // Cleanup tensors
-            inputIdsTensor.close();
-            attentionMaskTensor.close();
-            tokenTypeIdsTensor.close();
-            output.close();
-            
-            long processingTime = System.currentTimeMillis() - startTime;
-            
-            log.debug("Successfully generated ONNX embedding with {} dimensions in {}ms", 
-                     embedding.size(), processingTime);
-            
-            return AIEmbeddingResponse.builder()
-                .embedding(embedding)
-                .model("onnx:" + Paths.get(modelPath).getFileName().toString())
-                .dimensions(embedding.size())
-                .processingTimeMs(processingTime)
-                .requestId(UUID.randomUUID().toString())
-                .build();
-                
         } catch (Exception e) {
             log.error("Error generating ONNX embedding", e);
             throw new AIServiceException("Failed to generate ONNX embedding", e);
@@ -425,47 +343,31 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
             
             long startTime = System.currentTimeMillis();
             
-            // Tokenize all texts
-            List<int[]> tokenizedTexts = new ArrayList<>();
-            int maxSequenceLength = 0;
-            
+            List<TokenizationResult> tokenizations = new ArrayList<>(texts.size());
             for (String text : texts) {
-                int[] tokens = tokenize(text);
-                tokenizedTexts.add(tokens);
-                maxSequenceLength = Math.max(maxSequenceLength, Math.min(tokens.length, this.maxSequenceLength));
+                tokenizations.add(tokenizeText(text));
             }
-            
-            int batchSize = texts.size();
-            int sequenceLength = maxSequenceLength;
-            
-            // Create batch tensors: [batch_size, sequence_length]
+
+            int batchSize = tokenizations.size();
+            int sequenceLength = this.maxSequenceLength;
+
             long[] flatInputIds = new long[batchSize * sequenceLength];
             long[] flatAttentionMasks = new long[batchSize * sequenceLength];
             long[] flatTokenTypeIds = new long[batchSize * sequenceLength];
-            
-            // Fill batch tensors
+
             for (int b = 0; b < batchSize; b++) {
-                int[] tokens = tokenizedTexts.get(b);
+                TokenizationResult tokenization = tokenizations.get(b);
                 int offset = b * sequenceLength;
-                
-                for (int s = 0; s < sequenceLength; s++) {
-                    if (s < tokens.length) {
-                        flatInputIds[offset + s] = tokens[s];
-                        flatAttentionMasks[offset + s] = 1L; // Real token
-                    } else {
-                        flatInputIds[offset + s] = TOKEN_PAD;
-                        flatAttentionMasks[offset + s] = 0L; // Padding
-                    }
-                    flatTokenTypeIds[offset + s] = 0L; // Single sequence
-                }
+                System.arraycopy(tokenization.getInputIds(), 0, flatInputIds, offset, sequenceLength);
+                System.arraycopy(tokenization.getAttentionMask(), 0, flatAttentionMasks, offset, sequenceLength);
+                System.arraycopy(tokenization.getTokenTypeIds(), 0, flatTokenTypeIds, offset, sequenceLength);
             }
-            
-            // Create ONNX tensors with batch shape
+
             long[] batchShape = new long[]{batchSize, sequenceLength};
             LongBuffer inputIdsBuffer = LongBuffer.wrap(flatInputIds);
             LongBuffer attentionMaskBuffer = LongBuffer.wrap(flatAttentionMasks);
             LongBuffer tokenTypeIdsBuffer = LongBuffer.wrap(flatTokenTypeIds);
-            
+
             OnnxTensor inputIdsTensor = null;
             OnnxTensor attentionMaskTensor = null;
             OnnxTensor tokenTypeIdsTensor = null;
@@ -486,9 +388,12 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
                 
                 // Extract batch embeddings
                 OnnxValue embeddingValue = batchOutput.get(0);
-                Object value = embeddingValue.getValue();
-                
-                float[][] batchEmbeddings = extractBatchEmbeddings(value, batchSize);
+                float[][] batchEmbeddings;
+                try {
+                    batchEmbeddings = extractBatchEmbeddings(embeddingValue, tokenizations);
+                } catch (OrtException ex) {
+                    throw new AIServiceException("Failed to extract ONNX batch embedding output", ex);
+                }
                 
                 // Convert to responses
                 List<AIEmbeddingResponse> responses = new ArrayList<>();
@@ -502,7 +407,7 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
                     
                     responses.add(AIEmbeddingResponse.builder()
                         .embedding(embedding)
-                        .model("onnx:" + Paths.get(modelPath).getFileName().toString())
+                        .model("onnx:" + resolveModelName())
                         .dimensions(embedding.size())
                         .processingTimeMs(processingTime / batchSize)
                         .requestId(UUID.randomUUID().toString())
@@ -536,61 +441,80 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
      * Extract batch embeddings from ONNX output
      * Handles 2D, 3D, and 4D tensor outputs
      */
-    private float[][] extractBatchEmbeddings(Object value, int expectedBatchSize) {
+    private float[][] extractBatchEmbeddings(OnnxValue value, List<TokenizationResult> tokenizations) throws OrtException {
+        Object rawValue = value.getValue();
+        return extractBatchEmbeddings(rawValue, tokenizations);
+    }
+
+    private float[][] extractBatchEmbeddings(Object rawValue, List<TokenizationResult> tokenizations) {
+        int expectedBatchSize = tokenizations.size();
         float[][] embeddings;
-        
-        if (value instanceof float[][][]) {
-            // 3D array: [batch, sequence, embedding_dim]
-            float[][][] tensorValue3D = (float[][][]) value;
-            if (tensorValue3D.length > 0 && tensorValue3D[0].length > 0) {
-                int batchSize = tensorValue3D.length;
-                int seqLength = tensorValue3D[0].length;
-                int embeddingDim = tensorValue3D[0][0].length;
-                embeddings = new float[batchSize][embeddingDim];
-                
-                // Mean pooling for each batch item
-                for (int b = 0; b < batchSize; b++) {
-                    for (int e = 0; e < embeddingDim; e++) {
-                        float sum = 0.0f;
-                        for (int s = 0; s < seqLength; s++) {
-                            sum += tensorValue3D[b][s][e];
-                        }
-                        embeddings[b][e] = sum / seqLength;
-                    }
-                }
-                log.debug("Extracted batch embeddings from 3D tensor [batch={}, sequence={}, embedding={}]", 
-                         batchSize, seqLength, embeddingDim);
-            } else {
+
+        if (rawValue instanceof float[][][]) {
+            float[][][] tensorValue3D = (float[][][]) rawValue;
+            if (tensorValue3D.length == 0 || tensorValue3D[0].length == 0) {
                 throw new AIServiceException("Empty 3D array output");
             }
-        } else if (value instanceof float[][]) {
-            // 2D array: [batch, embedding_dim] - already correct shape
-            embeddings = (float[][]) value;
-            log.debug("Extracted batch embeddings from 2D tensor [batch={}, embedding={}]", 
-                     embeddings.length, embeddings.length > 0 ? embeddings[0].length : 0);
-        } else if (value instanceof float[]) {
-            // 1D array: reshape to 2D
-            float[] flat = (float[]) value;
+            if (tensorValue3D.length != expectedBatchSize) {
+                throw new AIServiceException(
+                    String.format("Batch size mismatch: expected %d, got %d", expectedBatchSize, tensorValue3D.length));
+            }
+            int batchSize = tensorValue3D.length;
+            int embeddingDim = tensorValue3D[0][0].length;
+            embeddings = new float[batchSize][embeddingDim];
+            for (int b = 0; b < batchSize; b++) {
+                embeddings[b] = meanPoolEmbeddings(tensorValue3D[b], tokenizations.get(b));
+            }
+            log.debug("Extracted batch embeddings from 3D tensor [batch={}, sequence={}, embedding={}]",
+                    batchSize, tensorValue3D[0].length, embeddingDim);
+        } else if (rawValue instanceof float[][][][]) {
+            float[][][][] tensorValue4D = (float[][][][]) rawValue;
+            if (tensorValue4D.length == 0 || tensorValue4D[0].length == 0) {
+                throw new AIServiceException("Empty 4D tensor output");
+            }
+            if (tensorValue4D.length != expectedBatchSize) {
+                throw new AIServiceException(
+                    String.format("Batch size mismatch: expected %d, got %d", expectedBatchSize, tensorValue4D.length));
+            }
+            int batchSize = tensorValue4D.length;
+            int seqLength = tensorValue4D[0].length;
+            int embeddingDim = tensorValue4D[0][0][0].length;
+            embeddings = new float[batchSize][embeddingDim];
+            for (int b = 0; b < batchSize; b++) {
+                float[][] flattened = new float[seqLength][embeddingDim];
+                for (int s = 0; s < seqLength; s++) {
+                    flattened[s] = tensorValue4D[b][s][0];
+                }
+                embeddings[b] = meanPoolEmbeddings(flattened, tokenizations.get(b));
+            }
+            log.debug("Extracted batch embeddings from 4D tensor [batch={}, sequence={}, embedding={}]",
+                    batchSize, seqLength, embeddingDim);
+        } else if (rawValue instanceof float[][]) {
+            embeddings = (float[][]) rawValue;
+            if (embeddings.length != expectedBatchSize) {
+                throw new AIServiceException(
+                    String.format("Batch size mismatch: expected %d, got %d", expectedBatchSize, embeddings.length));
+            }
+            log.debug("Extracted batch embeddings from 2D tensor [batch={}, embedding={}]",
+                    embeddings.length, embeddings.length > 0 ? embeddings[0].length : 0);
+        } else if (rawValue instanceof float[]) {
+            float[] flat = (float[]) rawValue;
+            if (flat.length % expectedBatchSize != 0) {
+                throw new AIServiceException(String.format(
+                    "Flat tensor length %d is not divisible by batch size %d", flat.length, expectedBatchSize));
+            }
             int embeddingDim = flat.length / expectedBatchSize;
             embeddings = new float[expectedBatchSize][embeddingDim];
             for (int b = 0; b < expectedBatchSize; b++) {
                 System.arraycopy(flat, b * embeddingDim, embeddings[b], 0, embeddingDim);
             }
-            log.debug("Reshaped 1D array to batch embeddings [batch={}, embedding={}]", 
-                     expectedBatchSize, embeddingDim);
-        } else if (value instanceof OnnxTensor) {
-            // Extract from OnnxTensor
-            OnnxTensor tensor = (OnnxTensor) value;
+            log.debug("Reshaped 1D array to batch embeddings [batch={}, embedding={}]",
+                    expectedBatchSize, embeddingDim);
+        } else if (rawValue instanceof OnnxTensor) {
+            OnnxTensor tensor = (OnnxTensor) rawValue;
             try {
-                Object tensorValue = tensor.getValue();
-                if (tensorValue instanceof float[][][]) {
-                    return extractBatchEmbeddings(tensorValue, expectedBatchSize);
-                } else if (tensorValue instanceof float[][]) {
-                    return extractBatchEmbeddings(tensorValue, expectedBatchSize);
-                } else {
-                    throw new AIServiceException("Unexpected tensor format: " + tensorValue.getClass().getName());
-                }
-            } catch (Exception e) {
+                return extractBatchEmbeddings(tensor.getValue(), tokenizations);
+            } catch (OrtException e) {
                 throw new AIServiceException("Failed to extract tensor value", e);
             } finally {
                 try {
@@ -600,17 +524,52 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
                 }
             }
         } else {
-            throw new AIServiceException("Unexpected batch embedding output format: " + 
-                (value != null ? value.getClass().getName() : "null"));
+            throw new AIServiceException("Unexpected batch embedding output format: " +
+                (rawValue != null ? rawValue.getClass().getName() : "null"));
         }
-        
-        // Validate batch size
-        if (embeddings.length != expectedBatchSize) {
-            throw new AIServiceException(
-                String.format("Batch size mismatch: expected %d, got %d", expectedBatchSize, embeddings.length));
-        }
-        
+
         return embeddings;
+    }
+
+    private float[] meanPoolEmbeddings(float[][] tokenEmbeddings, TokenizationResult tokenization) {
+        if (tokenEmbeddings == null || tokenEmbeddings.length == 0) {
+            return new float[embeddingDimension];
+        }
+        int embeddingDim = tokenEmbeddings[0].length;
+        float[] pooled = new float[embeddingDim];
+        long[] mask = tokenization.getAttentionMask();
+        int validTokenCount = tokenization.getValidTokenCount();
+
+        float divisor = 0f;
+        for (int s = 0; s < tokenEmbeddings.length; s++) {
+            boolean include = false;
+            if (mask != null && s < mask.length) {
+                include = mask[s] > 0;
+            } else if (s < validTokenCount) {
+                include = true;
+            }
+            if (!include) {
+                continue;
+            }
+            float[] tokenVector = tokenEmbeddings[s];
+            for (int e = 0; e < embeddingDim; e++) {
+                pooled[e] += tokenVector[e];
+            }
+            divisor += 1f;
+        }
+
+        if (divisor == 0f) {
+            divisor = Math.max(1, Math.min(validTokenCount, tokenEmbeddings.length));
+        }
+        if (divisor == 0f) {
+            divisor = tokenEmbeddings.length;
+        }
+
+        for (int e = 0; e < pooled.length; e++) {
+            pooled[e] /= divisor;
+        }
+
+        return pooled;
     }
     
     @Override
@@ -638,53 +597,110 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
         return status;
     }
     
-    /**
-     * Improved WordPiece-like tokenization for BERT-based models
-     * 
-     * This implementation provides better tokenization than character-based:
-     * - Handles word boundaries properly
-     * - Adds special tokens ([CLS], [SEP])
-     * - Uses word-level hashing with subword simulation
-     * - Handles punctuation and special characters
-     * 
-     * Note: This is a simplified approximation. For production-quality tokenization,
-     * consider using a REST API tokenizer service or pre-tokenizing externally.
-     */
-    private int[] tokenize(String text) {
+    private TokenizationResult tokenizeText(String text) {
+        if (tokenizerReady && tokenizer != null) {
+            try {
+                return tokenizeWithTokenizer(text);
+            } catch (TokenizerException ex) {
+                log.warn("Tokenizer failed to encode text. Falling back to legacy tokenization: {}", ex.getMessage());
+                tokenizerReady = false;
+            }
+        }
+        return fallbackTokenize(text);
+    }
+
+    private TokenizationResult tokenizeWithTokenizer(String text) throws TokenizerException {
+        String safeText = text == null ? "" : text;
+        Encoding encoding = tokenizer.encode(safeText, true);
+
+        long[] ids = encoding.getIds();
+        long[] attention = encoding.getAttentionMask();
+        long[] typeIds = encoding.getTypeIds();
+
+        long[] inputIds = new long[maxSequenceLength];
+        long[] attentionMask = new long[maxSequenceLength];
+        long[] tokenTypeIds = new long[maxSequenceLength];
+
+        int length = Math.min(ids.length, maxSequenceLength);
+        if (ids.length > 0) {
+            System.arraycopy(ids, 0, inputIds, 0, length);
+        }
+
+        if (attention != null && attention.length >= length) {
+            System.arraycopy(attention, 0, attentionMask, 0, length);
+        } else {
+            Arrays.fill(attentionMask, 0, length, 1L);
+        }
+
+        if (typeIds != null && typeIds.length >= length) {
+            System.arraycopy(typeIds, 0, tokenTypeIds, 0, length);
+        }
+
+        int validTokenCount = 0;
+        for (int i = 0; i < length; i++) {
+            if (attentionMask[i] > 0) {
+                validTokenCount++;
+            }
+        }
+        if (validTokenCount == 0) {
+            validTokenCount = Math.max(1, length);
+        }
+
+        return new TokenizationResult(inputIds, attentionMask, tokenTypeIds, validTokenCount);
+    }
+
+    private TokenizationResult fallbackTokenize(String text) {
+        int[] legacyTokens = legacyTokenizeToInts(text);
+        long[] inputIds = new long[maxSequenceLength];
+        long[] attentionMask = new long[maxSequenceLength];
+        long[] tokenTypeIds = new long[maxSequenceLength];
+        int validTokenCount = 0;
+
+        for (int i = 0; i < maxSequenceLength; i++) {
+            int token = i < legacyTokens.length ? legacyTokens[i] : TOKEN_PAD;
+            inputIds[i] = token;
+            if (token != TOKEN_PAD) {
+                attentionMask[i] = 1L;
+                validTokenCount++;
+            }
+        }
+
+        if (validTokenCount == 0) {
+            attentionMask[0] = 1L;
+            validTokenCount = 1;
+        }
+
+        return new TokenizationResult(inputIds, attentionMask, tokenTypeIds, validTokenCount);
+    }
+
+    private int[] legacyTokenizeToInts(String text) {
         if (text == null || text.trim().isEmpty()) {
-            // Return just [CLS] and [SEP] tokens
             return createPaddedTokens(new int[]{TOKEN_CLS, TOKEN_SEP}, maxSequenceLength);
         }
-        
-        // Normalize: lowercase, trim, basic Unicode normalization
+
         String normalized = text.toLowerCase()
             .trim()
-            .replaceAll("\\s+", " ")  // Normalize whitespace
-            .replaceAll("[\\u2000-\\u206F]", " ")  // Unicode spaces
-            .replaceAll("[\\u00A0]", " ");  // Non-breaking space
-        
-        // Split into words (preserving punctuation as separate tokens)
+            .replaceAll("\\s+", " ")
+            .replaceAll("[\\u2000-\\u206F]", " ")
+            .replaceAll("[\\u00A0]", " ");
+
         List<String> wordTokens = tokenizeIntoWords(normalized);
-        
-        // Convert words to token IDs using WordPiece-like algorithm
+
         List<Integer> tokenIds = new ArrayList<>();
-        tokenIds.add(TOKEN_CLS);  // Add [CLS] token at the start
-        
+        tokenIds.add(TOKEN_CLS);
+
         for (String word : wordTokens) {
-            // WordPiece tokenization: try full word first, then split into subwords
             List<Integer> wordTokenIds = wordPieceTokenize(word);
             tokenIds.addAll(wordTokenIds);
-            
-            // Limit sequence length (accounting for [CLS] and [SEP] tokens)
-            int maxContentLength = maxSequenceLength - 2; // Reserve space for [CLS] and [SEP]
+
+            int maxContentLength = maxSequenceLength - 2;
             if (tokenIds.size() >= maxContentLength) {
                 break;
             }
         }
-        
-        tokenIds.add(TOKEN_SEP);  // Add [SEP] token at the end
-        
-        // Convert to array and pad/truncate
+
+        tokenIds.add(TOKEN_SEP);
+
         int[] tokens = tokenIds.stream().mapToInt(Integer::intValue).toArray();
         return createPaddedTokens(tokens, maxSequenceLength);
     }
@@ -831,6 +847,47 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
             System.arraycopy(tokens, 1, truncated, 1, contentLength);
             truncated[maxLength - 1] = TOKEN_SEP; // Add [SEP] at end
             return truncated;
+        }
+    }
+
+    private String resolveModelName() {
+        try {
+            if (resolvedModelPath != null) {
+                return resolvedModelPath.getFileName().toString();
+            }
+            return Paths.get(modelPath).getFileName().toString();
+        } catch (Exception ex) {
+            return modelPath;
+        }
+    }
+
+    private static final class TokenizationResult {
+        private final long[] inputIds;
+        private final long[] attentionMask;
+        private final long[] tokenTypeIds;
+        private final int validTokenCount;
+
+        private TokenizationResult(long[] inputIds, long[] attentionMask, long[] tokenTypeIds, int validTokenCount) {
+            this.inputIds = inputIds;
+            this.attentionMask = attentionMask;
+            this.tokenTypeIds = tokenTypeIds;
+            this.validTokenCount = validTokenCount;
+        }
+
+        long[] getInputIds() {
+            return inputIds;
+        }
+
+        long[] getAttentionMask() {
+            return attentionMask;
+        }
+
+        long[] getTokenTypeIds() {
+            return tokenTypeIds;
+        }
+
+        int getValidTokenCount() {
+            return validTokenCount;
         }
     }
 }
