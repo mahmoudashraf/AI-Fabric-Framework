@@ -13,10 +13,6 @@ import ai.onnxruntime.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
-import com.huggingface.tokenizers.Encoding;
-import com.huggingface.tokenizers.Tokenizer;
-import com.huggingface.tokenizers.TokenizerException;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.LongBuffer;
@@ -29,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.lang.reflect.Method;
 
 /**
  * ONNX Runtime Embedding Provider
@@ -69,8 +66,13 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     private int embeddingDimension = 384; // Default for all-MiniLM-L6-v2
     private Path resolvedModelPath;
     private Path resolvedTokenizerPath;
-    private Tokenizer tokenizer;
     private boolean tokenizerReady = false;
+    private Object tokenizerInstance;
+    private Method tokenizerEncodeMethod;
+    private Method encodingGetIdsMethod;
+    private Method encodingGetAttentionMaskMethod;
+    private Method encodingGetTypeIdsMethod;
+    private boolean tokenizerEncodeSupportsAddSpecialTokens = false;
     
     // Thread safety: ONNX Runtime sessions are NOT thread-safe
     // Using ReentrantLock to synchronize access to ortSession
@@ -167,6 +169,12 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
 
     private void initializeTokenizer() {
         tokenizerReady = false;
+        tokenizerInstance = null;
+        tokenizerEncodeMethod = null;
+        encodingGetIdsMethod = null;
+        encodingGetAttentionMaskMethod = null;
+        encodingGetTypeIdsMethod = null;
+        tokenizerEncodeSupportsAddSpecialTokens = false;
         if (resolvedTokenizerPath == null) {
             log.warn("Tokenizer file not configured or could not be resolved. Falling back to legacy tokenization.");
             return;
@@ -179,13 +187,42 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
                 log.warn("Tokenizer file not found at: {}. Falling back to legacy tokenization.", tokenizerPathToUse);
                 return;
             }
-            tokenizer = Tokenizer.fromFile(tokenizerPathToUse.toString());
+
+            Class<?> tokenizerClass = Class.forName("com.huggingface.tokenizers.Tokenizer");
+            Class<?> encodingClass = Class.forName("com.huggingface.tokenizers.Encoding");
+
+            Method fromFileMethod = tokenizerClass.getMethod("fromFile", String.class);
+            Object instance = fromFileMethod.invoke(null, tokenizerPathToUse.toString());
+
+            Method encodeMethod;
+            boolean supportsAddSpecialTokens = false;
+            try {
+                encodeMethod = tokenizerClass.getMethod("encode", String.class, boolean.class);
+                supportsAddSpecialTokens = true;
+            } catch (NoSuchMethodException e) {
+                encodeMethod = tokenizerClass.getMethod("encode", String.class);
+                supportsAddSpecialTokens = false;
+            }
+
+            Method getIdsMethod = encodingClass.getMethod("getIds");
+            Method getAttentionMaskMethod = encodingClass.getMethod("getAttentionMask");
+            Method getTypeIdsMethod = encodingClass.getMethod("getTypeIds");
+
+            tokenizerInstance = instance;
+            tokenizerEncodeMethod = encodeMethod;
+            encodingGetIdsMethod = getIdsMethod;
+            encodingGetAttentionMaskMethod = getAttentionMaskMethod;
+            encodingGetTypeIdsMethod = getTypeIdsMethod;
+            tokenizerEncodeSupportsAddSpecialTokens = supportsAddSpecialTokens;
             resolvedTokenizerPath = tokenizerPathToUse;
             tokenizerReady = true;
-            log.info("Tokenizer initialized using Hugging Face tokenizers at {}", tokenizerPathToUse);
+            log.info("Tokenizer initialized via Hugging Face tokenizers at {}", tokenizerPathToUse);
+        } catch (ClassNotFoundException e) {
+            log.warn("Hugging Face tokenizers library not found on classpath. Falling back to legacy tokenization.");
+        } catch (NoSuchMethodException e) {
+            log.error("Hugging Face tokenizers library detected but methods not found. Falling back to legacy tokenization.", e);
         } catch (Exception ex) {
             log.error("Failed to initialize tokenizer from {}. Falling back to legacy tokenization.", resolvedTokenizerPath, ex);
-            tokenizerReady = false;
         }
     }
 
@@ -598,10 +635,10 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     }
     
     private TokenizationResult tokenizeText(String text) {
-        if (tokenizerReady && tokenizer != null) {
+        if (tokenizerReady && tokenizerInstance != null && tokenizerEncodeMethod != null) {
             try {
                 return tokenizeWithTokenizer(text);
-            } catch (TokenizerException ex) {
+            } catch (Exception ex) {
                 log.warn("Tokenizer failed to encode text. Falling back to legacy tokenization: {}", ex.getMessage());
                 tokenizerReady = false;
             }
@@ -609,13 +646,22 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
         return fallbackTokenize(text);
     }
 
-    private TokenizationResult tokenizeWithTokenizer(String text) throws TokenizerException {
+    private TokenizationResult tokenizeWithTokenizer(String text) throws Exception {
         String safeText = text == null ? "" : text;
-        Encoding encoding = tokenizer.encode(safeText, true);
+        Object encoding;
+        if (tokenizerEncodeSupportsAddSpecialTokens) {
+            encoding = tokenizerEncodeMethod.invoke(tokenizerInstance, safeText, Boolean.TRUE);
+        } else {
+            encoding = tokenizerEncodeMethod.invoke(tokenizerInstance, safeText);
+        }
 
-        long[] ids = encoding.getIds();
-        long[] attention = encoding.getAttentionMask();
-        long[] typeIds = encoding.getTypeIds();
+        long[] ids = (long[]) encodingGetIdsMethod.invoke(encoding);
+        long[] attention = encodingGetAttentionMaskMethod != null
+            ? (long[]) encodingGetAttentionMaskMethod.invoke(encoding)
+            : null;
+        long[] typeIds = encodingGetTypeIdsMethod != null
+            ? (long[]) encodingGetTypeIdsMethod.invoke(encoding)
+            : null;
 
         long[] inputIds = new long[maxSequenceLength];
         long[] attentionMask = new long[maxSequenceLength];
