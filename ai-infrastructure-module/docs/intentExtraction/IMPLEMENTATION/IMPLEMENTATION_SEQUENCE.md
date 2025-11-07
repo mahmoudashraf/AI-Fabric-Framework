@@ -236,6 +236,7 @@ ai:
     - [x] Test confidence thresholds
     - [x] Test with different action types
     - [x] Verify response formatting
+    - [x] `mvn -pl ai-infrastructure-core -am -Dtest=VectorActionHandlersTest,RAGOrchestratorTest,RAGOrchestratorLiveHandlersTest test`
 
 **Estimated Time:** 2-3 hours
 **Complexity:** Low (mostly already in Layer 2)
