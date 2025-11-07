@@ -2,20 +2,39 @@
 
 ## Overview
 
-The AI Infrastructure Module uses **ONNX Runtime** as the default embedding provider for local, API-free embedding generation. This document describes the current implementation approach, architecture, and design decisions.
+The AI Infrastructure Module uses **ONNX Runtime** as the default embedding provider for local, API-free embedding generation. This document describes the current implementation approach, architecture, and design decisions. Pair it with the companion assessments in [`ONNX_PRODUCTION_READINESS_ASSESSMENT.md`](./ONNX_PRODUCTION_READINESS_ASSESSMENT.md) and the packaging plan in [`ONNX_OPTIONAL_STARTER_PLAN.md`](../../docs/ONNX_OPTIONAL_STARTER_PLAN.md) to understand both the current state and the target end state.
 
 ## Table of Contents
 
-1. [Architecture Overview](#architecture-overview)
-2. [Current Implementation Details](#current-implementation-details)
-3. [Data Flow](#data-flow)
-4. [Model Requirements](#model-requirements)
-5. [Configuration](#configuration)
-6. [Key Design Decisions](#key-design-decisions)
-7. [Output Processing](#output-processing)
-8. [Performance Characteristics](#performance-characteristics)
-9. [Integration with Spring Boot](#integration-with-spring-boot)
-10. [Troubleshooting](#troubleshooting)
+1. [Implementation Readiness Snapshot](#implementation-readiness-snapshot)
+2. [Architecture Overview](#architecture-overview)
+3. [Production Hardening Roadmap](#production-hardening-roadmap)
+4. [Optional Starter Packaging Alignment](#optional-starter-packaging-alignment)
+5. [Current Implementation Details](#current-implementation-details)
+6. [Data Flow](#data-flow)
+7. [Model Requirements](#model-requirements)
+8. [Configuration](#configuration)
+9. [Key Design Decisions](#key-design-decisions)
+10. [Output Processing](#output-processing)
+11. [Performance Characteristics](#performance-characteristics)
+12. [Integration with Spring Boot](#integration-with-spring-boot)
+13. [Troubleshooting](#troubleshooting)
+14. [Future Improvements](#future-improvements)
+15. [Summary](#summary)
+16. [Related Documentation](#related-documentation)
+
+---
+
+## Implementation Readiness Snapshot
+
+| Area | Status | Notes | Reference |
+|------|--------|-------|-----------|
+| Core embedding flow | ✅ Stable | ONNX provider returns 384-dim vectors via mean pooling and integrates with existing Spring abstraction. | [Current Implementation Details](#current-implementation-details) |
+| Tokenization | 🔴 Needs upgrade | Character-based tokenizer does not match model vocabulary; replace with Hugging Face tokenizers per production assessment. | [Production Hardening Roadmap](#production-hardening-roadmap) |
+| Batch processing | ⚠️ Sequential | Batched requests iterate serially; consolidate into single ONNX inference for throughput gains. | [Production Hardening Roadmap](#production-hardening-roadmap) |
+| Thread safety | ⚠️ Validate | Concurrent access relies on ONNX session default safety guarantees; add stress tests and synchronization/pooling as needed. | [Production Hardening Roadmap](#production-hardening-roadmap) |
+| Observability & resilience | ⚠️ Baseline only | Logging exists, but metrics, health checks, retries, and rate limiting are not yet implemented. | [Production Hardening Roadmap](#production-hardening-roadmap) |
+| Packaging | 🚧 Transitioning | Core module still carries models; planned optional starter module will own runtime + assets. | [Optional Starter Packaging Alignment](#optional-starter-packaging-alignment) |
 
 ---
 
@@ -45,7 +64,51 @@ The system uses an `EmbeddingProvider` interface that allows swappable embedding
 - **RestEmbeddingProvider**: RESTful API calls to Docker container
 - **OpenAIEmbeddingProvider**: OpenAI API calls (fallback)
 
-This abstraction enables switching between providers via configuration without code changes.
+This abstraction enables switching between providers via configuration without code changes. Upcoming packaging work keeps this abstraction intact while allowing teams to opt into ONNX assets via a dedicated starter module.
+
+---
+
+## Production Hardening Roadmap
+
+The prioritized roadmap below compresses findings from [`ONNX_PRODUCTION_READINESS_ASSESSMENT.md`](./ONNX_PRODUCTION_READINESS_ASSESSMENT.md) into actionable phases. Each phase should land as a focused pull request to preserve reviewability.
+
+### Phase 1 — Stabilize Quality & Concurrency (Critical)
+- **Tokenizer parity**: Integrate Hugging Face `tokenizers` (Rust bindings) or an equivalent service so ONNX inputs match the model vocabulary. Track the detailed plan in [`TOKENIZATION_IMPROVEMENT.md`](./TOKENIZATION_IMPROVEMENT.md).
+- **Thread-safety verification**: Add concurrent load tests (JUnit + Testcontainers) and guard the ONNX session with synchronization or a lightweight session pool if required.
+- **True batch execution**: Accept batched inputs and construct `[batch, sequence_length]` tensors to execute a single ONNX runtime call instead of iterating per request.
+
+### Phase 2 — Resilience & Observability (Important)
+- **Rate limiting & circuit breaking**: Add Spring-based rate limiting (e.g., Resilience4j) to prevent resource exhaustion under bursty load.
+- **Operational telemetry**: Publish Micrometer metrics (latency, queue depth, failure counts), expose a `HealthIndicator`, and add structured logging for inference outcomes.
+- **Timeouts & retries**: Bound inference time via configurable timeouts and include exponential backoff retries around transient `OrtException` scenarios.
+
+### Phase 3 — Scale & Flexibility (Enhancements)
+- **Model lifecycle management**: Support multiple models and dynamic configuration for embedding dimensions, sequence lengths, and model identifiers.
+- **Performance options**: Offer GPU execution paths, INT8 quantized variants, and lazy model loading when the optional starter module is present.
+- **Operability polish**: Document SLO targets, add diagnostics endpoints, and capture benchmarking baselines in the test suite.
+
+> For a deeper explanation of risks, scores, and suggested owners, consult [`ONNX_PRODUCTION_READINESS_ASSESSMENT.md`](./ONNX_PRODUCTION_READINESS_ASSESSMENT.md).
+
+---
+
+## Optional Starter Packaging Alignment
+
+The optional starter strategy defined in [`ONNX_OPTIONAL_STARTER_PLAN.md`](../../docs/ONNX_OPTIONAL_STARTER_PLAN.md) keeps the core module lean while giving adopters a turnkey ONNX setup. This section highlights how the current implementation will evolve alongside that plan.
+
+### Packaging Objectives
+- **Isolate heavy assets**: Move ONNX runtime dependencies, tokenizer files, and model binaries from `ai-infrastructure-core` into a new `ai-infrastructure-onnx-starter` module.
+- **Auto-configuration opt-in**: Provide a Spring auto-configuration in the starter so dropping the dependency automatically registers `ONNXEmbeddingProvider`.
+- **Integration parity**: Ensure integration tests, local dev scripts, and documentation consume the starter module instead of ad-hoc model copies.
+
+### Action Checklist
+- [ ] Create the starter Maven module and publish alongside the core artifact.
+- [ ] Update `integration-tests/pom.xml` (and related scripts) to depend on the starter rather than local files.
+- [ ] Document adoption steps (pom snippet, model override instructions) in this file and the main [`ONNX_OPTIONAL_STARTER_PLAN.md`](../../docs/ONNX_OPTIONAL_STARTER_PLAN.md).
+
+### Developer Experience Notes
+- Short term: continue using the embedded assets while packaging work completes.
+- Mid term: once the starter is live, teams add a single dependency to enable ONNX and can override model paths via existing `ai.providers.onnx-*` properties.
+- Long term: the starter module becomes the canonical place for distributing curated ONNX models, enabling versioned rollouts without inflating the core artifact.
 
 ---
 
@@ -531,40 +594,15 @@ Successfully generated ONNX embedding with 384 dimensions in 109ms
 
 ## Future Improvements
 
-### 1. Proper Tokenization
+The roadmap above informs the improvement backlog. Track high-priority initiatives with the matrix below and align each delivery with the indicated phase.
 
-**Current**: Character-based tokenization
-**Improvement**: Integrate HuggingFace tokenizers library or REST API
-
-**Impact**: Better embedding quality, matches model training
-
-### 2. Batch Processing Optimization
-
-**Current**: Supports batch but not optimized
-**Improvement**: Proper batch tensor creation and processing
-
-**Impact**: 3-5x throughput improvement
-
-### 3. GPU Support
-
-**Current**: CPU-only by default
-**Improvement**: Enable GPU with automatic fallback
-
-**Impact**: 5-10x speedup on GPU-enabled systems
-
-### 4. Model Caching
-
-**Current**: Model loaded on startup
-**Improvement**: Lazy loading, multiple model support
-
-**Impact**: Faster startup, support for multiple models
-
-### 5. Normalization
-
-**Current**: Raw embeddings
-**Improvement**: L2 normalization (common for embeddings)
-
-**Impact**: Better similarity calculations
+| Focus | Phase | Status | Next Step | Reference |
+|-------|-------|--------|-----------|-----------|
+| Tokenization parity | Phase 1 | 🔴 Planned | Integrate Hugging Face tokenizer support and extend tests to validate canonical vocab output. | [`TOKENIZATION_IMPROVEMENT.md`](./TOKENIZATION_IMPROVEMENT.md) |
+| Thread safety & true batching | Phase 1 | ⚠️ In analysis | Add concurrent integration tests and introduce session pooling or synchronization plus real batch tensor execution. | [Production Hardening Roadmap (Phase 1)](#production-hardening-roadmap) |
+| Observability & resilience | Phase 2 | ⚠️ Upcoming | Wire Micrometer metrics, health indicators, rate limiting, and retry policies around the provider. | [Production Hardening Roadmap (Phase 2)](#production-hardening-roadmap) |
+| Packaging migration to starter | Phase 2 | 🚧 In progress | Create the `ai-infrastructure-onnx-starter` module, move assets, and update integration tests/scripts. | [`ONNX_OPTIONAL_STARTER_PLAN.md`](../../docs/ONNX_OPTIONAL_STARTER_PLAN.md) |
+| Performance extensions (GPU, quantization, caching, normalization) | Phase 3 | 🟡 Backlog | Profile current latency, add GPU + INT8 execution paths, support lazy model loading, and apply L2 normalization utilities. | [Production Hardening Roadmap (Phase 3)](#production-hardening-roadmap) |
 
 ---
 
@@ -585,10 +623,9 @@ The current ONNX implementation:
 - Flexible configuration
 
 **Areas for Improvement**:
-- Replace character-based tokenization with proper tokenizer
-- Optimize batch processing
-- Add GPU support
-- Implement L2 normalization
+- **Phase 1**: Deliver tokenizer parity, thread-safety validation, and true batch execution.
+- **Phase 2**: Ship metrics, health checks, rate limiting, and complete the optional starter packaging migration.
+- **Phase 3**: Layer in GPU/INT8 execution, lazy model management, and default L2 normalization utilities.
 
 ---
 

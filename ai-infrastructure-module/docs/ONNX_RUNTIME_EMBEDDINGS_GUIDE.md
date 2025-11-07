@@ -15,6 +15,8 @@
 
 ---
 
+> **Context:** Pair this runtime guide with [`ONNX_IMPLEMENTATION_APPROACH.md`](./ONNX_IMPLEMENTATION_APPROACH.md), [`ONNX_PRODUCTION_READINESS_ASSESSMENT.md`](./ONNX_PRODUCTION_READINESS_ASSESSMENT.md), and [`ONNX_OPTIONAL_STARTER_PLAN.md`](../../docs/ONNX_OPTIONAL_STARTER_PLAN.md) for architecture details, production hardening guidance, and packaging strategy.
+
 ## ONNX Format Explained
 
 ### What is ONNX?
@@ -159,6 +161,17 @@ wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/
 python -c "from huggingface_hub import hf_hub_download; hf_hub_download('sentence-transformers/all-MiniLM-L6-v2', 'model.onnx', local_dir='.')"
 ```
 
+### Step 4: Adopt the Optional ONNX Starter (Planned)
+
+The upcoming optional starter module will package ONNX Runtime, the default MiniLM model, tokenizer assets, and Spring auto-configuration so teams can enable ONNX with a single dependency. Once published:
+
+- Add the starter dependency to your Maven/Gradle build (see the plan for final coordinates).
+- Remove manually downloaded model/tokenizer files and rely on the starter's bundled resources.
+- Continue overriding `ai.providers.onnx-*` properties when you need custom models or GPU execution.
+- Follow the migration and release notes in [`ONNX_OPTIONAL_STARTER_PLAN.md`](../../docs/ONNX_OPTIONAL_STARTER_PLAN.md).
+
+Until the starter ships, continue using the manual steps in Steps 1-3.
+
 ---
 
 ## Java Implementation
@@ -302,11 +315,13 @@ public class ONNXEmbeddingService {
 }
 ```
 
+> **Production reminder:** Stress-test concurrent access, add true batch execution, and surface metrics as outlined in [`ONNX_IMPLEMENTATION_APPROACH.md`](./ONNX_IMPLEMENTATION_APPROACH.md#production-hardening-roadmap) and [`ONNX_PRODUCTION_READINESS_ASSESSMENT.md`](./ONNX_PRODUCTION_READINESS_ASSESSMENT.md).
+
 ---
 
 ## Proper Tokenization
 
-The above example uses simplified tokenization. For production, you need the actual tokenizer:
+The above example uses simplified tokenization. For production, you need the actual tokenizer. Track the rollout plan and acceptance criteria in [`TOKENIZATION_IMPROVEMENT.md`](./TOKENIZATION_IMPROVEMENT.md).
 
 ### Option 1: Use Java Tokenizer Library
 
@@ -775,6 +790,20 @@ ai:
 - ✅ Quick prototyping needed
 - ✅ You already have Python environment
 - ✅ Less setup complexity is priority
+
+---
+
+## Production Readiness Checklist
+
+Use this checklist to align runtime adoption with the production target described in the companion documentation.
+
+| Focus | Action | Reference |
+|-------|--------|-----------|
+| Tokenization parity | Integrate Hugging Face tokenizers (or equivalent) and add regression tests that verify vocabulary alignment. | [`TOKENIZATION_IMPROVEMENT.md`](./TOKENIZATION_IMPROVEMENT.md) |
+| Thread safety & batching | Run concurrent load tests, pool or synchronize ONNX sessions, and execute batch tensors in a single inference call. | [`ONNX_IMPLEMENTATION_APPROACH.md`](./ONNX_IMPLEMENTATION_APPROACH.md#production-hardening-roadmap) |
+| Observability & resilience | Emit Micrometer metrics, expose health indicators, enforce rate limiting, and configure timeout/retry policies. | [`ONNX_PRODUCTION_READINESS_ASSESSMENT.md`](./ONNX_PRODUCTION_READINESS_ASSESSMENT.md) |
+| Optional starter packaging | Migrate to the `ai-infrastructure-onnx-starter` module and update integration tests and docs to consume it. | [`ONNX_OPTIONAL_STARTER_PLAN.md`](../../docs/ONNX_OPTIONAL_STARTER_PLAN.md) |
+| Performance extensions | Add GPU and INT8 execution paths, support lazy model loading, and normalize embeddings before persistence. | [`ONNX_IMPLEMENTATION_APPROACH.md`](./ONNX_IMPLEMENTATION_APPROACH.md#production-hardening-roadmap) |
 
 ---
 
