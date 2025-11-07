@@ -1,9 +1,18 @@
 # Development Configuration - Vector Database
+# Development configuration
 ai:
   pii-detection:
     enabled: false
     mode: PASS_THROUGH
     store-encrypted-original: false
+
+  # Smart suggestions configuration enables proactive follow-ups in dev.
+  smart-suggestions:
+    enabled: true
+    min-confidence: 0.70
+    primary-confidence: 0.85
+    retrieval-limit: 3
+    retrieval-threshold: 0.55
 
   providers:
     # Embedding Provider Configuration (ONNX default for local development)

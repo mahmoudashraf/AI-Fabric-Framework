@@ -38,6 +38,9 @@ public class OrchestrationResult {
     @Builder.Default
     private Map<String, Object> metadata = Collections.emptyMap();
 
+    @Builder.Default
+    private Map<String, Object> smartSuggestion = Collections.emptyMap();
+
     public static OrchestrationResult error(String message) {
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.ERROR)

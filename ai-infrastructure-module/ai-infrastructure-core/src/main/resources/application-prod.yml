@@ -6,6 +6,13 @@ ai:
     store-encrypted-original: true
     encryption-secret: ${PII_ENCRYPTION_SECRET:}
 
+  smart-suggestions:
+    enabled: true
+    min-confidence: ${AI_SMART_SUGGESTIONS_MIN_CONFIDENCE:0.70}
+    primary-confidence: ${AI_SMART_SUGGESTIONS_PRIMARY_CONFIDENCE:0.85}
+    retrieval-limit: ${AI_SMART_SUGGESTIONS_LIMIT:3}
+    retrieval-threshold: ${AI_SMART_SUGGESTIONS_THRESHOLD:0.55}
+
   providers:
     # Embedding Provider Configuration
     # Options: onnx (local), rest (Docker service), openai (cloud API)

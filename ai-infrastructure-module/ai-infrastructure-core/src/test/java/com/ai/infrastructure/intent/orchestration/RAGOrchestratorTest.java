@@ -1,5 +1,6 @@
 package com.ai.infrastructure.intent.orchestration;
 
+import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,12 +46,14 @@ class RAGOrchestratorTest {
     @Mock
     private ActionHandler actionHandler;
 
-    @InjectMocks
+    private SmartSuggestionsProperties smartSuggestionsProperties;
+
     private RAGOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
-        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService);
+        smartSuggestionsProperties = new SmartSuggestionsProperties();
+        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService, smartSuggestionsProperties);
     }
 
     @Test
@@ -222,9 +225,79 @@ class RAGOrchestratorTest {
         when(actionHandlerRegistry.findMetadata("update_payment_method")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Updated").build());
+        when(ragService.performRag(any(RAGRequest.class))).thenReturn(RAGResponse.builder()
+            .response("Your payment method is confirmed.")
+            .documents(List.of())
+            .build());
 
         OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
+        assertThat(result.getSmartSuggestion())
+            .containsEntry("intent", "view_billing_history")
+            .containsEntry("response", "Your payment method is confirmed.");
+        assertThat(result.getData()).containsKey("smartSuggestion");
+    }
+
+    @Test
+    void shouldSkipSmartSuggestionWhenConfidenceBelowThreshold() {
+        smartSuggestionsProperties.setMinConfidence(0.8d);
+
+        NextStepRecommendation recommendation = NextStepRecommendation.builder()
+            .intent("view_billing_history")
+            .confidence(0.75)
+            .query("Show my billing history")
+            .build();
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("update_payment_method")
+            .nextStepRecommended(recommendation)
+            .build();
+
+        when(intentQueryExtractor.extract(any(), any()))
+            .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
+        when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
+        when(actionHandler.validateActionAllowed(any())).thenReturn(true);
+        when(actionHandler.getConfirmationMessage(any())).thenReturn("Confirm?");
+        when(actionHandlerRegistry.findMetadata("update_payment_method")).thenReturn(Optional.empty());
+        when(actionHandler.executeAction(any(), any()))
+            .thenReturn(ActionResult.builder().success(true).message("Updated").build());
+
+        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
+
+        assertThat(result.getNextSteps()).containsExactly(recommendation);
+        assertThat(result.getSmartSuggestion()).isEmpty();
+        verify(ragService, never()).performRag(any(RAGRequest.class));
+    }
+
+    @Test
+    void shouldNotInvokeSmartSuggestionsWhenDisabled() {
+        smartSuggestionsProperties.setEnabled(false);
+
+        NextStepRecommendation recommendation = NextStepRecommendation.builder()
+            .intent("view_billing_history")
+            .confidence(0.9)
+            .query("Show my billing history")
+            .build();
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("update_payment_method")
+            .nextStepRecommended(recommendation)
+            .build();
+
+        when(intentQueryExtractor.extract(any(), any()))
+            .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
+        when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
+        when(actionHandler.validateActionAllowed(any())).thenReturn(true);
+        when(actionHandler.getConfirmationMessage(any())).thenReturn("Confirm?");
+        when(actionHandlerRegistry.findMetadata("update_payment_method")).thenReturn(Optional.empty());
+        when(actionHandler.executeAction(any(), any()))
+            .thenReturn(ActionResult.builder().success(true).message("Updated").build());
+
+        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
+
+        assertThat(result.getNextSteps()).containsExactly(recommendation);
+        assertThat(result.getSmartSuggestion()).isEmpty();
+        verify(ragService, never()).performRag(any(RAGRequest.class));
     }
 }
