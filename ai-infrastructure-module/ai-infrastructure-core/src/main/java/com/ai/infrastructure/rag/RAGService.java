@@ -9,6 +9,9 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.dto.PIIMode;
+import com.ai.infrastructure.dto.PIIDetectionResult;
+import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -39,6 +42,7 @@ public class RAGService {
     private final VectorDatabaseService vectorDatabaseService;
     private final VectorDatabase vectorDatabase;
     private final AISearchService searchService;
+    private final PIIDetectionService piiDetectionService;
     
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP_TYPE_REFERENCE = new TypeReference<>() {};
@@ -87,11 +91,15 @@ public class RAGService {
      */
     public AISearchResponse performRAGQuery(String query, String entityType, int limit) {
         try {
-            log.debug("Performing RAG query: {} for entity type: {}", query, entityType);
+            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(query);
+            log.debug("Performing RAG query for entity type={} (piiDetected={}, mode={})",
+                entityType, piiDetectionResult.isPiiDetected(),
+                Optional.ofNullable(piiDetectionResult.getModeApplied()).map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
+            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
             
             // Generate embedding for query
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(query)
+                .text(sanitizedQuery)
                 .entityType(entityType)
                 .build();
             
@@ -99,7 +107,7 @@ public class RAGService {
             
             // Perform vector search
             AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(query)
+                .query(sanitizedQuery)
                 .entityType(entityType)
                 .limit(limit)
                 .threshold(0.7)
@@ -180,13 +188,19 @@ public class RAGService {
      */
     public RAGResponse performRAGQuery(RAGRequest request) {
         try {
-            log.debug("Performing RAG query: {}", request.getQuery());
+            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(request.getQuery());
+            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
+            log.debug("Performing RAG query (entityType={}, requestId={}, piiDetected={}, mode={})",
+                request.getEntityType(),
+                request.getRequestId(),
+                piiDetectionResult.isPiiDetected(),
+                Optional.ofNullable(piiDetectionResult.getModeApplied()).map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
             
             long startTime = System.currentTimeMillis();
             
             // Generate query embedding
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(request.getQuery())
+                .text(sanitizedQuery)
                 .model(config.getOpenaiEmbeddingModel())
                 .build();
             
@@ -195,7 +209,7 @@ public class RAGService {
             
             // Create search request
             AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(request.getQuery())
+                .query(sanitizedQuery)
                 .entityType(request.getEntityType())
                 .limit(request.getLimit())
                 .threshold(request.getThreshold())
@@ -204,7 +218,7 @@ public class RAGService {
             // Perform search
             AISearchResponse searchResponse;
             if (request.getEnableHybridSearch()) {
-                searchResponse = performHybridSearch(queryVector, request.getQuery(), searchRequest);
+                searchResponse = performHybridSearch(queryVector, sanitizedQuery, searchRequest);
             } else if (request.getEnableContextualSearch()) {
                 searchResponse = performContextualSearch(queryVector, request.getContext().toString(), searchRequest);
             } else {
@@ -215,9 +229,20 @@ public class RAGService {
             String context = buildContext(searchResponse);
             
             // Generate response (simplified for now)
-            String response = generateResponse(request.getQuery(), context);
+            String response = generateResponse(sanitizedQuery, context);
             
             long processingTime = System.currentTimeMillis() - startTime;
+
+            Map<String, Object> aggregatedMetadata = new HashMap<>();
+            if (request.getMetadata() != null) {
+                aggregatedMetadata.putAll(request.getMetadata());
+            }
+            aggregatedMetadata.put("piiDetection", Map.of(
+                "detected", piiDetectionResult.isPiiDetected(),
+                "mode", Optional.ofNullable(piiDetectionResult.getModeApplied()).map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()),
+                "detectionsCount", piiDetectionResult.getDetections().size(),
+                "encryptedOriginalStored", piiDetectionResult.getEncryptedOriginalQuery() != null
+            ));
             
             return RAGResponse.builder()
                 .response(response)
@@ -235,9 +260,11 @@ public class RAGService {
                 .success(true)
                 .hybridSearchUsed(request.getEnableHybridSearch())
                 .contextualSearchUsed(request.getEnableContextualSearch())
-                .originalQuery(request.getQuery())
+                .originalQuery(sanitizedQuery)
                 .entityType(request.getEntityType())
                 .searchedCategories(request.getCategories())
+                .piiDetectionResult(piiDetectionResult)
+                .metadata(Collections.unmodifiableMap(aggregatedMetadata))
                 .build();
                 
         } catch (Exception e) {
@@ -345,11 +372,18 @@ public class RAGService {
      */
     public RAGResponse performRag(RAGRequest request) {
         try {
-            log.debug("Performing RAG operation for query: {}", request.getQuery());
-            
+            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(request.getQuery());
+            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
+            log.debug("Performing RAG operation (entityType={}, requestId={}, piiDetected={}, mode={})",
+                request.getEntityType(),
+                request.getRequestId(),
+                piiDetectionResult.isPiiDetected(),
+                Optional.ofNullable(piiDetectionResult.getModeApplied()).map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
+
             // Generate embedding for the query
+
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(request.getQuery())
+                .text(sanitizedQuery)
                 .build();
             
             AIEmbeddingResponse embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
@@ -367,7 +401,7 @@ public class RAGService {
             }
             
             AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(request.getQuery())
+                .query(sanitizedQuery)
                 .entityType(request.getEntityType())
                 .limit(request.getLimit())
                 .threshold(request.getThreshold())
@@ -400,6 +434,17 @@ public class RAGService {
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+
+            Map<String, Object> aggregatedMetadata = new HashMap<>();
+            if (request.getMetadata() != null) {
+                aggregatedMetadata.putAll(request.getMetadata());
+            }
+            aggregatedMetadata.put("piiDetection", Map.of(
+                "detected", piiDetectionResult.isPiiDetected(),
+                "mode", Optional.ofNullable(piiDetectionResult.getModeApplied()).map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()),
+                "detectionsCount", piiDetectionResult.getDetections().size(),
+                "encryptedOriginalStored", piiDetectionResult.getEncryptedOriginalQuery() != null
+            ));
             
             return RAGResponse.builder()
                 .documents(documents)
@@ -413,11 +458,12 @@ public class RAGService {
                 .averageScore(documents.stream().mapToDouble(RAGResponse.RAGDocument::getScore).average().orElse(0.0))
                 .processingTimeMs(searchResponse.getProcessingTimeMs())
                 .requestId(request.getRequestId())
-                .originalQuery(request.getQuery())
+                .originalQuery(sanitizedQuery)
                 .entityType(request.getEntityType())
                 .model(config.getOpenaiModel())
                 .timestamp(java.time.LocalDateTime.now())
-                .metadata(request.getMetadata())
+                .piiDetectionResult(piiDetectionResult)
+                .metadata(Collections.unmodifiableMap(aggregatedMetadata))
                 .build();
                 
         } catch (Exception e) {

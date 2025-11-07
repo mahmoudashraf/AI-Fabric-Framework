@@ -1,5 +1,10 @@
 # Development Configuration - Vector Database
 ai:
+  pii-detection:
+    enabled: false
+    mode: PASS_THROUGH
+    store-encrypted-original: false
+
   providers:
     # Embedding Provider Configuration (ONNX default for local development)
     embedding-provider: onnx

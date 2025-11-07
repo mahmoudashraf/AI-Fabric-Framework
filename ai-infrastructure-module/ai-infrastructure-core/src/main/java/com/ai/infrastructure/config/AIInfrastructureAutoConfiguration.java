@@ -16,6 +16,7 @@ import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.audit.AIAuditService;
 import com.ai.infrastructure.privacy.AIDataPrivacyService;
+import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.filter.AIContentFilterService;
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
@@ -71,7 +72,7 @@ import java.util.List;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class})
+@EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class, PIIDetectionProperties.class})
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy
@@ -172,8 +173,13 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public RAGService ragService(AIProviderConfig config, AIEmbeddingService embeddingService, VectorDatabaseService vectorDatabaseService, VectorDatabase vectorDatabase, AISearchService searchService) {
-        return new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService);
+    public RAGService ragService(AIProviderConfig config,
+                                 AIEmbeddingService embeddingService,
+                                 VectorDatabaseService vectorDatabaseService,
+                                 VectorDatabase vectorDatabase,
+                                 AISearchService searchService,
+                                 PIIDetectionService piiDetectionService) {
+        return new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService, piiDetectionService);
     }
     
     @Bean
@@ -199,6 +205,12 @@ public class AIInfrastructureAutoConfiguration {
     @Bean
     public AIDataPrivacyService aiDataPrivacyService(AICoreService aiCoreService) {
         return new AIDataPrivacyService(aiCoreService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PIIDetectionService piiDetectionService(PIIDetectionProperties properties) {
+        return new PIIDetectionService(properties);
     }
     
     @Bean

@@ -1,5 +1,10 @@
 # Test Configuration - Vector Database and OpenAI
 ai:
+  pii-detection:
+    enabled: true
+    mode: DETECT_ONLY
+    store-encrypted-original: false
+
   vector-db:
     type: memory
     memory:

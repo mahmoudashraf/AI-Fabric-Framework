@@ -1,5 +1,11 @@
 # Production Configuration - Vector Database
 ai:
+  pii-detection:
+    enabled: true
+    mode: REDACT
+    store-encrypted-original: true
+    encryption-secret: ${PII_ENCRYPTION_SECRET:}
+
   providers:
     # Embedding Provider Configuration
     # Options: onnx (local), rest (Docker service), openai (cloud API)
