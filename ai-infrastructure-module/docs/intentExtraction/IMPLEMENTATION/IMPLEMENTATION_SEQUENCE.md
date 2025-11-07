@@ -162,6 +162,7 @@ TOTAL IMPLEMENTATION TIME: 20-30 hours (3-4 weeks)
 
 For EACH service with actions (e.g., SubscriptionService):
 
+- [x] Core vector maintenance handlers (clear & remove) registered against production `VectorDatabaseService`
 **Example: CancelSubscriptionHandler**
 ```
 Tasks:
@@ -216,25 +217,25 @@ ai:
 
 **Tasks:**
 1. Verify NextStepRecommendation is in Intent DTO
-   - [ ] Already added in Layer 2
+    - [x] Already added in Layer 2 (verified)
    
 2. Verify LLM prompt includes next-step guidance
-   - [ ] Already added in Layer 2
+    - [x] Already added in Layer 2 (verified)
    
 3. Implement Smart Suggestions in RAGOrchestrator
-   - [ ] Check if nextStepRecommended exists
-   - [ ] Validate confidence threshold (0.70+)
-   - [ ] Call RAGService for next-step query
-   - [ ] Add to response with formatting
+    - [x] Check if nextStepRecommended exists
+    - [x] Validate confidence threshold (0.70+)
+    - [x] Call RAGService for next-step query
+    - [x] Add to response with formatting
    
 4. Update response DTOs
-   - [ ] Add nextStepInfo to OrchestrationResult
+    - [x] Add nextStepInfo to OrchestrationResult
    
 5. Test
-   - [ ] Test that next-step is retrieved
-   - [ ] Test confidence thresholds
-   - [ ] Test with different action types
-   - [ ] Verify response formatting
+    - [x] Test that next-step is retrieved
+    - [x] Test confidence thresholds
+    - [x] Test with different action types
+    - [x] Verify response formatting
 
 **Estimated Time:** 2-3 hours
 **Complexity:** Low (mostly already in Layer 2)

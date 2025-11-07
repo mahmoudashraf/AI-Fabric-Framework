@@ -1,5 +1,6 @@
 package com.ai.infrastructure.intent.orchestration;
 
+import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
@@ -18,11 +19,13 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -36,6 +39,7 @@ public class RAGOrchestrator {
     private final IntentQueryExtractor intentQueryExtractor;
     private final ActionHandlerRegistry actionHandlerRegistry;
     private final RAGService ragService;
+    private final SmartSuggestionsProperties smartSuggestionsProperties;
 
     public OrchestrationResult orchestrate(String query, String userId) {
         MultiIntentResponse multiIntentResponse = intentQueryExtractor.extract(query, userId);
@@ -59,6 +63,8 @@ public class RAGOrchestrator {
             metadata.put("intentMetadata", multiIntentResponse.getMetadata());
         }
         result.setMetadata(Collections.unmodifiableMap(metadata));
+
+        applySmartSuggestions(result, userId);
 
         return result;
     }
@@ -243,6 +249,96 @@ public class RAGOrchestrator {
             return List.of();
         }
         return List.of(intent.getNextStepRecommended());
+    }
+
+    private void applySmartSuggestions(OrchestrationResult result, String userId) {
+        if (result == null || !smartSuggestionsProperties.isEnabled()) {
+            return;
+        }
+
+        List<NextStepRecommendation> nextSteps = result.getNextSteps();
+        if (CollectionUtils.isEmpty(nextSteps)) {
+            return;
+        }
+
+        NextStepRecommendation candidate = nextSteps.stream()
+            .filter(Objects::nonNull)
+            .filter(step -> step.getConfidence() != null && step.getConfidence() >= smartSuggestionsProperties.getMinConfidence())
+            .max(Comparator.comparingDouble(NextStepRecommendation::getConfidence))
+            .orElse(null);
+
+        if (candidate == null) {
+            return;
+        }
+
+        String query = StringUtils.hasText(candidate.getQuery()) ? candidate.getQuery() : candidate.getIntent();
+        if (!StringUtils.hasText(query)) {
+            log.debug("Skipping smart suggestion - missing query for recommendation intent={}", candidate.getIntent());
+            return;
+        }
+
+        try {
+            RAGRequest ragRequest = RAGRequest.builder()
+                .query(query)
+                .limit(smartSuggestionsProperties.getRetrievalLimit())
+                .threshold(smartSuggestionsProperties.getRetrievalThreshold())
+                .metadata(Map.of(
+                    "source", "smart-suggestion",
+                    "suggestionIntent", candidate.getIntent(),
+                    "suggestionConfidence", candidate.getConfidence(),
+                    "userId", userId
+                ))
+                .userId(userId)
+                .build();
+
+            RAGResponse ragResponse = ragService.performRag(ragRequest);
+            if (ragResponse == null) {
+                log.debug("Smart suggestion retrieval returned no response for intent {}", candidate.getIntent());
+                return;
+            }
+
+            Map<String, Object> suggestion = new LinkedHashMap<>();
+            suggestion.put("intent", candidate.getIntent());
+            suggestion.put("title", convertToTitle(candidate.getIntent()));
+            suggestion.put("query", query);
+            suggestion.put("confidence", candidate.getConfidence());
+            suggestion.put("priority", candidate.getConfidence() >= smartSuggestionsProperties.getPrimaryConfidence() ? "PRIMARY" : "SECONDARY");
+            if (smartSuggestionsProperties.isIncludeRationale() && StringUtils.hasText(candidate.getRationale())) {
+                suggestion.put("rationale", candidate.getRationale());
+            }
+            suggestion.put("response", ragResponse.getResponse());
+            suggestion.put("documents", ragResponse.getDocuments());
+            suggestion.put("metadata", ragResponse.getMetadata());
+
+            result.setSmartSuggestion(Collections.unmodifiableMap(suggestion));
+            result.withAdditionalData(Map.of("smartSuggestion", suggestion));
+        } catch (Exception ex) {
+            log.warn("Failed to generate smart suggestion for intent {}: {}", candidate.getIntent(), ex.getMessage());
+        }
+    }
+
+    private String convertToTitle(String intent) {
+        if (!StringUtils.hasText(intent)) {
+            return null;
+        }
+        String normalized = intent.replaceAll("[_\\-]+", " ").trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        StringBuilder builder = new StringBuilder(normalized.length());
+        boolean capitalizeNext = true;
+        for (char ch : normalized.toCharArray()) {
+            if (Character.isWhitespace(ch)) {
+                capitalizeNext = true;
+                builder.append(ch);
+            } else if (capitalizeNext) {
+                builder.append(Character.toTitleCase(ch));
+                capitalizeNext = false;
+            } else {
+                builder.append(Character.toLowerCase(ch));
+            }
+        }
+        return builder.toString();
     }
 
     private AIActionMetaData metadataForAction(String actionName) {

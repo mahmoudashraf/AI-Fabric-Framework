@@ -72,7 +72,12 @@ import java.util.List;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({AIProviderConfig.class, AIServiceConfig.class, PIIDetectionProperties.class})
+@EnableConfigurationProperties({
+    AIProviderConfig.class,
+    AIServiceConfig.class,
+    PIIDetectionProperties.class,
+    SmartSuggestionsProperties.class
+})
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy

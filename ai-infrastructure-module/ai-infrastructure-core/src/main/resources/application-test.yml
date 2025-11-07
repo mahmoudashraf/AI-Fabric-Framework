@@ -5,6 +5,13 @@ ai:
     mode: DETECT_ONLY
     store-encrypted-original: false
 
+  smart-suggestions:
+    enabled: true
+    min-confidence: 0.65
+    primary-confidence: 0.85
+    retrieval-limit: 2
+    retrieval-threshold: 0.55
+
   vector-db:
     type: memory
     memory:
