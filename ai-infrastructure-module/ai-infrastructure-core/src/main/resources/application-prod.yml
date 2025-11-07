@@ -13,6 +13,12 @@ ai:
     retrieval-limit: ${AI_SMART_SUGGESTIONS_LIMIT:3}
     retrieval-threshold: ${AI_SMART_SUGGESTIONS_THRESHOLD:0.55}
 
+  response-sanitization:
+    enabled: true
+    force-redaction: true
+    high-risk-warning-message: ${AI_RESPONSE_SANITIZATION_WARNING:SENSITIVE INFORMATION REMOVED.}
+    suggestion-limit: ${AI_RESPONSE_SANITIZATION_SUGGESTION_LIMIT:3}
+
   providers:
     # Embedding Provider Configuration
     # Options: onnx (local), rest (Docker service), openai (cloud API)

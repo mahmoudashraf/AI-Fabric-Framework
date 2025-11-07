@@ -1,0 +1,85 @@
+package com.ai.infrastructure.config;
+
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Configuration settings governing the response sanitization layer.
+ */
+@Data
+@Validated
+@Slf4j
+@ConfigurationProperties(prefix = "ai.response-sanitization")
+public class ResponseSanitizationProperties {
+
+    /**
+     * Master switch for enabling/disabling sanitization.
+     */
+    private boolean enabled = true;
+
+    /**
+     * When sensitive data is detected, redact it even if the global PII mode is set to DETECT_ONLY.
+     */
+    private boolean forceRedaction = true;
+
+    /**
+     * Keys removed from payloads before presenting to end users.
+     */
+    private List<String> filteredDataKeys = List.of(
+        "metadata",
+        "ragResponse",
+        "documents",
+        "debug",
+        "internalContext"
+    );
+
+    /**
+     * High-risk PII types that trigger warning messages.
+     */
+    private Set<String> highRiskTypes = Set.of("CREDIT_CARD", "SSN", "API_KEY", "DB_PASSWORD");
+
+    /**
+     * Warning message appended when high-risk PII is detected in the generated response.
+     */
+    private String highRiskWarningMessage = "Sensitive information detected and redacted for your safety.";
+
+    /**
+     * Generic replacement token used when the detection pattern does not provide one.
+     */
+    private String defaultReplacement = "[REDACTED]";
+
+    /**
+     * Limit for the total number of suggestions returned to the UI.
+     */
+    private int suggestionLimit = 3;
+
+    /**
+     * Whether to include error codes originating from action handlers in sanitized payloads.
+     */
+    private boolean includeErrorCodes = false;
+
+    public Set<String> normalizedHighRiskTypes() {
+        return highRiskTypes.stream()
+            .map(type -> type == null ? null : type.trim().toUpperCase(Locale.ROOT))
+            .filter(type -> !type.isEmpty())
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    public boolean isHighRiskType(String type) {
+        if (type == null) {
+            return false;
+        }
+        boolean match = normalizedHighRiskTypes().contains(type.trim().toUpperCase(Locale.ROOT));
+        if (match) {
+            log.debug("Detected high-risk type: {}", type);
+        }
+        return match;
+    }
+}

@@ -41,6 +41,9 @@ public class OrchestrationResult {
     @Builder.Default
     private Map<String, Object> smartSuggestion = Collections.emptyMap();
 
+    @Builder.Default
+    private Map<String, Object> sanitizedPayload = Collections.emptyMap();
+
     public static OrchestrationResult error(String message) {
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.ERROR)
@@ -57,5 +60,13 @@ public class OrchestrationResult {
         merged.putAll(additional);
         setData(Collections.unmodifiableMap(merged));
         return this;
+    }
+
+    public void setSanitizedPayload(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            this.sanitizedPayload = Collections.emptyMap();
+        } else {
+            this.sanitizedPayload = Collections.unmodifiableMap(new java.util.LinkedHashMap<>(payload));
+        }
     }
 }

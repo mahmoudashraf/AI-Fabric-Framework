@@ -14,6 +14,11 @@ ai:
     retrieval-limit: 3
     retrieval-threshold: 0.55
 
+  response-sanitization:
+    enabled: true
+    force-redaction: true
+    suggestion-limit: 3
+
   providers:
     # Embedding Provider Configuration (ONNX default for local development)
     embedding-provider: onnx

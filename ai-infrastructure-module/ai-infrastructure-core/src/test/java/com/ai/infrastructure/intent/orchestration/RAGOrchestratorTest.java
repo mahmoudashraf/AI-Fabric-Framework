@@ -1,5 +1,7 @@
 package com.ai.infrastructure.intent.orchestration;
 
+import com.ai.infrastructure.config.PIIDetectionProperties;
+import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -12,6 +14,8 @@ import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.privacy.pii.PIIDetectionService;
+import com.ai.infrastructure.security.ResponseSanitizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +50,7 @@ class RAGOrchestratorTest {
     @Mock
     private ActionHandler actionHandler;
 
+    private ResponseSanitizer responseSanitizer;
     private SmartSuggestionsProperties smartSuggestionsProperties;
 
     private RAGOrchestrator orchestrator;
@@ -53,7 +58,10 @@ class RAGOrchestratorTest {
     @BeforeEach
     void setUp() {
         smartSuggestionsProperties = new SmartSuggestionsProperties();
-        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService, smartSuggestionsProperties);
+        ResponseSanitizationProperties sanitizationProperties = new ResponseSanitizationProperties();
+        sanitizationProperties.setEnabled(false);
+        responseSanitizer = new ResponseSanitizer(new PIIDetectionService(new PIIDetectionProperties()), sanitizationProperties);
+        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService, responseSanitizer, smartSuggestionsProperties);
     }
 
     @Test
@@ -78,6 +86,7 @@ class RAGOrchestratorTest {
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).isEqualTo("Cancelled");
         assertThat(result.getData()).containsEntry("confirmationMessage", "Confirm cancellation?");
+        assertThat(result.getSanitizedPayload()).isNotEmpty();
     }
 
     @Test

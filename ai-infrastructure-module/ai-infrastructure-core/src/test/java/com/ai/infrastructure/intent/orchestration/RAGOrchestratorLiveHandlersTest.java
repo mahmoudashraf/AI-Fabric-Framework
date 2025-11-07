@@ -71,6 +71,7 @@ class RAGOrchestratorLiveHandlersTest {
         Map<String, Object> actionData = (Map<String, Object>) actionResult.getData();
         assertThat(actionData).containsEntry("removed", 1L);
         assertThat(vectorDatabaseService.getVectorCountByEntityType("doc")).isZero();
+        assertThat(result.getSanitizedPayload()).isNotEmpty();
     }
 
     @Test
@@ -105,5 +106,6 @@ class RAGOrchestratorLiveHandlersTest {
         Map<String, Object> actionData = (Map<String, Object>) actionResult.getData();
         assertThat(actionData).containsEntry("removed", true);
         assertThat(vectorDatabaseService.vectorExists(entityType, entityId)).isFalse();
+        assertThat(result.getSanitizedPayload()).isNotEmpty();
     }
 }
