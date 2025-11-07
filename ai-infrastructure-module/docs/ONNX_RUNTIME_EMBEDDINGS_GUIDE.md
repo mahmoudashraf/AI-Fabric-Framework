@@ -143,34 +143,32 @@ You need two files:
 
 1. **Model file** (`.onnx`): The neural network
    - Size: 80-500MB depending on model
-   - Location: Store in `./models/embeddings/`
+   - Location: Bundled inside `ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/`
 
-2. **Tokenizer files** (optional): For text preprocessing
+2. **Tokenizer files**: For text preprocessing
    - `tokenizer.json` or `vocab.txt`
-   - Used to convert text → tokens → model input
+   - Included alongside the model in the ONNX starter
 
 **Download example**:
 ```bash
-mkdir -p models/embeddings
-cd models/embeddings
+mkdir -p ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
+cd ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
 
 # Option 1: Download from Hugging Face
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/model.onnx
+wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/model.onnx -O all-MiniLM-L6-v2.onnx
 
 # Option 2: Use Hugging Face library
-python -c "from huggingface_hub import hf_hub_download; hf_hub_download('sentence-transformers/all-MiniLM-L6-v2', 'model.onnx', local_dir='.')"
+python -c "from huggingface_hub import hf_hub_download; hf_hub_download('sentence-transformers/all-MiniLM-L6-v2', 'model.onnx', local_dir='.', local_dir_use_symlinks=False)"
 ```
 
-### Step 4: Adopt the Optional ONNX Starter (Planned)
+### Step 4: Adopt the Optional ONNX Starter
 
-The upcoming optional starter module will package ONNX Runtime, the default MiniLM model, tokenizer assets, and Spring auto-configuration so teams can enable ONNX with a single dependency. Once published:
+The optional starter module packages ONNX Runtime, the default MiniLM model, tokenizer assets, and Spring auto-configuration so teams can enable ONNX with a single dependency:
 
-- Add the starter dependency to your Maven/Gradle build (see the plan for final coordinates).
+- Add the starter dependency to your Maven/Gradle build.
 - Remove manually downloaded model/tokenizer files and rely on the starter's bundled resources.
 - Continue overriding `ai.providers.onnx-*` properties when you need custom models or GPU execution.
 - Follow the migration and release notes in [`ONNX_OPTIONAL_STARTER_PLAN.md`](../../docs/ONNX_OPTIONAL_STARTER_PLAN.md).
-
-Until the starter ships, continue using the manual steps in Steps 1-3.
 
 ---
 
@@ -393,8 +391,8 @@ import java.util.*;
 @Slf4j
 public class ONNXEmbeddingProvider implements AIProvider {
     
-    private static final String MODEL_PATH = "./models/embeddings/all-MiniLM-L6-v2.onnx";
-    private static final String TOKENIZER_PATH = "./models/embeddings/tokenizer.json";
+    private static final String MODEL_PATH = "classpath:/models/embeddings/all-MiniLM-L6-v2.onnx";
+    private static final String TOKENIZER_PATH = "classpath:/models/embeddings/tokenizer.json";
     
     private OrtEnvironment env;
     private OrtSession session;
@@ -744,15 +742,15 @@ public List<List<Double>> generateEmbeddingsBatch(List<String> texts) {
 ### application.yml
 
 ```yaml
-ai:
-  embedding:
-    provider: onnx  # onnx, openai, huggingface, local
-    onnx:
-      model-path: ./models/embeddings/all-MiniLM-L6-v2.onnx
-      tokenizer-path: ./models/embeddings/tokenizer.json
-      use-gpu: false  # Set to true if GPU available
-      batch-size: 32
-      max-sequence-length: 512
+  ai:
+    embedding:
+      provider: onnx  # onnx, openai, huggingface, local
+      onnx:
+        model-path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
+        tokenizer-path: classpath:/models/embeddings/tokenizer.json
+        use-gpu: false  # Set to true if GPU available
+        batch-size: 32
+        max-sequence-length: 512
 ```
 
 ---

@@ -52,10 +52,10 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     
     private final AIProviderConfig config;
     
-    @Value("${ai.providers.onnx-model-path:./models/embeddings/all-MiniLM-L6-v2.onnx}")
+    @Value("${ai.providers.onnx-model-path:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}")
     private String modelPath;
     
-    @Value("${ai.providers.onnx-tokenizer-path:./models/embeddings/tokenizer.json}")
+    @Value("${ai.providers.onnx-tokenizer-path:classpath:/models/embeddings/tokenizer.json}")
     private String tokenizerPath;
     
     @Value("${ai.providers.onnx-max-sequence-length:512}")

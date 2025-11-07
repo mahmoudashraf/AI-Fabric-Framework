@@ -29,8 +29,8 @@ ai:
     embedding-provider: onnx  # Must be "onnx" (not "rest" or "openai")
     
     # ONNX Configuration
-    onnx-model-path: ./models/embeddings/all-MiniLM-L6-v2.onnx
-    onnx-tokenizer-path: ./models/embeddings/tokenizer.json
+    onnx-model-path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
+    onnx-tokenizer-path: classpath:/models/embeddings/tokenizer.json
     onnx-max-sequence-length: 512
     onnx-use-gpu: false
     
@@ -110,7 +110,7 @@ INFO  ✅ AIEmbeddingService configured to use ONNX provider (no fallback to oth
 
 ```
 WARN  WARNING: ONNX Embedding Provider is not available. Model file may be missing.
-WARN  Please ensure the ONNX model file exists at: ./models/embeddings/all-MiniLM-L6-v2.onnx
+WARN  Please ensure the ONNX model file exists at: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
 ```
 
 ### If Wrong Provider Used
@@ -189,7 +189,7 @@ ai:
   providers:
     # ONNX ONLY - no fallback
     embedding-provider: onnx
-    onnx-model-path: ./models/embeddings/all-MiniLM-L6-v2.onnx
+    onnx-model-path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
     # ... other ONNX config
     
     # Other providers NOT configured
@@ -224,7 +224,7 @@ mvn test -Dtest=SimpleIntegrationTest -Dspring.profiles.active=onnx-test
 **Symptoms**: "ONNX Embedding Provider is not available"
 
 **Solutions**:
-1. Check model file exists: `./models/embeddings/all-MiniLM-L6-v2.onnx`
+1. Check model file exists: `classpath:/models/embeddings/all-MiniLM-L6-v2.onnx`
 2. Check path configuration: Verify `onnx-model-path` in config
 3. Check logs: Look for model file path resolution
 

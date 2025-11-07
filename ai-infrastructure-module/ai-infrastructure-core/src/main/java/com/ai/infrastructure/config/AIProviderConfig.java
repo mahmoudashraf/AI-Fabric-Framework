@@ -64,8 +64,8 @@ public class AIProviderConfig {
     private String embeddingProvider = "onnx";  // onnx, rest, openai
     
     // ONNX Configuration
-    private String onnxModelPath = "./models/embeddings/all-MiniLM-L6-v2.onnx";
-    private String onnxTokenizerPath = "./models/embeddings/tokenizer.json";
+    private String onnxModelPath = "classpath:/models/embeddings/all-MiniLM-L6-v2.onnx";
+    private String onnxTokenizerPath = "classpath:/models/embeddings/tokenizer.json";
     private Integer onnxMaxSequenceLength = 512;
     private Boolean onnxUseGpu = false;
     

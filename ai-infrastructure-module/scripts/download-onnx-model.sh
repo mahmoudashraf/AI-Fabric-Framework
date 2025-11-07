@@ -15,14 +15,14 @@
 #
 # Examples:
 #   ./download-onnx-model.sh
-#   ./download-onnx-model.sh all-MiniLM-L6-v2 ./models/embeddings
-#   ./download-onnx-model.sh all-mpnet-base-v2 ./models/embeddings
+#   ./download-onnx-model.sh all-MiniLM-L6-v2 ./ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
+#   ./download-onnx-model.sh all-mpnet-base-v2 ./ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
 
 set -e
 
 # Default values
 MODEL_NAME=${1:-"all-MiniLM-L6-v2"}
-OUTPUT_DIR=${2:-"./models/embeddings"}
+OUTPUT_DIR=${2:-"./ai-infrastructure-onnx-starter/src/main/resources/models/embeddings"}
 
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
@@ -132,18 +132,6 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(dirname "$SCRIPT_DIR")"
 
-if [ -d "${MODULE_DIR}/ai-infrastructure-core/models/embeddings" ]; then
-    echo "Copying files to ai-infrastructure-core..."
-    cp "${MODEL_FILE}" "${MODULE_DIR}/ai-infrastructure-core/models/embeddings/" 2>/dev/null || true
-    cp "${TOKENIZER_FILE}" "${MODULE_DIR}/ai-infrastructure-core/models/embeddings/" 2>/dev/null || true
-fi
-
-if [ -d "${MODULE_DIR}/integration-tests/models/embeddings" ]; then
-    echo "Copying files to integration-tests..."
-    cp "${MODEL_FILE}" "${MODULE_DIR}/integration-tests/models/embeddings/" 2>/dev/null || true
-    cp "${TOKENIZER_FILE}" "${MODULE_DIR}/integration-tests/models/embeddings/" 2>/dev/null || true
-fi
-
 echo ""
 echo "=========================================="
 echo "Download complete!"
@@ -152,12 +140,10 @@ echo ""
 echo "Model file: ${MODEL_FILE}"
 echo "Tokenizer file: ${TOKENIZER_FILE}"
 echo ""
-echo "Files have been copied to:"
-echo "  - ai-infrastructure-core/models/embeddings/"
-echo "  - integration-tests/models/embeddings/"
+echo "Assets are now bundled inside the ONNX starter module:"
+echo "  - ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/"
 echo ""
 echo "Next steps:"
-echo "1. Configuration is already set in application.yml"
-echo "2. Restart your application or run tests"
+echo "1. Configuration defaults resolve to classpath resources."
+echo "2. Restart your application or run tests."
 echo ""
-
