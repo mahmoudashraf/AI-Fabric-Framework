@@ -142,13 +142,6 @@
             <version>1.16.3</version>
         </dependency>
 
-        <!-- Hugging Face Tokenizers for production-grade tokenization -->
-        <dependency>
-            <groupId>com.huggingface</groupId>
-            <artifactId>tokenizers</artifactId>
-            <version>0.13.3</version>
-        </dependency>
-
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
