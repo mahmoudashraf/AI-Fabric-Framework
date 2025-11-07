@@ -19,6 +19,12 @@ ai:
     high-risk-warning-message: ${AI_RESPONSE_SANITIZATION_WARNING:SENSITIVE INFORMATION REMOVED.}
     suggestion-limit: ${AI_RESPONSE_SANITIZATION_SUGGESTION_LIMIT:3}
 
+  intent-history:
+    enabled: true
+    retention-days: ${AI_INTENT_HISTORY_RETENTION_DAYS:90}
+    cleanup-cron: ${AI_INTENT_HISTORY_CLEANUP_CRON:0 0 * * * *}
+    store-encrypted-query: ${AI_INTENT_HISTORY_STORE_ENCRYPTED_QUERY:true}
+
   providers:
     # Embedding Provider Configuration
     # Options: onnx (local), rest (Docker service), openai (cloud API)

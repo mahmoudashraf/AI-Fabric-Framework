@@ -17,6 +17,12 @@ ai:
     force-redaction: true
     suggestion-limit: 2
 
+  intent-history:
+    enabled: true
+    retention-days: 30
+    cleanup-cron: "0 0 * * * *"
+    store-encrypted-query: false
+
   vector-db:
     type: memory
     memory:

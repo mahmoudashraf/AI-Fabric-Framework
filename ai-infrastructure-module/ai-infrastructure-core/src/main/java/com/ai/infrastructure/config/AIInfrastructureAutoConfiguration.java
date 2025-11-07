@@ -32,6 +32,8 @@ import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.VectorDatabaseServiceAdapter;
 import com.ai.infrastructure.config.AIConfigurationService;
+import com.ai.infrastructure.config.IntentHistoryProperties;
+import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIHealthService;
 import com.ai.infrastructure.api.AIAutoGeneratorService;
@@ -77,7 +79,8 @@ import java.util.List;
     AIServiceConfig.class,
     PIIDetectionProperties.class,
     SmartSuggestionsProperties.class,
-    ResponseSanitizationProperties.class
+    ResponseSanitizationProperties.class,
+    IntentHistoryProperties.class
 })
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
