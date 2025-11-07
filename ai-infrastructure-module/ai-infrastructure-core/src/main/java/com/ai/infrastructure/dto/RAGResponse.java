@@ -133,6 +133,13 @@ public class RAGResponse {
      * Whether the response was served from cache
      */
     private Boolean fromCache;
+
+    /**
+     * Structured result from the PII detection layer for the processed query.
+     * Provides visibility into whether sensitive information was identified and
+     * how it was handled before downstream processing.
+     */
+    private PIIDetectionResult piiDetectionResult;
     
     /**
      * Cache hit rate for this request

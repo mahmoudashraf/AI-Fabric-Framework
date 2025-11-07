@@ -65,19 +65,19 @@ TOTAL IMPLEMENTATION TIME: 20-30 hours (3-4 weeks)
 
 **Tasks:**
 1. Create DTOs
-   - [ ] PIIDetectionResult
-   - [ ] PIIDetection
-   - [ ] PIIMode enum
+   - [x] PIIDetectionResult
+   - [x] PIIDetection
+   - [x] PIIMode enum
    
 2. Implement PIIDetectionService
-   - [ ] Pattern detection (email, phone, CC, SSN)
-   - [ ] Redaction logic
-   - [ ] Configuration support
+   - [x] Pattern detection (email, phone, CC, SSN)
+   - [x] Redaction logic
+   - [x] Configuration support
    
 3. Integrate into RAGService
-   - [ ] Wire PIIDetectionService
-   - [ ] Call before intent extraction
-   - [ ] Pass redacted query forward
+   - [x] Wire PIIDetectionService
+   - [x] Call before intent extraction
+   - [x] Pass redacted query forward
 
 4. Configure application.yml
    ```yaml
@@ -91,6 +91,7 @@ TOTAL IMPLEMENTATION TIME: 20-30 hours (3-4 weeks)
    - [ ] Test detection with sample PII
    - [ ] Test redaction
    - [ ] Test with disabled mode
+   - _Pending_: automated suite execution blocked until Maven wrapper or binary is available in environment.
 
 **Estimated Time:** 2-3 hours
 **Complexity:** Low
