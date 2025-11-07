@@ -1,455 +1,101 @@
-# Layer 2: Intent Extraction with System Context
+# Intent Handling — External to the Library
 
-## Overview
-
-Second layer extracts structured intents from (optionally redacted) user query using system context.
-
-**Inputs:** Redacted query from Layer 1
-**Outputs:** MultiIntentResponse with structured intents
+There is no `Intent`, `MultiIntentResponse`, or `IntentQueryExtractor` class in `ai-infrastructure-core`. The module assumes **you** determine what the user is trying to do, then decide how to call the retrieval services. This document outlines practical patterns for doing that with the primitives that exist today.
 
 ---
 
-## 🎯 Minimal Implementation
+## What the Library Does Provide
 
-### Step 1: Build System Context (Library Code)
-
-```java
-@Service
-public class SystemContextBuilder {
-    
-    @Autowired
-    private AvailableActionsRegistry actionsRegistry;
-    
-    @Autowired
-    private KnowledgeBaseOverviewService kbOverview;
-    
-    public SystemContext buildContext(String userId) {
-        // Gather available actions
-        List<ActionInfo> availableActions = actionsRegistry.getAllAvailableActions();
-        
-        // Gather knowledge base overview
-        KnowledgeBaseOverview kbInfo = kbOverview.getOverview();
-        
-        return SystemContext.builder()
-            .availableActions(availableActions)
-            .knowledgeBaseOverview(kbInfo)
-            .userId(userId)
-            .timestamp(LocalDateTime.now())
-            .build();
-    }
-}
-
-@Data
-@Builder
-public class SystemContext {
-    private List<ActionInfo> availableActions;
-    private KnowledgeBaseOverview knowledgeBaseOverview;
-    private String userId;
-    private LocalDateTime timestamp;
-}
-```
-
-### Step 2: Build Enriched Prompt (Library Code)
-
-```java
-@Service
-public class EnrichedPromptBuilder {
-    
-    @Autowired
-    private SystemContextBuilder contextBuilder;
-    
-    public String buildSystemPrompt(String userId) {
-        SystemContext context = contextBuilder.buildContext(userId);
-        
-        StringBuilder prompt = new StringBuilder();
-        
-        prompt.append("You are an intelligent RAG orchestrator.\n\n");
-        
-        // Add available actions
-        prompt.append("AVAILABLE ACTIONS:\n");
-        for (ActionInfo action : context.getAvailableActions()) {
-            prompt.append(String.format(
-                "- %s: %s (params: %s)\n",
-                action.getName(),
-                action.getDescription(),
-                action.getParameters()
-            ));
-        }
-        
-        // Add KB overview
-        prompt.append("\nKNOWLEDGE BASE:\n");
-        prompt.append(String.format(
-            "- Total documents: %d\n",
-            context.getKnowledgeBaseOverview().getTotalIndexedDocuments()
-        ));
-        prompt.append(String.format(
-            "- Document types: %s\n",
-            context.getKnowledgeBaseOverview().getDocumentsByType()
-        ));
-        prompt.append(String.format(
-            "- Last update: %s\n",
-            context.getKnowledgeBaseOverview().getLastIndexUpdateTime()
-        ));
-        
-        // Add extraction rules
-        prompt.append("\nEXTRACTION RULES:\n");
-        prompt.append("1. If user wants to perform an action → Return type: ACTION\n");
-        prompt.append("2. If user wants information → Return type: INFORMATION\n");
-        prompt.append("3. If query is outside scope → Return type: OUT_OF_SCOPE\n");
-        prompt.append("4. If multiple intents → Return type: COMPOUND\n");
-        
-        // Add output format
-        prompt.append("\nOUTPUT FORMAT (JSON):\n");
-        prompt.append("""
-            {
-              "intents": [
-                {
-                  "type": "ACTION|INFORMATION|OUT_OF_SCOPE",
-                  "intent": "specific_intent_name",
-                  "confidence": 0.95,
-                  "action": "action_name (if ACTION)",
-                  "actionParams": {"key": "value"},
-                  "vectorSpace": "which_vector_space_to_search",
-                  "requiresRetrieval": true|false
-                }
-              ],
-              "isCompound": false,
-              "orchestrationStrategy": "DIRECT_ACTION|RETRIEVE_AND_GENERATE|ADMIT_UNKNOWN"
-            }
-            """);
-        
-        return prompt.toString();
-    }
-}
-```
-
-### Step 3: Intent Extraction Service (Library Code)
-
-```java
-@Service
-public class IntentQueryExtractor {
-    
-    @Autowired
-    private AICoreService aiCoreService;
-    
-    @Autowired
-    private EnrichedPromptBuilder promptBuilder;
-    
-    public MultiIntentResponse extract(String query, String userId) {
-        // Build enriched prompt with system context
-        String systemPrompt = promptBuilder.buildSystemPrompt(userId);
-        
-        // Call LLM
-        AITextGenerationRequest request = AITextGenerationRequest.builder()
-            .systemMessage(systemPrompt)
-            .userMessage(query)
-            .model("gpt-4o-mini")
-            .responseFormat(ResponseFormat.JSON)  // Structured output
-            .build();
-        
-        String response = aiCoreService.generateText(request);
-        
-        // Parse JSON response
-        MultiIntentResponse intents = parseResponse(response);
-        
-        return intents;
-    }
-    
-    private MultiIntentResponse parseResponse(String response) {
-        ObjectMapper mapper = new ObjectMapper();
-        return mapper.readValue(response, MultiIntentResponse.class);
-    }
-}
-
-@Data
-@Builder
-public class MultiIntentResponse {
-    private List<Intent> intents;
-    private boolean isCompound;
-    private String orchestrationStrategy;  // DIRECT_ACTION, RETRIEVE_AND_GENERATE, ADMIT_UNKNOWN
-}
-
-@Data
-@Builder
-public class Intent {
-    private IntentType type;                      // ACTION, INFORMATION, OUT_OF_SCOPE, COMPOUND
-    private String intent;                        // Specific intent name
-    private Double confidence;                    // 0.0 - 1.0
-    private String action;                        // If type = ACTION
-    private Map<String, Object> actionParams;     // If type = ACTION
-    private String vectorSpace;                   // Which docs to search
-    private Boolean requiresRetrieval;            // Should we retrieve?
-    
-    // NEW: Intelligent next-step recommendation (Layer 4)
-    private NextStepRecommendation nextStepRecommended;
-}
-
-@Data
-@Builder
-public class NextStepRecommendation {
-    private String intent;                        // show_refund_process
-    private String query;                         // "What is the refund process?"
-    private String rationale;                     // Why THIS user gets THIS recommendation
-    private Double confidence;                    // 0.85 - how confident (0.0-1.0)
-}
-
-public enum IntentType {
-    ACTION,              // Execute an action
-    INFORMATION,         // Retrieve from documents
-    OUT_OF_SCOPE,        // Can't help
-    COMPOUND             // Multiple intents
-}
-```
+- `RAGService` and `AdvancedRAGService` accept a plain-text query and optional metadata.
+- They return ranked documents plus a generated summary (for the advanced variant).
+- No action routing or downstream execution is attempted; the response is informational only.
 
 ---
 
-## 📊 User Implementation: One Handler Per Action
+## Recommended Intent Workflow
 
-### User Step 1: Create Handler for Each Action
+1. **Classify the request**  
+   Use your own rules, a lightweight fine-tuned model, or a prompt-based classifier to determine:
+   - Is this a retrieval question?
+   - Does it require a domain action you own?
+   - Is it out of scope / should be escalated?
 
-Each action gets its own handler:
+2. **Route accordingly**
+   - **Information requests:** call `RAGService#performRag` or `AdvancedRAGService#performAdvancedRAG`.
+   - **Transactional actions:** execute your own service method (optionally using the retrieved context as supporting data).
+   - **Out-of-scope:** return a safe fallback answer or hand off to a human.
+
+3. **Compose the response**  
+   Blend the retrieval output (if any) with your business response template. Add confirmation text, citations, or follow-up steps as needed.
+
+---
+
+## Simple Prompt-Based Classifier (Example)
 
 ```java
-// Handler 1: Cancel Subscription
-@Service
-public class CancelSubscriptionHandler implements ActionHandler {
-    
-    @Autowired
-    private SubscriptionRepository subscriptionRepo;
-    
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("cancel_subscription")
-            .description("Cancel user subscription")
-            .category("subscription")
-            .parameters(Map.of(
-                "reason", "string (optional)",
-                "effective_date", "date (optional)"
-            ))
-            .build();
-    }
-    
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
-        Subscription sub = subscriptionRepo.findByUserId(userId);
-        sub.setStatus(SubscriptionStatus.CANCELLED);
-        sub.setCancelledAt(LocalDateTime.now());
-        subscriptionRepo.save(sub);
-        
-        return ActionResult.builder()
-            .success(true)
-            .message("Subscription cancelled")
-            .build();
-    }
-}
+public enum IntentType { RETRIEVE_KB, DOMAIN_ACTION, ESCALATE }
 
-// Handler 2: Upgrade Subscription
-@Service
-public class UpgradeSubscriptionHandler implements ActionHandler {
-    
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("upgrade_subscription")
-            .description("Upgrade to higher plan")
-            .category("subscription")
-            .parameters(Map.of(
-                "plan_id", "string (required)",
-                "billing_cycle", "MONTHLY|YEARLY"
-            ))
-            .build();
-    }
-    
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
-        // YOUR upgrade logic
-    }
-}
+public IntentType classify(String userMessage) {
+    String prompt =
+        "Classify the following message into one of: RETRIEVE_KB, DOMAIN_ACTION, ESCALATE.\n" +
+        "Message: \"" + userMessage + "\"\n" +
+        "Respond with the label only.";
 
-// Handler 3: Pause Subscription
-@Service
-public class PauseSubscriptionHandler implements ActionHandler {
-    
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("pause_subscription")
-            .description("Pause subscription temporarily")
-            .parameters(Map.of("duration_months", "int (required)"))
-            .build();
-    }
-    
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
-        // YOUR pause logic
-    }
+    String raw = aiCoreService.generateText(prompt).trim();
+    return IntentType.valueOf(raw.toUpperCase(Locale.ROOT));
 }
-
-// Handler 4: Update Payment Method
-@Service
-public class UpdatePaymentMethodHandler implements ActionHandler {
-    
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("update_payment_method")
-            .description("Update payment method")
-            .category("payment")
-            .parameters(Map.of("payment_method_id", "string (required)"))
-            .build();
-    }
-    
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
-        // YOUR payment update logic
-    }
-}
-
-// Continue for each action...
 ```
 
-### User Step 2: Registry Auto-Discovery (Library Code)
+Once you have the label, plug it into the routing logic described above.
+
+---
+
+## Wiring Retrieval after Classification
 
 ```java
-@Service
-public class AvailableActionsRegistry {
-    
-    @Autowired
-    private List<AIActionProvider> providers;  // Spring auto-wires all implementations
-    
-    public List<ActionInfo> getAllAvailableActions() {
-        List<ActionInfo> actions = new ArrayList<>();
-        
-        for (AIActionProvider provider : providers) {
-            actions.addAll(provider.getAvailableActions());
-        }
-        
-        return actions;
+public AnswerEnvelope answer(String userMessage, String userId) {
+    IntentType intent = classify(userMessage);
+
+    if (intent == IntentType.RETRIEVE_KB) {
+        RAGResponse rag = ragService.performRag(
+            RAGRequest.builder()
+                .query(userMessage)
+                .entityType("knowledge_base")
+                .limit(5)
+                .build());
+
+        return AnswerEnvelope.information(rag.getResponse(), rag.getDocuments());
     }
-}
 
-@Data
-@Builder
-public class ActionInfo {
-    private String name;                           // cancel_subscription
-    private String description;                    // What it does
-    private Map<String, String> parameters;        // Required params
-}
-```
-
----
-
-## 🎯 Flow Example
-
-### Input:
-```
-User Query (after PII redaction): 
-"Cancel my subscription with reason: too expensive"
-
-System Context:
-- Available actions: cancel_subscription, upgrade_subscription, ...
-- KB has: refund_policy, cancellation_process, ...
-```
-
-### LLM Processing:
-```
-System prompt includes:
-- All available actions
-- KB overview stats
-- Extraction rules
-
-User query processed by GPT-4o-mini
-```
-
-### Output:
-```json
-{
-  "intents": [
-    {
-      "type": "ACTION",
-      "intent": "cancel_subscription",
-      "confidence": 0.98,
-      "action": "cancel_subscription",
-      "actionParams": {
-        "reason": "too expensive",
-        "effective_date": "2024-11-08"
-      },
-      "vectorSpace": "policies",
-      "requiresRetrieval": false
+    if (intent == IntentType.DOMAIN_ACTION) {
+        ActionResult result = myDomainService.handle(userMessage, userId);
+        return AnswerEnvelope.action(result);
     }
-  ],
-  "isCompound": false,
-  "orchestrationStrategy": "DIRECT_ACTION"
+
+    return AnswerEnvelope.escalate("I cannot help with that request.");
 }
 ```
 
----
-
-## 📋 Implementation Checklist
-
-**Library Code (Nothing for user):**
-- [ ] SystemContextBuilder
-- [ ] EnrichedPromptBuilder
-- [ ] IntentQueryExtractor
-- [ ] MultiIntentResponse DTO
-- [ ] Intent DTO
-- [ ] AvailableActionsRegistry
-
-**User Code:**
-- [ ] Implement AIActionProvider in SubscriptionService
-- [ ] Implement AIActionProvider in PaymentService
-- [ ] Implement AIActionProvider in OrderService
-- [ ] Implement AIActionProvider in UserService
-- [ ] Test with sample queries
+This keeps the “intent layer” in your application, while relying on the library solely for retrieval.
 
 ---
 
-## ✅ User Minimum Effort
+## When You Need Multiple Intents
 
-**For each service (e.g., SubscriptionService):**
-
-```java
-@Service
-public class SubscriptionService implements AIActionProvider {
-    
-    @Override
-    public List<ActionInfo> getAvailableActions() {
-        // Just return your 3-5 actions per service
-        return List.of(
-            ActionInfo.builder()
-                .name("cancel_subscription")
-                .description("Cancel subscription")
-                .parameters(Map.of("reason", "string"))
-                .build()
-            // ... 2-3 more actions
-        );
-    }
-}
-```
-
-That's it! Registry auto-discovers them.
+For compound requests (“Cancel my order and tell me the refund policy”), run the classifier on each clause or call a more sophisticated model that returns a list of intents. Handle the action part first, then run retrieval to supply supporting information.
 
 ---
 
-## 🔄 Complete Flow
+## Checklist
 
-```
-Layer 1: PII Detection
-    ↓
-Redacted Query
-    ↓
-Layer 2: Intent Extraction (THIS LAYER)
-    │
-    ├─ Build SystemContext (available actions + KB overview)
-    ├─ Build EnrichedPrompt with context
-    ├─ Call LLM
-    └─ Parse structured response
-    ↓
-MultiIntentResponse (structured intents)
-    ↓
-→ Layer 3: RAGOrchestrator
-```
+- [ ] Decide on an intent taxonomy (information vs. action vs. escalation, etc.).
+- [ ] Implement a classifier (rules, prompt engineering, fine-tune, or third-party service).
+- [ ] Cover edge cases with tests: ambiguous wording, unsupported requests, malicious input.
+- [ ] Ensure the classifier output drives the correct downstream code path (retrieval or action).
+- [ ] Log intent decisions for monitoring and future tuning.
 
-Next: Go to `03_RAG_ORCHESTRATOR_LAYER.md`
+---
 
+## Key Takeaway
+
+`ai-infrastructure-core` expects you to bring your own intent logic. Combine that logic with `RAGService` and `AdvancedRAGService` to build the user experience promised in the earlier documentation without relying on non-existent classes.

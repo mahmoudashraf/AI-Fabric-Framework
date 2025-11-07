@@ -1,276 +1,79 @@
-# Layer 1: PII Detection & Redaction (Optional)
+# PII Safeguards — What the Library Provides (and What It Doesn’t)
 
-## Overview
-
-First layer processes user query to detect and optionally redact sensitive data.
-
-**Status:** Optional (configurable via `application.yml`)
+The core module **does not** ship with a `PIIDetectionService`, config toggles, or automatic redaction. All PII protection must be layered on top of the existing services. This guide explains where to insert those controls so that you can still take advantage of `RAGService` and `AdvancedRAGService`.
 
 ---
 
-## 🎯 Minimal Implementation
+## Current State
 
-### Step 1: Configuration (Optional Enablement)
+- There is no `ai.pii-detection` property, DTO, or service in the codebase.
+- Both indexing (`RAGService#indexContent`) and querying (`RAGService#performRag`, `AdvancedRAGService#performAdvancedRAG`) accept raw strings and forward them to embedding/LLM providers.
+- OpenAI/embedding calls are made via `AICoreService`, so any unredacted text passed in will leave your system.
 
-```yaml
-# application.yml
-ai:
-  pii-detection:
-    enabled: false                    # Enable/disable PII layer
-    mode: REDACT                      # REDACT, DETECT_ONLY, PASS_THROUGH
-    store-encrypted-original: false   # Store encrypted original query
-    
-  security:
-    sensitive-fields:
-      - credit_card
-      - ssn
-      - phone_number
-      - email
-      - password
-      - personal_id
-```
+---
 
-### Step 2: PII Detection Service
+## Recommended Architecture
+
+1. **Pre-index filter**  
+   Run all documents through a PII scrubber **before** calling `indexContent`. Maintain a clean version for vector storage and a secure store for the raw record if needed.
+
+2. **Pre-query filter**  
+   Inspect or transform user input before invoking retrieval. Reject, mask, or hash sensitive fields (email, card numbers, IDs) prior to sending text to OpenAI.
+
+3. **Post-response review**  
+   Enforce a final sanitisation pass on the text you send back to the user (especially if you merge model output with internal data).
+
+4. **Audit trail**  
+   Log redaction decisions and hold raw data only in systems that meet your compliance requirements (encrypted DB, vaulted storage, etc.).
+
+---
+
+## Example Integration Points
 
 ```java
-@Service
-public class PIIDetectionService {
-    
-    @Value("${ai.pii-detection.enabled:false}")
-    private boolean piiDetectionEnabled;
-    
-    @Value("${ai.pii-detection.mode:PASS_THROUGH}")
-    private PIIMode piiMode;
-    
-    public PIIDetectionResult detectAndRedact(String query) {
-        // If disabled, return as-is
-        if (!piiDetectionEnabled) {
-            return PIIDetectionResult.builder()
-                .originalQuery(query)
-                .redactedQuery(query)
-                .hasPII(false)
-                .detections(Collections.emptyList())
-                .build();
-        }
-        
-        // Detect PII patterns
-        List<PIIDetection> detections = detectPatterns(query);
-        boolean hasPII = !detections.isEmpty();
-        
-        // Apply mode
-        String processedQuery = query;
-        if (hasPII && piiMode == PIIMode.REDACT) {
-            processedQuery = redactSensitiveData(query, detections);
-        }
-        
-        return PIIDetectionResult.builder()
-            .originalQuery(query)
-            .redactedQuery(processedQuery)
-            .hasPII(hasPII)
-            .detections(detections)
-            .build();
+// Pseudocode – place this in your application layer
+public RAGResponse answerQuestion(String query, String userId) {
+    PiiResult incoming = piiFilter.inspect(query);
+    if (incoming.hasHighRiskData()) {
+        throw new ForbiddenException("Query contains sensitive data");
     }
-    
-    private List<PIIDetection> detectPatterns(String query) {
-        List<PIIDetection> detections = new ArrayList<>();
-        
-        // Credit card pattern
-        if (query.matches(".*\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}.*")) {
-            detections.add(new PIIDetection("CREDIT_CARD", "credit_card"));
-        }
-        
-        // Email pattern
-        if (query.matches(".*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}.*")) {
-            detections.add(new PIIDetection("EMAIL", "email"));
-        }
-        
-        // Phone pattern
-        if (query.matches(".*\\+?\\d{1,3}[\\s-]?\\d{3}[\\s-]?\\d{3}[\\s-]?\\d{4}.*")) {
-            detections.add(new PIIDetection("PHONE", "phone_number"));
-        }
-        
-        // SSN pattern
-        if (query.matches(".*\\d{3}-?\\d{2}-?\\d{4}.*")) {
-            detections.add(new PIIDetection("SSN", "ssn"));
-        }
-        
-        return detections;
-    }
-    
-    private String redactSensitiveData(String query, List<PIIDetection> detections) {
-        String redacted = query;
-        
-        for (PIIDetection detection : detections) {
-            if (detection.getType().equals("CREDIT_CARD")) {
-                redacted = redacted.replaceAll("\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}", 
-                    "****-****-****-****");
-            }
-            if (detection.getType().equals("EMAIL")) {
-                redacted = redacted.replaceAll("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", 
-                    "***@***.***");
-            }
-            if (detection.getType().equals("PHONE")) {
-                redacted = redacted.replaceAll("\\+?\\d{1,3}[\\s-]?\\d{3}[\\s-]?\\d{3}[\\s-]?\\d{4}", 
-                    "***-***-****");
-            }
-            if (detection.getType().equals("SSN")) {
-                redacted = redacted.replaceAll("\\d{3}-?\\d{2}-?\\d{4}", "***-**-****");
-            }
-        }
-        
-        return redacted;
-    }
-}
 
-// DTOs
-@Data
-@Builder
-public class PIIDetectionResult {
-    private String originalQuery;
-    private String redactedQuery;
-    private boolean hasPII;
-    private List<PIIDetection> detections;
-}
+    String safeQuery = incoming.getSanitisedText();
+    RAGResponse response = ragService.performRag(
+        RAGRequest.builder()
+            .query(safeQuery)
+            .entityType("knowledge_base")
+            .limit(5)
+            .build());
 
-@Data
-public class PIIDetection {
-    private String type;          // CREDIT_CARD, EMAIL, PHONE, SSN
-    private String fieldName;     // credit_card, email, phone_number, ssn
-}
-
-public enum PIIMode {
-    PASS_THROUGH,    // Don't detect, just pass through
-    DETECT_ONLY,     // Detect but don't redact
-    REDACT           // Detect and redact
+    String cleanAnswer = piiFilter.cleanseOutgoing(response.getResponse());
+    return response.toBuilder().response(cleanAnswer).build();
 }
 ```
 
-### Step 3: Integration in Main Flow
-
-```java
-@Service
-public class RAGService {
-    
-    @Autowired
-    private PIIDetectionService piiDetectionService;
-    
-    @Autowired
-    private IntentQueryExtractor intentExtractor;
-    
-    public RAGResponse performRAGQuery(String userQuery, String userId) {
-        // LAYER 1: PII Detection & Redaction
-        PIIDetectionResult piiResult = piiDetectionService.detectAndRedact(userQuery);
-        String queryToProcess = piiResult.getRedactedQuery();
-        
-        // LAYER 2: Intent Extraction (with redacted query)
-        MultiIntentResponse intents = intentExtractor.extract(queryToProcess, userId);
-        
-        // ... rest of flow
-        
-        // Store original PII flag for intent history
-        return RAGResponse.builder()
-            .intents(intents)
-            .hasSensitiveData(piiResult.isHasPII())
-            .build();
-    }
-}
-```
+Use the same pattern when ingesting content: sanitize before `indexContent`.
 
 ---
 
-## ⚙️ Configuration Examples
+## Building Blocks You Can Use
 
-### Example 1: Disabled (Development)
-
-```yaml
-ai:
-  pii-detection:
-    enabled: false              # No PII processing
-```
-
-**Result:** All queries pass through as-is, no redaction
+- **Regex / rule-based filters** for obvious patterns (card numbers, SSN, phone, email).
+- **Open-source detectors** such as Microsoft Presidio or AWS Comprehend if you need entity recognition.
+- **Hashing/tokenisation** to preserve join keys without storing the raw value in the vector index.
+- **Encryption** for any raw payloads you must keep (store outside of Lucene/Pinecone).
 
 ---
 
-### Example 2: Detect Only (Monitoring)
+## Operational Checklist
 
-```yaml
-ai:
-  pii-detection:
-    enabled: true
-    mode: DETECT_ONLY           # Log but don't redact
-```
-
-**Result:** Detects PII patterns, logs them, but passes original query forward
+- [ ] Inventory which fields are considered PII for your use case.
+- [ ] Decide whether to block, redact, or tokenize each field.
+- [ ] Ensure logs, traces, and prompts do not capture raw PII.
+- [ ] Write unit/integration tests that confirm a masked payload is passed to `AICoreService`.
+- [ ] Document escalation paths for false positives/negatives in your detection layer.
 
 ---
 
-### Example 3: Full Protection (Production)
+## Summary
 
-```yaml
-ai:
-  pii-detection:
-    enabled: true
-    mode: REDACT                # Detect and redact
-    store-encrypted-original: true  # Keep encrypted copy for audit
-```
-
-**Result:** Redacts all PII, passes clean query forward
-
----
-
-## 📋 Implementation Checklist
-
-- [ ] Add PIIDetectionService
-- [ ] Add PIIDetectionResult DTO
-- [ ] Add PIIMode enum
-- [ ] Add configuration properties
-- [ ] Integrate into RAGService
-- [ ] Add logging for PII detection
-- [ ] Test with sample PII data
-- [ ] Document in README
-
----
-
-## ✅ What User Implements
-
-**Nothing!** This layer is library code. Just configure via `application.yml`.
-
----
-
-## 🔄 Flow
-
-```
-User Query
-    ↓
-PIIDetectionService (if enabled)
-├─ Detect PII patterns
-├─ Redact if REDACT mode
-└─ Flag if hasPII
-    ↓
-Redacted Query (or original if disabled)
-    ↓
-→ Next Layer: IntentQueryExtractor
-```
-
----
-
-## 📊 Output Example
-
-**Input:** "Cancel my subscription, my CC is 4532-1234-5678-9012 and email is john@example.com"
-
-**Output (REDACT mode):**
-```json
-{
-  "originalQuery": "Cancel my subscription, my CC is 4532-1234-5678-9012 and email is john@example.com",
-  "redactedQuery": "Cancel my subscription, my CC is ****-****-****-**** and email is ***@***.***",
-  "hasPII": true,
-  "detections": [
-    {"type": "CREDIT_CARD", "fieldName": "credit_card"},
-    {"type": "EMAIL", "fieldName": "email"}
-  ]
-}
-```
-
-Next: Go to `02_INTENT_EXTRACTION_LAYER.md`
-
+The library leaves PII handling entirely to the host application. Treat `RAGService` and `AICoreService` as downstream dependencies that must receive already-sanitised inputs, and cleanse any outputs that might surface sensitive data back to users. This gives you full control over compliance without needing to fork the core module.
