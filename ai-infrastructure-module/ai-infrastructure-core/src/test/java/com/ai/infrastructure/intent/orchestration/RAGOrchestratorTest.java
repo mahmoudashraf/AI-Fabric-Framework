@@ -92,6 +92,7 @@ class RAGOrchestratorTest {
         assertThat(result.getMessage()).isEqualTo("Cancelled");
         assertThat(result.getData()).containsEntry("confirmationMessage", "Confirm cancellation?");
         assertThat(result.getSanitizedPayload()).isNotEmpty();
+        verify(intentHistoryService).recordIntent(eq("user-1"), any(), eq("Cancel my plan"), any(), any());
     }
 
     @Test
