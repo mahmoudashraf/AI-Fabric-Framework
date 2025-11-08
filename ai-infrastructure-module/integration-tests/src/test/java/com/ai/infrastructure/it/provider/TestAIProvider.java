@@ -8,6 +8,7 @@ import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -28,6 +29,7 @@ import java.util.stream.IntStream;
 @Slf4j
 @Component
 @Order(0)
+@ConditionalOnProperty(name = "test.enable-mock-provider", havingValue = "true", matchIfMissing = true)
 public class TestAIProvider implements AIProvider {
 
     private static final String PROVIDER_NAME = "test-provider";
@@ -47,7 +49,7 @@ public class TestAIProvider implements AIProvider {
         .rateLimitPerMinute(1000)
         .rateLimitPerDay(100000)
         .enabled(true)
-        .priority(100)
+        .priority(0)  // Lower priority than OpenAI (priority 100) - used only as fallback
         .build();
 
     private final AtomicLong totalRequests = new AtomicLong();

@@ -48,12 +48,15 @@ public class IntentQueryExtractor {
         }
 
         String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(userId);
+        
+        String userPrompt = "analyze the following request from a user and extract the user intents from it in the provided format in system prompt\n\n-----------\n\nUser's question is :( " + query +")";
+
         AIGenerationRequest generationRequest = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())
             .entityType("intent_extraction")
             .generationType("intent_extraction")
             .systemPrompt(systemPrompt)
-            .prompt(query)
+            .prompt(userPrompt)
             .userId(userId)
             .build();
 
@@ -75,15 +78,42 @@ public class IntentQueryExtractor {
 
     private MultiIntentResponse parseResponse(String rawJson) {
         try {
+            // First, try standard JSON parsing
             JsonNode root = objectMapper.readTree(rawJson);
             if (root == null || root.isNull()) {
                 throw new AIServiceException("Intent extraction returned null JSON payload");
             }
             return objectMapper.treeToValue(root, MultiIntentResponse.class);
-        } catch (JsonProcessingException ex) {
-            log.error("Failed to parse intent extraction response: {}", rawJson, ex);
-            throw new AIServiceException("Unable to parse intent extraction response: " + ex.getMessage(), ex);
+        } catch (JsonProcessingException firstAttempt) {
+            // If standard parsing fails, try to extract JSON from the text
+            String extractedJson = extractJsonFromText(rawJson);
+            if (extractedJson != null && !extractedJson.equals(rawJson)) {
+                try {
+                    JsonNode root = objectMapper.readTree(extractedJson);
+                    if (root == null || root.isNull()) {
+                        throw new AIServiceException("Intent extraction returned null JSON payload");
+                    }
+                    return objectMapper.treeToValue(root, MultiIntentResponse.class);
+                } catch (JsonProcessingException secondAttempt) {
+                    log.error("Failed to parse extracted JSON: {}", extractedJson, secondAttempt);
+                }
+            }
+            
+            log.error("Failed to parse intent extraction response: {}", rawJson, firstAttempt);
+            throw new AIServiceException("Unable to parse intent extraction response: " + firstAttempt.getMessage(), firstAttempt);
         }
+    }
+
+    private String extractJsonFromText(String text) {
+        // Try to find JSON object {...} in the text
+        int startIdx = text.indexOf('{');
+        if (startIdx >= 0) {
+            int endIdx = text.lastIndexOf('}');
+            if (endIdx > startIdx) {
+                return text.substring(startIdx, endIdx + 1);
+            }
+        }
+        return text;
     }
 
     private void validateResponse(MultiIntentResponse response) {

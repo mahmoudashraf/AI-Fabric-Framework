@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -72,17 +73,56 @@ public class OpenAIProvider implements AIProvider {
             log.debug("Generating content with OpenAI: model={}, prompt={}", 
                      request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
             
-            String url = OPENAI_BASE_URL + "/completions";
+            String url = OPENAI_BASE_URL + "/chat/completions";
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "Bearer " + config.getApiKey());
             
+            // Build messages with system and user roles for better prompt control
+            List<Map<String, String>> messages = new ArrayList<>();
+            
+            // Add system prompt if provided
+            if (request.getSystemPrompt() != null && !request.getSystemPrompt().isBlank()) {
+                messages.add(Map.of(
+                    "role", "system",
+                    "content", request.getSystemPrompt()
+                ));
+            }
+            
+            // Add user prompt
+            messages.add(Map.of(
+                "role", "user",
+                "content", request.getPrompt()
+            ));
+            
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultModel());
-            requestBody.put("prompt", request.getPrompt());
+            requestBody.put("messages", messages);
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
+            requestBody.put("top_p", 0.1);  // Lower top_p for more deterministic responses
+            
+            // Log the complete request for debugging
+            System.out.println("\n=== OPENAI API REQUEST ===");
+            System.out.println("URL: " + url);
+            System.out.println("Model: " + requestBody.get("model"));
+            System.out.println("Temperature: " + requestBody.get("temperature"));
+            System.out.println("Top-P: " + requestBody.get("top_p"));
+            System.out.println("Max Tokens: " + requestBody.get("max_tokens"));
+            System.out.println("Messages count: " + messages.size());
+            for (int i = 0; i < messages.size(); i++) {
+                Map<String, String> msg = messages.get(i);
+                System.out.println("\nMessage " + i + ": role=" + msg.get("role"));
+                String content = msg.get("content");
+                if (content.length() > 1000) {
+                    System.out.println("  content (first 1000 chars): " + content.substring(0, 1000));
+                    System.out.println("  content (total length): " + content.length() + " chars");
+                } else {
+                    System.out.println("  content: " + content);
+                }
+            }
+            System.out.println("=== END REQUEST ===\n");
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -96,7 +136,22 @@ public class OpenAIProvider implements AIProvider {
             Map<String, Object> responseBody = response.getBody();
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
-            String content = (String) choices.get(0).get("text");
+            @SuppressWarnings("unchecked")
+            Map<String, String> message = (Map<String, String>) choices.get(0).get("message");
+            String content = message.get("content");
+            
+            // Log the response for debugging
+            System.out.println("=== OPENAI API RESPONSE ===");
+            System.out.println("Response Time: " + responseTime + "ms");
+            System.out.println("Model: " + responseBody.get("model"));
+            System.out.println("Finish Reason: " + choices.get(0).get("finish_reason"));
+            System.out.println("Response Content Length: " + content.length() + " chars");
+            if (content.length() > 500) {
+                System.out.println("Content (first 500 chars):\n" + content.substring(0, 500));
+            } else {
+                System.out.println("Content:\n" + content);
+            }
+            System.out.println("=== END RESPONSE ===\n");
             
             log.debug("OpenAI content generation completed in {}ms", responseTime);
             
