@@ -2,13 +2,14 @@ package com.ai.infrastructure.security;
 
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.dto.NextStepRecommendation;
+import com.ai.infrastructure.dto.PIIDetection;
+import com.ai.infrastructure.dto.PIIDetectionResult;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
-import com.ai.infrastructure.dto.PIIDetection;
-import com.ai.infrastructure.dto.PIIDetectionResult;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -30,11 +31,19 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ResponseSanitizer {
 
     private final PIIDetectionService piiDetectionService;
     private final ResponseSanitizationProperties properties;
+
+    @Autowired(required = false)
+    private ApplicationEventPublisher eventPublisher;
+
+    public ResponseSanitizer(PIIDetectionService piiDetectionService,
+                             ResponseSanitizationProperties properties) {
+        this.piiDetectionService = piiDetectionService;
+        this.properties = properties;
+    }
 
     public Map<String, Object> sanitize(OrchestrationResult result, String userId) {
         if (result == null) {
@@ -51,6 +60,20 @@ public class ResponseSanitizer {
         SanitizationOutcome<Map<String, Object>> smartSuggestionOutcome =
             sanitizeMap(result.getSmartSuggestion(), userId);
 
+        RiskLevel aggregatedRisk = RiskLevel.max(
+            messageOutcome.riskLevel(),
+            dataOutcome.riskLevel(),
+            suggestionOutcome.riskLevel(),
+            smartSuggestionOutcome.riskLevel()
+        );
+
+        List<String> aggregatedTypes = mergeTypes(
+            messageOutcome.detectedTypes(),
+            dataOutcome.detectedTypes(),
+            suggestionOutcome.detectedTypes(),
+            smartSuggestionOutcome.detectedTypes()
+        );
+
         Map<String, Object> payload = new LinkedHashMap<>();
         if (result.getType() != null) {
             payload.put("type", result.getType().name());
@@ -64,15 +87,28 @@ public class ResponseSanitizer {
         if (!smartSuggestionOutcome.value().isEmpty()) {
             payload.put("smartSuggestion", Collections.unmodifiableMap(smartSuggestionOutcome.value()));
         }
+        payload.put("safeSummary", buildSafeSummary(messageOutcome, result));
+        payload.put("sanitization", Map.of(
+            "risk", aggregatedRisk.name(),
+            "detectedTypes", aggregatedTypes
+        ));
 
-        boolean highRiskDetected = messageOutcome.highRisk()
-            || dataOutcome.highRisk()
-            || suggestionOutcome.highRisk()
-            || smartSuggestionOutcome.highRisk();
-
-        if (highRiskDetected) {
-            payload.put("warning", properties.getHighRiskWarningMessage());
+        if (aggregatedRisk != RiskLevel.NONE && properties.isWarningEnabled()) {
+            payload.put("warning", Map.of(
+                "level", aggregatedRisk == RiskLevel.HIGH
+                    ? properties.getWarningLevelHighRisk()
+                    : properties.getWarningLevelMediumRisk(),
+                "message", aggregatedRisk == RiskLevel.HIGH
+                    ? properties.getHighRiskWarningMessage()
+                    : properties.getMediumRiskWarningMessage()
+            ));
         }
+
+        if (aggregatedRisk != RiskLevel.NONE && properties.isGuidanceEnabled()) {
+            payload.put("guidance", properties.getGuidanceMessage());
+        }
+
+        publishSanitizationEvent(userId, aggregatedRisk, aggregatedTypes);
 
         return Collections.unmodifiableMap(payload);
     }
@@ -96,42 +132,50 @@ public class ResponseSanitizer {
 
     private SanitizationOutcome<String> sanitizeText(String text, String userId) {
         if (!StringUtils.hasText(text)) {
-            return SanitizationOutcome.of(text, false);
+            return SanitizationOutcome.of(text, RiskLevel.NONE, List.of());
         }
         PIIDetectionResult analysis = piiDetectionService.analyze(text);
         if (!analysis.isPiiDetected()) {
-            return SanitizationOutcome.of(text, false);
+            return SanitizationOutcome.of(text, RiskLevel.NONE, List.of());
         }
 
         String sanitized = properties.isForceRedaction()
             ? redact(text, analysis.getDetections())
             : analysis.getProcessedQuery();
 
-        boolean highRisk = analysis.getDetections().stream()
-            .anyMatch(detection -> properties.isHighRiskType(detection.getType()));
+        List<String> types = analysis.getDetections().stream()
+            .map(PIIDetection::getType)
+            .filter(StringUtils::hasText)
+            .map(type -> type.trim().toUpperCase(Locale.ROOT))
+            .toList();
 
-        if (highRisk) {
+        RiskLevel riskLevel = analysis.getDetections().stream()
+            .anyMatch(detection -> properties.isHighRiskType(detection.getType()))
+            ? RiskLevel.HIGH
+            : RiskLevel.MEDIUM;
+
+        if (riskLevel == RiskLevel.HIGH) {
             log.warn("High-risk PII detected in response for user={}", userId);
         } else {
             log.debug("PII detected in response for user={}, applying sanitization.", userId);
         }
 
-        return SanitizationOutcome.of(sanitized, highRisk);
+        return SanitizationOutcome.of(sanitized, riskLevel, types);
     }
 
     private SanitizationOutcome<Object> sanitizeObject(Object value, String userId) {
         if (value == null) {
-            return SanitizationOutcome.of(Collections.emptyMap(), false);
+            return SanitizationOutcome.of(Collections.emptyMap(), RiskLevel.NONE, List.of());
         }
 
         if (value instanceof String str) {
             SanitizationOutcome<String> outcome = sanitizeText(str, userId);
-            return SanitizationOutcome.of(outcome.value(), outcome.highRisk());
+            return SanitizationOutcome.of(outcome.value(), outcome.riskLevel(), outcome.detectedTypes());
         }
 
         if (value instanceof Map<?, ?> map) {
             SanitizationOutcome<Map<String, Object>> outcome = sanitizeMap(map, userId);
-            return SanitizationOutcome.of(outcome.value(), outcome.highRisk());
+            return SanitizationOutcome.of(outcome.value(), outcome.riskLevel(), outcome.detectedTypes());
         }
 
         if (value instanceof ActionResult actionResult) {
@@ -142,18 +186,18 @@ public class ResponseSanitizer {
             return sanitizeIterable(iterable, userId);
         }
 
-        // Preserve primitive wrapper types and other simple values
-        return SanitizationOutcome.of(value, false);
+        return SanitizationOutcome.of(value, RiskLevel.NONE, List.of());
     }
 
     @SuppressWarnings("unchecked")
     private SanitizationOutcome<Map<String, Object>> sanitizeMap(Map<?, ?> input, String userId) {
         if (CollectionUtils.isEmpty(input)) {
-            return SanitizationOutcome.of(Collections.emptyMap(), false);
+            return SanitizationOutcome.of(Collections.emptyMap(), RiskLevel.NONE, List.of());
         }
 
         Map<String, Object> sanitized = new LinkedHashMap<>();
-        boolean highRisk = false;
+        RiskLevel riskLevel = RiskLevel.NONE;
+        List<String> types = new ArrayList<>();
         Set<String> filteredKeys = normalize(properties.getFilteredDataKeys());
 
         for (Map.Entry<?, ?> entry : input.entrySet()) {
@@ -170,21 +214,24 @@ public class ResponseSanitizer {
             if (outcome.value() != null) {
                 sanitized.put(key, outcome.value());
             }
-            highRisk = highRisk || outcome.highRisk();
+            riskLevel = RiskLevel.max(riskLevel, outcome.riskLevel());
+            types.addAll(outcome.detectedTypes());
         }
 
-        return SanitizationOutcome.of(Collections.unmodifiableMap(sanitized), highRisk);
+        return SanitizationOutcome.of(Collections.unmodifiableMap(sanitized), riskLevel, distinct(types));
     }
 
     private SanitizationOutcome<Object> sanitizeIterable(Iterable<?> iterable, String userId) {
         List<Object> sanitized = new ArrayList<>();
-        boolean highRisk = false;
+        RiskLevel riskLevel = RiskLevel.NONE;
+        List<String> types = new ArrayList<>();
         for (Object element : iterable) {
             SanitizationOutcome<Object> outcome = sanitizeObject(element, userId);
             sanitized.add(outcome.value());
-            highRisk = highRisk || outcome.highRisk();
+            riskLevel = RiskLevel.max(riskLevel, outcome.riskLevel());
+            types.addAll(outcome.detectedTypes());
         }
-        return SanitizationOutcome.of(Collections.unmodifiableList(sanitized), highRisk);
+        return SanitizationOutcome.of(Collections.unmodifiableList(sanitized), riskLevel, distinct(types));
     }
 
     private SanitizationOutcome<Object> sanitizeActionResult(ActionResult actionResult, String userId) {
@@ -192,6 +239,8 @@ public class ResponseSanitizer {
         sanitized.put("success", actionResult.isSuccess());
 
         SanitizationOutcome<String> messageOutcome = sanitizeText(actionResult.getMessage(), userId);
+        RiskLevel riskLevel = messageOutcome.riskLevel();
+        List<String> types = new ArrayList<>(messageOutcome.detectedTypes());
         sanitized.put("message", messageOutcome.value());
 
         Object rawData = actionResult.getData();
@@ -200,29 +249,28 @@ public class ResponseSanitizer {
             if (dataOutcome.value() != null) {
                 sanitized.put("data", dataOutcome.value());
             }
-            if (dataOutcome.highRisk()) {
-                messageOutcome = SanitizationOutcome.of(messageOutcome.value(), true);
-            }
+            riskLevel = RiskLevel.max(riskLevel, dataOutcome.riskLevel());
+            types.addAll(dataOutcome.detectedTypes());
         }
 
         if (properties.isIncludeErrorCodes() && StringUtils.hasText(actionResult.getErrorCode())) {
             sanitized.put("errorCode", actionResult.getErrorCode());
         }
 
-        return SanitizationOutcome.of(Collections.unmodifiableMap(sanitized), messageOutcome.highRisk());
+        return SanitizationOutcome.of(Collections.unmodifiableMap(sanitized), riskLevel, distinct(types));
     }
 
     private SanitizationOutcome<List<Map<String, Object>>> sanitizeSuggestions(OrchestrationResult result, String userId) {
         List<Map<String, Object>> suggestions = new ArrayList<>();
-        boolean highRisk = false;
+        RiskLevel riskLevel = RiskLevel.NONE;
+        List<String> types = new ArrayList<>();
 
         if (!CollectionUtils.isEmpty(result.getNextSteps())) {
             for (NextStepRecommendation recommendation : result.getNextSteps()) {
                 SanitizationOutcome<Map<String, Object>> outcome = sanitizeRecommendation(recommendation, userId);
-                if (!outcome.value().isEmpty()) {
-                    suggestions.add(outcome.value());
-                }
-                highRisk = highRisk || outcome.highRisk();
+                suggestions.add(outcome.value());
+                riskLevel = RiskLevel.max(riskLevel, outcome.riskLevel());
+                types.addAll(outcome.detectedTypes());
             }
         }
 
@@ -231,16 +279,18 @@ public class ResponseSanitizer {
             suggestions = new ArrayList<>(suggestions.subList(0, limit));
         }
 
-        return SanitizationOutcome.of(Collections.unmodifiableList(suggestions), highRisk);
+        return SanitizationOutcome.of(Collections.unmodifiableList(suggestions), riskLevel, distinct(types));
     }
 
-    private SanitizationOutcome<Map<String, Object>> sanitizeRecommendation(NextStepRecommendation recommendation, String userId) {
+    private SanitizationOutcome<Map<String, Object>> sanitizeRecommendation(NextStepRecommendation recommendation,
+                                                                            String userId) {
         if (recommendation == null) {
-            return SanitizationOutcome.of(Collections.emptyMap(), false);
+            return SanitizationOutcome.of(Collections.emptyMap(), RiskLevel.NONE, List.of());
         }
 
         Map<String, Object> sanitized = new LinkedHashMap<>();
-        boolean highRisk = false;
+        RiskLevel riskLevel = RiskLevel.NONE;
+        List<String> types = new ArrayList<>();
 
         if (StringUtils.hasText(recommendation.getIntent())) {
             sanitized.put("intent", recommendation.getIntent());
@@ -250,19 +300,29 @@ public class ResponseSanitizer {
         if (StringUtils.hasText(queryOutcome.value())) {
             sanitized.put("query", queryOutcome.value());
         }
-        highRisk = highRisk || queryOutcome.highRisk();
+        riskLevel = RiskLevel.max(riskLevel, queryOutcome.riskLevel());
+        types.addAll(queryOutcome.detectedTypes());
 
         SanitizationOutcome<String> rationaleOutcome = sanitizeText(recommendation.getRationale(), userId);
         if (StringUtils.hasText(rationaleOutcome.value())) {
             sanitized.put("rationale", rationaleOutcome.value());
         }
-        highRisk = highRisk || rationaleOutcome.highRisk();
+        riskLevel = RiskLevel.max(riskLevel, rationaleOutcome.riskLevel());
+        types.addAll(rationaleOutcome.detectedTypes());
 
         if (recommendation.getConfidence() != null) {
             sanitized.put("confidence", recommendation.getConfidence());
         }
 
-        return SanitizationOutcome.of(Collections.unmodifiableMap(sanitized), highRisk);
+        if (properties.isIncludeSuggestionMetadata()) {
+            sanitized.put("sanitization", Map.of(
+                "risk", riskLevel.name(),
+                "detectedTypes", distinct(types),
+                "redacted", riskLevel != RiskLevel.NONE
+            ));
+        }
+
+        return SanitizationOutcome.of(Collections.unmodifiableMap(sanitized), riskLevel, distinct(types));
     }
 
     private Object normalizeData(Object value) {
@@ -276,6 +336,16 @@ public class ResponseSanitizer {
             return Collections.emptyMap();
         }
         return value;
+    }
+
+    private String buildSafeSummary(SanitizationOutcome<String> messageOutcome, OrchestrationResult result) {
+        if (StringUtils.hasText(messageOutcome.value())) {
+            return messageOutcome.value();
+        }
+        if (result.getMessage() instanceof String original && StringUtils.hasText(original)) {
+            return original;
+        }
+        return "Response generated successfully.";
     }
 
     private String redact(String original, List<PIIDetection> detections) {
@@ -317,9 +387,49 @@ public class ResponseSanitizer {
             .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    private record SanitizationOutcome<T>(T value, boolean highRisk) {
-        static <T> SanitizationOutcome<T> of(T value, boolean highRisk) {
-            return new SanitizationOutcome<>(value, highRisk);
+    private void publishSanitizationEvent(String userId, RiskLevel riskLevel, List<String> detectedTypes) {
+        if (!properties.isPublishEvents() || eventPublisher == null || riskLevel == RiskLevel.NONE) {
+            return;
+        }
+        eventPublisher.publishEvent(new SanitizationEvent(this, userId, riskLevel, detectedTypes));
+    }
+
+    private List<String> mergeTypes(List<String>... typeLists) {
+        LinkedHashSet<String> merged = new LinkedHashSet<>();
+        for (List<String> list : typeLists) {
+            if (list != null) {
+                list.stream()
+                    .filter(StringUtils::hasText)
+                    .map(type -> type.trim().toUpperCase(Locale.ROOT))
+                    .forEach(merged::add);
+            }
+        }
+        return List.copyOf(merged);
+    }
+
+    private List<String> distinct(List<String> types) {
+        return mergeTypes(types);
+    }
+
+    enum RiskLevel {
+        NONE,
+        MEDIUM,
+        HIGH;
+
+        static RiskLevel max(RiskLevel... levels) {
+            RiskLevel result = NONE;
+            for (RiskLevel level : levels) {
+                if (level != null && level.ordinal() > result.ordinal()) {
+                    result = level;
+                }
+            }
+            return result;
+        }
+    }
+
+    private record SanitizationOutcome<T>(T value, RiskLevel riskLevel, List<String> detectedTypes) {
+        static <T> SanitizationOutcome<T> of(T value, RiskLevel riskLevel, List<String> detectedTypes) {
+            return new SanitizationOutcome<>(value, riskLevel, detectedTypes);
         }
     }
 }

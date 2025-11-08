@@ -17,7 +17,15 @@ ai:
     enabled: true
     force-redaction: true
     high-risk-warning-message: ${AI_RESPONSE_SANITIZATION_WARNING:SENSITIVE INFORMATION REMOVED.}
+    medium-risk-warning-message: ${AI_RESPONSE_SANITIZATION_MEDIUM_WARNING:PERSONAL INFORMATION REDACTED BEFORE DELIVERY.}
+    warning-enabled: ${AI_RESPONSE_SANITIZATION_WARNING_ENABLED:true}
+    warning-level-high-risk: ${AI_RESPONSE_SANITIZATION_WARNING_LEVEL_HIGH:BLOCK}
+    warning-level-medium-risk: ${AI_RESPONSE_SANITIZATION_WARNING_LEVEL_MEDIUM:WARN}
+    guidance-enabled: ${AI_RESPONSE_SANITIZATION_GUIDANCE_ENABLED:true}
+    guidance-message: ${AI_RESPONSE_SANITIZATION_GUIDANCE:Please route sensitive requests through secure support.}
     suggestion-limit: ${AI_RESPONSE_SANITIZATION_SUGGESTION_LIMIT:3}
+    include-suggestion-metadata: ${AI_RESPONSE_SANITIZATION_SUGGESTION_METADATA:true}
+    publish-events: ${AI_RESPONSE_SANITIZATION_PUBLISH_EVENTS:true}
 
   intent-history:
     enabled: true

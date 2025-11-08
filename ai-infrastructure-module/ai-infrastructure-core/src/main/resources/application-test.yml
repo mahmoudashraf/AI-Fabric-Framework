@@ -16,6 +16,14 @@ ai:
     enabled: true
     force-redaction: true
     suggestion-limit: 2
+    medium-risk-warning-message: "Some details were removed for testing safety."
+    warning-enabled: true
+    warning-level-high-risk: BLOCK
+    warning-level-medium-risk: WARN
+    guidance-enabled: true
+    guidance-message: "Test guidance: avoid storing PII in fixtures."
+    include-suggestion-metadata: true
+    publish-events: true
 
   intent-history:
     enabled: true

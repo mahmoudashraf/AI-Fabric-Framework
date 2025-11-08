@@ -18,6 +18,14 @@ ai:
     enabled: true
     force-redaction: true
     suggestion-limit: 3
+    medium-risk-warning-message: "Some personal details were hidden before presenting this response."
+    warning-enabled: true
+    warning-level-high-risk: BLOCK
+    warning-level-medium-risk: WARN
+    guidance-enabled: true
+    guidance-message: "Avoid sharing card numbers or sensitive identifiers in chat."
+    include-suggestion-metadata: true
+    publish-events: true
 
   intent-history:
     enabled: true
