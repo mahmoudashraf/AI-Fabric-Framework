@@ -40,6 +40,12 @@ public class PIIDetectionProperties {
     private PIIMode mode = PIIMode.PASS_THROUGH;
 
     /**
+     * Direction of PII detection: INPUT (user query), OUTPUT (LLM response), or BOTH.
+     * Defaults to BOTH for comprehensive security.
+     */
+    private PIIDetectionDirection detectionDirection = PIIDetectionDirection.BOTH;
+
+    /**
      * When {@code true}, the original payload is stored in encrypted form to
      * support downstream auditing requirements.
      */
@@ -164,5 +170,25 @@ public class PIIDetectionProperties {
          */
         @Builder.Default
         private double confidence = 1.0d;
+    }
+
+    /**
+     * Enum to control the directional scope of PII detection
+     */
+    public enum PIIDetectionDirection {
+        /**
+         * Detect PII only in user input queries (detect & redact BEFORE sending to LLM)
+         */
+        INPUT,
+
+        /**
+         * Detect PII only in LLM responses (safety net for accidental leaks)
+         */
+        OUTPUT,
+
+        /**
+         * Detect PII in both user input AND LLM response (comprehensive security)
+         */
+        BOTH
     }
 }
