@@ -30,6 +30,11 @@ spring:
     console:
       enabled: false
 
+# Test Configuration
+test:
+  # Disable mock provider for pure real API testing
+  enable-mock-provider: false
+
 # AI Configuration for Real API Testing
 ai:
   enabled: true
@@ -45,9 +50,12 @@ ai:
     openai-api-key: ${OPENAI_API_KEY}
     openai-model: gpt-4o-mini
     openai-embedding-model: text-embedding-3-small
-    openai-max-tokens: 1000
-    openai-temperature: 0.3
+    openai-max-tokens: 2000
+    openai-temperature: 0
+    openai-top-p: 0.1
     openai-timeout: 30
+    # Set OpenAI as primary provider with higher priority (100 > 1)
+    openai-priority: 100
     
     enable-rag: true
     enable-behavioral-ai: true
@@ -61,6 +69,8 @@ ai:
   service:
     enabled: true
     auto-configuration: true
+    # Default to OpenAI provider for real API tests
+    default-provider: openai
     caching:
       enabled: false
     metrics:
