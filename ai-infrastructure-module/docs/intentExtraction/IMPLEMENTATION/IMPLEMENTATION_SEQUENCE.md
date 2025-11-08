@@ -365,6 +365,20 @@ ai:
 
 ---
 
+#### Optional UX Enhancements (Sanitization & Smart Suggestions)
+
+**Tasks:**
+- [x] Surface configurable warning metadata (level + message) in sanitized payloads
+- [x] Provide user guidance messaging when sanitization occurs
+- [x] Attach sanitization metadata to next-step and smart suggestions
+- [x] Emit `SanitizationEvent` for analytics/monitoring
+- [x] Add UI-ready `safeSummary` field to sanitized payloads
+
+**Executed Tests:**
+- [x] `mvn -pl ai-infrastructure-core -am -Dtest=ResponseSanitizerTest,RAGOrchestratorTest,RAGOrchestratorLiveHandlersTest,RAGIntegrationFlowTest,IntentHistoryServiceTest test`
+
+---
+
 #### Day 7 Afternoon (1-2 hours): Deployment
 
 **Tasks:**

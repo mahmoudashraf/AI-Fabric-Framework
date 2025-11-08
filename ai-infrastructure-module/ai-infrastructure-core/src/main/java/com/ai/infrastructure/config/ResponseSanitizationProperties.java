@@ -51,6 +51,28 @@ public class ResponseSanitizationProperties {
     private String highRiskWarningMessage = "Sensitive information detected and redacted for your safety.";
 
     /**
+     * Message displayed when medium-risk PII (e.g. email, phone) is sanitized.
+     */
+    private String mediumRiskWarningMessage = "Some personal information was redacted before showing this response.";
+
+    /**
+     * Indicates whether warnings should be surfaced when sanitization occurs.
+     */
+    private boolean warningEnabled = true;
+
+    /**
+     * Warning level values that downstream consumers can map to UI severity.
+     */
+    private String warningLevelHighRisk = "BLOCK";
+    private String warningLevelMediumRisk = "WARN";
+
+    /**
+     * Optional guidance message encouraging users to use secure channels when PII is detected.
+     */
+    private boolean guidanceEnabled = true;
+    private String guidanceMessage = "For sensitive requests, please use our secure support form.";
+
+    /**
      * Generic replacement token used when the detection pattern does not provide one.
      */
     private String defaultReplacement = "[REDACTED]";
@@ -64,6 +86,16 @@ public class ResponseSanitizationProperties {
      * Whether to include error codes originating from action handlers in sanitized payloads.
      */
     private boolean includeErrorCodes = false;
+
+    /**
+     * Include metadata alongside suggestions indicating whether sanitization affected them.
+     */
+    private boolean includeSuggestionMetadata = true;
+
+    /**
+     * Publish application events whenever sanitization takes place. Useful for analytics dashboards.
+     */
+    private boolean publishEvents = true;
 
     public Set<String> normalizedHighRiskTypes() {
         return highRiskTypes.stream()

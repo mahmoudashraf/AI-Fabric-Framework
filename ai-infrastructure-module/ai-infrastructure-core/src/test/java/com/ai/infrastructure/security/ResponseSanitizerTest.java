@@ -9,6 +9,9 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,10 +19,14 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class ResponseSanitizerTest {
 
     private ResponseSanitizer sanitizer;
+    private ApplicationEventPublisher eventPublisher;
 
     @BeforeEach
     void setUp() {
@@ -29,8 +36,11 @@ class ResponseSanitizerTest {
         ResponseSanitizationProperties sanitizationProperties = new ResponseSanitizationProperties();
         sanitizationProperties.setSuggestionLimit(3);
         sanitizationProperties.setHighRiskTypes(Set.of("CREDIT_CARD"));
+        sanitizationProperties.setGuidanceMessage("Please avoid sharing card numbers.");
 
         sanitizer = new ResponseSanitizer(new PIIDetectionService(piiDetectionProperties), sanitizationProperties);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        ReflectionTestUtils.setField(sanitizer, "eventPublisher", eventPublisher);
     }
 
     @Test
@@ -81,6 +91,42 @@ class ResponseSanitizerTest {
         assertThat(smartSuggestion.get("query").toString()).doesNotContain("(415) 555-4321");
 
         assertThat(payload).containsKey("warning");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> warning = (Map<String, Object>) payload.get("warning");
+        assertThat(warning).containsEntry("level", "BLOCK");
+        assertThat(warning.get("message").toString()).contains("Sensitive information");
+
+        assertThat(payload).containsEntry("guidance", "Please avoid sharing card numbers.");
+        assertThat(payload).containsKey("safeSummary");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sanitization = (Map<String, Object>) payload.get("sanitization");
+        assertThat(sanitization).containsEntry("risk", "HIGH");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> enrichedSuggestion = (Map<String, Object>) ((List<?>) payload.get("suggestions")).getFirst();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> suggestionMetadata = (Map<String, Object>) enrichedSuggestion.get("sanitization");
+        assertThat(suggestionMetadata).containsEntry("redacted", true);
+
+        ArgumentCaptor<SanitizationEvent> eventCaptor = ArgumentCaptor.forClass(SanitizationEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getRiskLevel()).isEqualTo(ResponseSanitizer.RiskLevel.HIGH);
+    }
+
+    @Test
+    void shouldSkipEventsWhenNoPiiPresent() {
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message("General help response.")
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-456");
+        assertThat(payload).doesNotContainKey("warning");
+        assertThat(payload).containsKey("safeSummary");
+
+        verifyNoInteractions(eventPublisher);
     }
 
     private Map<String, Object> buildData() {
