@@ -38,4 +38,10 @@ public class NextStepRecommendation {
      * Confidence score (0.0 - 1.0) indicating how confident the model is in this recommendation.
      */
     private Double confidence;
+
+    /**
+     * Knowledge base vector space or entity type to search for this recommendation
+     * (e.g. 'faq', 'policies', 'test-product'). Specifies where the follow-up query should retrieve documents from.
+     */
+    private String vectorSpace;
 }

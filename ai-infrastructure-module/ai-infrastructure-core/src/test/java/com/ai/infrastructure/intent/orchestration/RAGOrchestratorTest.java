@@ -64,9 +64,13 @@ class RAGOrchestratorTest {
         smartSuggestionsProperties = new SmartSuggestionsProperties();
         ResponseSanitizationProperties sanitizationProperties = new ResponseSanitizationProperties();
         sanitizationProperties.setEnabled(false);
-        responseSanitizer = new ResponseSanitizer(new PIIDetectionService(new PIIDetectionProperties()), sanitizationProperties);
+        PIIDetectionProperties piiDetectionProperties = new PIIDetectionProperties();
+        piiDetectionProperties.setEnabled(true);
+        piiDetectionProperties.setDetectionDirection(PIIDetectionProperties.PIIDetectionDirection.BOTH);
+        PIIDetectionService piiDetectionService = new PIIDetectionService(piiDetectionProperties);
+        responseSanitizer = new ResponseSanitizer(piiDetectionService, sanitizationProperties);
         when(intentHistoryService.recordIntent(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
-        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService, responseSanitizer, intentHistoryService, smartSuggestionsProperties);
+        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService, responseSanitizer, intentHistoryService, smartSuggestionsProperties, piiDetectionService, piiDetectionProperties);
     }
 
     @Test

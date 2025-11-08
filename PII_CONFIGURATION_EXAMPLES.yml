@@ -1,0 +1,394 @@
+# PII Detection Configuration Examples
+# Add these to your application.yml, application-{profile}.yml, or environment variables
+
+# ============================================================================
+# EXAMPLE 1: PRODUCTION - Comprehensive Security (RECOMMENDED) 🏆
+# ============================================================================
+# File: application-prod.yml
+# Purpose: Maximum security for production systems
+# Direction: BOTH (INPUT + OUTPUT)
+# Mode: REDACT (actively remove sensitive data)
+
+ai:
+  pii-detection:
+    # Master switch
+    enabled: true
+    
+    # Detection direction: INPUT | OUTPUT | BOTH (default)
+    detection-direction: BOTH  # Full protection in both directions
+    
+    # Operating mode: PASS_THROUGH | DETECT_ONLY | REDACT
+    mode: REDACT              # Actively redact sensitive data
+    
+    # Encryption for audit trail
+    store-encrypted-original: true
+    encryption-secret: "${PII_ENCRYPTION_SECRET}"
+    
+    # Audit logging
+    audit-logging-enabled: true
+    
+    # Pattern configuration
+    patterns:
+      CREDIT_CARD:
+        field-name: "credit_card"
+        regex: "(?<!\\d)(?:\\d[ -]?){13,16}(?!\\d)"
+        replacement: "****-****-****-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Payment card number redacted"
+      
+      SSN:
+        field-name: "ssn"
+        regex: "\\b\\d{3}-?\\d{2}-?\\d{4}\\b"
+        replacement: "***-**-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Social security number redacted"
+      
+      EMAIL:
+        field-name: "email"
+        regex: "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}"
+        replacement: "***@***.***"
+        enabled: true
+        confidence: 1.0
+        context-note: "Email address redacted"
+      
+      PHONE:
+        field-name: "phone_number"
+        regex: "(?:(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\(\\d{3}\\)|\\d{3})[\\s.-]?\\d{3}[\\s.-]?\\d{4})"
+        replacement: "***-***-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Phone number redacted"
+      
+      API_KEY:
+        field-name: "api_key"
+        regex: "(?:api[_-]?key|sk-|pk_[a-z]+)\\s*=\\s*[\\w-]+"
+        replacement: "[API_KEY_REDACTED]"
+        enabled: true
+        confidence: 0.95
+        context-note: "API key redacted"
+
+
+# ============================================================================
+# EXAMPLE 2: DEVELOPMENT - No PII Detection 🧪
+# ============================================================================
+# File: application.yml or application-dev.yml
+# Purpose: Local development, no PII protection needed
+# Direction: N/A (disabled)
+# Mode: N/A (disabled)
+
+ai:
+  pii-detection:
+    enabled: false  # Disabled to avoid overhead in development
+
+
+# ============================================================================
+# EXAMPLE 3: REAL API TESTS - Both Direction Detection 🧪
+# ============================================================================
+# File: application-real-api-test.yml
+# Purpose: Comprehensive testing with real LLM
+# Direction: BOTH
+# Mode: DETECT_ONLY (report detections, don't redact)
+
+ai:
+  pii-detection:
+    enabled: true
+    
+    detection-direction: BOTH  # Test both INPUT and OUTPUT detection
+    
+    mode: DETECT_ONLY          # Just detect, useful for testing
+    
+    store-encrypted-original: false
+    audit-logging-enabled: true
+    
+    patterns:
+      CREDIT_CARD:
+        field-name: "credit_card"
+        regex: "(?<!\\d)(?:\\d[ -]?){13,16}(?!\\d)"
+        replacement: "****-****-****-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Potential payment card number redacted"
+      
+      EMAIL:
+        field-name: "email"
+        regex: "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}"
+        replacement: "***@***.***"
+        enabled: true
+        confidence: 1.0
+        context-note: "Email address redacted"
+      
+      PHONE:
+        field-name: "phone_number"
+        regex: "(?:(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\(\\d{3}\\)|\\d{3})[\\s.-]?\\d{3}[\\s.-]?\\d{4})"
+        replacement: "***-***-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Phone number redacted"
+      
+      SSN:
+        field-name: "ssn"
+        regex: "\\b\\d{3}-?\\d{2}-?\\d{4}\\b"
+        replacement: "***-**-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Social security number redacted"
+
+
+# ============================================================================
+# EXAMPLE 4: API SERVICE - Input Protection Only 🔒
+# ============================================================================
+# File: application-api.yml
+# Purpose: REST API serving external clients
+# Direction: INPUT (protect user input from LLM exposure)
+# Mode: REDACT (actively redact before LLM call)
+
+ai:
+  pii-detection:
+    enabled: true
+    
+    detection-direction: INPUT  # Only protect INPUT to LLM
+    
+    mode: REDACT               # Redact before sending to LLM
+    
+    audit-logging-enabled: true
+    
+    patterns:
+      CREDIT_CARD:
+        enabled: true
+        regex: "(?<!\\d)(?:\\d[ -]?){13,16}(?!\\d)"
+        replacement: "****-****-****-****"
+      
+      EMAIL:
+        enabled: true
+        regex: "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}"
+        replacement: "***@***.***"
+      
+      PHONE:
+        enabled: true
+        regex: "(?:(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\(\\d{3}\\)|\\d{3})[\\s.-]?\\d{3}[\\s.-]?\\d{4})"
+        replacement: "***-***-****"
+
+
+# ============================================================================
+# EXAMPLE 5: RESEARCH - Output Protection Only 🔬
+# ============================================================================
+# File: application-research.yml
+# Purpose: Research/analysis where you accept PII input but catch output leaks
+# Direction: OUTPUT (catch accidental LLM leaks)
+# Mode: DETECT_ONLY (just detect, don't modify)
+
+ai:
+  pii-detection:
+    enabled: true
+    
+    detection-direction: OUTPUT  # Only check OUTPUT from LLM
+    
+    mode: DETECT_ONLY           # Report detections for analysis
+    
+    audit-logging-enabled: true
+    
+    patterns:
+      CREDIT_CARD:
+        enabled: true
+        regex: "(?<!\\d)(?:\\d[ -]?){13,16}(?!\\d)"
+      
+      EMAIL:
+        enabled: true
+        regex: "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}"
+      
+      SSN:
+        enabled: true
+        regex: "\\b\\d{3}-?\\d{2}-?\\d{4}\\b"
+
+
+# ============================================================================
+# EXAMPLE 6: HEALTHCARE - HIPAA Compliance 🏥
+# ============================================================================
+# File: application-hipaa.yml
+# Purpose: Healthcare application with HIPAA requirements
+# Direction: BOTH (comprehensive protection)
+# Mode: REDACT (actively remove all sensitive data)
+
+ai:
+  pii-detection:
+    enabled: true
+    
+    detection-direction: BOTH   # Full bidirectional protection
+    
+    mode: REDACT                # Actively redact all PII
+    
+    store-encrypted-original: true
+    encryption-secret: "${HIPAA_ENCRYPTION_KEY}"
+    audit-logging-enabled: true  # Required for HIPAA audit trail
+    
+    patterns:
+      # Protected Health Information (PHI)
+      SSN:
+        field-name: "ssn"
+        regex: "\\b\\d{3}-?\\d{2}-?\\d{4}\\b"
+        replacement: "***-**-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "SSN (Protected Health Information)"
+      
+      EMAIL:
+        field-name: "email"
+        regex: "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}"
+        replacement: "***@***.***"
+        enabled: true
+        confidence: 1.0
+        context-note: "Email (PHI)"
+      
+      PHONE:
+        field-name: "phone"
+        regex: "(?:(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\(\\d{3}\\)|\\d{3})[\\s.-]?\\d{3}[\\s.-]?\\d{4})"
+        replacement: "***-***-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Phone (PHI)"
+      
+      MEDICAL_ID:
+        field-name: "medical_id"
+        regex: "[A-Z]{2}\\d{8}"
+        replacement: "****MID****"
+        enabled: true
+        confidence: 0.9
+        context-note: "Medical Record ID"
+
+
+# ============================================================================
+# EXAMPLE 7: FINANCIAL - PCI-DSS Compliance 💳
+# ============================================================================
+# File: application-financial.yml
+# Purpose: Financial application with PCI-DSS requirements
+# Direction: BOTH (comprehensive protection)
+# Mode: REDACT (strictly enforce redaction)
+
+ai:
+  pii-detection:
+    enabled: true
+    
+    detection-direction: BOTH   # Full protection required by PCI-DSS
+    
+    mode: REDACT                # Strict redaction enforcement
+    
+    store-encrypted-original: true
+    encryption-secret: "${PCI_ENCRYPTION_KEY}"
+    audit-logging-enabled: true  # PCI-DSS audit trail requirement
+    
+    patterns:
+      CREDIT_CARD:
+        field-name: "credit_card"
+        regex: "(?<!\\d)(?:\\d[ -]?){13,16}(?!\\d)"
+        replacement: "****-****-****-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Payment Card Number (PCI-DSS)"
+      
+      CVV:
+        field-name: "cvv"
+        regex: "\\b\\d{3,4}\\b"
+        replacement: "***"
+        enabled: true
+        confidence: 0.85
+        context-note: "Card Verification Value"
+      
+      ACCOUNT_NUMBER:
+        field-name: "account_number"
+        regex: "(?:account|acct)\\s*[:#]?\\s*([\\w-]{10,})"
+        replacement: "****ACCT****"
+        enabled: true
+        confidence: 0.8
+        context-note: "Account Number"
+
+
+# ============================================================================
+# EXAMPLE 8: ENVIRONMENT VARIABLE OVERRIDE
+# ============================================================================
+# You can override YAML config with environment variables:
+
+# Command line:
+# export AI_PII_DETECTION_ENABLED=true
+# export AI_PII_DETECTION_DETECTION_DIRECTION=BOTH
+# export AI_PII_DETECTION_MODE=REDACT
+
+# Docker:
+# docker run \
+#   -e AI_PII_DETECTION_ENABLED=true \
+#   -e AI_PII_DETECTION_DETECTION_DIRECTION=INPUT \
+#   myapp:latest
+
+
+# ============================================================================
+# EXAMPLE 9: COMMAND-LINE OVERRIDE
+# ============================================================================
+# Java command line:
+# java -jar app.jar \
+#   --ai.pii-detection.enabled=true \
+#   --ai.pii-detection.detection-direction=BOTH \
+#   --ai.pii-detection.mode=REDACT
+
+# Maven:
+# mvn spring-boot:run \
+#   -Dspring-boot.run.arguments="--ai.pii-detection.enabled=true"
+
+
+# ============================================================================
+# EXAMPLE 10: PROFILE-SPECIFIC CONFIGURATION (Spring Boot)
+# ============================================================================
+# application.yml (base config for all profiles)
+spring:
+  profiles:
+    active: dev
+
+ai:
+  pii-detection:
+    enabled: false  # Default: disabled
+
+
+# application-dev.yml (development profile)
+ai:
+  pii-detection:
+    enabled: false
+
+
+# application-test.yml (test profile)
+ai:
+  pii-detection:
+    enabled: true
+    detection-direction: BOTH
+    mode: DETECT_ONLY
+
+
+# application-prod.yml (production profile)
+ai:
+  pii-detection:
+    enabled: true
+    detection-direction: BOTH
+    mode: REDACT
+    store-encrypted-original: true
+
+
+# Run with profile:
+# mvn test -Dspring.profiles.active=test
+# java -Dspring.profiles.active=prod -jar app.jar
+
+
+# ============================================================================
+# SUMMARY TABLE
+# ============================================================================
+#
+# Profile     | Direction | Mode        | Use Case
+# ============|===========|=============|==========================================
+# prod        | BOTH      | REDACT      | Production (comprehensive security)
+# api         | INPUT     | REDACT      | REST API (protect LLM input)
+# research    | OUTPUT    | DETECT_ONLY | Research (catch output leaks)
+# test        | BOTH      | DETECT_ONLY | Integration tests (full coverage)
+# hipaa       | BOTH      | REDACT      | Healthcare (compliance)
+# financial   | BOTH      | REDACT      | Finance (PCI-DSS compliance)
+# dev         | -         | -           | Development (disabled)
+#
+# ============================================================================
+

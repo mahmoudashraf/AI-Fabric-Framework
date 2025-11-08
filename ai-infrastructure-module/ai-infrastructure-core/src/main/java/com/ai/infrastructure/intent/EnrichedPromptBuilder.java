@@ -93,7 +93,8 @@ public class EnrichedPromptBuilder {
 
     private void appendNextStepGuidance(StringBuilder prompt) {
         prompt.append("NEXT-STEP RECOMMENDATIONS:\n");
-        prompt.append("- Whenever an intent unlocks a logical follow-up, populate nextStepRecommended with intent, query, rationale, confidence.\n");
+        prompt.append("- Whenever an intent unlocks a logical follow-up, populate nextStepRecommended with intent, query, rationale, confidence, and vectorSpace.\n");
+        prompt.append("- The vectorSpace should specify which knowledge base section to search for the follow-up (e.g., 'faq', 'policies', 'test-product').\n");
         prompt.append("- Only surface recommendations with confidence >= 0.70.\n");
         prompt.append("- Align recommendations with the user's context; do not suggest unrelated actions.\n\n");
     }
@@ -115,7 +116,8 @@ public class EnrichedPromptBuilder {
                     "intent": "potential_follow_up_intent",
                     "query": "Helpful follow-up question to ask the user",
                     "rationale": "Why this is useful",
-                    "confidence": 0.88
+                    "confidence": 0.88,
+                    "vectorSpace": "faq | policies | test-product | ..."
                   }
                 }
               ],

@@ -44,12 +44,39 @@ public class RAGOrchestrator {
     private final ResponseSanitizer responseSanitizer;
     private final IntentHistoryService intentHistoryService;
     private final SmartSuggestionsProperties smartSuggestionsProperties;
+    private final com.ai.infrastructure.privacy.pii.PIIDetectionService piiDetectionService;
+    private final com.ai.infrastructure.config.PIIDetectionProperties piiDetectionProperties;
 
     public OrchestrationResult orchestrate(String query, String userId) {
-        MultiIntentResponse multiIntentResponse = intentQueryExtractor.extract(query, userId);
+        // STEP 1: Detect & Redact PII in user query (based on configuration)
+        List<String> detectedPiiTypes = new ArrayList<>();
+        String processedQuery = query;
+        
+        boolean detectInput = piiDetectionProperties.isEnabled() && 
+            (piiDetectionProperties.getDetectionDirection() == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT ||
+             piiDetectionProperties.getDetectionDirection() == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.BOTH);
+        
+        if (detectInput) {
+            com.ai.infrastructure.dto.PIIDetectionResult queryPiiAnalysis = piiDetectionService.analyze(query);
+            if (queryPiiAnalysis.isPiiDetected()) {
+                detectedPiiTypes = queryPiiAnalysis.getDetections().stream()
+                    .map(com.ai.infrastructure.dto.PIIDetection::getType)
+                    .filter(t -> t != null && !t.isBlank())
+                    .distinct()
+                    .collect(Collectors.toList());
+                log.info("PII detected in user query - types: {} (mode: INPUT_REDACTION)", detectedPiiTypes);
+            }
+            processedQuery = queryPiiAnalysis.getProcessedQuery();
+            log.debug("Original query length: {}, Redacted query length: {}", query.length(), processedQuery.length());
+        } else {
+            log.debug("PII INPUT detection is disabled (configuration: {})", piiDetectionProperties.getDetectionDirection());
+        }
+        
+        // STEP 2: Send processed query to LLM for intent extraction
+        MultiIntentResponse multiIntentResponse = intentQueryExtractor.extract(processedQuery, userId);
 
         if (!multiIntentResponse.hasIntents()) {
-            log.warn("No intents extracted for query '{}'", query);
+            log.warn("No intents extracted for query '{}'", processedQuery);
             return OrchestrationResult.error("Unable to determine user intent.");
         }
 
@@ -69,7 +96,51 @@ public class RAGOrchestrator {
         result.setMetadata(Collections.unmodifiableMap(metadata));
 
         applySmartSuggestions(result, userId);
-        result.setSanitizedPayload(responseSanitizer.sanitize(result, userId));
+        
+        // STEP 3: Sanitize the response (based on configuration)
+        Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, userId);
+        
+        boolean detectOutput = piiDetectionProperties.isEnabled() && 
+            (piiDetectionProperties.getDetectionDirection() == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.OUTPUT ||
+             piiDetectionProperties.getDetectionDirection() == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.BOTH);
+        
+        if (!detectOutput) {
+            log.debug("PII OUTPUT detection is disabled (configuration: {})", piiDetectionProperties.getDetectionDirection());
+        }
+        
+        // STEP 4: Add detected PII types to response metadata
+        if ((!detectedPiiTypes.isEmpty() || detectOutput) && sanitizedPayload.containsKey("sanitization")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> sanitization = (Map<String, Object>) sanitizedPayload.get("sanitization");
+            Map<String, Object> updatedSanitization = new LinkedHashMap<>(sanitization);
+            
+            @SuppressWarnings("unchecked")
+            List<String> existingTypes = (List<String>) sanitization.get("detectedTypes");
+            List<String> mergedTypes = new ArrayList<>();
+            if (existingTypes != null) {
+                mergedTypes.addAll(existingTypes);
+            }
+            mergedTypes.addAll(detectedPiiTypes);
+            
+            // Deduplicate and sort
+            List<String> finalTypes = mergedTypes.stream()
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+            
+            if (!finalTypes.isEmpty()) {
+                updatedSanitization.put("detectedTypes", finalTypes);
+            }
+            
+            // Create new payload map with updated sanitization if changed
+            if (!updatedSanitization.equals(sanitization)) {
+                Map<String, Object> updatedPayload = new LinkedHashMap<>(sanitizedPayload);
+                updatedPayload.put("sanitization", Collections.unmodifiableMap(updatedSanitization));
+                sanitizedPayload = Collections.unmodifiableMap(updatedPayload);
+            }
+        }
+        
+        result.setSanitizedPayload(sanitizedPayload);
         persistIntentHistory(query, userId, multiIntentResponse, result);
 
         return result;
@@ -284,14 +355,17 @@ public class RAGOrchestrator {
         }
 
         try {
+            // Use vectorSpace from the recommendation if provided, allowing the LLM to specify which KB section to search
             RAGRequest ragRequest = RAGRequest.builder()
                 .query(query)
+                .entityType(candidate.getVectorSpace())  // Use LLM-provided vectorSpace for precise KB targeting
                 .limit(smartSuggestionsProperties.getRetrievalLimit())
                 .threshold(smartSuggestionsProperties.getRetrievalThreshold())
                 .metadata(Map.of(
                     "source", "smart-suggestion",
                     "suggestionIntent", candidate.getIntent(),
                     "suggestionConfidence", candidate.getConfidence(),
+                    "vectorSpace", candidate.getVectorSpace() != null ? candidate.getVectorSpace() : "unspecified",
                     "userId", userId
                 ))
                 .userId(userId)
