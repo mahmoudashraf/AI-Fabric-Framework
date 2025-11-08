@@ -1,11 +1,22 @@
 # Test Profile Configuration for Integration Tests
 # This configuration ensures ONNX embedding provider is used for tests
 
+# Test Profile Configuration for Integration Tests
+# This configuration ensures ONNX embedding provider is used for tests
+
 ai:
   enabled: true
   pii-detection:
     enabled: true
     mode: DETECT_ONLY
+    patterns:
+      API_KEY:
+        field-name: api_key
+        regex: "sk-[A-Za-z0-9]{12,}"
+        enabled: true
+        replacement: ""
+        confidence: 1.0
+        context-note: API key redacted
 
   providers:
     # Embedding Provider Configuration (ONNX for testing)
