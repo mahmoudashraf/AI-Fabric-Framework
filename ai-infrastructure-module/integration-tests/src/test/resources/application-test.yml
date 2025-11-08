@@ -3,6 +3,10 @@
 
 ai:
   enabled: true
+  pii-detection:
+    enabled: true
+    mode: DETECT_ONLY
+
   providers:
     # Embedding Provider Configuration (ONNX for testing)
     embedding-provider: ${EMBEDDING_PROVIDER:onnx}
@@ -21,6 +25,14 @@ ai:
     type: memory
     lucene:
       index-path: ./data/test-lucene-index
+
+  response-sanitization:
+    enabled: true
+    force-redaction: true
+    warning-enabled: true
+    guidance-enabled: true
+    include-suggestion-metadata: true
+    publish-events: true
 
 # Logging for Test Profile
 logging:
