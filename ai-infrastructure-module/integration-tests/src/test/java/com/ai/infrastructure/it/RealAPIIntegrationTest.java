@@ -1,23 +1,37 @@
 package com.ai.infrastructure.it;
 
+import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.Assumptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Real API Integration Test for AI Infrastructure Module
@@ -35,8 +49,66 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("real-api-test")
 @Transactional
-@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = "sk-.*")
 public class RealAPIIntegrationTest {
+
+    private static final String OPENAI_KEY_PROPERTY = "OPENAI_API_KEY";
+    private static final Path[] CANDIDATE_ENV_PATHS = new Path[] {
+        Paths.get("../env.dev"),
+        Paths.get("../../env.dev"),
+        Paths.get("../../../env.dev"),
+        Paths.get("../backend/env.dev"),
+        Paths.get("../../backend/env.dev"),
+        Paths.get("/workspace/env.dev")
+    };
+
+    static {
+        initializeOpenAIConfiguration();
+    }
+
+    private static void initializeOpenAIConfiguration() {
+        String apiKey = System.getenv(OPENAI_KEY_PROPERTY);
+        if (!StringUtils.hasText(apiKey)) {
+            apiKey = locateKeyFromEnvFiles();
+        }
+
+        if (StringUtils.hasText(apiKey)) {
+            System.setProperty(OPENAI_KEY_PROPERTY, apiKey);
+            System.setProperty("ai.providers.openai-api-key", apiKey);
+        }
+
+        System.setProperty("EMBEDDING_PROVIDER",
+            System.getProperty("EMBEDDING_PROVIDER", "openai"));
+        System.setProperty("ai.providers.embedding-provider",
+            System.getProperty("ai.providers.embedding-provider", "openai"));
+    }
+
+    private static String locateKeyFromEnvFiles() {
+        for (Path path : CANDIDATE_ENV_PATHS) {
+            if (Files.exists(path) && Files.isRegularFile(path)) {
+                String key = readKeyFromEnvFile(path, OPENAI_KEY_PROPERTY);
+                if (StringUtils.hasText(key)) {
+                    return key;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String readKeyFromEnvFile(Path file, String keyName) {
+        try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
+            return lines
+                .map(String::trim)
+                .filter(line -> !line.isEmpty() && !line.startsWith("#") && line.contains("="))
+                .map(line -> line.split("=", 2))
+                .filter(parts -> parts.length == 2 && keyName.equals(parts[0].trim()))
+                .map(parts -> parts[1].trim())
+                .findFirst()
+                .orElse(null);
+        } catch (IOException ex) {
+            System.err.printf("Unable to read %s from %s: %s%n", keyName, file, ex.getMessage());
+            return null;
+        }
+    }
 
     @Autowired
     private AICapabilityService capabilityService;
@@ -50,15 +122,26 @@ public class RealAPIIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
+    @Autowired
+    private RAGOrchestrator orchestrator;
+
+    @Autowired
+    private IntentHistoryRepository intentHistoryRepository;
+
+    @Autowired
+    private ResponseSanitizationProperties sanitizationProperties;
+
     @BeforeEach
     public void setUp() {
-        // Clean up before each test
+        vectorManagementService.clearAllVectors();
         searchRepository.deleteAll();
         productRepository.deleteAll();
+        intentHistoryRepository.deleteAll();
     }
 
     @Test
     public void testRealOpenAIEmbeddingGeneration() {
+        assumeOpenAIConfigured();
         System.out.println("🚀 Testing Real OpenAI Embedding Generation...");
         
         // Given - Create a product with rich content for embedding
@@ -112,6 +195,7 @@ public class RealAPIIntegrationTest {
 
     @Test
     public void testRealAIContentAnalysis() {
+        assumeOpenAIConfigured();
         System.out.println("🧠 Testing Real AI Content Analysis...");
         
         // Given - Create multiple products with different AI-related content
@@ -185,6 +269,7 @@ public class RealAPIIntegrationTest {
 
     @Test
     public void testRealAISemanticSearch() {
+        assumeOpenAIConfigured();
         System.out.println("🔍 Testing Real AI Semantic Search...");
         
         // Given - Create products with semantically similar but different wording
@@ -246,6 +331,7 @@ public class RealAPIIntegrationTest {
 
     @Test
     public void testRealAIEndToEndWorkflow() {
+        assumeOpenAIConfigured();
         System.out.println("🔄 Testing Real AI End-to-End Workflow...");
         
         // Given - Create a comprehensive product catalog
@@ -316,5 +402,106 @@ public class RealAPIIntegrationTest {
         System.out.println("   - Smart products: " + smartResults.size());
         System.out.println("   - Security products: " + securityResults.size());
         System.out.println("   - All products have vector IDs: " + allEntities.stream().allMatch(e -> e.getVectorId() != null && !e.getVectorId().isEmpty()));
+    }
+
+    @Test
+    public void testRealRAGSixLayerPipeline() {
+        assumeOpenAIConfigured();
+
+        TestProduct product = TestProduct.builder()
+            .name("AI-Powered Fitness Tracker")
+            .description("""
+                The FitAI tracker provides personalised workout guidance and refund support.
+                Refund policy: Customers can request a refund within 30 days of purchase and
+                the finance team processes approved refunds within 5-7 business days.
+                Contact support for secure card handling; never store raw card numbers.
+                """)
+            .category("Wearables")
+            .brand("FitAI")
+            .price(new BigDecimal("199.99"))
+            .sku("FITAI-TRACKER-001")
+            .stockQuantity(50)
+            .active(true)
+            .build();
+
+        product = productRepository.save(product);
+        capabilityService.processEntityForAI(product, "test-product");
+
+        String userId = "real-api-user";
+        String query = """
+            My corporate credit card 4111-1111-1111-1111 was just charged for the AI-Powered Fitness Tracker.
+            Please consult the test-product knowledge base and explain our refund policy and next secure steps.
+            """;
+
+        OrchestrationResult result = orchestrator.orchestrate(query, userId);
+
+        assertNotNull(result, "Orchestrator should return a result");
+        assertNotNull(result.getSanitizedPayload(), "Sanitized payload should be present");
+        assertNotNull(result.getType(), "Result type should be resolved");
+        assertNotNull(result.getMetadata(), "Metadata should capture orchestration details");
+
+        Map<String, Object> payload = result.getSanitizedPayload();
+
+        Object safeSummary = payload.get("safeSummary");
+        if (safeSummary instanceof String summary) {
+            assertThat(summary).doesNotContain("4111");
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sanitization = (Map<String, Object>) payload.get("sanitization");
+        assertNotNull(sanitization, "Sanitization metadata should be included");
+        assertThat(String.valueOf(sanitization.get("risk")).toUpperCase())
+            .isIn("HIGH", "MEDIUM");
+
+        @SuppressWarnings("unchecked")
+        List<String> detectedTypes = (List<String>) sanitization.get("detectedTypes");
+        if (detectedTypes != null) {
+            assertThat(detectedTypes.stream().map(String::toUpperCase))
+                .anyMatch(type -> type.contains("CREDIT_CARD"));
+        }
+
+        Object warning = payload.get("warning");
+        if (warning instanceof Map<?, ?> warningMap) {
+            assertEquals(sanitizationProperties.getHighRiskWarningMessage(), warningMap.get("message"));
+        }
+
+        Object guidance = payload.get("guidance");
+        if (guidance != null) {
+            assertEquals(sanitizationProperties.getGuidanceMessage(), guidance);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) payload.get("data");
+        if (data != null) {
+            Object documents = data.get("documents");
+            if (documents instanceof List<?> docs) {
+                assertThat(docs).isNotEmpty();
+            }
+        }
+
+        if (payload.containsKey("suggestions")) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> suggestions = (List<Map<String, Object>>) payload.get("suggestions");
+            assertThat(suggestions).isNotEmpty();
+        }
+
+        List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        assertThat(history).isNotEmpty();
+        IntentHistory record = history.getFirst();
+        if (record.getRedactedQuery() != null) {
+            assertThat(record.getRedactedQuery()).doesNotContain("4111");
+        }
+        if (record.getSensitiveDataTypes() != null) {
+            assertThat(record.getSensitiveDataTypes().toUpperCase()).contains("CREDIT_CARD");
+        }
+        assertNotNull(record.getExecutionStatus());
+        assertTrue(record.getSuccess() == null || record.getSuccess());
+    }
+
+    private void assumeOpenAIConfigured() {
+        Assumptions.assumeTrue(
+            StringUtils.hasText(System.getProperty(OPENAI_KEY_PROPERTY)),
+            "OPENAI_API_KEY not configured; skipping real API test."
+        );
     }
 }
