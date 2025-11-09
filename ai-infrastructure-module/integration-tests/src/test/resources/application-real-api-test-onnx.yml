@@ -1,0 +1,164 @@
+# Real API Test Configuration with ONNX Embeddings
+# This configuration uses ONNX for embeddings and OpenAI for intent extraction
+# Tests ONNX fallback readiness and local embedding functionality
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 20000
+      auto-commit: true
+      pool-name: HikariCP-Test
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+        jdbc:
+          batch_size: 20
+    open-in-view: false
+
+  h2:
+    console:
+      enabled: false
+
+# Test Configuration
+test:
+  # Disable mock provider for real ONNX testing
+  enable-mock-provider: false
+
+# AI Configuration for ONNX Real API Testing
+ai:
+  enabled: true
+  pii-detection:
+    enabled: true
+    mode: DETECT_ONLY
+    detection-direction: BOTH
+    store-encrypted-original: false
+    audit-logging-enabled: true
+    patterns:
+      CREDIT_CARD:
+        field-name: "credit_card"
+        regex: "(?<!\\d)(?:\\d[ -]?){13,16}(?!\\d)"
+        replacement: "****-****-****-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Potential payment card number redacted"
+      EMAIL:
+        field-name: "email"
+        regex: "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}"
+        replacement: "***@***.***"
+        enabled: true
+        confidence: 1.0
+        context-note: "Email address redacted"
+      PHONE:
+        field-name: "phone_number"
+        regex: "(?:(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\(\\d{3}\\)|\\d{3})[\\s.-]?\\d{3}[\\s.-]?\\d{4})"
+        replacement: "***-***-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Phone number redacted"
+      SSN:
+        field-name: "ssn"
+        regex: "\\b\\d{3}-?\\d{2}-?\\d{4}\\b"
+        replacement: "***-**-****"
+        enabled: true
+        confidence: 1.0
+        context-note: "Social security number redacted"
+  response-sanitization:
+    enabled: true
+    force-redaction: true
+    suggestion-limit: 3
+    high-risk-types: ["CREDIT_CARD", "SSN", "PASSPORT"]
+    high-risk-warning-message: "SECURITY ALERT: Sensitive payment information was detected and redacted from this response."
+    medium-risk-warning-message: "Some personal details were hidden before presenting this response."
+    warning-enabled: true
+    warning-level-high-risk: BLOCK
+    warning-level-medium-risk: WARN
+    guidance-enabled: true
+    guidance-message: "Avoid sharing card numbers or sensitive identifiers in chat."
+    include-suggestion-metadata: true
+    include-error-codes: true
+    publish-events: true
+    filtered-data-keys: ["password", "token", "secret", "apiKey"]
+    default-replacement: "[REDACTED]"
+  providers:
+    # ONNX Embedding Provider (LOCAL)
+    embedding-provider: onnx
+    onnx-model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+    onnx-max-sequence-length: 512
+    onnx-use-gpu: false
+    
+    # OpenAI Configuration (for intent extraction, NOT embeddings)
+    openai-api-key: ${OPENAI_API_KEY}
+    openai-model: gpt-4o-mini
+    openai-embedding-model: text-embedding-3-small
+    openai-max-tokens: 2000
+    openai-temperature: 0
+    openai-top-p: 0.1
+    openai-timeout: 30
+    openai-priority: 100
+    
+    enable-rag: true
+    enable-behavioral-ai: true
+    enable-smart-validation: true
+    enable-auto-generation: true
+    
+    max-concurrent-requests: 3
+    cache-timeout-minutes: 0
+    enable-caching: false
+
+  # Vector Database Configuration - Memory for fast tests
+  vector-db:
+    type: memory
+    lucene:
+      index-path: ./data/test-lucene-index
+
+  service:
+    enabled: true
+    auto-configuration: true
+    # Default to ONNX provider for embeddings, OpenAI for LLM
+    default-provider: onnx
+    caching:
+      enabled: false
+    metrics:
+      enabled: true
+    health-checks:
+      enabled: true
+    logging:
+      enabled: true
+    default-timeout: 30000
+    max-retries: 2
+    retry-delay: 1000
+
+# Logging for ONNX Real API Testing
+logging:
+  level:
+    root: INFO
+    com.ai.infrastructure: DEBUG
+    com.ai.infrastructure.embedding: DEBUG
+    com.ai.infrastructure.embedding.providers.onnx: DEBUG
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management/Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info"
+  endpoint:
+    health:
+      show-details: when-authorized
