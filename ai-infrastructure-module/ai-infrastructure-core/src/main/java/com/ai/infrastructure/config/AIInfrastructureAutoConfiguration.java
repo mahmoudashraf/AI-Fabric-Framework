@@ -15,6 +15,7 @@ import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.audit.AIAuditService;
+import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.privacy.AIDataPrivacyService;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.filter.AIContentFilterService;
@@ -60,6 +61,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.lang.Nullable;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 
@@ -197,13 +199,15 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AISecurityService aiSecurityService(AICoreService aiCoreService) {
-        return new AISecurityService(aiCoreService);
+    public AISecurityService aiSecurityService(PIIDetectionService piiDetectionService,
+                                               AuditService auditService,
+                                               Clock clock) {
+        return new AISecurityService(piiDetectionService, auditService, clock);
     }
     
     @Bean
-    public AIComplianceService aiComplianceService(AICoreService aiCoreService) {
-        return new AIComplianceService(aiCoreService);
+    public AIComplianceService aiComplianceService(AuditService auditService, Clock clock) {
+        return new AIComplianceService(auditService, clock);
     }
     
     @Bean
@@ -228,8 +232,16 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIAccessControlService aiAccessControlService(AICoreService aiCoreService) {
-        return new AIAccessControlService(aiCoreService);
+    public AIAccessControlService aiAccessControlService(AuditService auditService,
+                                                         CacheManager cacheManager,
+                                                         Clock clock) {
+        return new AIAccessControlService(auditService, cacheManager, clock);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean(Clock.class)
+    public Clock systemClock() {
+        return Clock.systemUTC();
     }
     
     // VectorDatabaseService is now an interface with multiple implementations

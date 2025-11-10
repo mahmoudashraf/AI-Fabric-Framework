@@ -1,11 +1,20 @@
 package com.ai.infrastructure.intent.orchestration;
 
+import com.ai.infrastructure.access.AIAccessControlService;
+import com.ai.infrastructure.audit.AuditService;
+import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.dto.AIAccessControlRequest;
+import com.ai.infrastructure.dto.AIAccessControlResponse;
+import com.ai.infrastructure.dto.AIComplianceRequest;
+import com.ai.infrastructure.dto.AIComplianceResponse;
+import com.ai.infrastructure.dto.AISecurityRequest;
+import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
@@ -13,6 +22,7 @@ import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.security.ResponseSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +30,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
@@ -29,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -46,8 +59,46 @@ public class RAGOrchestrator {
     private final SmartSuggestionsProperties smartSuggestionsProperties;
     private final com.ai.infrastructure.privacy.pii.PIIDetectionService piiDetectionService;
     private final com.ai.infrastructure.config.PIIDetectionProperties piiDetectionProperties;
+    private final AISecurityService securityService;
+    private final AIAccessControlService accessControlService;
+    private final AIComplianceService complianceService;
+    private final AuditService auditService;
+    private final Clock clock;
 
     public OrchestrationResult orchestrate(String query, String userId) {
+        String requestId = "rag-" + UUID.randomUUID();
+        LocalDateTime requestTimestamp = LocalDateTime.now(clock);
+
+        AISecurityResponse securityResponse = securityService.analyzeRequest(
+            AISecurityRequest.builder()
+                .requestId(requestId)
+                .userId(userId)
+                .content(query)
+                .operationType("INTENT_QUERY")
+                .timestamp(requestTimestamp)
+                .build()
+        );
+
+        if (Boolean.TRUE.equals(securityResponse.getShouldBlock())) {
+            return OrchestrationResult.error("Request blocked by security controls.");
+        }
+
+        AIAccessControlResponse accessResponse = accessControlService.checkAccess(
+            AIAccessControlRequest.builder()
+                .requestId(requestId)
+                .userId(userId)
+                .resourceId("rag:intent")
+                .operationType("READ")
+                .context(query)
+                .metadata(Map.of("entryPoint", "RAG_ORCHESTRATOR"))
+                .timestamp(requestTimestamp)
+                .build()
+        );
+
+        if (!Boolean.TRUE.equals(accessResponse.getAccessGranted())) {
+            return OrchestrationResult.error("Access denied by policy.");
+        }
+
         // STEP 1: Detect & Redact PII in user query (based on configuration)
         List<String> detectedPiiTypes = new ArrayList<>();
         String processedQuery = query;
@@ -72,6 +123,19 @@ public class RAGOrchestrator {
             log.debug("PII INPUT detection is disabled (configuration: {})", piiDetectionProperties.getDetectionDirection());
         }
         
+        AIComplianceResponse complianceResponse = complianceService.checkCompliance(
+            AIComplianceRequest.builder()
+                .requestId(requestId)
+                .userId(userId)
+                .content(processedQuery)
+                .timestamp(LocalDateTime.now(clock))
+                .build()
+        );
+
+        if (Boolean.FALSE.equals(complianceResponse.getOverallCompliant())) {
+            return OrchestrationResult.error("Request failed compliance validation.");
+        }
+
         // STEP 2: Send processed query to LLM for intent extraction
         MultiIntentResponse multiIntentResponse = intentQueryExtractor.extract(processedQuery, userId);
 
@@ -88,6 +152,7 @@ public class RAGOrchestrator {
         }
 
         Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("requestId", requestId);
         metadata.put("intentsCount", multiIntentResponse.getIntents().size());
         metadata.put("compound", multiIntentResponse.isCompound());
         if (!CollectionUtils.isEmpty(multiIntentResponse.getMetadata())) {

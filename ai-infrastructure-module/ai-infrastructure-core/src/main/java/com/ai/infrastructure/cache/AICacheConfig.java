@@ -54,7 +54,10 @@ public class AICacheConfig {
             "vectorSearch",
             "textSearch",
             "aiGeneration",
-            "aiValidation"
+            "aiValidation",
+            "accessDecisions",
+            "retentionStatus",
+            "behaviorRetention"
         ));
         
         log.info("AI Cache Manager configured with {} max size and {} minute TTL", 
