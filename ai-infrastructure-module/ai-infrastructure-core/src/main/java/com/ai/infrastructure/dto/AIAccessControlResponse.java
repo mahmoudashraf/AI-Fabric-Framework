@@ -44,6 +44,11 @@ public class AIAccessControlResponse {
     private Boolean accessGranted;
     
     /**
+     * Indicates whether the decision was served from cache
+     */
+    private Boolean fromCache;
+    
+    /**
      * Access decision
      */
     private String accessDecision;
