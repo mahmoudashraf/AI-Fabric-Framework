@@ -1,6 +1,6 @@
 package com.ai.infrastructure.retention.policy;
 
-import com.ai.infrastructure.dto.AISearchableEntity;
+import com.ai.infrastructure.entity.AISearchableEntity;
 
 /**
  * Infrastructure hook allowing customers to plug in data retention rules for indexed entities.

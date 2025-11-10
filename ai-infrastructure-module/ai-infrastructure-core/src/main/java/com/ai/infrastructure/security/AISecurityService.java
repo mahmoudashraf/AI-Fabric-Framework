@@ -4,7 +4,7 @@ import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.dto.AISecurityEvent;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
-import com.ai.infrastructure.privacy.pii.PIIDetectionResult;
+import com.ai.infrastructure.dto.PIIDetectionResult;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.security.policy.SecurityAnalysisPolicy;
 import com.ai.infrastructure.security.policy.SecurityAnalysisResult;
@@ -24,14 +24,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 /**
  * Infrastructure-only security service that performs baseline threat detection and delegates
  * organisation-specific analysis to customer supplied hooks.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AISecurityService {
 
