@@ -63,8 +63,11 @@ class RAGOrchestratorIntegrationTest {
     @MockBean
     private ActionHandlerRegistry actionHandlerRegistry;
 
-    @MockBean
+    @MockBean(name = "ragService")
     private RAGService ragService;
+
+    @MockBean(name = "RAGService")
+    private RAGService ragServiceAlias;
 
     @MockBean
     private ResponseSanitizer responseSanitizer;
@@ -116,6 +119,13 @@ class RAGOrchestratorIntegrationTest {
         );
 
         when(ragService.performRag(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder()
+                .response("ok")
+                .documents(List.of())
+                .success(true)
+                .build()
+        );
+        when(ragServiceAlias.performRag(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder()
                 .response("ok")
                 .documents(List.of())
