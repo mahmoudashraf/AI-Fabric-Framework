@@ -1,5 +1,8 @@
 package com.ai.infrastructure.intent.orchestration;
 
+import com.ai.infrastructure.access.AIAccessControlService;
+import com.ai.infrastructure.audit.AuditService;
+import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.config.TestConfiguration;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -7,6 +10,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.security.AISecurityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,9 +41,40 @@ class RAGOrchestratorLiveHandlersTest {
     @MockBean
     private IntentQueryExtractor intentQueryExtractor;
 
+    @MockBean
+    private AISecurityService securityService;
+
+    @MockBean
+    private AIAccessControlService accessControlService;
+
+    @MockBean
+    private AIComplianceService complianceService;
+
+    @MockBean
+    private AuditService auditService;
+
     @BeforeEach
     void cleanIndex() {
         vectorDatabaseService.clearVectors();
+        when(securityService.analyzeRequest(any())).thenReturn(
+            com.ai.infrastructure.dto.AISecurityResponse.builder()
+                .shouldBlock(false)
+                .accessAllowed(true)
+                .success(true)
+                .build()
+        );
+        when(accessControlService.checkAccess(any())).thenReturn(
+            com.ai.infrastructure.dto.AIAccessControlResponse.builder()
+                .accessGranted(true)
+                .success(true)
+                .build()
+        );
+        when(complianceService.checkCompliance(any())).thenReturn(
+            com.ai.infrastructure.dto.AIComplianceResponse.builder()
+                .overallCompliant(true)
+                .success(true)
+                .build()
+        );
     }
 
     @Test

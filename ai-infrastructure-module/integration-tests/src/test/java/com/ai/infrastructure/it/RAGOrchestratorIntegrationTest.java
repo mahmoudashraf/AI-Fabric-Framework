@@ -14,11 +14,13 @@ import com.ai.infrastructure.dto.AIComplianceResponse;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.rag.RAGService;
@@ -101,7 +103,7 @@ class RAGOrchestratorIntegrationTest {
         );
 
         Intent informationIntent = Intent.builder()
-            .type(Intent.IntentType.INFORMATION)
+            .type(IntentType.INFORMATION)
             .intent("find_data")
             .vectorSpace("default")
             .build();
@@ -124,7 +126,12 @@ class RAGOrchestratorIntegrationTest {
         when(responseSanitizer.sanitize(any(), any())).thenReturn(Map.of());
         when(actionHandlerRegistry.findHandler(any())).thenReturn(java.util.Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
-        when(actionHandler.executeAction(any(), any())).thenReturn(ActionHandler.ActionResult.success("done"));
+        when(actionHandler.executeAction(any(), any())).thenReturn(
+            ActionResult.builder()
+                .success(true)
+                .message("done")
+                .build()
+        );
         when(actionHandler.getConfirmationMessage(any())).thenReturn("confirmed");
     }
 

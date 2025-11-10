@@ -9,12 +9,16 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.entity.IntentHistory;
+import com.ai.infrastructure.access.AIAccessControlService;
+import com.ai.infrastructure.audit.AuditService;
+import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.security.AISecurityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,10 +60,41 @@ class RAGIntegrationFlowTest {
     @SpyBean(name = "ragService")
     private RAGService ragService;
 
+    @MockBean
+    private AISecurityService securityService;
+
+    @MockBean
+    private AIAccessControlService accessControlService;
+
+    @MockBean
+    private AIComplianceService complianceService;
+
+    @MockBean
+    private AuditService auditService;
+
     @BeforeEach
     void resetState() {
         vectorDatabaseService.clearVectors();
         historyRepository.deleteAll();
+        when(securityService.analyzeRequest(any())).thenReturn(
+            com.ai.infrastructure.dto.AISecurityResponse.builder()
+                .shouldBlock(false)
+                .accessAllowed(true)
+                .success(true)
+                .build()
+        );
+        when(accessControlService.checkAccess(any())).thenReturn(
+            com.ai.infrastructure.dto.AIAccessControlResponse.builder()
+                .accessGranted(true)
+                .success(true)
+                .build()
+        );
+        when(complianceService.checkCompliance(any())).thenReturn(
+            com.ai.infrastructure.dto.AIComplianceResponse.builder()
+                .overallCompliant(true)
+                .success(true)
+                .build()
+        );
     }
 
     @Test

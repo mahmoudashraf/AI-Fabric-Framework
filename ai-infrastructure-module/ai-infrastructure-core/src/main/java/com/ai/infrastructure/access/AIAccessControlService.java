@@ -22,13 +22,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.stereotype.Service;
 
 /**
  * Infrastructure-only access control service that delegates policy decisions to customer supplied hooks.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AIAccessControlService {
 

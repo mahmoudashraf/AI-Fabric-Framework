@@ -19,13 +19,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 /**
  * Infrastructure-only compliance service delegating policy decisions to customer hooks.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AIComplianceService {
 
@@ -75,7 +73,7 @@ public class AIComplianceService {
         return AIComplianceResponse.builder()
             .requestId(request.getRequestId())
             .userId(request.getUserId())
-            .compliant(compliant)
+            .overallCompliant(compliant)
             .violations(List.copyOf(violations))
             .processingTimeMs(0L)
             .timestamp(timestamp)
@@ -139,7 +137,7 @@ public class AIComplianceService {
             .requestId(request.getRequestId())
             .userId(request.getUserId())
             .timestamp(timestamp)
-            .eventType(compliant ? "COMPLIANT" : "VIOLATION")
+            .operationType(compliant ? "COMPLIANT" : "VIOLATION")
             .violations(List.copyOf(violations))
             .details(details)
             .build();

@@ -10,6 +10,7 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -17,6 +18,12 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.security.ResponseSanitizer;
+import com.ai.infrastructure.security.AISecurityService;
+import com.ai.infrastructure.access.AIAccessControlService;
+import com.ai.infrastructure.compliance.AIComplianceService;
+import com.ai.infrastructure.dto.AIAccessControlResponse;
+import com.ai.infrastructure.dto.AIComplianceResponse;
+import com.ai.infrastructure.dto.AISecurityResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +31,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,8 +64,21 @@ class RAGOrchestratorTest {
     @Mock
     private IntentHistoryService intentHistoryService;
 
+    @Mock
+    private AISecurityService securityService;
+
+    @Mock
+    private AIAccessControlService accessControlService;
+
+    @Mock
+    private AIComplianceService complianceService;
+
+    @Mock
+    private AuditService auditService;
+
     private ResponseSanitizer responseSanitizer;
     private SmartSuggestionsProperties smartSuggestionsProperties;
+    private Clock clock;
 
     private RAGOrchestrator orchestrator;
 
@@ -70,7 +93,41 @@ class RAGOrchestratorTest {
         PIIDetectionService piiDetectionService = new PIIDetectionService(piiDetectionProperties);
         responseSanitizer = new ResponseSanitizer(piiDetectionService, sanitizationProperties);
         when(intentHistoryService.recordIntent(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
-        orchestrator = new RAGOrchestrator(intentQueryExtractor, actionHandlerRegistry, ragService, responseSanitizer, intentHistoryService, smartSuggestionsProperties, piiDetectionService, piiDetectionProperties);
+        when(securityService.analyzeRequest(any())).thenReturn(
+            AISecurityResponse.builder()
+                .shouldBlock(false)
+                .accessAllowed(true)
+                .success(true)
+                .build()
+        );
+        when(accessControlService.checkAccess(any())).thenReturn(
+            AIAccessControlResponse.builder()
+                .accessGranted(true)
+                .success(true)
+                .build()
+        );
+        when(complianceService.checkCompliance(any())).thenReturn(
+            AIComplianceResponse.builder()
+                .overallCompliant(true)
+                .success(true)
+                .build()
+        );
+        clock = Clock.fixed(Instant.parse("2025-01-01T00:00:00Z"), ZoneOffset.UTC);
+        orchestrator = new RAGOrchestrator(
+            intentQueryExtractor,
+            actionHandlerRegistry,
+            ragService,
+            responseSanitizer,
+            intentHistoryService,
+            smartSuggestionsProperties,
+            piiDetectionService,
+            piiDetectionProperties,
+            securityService,
+            accessControlService,
+            complianceService,
+            auditService,
+            clock
+        );
     }
 
     @Test
