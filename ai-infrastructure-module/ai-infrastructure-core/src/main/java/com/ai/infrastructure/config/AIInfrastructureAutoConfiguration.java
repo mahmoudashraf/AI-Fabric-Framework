@@ -184,16 +184,6 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public RAGService ragService(AIProviderConfig config,
-                                 AIEmbeddingService embeddingService,
-                                 VectorDatabaseService vectorDatabaseService,
-                                 VectorDatabase vectorDatabase,
-                                 AISearchService searchService,
-                                 PIIDetectionService piiDetectionService) {
-        return new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService, piiDetectionService);
-    }
-    
-    @Bean
     public AdvancedRAGService advancedRAGService(AISearchService aiSearchService, AIEmbeddingService aiEmbeddingService, AICoreService aiCoreService, RAGService ragService) {
         return new AdvancedRAGService(aiSearchService, aiEmbeddingService, aiCoreService, ragService);
     }

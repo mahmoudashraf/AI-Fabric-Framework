@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
@@ -63,20 +64,21 @@ class RAGOrchestratorIntegrationTest {
     @MockBean
     private ActionHandlerRegistry actionHandlerRegistry;
 
+    @MockBean(name = "RAGService")
+    private RAGService ragServiceUpper;
+
     @MockBean(name = "ragService")
     private RAGService ragService;
-
-    @MockBean(name = "RAGService")
-    private RAGService ragServiceAlias;
 
     @MockBean
     private ResponseSanitizer responseSanitizer;
 
-    @MockBean
     private ActionHandler actionHandler;
 
     @BeforeEach
     void setupDefaults() {
+        actionHandler = mock(ActionHandler.class);
+
         when(securityService.analyzeRequest(any())).thenReturn(
             AISecurityResponse.builder()
                 .requestId("sec")
@@ -125,7 +127,7 @@ class RAGOrchestratorIntegrationTest {
                 .success(true)
                 .build()
         );
-        when(ragServiceAlias.performRag(any(RAGRequest.class))).thenReturn(
+        when(ragServiceUpper.performRag(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder()
                 .response("ok")
                 .documents(List.of())
