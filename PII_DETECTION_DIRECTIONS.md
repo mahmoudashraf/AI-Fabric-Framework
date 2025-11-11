@@ -2,10 +2,9 @@
 
 ## Overview
 
-PII (Personally Identifiable Information) detection can now be configured to work in **three directional modes**:
+PII (Personally Identifiable Information) detection can now be configured to work in **two directional modes**:
 - **INPUT**: Detect PII in user queries BEFORE sending to LLM
-- **OUTPUT**: Detect PII in LLM responses (safety net for accidental leaks)
-- **BOTH**: Detect PII in both directions (comprehensive security - default)
+- **INPUT_OUTPUT**: Detect PII in both directions (comprehensive security - default)
 
 ## Configuration
 
@@ -19,7 +18,7 @@ ai:
     enabled: true
     mode: DETECT_ONLY  # or REDACT
     # NEW: Configure directional PII detection
-    detection-direction: BOTH  # INPUT | OUTPUT | BOTH (default: BOTH)
+    detection-direction: INPUT_OUTPUT  # INPUT | INPUT_OUTPUT (default: INPUT_OUTPUT)
     
     # ... rest of PII configuration ...
     patterns:
@@ -62,29 +61,7 @@ ai:
     detection-direction: INPUT
 ```
 
-### 2. OUTPUT Mode
-```
-User Query → [Send to LLM] → LLM Response → [Detect PII] → [Redact if needed]
-                                                    ↓
-                                          LLM may have leaked PII
-                                          (caught by output detection)
-```
-
-**Use Case:** When you want to catch accidental PII leaks from the LLM
-- User input is sent as-is to LLM
-- LLM response is scanned for PII
-- Acts as a safety net to catch model hallucinations or training data leaks
-- Detected PII is redacted from response
-
-**Example Configuration:**
-```yaml
-ai:
-  pii-detection:
-    enabled: true
-    detection-direction: OUTPUT
-```
-
-### 3. BOTH Mode (Default)
+### 2. INPUT_OUTPUT Mode (Default)
 ```
 User Query → [Detect & Redact PII] → [Send to LLM] → LLM Response → [Detect & Redact PII]
            ↓                                                              ↓
@@ -103,7 +80,7 @@ User Query → [Detect & Redact PII] → [Send to LLM] → LLM Response → [Det
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH  # Default
+    detection-direction: INPUT_OUTPUT  # Default
 ```
 
 ## Response Metadata
@@ -158,10 +135,9 @@ public class RAGOrchestrator {
         // STEP 2: Send processed query to LLM
         MultiIntentResponse response = intentQueryExtractor.extract(processedQuery, userId);
         
-        // STEP 3: Check if OUTPUT detection is enabled
-        boolean detectOutput = piiDetectionProperties.isEnabled() && 
-            (piiDetectionProperties.getDetectionDirection() == PIIDetectionDirection.OUTPUT ||
-             piiDetectionProperties.getDetectionDirection() == PIIDetectionDirection.BOTH);
+    // STEP 3: Check if OUTPUT detection is enabled (only for INPUT_OUTPUT mode)
+    boolean detectOutput = piiDetectionProperties.isEnabled() &&
+        piiDetectionProperties.getDetectionDirection() == PIIDetectionDirection.INPUT_OUTPUT;
         
         if (detectOutput) {
             // Scan LLM response for any leaked PII
@@ -185,23 +161,13 @@ ai:
     mode: REDACT
 ```
 
-### Example 2: Safety Net (OUTPUT only)
-```yaml
-# Let LLM see original data, catch accidental leaks
-ai:
-  pii-detection:
-    enabled: true
-    detection-direction: OUTPUT
-    mode: REDACT
-```
-
-### Example 3: Full Protection (BOTH - Recommended)
+### Example 2: Full Protection (INPUT_OUTPUT - Recommended)
 ```yaml
 # Comprehensive security: prevent exposure + catch leaks
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH
+    detection-direction: INPUT_OUTPUT
     mode: DETECT_ONLY  # or REDACT
     audit-logging-enabled: true
     patterns:
@@ -213,7 +179,7 @@ ai:
         enabled: true
 ```
 
-### Example 4: Disabled (for development)
+### Example 3: Disabled (for development)
 ```yaml
 ai:
   pii-detection:
@@ -223,7 +189,7 @@ ai:
 
 ## Testing
 
-The test configuration in `application-real-api-test.yml` uses **BOTH** mode:
+The test configuration in `application-real-api-test.yml` uses **INPUT_OUTPUT** mode:
 
 ```yaml
 test:
@@ -233,7 +199,7 @@ ai:
   pii-detection:
     enabled: true
     mode: DETECT_ONLY
-    detection-direction: BOTH  # Default: comprehensive security
+    detection-direction: INPUT_OUTPUT  # Default: comprehensive security
     patterns:
       CREDIT_CARD:
         field-name: "credit_card"
@@ -259,20 +225,19 @@ PII detected - totalDetections=1, mode=DETECT_ONLY, sensitiveFields=credit_card
 | Mode | Prevents LLM Exposure | Catches Leaks | Performance | Recommended |
 |------|----------------------|--------------|-------------|------------|
 | INPUT | ✅ | ❌ | Minimal | Dev/API mode |
-| OUTPUT | ❌ | ✅ | Fast | Research/Analysis |
-| BOTH | ✅ | ✅ | Balanced | ✅ Production |
+| INPUT_OUTPUT | ✅ | ✅ | Balanced | ✅ Production |
 | Disabled | ❌ | ❌ | Fastest | Dev/Testing |
 
 ## Migration Guide
 
 If you're upgrading from the previous implementation:
 
-1. **No breaking changes** - defaults to `BOTH` (existing behavior)
+1. **No breaking changes** - defaults to `INPUT_OUTPUT` (existing behavior)
 2. **Update your YAML** to explicitly set `detection-direction` if needed:
    ```yaml
    ai:
      pii-detection:
-       detection-direction: BOTH  # or INPUT/OUTPUT as needed
+        detection-direction: INPUT_OUTPUT  # or INPUT as needed
    ```
 3. **Existing tests** will continue to work without modification
 4. **Update RAGOrchestratorTest** to pass new dependency:
