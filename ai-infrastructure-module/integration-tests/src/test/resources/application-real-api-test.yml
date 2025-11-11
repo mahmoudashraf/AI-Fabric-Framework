@@ -91,6 +91,8 @@ ai:
     publish-events: true
     filtered-data-keys: ["password", "token", "secret", "apiKey"]
     default-replacement: "[REDACTED]"
+  security:
+    block-on-pii-detection: false
   providers:
     # Embedding Provider Configuration (ONNX default, can use OpenAI for real API tests)
     embedding-provider: ${EMBEDDING_PROVIDER:onnx}

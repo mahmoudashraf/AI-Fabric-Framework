@@ -76,14 +76,15 @@ import java.util.List;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({
-    AIProviderConfig.class,
-    AIServiceConfig.class,
-    PIIDetectionProperties.class,
-    SmartSuggestionsProperties.class,
-    ResponseSanitizationProperties.class,
-    IntentHistoryProperties.class
-})
+    @EnableConfigurationProperties({
+        AIProviderConfig.class,
+        AIServiceConfig.class,
+        PIIDetectionProperties.class,
+        SmartSuggestionsProperties.class,
+        ResponseSanitizationProperties.class,
+        IntentHistoryProperties.class,
+        SecurityProperties.class
+    })
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy
@@ -191,8 +192,9 @@ public class AIInfrastructureAutoConfiguration {
     @Bean
     public AISecurityService aiSecurityService(PIIDetectionService piiDetectionService,
                                                AuditService auditService,
-                                               Clock clock) {
-        return new AISecurityService(piiDetectionService, auditService, clock);
+                                               Clock clock,
+                                               SecurityProperties securityProperties) {
+        return new AISecurityService(piiDetectionService, auditService, clock, securityProperties);
     }
     
     @Bean
