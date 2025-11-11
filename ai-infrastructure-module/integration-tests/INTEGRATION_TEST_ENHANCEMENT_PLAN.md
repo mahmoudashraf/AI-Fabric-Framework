@@ -40,3 +40,21 @@
 - Reuse existing `TestProduct` fixtures, augment with policy/runbook documents as needed.
 - Centralise environment setup for API keys and provider toggles to avoid duplication.
 - Keep executions targeted (`-Dtest=…`) to comply with “no full suite” requirement.
+
+### Implemented Suites (Current Iteration)
+- **Hook orchestration**
+  - `EntityAccessPolicyIntegrationTest`
+  - `SecurityAnalysisPolicyIntegrationTest`
+  - `ComplianceCheckProviderIntegrationTest`
+- **Lifecycle & retention**
+  - `IntentHistoryLifecycleIntegrationTest`
+- **Performance & caching**
+  - `AccessControlCachingPerformanceIntegrationTest`
+- **Edge / failure handling**
+  - `SecurityRateLimitingEdgeCaseIntegrationTest`
+
+Run the focused set with:
+
+```
+mvn -Dtest=EntityAccessPolicyIntegrationTest,SecurityAnalysisPolicyIntegrationTest,ComplianceCheckProviderIntegrationTest,IntentHistoryLifecycleIntegrationTest,AccessControlCachingPerformanceIntegrationTest,SecurityRateLimitingEdgeCaseIntegrationTest,AIAccessControlServiceIntegrationTest,AISecurityServiceIntegrationTest,AIComplianceServiceIntegrationTest,RAGOrchestratorIntegrationTest test
+```
