@@ -40,10 +40,10 @@ public class PIIDetectionProperties {
     private PIIMode mode = PIIMode.PASS_THROUGH;
 
     /**
-     * Direction of PII detection: INPUT (user query), OUTPUT (LLM response), or BOTH.
-     * Defaults to BOTH for comprehensive security.
+     * Direction of PII detection: INPUT (user query only) or INPUT_OUTPUT (user query + LLM response).
+     * Defaults to INPUT_OUTPUT for comprehensive security.
      */
-    private PIIDetectionDirection detectionDirection = PIIDetectionDirection.BOTH;
+    private PIIDetectionDirection detectionDirection = PIIDetectionDirection.INPUT_OUTPUT;
 
     /**
      * When {@code true}, the original payload is stored in encrypted form to
@@ -182,13 +182,8 @@ public class PIIDetectionProperties {
         INPUT,
 
         /**
-         * Detect PII only in LLM responses (safety net for accidental leaks)
-         */
-        OUTPUT,
-
-        /**
          * Detect PII in both user input AND LLM response (comprehensive security)
          */
-        BOTH
+        INPUT_OUTPUT
     }
 }

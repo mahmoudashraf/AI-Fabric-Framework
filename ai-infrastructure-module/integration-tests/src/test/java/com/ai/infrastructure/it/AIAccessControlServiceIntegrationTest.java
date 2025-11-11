@@ -38,6 +38,7 @@ class AIAccessControlServiceIntegrationTest {
         AIAccessControlResponse response = accessControlService.checkAccess(accessRequest("user-1", "resource-1"));
 
         assertTrue(Boolean.TRUE.equals(response.getAccessGranted()));
+        assertFalse(Boolean.TRUE.equals(response.getFromCache()));
 
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(entityAccessPolicy).canUserAccessEntity(eq("user-1"), captor.capture());
@@ -47,16 +48,13 @@ class AIAccessControlServiceIntegrationTest {
     }
 
     @Test
-    void decisionServedFromCacheOnSubsequentRequests() {
-        when(entityAccessPolicy.canUserAccessEntity(any(), any())).thenReturn(true);
+    void deniesAccessWhenPolicyReturnsFalse() {
+        when(entityAccessPolicy.canUserAccessEntity(any(), any())).thenReturn(false);
 
-        AIAccessControlRequest request = accessRequest("user-2", "resource-2");
+        AIAccessControlResponse response = accessControlService.checkAccess(accessRequest("user-2", "resource-2"));
 
-        AIAccessControlResponse first = accessControlService.checkAccess(request);
-        AIAccessControlResponse second = accessControlService.checkAccess(request);
-
-        assertFalse(Boolean.TRUE.equals(first.getFromCache()));
-        assertTrue(Boolean.TRUE.equals(second.getFromCache()));
+        assertFalse(Boolean.TRUE.equals(response.getAccessGranted()));
+        assertFalse(Boolean.TRUE.equals(response.getFromCache()));
         verify(entityAccessPolicy, times(1)).canUserAccessEntity(eq("user-2"), any());
     }
 

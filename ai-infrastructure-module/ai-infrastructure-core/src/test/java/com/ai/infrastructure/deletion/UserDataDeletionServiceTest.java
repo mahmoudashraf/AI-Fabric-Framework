@@ -1,0 +1,122 @@
+package com.ai.infrastructure.deletion;
+
+import com.ai.infrastructure.audit.AIAuditLog;
+import com.ai.infrastructure.audit.AIAuditService;
+import com.ai.infrastructure.audit.AuditService;
+import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
+import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider.UserEntityReference;
+import com.ai.infrastructure.entity.Behavior;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.repository.BehaviorRepository;
+import com.ai.infrastructure.rag.VectorDatabaseService;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class UserDataDeletionServiceTest {
+
+    private static final String USER_ID = "00000000-0000-0000-0000-000000000001";
+
+    @Mock
+    private BehaviorRepository behaviorRepository;
+    @Mock
+    private AISearchableEntityRepository searchableEntityRepository;
+    @Mock
+    private VectorDatabaseService vectorDatabaseService;
+    @Mock
+    private AIAuditService aiAuditService;
+    @Mock
+    private AuditService auditService;
+    @Mock
+    private UserDataDeletionProvider provider;
+
+    private Clock clock;
+    private UserDataDeletionService service;
+
+    @BeforeEach
+    void setUp() {
+        clock = Clock.fixed(Instant.parse("2025-01-01T00:00:00Z"), ZoneOffset.UTC);
+        service = new UserDataDeletionService(
+            behaviorRepository,
+            searchableEntityRepository,
+            vectorDatabaseService,
+            aiAuditService,
+            auditService,
+            clock,
+            provider
+        );
+    }
+
+    @Test
+    void shouldDeleteDataWhenProviderApproves() {
+        Behavior behavior = Behavior.builder()
+            .id(UUID.randomUUID())
+            .userId(UUID.fromString(USER_ID))
+            .build();
+
+        when(provider.canDeleteUser(USER_ID)).thenReturn(true);
+        when(provider.findIndexedEntities(USER_ID))
+            .thenReturn(List.of(new UserEntityReference("doc", "id-1")));
+        when(vectorDatabaseService.removeVector("doc", "id-1")).thenReturn(true);
+        when(behaviorRepository.findByUserIdOrderByCreatedAtDesc(UUID.fromString(USER_ID)))
+            .thenReturn(List.of(behavior));
+        when(aiAuditService.getAuditLogs(USER_ID))
+            .thenReturn(List.of(AIAuditLog.builder().logId("log-1").build()));
+        when(provider.deleteUserDomainData(USER_ID)).thenReturn(3);
+
+        UserDataDeletionResult result = service.deleteUser(USER_ID);
+
+        assertThat(result.getStatus()).isEqualTo(UserDataDeletionResult.Status.COMPLETED);
+        assertThat(result.getBehaviorsDeleted()).isEqualTo(1);
+        assertThat(result.getIndexedEntitiesDeleted()).isEqualTo(1);
+        assertThat(result.getVectorsDeleted()).isEqualTo(1);
+        assertThat(result.getDomainRecordsDeleted()).isEqualTo(3);
+        assertThat(result.getAuditEntriesDeleted()).isEqualTo(1);
+
+        verify(behaviorRepository).deleteAllInBatch(List.of(behavior));
+        verify(searchableEntityRepository).deleteByEntityTypeAndEntityId("doc", "id-1");
+        verify(aiAuditService).clearAuditLogs(USER_ID);
+        verify(provider).notifyAfterDeletion(USER_ID);
+        verify(auditService).logOperation(any(), eq(USER_ID), eq("USER_DATA_DELETION"), any(), any());
+    }
+
+    @Test
+    void shouldSkipWhenProviderBlocksDeletion() {
+        when(provider.canDeleteUser(USER_ID)).thenReturn(false);
+
+        UserDataDeletionResult result = service.deleteUser(USER_ID);
+
+        assertThat(result.getStatus()).isEqualTo(UserDataDeletionResult.Status.SKIPPED);
+        verifyNoInteractions(behaviorRepository, searchableEntityRepository, vectorDatabaseService, aiAuditService);
+    }
+
+    @Test
+    void shouldThrowWhenProviderMissing() {
+        UserDataDeletionService noProviderService = new UserDataDeletionService(
+            behaviorRepository,
+            searchableEntityRepository,
+            vectorDatabaseService,
+            aiAuditService,
+            auditService,
+            clock,
+            null
+        );
+
+        assertThatThrownBy(() -> noProviderService.deleteUser(USER_ID))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("UserDataDeletionProvider");
+    }
+}

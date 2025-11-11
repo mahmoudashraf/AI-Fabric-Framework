@@ -1,5 +1,7 @@
 package com.ai.infrastructure.deletion.policy;
 
+import java.util.List;
+
 /**
  * Infrastructure hook for right-to-delete orchestration. Customer implementations own the
  * domain specific deletion of user data.
@@ -28,4 +30,23 @@ public interface UserDataDeletionProvider {
      * @param userId identifier of the deleted user
      */
     void notifyAfterDeletion(String userId);
+
+    /**
+     * Optional hook allowing providers to supply references to indexed entities that should be removed
+     * from the vector store as part of the deletion request.
+     *
+     * @param userId identifier of the deleted user
+     * @return list of entity references (entityType/entityId) to purge, defaults to an empty list
+     */
+    default List<UserEntityReference> findIndexedEntities(String userId) {
+        return List.of();
+    }
+
+    /**
+     * Simple record describing an indexed entity to remove.
+     *
+     * @param entityType logical entity type
+     * @param entityId unique identifier for the entity
+     */
+    record UserEntityReference(String entityType, String entityId) { }
 }

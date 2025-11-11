@@ -62,7 +62,7 @@ Configuration Changes:        ~2 lines (just YAML)
 application-real-api-test.yml:
   ai:
     pii-detection:
-      detection-direction: BOTH  # ← ONE LINE ADDITION
+      detection-direction: INPUT_OUTPUT  # ← ONE LINE ADDITION
 
 Spring Boot handles the rest automatically!
 

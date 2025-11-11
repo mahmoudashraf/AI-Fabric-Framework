@@ -14,12 +14,18 @@ import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.compliance.AIComplianceService;
+import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.audit.AIAuditService;
 import com.ai.infrastructure.audit.AuditService;
+import com.ai.infrastructure.behavior.BehaviorRetentionService;
+import com.ai.infrastructure.behavior.policy.BehaviorRetentionPolicyProvider;
 import com.ai.infrastructure.privacy.AIDataPrivacyService;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.filter.AIContentFilterService;
 import com.ai.infrastructure.access.AIAccessControlService;
+import com.ai.infrastructure.access.policy.EntityAccessPolicy;
+import com.ai.infrastructure.deletion.UserDataDeletionService;
+import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
 import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.rag.LuceneVectorDatabaseService;
 import com.ai.infrastructure.rag.PineconeVectorDatabaseService;
@@ -43,6 +49,7 @@ import com.ai.infrastructure.cache.AIIntelligentCacheService;
 import com.ai.infrastructure.cache.CacheConfig;
 import com.ai.infrastructure.cache.DefaultAIIntelligentCacheService;
 import com.ai.infrastructure.provider.AIProviderManager;
+import com.ai.infrastructure.repository.BehaviorRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -58,6 +65,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.lang.Nullable;
 
@@ -88,6 +96,7 @@ import java.util.List;
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy
+@EnableScheduling
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     
@@ -198,8 +207,42 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIComplianceService aiComplianceService(AuditService auditService, Clock clock) {
-        return new AIComplianceService(auditService, clock);
+    public AIComplianceService aiComplianceService(AuditService auditService,
+                                                   Clock clock,
+                                                   ObjectProvider<ComplianceCheckProvider> complianceProvider) {
+        return new AIComplianceService(auditService, clock, complianceProvider.getIfAvailable());
+    }
+    
+    @Bean
+    public BehaviorRetentionService behaviorRetentionService(BehaviorRepository behaviorRepository,
+                                                             AuditService auditService,
+                                                             Clock clock,
+                                                             ObjectProvider<BehaviorRetentionPolicyProvider> retentionPolicyProvider) {
+        return new BehaviorRetentionService(
+            behaviorRepository,
+            retentionPolicyProvider.getIfAvailable(),
+            auditService,
+            clock
+        );
+    }
+
+    @Bean
+    public UserDataDeletionService userDataDeletionService(BehaviorRepository behaviorRepository,
+                                                           AISearchableEntityRepository searchableEntityRepository,
+                                                           VectorDatabaseService vectorDatabaseService,
+                                                           AIAuditService aiAuditService,
+                                                           AuditService auditService,
+                                                           Clock clock,
+                                                           ObjectProvider<UserDataDeletionProvider> deletionProvider) {
+        return new UserDataDeletionService(
+            behaviorRepository,
+            searchableEntityRepository,
+            vectorDatabaseService,
+            aiAuditService,
+            auditService,
+            clock,
+            deletionProvider.getIfAvailable()
+        );
     }
     
     @Bean
@@ -225,9 +268,13 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     public AIAccessControlService aiAccessControlService(AuditService auditService,
-                                                         CacheManager cacheManager,
-                                                         Clock clock) {
-        return new AIAccessControlService(auditService, cacheManager, clock);
+                                                         Clock clock,
+                                                         ObjectProvider<EntityAccessPolicy> entityAccessPolicyProvider) {
+        return new AIAccessControlService(
+            auditService,
+            clock,
+            entityAccessPolicyProvider.getIfAvailable()
+        );
     }
     
     @Bean

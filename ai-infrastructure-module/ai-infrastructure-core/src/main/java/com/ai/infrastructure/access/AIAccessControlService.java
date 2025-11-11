@@ -7,119 +7,76 @@ import com.ai.infrastructure.dto.AIAccessControlResponse;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 
 /**
- * Infrastructure-only access control service that delegates policy decisions to customer supplied hooks.
+ * Minimal infrastructure access control service: validate request, delegate to customer hook,
+ * record audit trail, and fail closed when hooks are unavailable.
  */
 @Slf4j
 @RequiredArgsConstructor
 public class AIAccessControlService {
 
-    private static final String CACHE_NAME = "accessDecisions";
-    private static final int MAX_HISTORY = 1_000;
-
     private final AuditService auditService;
-    private final CacheManager cacheManager;
     private final Clock clock;
-
-    private final Map<String, List<AIAccessControlRequest>> accessHistory = new ConcurrentHashMap<>();
-    private final Map<String, Set<String>> userCacheKeys = new ConcurrentHashMap<>();
-
-    @Autowired(required = false)
-    private EntityAccessPolicy entityAccessPolicy;
+    private final EntityAccessPolicy entityAccessPolicy;
 
     public AIAccessControlResponse checkAccess(AIAccessControlRequest request) {
         long started = System.nanoTime();
-        try {
-            validateRequest(request);
-
-            LocalDateTime evaluationTimestamp = Optional.ofNullable(request.getTimestamp())
-                .orElseGet(() -> LocalDateTime.now(clock));
-            Map<String, Object> entityContext = buildEntityContext(request, evaluationTimestamp);
-
-            Cache cache = resolveCache();
-            String cacheKey = generateCacheKey(request.getUserId(), entityContext);
-            Boolean cachedDecision = getCachedDecision(cache, cacheKey);
-
-            boolean accessGranted = cachedDecision != null
-                ? cachedDecision
-                : evaluateAccess(request.getUserId(), entityContext);
-
-            if (cache != null && cachedDecision == null) {
-                cache.put(cacheKey, accessGranted);
-                trackCacheKey(request.getUserId(), cacheKey);
-            }
-
-            logAccessAttempt(request, accessGranted, evaluationTimestamp, entityContext);
-
-            long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
-            return AIAccessControlResponse.builder()
-                .requestId(request.getRequestId())
-                .userId(request.getUserId())
-                .resourceId((String) entityContext.get("resourceId"))
-                .operationType((String) entityContext.get("operationType"))
-                .accessGranted(accessGranted)
-                .fromCache(cachedDecision != null)
-                .accessDecision(accessGranted ? "GRANT" : "DENY")
-                .processingTimeMs(durationMs)
-                .timestamp(evaluationTimestamp)
-                .success(true)
-                .build();
-        } catch (Exception ex) {
-            log.error("Access control check failed", ex);
-            auditService.logOperation(
-                request != null ? request.getRequestId() : null,
-                request != null ? request.getUserId() : null,
-                "ACCESS_ERROR",
-                List.of(ex.getMessage()));
-            return AIAccessControlResponse.builder()
-                .requestId(request != null ? request.getRequestId() : null)
-                .userId(request != null ? request.getUserId() : null)
-                .accessGranted(false)
-                .fromCache(false)
-                .success(false)
-                .errorMessage(ex.getMessage())
-                .build();
-        }
-    }
-
-    public List<AIAccessControlRequest> getAccessHistory(String userId) {
-        return accessHistory.containsKey(userId)
-            ? List.copyOf(accessHistory.get(userId))
-            : List.of();
-    }
-
-    public void invalidateUserCache(String userId) {
-        Cache cache = resolveCache();
-        if (cache == null) {
-            return;
-        }
-        Set<String> keys = userCacheKeys.remove(userId);
-        if (keys != null) {
-            keys.forEach(cache::evict);
-        }
-    }
-
-    private void validateRequest(AIAccessControlRequest request) {
         Objects.requireNonNull(request, "access request must not be null");
-        if (request.getUserId() == null || request.getUserId().isBlank()) {
+
+        EntityAccessPolicy policy = requirePolicy();
+        String userId = extractUserId(request);
+
+        LocalDateTime evaluationTimestamp = Optional.ofNullable(request.getTimestamp())
+            .orElseGet(() -> LocalDateTime.now(clock));
+        Map<String, Object> entityContext = buildEntityContext(request, evaluationTimestamp);
+
+        Decision decision = evaluateAccess(policy, userId, entityContext);
+        auditDecision(request, userId, entityContext, evaluationTimestamp, decision.granted());
+
+        if (!decision.granted()) {
+            logDenied(policy, userId, entityContext);
+        }
+
+        long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+        return AIAccessControlResponse.builder()
+            .requestId(request.getRequestId())
+            .userId(userId)
+            .resourceId(Objects.toString(entityContext.get("resourceId"), null))
+            .operationType(Objects.toString(entityContext.get("operationType"), null))
+            .accessGranted(decision.granted())
+            .fromCache(Boolean.FALSE)
+            .accessDecision(decision.granted() ? "GRANT" : "DENY")
+            .processingTimeMs(durationMs)
+            .timestamp(evaluationTimestamp)
+            .success(!decision.hookFailed())
+            .errorMessage(decision.hookFailed() ? decision.errorMessage() : null)
+            .build();
+    }
+
+    private EntityAccessPolicy requirePolicy() {
+        if (entityAccessPolicy == null) {
+            throw new IllegalStateException("""
+                No EntityAccessPolicy bean available. Register a bean implementing \
+                com.ai.infrastructure.access.policy.EntityAccessPolicy to evaluate access decisions.""");
+        }
+        return entityAccessPolicy;
+    }
+
+    private String extractUserId(AIAccessControlRequest request) {
+        String userId = request.getUserId();
+        if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("userId must be provided");
         }
+        return userId;
     }
 
     private Map<String, Object> buildEntityContext(AIAccessControlRequest request, LocalDateTime timestamp) {
@@ -127,8 +84,12 @@ public class AIAccessControlService {
         context.put("resourceId", Optional.ofNullable(request.getResourceId()).orElse("UNKNOWN"));
         context.put("operationType", Optional.ofNullable(request.getOperationType()).orElse("READ"));
         context.put("timestamp", timestamp);
-        context.put("ipAddress", request.getIpAddress());
-        context.put("purpose", request.getPurpose());
+        if (request.getContext() != null) {
+            context.put("context", request.getContext());
+        }
+        if (request.getPurpose() != null) {
+            context.put("purpose", request.getPurpose());
+        }
         if (request.getMetadata() != null && !request.getMetadata().isEmpty()) {
             context.put("metadata", Map.copyOf(request.getMetadata()));
         }
@@ -138,74 +99,40 @@ public class AIAccessControlService {
         return context;
     }
 
-    private boolean evaluateAccess(String userId, Map<String, Object> entity) {
-        if (entityAccessPolicy == null) {
-            return true;
+    private Decision evaluateAccess(EntityAccessPolicy policy, String userId, Map<String, Object> entityContext) {
+        try {
+            boolean granted = policy.canUserAccessEntity(userId, Collections.unmodifiableMap(entityContext));
+            return new Decision(granted, false, null);
+        } catch (Exception ex) {
+            log.warn("EntityAccessPolicy threw an exception for user {}: {}", userId, ex.getMessage());
+            return new Decision(false, true, ex.getMessage());
         }
-        return entityAccessPolicy.canUserAccessEntity(userId, Collections.unmodifiableMap(entity));
     }
 
-    private Cache resolveCache() {
-        return cacheManager != null ? cacheManager.getCache(CACHE_NAME) : null;
-    }
-
-    private Boolean getCachedDecision(Cache cache, String cacheKey) {
-        if (cache == null) {
-            return null;
-        }
-        Cache.ValueWrapper wrapper = cache.get(cacheKey);
-        if (wrapper == null) {
-            return null;
-        }
-        Object value = wrapper.get();
-        return value instanceof Boolean ? (Boolean) value : null;
-    }
-
-    private void trackCacheKey(String userId, String cacheKey) {
-        userCacheKeys
-            .computeIfAbsent(userId, key -> new CopyOnWriteArraySet<>())
-            .add(cacheKey);
-    }
-
-    private String generateCacheKey(String userId, Map<String, Object> entity) {
-        String resourceId = Objects.toString(entity.get("resourceId"), "UNKNOWN");
-        String operationType = Objects.toString(entity.get("operationType"), "READ");
-        return String.join(":", "access", userId, operationType, resourceId);
-    }
-
-    private void logAccessAttempt(AIAccessControlRequest request,
-                                  boolean granted,
-                                  LocalDateTime timestamp,
-                                  Map<String, Object> entityContext) {
-        accessHistory.computeIfAbsent(request.getUserId(),
-                key -> Collections.synchronizedList(new ArrayList<>()))
-            .add(ensureTimestamp(request, timestamp));
-
-        List<AIAccessControlRequest> history = accessHistory.get(request.getUserId());
-        if (history.size() > MAX_HISTORY) {
-            history.remove(0);
-        }
-
+    private void auditDecision(AIAccessControlRequest request,
+                               String userId,
+                               Map<String, Object> entityContext,
+                               LocalDateTime timestamp,
+                               boolean granted) {
         auditService.logOperation(
             request.getRequestId(),
-            request.getUserId(),
+            userId,
             granted ? "ACCESS_GRANTED" : "ACCESS_DENIED",
-            List.of(Objects.toString(entityContext.get("resourceId"), "UNKNOWN"),
-                Objects.toString(entityContext.get("operationType"), "READ")),
-            timestamp);
+            List.of(
+                Objects.toString(entityContext.get("resourceId"), "UNKNOWN"),
+                Objects.toString(entityContext.get("operationType"), "READ")
+            ),
+            timestamp
+        );
+    }
 
-        if (!granted && entityAccessPolicy != null) {
-            entityAccessPolicy.logAccessDenied(
-                request.getUserId(),
-                Collections.unmodifiableMap(entityContext),
-                "POLICY_DENIED");
+    private void logDenied(EntityAccessPolicy policy, String userId, Map<String, Object> entityContext) {
+        try {
+            policy.logAccessDenied(userId, Collections.unmodifiableMap(entityContext), "POLICY_DENIED");
+        } catch (Exception ex) {
+            log.debug("EntityAccessPolicy.logAccessDenied failed: {}", ex.getMessage());
         }
     }
 
-    private AIAccessControlRequest ensureTimestamp(AIAccessControlRequest request, LocalDateTime timestamp) {
-        if (request.getTimestamp() == null) {
-            request.setTimestamp(timestamp);
-        }
-        return request;
-    }
+    private record Decision(boolean granted, boolean hookFailed, String errorMessage) { }
 }
