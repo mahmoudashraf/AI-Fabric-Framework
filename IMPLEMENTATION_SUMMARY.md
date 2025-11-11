@@ -4,19 +4,22 @@
 
 A configurable **PII Detection Direction** system that allows you to control where and how PII detection happens in the orchestration pipeline.
 
+> ⚠️ **Update (2025-11-11)**: The standalone `OUTPUT` mode has been removed. Supported values are now `INPUT` and
+> `INPUT_OUTPUT` (bidirectional). Any references to `OUTPUT` in the legacy notes below describe the behaviour prior to
+> this change.
+
 ## ✨ Key Features
 
-### 1. **Three Detection Directions**
+### 1. **Detection Directions**
 - **INPUT**: Detect & redact PII BEFORE sending to LLM (privacy-first)
-- **OUTPUT**: Detect PII in LLM responses (safety net for accidental leaks)
-- **BOTH**: Detect in both directions (comprehensive security - default)
+- **INPUT_OUTPUT**: Detect in both directions (comprehensive security - default)
 
 ### 2. **100% YAML Configurable**
 ```yaml
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH  # INPUT | OUTPUT | BOTH
+    detection-direction: INPUT_OUTPUT  # INPUT | INPUT_OUTPUT
     mode: DETECT_ONLY          # DETECT_ONLY | REDACT
 ```
 
@@ -27,7 +30,7 @@ ai:
 - Command-line argument overrides supported
 
 ### 4. **Backward Compatible**
-- Defaults to `BOTH` mode (existing behavior preserved)
+- Defaults to `INPUT_OUTPUT` mode (existing behavior preserved)
 - No breaking changes
 - Works with existing tests
 
@@ -41,12 +44,11 @@ ai:
 ```java
 @ConfigurationProperties(prefix = "ai.pii-detection")
 public class PIIDetectionProperties {
-    private PIIDetectionDirection detectionDirection = PIIDetectionDirection.BOTH;
+    private PIIDetectionDirection detectionDirection = PIIDetectionDirection.INPUT_OUTPUT;
     
     public enum PIIDetectionDirection {
-        INPUT,   // Detect PII in user queries only
-        OUTPUT,  // Detect PII in LLM responses only
-        BOTH     // Detect in both directions
+        INPUT,         // Detect PII in user queries only
+        INPUT_OUTPUT   // Detect in both directions
     }
 }
 ```
@@ -63,48 +65,47 @@ public class PIIDetectionProperties {
 @RequiredArgsConstructor
 public class RAGOrchestrator {
     private final PIIDetectionProperties piiDetectionProperties;
-    
-    // Respects configuration:
-    boolean detectInput = piiDetectionProperties.isEnabled() && 
-        (direction == PIIDetectionDirection.INPUT ||
-         direction == PIIDetectionDirection.BOTH);
-    
-    boolean detectOutput = piiDetectionProperties.isEnabled() && 
-        (direction == PIIDetectionDirection.OUTPUT ||
-         direction == PIIDetectionDirection.BOTH);
+
+      // Respects configuration:
+      boolean detectInput = piiDetectionProperties.isEnabled() &&
+          (direction == PIIDetectionDirection.INPUT ||
+           direction == PIIDetectionDirection.INPUT_OUTPUT);
+
+      boolean detectOutput = piiDetectionProperties.isEnabled() &&
+          direction == PIIDetectionDirection.INPUT_OUTPUT;
 }
 ```
 
 ### 3. **RAGOrchestratorTest.java**
 - Updated test setup to pass new `PIIDetectionProperties` parameter
-- Configured for comprehensive testing with BOTH mode
+- Configured for comprehensive testing with INPUT_OUTPUT mode
 
 ```java
 PIIDetectionProperties piiProps = new PIIDetectionProperties();
 piiProps.setEnabled(true);
-piiProps.setDetectionDirection(PIIDetectionDirection.BOTH);
+piiProps.setDetectionDirection(PIIDetectionDirection.INPUT_OUTPUT);
 ```
 
 ### 4. **application-real-api-test.yml**
-- Added `detection-direction: BOTH` configuration
+- Added `detection-direction: INPUT_OUTPUT` configuration
 - Comprehensive security for integration tests
 
 ```yaml
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH
+    detection-direction: INPUT_OUTPUT
     mode: DETECT_ONLY
 ```
 
 ## 🔄 Data Flow
 
-### BOTH Mode (Default - Comprehensive Security)
+### INPUT_OUTPUT Mode (Default - Comprehensive Security)
 ```
 User Input
     ↓
 [STEP 1: INPUT Detection]
-    ↓ (if enabled and direction=INPUT or BOTH)
+    ↓ (if enabled and direction=INPUT or INPUT_OUTPUT)
 Detect & Redact PII
     ↓
 Redacted Query
@@ -114,7 +115,7 @@ Redacted Query
 LLM Response
     ↓
 [STEP 3: OUTPUT Detection]
-    ↓ (if enabled and direction=OUTPUT or BOTH)
+    ↓ (if enabled and direction=INPUT_OUTPUT)
 Detect & Redact PII in Response
     ↓
 Sanitized Response + Metadata

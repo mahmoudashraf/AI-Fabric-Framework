@@ -41,7 +41,7 @@ ai:
   pii-detection:
     enabled: true
     mode: DETECT_ONLY
-    detection-direction: BOTH  # INPUT | OUTPUT | BOTH (default: BOTH for comprehensive security)
+    detection-direction: INPUT_OUTPUT  # INPUT | INPUT_OUTPUT (default: INPUT_OUTPUT for comprehensive security)
     store-encrypted-original: false
     audit-logging-enabled: true
     # PII patterns with default configurations

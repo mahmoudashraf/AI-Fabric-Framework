@@ -103,9 +103,12 @@ public class RAGOrchestrator {
         List<String> detectedPiiTypes = new ArrayList<>();
         String processedQuery = query;
         
-        boolean detectInput = piiDetectionProperties.isEnabled() && 
-            (piiDetectionProperties.getDetectionDirection() == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT ||
-             piiDetectionProperties.getDetectionDirection() == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.BOTH);
+        com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection detectionDirection =
+            piiDetectionProperties.getDetectionDirection();
+
+        boolean detectInput = piiDetectionProperties.isEnabled() &&
+            (detectionDirection == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT ||
+             detectionDirection == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT);
         
         if (detectInput) {
             com.ai.infrastructure.dto.PIIDetectionResult queryPiiAnalysis = piiDetectionService.analyze(query);
@@ -120,7 +123,7 @@ public class RAGOrchestrator {
             processedQuery = queryPiiAnalysis.getProcessedQuery();
             log.debug("Original query length: {}, Redacted query length: {}", query.length(), processedQuery.length());
         } else {
-            log.debug("PII INPUT detection is disabled (configuration: {})", piiDetectionProperties.getDetectionDirection());
+            log.debug("PII INPUT detection is disabled (configuration: {})", detectionDirection);
         }
         
         AIComplianceResponse complianceResponse = complianceService.checkCompliance(
@@ -165,12 +168,11 @@ public class RAGOrchestrator {
         // STEP 3: Sanitize the response (based on configuration)
         Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, userId);
         
-        boolean detectOutput = piiDetectionProperties.isEnabled() && 
-            (piiDetectionProperties.getDetectionDirection() == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.OUTPUT ||
-             piiDetectionProperties.getDetectionDirection() == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.BOTH);
+        boolean detectOutput = piiDetectionProperties.isEnabled() &&
+            detectionDirection == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT;
         
         if (!detectOutput) {
-            log.debug("PII OUTPUT detection is disabled (configuration: {})", piiDetectionProperties.getDetectionDirection());
+            log.debug("PII OUTPUT detection is disabled (configuration: {})", detectionDirection);
         }
         
         // STEP 4: Add detected PII types to response metadata

@@ -1,20 +1,21 @@
 package com.ai.infrastructure.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
-import com.ai.infrastructure.dto.AIComplianceReport;
 import com.ai.infrastructure.dto.AIComplianceRequest;
 import com.ai.infrastructure.dto.AIComplianceResponse;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * Integration coverage for {@link ComplianceCheckProvider} hook as described in the
@@ -38,6 +38,12 @@ class ComplianceCheckProviderIntegrationTest {
 
     @Autowired
     private AIComplianceService complianceService;
+
+    @Autowired
+    private AuditService auditService;
+
+    @Autowired
+    private Clock clock;
 
     @MockBean
     private ComplianceCheckProvider complianceCheckProvider;
@@ -61,26 +67,18 @@ class ComplianceCheckProviderIntegrationTest {
 
         assertFalse(Boolean.TRUE.equals(response.getOverallCompliant()));
         assertThat(response.getViolations()).contains("GDPR_ARTICLE_5", "PCI_DSS");
+        assertThat(response.getReport()).isNotNull();
+        assertThat(response.getReport().getNotes()).isEqualTo("Shared data outside approved region");
         verify(complianceCheckProvider, times(1)).checkCompliance(any());
-
-        List<AIComplianceReport> reports = complianceService.getComplianceReports("user-789");
-        assertThat(reports)
-            .isNotEmpty()
-            .anyMatch(report -> report.getViolations().contains("GDPR_ARTICLE_5"));
     }
 
     @Test
-    void defaultsToCompliantWhenProviderMissing() {
-        ComplianceCheckProvider original = complianceCheckProvider;
-        ReflectionTestUtils.setField(complianceService, "complianceProvider", null);
+    void failsWhenProviderMissing() {
+        AIComplianceService serviceWithoutProvider = new AIComplianceService(auditService, clock, null);
 
-        try {
-            AIComplianceResponse response = complianceService.checkCompliance(baseRequest("req-default"));
-            assertTrue(Boolean.TRUE.equals(response.getOverallCompliant()));
-            assertThat(response.getViolations()).isEmpty();
-        } finally {
-            ReflectionTestUtils.setField(complianceService, "complianceProvider", original);
-        }
+        assertThatThrownBy(() -> serviceWithoutProvider.checkCompliance(baseRequest("req-default")))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("No ComplianceCheckProvider bean available");
     }
 
     @Test
@@ -92,11 +90,8 @@ class ComplianceCheckProviderIntegrationTest {
 
         assertFalse(Boolean.TRUE.equals(response.getOverallCompliant()));
         assertThat(response.getViolations()).contains("COMPLIANCE_PROVIDER_ERROR");
-
-        List<AIComplianceReport> reports = complianceService.getComplianceReports("user-789");
-        assertThat(reports)
-            .isNotEmpty()
-            .anyMatch(report -> report.getViolations().contains("COMPLIANCE_PROVIDER_ERROR"));
+        assertFalse(Boolean.TRUE.equals(response.getSuccess()));
+        assertThat(response.getErrorMessage()).contains("policy backend offline");
     }
 
     private AIComplianceRequest baseRequest(String requestId) {

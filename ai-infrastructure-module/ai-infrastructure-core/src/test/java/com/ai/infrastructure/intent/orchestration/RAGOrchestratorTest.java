@@ -89,7 +89,7 @@ class RAGOrchestratorTest {
         sanitizationProperties.setEnabled(false);
         PIIDetectionProperties piiDetectionProperties = new PIIDetectionProperties();
         piiDetectionProperties.setEnabled(true);
-        piiDetectionProperties.setDetectionDirection(PIIDetectionProperties.PIIDetectionDirection.BOTH);
+        piiDetectionProperties.setDetectionDirection(PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT);
         PIIDetectionService piiDetectionService = new PIIDetectionService(piiDetectionProperties);
         responseSanitizer = new ResponseSanitizer(piiDetectionService, sanitizationProperties);
         when(intentHistoryService.recordIntent(any(), any(), any(), any(), any())).thenReturn(Optional.empty());

@@ -6,7 +6,7 @@
 # ============================================================================
 # File: application-prod.yml
 # Purpose: Maximum security for production systems
-# Direction: BOTH (INPUT + OUTPUT)
+# Direction: INPUT_OUTPUT (INPUT + OUTPUT)
 # Mode: REDACT (actively remove sensitive data)
 
 ai:
@@ -14,8 +14,8 @@ ai:
     # Master switch
     enabled: true
     
-    # Detection direction: INPUT | OUTPUT | BOTH (default)
-    detection-direction: BOTH  # Full protection in both directions
+    # Detection direction: INPUT | INPUT_OUTPUT (default: INPUT_OUTPUT)
+    detection-direction: INPUT_OUTPUT  # Full protection in both directions
     
     # Operating mode: PASS_THROUGH | DETECT_ONLY | REDACT
     mode: REDACT              # Actively redact sensitive data
@@ -88,14 +88,14 @@ ai:
 # ============================================================================
 # File: application-real-api-test.yml
 # Purpose: Comprehensive testing with real LLM
-# Direction: BOTH
+# Direction: INPUT_OUTPUT
 # Mode: DETECT_ONLY (report detections, don't redact)
 
 ai:
   pii-detection:
     enabled: true
     
-    detection-direction: BOTH  # Test both INPUT and OUTPUT detection
+    detection-direction: INPUT_OUTPUT  # Test both INPUT and OUTPUT detection
     
     mode: DETECT_ONLY          # Just detect, useful for testing
     
@@ -172,50 +172,18 @@ ai:
 
 
 # ============================================================================
-# EXAMPLE 5: RESEARCH - Output Protection Only 🔬
-# ============================================================================
-# File: application-research.yml
-# Purpose: Research/analysis where you accept PII input but catch output leaks
-# Direction: OUTPUT (catch accidental LLM leaks)
-# Mode: DETECT_ONLY (just detect, don't modify)
-
-ai:
-  pii-detection:
-    enabled: true
-    
-    detection-direction: OUTPUT  # Only check OUTPUT from LLM
-    
-    mode: DETECT_ONLY           # Report detections for analysis
-    
-    audit-logging-enabled: true
-    
-    patterns:
-      CREDIT_CARD:
-        enabled: true
-        regex: "(?<!\\d)(?:\\d[ -]?){13,16}(?!\\d)"
-      
-      EMAIL:
-        enabled: true
-        regex: "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}"
-      
-      SSN:
-        enabled: true
-        regex: "\\b\\d{3}-?\\d{2}-?\\d{4}\\b"
-
-
-# ============================================================================
-# EXAMPLE 6: HEALTHCARE - HIPAA Compliance 🏥
+# EXAMPLE 5: HEALTHCARE - HIPAA Compliance 🏥
 # ============================================================================
 # File: application-hipaa.yml
 # Purpose: Healthcare application with HIPAA requirements
-# Direction: BOTH (comprehensive protection)
+# Direction: INPUT_OUTPUT (comprehensive protection)
 # Mode: REDACT (actively remove all sensitive data)
 
 ai:
   pii-detection:
     enabled: true
     
-    detection-direction: BOTH   # Full bidirectional protection
+    detection-direction: INPUT_OUTPUT   # Full bidirectional protection
     
     mode: REDACT                # Actively redact all PII
     
@@ -259,18 +227,18 @@ ai:
 
 
 # ============================================================================
-# EXAMPLE 7: FINANCIAL - PCI-DSS Compliance 💳
+# EXAMPLE 6: FINANCIAL - PCI-DSS Compliance 💳
 # ============================================================================
 # File: application-financial.yml
 # Purpose: Financial application with PCI-DSS requirements
-# Direction: BOTH (comprehensive protection)
+# Direction: INPUT_OUTPUT (comprehensive protection)
 # Mode: REDACT (strictly enforce redaction)
 
 ai:
   pii-detection:
     enabled: true
     
-    detection-direction: BOTH   # Full protection required by PCI-DSS
+    detection-direction: INPUT_OUTPUT   # Full protection required by PCI-DSS
     
     mode: REDACT                # Strict redaction enforcement
     
@@ -305,13 +273,13 @@ ai:
 
 
 # ============================================================================
-# EXAMPLE 8: ENVIRONMENT VARIABLE OVERRIDE
+# EXAMPLE 7: ENVIRONMENT VARIABLE OVERRIDE
 # ============================================================================
 # You can override YAML config with environment variables:
 
 # Command line:
 # export AI_PII_DETECTION_ENABLED=true
-# export AI_PII_DETECTION_DETECTION_DIRECTION=BOTH
+# export AI_PII_DETECTION_DETECTION_DIRECTION=INPUT_OUTPUT
 # export AI_PII_DETECTION_MODE=REDACT
 
 # Docker:
@@ -322,12 +290,12 @@ ai:
 
 
 # ============================================================================
-# EXAMPLE 9: COMMAND-LINE OVERRIDE
+# EXAMPLE 8: COMMAND-LINE OVERRIDE
 # ============================================================================
 # Java command line:
 # java -jar app.jar \
 #   --ai.pii-detection.enabled=true \
-#   --ai.pii-detection.detection-direction=BOTH \
+#   --ai.pii-detection.detection-direction=INPUT_OUTPUT \
 #   --ai.pii-detection.mode=REDACT
 
 # Maven:
@@ -336,7 +304,7 @@ ai:
 
 
 # ============================================================================
-# EXAMPLE 10: PROFILE-SPECIFIC CONFIGURATION (Spring Boot)
+# EXAMPLE 9: PROFILE-SPECIFIC CONFIGURATION (Spring Boot)
 # ============================================================================
 # application.yml (base config for all profiles)
 spring:
@@ -358,7 +326,7 @@ ai:
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH
+    detection-direction: INPUT_OUTPUT
     mode: DETECT_ONLY
 
 
@@ -366,7 +334,7 @@ ai:
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH
+    detection-direction: INPUT_OUTPUT
     mode: REDACT
     store-encrypted-original: true
 
@@ -382,12 +350,11 @@ ai:
 #
 # Profile     | Direction | Mode        | Use Case
 # ============|===========|=============|==========================================
-# prod        | BOTH      | REDACT      | Production (comprehensive security)
-# api         | INPUT     | REDACT      | REST API (protect LLM input)
-# research    | OUTPUT    | DETECT_ONLY | Research (catch output leaks)
-# test        | BOTH      | DETECT_ONLY | Integration tests (full coverage)
-# hipaa       | BOTH      | REDACT      | Healthcare (compliance)
-# financial   | BOTH      | REDACT      | Finance (PCI-DSS compliance)
+# prod        | INPUT_OUTPUT | REDACT      | Production (comprehensive security)
+# api         | INPUT        | REDACT      | REST API (protect LLM input)
+# test        | INPUT_OUTPUT | DETECT_ONLY | Integration tests (full coverage)
+# hipaa       | INPUT_OUTPUT | REDACT      | Healthcare (compliance)
+# financial   | INPUT_OUTPUT | REDACT      | Finance (PCI-DSS compliance)
 # dev         | -         | -           | Development (disabled)
 #
 # ============================================================================

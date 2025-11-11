@@ -19,37 +19,25 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Lightweight performance-style regression verifying that access control caching avoids repeated
- * hook evaluation under sustained load, per the infrastructure integration test blueprint.
+     * Regression verifying that access control decisions are delegated to customer hooks on every call.
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class AccessControlCachingPerformanceIntegrationTest {
 
-    private static final String CACHE_NAME = "accessDecisions";
-
     @Autowired
     private AIAccessControlService accessControlService;
-
-    @Autowired
-    private CacheManager cacheManager;
 
     @MockBean
     private EntityAccessPolicy entityAccessPolicy;
 
     @BeforeEach
     void clearState() {
-        Cache cache = cacheManager != null ? cacheManager.getCache(CACHE_NAME) : null;
-        if (cache != null) {
-            cache.clear();
-        }
         reset(entityAccessPolicy);
         when(entityAccessPolicy.canUserAccessEntity(any(), any())).thenReturn(true);
     }
@@ -68,15 +56,11 @@ class AccessControlCachingPerformanceIntegrationTest {
         AIAccessControlResponse first = accessControlService.checkAccess(baseRequest);
         assertThat(first.getProcessingTimeMs()).isGreaterThanOrEqualTo(0L);
 
-        long cachedCount = 0;
         for (int i = 0; i < 250; i++) {
             AIAccessControlResponse response = accessControlService.checkAccess(baseRequest);
-            if (Boolean.TRUE.equals(response.getFromCache())) {
-                cachedCount++;
-            }
+            assertThat(response.getFromCache()).isFalse();
         }
 
-        verify(entityAccessPolicy, times(1)).canUserAccessEntity(eq("perf-user"), any());
-        assertThat(cachedCount).isEqualTo(250);
+        verify(entityAccessPolicy, times(251)).canUserAccessEntity(eq("perf-user"), any());
     }
 }

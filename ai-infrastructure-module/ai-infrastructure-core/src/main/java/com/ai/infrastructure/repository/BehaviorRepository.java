@@ -60,6 +60,11 @@ public interface BehaviorRepository extends JpaRepository<Behavior, UUID> {
      * Find AI profiles by date range
      */
     List<Behavior> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
+
+    /**
+     * Find behaviours created before the supplied timestamp.
+     */
+    List<Behavior> findByCreatedAtBefore(LocalDateTime cutoff);
     
     /**
      * Find AI profiles by user ID and date range

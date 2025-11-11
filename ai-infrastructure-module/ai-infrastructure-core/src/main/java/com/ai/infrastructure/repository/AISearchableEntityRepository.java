@@ -4,6 +4,8 @@ import com.ai.infrastructure.entity.AISearchableEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -109,4 +111,10 @@ public interface AISearchableEntityRepository extends JpaRepository<AISearchable
      * Delete all entities by entity type that don't have vector IDs
      */
     void deleteByEntityTypeAndVectorIdIsNull(String entityType);
+
+    /**
+     * Find entities whose metadata contains the supplied snippet (case sensitive).
+     */
+    @Query("SELECT e FROM AISearchableEntity e WHERE e.metadata IS NOT NULL AND e.metadata LIKE %:snippet%")
+    List<AISearchableEntity> findByMetadataContainingSnippet(@Param("snippet") String snippet);
 }

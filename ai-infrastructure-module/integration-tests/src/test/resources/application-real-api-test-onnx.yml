@@ -42,7 +42,7 @@ ai:
   pii-detection:
     enabled: true
     mode: DETECT_ONLY
-    detection-direction: BOTH
+    detection-direction: INPUT_OUTPUT
     store-encrypted-original: false
     audit-logging-enabled: true
     patterns:
