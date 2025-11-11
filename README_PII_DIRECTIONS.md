@@ -4,7 +4,7 @@
 
 The PII Detection Direction system provides **flexible, configurable control** over when and how Personally Identifiable Information (PII) is detected, redacted, and managed in your AI infrastructure.
 
-## ✨ Three Detection Directions
+## ✨ Detection Directions
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -16,12 +16,7 @@ The PII Detection Direction system provides **flexible, configurable control** o
 │    └─ Privacy-first approach                                    │
 │    └─ LLM never sees sensitive data                            │
 │                                                                 │
-│ 🛡️  OUTPUT                                                      │
-│    Detect & redact PII in LLM RESPONSES                        │
-│    └─ Safety-net approach                                       │
-│    └─ Catches accidental LLM leaks                             │
-│                                                                 │
-│ 🔐 BOTH (RECOMMENDED)                                           │
+│ 🔐 INPUT_OUTPUT (RECOMMENDED)                                   │
 │    Detect in BOTH directions                                    │
 │    └─ Defense-in-depth strategy                                │
 │    └─ Maximum protection against all vectors                   │
@@ -37,7 +32,7 @@ The PII Detection Direction system provides **flexible, configurable control** o
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH  # Choose: INPUT | OUTPUT | BOTH
+    detection-direction: INPUT_OUTPUT  # Choose: INPUT | INPUT_OUTPUT
     mode: REDACT              # Or: DETECT_ONLY | PASS_THROUGH
 ```
 
@@ -82,7 +77,7 @@ public class RAGOrchestrator {
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH      # Full protection
+    detection-direction: INPUT_OUTPUT      # Full protection
     mode: REDACT                   # Active redaction
     audit-logging-enabled: true
 ```
@@ -103,7 +98,7 @@ ai:
 ai:
   pii-detection:
     enabled: true
-    detection-direction: OUTPUT    # Catch leaks
+    detection-direction: INPUT_OUTPUT    # Catch leaks while still redacting input
     mode: DETECT_ONLY
 ```
 
@@ -117,14 +112,14 @@ ai:
 
 ## 🔄 How It Works
 
-### BOTH Mode (Complete Flow)
+### INPUT_OUTPUT Mode (Complete Flow)
 
 ```
 User Input: "Card 4111-1111-1111-1111 was charged"
     ↓
 ┌──────────────────────────────────────────────────┐
 │ STEP 1: INPUT Detection (if enabled & direction  │
-│         = INPUT or BOTH)                         │
+│         = INPUT or INPUT_OUTPUT)                 │
 ├──────────────────────────────────────────────────┤
 │ ✓ Detect: CREDIT_CARD found                     │
 │ ✓ Redact: "Card [REDACTED] was charged"         │
@@ -136,7 +131,7 @@ User Input: "Card 4111-1111-1111-1111 was charged"
                      ↓
 ┌──────────────────────────────────────────────────┐
 │ STEP 3: OUTPUT Detection (if enabled &           │
-│         direction = OUTPUT or BOTH)              │
+│         direction = INPUT_OUTPUT)                │
 ├──────────────────────────────────────────────────┤
 │ ✓ Scan: Looking for PII in response              │
 │ ✓ Redact: Remove any found PII                  │
@@ -159,30 +154,16 @@ Redacted Query → LLM
 LLM Response (passed through)
 ```
 
-### OUTPUT Mode Only
-
-```
-User Input → LLM as-is
-    ↓
-LLM Response
-    ↓
-┌──────────────────────────┐
-│ Detect & Redact PII      │
-└──────────────────────────┘
-    ↓
-Final Response
-```
-
 ## 🎯 Use Cases Matrix
 
 | Use Case | Direction | Why | Example |
 |----------|-----------|-----|---------|
-| Production | BOTH | Comprehensive protection | Healthcare, Finance |
+| Production | INPUT_OUTPUT | Comprehensive protection | Healthcare, Finance |
 | REST API | INPUT | Prevent LLM exposure | Third-party integrations |
-| Research | OUTPUT | Catch LLM leaks | ML experiments, analysis |
+| Research | INPUT_OUTPUT | Catch leaks while auditing results | ML experiments, analysis |
 | Development | Disabled | No overhead | Local testing |
-| Healthcare | BOTH | HIPAA compliance | Medical records |
-| Finance | BOTH | PCI-DSS compliance | Payment processing |
+| Healthcare | INPUT_OUTPUT | HIPAA compliance | Medical records |
+| Finance | INPUT_OUTPUT | PCI-DSS compliance | Payment processing |
 
 ## 📝 Implementation Details
 
@@ -191,7 +172,7 @@ Final Response
 1. **PIIDetectionProperties.java**
    - Added `PIIDetectionDirection` enum
    - Added `detectionDirection` property
-   - Default: `BOTH`
+   - Default: `INPUT_OUTPUT`
 
 2. **RAGOrchestrator.java**
    - Added `PIIDetectionProperties` injection
@@ -203,7 +184,7 @@ Final Response
    - Added test configuration
 
 4. **application-real-api-test.yml**
-   - Added `detection-direction: BOTH`
+   - Added `detection-direction: INPUT_OUTPUT`
 
 ## ⚙️ Configuration Hierarchy
 
@@ -212,11 +193,11 @@ The configuration follows Spring Boot's standard hierarchy:
 ```
 1. Environment Variables         (highest priority)
    ├─ AI_PII_DETECTION_ENABLED=true
-   └─ AI_PII_DETECTION_DETECTION_DIRECTION=BOTH
+   └─ AI_PII_DETECTION_DETECTION_DIRECTION=INPUT_OUTPUT
 
 2. Command-Line Arguments
    ├─ --ai.pii-detection.enabled=true
-   └─ --ai.pii-detection.detection-direction=BOTH
+   └─ --ai.pii-detection.detection-direction=INPUT_OUTPUT
 
 3. application-{profile}.yml
    └─ (e.g., application-real-api-test.yml)
@@ -231,13 +212,13 @@ The configuration follows Spring Boot's standard hierarchy:
 detection-direction: INPUT
 
 # But you can override with environment:
-export AI_PII_DETECTION_DETECTION_DIRECTION=BOTH
+export AI_PII_DETECTION_DETECTION_DIRECTION=INPUT_OUTPUT
 java -jar app.jar
-# Result: Uses BOTH (environment takes precedence)
+# Result: Uses INPUT_OUTPUT (environment takes precedence)
 
 # Or command-line:
-java -jar app.jar --ai.pii-detection.detection-direction=OUTPUT
-# Result: Uses OUTPUT (highest precedence)
+java -jar app.jar --ai.pii-detection.detection-direction=INPUT
+# Result: Uses INPUT (highest precedence)
 ```
 
 ## 🧪 Testing
@@ -254,7 +235,7 @@ All tests pass with the new configuration:
 Test verifies:
 - ✅ PII detection in user input (CREDIT_CARD)
 - ✅ INPUT redaction before LLM
-- ✅ OUTPUT scanning for accidental leaks
+- ✅ Bidirectional (INPUT_OUTPUT) scanning for accidental leaks
 - ✅ Response metadata includes detected types
 - ✅ Integration with OpenAI API
 
@@ -262,7 +243,7 @@ Test verifies:
 
 1. **PII_DETECTION_DIRECTIONS.md**
    - Comprehensive security benefits analysis
-   - Three directions explained in detail
+   - Both supported directions explained in detail
    - Configuration examples for each mode
    - Migration guide from old implementation
 
@@ -299,13 +280,13 @@ Test verifies:
 ## ✅ Verification Checklist
 
 - [x] Configuration property added
-- [x] Enum created (INPUT, OUTPUT, BOTH)
+- [x] Enum created (INPUT, INPUT_OUTPUT)
 - [x] RAGOrchestrator updated
 - [x] Dependency injection working
 - [x] YAML configuration recognized
 - [x] Test configuration updated
 - [x] Integration test passing
-- [x] Both directions working
+- [x] Bidirectional mode working
 - [x] PII detection verified
 - [x] Backward compatible
 - [x] Documentation complete
@@ -321,7 +302,7 @@ Layer 1: INPUT Protection (Proactive)
    └─ Redact credit cards, SSNs, emails, etc.
    └─ LLM can't leak what it doesn't see
 
-Layer 2: OUTPUT Protection (Defensive)
+Layer 2: OUTPUT Scan (Defensive, part of INPUT_OUTPUT mode)
 └─ Catch if LLM accidentally leaks data
    └─ Scan response for PII
    └─ Redact if found
@@ -332,9 +313,9 @@ Result: Maximum protection against all vectors
 
 ## 💡 Best Practices
 
-1. **Production:** Always use `BOTH` mode
+1. **Production:** Always use `INPUT_OUTPUT` mode
 2. **APIs:** Use `INPUT` mode to protect external data
-3. **Research:** Use `OUTPUT` mode for analysis
+3. **Research:** Use `INPUT_OUTPUT` mode with `DETECT_ONLY` for analysis
 4. **Development:** Disable for no overhead
 5. **Monitoring:** Enable audit logging for compliance
 6. **Compliance:** Store encrypted originals for regulated industries
@@ -347,7 +328,7 @@ FROM openjdk:21-slim
 COPY app.jar app.jar
 
 ENV AI_PII_DETECTION_ENABLED=true
-ENV AI_PII_DETECTION_DETECTION_DIRECTION=BOTH
+ENV AI_PII_DETECTION_DETECTION_DIRECTION=INPUT_OUTPUT
 
 ENTRYPOINT ["java","-jar","app.jar"]
 ```
@@ -358,19 +339,19 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ai-pii-config
-data:
-  application-prod.yml: |
-    ai:
-      pii-detection:
-        enabled: true
-        detection-direction: BOTH
-        mode: REDACT
+  data:
+    application-prod.yml: |
+      ai:
+        pii-detection:
+          enabled: true
+          detection-direction: INPUT_OUTPUT
+          mode: REDACT
 ```
 
 ### Environment Variables
 ```bash
 export AI_PII_DETECTION_ENABLED=true
-export AI_PII_DETECTION_DETECTION_DIRECTION=BOTH
+export AI_PII_DETECTION_DETECTION_DIRECTION=INPUT_OUTPUT
 export AI_PII_DETECTION_MODE=REDACT
 java -jar app.jar
 ```
@@ -380,15 +361,14 @@ java -jar app.jar
 | Mode | Latency | Memory | CPU | Notes |
 |------|---------|--------|-----|-------|
 | INPUT | +100-200ms | Low | Low | Runs before LLM |
-| OUTPUT | +100-200ms | Low | Low | Runs after LLM |
-| BOTH | +200-400ms | Low | Medium | Runs twice |
+| INPUT_OUTPUT | +200-400ms | Low | Medium | Runs before & after LLM |
 | Disabled | 0ms | 0 | 0 | No overhead |
 
 ## 🎓 Key Takeaways
 
 1. ✅ **100% YAML Configurable** - No code changes for different environments
-2. ✅ **Three Directions** - INPUT, OUTPUT, BOTH for different security postures
-3. ✅ **Default is BOTH** - Comprehensive security by default
+2. ✅ **Two Modes** - INPUT or INPUT_OUTPUT for different security postures
+3. ✅ **Default is INPUT_OUTPUT** - Comprehensive security by default
 4. ✅ **Enum-Based** - Type-safe, prevents configuration errors
 5. ✅ **Spring Integration** - Uses standard Spring mechanisms
 6. ✅ **Backward Compatible** - Existing code continues to work
@@ -403,7 +383,7 @@ For **production systems**, use:
 ai:
   pii-detection:
     enabled: true
-    detection-direction: BOTH           # Comprehensive protection
+      detection-direction: INPUT_OUTPUT   # Comprehensive protection
     mode: REDACT                        # Active redaction
     store-encrypted-original: true      # Audit trail
     audit-logging-enabled: true         # Compliance logging
