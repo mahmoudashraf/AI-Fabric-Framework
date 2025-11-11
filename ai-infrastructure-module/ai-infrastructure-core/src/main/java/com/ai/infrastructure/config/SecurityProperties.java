@@ -17,5 +17,5 @@ public class SecurityProperties {
      * to block the request immediately. When false, the request is allowed to proceed so that
      * downstream sanitisation can handle masking.
      */
-    private boolean blockOnPiiDetection = true;
+    private boolean blockOnPiiDetection = false;
 }
