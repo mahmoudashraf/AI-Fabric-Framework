@@ -1,6 +1,7 @@
 package com.ai.infrastructure.security;
 
 import com.ai.infrastructure.audit.AuditService;
+import com.ai.infrastructure.config.SecurityProperties;
 import com.ai.infrastructure.dto.AISecurityEvent;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
@@ -40,6 +41,7 @@ public class AISecurityService {
     private final PIIDetectionService piiDetectionService;
     private final AuditService auditService;
     private final Clock clock;
+    private final SecurityProperties securityProperties;
 
     private final Map<String, List<AISecurityEvent>> securityEvents = new ConcurrentHashMap<>();
     private final Map<String, RateCounter> accessAttempts = new ConcurrentHashMap<>();
@@ -56,6 +58,9 @@ public class AISecurityService {
                 .orElseGet(() -> LocalDateTime.now(clock));
 
             List<String> threats = new ArrayList<>(detectBuiltInThreats(request));
+            boolean blockPii = securityProperties.isBlockOnPiiDetection();
+            log.debug("Security analysis for user={} threats={}, blockOnPiiDetection={}",
+                request.getUserId(), threats, blockPii);
 
             if (securityPolicy != null) {
                 try {
@@ -78,10 +83,13 @@ public class AISecurityService {
                 threats.add("RATE_LIMIT_EXCEEDED");
             }
 
-            boolean secure = threats.isEmpty() && !rateLimited;
+            boolean blockingThreatPresent = threats.stream().anyMatch(this::isBlockingThreat);
+            boolean shouldBlock = blockingThreatPresent || rateLimited;
+
+            boolean secure = !shouldBlock;
             double securityScore = calculateSecurityScore(threats, rateLimited);
 
-            AISecurityEvent event = recordSecurityEvent(request, timestamp, threats, securityScore, !secure);
+            AISecurityEvent event = recordSecurityEvent(request, timestamp, threats, securityScore, shouldBlock);
 
             long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
             return AISecurityResponse.builder()
@@ -89,9 +97,9 @@ public class AISecurityService {
                 .userId(request.getUserId())
                 .threatsDetected(List.copyOf(new HashSet<>(threats)))
                 .securityScore(securityScore)
-                .accessAllowed(secure)
+                .accessAllowed(!shouldBlock)
                 .rateLimitExceeded(rateLimited)
-                .shouldBlock(!secure)
+                .shouldBlock(shouldBlock)
                 .processingTimeMs(durationMs)
                 .timestamp(timestamp)
                 .success(true)
@@ -178,6 +186,13 @@ public class AISecurityService {
             }
         }
         return threats;
+    }
+
+    private boolean isBlockingThreat(String threat) {
+        if ("PII_DETECTED".equals(threat)) {
+            return securityProperties.isBlockOnPiiDetection();
+        }
+        return true;
     }
 
     private boolean containsInjectionPatterns(String content) {
