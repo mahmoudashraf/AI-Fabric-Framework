@@ -49,7 +49,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService {
     @PostConstruct
     void initializeClient() {
         this.baseUri = URI.create(resolveBaseUrl());
-        log.info("Pinecone client configured for index '{}' at {}", config.getPineconeIndexName(), baseUri);
+        log.info("Pinecone client configured for index '{}' at {}", config.getPinecone().getIndexName(), baseUri);
     }
     
     @Override
@@ -221,7 +221,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService {
     @Override
     public List<VectorRecord> getVectorsByEntityType(String entityType) {
         // Best effort: query with zero vector to retrieve metadata-rich matches.
-        List<Double> zeroVector = Collections.nCopies(config.getPineconeDimensions(), 0.0);
+        List<Double> zeroVector = Collections.nCopies(config.getPinecone().getDimensions(), 0.0);
         AISearchRequest request = AISearchRequest.builder()
             .entityType(entityType)
             .limit(100)
@@ -462,7 +462,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(mediaType);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        headers.set(API_KEY_HEADER, config.getPineconeApiKey());
+        headers.set(API_KEY_HEADER, config.getPinecone().getApiKey());
         return headers;
     }
 
@@ -471,20 +471,19 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService {
     }
 
     private String resolveBaseUrl() {
-        if (StringUtils.hasText(config.getPineconeApiHost())) {
-            String host = config.getPineconeApiHost().trim();
+        if (StringUtils.hasText(config.getPinecone().getApiHost())) {
+            String host = config.getPinecone().getApiHost().trim();
             if (!host.startsWith("http")) {
                 host = "https://" + host;
             }
             return host;
         }
 
-        if (StringUtils.hasText(config.getPineconeProjectId())) {
-            return String.format("https://%s-%s.svc.%s.pinecone.io", config.getPineconeIndexName(),
-                config.getPineconeProjectId(), config.getPineconeEnvironment());
+        if (StringUtils.hasText(config.getPinecone().getProjectId())) {
+            return String.format("https://%s-%s.svc.%s.pinecone.io", config.getPinecone().getIndexName(),
+                config.getPinecone().getProjectId(), config.getPinecone().getEnvironment());
         }
-
-        return String.format("https://%s.svc.%s.pinecone.io", config.getPineconeIndexName(), config.getPineconeEnvironment());
+        return String.format("https://%s.svc.%s.pinecone.io", config.getPinecone().getIndexName(), config.getPinecone().getEnvironment());
     }
 
     private String buildVectorId(String entityType, String entityId) {

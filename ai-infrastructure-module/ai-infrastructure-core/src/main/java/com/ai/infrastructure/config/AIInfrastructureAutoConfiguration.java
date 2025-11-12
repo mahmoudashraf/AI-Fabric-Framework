@@ -124,7 +124,7 @@ public class AIInfrastructureAutoConfiguration {
         ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
         if (!provider.isAvailable()) {
             log.warn("WARNING: ONNX Embedding Provider is not available. Model file may be missing.");
-            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnxModelPath());
+            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnx().getModelPath());
         }
         return provider;
     }
@@ -157,7 +157,7 @@ public class AIInfrastructureAutoConfiguration {
         ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
         if (!provider.isAvailable()) {
             log.warn("WARNING: ONNX fallback provider is not available. Model file may be missing.");
-            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnxModelPath());
+            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnx().getModelPath());
         }
         return provider;
     }

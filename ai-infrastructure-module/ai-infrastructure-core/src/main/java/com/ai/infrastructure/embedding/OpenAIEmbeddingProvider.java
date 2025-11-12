@@ -44,21 +44,23 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
         try {
             log.info("Initializing OpenAI Embedding Provider");
             
-            if (config.getOpenaiApiKey() == null || config.getOpenaiApiKey().trim().isEmpty()) {
+            AIProviderConfig.OpenAIConfig openai = config.getOpenai();
+
+            if (openai.getApiKey() == null || openai.getApiKey().trim().isEmpty()) {
                 log.warn("OpenAI API key not configured. Provider will not be available.");
                 available = false;
                 return;
             }
             
             openAiService = new OpenAiService(
-                config.getOpenaiApiKey(),
-                Duration.ofSeconds(config.getOpenaiTimeout())
+                openai.getApiKey(),
+                Duration.ofSeconds(openai.getTimeout())
             );
             
             // Test connection with a small embedding call
             try {
                 EmbeddingRequest testRequest = EmbeddingRequest.builder()
-                    .model(config.getOpenaiEmbeddingModel())
+                    .model(openai.getEmbeddingModel())
                     .input(List.of("test"))
                     .build();
                 
@@ -103,7 +105,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             long startTime = System.currentTimeMillis();
             
             EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
-                .model(request.getModel() != null ? request.getModel() : config.getOpenaiEmbeddingModel())
+                  .model(request.getModel() != null ? request.getModel() : config.getOpenai().getEmbeddingModel())
                 .input(List.of(request.getText()))
                 .build();
             
@@ -117,7 +119,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             
             return AIEmbeddingResponse.builder()
                 .embedding(embedding)
-                .model(request.getModel() != null ? request.getModel() : config.getOpenaiEmbeddingModel())
+                .model(request.getModel() != null ? request.getModel() : config.getOpenai().getEmbeddingModel())
                 .dimensions(embedding.size())
                 .processingTimeMs(processingTime)
                 .requestId(UUID.randomUUID().toString())
@@ -141,7 +143,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             long startTime = System.currentTimeMillis();
             
             EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
-                .model(config.getOpenaiEmbeddingModel())
+                  .model(config.getOpenai().getEmbeddingModel())
                 .input(texts)
                 .build();
             
@@ -152,7 +154,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             List<AIEmbeddingResponse> responses = result.getData().stream()
                 .map(data -> AIEmbeddingResponse.builder()
                     .embedding(data.getEmbedding())
-                    .model(config.getOpenaiEmbeddingModel())
+                      .model(config.getOpenai().getEmbeddingModel())
                     .dimensions(data.getEmbedding().size())
                     .processingTimeMs(processingTime / texts.size())
                     .requestId(UUID.randomUUID().toString())
@@ -180,9 +182,10 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
         Map<String, Object> status = new HashMap<>();
         status.put("provider", "openai");
         status.put("available", isAvailable());
-        status.put("model", config.getOpenaiEmbeddingModel());
+        AIProviderConfig.OpenAIConfig openai = config.getOpenai();
+        status.put("model", openai.getEmbeddingModel());
         status.put("embeddingDimension", embeddingDimension);
-        status.put("timeout", config.getOpenaiTimeout());
+        status.put("timeout", openai.getTimeout());
         
         if (isAvailable()) {
             status.put("status", "ready");

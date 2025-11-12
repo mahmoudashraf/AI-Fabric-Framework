@@ -168,11 +168,12 @@ public class AIHealthService {
         providerStatus.put("rest", restStatus);
 
         // Pinecone status
+        AIProviderConfig.PineconeConfig pinecone = providerConfig.getPinecone();
         Map<String, Object> pineconeStatus = new HashMap<>();
-        pineconeStatus.put("configured", providerConfig.getPineconeApiKey() != null && !providerConfig.getPineconeApiKey().trim().isEmpty());
-        pineconeStatus.put("environment", providerConfig.getPineconeEnvironment());
-        pineconeStatus.put("indexName", providerConfig.getPineconeIndexName());
-        pineconeStatus.put("dimensions", providerConfig.getPineconeDimensions());
+        pineconeStatus.put("configured", pinecone.getApiKey() != null && !pinecone.getApiKey().trim().isEmpty());
+        pineconeStatus.put("environment", pinecone.getEnvironment());
+        pineconeStatus.put("indexName", pinecone.getIndexName());
+        pineconeStatus.put("dimensions", pinecone.getDimensions());
         providerStatus.put("pinecone", pineconeStatus);
         
         return providerStatus;

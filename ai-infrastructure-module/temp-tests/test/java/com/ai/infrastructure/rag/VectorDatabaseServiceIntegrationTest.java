@@ -80,7 +80,7 @@ class VectorDatabaseServiceIntegrationTest {
         assertThat(response.getTotalResults()).isGreaterThan(0);
         assertThat(response.getResults()).isNotEmpty();
         assertThat(response.getQuery()).isEqualTo("luxury watch");
-        assertThat(response.getModel()).isEqualTo(config.getOpenaiEmbeddingModel());
+        assertThat(response.getModel()).isEqualTo(config.resolveEmbeddingDefaults().model());
     }
     
     @Test

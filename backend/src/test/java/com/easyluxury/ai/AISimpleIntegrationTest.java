@@ -71,9 +71,10 @@ class AISimpleIntegrationTest {
     @Test
     void testAIProviderConfigLoaded() {
         assertNotNull(aiProviderConfig);
-        assertEquals("test-key", aiProviderConfig.getOpenaiApiKey());
-        assertEquals("gpt-4o-mini", aiProviderConfig.getOpenaiModel());
-        assertEquals("text-embedding-3-small", aiProviderConfig.getOpenaiEmbeddingModel());
+        AIProviderConfig.OpenAIConfig openai = aiProviderConfig.getOpenai();
+        assertEquals("test-key", openai.getApiKey());
+        assertEquals("gpt-4o-mini", openai.getModel());
+        assertEquals("text-embedding-3-small", openai.getEmbeddingModel());
     }
 
     @Test

@@ -46,9 +46,9 @@ public class TestAIConfiguration {
     
     @Bean
     @Primary
-    public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {
+    public AIConfigurationService aiConfigurationService(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
         log.info("Creating AIConfigurationService for test context");
-        return new AIConfigurationService(serviceConfig);
+        return new AIConfigurationService(providerConfig, serviceConfig);
     }
     
     @Bean
@@ -97,9 +97,9 @@ public class TestAIConfiguration {
     
     @Bean
     @Primary
-    public AICoreService aiCoreService(AIProviderConfig config, AIEmbeddingService embeddingService, AISearchService searchService) {
+    public AICoreService aiCoreService(AIProviderConfig config, AIEmbeddingService embeddingService, AISearchService searchService, AIProviderManager providerManager) {
         log.info("Creating AICoreService for test context");
-        return new AICoreService(config, embeddingService, searchService);
+        return new AICoreService(config, embeddingService, searchService, providerManager);
     }
     
     @Bean

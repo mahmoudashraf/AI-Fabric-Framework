@@ -39,9 +39,9 @@ class LuceneVectorDatabaseServiceTest {
         ReflectionTestUtils.setField(service, "similarityThreshold", 0.5);
         ReflectionTestUtils.setField(service, "maxResults", 10);
         
-        // Mock config
-        // Mock configuration
-        lenient().when(config.getOpenaiEmbeddingModel()).thenReturn("text-embedding-3-small");
+        // Mock configuration defaults
+        lenient().when(config.resolveEmbeddingDefaults())
+            .thenReturn(new AIProviderConfig.EmbeddingDefaults("onnx", "text-embedding-3-small"));
         
         // Initialize the service
         service.initialize();

@@ -85,7 +85,8 @@ public class AIConfigurationValidator {
             }
             
             // Validate OpenAI settings
-            if (aiProviderConfig.getOpenaiApiKey() == null || aiProviderConfig.getOpenaiApiKey().trim().isEmpty()) {
+            AIProviderConfig.OpenAIConfig openai = aiProviderConfig.getOpenai();
+            if (openai.getApiKey() == null || openai.getApiKey().trim().isEmpty()) {
                 if (isProductionEnvironment()) {
                     errors.add("OpenAI API key is required in production environment");
                 } else {
@@ -93,16 +94,17 @@ public class AIConfigurationValidator {
                 }
             }
             
-            if (aiProviderConfig.getOpenaiModel() == null || aiProviderConfig.getOpenaiModel().trim().isEmpty()) {
+            if (openai.getModel() == null || openai.getModel().trim().isEmpty()) {
                 errors.add("OpenAI model is not specified");
             }
             
-            if (aiProviderConfig.getOpenaiEmbeddingModel() == null || aiProviderConfig.getOpenaiEmbeddingModel().trim().isEmpty()) {
+            if (openai.getEmbeddingModel() == null || openai.getEmbeddingModel().trim().isEmpty()) {
                 warnings.add("OpenAI embedding model not specified, using default");
             }
             
             // Validate Pinecone settings
-            if (aiProviderConfig.getPineconeApiKey() == null || aiProviderConfig.getPineconeApiKey().trim().isEmpty()) {
+            AIProviderConfig.PineconeConfig pinecone = aiProviderConfig.getPinecone();
+            if (pinecone.getApiKey() == null || pinecone.getApiKey().trim().isEmpty()) {
                 if (isProductionEnvironment()) {
                     errors.add("Pinecone API key is required in production environment");
                 } else {
@@ -110,7 +112,7 @@ public class AIConfigurationValidator {
                 }
             }
             
-            if (aiProviderConfig.getPineconeIndexName() == null || aiProviderConfig.getPineconeIndexName().trim().isEmpty()) {
+            if (pinecone.getIndexName() == null || pinecone.getIndexName().trim().isEmpty()) {
                 warnings.add("Pinecone index name not specified, using default");
             }
             

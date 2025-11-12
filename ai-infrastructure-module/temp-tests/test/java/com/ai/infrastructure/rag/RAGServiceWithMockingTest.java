@@ -61,8 +61,8 @@ class RAGServiceWithMockingTest {
     void setUp() {
         ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase);
         
-        // Mock config
-        when(config.getOpenaiEmbeddingModel()).thenReturn("text-embedding-3-small");
+        // Mock config defaults
+        when(config.resolveEmbeddingDefaults()).thenReturn(new AIProviderConfig.EmbeddingDefaults("onnx", "text-embedding-3-small"));
     }
     
     @Test

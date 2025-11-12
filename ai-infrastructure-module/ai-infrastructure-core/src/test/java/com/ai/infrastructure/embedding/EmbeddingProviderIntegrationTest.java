@@ -118,7 +118,7 @@ public class EmbeddingProviderIntegrationTest {
             // If ONNX model files are missing, this is expected
             if (embeddingProvider.getProviderName().equals("onnx")) {
                 System.out.println("⚠️  ONNX provider test skipped - model files may be missing");
-                System.out.println("   Model path: " + config.getOnnxModelPath());
+                System.out.println("   Model path: " + config.getOnnx().getModelPath());
                 return;
             }
             // For other providers, fail the test

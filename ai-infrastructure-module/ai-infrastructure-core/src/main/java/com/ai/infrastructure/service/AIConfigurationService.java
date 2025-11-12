@@ -33,17 +33,6 @@ public class AIConfigurationService {
     }
     
     /**
-     * Legacy constructor retained for compatibility with downstream modules still providing only
-     * {@link AIServiceConfig}. A default {@link AIProviderConfig} instance will be created.
-     *
-     * @deprecated prefer {@link #AIConfigurationService(AIProviderConfig, AIServiceConfig)}
-     */
-    @Deprecated
-    public AIConfigurationService(AIServiceConfig serviceConfig) {
-        this(new AIProviderConfig(), serviceConfig);
-    }
-    
-    /**
      * Get complete AI configuration
      * 
      * @return complete AI configuration
@@ -57,12 +46,16 @@ public class AIConfigurationService {
         config.setLlmProvider(providerConfig.getLlmProvider());
         config.setEmbeddingProvider(providerConfig.getEmbeddingProvider());
         config.setProviderDetails(buildProviderDetails());
-        config.setOpenaiApiKey(providerConfig.getOpenaiApiKey());
-        config.setOpenaiModel(providerConfig.getOpenaiModel());
-        config.setOpenaiEmbeddingModel(providerConfig.getOpenaiEmbeddingModel());
-        config.setPineconeApiKey(providerConfig.getPineconeApiKey());
-        config.setPineconeEnvironment(providerConfig.getPineconeEnvironment());
-        config.setPineconeIndexName(providerConfig.getPineconeIndexName());
+        
+        AIProviderConfig.OpenAIConfig openai = providerConfig.getOpenai();
+        config.setOpenaiApiKey(openai.getApiKey());
+        config.setOpenaiModel(openai.getModel());
+        config.setOpenaiEmbeddingModel(openai.getEmbeddingModel());
+        
+        AIProviderConfig.PineconeConfig pinecone = providerConfig.getPinecone();
+        config.setPineconeApiKey(pinecone.getApiKey());
+        config.setPineconeEnvironment(pinecone.getEnvironment());
+        config.setPineconeIndexName(pinecone.getIndexName());
         
         // Service configuration
         config.setEnabled(serviceConfig.getEnabled());
@@ -103,12 +96,16 @@ public class AIConfigurationService {
         config.put("llmProvider", providerConfig.getLlmProvider());
         config.put("embeddingProvider", providerConfig.getEmbeddingProvider());
         config.put("providerDetails", buildProviderDetails());
-        config.put("openaiApiKey", providerConfig.getOpenaiApiKey());
-        config.put("openaiModel", providerConfig.getOpenaiModel());
-        config.put("openaiEmbeddingModel", providerConfig.getOpenaiEmbeddingModel());
-        config.put("pineconeApiKey", providerConfig.getPineconeApiKey());
-        config.put("pineconeEnvironment", providerConfig.getPineconeEnvironment());
-        config.put("pineconeIndexName", providerConfig.getPineconeIndexName());
+        
+        AIProviderConfig.OpenAIConfig openai = providerConfig.getOpenai();
+        config.put("openaiApiKey", openai.getApiKey());
+        config.put("openaiModel", openai.getModel());
+        config.put("openaiEmbeddingModel", openai.getEmbeddingModel());
+        
+        AIProviderConfig.PineconeConfig pinecone = providerConfig.getPinecone();
+        config.put("pineconeApiKey", pinecone.getApiKey());
+        config.put("pineconeEnvironment", pinecone.getEnvironment());
+        config.put("pineconeIndexName", pinecone.getIndexName());
         
         return config;
     }
