@@ -1,6 +1,8 @@
 package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
+import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
+import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -38,5 +40,13 @@ public class TestApplication {
     @Bean
     public EntityAccessPolicy testEntityAccessPolicy() {
         return (userId, entity) -> true;
+    }
+
+    @Bean
+    public ComplianceCheckProvider testComplianceCheckProvider() {
+        return request -> ComplianceCheckResult.builder()
+            .compliant(true)
+            .details("Test compliance provider approval")
+            .build();
     }
 }
