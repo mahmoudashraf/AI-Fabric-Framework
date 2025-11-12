@@ -38,6 +38,9 @@ public class AIConfigurationService {
         AIConfigurationDto config = new AIConfigurationDto();
         
         // Provider configuration
+        config.setLlmProvider(providerConfig.getLlmProvider());
+        config.setEmbeddingProvider(providerConfig.getEmbeddingProvider());
+        config.setProviderDetails(buildProviderDetails());
         config.setOpenaiApiKey(providerConfig.getOpenaiApiKey());
         config.setOpenaiModel(providerConfig.getOpenaiModel());
         config.setOpenaiEmbeddingModel(providerConfig.getOpenaiEmbeddingModel());
@@ -81,6 +84,9 @@ public class AIConfigurationService {
         log.debug("Retrieving provider configuration");
         
         Map<String, Object> config = new HashMap<>();
+        config.put("llmProvider", providerConfig.getLlmProvider());
+        config.put("embeddingProvider", providerConfig.getEmbeddingProvider());
+        config.put("providerDetails", buildProviderDetails());
         config.put("openaiApiKey", providerConfig.getOpenaiApiKey());
         config.put("openaiModel", providerConfig.getOpenaiModel());
         config.put("openaiEmbeddingModel", providerConfig.getOpenaiEmbeddingModel());
@@ -173,19 +179,77 @@ public class AIConfigurationService {
         Map<String, String> errors = new HashMap<>();
         
         // Validate provider configuration
-        if (providerConfig.getOpenaiApiKey() == null || providerConfig.getOpenaiApiKey().trim().isEmpty()) {
-            errors.put("openaiApiKey", "OpenAI API key is required");
-            isValid = false;
+        String llmProvider = providerConfig.getLlmProvider() != null
+            ? providerConfig.getLlmProvider().toLowerCase()
+            : "openai";
+        switch (llmProvider) {
+            case "openai" -> {
+                if (providerConfig.getOpenai().getApiKey() == null || providerConfig.getOpenai().getApiKey().isBlank()) {
+                    errors.put("openaiApiKey", "OpenAI API key is required when OpenAI is the configured LLM provider.");
+                    isValid = false;
+                }
+                if (providerConfig.getOpenai().getModel() == null || providerConfig.getOpenai().getModel().isBlank()) {
+                    errors.put("openaiModel", "OpenAI model is required when OpenAI is the configured LLM provider.");
+                    isValid = false;
+                }
+            }
+            case "anthropic" -> {
+                if (providerConfig.getAnthropic().getApiKey() == null || providerConfig.getAnthropic().getApiKey().isBlank()) {
+                    errors.put("anthropicApiKey", "Anthropic API key is required when Anthropic is the configured LLM provider.");
+                    isValid = false;
+                }
+                if (providerConfig.getAnthropic().getModel() == null || providerConfig.getAnthropic().getModel().isBlank()) {
+                    errors.put("anthropicModel", "Anthropic model is required when Anthropic is the configured LLM provider.");
+                    isValid = false;
+                }
+            }
+            case "cohere" -> {
+                if (providerConfig.getCohere().getApiKey() == null || providerConfig.getCohere().getApiKey().isBlank()) {
+                    errors.put("cohereApiKey", "Cohere API key is required when Cohere is the configured LLM provider.");
+                    isValid = false;
+                }
+                if (providerConfig.getCohere().getModel() == null || providerConfig.getCohere().getModel().isBlank()) {
+                    errors.put("cohereModel", "Cohere model is required when Cohere is the configured LLM provider.");
+                    isValid = false;
+                }
+            }
+            default -> {
+                // For unsupported providers we rely on downstream validation
+            }
         }
-        
-        if (providerConfig.getOpenaiModel() == null || providerConfig.getOpenaiModel().trim().isEmpty()) {
-            errors.put("openaiModel", "OpenAI model is required");
-            isValid = false;
-        }
-        
-        if (providerConfig.getOpenaiEmbeddingModel() == null || providerConfig.getOpenaiEmbeddingModel().trim().isEmpty()) {
-            errors.put("openaiEmbeddingModel", "OpenAI embedding model is required");
-            isValid = false;
+
+        String embeddingProvider = providerConfig.getEmbeddingProvider() != null
+            ? providerConfig.getEmbeddingProvider().toLowerCase()
+            : "onnx";
+        switch (embeddingProvider) {
+            case "openai" -> {
+                if (providerConfig.getOpenai().getApiKey() == null || providerConfig.getOpenai().getApiKey().isBlank()) {
+                    errors.put("openaiEmbeddingApiKey", "OpenAI API key is required when OpenAI is the embedding provider.");
+                    isValid = false;
+                }
+                if (providerConfig.getOpenai().getEmbeddingModel() == null || providerConfig.getOpenai().getEmbeddingModel().isBlank()) {
+                    errors.put("openaiEmbeddingModel", "OpenAI embedding model is required when OpenAI is the embedding provider.");
+                    isValid = false;
+                }
+            }
+            case "rest" -> {
+                if (providerConfig.getRest().getBaseUrl() == null || providerConfig.getRest().getBaseUrl().isBlank()) {
+                    errors.put("restBaseUrl", "REST embedding base URL is required when REST is the embedding provider.");
+                    isValid = false;
+                }
+                if (providerConfig.getRest().getEndpoint() == null || providerConfig.getRest().getEndpoint().isBlank()) {
+                    errors.put("restEndpoint", "REST embedding endpoint is required when REST is the embedding provider.");
+                    isValid = false;
+                }
+            }
+            case "onnx" -> {
+                if (providerConfig.getOnnx().getModelPath() == null || providerConfig.getOnnx().getModelPath().isBlank()) {
+                    errors.put("onnxModelPath", "ONNX model path is required when ONNX is the embedding provider.");
+                    isValid = false;
+                }
+            }
+            default -> {
+            }
         }
         
         // Validate service configuration
@@ -259,5 +323,27 @@ public class AIConfigurationService {
         summary.put("circuitBreakerEnabled", serviceConfig.getCircuitBreakerEnabled());
         
         return summary;
+    }
+
+    private Map<String, Object> buildProviderDetails() {
+        Map<String, Object> details = new HashMap<>();
+        details.put("llmDefaults", Map.of(
+            "provider", providerConfig.getLlmProvider(),
+            "model", providerConfig.resolveLlmDefaults().model(),
+            "maxTokens", providerConfig.resolveLlmDefaults().maxTokens(),
+            "temperature", providerConfig.resolveLlmDefaults().temperature(),
+            "timeout", providerConfig.resolveLlmDefaults().timeoutSeconds()
+        ));
+        details.put("embeddingDefaults", Map.of(
+            "provider", providerConfig.getEmbeddingProvider(),
+            "model", providerConfig.resolveEmbeddingDefaults().model()
+        ));
+        details.put("openai", providerConfig.getOpenai());
+        details.put("anthropic", providerConfig.getAnthropic());
+        details.put("cohere", providerConfig.getCohere());
+        details.put("onnx", providerConfig.getOnnx());
+        details.put("rest", providerConfig.getRest());
+        details.put("pinecone", providerConfig.getPinecone());
+        return details;
     }
 }

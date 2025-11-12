@@ -130,7 +130,7 @@ public class VectorSearchService {
                 .processingTimeMs(processingTime)
                 .requestId(UUID.randomUUID().toString())
                 .query(request.getQuery())
-                .model(config.getOpenaiEmbeddingModel())
+                .model(config.resolveEmbeddingDefaults().model())
                 .build();
                 
         } catch (Exception e) {

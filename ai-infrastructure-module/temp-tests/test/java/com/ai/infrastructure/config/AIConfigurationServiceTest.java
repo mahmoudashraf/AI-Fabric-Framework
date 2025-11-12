@@ -16,7 +16,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AIConfigurationServiceTest {
     
-    @Mock
     private AIProviderConfig providerConfig;
     
     @Mock
@@ -26,19 +25,27 @@ class AIConfigurationServiceTest {
     
     @BeforeEach
     void setUp() {
+        providerConfig = new AIProviderConfig();
+        providerConfig.setLlmProvider("openai");
+        providerConfig.setEmbeddingProvider("onnx");
+        providerConfig.getOpenai().setApiKey("test-key");
+        providerConfig.getOpenai().setModel("gpt-4o-mini");
+        providerConfig.getOpenai().setEmbeddingModel("text-embedding-3-small");
+        providerConfig.getOpenai().setMaxTokens(2000);
+        providerConfig.getOpenai().setTemperature(0.3);
+        providerConfig.getOpenai().setTimeout(60);
+        providerConfig.getOnnx().setModelAlias("text-embedding-3-small");
+        providerConfig.getOnnx().setModelPath("classpath:/models/embeddings/all-MiniLM-L6-v2.onnx");
+        providerConfig.getOnnx().setTokenizerPath("classpath:/models/embeddings/tokenizer.json");
+        providerConfig.getPinecone().setApiKey("pinecone-key");
+        providerConfig.getPinecone().setEnvironment("us-west1-gcp");
+        providerConfig.getPinecone().setIndexName("ai-infrastructure");
         configurationService = new AIConfigurationService(providerConfig, serviceConfig);
     }
     
     @Test
     void testGetConfiguration() {
         // Given
-        when(providerConfig.getOpenaiApiKey()).thenReturn("test-key");
-        when(providerConfig.getOpenaiModel()).thenReturn("gpt-4o-mini");
-        when(providerConfig.getOpenaiEmbeddingModel()).thenReturn("text-embedding-3-small");
-        when(providerConfig.getPineconeApiKey()).thenReturn("pinecone-key");
-        when(providerConfig.getPineconeEnvironment()).thenReturn("us-west1-gcp");
-        when(providerConfig.getPineconeIndexName()).thenReturn("ai-infrastructure");
-        
         when(serviceConfig.isEnabled()).thenReturn(true);
         when(serviceConfig.isAutoConfiguration()).thenReturn(true);
         when(serviceConfig.isCachingEnabled()).thenReturn(true);
@@ -66,6 +73,9 @@ class AIConfigurationServiceTest {
         
         // Then
         assertNotNull(result);
+        assertEquals("openai", result.getLlmProvider());
+        assertEquals("onnx", result.getEmbeddingProvider());
+        assertNotNull(result.getProviderDetails());
         assertEquals("test-key", result.getOpenaiApiKey());
         assertEquals("gpt-4o-mini", result.getOpenaiModel());
         assertEquals("text-embedding-3-small", result.getOpenaiEmbeddingModel());
@@ -98,18 +108,14 @@ class AIConfigurationServiceTest {
     @Test
     void testGetProviderConfiguration() {
         // Given
-        when(providerConfig.getOpenaiApiKey()).thenReturn("test-key");
-        when(providerConfig.getOpenaiModel()).thenReturn("gpt-4o-mini");
-        when(providerConfig.getOpenaiEmbeddingModel()).thenReturn("text-embedding-3-small");
-        when(providerConfig.getPineconeApiKey()).thenReturn("pinecone-key");
-        when(providerConfig.getPineconeEnvironment()).thenReturn("us-west1-gcp");
-        when(providerConfig.getPineconeIndexName()).thenReturn("ai-infrastructure");
-        
         // When
         Map<String, Object> result = configurationService.getProviderConfiguration();
         
         // Then
         assertNotNull(result);
+        assertEquals("openai", result.get("llmProvider"));
+        assertEquals("onnx", result.get("embeddingProvider"));
+        assertNotNull(result.get("providerDetails"));
         assertEquals("test-key", result.get("openaiApiKey"));
         assertEquals("gpt-4o-mini", result.get("openaiModel"));
         assertEquals("text-embedding-3-small", result.get("openaiEmbeddingModel"));
@@ -195,9 +201,6 @@ class AIConfigurationServiceTest {
     @Test
     void testValidateConfiguration() {
         // Given
-        when(providerConfig.getOpenaiApiKey()).thenReturn("test-key");
-        when(providerConfig.getOpenaiModel()).thenReturn("gpt-4o-mini");
-        when(providerConfig.getOpenaiEmbeddingModel()).thenReturn("text-embedding-3-small");
         when(serviceConfig.getDefaultTimeout()).thenReturn(30000L);
         when(serviceConfig.getMaxRetries()).thenReturn(3);
         when(serviceConfig.getRetryDelay()).thenReturn(1000L);
@@ -219,9 +222,7 @@ class AIConfigurationServiceTest {
     @Test
     void testValidateConfigurationWithInvalidConfig() {
         // Given
-        when(providerConfig.getOpenaiApiKey()).thenReturn("");
-        when(providerConfig.getOpenaiModel()).thenReturn("gpt-4o-mini");
-        when(providerConfig.getOpenaiEmbeddingModel()).thenReturn("text-embedding-3-small");
+        providerConfig.getOpenai().setApiKey("");
         when(serviceConfig.getDefaultTimeout()).thenReturn(30000L);
         when(serviceConfig.getMaxRetries()).thenReturn(3);
         when(serviceConfig.getRetryDelay()).thenReturn(1000L);

@@ -99,17 +99,74 @@ public class AIHealthService {
      */
     private Map<String, Object> getProviderStatus() {
         Map<String, Object> providerStatus = new HashMap<>();
-        
+
+        providerStatus.put("llmProvider", providerConfig.getLlmProvider());
+        providerStatus.put("embeddingProvider", providerConfig.getEmbeddingProvider());
+        providerStatus.put("llmDefaults", Map.of(
+            "model", providerConfig.resolveLlmDefaults().model(),
+            "maxTokens", providerConfig.resolveLlmDefaults().maxTokens(),
+            "temperature", providerConfig.resolveLlmDefaults().temperature(),
+            "timeout", providerConfig.resolveLlmDefaults().timeoutSeconds()
+        ));
+        providerStatus.put("embeddingDefaults", Map.of(
+            "model", providerConfig.resolveEmbeddingDefaults().model()
+        ));
+
         // OpenAI status
+        AIProviderConfig.OpenAIConfig openai = providerConfig.getOpenai();
         Map<String, Object> openaiStatus = new HashMap<>();
-        openaiStatus.put("configured", providerConfig.getOpenaiApiKey() != null && !providerConfig.getOpenaiApiKey().trim().isEmpty());
-        openaiStatus.put("model", providerConfig.getOpenaiModel());
-        openaiStatus.put("embeddingModel", providerConfig.getOpenaiEmbeddingModel());
-        openaiStatus.put("maxTokens", providerConfig.getOpenaiMaxTokens());
-        openaiStatus.put("temperature", providerConfig.getOpenaiTemperature());
-        openaiStatus.put("timeout", providerConfig.getOpenaiTimeout());
+        openaiStatus.put("enabled", openai.isEnabled());
+        openaiStatus.put("apiKeyConfigured", openai.getApiKey() != null && !openai.getApiKey().isBlank());
+        openaiStatus.put("model", openai.getModel());
+        openaiStatus.put("embeddingModel", openai.getEmbeddingModel());
+        openaiStatus.put("maxTokens", openai.getMaxTokens());
+        openaiStatus.put("temperature", openai.getTemperature());
+        openaiStatus.put("timeout", openai.getTimeout());
         providerStatus.put("openai", openaiStatus);
-        
+
+        // Anthropic status
+        AIProviderConfig.AnthropicConfig anthropic = providerConfig.getAnthropic();
+        Map<String, Object> anthropicStatus = new HashMap<>();
+        anthropicStatus.put("enabled", anthropic.isEnabled());
+        anthropicStatus.put("apiKeyConfigured", anthropic.getApiKey() != null && !anthropic.getApiKey().isBlank());
+        anthropicStatus.put("model", anthropic.getModel());
+        anthropicStatus.put("maxTokens", anthropic.getMaxTokens());
+        anthropicStatus.put("temperature", anthropic.getTemperature());
+        anthropicStatus.put("timeout", anthropic.getTimeout());
+        providerStatus.put("anthropic", anthropicStatus);
+
+        // Cohere status
+        AIProviderConfig.CohereConfig cohere = providerConfig.getCohere();
+        Map<String, Object> cohereStatus = new HashMap<>();
+        cohereStatus.put("enabled", cohere.isEnabled());
+        cohereStatus.put("apiKeyConfigured", cohere.getApiKey() != null && !cohere.getApiKey().isBlank());
+        cohereStatus.put("model", cohere.getModel());
+        cohereStatus.put("embeddingModel", cohere.getEmbeddingModel());
+        cohereStatus.put("maxTokens", cohere.getMaxTokens());
+        cohereStatus.put("temperature", cohere.getTemperature());
+        cohereStatus.put("timeout", cohere.getTimeout());
+        providerStatus.put("cohere", cohereStatus);
+
+        // ONNX status
+        AIProviderConfig.ONNXConfig onnx = providerConfig.getOnnx();
+        Map<String, Object> onnxStatus = new HashMap<>();
+        onnxStatus.put("enabled", onnx.getEnabled());
+        onnxStatus.put("modelPath", onnx.getModelPath());
+        onnxStatus.put("tokenizerPath", onnx.getTokenizerPath());
+        onnxStatus.put("maxSequenceLength", onnx.getMaxSequenceLength());
+        onnxStatus.put("useGpu", onnx.getUseGpu());
+        providerStatus.put("onnx", onnxStatus);
+
+        // REST embedding status
+        AIProviderConfig.RestConfig rest = providerConfig.getRest();
+        Map<String, Object> restStatus = new HashMap<>();
+        restStatus.put("enabled", rest.isEnabled());
+        restStatus.put("baseUrl", rest.getBaseUrl());
+        restStatus.put("endpoint", rest.getEndpoint());
+        restStatus.put("timeout", rest.getTimeout());
+        restStatus.put("model", rest.getModel());
+        providerStatus.put("rest", restStatus);
+
         // Pinecone status
         Map<String, Object> pineconeStatus = new HashMap<>();
         pineconeStatus.put("configured", providerConfig.getPineconeApiKey() != null && !providerConfig.getPineconeApiKey().trim().isEmpty());

@@ -23,6 +23,9 @@ import java.util.Map;
 public class AIConfigurationDto {
     
     // Provider Configuration
+    private String llmProvider;
+    private String embeddingProvider;
+    private Map<String, Object> providerDetails;
     private String openaiApiKey;
     private String openaiModel;
     private String openaiEmbeddingModel;

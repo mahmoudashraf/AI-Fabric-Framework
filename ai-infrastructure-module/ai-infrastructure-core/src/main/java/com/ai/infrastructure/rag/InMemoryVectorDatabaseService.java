@@ -155,7 +155,7 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
                     .processingTimeMs(System.currentTimeMillis() - startTime)
                     .requestId(UUID.randomUUID().toString())
                     .query(request.getQuery())
-                    .model(config.getOpenaiEmbeddingModel())
+                    .model(config.resolveEmbeddingDefaults().model())
                     .build();
             }
             
@@ -189,7 +189,7 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
                 .processingTimeMs(processingTime)
                 .requestId(UUID.randomUUID().toString())
                 .query(request.getQuery())
-                .model(config.getOpenaiEmbeddingModel())
+                .model(config.resolveEmbeddingDefaults().model())
                 .build();
                 
         } catch (Exception e) {
@@ -218,7 +218,7 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
                     .processingTimeMs(System.currentTimeMillis() - startTime)
                     .requestId(UUID.randomUUID().toString())
                     .query("")
-                    .model(config.getOpenaiEmbeddingModel())
+                    .model(config.resolveEmbeddingDefaults().model())
                     .build();
             }
             
@@ -252,7 +252,7 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
                 .processingTimeMs(processingTime)
                 .requestId(UUID.randomUUID().toString())
                 .query("")
-                .model(config.getOpenaiEmbeddingModel())
+                .model(config.resolveEmbeddingDefaults().model())
                 .build();
                 
         } catch (Exception e) {

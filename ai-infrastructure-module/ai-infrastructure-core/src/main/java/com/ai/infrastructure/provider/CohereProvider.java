@@ -6,6 +6,8 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
@@ -32,10 +34,11 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Slf4j
 @Component
+@ConditionalOnBean(name = "cohereProviderConfig")
 @RequiredArgsConstructor
 public class CohereProvider implements AIProvider {
     
-    private final ProviderConfig config;
+    private final @Qualifier("cohereProviderConfig") ProviderConfig config;
     private final RestTemplate restTemplate;
     private final AtomicLong totalRequests = new AtomicLong(0);
     private final AtomicLong successfulRequests = new AtomicLong(0);

@@ -72,6 +72,8 @@ import org.springframework.lang.Nullable;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Auto-configuration for AI Infrastructure module
@@ -165,21 +167,29 @@ public class AIInfrastructureAutoConfiguration {
                                                  List<EmbeddingProvider> embeddingProviders,
                                                  ObjectProvider<CacheManager> cacheManagerProvider,
                                                  @Qualifier("onnxFallbackEmbeddingProvider") @Nullable EmbeddingProvider fallbackEmbeddingProvider) {
+        String requestedProvider = config.getEmbeddingProvider() != null
+            ? config.getEmbeddingProvider().toLowerCase()
+            : null;
+
         EmbeddingProvider selectedProvider = embeddingProviders.stream()
             .filter(provider -> provider != null && provider.getProviderName() != null)
-            .filter(provider -> provider.getProviderName().equalsIgnoreCase(config.getEmbeddingProvider()))
+            .filter(provider -> requestedProvider == null
+                || provider.getProviderName().equalsIgnoreCase(requestedProvider))
             .findFirst()
             .orElseGet(() -> embeddingProviders.isEmpty() ? null : embeddingProviders.get(0));
 
         String providerName = selectedProvider != null ? selectedProvider.getProviderName() : "null";
-        log.info("Creating AIEmbeddingService with provider: {}", providerName);
-        
-        // Validate that ONNX is being used (if that's what we want)
-        if (!"onnx".equals(providerName)) {
-            log.warn("WARNING: AIEmbeddingService is NOT using ONNX provider. Current provider: {}", providerName);
-            log.warn("To use ONNX, ensure ai.providers.embedding-provider=onnx in configuration");
-        } else {
-            log.info("✅ AIEmbeddingService configured to use ONNX provider (no fallback to other providers)");
+        log.info("Creating AIEmbeddingService with embedding provider '{}' (requested '{}')",
+            providerName,
+            requestedProvider != null ? requestedProvider : "unspecified");
+
+        if (selectedProvider == null) {
+            log.warn("No embedding provider matched request '{}'. Available providers: {}",
+                requestedProvider,
+                embeddingProviders.stream()
+                    .filter(Objects::nonNull)
+                    .map(EmbeddingProvider::getProviderName)
+                    .collect(Collectors.joining(", ")));
         }
         
         CacheManager cacheManager = cacheManagerProvider.getIfAvailable(NoOpCacheManager::new);
@@ -394,8 +404,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {
-        return new AIConfigurationService(serviceConfig);
+    public AIConfigurationService aiConfigurationService(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
+        return new AIConfigurationService(providerConfig, serviceConfig);
     }
     
     @Bean
@@ -427,25 +437,76 @@ public class AIInfrastructureAutoConfiguration {
         return new com.ai.infrastructure.service.AIInfrastructureProfileService(aiInfrastructureProfileRepository, aiCapabilityService);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public com.ai.infrastructure.provider.ProviderConfig providerConfig(AIProviderConfig aiProviderConfig) {
+    @Bean(name = "openAIProviderConfig")
+    @ConditionalOnProperty(prefix = "ai.providers.openai", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public com.ai.infrastructure.provider.ProviderConfig openAIProviderConfig(AIProviderConfig aiProviderConfig) {
+        AIProviderConfig.OpenAIConfig openai = aiProviderConfig.getOpenai();
+        boolean hasApiKey = openai.getApiKey() != null && !openai.getApiKey().isBlank();
+
         return com.ai.infrastructure.provider.ProviderConfig.builder()
-                .providerName("openai")
-                .apiKey(aiProviderConfig.getOpenaiApiKey())
-                .baseUrl("https://api.openai.com/v1")
-                .defaultModel(aiProviderConfig.getOpenaiModel())
-                .defaultEmbeddingModel(aiProviderConfig.getOpenaiEmbeddingModel())
-                .maxTokens(aiProviderConfig.getOpenaiMaxTokens())
-                .temperature(aiProviderConfig.getOpenaiTemperature())
-                .timeoutSeconds(aiProviderConfig.getOpenaiTimeout())
-                .maxRetries(3)
-                .retryDelayMs(1000L)
-                .rateLimitPerMinute(60)
-                .rateLimitPerDay(10000)
-                .enabled(true)
-                .priority(1)
-                .build();
+            .providerName("openai")
+            .apiKey(openai.getApiKey())
+            .baseUrl(openai.getBaseUrl())
+            .defaultModel(openai.getModel())
+            .defaultEmbeddingModel(openai.getEmbeddingModel())
+            .maxTokens(openai.getMaxTokens())
+            .temperature(openai.getTemperature())
+            .timeoutSeconds(openai.getTimeout())
+            .maxRetries(3)
+            .retryDelayMs(1000L)
+            .rateLimitPerMinute(60)
+            .rateLimitPerDay(10_000)
+            .enabled(openai.isEnabled() && hasApiKey)
+            .priority(openai.getPriority())
+            .build();
+    }
+
+    @Bean(name = "cohereProviderConfig")
+    @ConditionalOnProperty(prefix = "ai.providers.cohere", name = "enabled", havingValue = "true")
+    public com.ai.infrastructure.provider.ProviderConfig cohereProviderConfig(AIProviderConfig aiProviderConfig) {
+        AIProviderConfig.CohereConfig cohere = aiProviderConfig.getCohere();
+        boolean hasApiKey = cohere.getApiKey() != null && !cohere.getApiKey().isBlank();
+
+        return com.ai.infrastructure.provider.ProviderConfig.builder()
+            .providerName("cohere")
+            .apiKey(cohere.getApiKey())
+            .baseUrl(cohere.getBaseUrl())
+            .defaultModel(cohere.getModel())
+            .defaultEmbeddingModel(cohere.getEmbeddingModel())
+            .maxTokens(cohere.getMaxTokens())
+            .temperature(cohere.getTemperature())
+            .timeoutSeconds(cohere.getTimeout())
+            .maxRetries(3)
+            .retryDelayMs(1000L)
+            .rateLimitPerMinute(60)
+            .rateLimitPerDay(10_000)
+            .enabled(cohere.isEnabled() && hasApiKey)
+            .priority(cohere.getPriority())
+            .build();
+    }
+
+    @Bean(name = "anthropicProviderConfig")
+    @ConditionalOnProperty(prefix = "ai.providers.anthropic", name = "enabled", havingValue = "true")
+    public com.ai.infrastructure.provider.ProviderConfig anthropicProviderConfig(AIProviderConfig aiProviderConfig) {
+        AIProviderConfig.AnthropicConfig anthropic = aiProviderConfig.getAnthropic();
+        boolean hasApiKey = anthropic.getApiKey() != null && !anthropic.getApiKey().isBlank();
+
+        return com.ai.infrastructure.provider.ProviderConfig.builder()
+            .providerName("anthropic")
+            .apiKey(anthropic.getApiKey())
+            .baseUrl(anthropic.getBaseUrl())
+            .defaultModel(anthropic.getModel())
+            .defaultEmbeddingModel(null)
+            .maxTokens(anthropic.getMaxTokens())
+            .temperature(anthropic.getTemperature())
+            .timeoutSeconds(anthropic.getTimeout())
+            .maxRetries(3)
+            .retryDelayMs(1000L)
+            .rateLimitPerMinute(60)
+            .rateLimitPerDay(10_000)
+            .enabled(anthropic.isEnabled() && hasApiKey)
+            .priority(anthropic.getPriority())
+            .build();
     }
 
     private CacheConfig resolveCacheConfig(AIServiceConfig serviceConfig) {
