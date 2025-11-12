@@ -16,6 +16,7 @@
     <modules>
         <module>ai-infrastructure-core</module>
         <module>ai-infrastructure-onnx-starter</module>
+        <module>ai-infrastructure-relationship-query</module>
         <module>integration-tests</module>
     </modules>
 
@@ -51,6 +52,13 @@
             <dependency>
                 <groupId>com.ai.infrastructure</groupId>
                 <artifactId>ai-infrastructure-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            
+            <!-- AI Infrastructure Relationship Query Module -->
+            <dependency>
+                <groupId>com.ai.infrastructure</groupId>
+                <artifactId>ai-infrastructure-relationship-query</artifactId>
                 <version>${project.version}</version>
             </dependency>
             
