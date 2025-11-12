@@ -7,7 +7,7 @@ All aspects of the modular provider architecture have been documented. Here's wh
 ## 📚 Documentation Files Created
 
 ### Main Architecture Document
-1. **`AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md`** (Root)
+1. **`AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md`**
    - Complete architecture plan
    - Module structure
    - Code examples for all provider types
@@ -15,7 +15,7 @@ All aspects of the modular provider architecture have been documented. Here's wh
    - Migration checklist
    - **799 lines**
 
-### Documentation in `/docs` Folder
+### Documentation in `/docs/MODULE_AI_PROVIDERS` Folder
 
 2. **`QUICK_START_GUIDE.md`**
    - 5-minute quick start
