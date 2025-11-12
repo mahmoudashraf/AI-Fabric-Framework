@@ -6,7 +6,7 @@ This index provides quick access to all documentation related to the modular pro
 
 ## Main Documentation
 
-### 1. [AI Provider Modular Architecture Plan](../AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md)
+### 1. [AI Provider Modular Architecture Plan](AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md)
 **Primary architecture document** - Complete plan for modular provider architecture
 - Architecture overview
 - Module structure
@@ -66,7 +66,7 @@ This index provides quick access to all documentation related to the modular pro
 
 ### For Developers
 1. Start with: [Quick Start Guide](QUICK_START_GUIDE.md)
-2. Read: [AI Provider Modular Architecture Plan](../AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md)
+2. Read: [AI Provider Modular Architecture Plan](AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md)
 3. Reference: [Configuration Reference](CONFIGURATION_REFERENCE.md)
 4. Create custom: [Developer Guide: Custom Providers](DEVELOPER_GUIDE_CUSTOM_PROVIDERS.md)
 
@@ -80,7 +80,7 @@ This index provides quick access to all documentation related to the modular pro
 2. Reference: [Configuration Reference](CONFIGURATION_REFERENCE.md)
 
 ### For Architects
-1. Read: [AI Provider Modular Architecture Plan](../AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md)
+1. Read: [AI Provider Modular Architecture Plan](AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md)
 2. Review: [Vector Database Modular Architecture](VECTOR_DATABASE_MODULAR_ARCHITECTURE.md)
 3. Understand: [Developer Guide: Custom Providers](DEVELOPER_GUIDE_CUSTOM_PROVIDERS.md)
 
@@ -91,7 +91,7 @@ This index provides quick access to all documentation related to the modular pro
 - [Configuration Reference](CONFIGURATION_REFERENCE.md) - All options
 
 ### Implementation
-- [AI Provider Modular Architecture Plan](../AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md) - Complete plan
+- [AI Provider Modular Architecture Plan](AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md) - Complete plan
 - [Developer Guide: Custom Providers](DEVELOPER_GUIDE_CUSTOM_PROVIDERS.md) - Create providers
 
 ### Migration
@@ -141,13 +141,13 @@ A: Yes! See [Quick Start Guide](QUICK_START_GUIDE.md) for examples.
 ## Related Documentation
 
 ### Existing Documentation
-- [EMBEDDING_PROVIDER_CONFIGURATION.md](EMBEDDING_PROVIDER_CONFIGURATION.md) - Embedding providers
-- [VECTOR_DATABASE_ABSTRACTION.md](VECTOR_DATABASE_ABSTRACTION.md) - Vector database abstraction
-- [ONNX_RUNTIME_EMBEDDINGS_GUIDE.md](ONNX_RUNTIME_EMBEDDINGS_GUIDE.md) - ONNX embeddings
+- [EMBEDDING_PROVIDER_CONFIGURATION.md](../EMBEDDING_PROVIDER_CONFIGURATION.md) - Embedding providers
+- [VECTOR_DATABASE_ABSTRACTION.md](../VECTOR_DATABASE_ABSTRACTION.md) - Vector database abstraction
+- [ONNX_RUNTIME_EMBEDDINGS_GUIDE.md](../ONNX_RUNTIME_EMBEDDINGS_GUIDE.md) - ONNX embeddings
 
 ### Test Plans
-- [PROVIDER_MANAGEMENT_TEST_PLAN.md](test-plans/PROVIDER_MANAGEMENT_TEST_PLAN.md) - Provider tests
-- [VECTOR_DATABASE_TEST_PLAN.md](test-plans/VECTOR_DATABASE_TEST_PLAN.md) - Vector DB tests
+- [PROVIDER_MANAGEMENT_TEST_PLAN.md](../test-plans/PROVIDER_MANAGEMENT_TEST_PLAN.md) - Provider tests
+- [VECTOR_DATABASE_TEST_PLAN.md](../test-plans/VECTOR_DATABASE_TEST_PLAN.md) - Vector DB tests
 
 ## Updates
 
