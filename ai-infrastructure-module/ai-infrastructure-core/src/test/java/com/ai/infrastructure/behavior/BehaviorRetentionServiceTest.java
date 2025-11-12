@@ -61,7 +61,7 @@ class BehaviorRetentionServiceTest {
 
         verify(retentionPolicyProvider).beforeBehaviorDeletion(anyList());
         verify(behaviorRepository).deleteAllInBatch(List.of(expired));
-        verify(auditService).logOperation(any(), isNull(), eq("BEHAVIOR_RETENTION"), any(), any());
+        verify(auditService).logOperation(any(), isNull(), eq("BEHAVIOR_RETENTION"), any(), any(LocalDateTime.class));
     }
 
     @Test

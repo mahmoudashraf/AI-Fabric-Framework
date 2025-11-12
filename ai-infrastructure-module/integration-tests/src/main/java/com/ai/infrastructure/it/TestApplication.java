@@ -1,9 +1,11 @@
 package com.ai.infrastructure.it;
 
+import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
@@ -31,5 +33,10 @@ public class TestApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(TestApplication.class, args);
+    }
+
+    @Bean
+    public EntityAccessPolicy testEntityAccessPolicy() {
+        return (userId, entity) -> true;
     }
 }
