@@ -5,17 +5,20 @@
 ai:
   enabled: true
   providers:
-    # Embedding Provider Configuration - ONNX ONLY (no fallback)
+    llm-provider: ${LLM_PROVIDER:test-provider}
     embedding-provider: onnx
-    onnx-model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
-    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
-    onnx-max-sequence-length: 512
-    onnx-use-gpu: false
+    enable-fallback: false
+
+    onnx:
+      enabled: true
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+      max-sequence-length: 512
+      use-gpu: false
+      model-alias: all-MiniLM-L6-v2
     
-    # DISABLE other providers - DO NOT FALLBACK
-    # REST provider will not be created unless embedding-provider=rest
-    # OpenAI provider will not be created unless embedding-provider=openai
-    # openai-api-key: ${OPENAI_API_KEY:}  # Not set - prevents OpenAI provider initialization
+    openai:
+      enabled: false
     
   # Vector Database Configuration - Memory for fast tests
   vector-db:

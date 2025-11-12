@@ -29,20 +29,27 @@ spring:
 ai:
   enabled: true
   providers:
-    # Embedding Provider Configuration (ONNX default for testing)
+    llm-provider: ${LLM_PROVIDER:openai}
     embedding-provider: ${EMBEDDING_PROVIDER:onnx}
-    onnx-model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
-    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
-    onnx-max-sequence-length: 512
-    onnx-use-gpu: false
+    enable-fallback: true
+
+    onnx:
+      enabled: true
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+      max-sequence-length: 512
+      use-gpu: false
+      model-alias: all-MiniLM-L6-v2
     
-    # OpenAI Configuration (fallback)
-    openai-api-key: ${OPENAI_API_KEY}
-    openai-model: gpt-4o-mini
-    openai-embedding-model: text-embedding-3-small
-    openai-max-tokens: 1000
-    openai-temperature: 0.3
-    openai-timeout: 30
+    openai:
+      enabled: ${OPENAI_ENABLED:true}
+      api-key: ${OPENAI_API_KEY}
+      model: gpt-4o-mini
+      embedding-model: text-embedding-3-small
+      max-tokens: 1000
+      temperature: 0.3
+      timeout: 30
+      priority: 100
     
   # Vector Database Configuration - Lucene for dev profile
   vector-db:

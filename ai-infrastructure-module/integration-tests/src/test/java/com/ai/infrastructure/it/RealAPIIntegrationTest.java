@@ -74,7 +74,7 @@ public class RealAPIIntegrationTest {
 
         if (StringUtils.hasText(apiKey)) {
             System.setProperty(OPENAI_KEY_PROPERTY, apiKey);
-            System.setProperty("ai.providers.openai-api-key", apiKey);
+            System.setProperty("ai.providers.openai.api-key", apiKey);
         }
 
         System.setProperty("EMBEDDING_PROVIDER",

@@ -28,9 +28,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
-    "ai.providers.openai-api-key=test-key",
-    "ai.providers.openai-model=gpt-4o-mini",
-    "ai.providers.openai-embedding-model=text-embedding-3-small",
+    "ai.providers.openai.api-key=test-key",
+    "ai.providers.openai.model=gpt-4o-mini",
+    "ai.providers.openai.embedding-model=text-embedding-3-small",
     "ai.service.enabled=true",
     "ai.service.auto-configuration=true",
     "easyluxury.ai.product-index-name=test-products",

@@ -49,27 +49,35 @@ ai:
   enabled: true
 
   providers:
-    # Embedding Provider Configuration (ONNX for testing, can override)
+    llm-provider: ${LLM_PROVIDER:openai}
     embedding-provider: ${EMBEDDING_PROVIDER:onnx}
-    onnx-model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
-    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
-    onnx-max-sequence-length: 512
-    onnx-use-gpu: false
+    enable-fallback: true
+
+    onnx:
+      enabled: true
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+      max-sequence-length: 512
+      use-gpu: false
+      model-alias: all-MiniLM-L6-v2
     
-    # REST Configuration (for Docker service testing)
-    rest-base-url: ${REST_EMBEDDING_URL:http://localhost:8000}
-    rest-endpoint: /embed
-    rest-batch-endpoint: /embed/batch
-    rest-timeout: 30000
-    rest-model: all-MiniLM-L6-v2
+    rest:
+      enabled: ${REST_EMBEDDING_ENABLED:false}
+      base-url: ${REST_EMBEDDING_URL:http://localhost:8000}
+      endpoint: /embed
+      batch-endpoint: /embed/batch
+      timeout: 30000
+      model: all-MiniLM-L6-v2
     
-    # OpenAI Configuration (can be overridden by environment variables)
-    openai-api-key: ${OPENAI_API_KEY:test-key}
-    openai-model: ${OPENAI_MODEL:gpt-3.5-turbo}
-    openai-embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-ada-002}
-    openai-max-tokens: ${OPENAI_MAX_TOKENS:1000}
-    openai-temperature: ${OPENAI_TEMPERATURE:0.3}
-    openai-timeout: ${OPENAI_TIMEOUT:60}
+    openai:
+      enabled: ${OPENAI_ENABLED:true}
+      api-key: ${OPENAI_API_KEY:test-key}
+      model: ${OPENAI_MODEL:gpt-3.5-turbo}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-ada-002}
+      max-tokens: ${OPENAI_MAX_TOKENS:1000}
+      temperature: ${OPENAI_TEMPERATURE:0.3}
+      timeout: ${OPENAI_TIMEOUT:60}
+      priority: 100
   
   # Infrastructure Configuration
   config:

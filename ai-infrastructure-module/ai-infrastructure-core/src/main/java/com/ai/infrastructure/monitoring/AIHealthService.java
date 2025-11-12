@@ -150,7 +150,7 @@ public class AIHealthService {
         // ONNX status
         AIProviderConfig.ONNXConfig onnx = providerConfig.getOnnx();
         Map<String, Object> onnxStatus = new HashMap<>();
-        onnxStatus.put("enabled", onnx.getEnabled());
+        onnxStatus.put("enabled", onnx.isEnabled());
         onnxStatus.put("modelPath", onnx.getModelPath());
         onnxStatus.put("tokenizerPath", onnx.getTokenizerPath());
         onnxStatus.put("maxSequenceLength", onnx.getMaxSequenceLength());

@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * @version 1.0.0
  */
 @Slf4j
-@Service
+@Service("ragService")
 @RequiredArgsConstructor
 public class RAGService {
     

@@ -3,8 +3,8 @@ package com.ai.infrastructure.service;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIServiceConfig;
 import com.ai.infrastructure.dto.AIConfigurationDto;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -21,11 +21,27 @@ import java.util.Map;
  */
 @Slf4j
 @Service("aiServiceConfigurationService")
-@RequiredArgsConstructor
 public class AIConfigurationService {
     
     private final AIProviderConfig providerConfig;
     private final AIServiceConfig serviceConfig;
+    
+    @Autowired
+    public AIConfigurationService(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
+        this.providerConfig = providerConfig;
+        this.serviceConfig = serviceConfig;
+    }
+    
+    /**
+     * Legacy constructor retained for compatibility with downstream modules still providing only
+     * {@link AIServiceConfig}. A default {@link AIProviderConfig} instance will be created.
+     *
+     * @deprecated prefer {@link #AIConfigurationService(AIProviderConfig, AIServiceConfig)}
+     */
+    @Deprecated
+    public AIConfigurationService(AIServiceConfig serviceConfig) {
+        this(new AIProviderConfig(), serviceConfig);
+    }
     
     /**
      * Get complete AI configuration

@@ -31,11 +31,13 @@ class PineconeVectorDatabaseServiceTest {
     @BeforeEach
     void setUp() {
         AIProviderConfig config = new AIProviderConfig();
-        config.setPineconeApiKey("test-key");
-        config.setPineconeApiHost("https://mock-pinecone.test");
-        config.setPineconeIndexName("test-index");
-        config.setPineconeEnvironment("test-env");
-        config.setPineconeDimensions(3);
+        AIProviderConfig.PineconeConfig pinecone = config.getPinecone();
+        pinecone.setEnabled(true);
+        pinecone.setApiKey("test-key");
+        pinecone.setApiHost("https://mock-pinecone.test");
+        pinecone.setIndexName("test-index");
+        pinecone.setEnvironment("test-env");
+        pinecone.setDimensions(3);
 
         RestTemplate restTemplate = new RestTemplate();
         service = new PineconeVectorDatabaseService(config, restTemplate);
