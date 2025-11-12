@@ -1,16 +1,17 @@
 package com.ai.infrastructure.deletion;
 
-import com.ai.infrastructure.audit.AIAuditLog;
 import com.ai.infrastructure.audit.AIAuditService;
 import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider.UserEntityReference;
 import com.ai.infrastructure.entity.Behavior;
+import com.ai.infrastructure.dto.AIAuditLog;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.repository.BehaviorRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -90,7 +91,7 @@ class UserDataDeletionServiceTest {
         verify(searchableEntityRepository).deleteByEntityTypeAndEntityId("doc", "id-1");
         verify(aiAuditService).clearAuditLogs(USER_ID);
         verify(provider).notifyAfterDeletion(USER_ID);
-        verify(auditService).logOperation(any(), eq(USER_ID), eq("USER_DATA_DELETION"), any(), any());
+        verify(auditService).logOperation(any(), eq(USER_ID), eq("USER_DATA_DELETION"), any(), any(LocalDateTime.class));
     }
 
     @Test
