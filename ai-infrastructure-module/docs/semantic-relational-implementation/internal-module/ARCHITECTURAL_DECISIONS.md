@@ -206,107 +206,135 @@ public class QueryOptions {
 
 ---
 
-## 🎯 Decision 4: Mode Selection - Hybrid with Priority
+## 🎯 Decision 4: Mode Selection - LLM-Based Auto-Detection
 
 ### **Decision:**
-**Hybrid approach: Configuration default + Query override + Auto-detection**
-
-### **Priority Order:**
-
-1. **Explicit Query Option** (highest priority)
-   ```java
-   QueryOptions.builder().mode(QueryMode.ENHANCED).build()
-   ```
-
-2. **Auto-Detection** (if enabled)
-   ```java
-   // Keyword or LLM-based detection
-   ```
-
-3. **Configuration Default** (fallback)
-   ```yaml
-   default-mode: standalone
-   ```
+**Always use LLM-based auto-detection** - LLM decides if semantic search is needed
 
 ### **Rationale:**
 
-#### **Benefits:**
-- ✅ **Simple by default** - No parameters needed
-- ✅ **Flexible when needed** - Can override
-- ✅ **Smart auto-detection** - Optimizes automatically
-- ✅ **Cost optimization** - Use vectors selectively
-- ✅ **Performance tuning** - Choose best mode per query
+#### **Key Insight:**
+- ✅ **LLM already analyzes query** - Can determine if semantic search needed
+- ✅ **Simpler configuration** - No mode selection needed
+- ✅ **Intelligent decision** - LLM understands query intent
+- ✅ **Cost efficient** - Only uses vectors when needed
+- ✅ **No manual configuration** - Fully automatic
+
+### **How It Works:**
+
+```java
+// LLM analyzes query and generates plan
+RelationshipQueryPlan plan = llmPlanner.planQuery(query);
+
+// Plan includes: needsSemanticSearch flag
+{
+  "primaryEntityType": "document",
+  "needsSemanticSearch": true,  // LLM decides!
+  "semanticQuery": "data privacy regulations",
+  "relationshipPaths": [...],
+  "relationshipFilters": {...}
+}
+
+// Service uses plan to determine mode
+if (plan.isNeedsSemanticSearch() && isVectorSearchAvailable()) {
+    // Use enhanced mode (relational + semantic)
+    return executeEnhanced(query, plan);
+} else {
+    // Use standalone mode (relational only)
+    return executeStandalone(query, plan);
+}
+```
+
+### **LLM Decision Logic:**
+
+**LLM analyzes query and determines:**
+
+**Needs Semantic Search (ENHANCED):**
+- "Find similar products"
+- "Show me documents like this"
+- "Find related cases"
+- Queries about similarity, recommendations, content matching
+
+**Relational Only (STANDALONE):**
+- "Find orders from active customers"
+- "Show me users who haven't logged in"
+- "List products in category X"
+- Structured queries with exact filters
 
 ### **Configuration:**
 ```yaml
 ai:
   infrastructure:
     relationship:
-      # Default mode for all queries
-      default-mode: standalone  # or "enhanced", "auto"
+      # Auto-detection always enabled (no config needed)
+      # LLM decides if semantic search is needed
       
-      # Auto-detection
-      auto-detect-mode: true
-      auto-detect-strategy: keyword  # or "llm"
-      
-      # Vector search (only if enhanced)
-      enable-vector-search: false
+      # Vector search settings (only if LLM decides to use vectors)
+      default-similarity-threshold: 0.7
+      enable-vector-search: true  # Enable vector capability (LLM decides when to use)
 ```
 
-### **Query Modes:**
+### **Query Options (Optional Override):**
+
 ```java
-public enum QueryMode {
-    STANDALONE,  // Relational only (no vectors)
-    ENHANCED,    // Relational + semantic (with vectors)
-    AUTO         // Auto-detect based on query
+public class QueryOptions {
+    // Optional: Force mode (rarely needed)
+    private QueryMode forceMode;  // null = auto-detect via LLM
+    
+    // Other options...
 }
+
+// Usage (usually not needed):
+queryService.executeQuery(query, 
+    QueryOptions.builder()
+        .forceMode(QueryMode.STANDALONE)  // Override LLM decision (rare)
+        .build()
+);
 ```
 
 ### **Implementation:**
 ```java
-private QueryMode determineMode(String query, QueryOptions options) {
-    // Priority 1: Explicit query option
-    if (options.getMode() != null && options.getMode() != QueryMode.AUTO) {
-        return options.getMode();
+private QueryMode determineMode(RelationshipQueryPlan plan, QueryOptions options) {
+    // Priority 1: Explicit override (rarely used)
+    if (options.getForceMode() != null) {
+        return options.getForceMode();
     }
     
-    // Priority 2: Auto-detection (if enabled)
-    if (config.isAutoDetectMode() || options.getMode() == QueryMode.AUTO) {
-        QueryMode detected = autoDetectMode(query);
-        if (detected != null) {
-            return detected;
-        }
-    }
-    
-    // Priority 3: Configuration default
-    return config.getDefaultMode();
+    // Priority 2: LLM decision (default)
+    return plan.isNeedsSemanticSearch() ? QueryMode.ENHANCED : QueryMode.STANDALONE;
 }
 ```
 
-### **Auto-Detection Strategy:**
+### **LLM Prompt Enhancement:**
+
 ```java
-private QueryMode autoDetectMode(String query) {
-    String lower = query.toLowerCase();
+// Enhanced prompt for LLM
+String prompt = """
+    Analyze this query and determine:
+    1. What entities are involved?
+    2. What relationships need to be traversed?
+    3. Does this query need semantic similarity search?
+       - YES if query asks for "similar", "like", "related", "recommend"
+       - NO if query asks for exact matches, filters, aggregations
     
-    // Semantic search indicators
-    if (lower.matches(".*(similar|like|related|recommend).*")) {
-        return QueryMode.ENHANCED;  // Needs vectors
+    Query: "Find documents similar to this one from active users"
+    
+    Response:
+    {
+      "needsSemanticSearch": true,
+      "semanticQuery": "documents similar to this one",
+      "relationshipPaths": [...],
+      "relationshipFilters": {"user.status": "active"}
     }
-    
-    // Structured query indicators
-    if (lower.matches(".*(from|where|with|by|in|for).*")) {
-        return QueryMode.STANDALONE;  // Pure relational
-    }
-    
-    return null;  // Fall back to default
-}
+    """;
 ```
 
 ### **Impact:**
-- ✅ Simple defaults for basic users
-- ✅ Maximum flexibility for advanced users
-- ✅ Smart auto-detection for everyone
-- ✅ Cost optimization (use vectors selectively)
+- ✅ **Simpler** - No mode configuration needed
+- ✅ **Intelligent** - LLM decides automatically
+- ✅ **Cost efficient** - Only uses vectors when needed
+- ✅ **User-friendly** - Just describe what you want
+- ✅ **Less configuration** - Fewer settings to manage
 
 ---
 
@@ -424,13 +452,11 @@ ai:
       # Enable relationship queries
       enabled: true
       
-      # Mode selection
-      default-mode: standalone  # or "enhanced", "auto"
-      auto-detect-mode: true
-      auto-detect-strategy: keyword  # or "llm"
+      # Mode selection: ALWAYS auto-detect via LLM
+      # No configuration needed - LLM decides if semantic search is needed
       
-      # Vector search (only if enhanced)
-      enable-vector-search: false
+      # Vector search settings (only used if LLM decides semantic search is needed)
+      enable-vector-search: true  # Enable vector capability
       default-similarity-threshold: 0.7
       
       # Return strategy
@@ -467,18 +493,24 @@ public class RelationshipQueryService {
 
 ```java
 public class QueryOptions {
-    private QueryMode mode;  // null = use default/auto
+    private QueryMode forceMode;  // null = auto-detect via LLM (default)
     private ReturnMode returnMode = ReturnMode.IDS;  // Default: IDs
-    private Boolean enableVectorSearch;  // null = use default
     private Double similarityThreshold;  // null = use default
     
     public static QueryOptions defaults() {
         return QueryOptions.builder().build();
     }
     
-    public static QueryOptions auto() {
+    // Usually not needed - LLM auto-detects
+    public static QueryOptions forceStandalone() {
         return QueryOptions.builder()
-            .mode(QueryMode.AUTO)
+            .forceMode(QueryMode.STANDALONE)
+            .build();
+    }
+    
+    public static QueryOptions forceEnhanced() {
+        return QueryOptions.builder()
+            .forceMode(QueryMode.ENHANCED)
             .build();
     }
 }
@@ -487,26 +519,24 @@ public class QueryOptions {
 ### **Usage Examples:**
 
 ```java
-// Simple (uses all defaults)
+// Simple (LLM auto-detects mode)
 RAGResponse response = queryService.executeQuery(query, entityTypes);
+// LLM analyzes query and decides:
+// - "Find similar products" → ENHANCED (needs vectors)
+// - "Find orders from customers" → STANDALONE (relational only)
 
-// Override mode
-response = queryService.executeQuery(query, entityTypes,
-    QueryOptions.builder()
-        .mode(QueryMode.ENHANCED)
-        .build()
-);
-
-// Request full data
+// Request full data (optional)
 response = queryService.executeQuery(query, entityTypes,
     QueryOptions.builder()
         .returnMode(ReturnMode.FULL)
         .build()
 );
 
-// Auto-detect mode
+// Force mode (rarely needed - override LLM decision)
 response = queryService.executeQuery(query, entityTypes,
-    QueryOptions.auto()
+    QueryOptions.builder()
+        .forceMode(QueryMode.STANDALONE)  // Override LLM
+        .build()
 );
 ```
 
@@ -530,9 +560,9 @@ response = queryService.executeQuery(query, entityTypes,
 - **Impact:** Better performance, caller control
 
 ### **4. Mode Selection** ✅
-- **Decision:** Hybrid (config default + query override + auto-detect)
-- **Why:** Simple defaults, flexible when needed, smart detection
-- **Impact:** Best of all worlds
+- **Decision:** LLM-based auto-detection (always enabled)
+- **Why:** LLM already analyzes query, can determine if semantic search needed
+- **Impact:** Simpler configuration, intelligent automatic decisions
 
 ### **5. JPQL Generation** ✅
 - **Decision:** LLM plans, Builder generates
@@ -544,11 +574,11 @@ response = queryService.executeQuery(query, entityTypes,
 ## 🎯 Design Principles
 
 1. **Simplicity First** - Sensible defaults, no parameters needed
-2. **Flexibility When Needed** - Can override defaults
+2. **Intelligence** - LLM auto-detects what's needed (semantic vs relational)
 3. **Reliability** - Deterministic generation where possible
-4. **Intelligence** - LLM for understanding, code for execution
+4. **Separation of Concerns** - LLM understands, code executes
 5. **Performance** - Efficient by default, optimize when needed
-6. **Cost Efficiency** - Use expensive operations (LLM, vectors) selectively
+6. **Cost Efficiency** - LLM decides when to use expensive operations (vectors)
 
 ---
 
@@ -558,14 +588,14 @@ response = queryService.executeQuery(query, entityTypes,
 User Query
     ↓
 [LLM Planning] → RelationshipQueryPlan (intelligent)
-    ↓
-[Mode Selection] → STANDALONE or ENHANCED (hybrid)
+    ↓ (LLM decides)
+[Mode Selection] → STANDALONE or ENHANCED (auto-detected)
     ↓
 [JPA Query Builder] → JPQL Query (reliable)
     ↓
 [Execute JPA Query] → Entity IDs (efficient)
-    ↓ (if ENHANCED)
-[Vector Ranking] → Semantic similarity (optional)
+    ↓ (if LLM decided ENHANCED)
+[Vector Ranking] → Semantic similarity (if needed)
     ↓
 [Return Strategy] → IDs or Full Data (flexible)
     ↓

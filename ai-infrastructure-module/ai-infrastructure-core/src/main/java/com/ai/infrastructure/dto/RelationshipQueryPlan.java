@@ -61,6 +61,15 @@ public class RelationshipQueryPlan {
     private QueryStrategy strategy;
     
     /**
+     * Whether semantic search (vector similarity) is needed for this query.
+     * Determined by LLM during query planning.
+     * If true, the query will use ENHANCED mode (relational + semantic).
+     * If false, the query will use STANDALONE mode (relational only).
+     */
+    @Builder.Default
+    private Boolean needsSemanticSearch = false;
+    
+    /**
      * Confidence score for the plan (0.0 to 1.0)
      */
     @Builder.Default
