@@ -132,6 +132,269 @@ String jpql = "SELECT d FROM Document d JOIN d.createdBy u WHERE u.status = :sta
 
 ---
 
+## 🎯 Decision 2.1: Automatic Schema Introspection via JPA Metamodel
+
+### **Decision:**
+**Automatic schema introspection at startup** - Discover all @AICapable entities and their relationships, cache schema info, and provide full entity context to LLM
+
+### **Rationale:**
+
+#### **Key Requirements:**
+- ✅ **Only @AICapable entities** - Only include entities that are AI-searchable
+- ✅ **Only @AICapable relationships** - Only traverse to other @AICapable entities
+- ✅ **Startup loading** - Build schema cache at system startup (performance)
+- ✅ **Full entity context** - Pass complete entity structure with relationships to LLM
+
+#### **Why This Matters:**
+
+**Current Limitation:**
+- Schema info is hardcoded or basic
+- LLM doesn't have full context about entities
+- Relationships discovered at runtime (slower)
+
+**With Automatic Introspection:**
+- ✅ **Accurate schema** - Discovered from actual entities (no hardcoding)
+- ✅ **Complete context** - LLM sees full entity structure
+- ✅ **Better planning** - LLM makes better decisions with full info
+- ✅ **Performance** - Cached at startup (no runtime discovery overhead)
+- ✅ **Filtered scope** - Only AI-capable entities (cleaner, more relevant)
+
+### **How It Works:**
+
+#### **1. Startup Schema Discovery:**
+
+```java
+@PostConstruct
+public void initializeSchema() {
+    Metamodel metamodel = entityManager.getMetamodel();
+    
+    // Step 1: Discover all @AICapable entities
+    Set<Class<?>> aiCapableEntities = new HashSet<>();
+    for (EntityType<?> entityType : metamodel.getEntityTypes()) {
+        Class<?> javaType = entityType.getJavaType();
+        if (javaType.isAnnotationPresent(AICapable.class)) {
+            aiCapableEntities.add(javaType);
+        }
+    }
+    
+    // Step 2: Build schema for each entity
+    Map<String, EntitySchema> schemaMap = new HashMap<>();
+    for (Class<?> entityClass : aiCapableEntities) {
+        EntitySchema schema = buildEntitySchema(entityClass, metamodel, aiCapableEntities);
+        String entityType = getEntityType(entityClass);
+        schemaMap.put(entityType, schema);
+    }
+    
+    // Step 3: Cache schema
+    this.cachedSchema = schemaMap;
+}
+```
+
+#### **2. Build Entity Schema:**
+
+```java
+private EntitySchema buildEntitySchema(Class<?> entityClass, 
+                                       Metamodel metamodel,
+                                       Set<Class<?>> aiCapableEntities) {
+    EntityType<?> entityType = metamodel.entity(entityClass);
+    EntitySchema schema = new EntitySchema();
+    
+    schema.setEntityType(getEntityType(entityClass));
+    schema.setClassName(entityClass.getSimpleName());
+    schema.setFullClassName(entityClass.getName());
+    
+    // Discover relationships
+    List<RelationshipInfo> relationships = new ArrayList<>();
+    for (Attribute<?, ?> attr : entityType.getAttributes()) {
+        if (attr.isAssociation()) {
+            Class<?> targetType = attr.getJavaType();
+            
+            // Only include relationships to @AICapable entities
+            if (aiCapableEntities.contains(targetType)) {
+                RelationshipInfo rel = new RelationshipInfo();
+                rel.setFieldName(attr.getName());
+                rel.setTargetEntityType(getEntityType(targetType));
+                rel.setTargetClassName(targetType.getSimpleName());
+                rel.setRelationshipType(determineRelationshipType(attr));
+                rel.setDirection(determineDirection(attr));
+                
+                relationships.add(rel);
+            }
+        }
+    }
+    
+    schema.setRelationships(relationships);
+    
+    // Discover fields (for filters)
+    List<FieldInfo> fields = new ArrayList<>();
+    for (Attribute<?, ?> attr : entityType.getAttributes()) {
+        if (!attr.isAssociation()) {
+            FieldInfo field = new FieldInfo();
+            field.setName(attr.getName());
+            field.setType(attr.getJavaType().getSimpleName());
+            fields.add(field);
+        }
+    }
+    schema.setFields(fields);
+    
+    return schema;
+}
+```
+
+#### **3. Generate LLM Schema Description:**
+
+```java
+public String getSchemaDescription(List<String> entityTypes) {
+    StringBuilder description = new StringBuilder();
+    
+    description.append("Available AI-Capable Entities:\n\n");
+    
+    for (String entityType : entityTypes) {
+        EntitySchema schema = cachedSchema.get(entityType);
+        if (schema == null) continue;
+        
+        description.append("Entity: ").append(entityType)
+                   .append(" (Class: ").append(schema.getClassName()).append(")\n");
+        
+        // Fields
+        description.append("  Fields:\n");
+        for (FieldInfo field : schema.getFields()) {
+            description.append("    - ").append(field.getName())
+                      .append(" (").append(field.getType()).append(")\n");
+        }
+        
+        // Relationships (only to @AICapable entities)
+        description.append("  Relationships:\n");
+        for (RelationshipInfo rel : schema.getRelationships()) {
+            description.append("    - ").append(rel.getFieldName())
+                      .append(" -> ").append(rel.getTargetEntityType())
+                      .append(" (").append(rel.getRelationshipType()).append(")\n");
+        }
+        
+        description.append("\n");
+    }
+    
+    return description.toString();
+}
+```
+
+### **Example Output to LLM:**
+
+```
+Available AI-Capable Entities:
+
+Entity: document (Class: Document)
+  Fields:
+    - id (Long)
+    - title (String)
+    - content (String)
+    - status (String)
+    - createdAt (LocalDateTime)
+  Relationships:
+    - createdBy -> user (@ManyToOne)
+    - project -> project (@ManyToOne)
+    - tags -> tag (@ManyToMany)
+
+Entity: user (Class: User)
+  Fields:
+    - id (Long)
+    - email (String)
+    - name (String)
+    - status (String)
+  Relationships:
+    - documents -> document (@OneToMany)
+    - projects -> project (@OneToMany)
+
+Entity: project (Class: Project)
+  Fields:
+    - id (Long)
+    - name (String)
+    - category (String)
+    - status (String)
+  Relationships:
+    - documents -> document (@OneToMany)
+    - owner -> user (@ManyToOne)
+```
+
+### **Implementation Details:**
+
+#### **Schema Cache Structure:**
+
+```java
+public class EntitySchema {
+    private String entityType;           // "document"
+    private String className;            // "Document"
+    private String fullClassName;        // "com.example.Document"
+    private List<FieldInfo> fields;      // All non-relationship fields
+    private List<RelationshipInfo> relationships;  // Only to @AICapable entities
+}
+
+public class RelationshipInfo {
+    private String fieldName;            // "createdBy"
+    private String targetEntityType;    // "user"
+    private String targetClassName;      // "User"
+    private String relationshipType;     // "@ManyToOne", "@OneToMany", etc.
+    private RelationshipDirection direction;  // FORWARD, REVERSE, BIDIRECTIONAL
+}
+```
+
+#### **Startup Initialization:**
+
+```java
+@Component
+public class RelationshipSchemaProvider implements InitializingBean {
+    
+    private final EntityManager entityManager;
+    private Map<String, EntitySchema> cachedSchema;
+    
+    @Override
+    public void afterPropertiesSet() {
+        log.info("Initializing relationship schema cache...");
+        initializeSchema();
+        log.info("Schema cache initialized with {} entities", cachedSchema.size());
+    }
+    
+    private void initializeSchema() {
+        // Discovery logic here
+    }
+}
+```
+
+### **Benefits:**
+
+1. ✅ **Accurate** - Discovered from actual entities (no hardcoding)
+2. ✅ **Complete** - Full entity structure with all fields and relationships
+3. ✅ **Filtered** - Only @AICapable entities (cleaner, more relevant)
+4. ✅ **Performance** - Cached at startup (no runtime overhead)
+5. ✅ **Better LLM Planning** - LLM has full context for better decisions
+6. ✅ **Automatic** - No manual configuration needed
+
+### **Configuration:**
+
+```yaml
+ai:
+  infrastructure:
+    relationship:
+      schema:
+        # Auto-discovery enabled by default
+        auto-discover: true
+        
+        # Refresh schema on startup (default: true)
+        refresh-on-startup: true
+        
+        # Log discovered schema (for debugging)
+        log-schema: false
+```
+
+### **Impact:**
+- ✅ **Better LLM understanding** - Full entity context
+- ✅ **More accurate queries** - LLM knows actual relationships
+- ✅ **Faster queries** - No runtime schema discovery
+- ✅ **Cleaner scope** - Only AI-capable entities
+- ✅ **Automatic** - No manual schema configuration
+
+---
+
 ## 🎯 Decision 3: Return Strategy - Hybrid
 
 ### **Decision:**
@@ -590,6 +853,11 @@ response = queryService.executeQuery(query, entityTypes,
 - **Why:** Relationships exist independently, no annotations needed
 - **Impact:** Works with pure JPA entities
 
+### **2.1. Automatic Schema Introspection** ✅
+- **Decision:** Discover @AICapable entities and relationships at startup, cache schema, provide full context to LLM
+- **Why:** Accurate schema discovery, better LLM planning, performance (cached), filtered scope (only AI-capable)
+- **Impact:** Better LLM understanding, more accurate queries, automatic (no manual config)
+
 ### **3. Return Strategy** ✅
 - **Decision:** IDs by default, full data optional
 - **Why:** Efficient by default, flexible when needed
@@ -649,7 +917,16 @@ Results
 
 ### **Relationship Traversal:**
 - ✅ JPA Metamodel (always works)
+- ✅ Automatic schema introspection (startup discovery)
+- ✅ Only @AICapable entities and relationships
 - ✅ Metadata (optional enhancement)
+
+### **Schema Discovery:**
+- ✅ Automatic at startup (via JPA Metamodel)
+- ✅ Only @AICapable entities included
+- ✅ Only relationships to @AICapable entities
+- ✅ Cached for performance
+- ✅ Full entity context provided to LLM
 
 ### **Query Generation:**
 - ✅ LLM plans (intelligent)
