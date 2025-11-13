@@ -11,7 +11,7 @@ import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIMetricsService;
-import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
+import com.ai.infrastructure.vector.memory.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.service.BehaviorService;

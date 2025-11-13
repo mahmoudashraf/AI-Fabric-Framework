@@ -18,12 +18,12 @@ ai-infrastructure-module/
 
 ## Current State
 
-**Current**: Vector database implementations are in `ai-infrastructure-core`:
-- `LuceneVectorDatabaseService`
-- `PineconeVectorDatabaseService`
-- `InMemoryVectorDatabaseService`
+**Current**: Vector database implementations now reside in dedicated modules:
+- `ai-infrastructure-vector-lucene` (Lucene)
+- `ai-infrastructure-vector-pinecone` (Pinecone)
+- `ai-infrastructure-vector-memory` (In-Memory test support)
 
-**Target**: Move each to its own module
+**Next**: Add remaining optional modules (Weaviate, Qdrant, Milvus) following the same pattern.
 
 ## Vector Database Module Template
 
@@ -192,10 +192,11 @@ ai:
 
 ## Migration Steps
 
-1. **Move existing implementations** from core to modules
-2. **Create auto-configuration** for each vector database
-3. **Update parent POM** to include new modules
-4. **Update tests** to use new modules
+1. [x] **Move existing implementations** from core to modules
+2. [x] **Create auto-configuration** for each vector database
+3. [x] **Update parent POM** to include new modules
+4. [x] **Update tests** to use new modules
+5. [ ] **Implement additional providers** (Weaviate, Qdrant, Milvus)
 
 ## Benefits
 

@@ -756,21 +756,22 @@ ai:
 - [ ] Phase 1: Refactor Core
   - [ ] Update `AIProviderConfig` with `llmProvider` and `embeddingProvider`
   - [ ] Update `AIProviderManager` to select LLM provider
-  - [ ] Update `AIEmbeddingService` to select embedding provider independently
-  - [ ] Remove hardcoded provider dependencies from core
+  - [x] Update `AIEmbeddingService` to select embedding provider independently
+  - [x] Remove hardcoded provider dependencies from core
 
-- [ ] Phase 2: Create OpenAI Provider Module
-  - [ ] Create module structure
-  - [ ] Move `OpenAIProvider` from core
-  - [ ] Move `OpenAIEmbeddingProvider` from core
-  - [ ] Create `OpenAIAutoConfiguration` (creates both beans)
+- [x] Phase 2: Create OpenAI Provider Module
+  - [x] Create module structure
+  - [x] Move `OpenAIProvider` from core
+  - [x] Move `OpenAIEmbeddingProvider` from core
+  - [x] Create `OpenAIAutoConfiguration` (creates both beans)
   - [ ] Test independent selection
 
 - [ ] Phase 3: Create Additional Provider Modules
+  - [x] REST module (Embeddings only)
   - [ ] Azure module (LLM + Embeddings)
-  - [ ] Anthropic module (LLM only)
-  - [ ] Cohere module (LLM + Embeddings)
-  - [ ] Update ONNX module (Embeddings only)
+  - [x] Anthropic module (LLM only)
+  - [x] Cohere module (LLM + Embeddings)
+  - [x] Update ONNX module (Embeddings only)
 
 - [ ] Phase 4: Update Integration Tests
   - [ ] Test LLM=OpenAI, Embedding=ONNX

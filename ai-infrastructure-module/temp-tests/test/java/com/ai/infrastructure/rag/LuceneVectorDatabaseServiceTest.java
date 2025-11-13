@@ -3,6 +3,7 @@ package com.ai.infrastructure.rag;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
+import com.ai.infrastructure.vector.lucene.LuceneVectorDatabaseService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

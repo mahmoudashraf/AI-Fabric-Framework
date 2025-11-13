@@ -6,7 +6,7 @@ import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
-import com.ai.infrastructure.rag.LuceneVectorDatabaseService;
+import com.ai.infrastructure.vector.lucene.LuceneVectorDatabaseService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import org.junit.jupiter.api.AfterEach;

@@ -1,1 +1,1 @@
-com.ai.infrastructure.onnxstarter.ONNXStarterAutoConfiguration
+com.ai.infrastructure.provider.onnx.ONNXAutoConfiguration

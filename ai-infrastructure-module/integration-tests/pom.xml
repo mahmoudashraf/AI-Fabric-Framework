@@ -29,6 +29,35 @@
             <artifactId>ai-infrastructure-core</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-cohere</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-anthropic</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-lucene</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-pinecone</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-memory</artifactId>
+        </dependency>
+
         <!-- Optional ONNX starter to supply bundled model/tokenizer assets -->
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
