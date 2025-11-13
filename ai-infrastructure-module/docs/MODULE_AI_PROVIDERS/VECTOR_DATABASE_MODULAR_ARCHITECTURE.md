@@ -24,9 +24,9 @@ ai-infrastructure-module/
 - `ai-infrastructure-vector-memory` (In-Memory test support)
 - `ai-infrastructure-vector-weaviate` (Weaviate HTTP API)
 - `ai-infrastructure-vector-qdrant` (Qdrant REST API)
-- `ai-infrastructure-vector-milvus` (Milvus placeholder)
+- `ai-infrastructure-vector-milvus` (Milvus gRPC SDK)
 
-**Next**: Harden the Milvus connector by wiring the official Java SDK once a Milvus cluster is available for integration testing.
+**Next**: Stand up a Milvus cluster (Testcontainers or shared infra) and record smoke-test scripts so the module can be exercised in CI and staging.
 
 ## Module Implementations
 
@@ -41,8 +41,8 @@ ai-infrastructure-module/
 - Configuration block (`ai.qdrant`): `host`, `port`, optional `apiKey`, timeout, and `preferGrpc` flag (reserved for future gRPC integration).
 
 ### Milvus (`ai-infrastructure-vector-milvus`)
-- Ships as a guarded placeholder so projects can start wiring Milvus-specific configuration.
-- Throws a descriptive `AIServiceException` for each operation until the official Milvus Java SDK is integrated.
+- Uses the official Milvus Java SDK over gRPC to create collections, upsert vectors, run similarity search, and manage metadata.
+- Lazily provisions collections per entity type, creating IVF_FLAT indexes and loading them automatically.
 - Configuration block (`ai.milvus`): `host`, `port`, `username`, `password`, `databaseName`, `secure`, `timeout`.
 
 Each module contributes an auto-configuration entry under `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`, exposing both the raw delegate (`VectorDatabaseService` implementation) and the shared `SearchableEntityVectorDatabaseService` wrapper when selected with `ai.vector-db.type`.
@@ -86,7 +86,7 @@ ai:
 4. [x] **Update tests** to use new modules
 5. [x] **Implement Weaviate integration**
 6. [x] **Implement Qdrant integration**
-7. [ ] **Finalize Milvus integration (SDK wiring + tests)**
+7. [x] **Finalize Milvus integration (SDK wiring + tests)**
 
 ## Benefits
 
@@ -102,7 +102,7 @@ The next vector integrations share the same packaging conventions used for Lucen
 
 | Module | Primary Dependency | Notes | Target Stories |
 | --- | --- | --- | --- |
-| `ai-infrastructure-vector-milvus` | `io.milvus:milvus-sdk-java` (planned) | Placeholder shipped; integrate SDK when Milvus cluster access is available. | Wire SDK client, implement CRUD/search parity, add smoke tests via Testcontainers. |
+| `ai-infrastructure-vector-milvus` | `io.milvus:milvus-sdk-java` | Add automated smoke tests and CI profile once a Milvus container/cluster is available. | Testcontainers profile, sample dataset + documentation, monitoring hooks. |
 
 ### Implementation Checklist (per module)
 
