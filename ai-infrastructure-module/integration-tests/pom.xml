@@ -61,6 +61,18 @@
             <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-vector-memory</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-milvus</artifactId>
+        </dependency>
 
         <!-- Optional ONNX starter to supply bundled model/tokenizer assets -->
         <dependency>

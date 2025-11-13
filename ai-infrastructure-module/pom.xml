@@ -24,6 +24,9 @@
         <module>ai-infrastructure-vector-lucene</module>
         <module>ai-infrastructure-vector-pinecone</module>
         <module>ai-infrastructure-vector-memory</module>
+        <module>ai-infrastructure-vector-weaviate</module>
+        <module>ai-infrastructure-vector-qdrant</module>
+        <module>ai-infrastructure-vector-milvus</module>
         <module>integration-tests</module>
     </modules>
 
@@ -103,6 +106,21 @@
             <dependency>
                 <groupId>com.ai.infrastructure</groupId>
                 <artifactId>ai-infrastructure-vector-memory</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.infrastructure</groupId>
+                <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.infrastructure</groupId>
+                <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.infrastructure</groupId>
+                <artifactId>ai-infrastructure-vector-milvus</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

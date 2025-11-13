@@ -50,6 +50,9 @@ public class AIProviderConfig {
     private final ONNXConfig onnx = new ONNXConfig();
     private final RestConfig rest = new RestConfig();
     private final PineconeConfig pinecone = new PineconeConfig();
+    private final WeaviateConfig weaviate = new WeaviateConfig();
+    private final QdrantConfig qdrant = new QdrantConfig();
+    private final MilvusConfig milvus = new MilvusConfig();
 
     /**
      * Resolve defaults for the configured primary LLM provider.
@@ -237,6 +240,40 @@ public class AIProviderConfig {
         EmbeddingDefaults toEmbeddingDefaults(String providerName) {
             return new EmbeddingDefaults(providerName, modelAlias);
         }
+    }
+
+    @Data
+    public static class WeaviateConfig {
+        private boolean enabled;
+        private String scheme = "https";
+        private String host;
+        private Integer port = 443;
+        private String apiKey;
+        private Integer timeout = 30;
+        private Boolean consistencyLevelStrong = false;
+    }
+
+    @Data
+    public static class QdrantConfig {
+        private boolean enabled;
+        private String host = "localhost";
+        private Integer port = 6333;
+        private String apiKey;
+        private Integer timeout = 30;
+        private Integer grpcPort = 6334;
+        private Boolean preferGrpc = false;
+    }
+
+    @Data
+    public static class MilvusConfig {
+        private boolean enabled;
+        private String host = "localhost";
+        private Integer port = 19530;
+        private String username = "";
+        private String password = "";
+        private String databaseName = "default";
+        private Integer timeout = 30;
+        private Boolean secure = false;
     }
 
     @Data

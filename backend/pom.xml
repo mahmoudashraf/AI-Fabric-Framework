@@ -152,6 +152,21 @@
             <artifactId>ai-infrastructure-vector-memory</artifactId>
             <version>1.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-milvus</artifactId>
+            <version>1.0.0</version>
+        </dependency>
 
 
         <!-- Apache POI for Word document parsing -->
