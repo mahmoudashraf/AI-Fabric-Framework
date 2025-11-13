@@ -68,6 +68,24 @@ These documents are intended for **internal development use** and provide detail
 
 ---
 
+### **5. ARCHITECTURAL_DECISIONS.md**
+**Purpose:** Consolidated architectural decisions document
+
+**Contents:**
+- All finalized architectural decisions
+- Decision 1: ai-core mandatory
+- Decision 2: Relationships without vectors (JPA Metamodel)
+- Decision 3: Return strategy (IDs by default)
+- Decision 4: Mode selection (hybrid with priority)
+- Decision 5: JPQL generation (LLM plans, builder generates)
+- Complete configuration
+- API design
+- Design principles
+
+**Use When:** Understanding why decisions were made, implementation reference, architecture review
+
+---
+
 ## 🎯 Document Relationships
 
 ```
@@ -95,7 +113,8 @@ MODULE_ARCHITECTURE_GUIDE.md
 - Track: `IMPLEMENTATION_CHECKLIST.md` for progress
 
 ### **For Architects:**
-- Review: `MODULE_ARCHITECTURE_GUIDE.md`
+- Review: `ARCHITECTURAL_DECISIONS.md` (all decisions)
+- Details: `MODULE_ARCHITECTURE_GUIDE.md`
 - Understand: `COMPREHENSIVE_IMPLEMENTATION_PLAN.md` architecture section
 
 ---
@@ -123,10 +142,11 @@ MODULE_ARCHITECTURE_GUIDE.md
 
 ## 🚀 Quick Start
 
-1. **Planning Phase:** Read `EXECUTIVE_SUMMARY_IMPLEMENTATION.md`
-2. **Implementation Phase:** Follow `COMPREHENSIVE_IMPLEMENTATION_PLAN.md`
-3. **Daily Work:** Use `IMPLEMENTATION_CHECKLIST.md`
-4. **Architecture Questions:** Check `MODULE_ARCHITECTURE_GUIDE.md`
+1. **Architecture Decisions:** Read `ARCHITECTURAL_DECISIONS.md` (start here!)
+2. **Planning Phase:** Read `EXECUTIVE_SUMMARY_IMPLEMENTATION.md`
+3. **Implementation Phase:** Follow `COMPREHENSIVE_IMPLEMENTATION_PLAN.md`
+4. **Daily Work:** Use `IMPLEMENTATION_CHECKLIST.md`
+5. **Architecture Details:** Check `MODULE_ARCHITECTURE_GUIDE.md`
 
 ---
 
