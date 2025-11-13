@@ -219,6 +219,9 @@ public class AIProviderConfig {
     private ONNXConfig onnx;
     private RestConfig rest;
     private CohereConfig cohere;
+    private WeaviateConfig weaviate;
+    private QdrantConfig qdrant;
+    private MilvusConfig milvus;
     
     // Legacy support (deprecated)
     @Deprecated
@@ -269,8 +272,40 @@ public class AIProviderConfig {
         private Integer maxSequenceLength = 512;
         private Boolean useGpu = false;
     }
-    
-    // ... other provider configs
+
+    @Data
+    public static class WeaviateConfig {
+        private Boolean enabled = false;
+        private String scheme = "https";
+        private String host;
+        private Integer port = 443;
+        private String apiKey;
+        private Integer timeout = 30;
+        private Boolean consistencyLevelStrong = false;
+    }
+
+    @Data
+    public static class QdrantConfig {
+        private Boolean enabled = false;
+        private String host = "localhost";
+        private Integer port = 6333;
+        private String apiKey;
+        private Integer timeout = 30;
+        private Integer grpcPort = 6334;
+        private Boolean preferGrpc = false;
+    }
+
+    @Data
+    public static class MilvusConfig {
+        private Boolean enabled = false;
+        private String host = "localhost";
+        private Integer port = 19530;
+        private String username = "";
+        private String password = "";
+        private String databaseName = "default";
+        private Integer timeout = 30;
+        private Boolean secure = false;
+    }
 }
 ```
 
