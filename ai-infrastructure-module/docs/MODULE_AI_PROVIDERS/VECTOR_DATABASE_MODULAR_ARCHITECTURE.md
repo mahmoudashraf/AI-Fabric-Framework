@@ -204,3 +204,30 @@ ai:
 - ✅ Independent versioning
 - ✅ Smaller artifacts
 - ✅ Easy to add new vector databases
+
+
+## Roadmap: Additional Provider Modules
+
+The next vector integrations share the same packaging conventions used for Lucene, Pinecone, and the in-memory adapter. Each module will expose a Spring Boot auto-configuration and delegate that implements `VectorDatabaseService`.
+
+| Module | Primary Dependency | Notes | Target Stories |
+| --- | --- | --- | --- |
+| `ai-infrastructure-vector-weaviate` | `io.weaviate:client` (gRPC/REST) | Requires schema bootstrap helper and API key support. | Service delegate, auto-config, smoke test against mock server. |
+| `ai-infrastructure-vector-qdrant` | `io.qdrant:client` | Supports both gRPC and REST; decide default transport. | Batch upsert + payload filtering, configuration samples. |
+| `ai-infrastructure-vector-milvus` | `io.milvus:milvus-sdk-java` | Needs connection pooling and health check due to gRPC streaming. | Delegate implementation, metrics wiring, profile for local Milvus container. |
+
+### Implementation Checklist (per module)
+
+1. Create Maven module (`ai-infrastructure-vector-<provider>`), add to parent `<modules>` list and dependency management.
+2. Implement `<Provider>VectorDatabaseService` with full CRUD/search parity.
+3. Add `<Provider>VectorAutoConfiguration` that exposes delegate plus `SearchableEntityVectorDatabaseService` wrapper.
+4. Provide configuration section in `CONFIGURATION_REFERENCE.md` and sample YAML in `integration-tests` resources.
+5. Extend integration test matrix with provider-specific profile and smoke test (can be profile-disabled until CI infra is available).
+6. Document environment prerequisites (container image, env vars) in this roadmap and `INTEGRATION_TEST_CHANGES.md`.
+
+### Open Questions
+- **Testing Strategy:** Decide whether to spin up containers in CI (Testcontainers) or rely on contract tests against vendor mocks.
+- **Schema Management:** Determine common abstraction for schema bootstrapping (e.g., vector dimension, metadata fields) to avoid duplication across modules.
+- **Resilience:** Evaluate retry/backoff defaults per provider; some SDKs already expose resilient clients.
+
+Capturing this roadmap here keeps the remaining work visible until the modules are implemented. Each bullet can be promoted to a tracked story as prioritization solidifies.
