@@ -206,19 +206,32 @@ public class QueryOptions {
 
 ---
 
-## 🎯 Decision 4: Mode Selection - LLM-Based Auto-Detection
+## 🎯 Decision 4: Mode Selection - LLM-Based Auto-Detection with User Override
 
 ### **Decision:**
-**Always use LLM-based auto-detection** - LLM decides if semantic search is needed
+**LLM-based auto-detection by default, with explicit user override option**
+
+### **Priority Order:**
+
+1. **Explicit User Override** (highest priority)
+   ```java
+   QueryOptions.builder().forceMode(QueryMode.ENHANCED).build()
+   ```
+
+2. **LLM Auto-Detection** (default)
+   ```java
+   // LLM decides based on query analysis
+   ```
 
 ### **Rationale:**
 
 #### **Key Insight:**
 - ✅ **LLM already analyzes query** - Can determine if semantic search needed
-- ✅ **Simpler configuration** - No mode selection needed
+- ✅ **Simpler configuration** - No mode selection needed by default
 - ✅ **Intelligent decision** - LLM understands query intent
+- ✅ **User control** - Can override LLM decision when needed
 - ✅ **Cost efficient** - Only uses vectors when needed
-- ✅ **No manual configuration** - Fully automatic
+- ✅ **Flexible** - Best of both worlds (auto + manual)
 
 ### **How It Works:**
 
@@ -274,20 +287,33 @@ ai:
       enable-vector-search: true  # Enable vector capability (LLM decides when to use)
 ```
 
-### **Query Options (Optional Override):**
+### **Query Options (User Override):**
 
 ```java
 public class QueryOptions {
-    // Optional: Force mode (rarely needed)
-    private QueryMode forceMode;  // null = auto-detect via LLM
+    // Optional: Force mode (overrides LLM decision)
+    private QueryMode forceMode;  // null = auto-detect via LLM (default)
     
     // Other options...
 }
 
-// Usage (usually not needed):
-queryService.executeQuery(query, 
+// Usage examples:
+
+// 1. Default: LLM auto-detects (most common)
+queryService.executeQuery(query, entityTypes);
+// LLM decides: "Find similar products" → ENHANCED
+
+// 2. Override: Force standalone (relational only)
+queryService.executeQuery(query, entityTypes,
     QueryOptions.builder()
-        .forceMode(QueryMode.STANDALONE)  // Override LLM decision (rare)
+        .forceMode(QueryMode.STANDALONE)  // Override LLM: use relational only
+        .build()
+);
+
+// 3. Override: Force enhanced (relational + semantic)
+queryService.executeQuery(query, entityTypes,
+    QueryOptions.builder()
+        .forceMode(QueryMode.ENHANCED)  // Override LLM: always use vectors
         .build()
 );
 ```
@@ -295,12 +321,12 @@ queryService.executeQuery(query,
 ### **Implementation:**
 ```java
 private QueryMode determineMode(RelationshipQueryPlan plan, QueryOptions options) {
-    // Priority 1: Explicit override (rarely used)
+    // Priority 1: Explicit user override (highest priority)
     if (options.getForceMode() != null) {
-        return options.getForceMode();
+        return options.getForceMode();  // User knows best, respect their choice
     }
     
-    // Priority 2: LLM decision (default)
+    // Priority 2: LLM decision (default - auto-detection)
     return plan.isNeedsSemanticSearch() ? QueryMode.ENHANCED : QueryMode.STANDALONE;
 }
 ```
@@ -330,11 +356,12 @@ String prompt = """
 ```
 
 ### **Impact:**
-- ✅ **Simpler** - No mode configuration needed
+- ✅ **Simpler** - No mode configuration needed by default
 - ✅ **Intelligent** - LLM decides automatically
+- ✅ **User control** - Can override LLM decision when needed
 - ✅ **Cost efficient** - Only uses vectors when needed
-- ✅ **User-friendly** - Just describe what you want
-- ✅ **Less configuration** - Fewer settings to manage
+- ✅ **User-friendly** - Just describe what you want (or override if you know better)
+- ✅ **Flexible** - Best of both worlds (auto-detection + manual override)
 
 ---
 
@@ -452,8 +479,9 @@ ai:
       # Enable relationship queries
       enabled: true
       
-      # Mode selection: ALWAYS auto-detect via LLM
-      # No configuration needed - LLM decides if semantic search is needed
+      # Mode selection: ALWAYS auto-detect via LLM (default)
+      # Users can override via QueryOptions.forceMode() if needed
+      # LLM decides if semantic search is needed, unless user explicitly overrides
       
       # Vector search settings (only used if LLM decides semantic search is needed)
       enable-vector-search: true  # Enable vector capability
@@ -519,23 +547,31 @@ public class QueryOptions {
 ### **Usage Examples:**
 
 ```java
-// Simple (LLM auto-detects mode)
+// 1. Default: LLM auto-detects mode (most common)
 RAGResponse response = queryService.executeQuery(query, entityTypes);
 // LLM analyzes query and decides:
 // - "Find similar products" → ENHANCED (needs vectors)
 // - "Find orders from customers" → STANDALONE (relational only)
 
-// Request full data (optional)
+// 2. Override LLM: Force standalone mode
 response = queryService.executeQuery(query, entityTypes,
     QueryOptions.builder()
-        .returnMode(ReturnMode.FULL)
+        .forceMode(QueryMode.STANDALONE)  // Override LLM: relational only
         .build()
 );
 
-// Force mode (rarely needed - override LLM decision)
+// 3. Override LLM: Force enhanced mode
 response = queryService.executeQuery(query, entityTypes,
     QueryOptions.builder()
-        .forceMode(QueryMode.STANDALONE)  // Override LLM
+        .forceMode(QueryMode.ENHANCED)  // Override LLM: always use vectors
+        .build()
+);
+
+// 4. Request full data (works with any mode)
+response = queryService.executeQuery(query, entityTypes,
+    QueryOptions.builder()
+        .returnMode(ReturnMode.FULL)
+        .forceMode(QueryMode.ENHANCED)  // Can combine options
         .build()
 );
 ```
@@ -560,9 +596,9 @@ response = queryService.executeQuery(query, entityTypes,
 - **Impact:** Better performance, caller control
 
 ### **4. Mode Selection** ✅
-- **Decision:** LLM-based auto-detection (always enabled)
-- **Why:** LLM already analyzes query, can determine if semantic search needed
-- **Impact:** Simpler configuration, intelligent automatic decisions
+- **Decision:** LLM-based auto-detection (default) with user override option
+- **Why:** LLM already analyzes query, can determine if semantic search needed. Users can override when they know better.
+- **Impact:** Simpler configuration by default, intelligent automatic decisions, flexible user control
 
 ### **5. JPQL Generation** ✅
 - **Decision:** LLM plans, Builder generates
