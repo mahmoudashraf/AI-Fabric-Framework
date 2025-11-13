@@ -16,6 +16,7 @@
     <modules>
         <module>ai-infrastructure-core</module>
         <module>ai-infrastructure-provider-openai</module>
+        <module>ai-infrastructure-provider-azure</module>
         <module>ai-infrastructure-provider-cohere</module>
         <module>ai-infrastructure-provider-anthropic</module>
         <module>ai-infrastructure-provider-rest</module>
@@ -65,6 +66,11 @@
             <dependency>
                 <groupId>com.ai.infrastructure</groupId>
                 <artifactId>ai-infrastructure-provider-openai</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.infrastructure</groupId>
+                <artifactId>ai-infrastructure-provider-azure</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -768,7 +768,7 @@ ai:
 
 - [ ] Phase 3: Create Additional Provider Modules
   - [x] REST module (Embeddings only)
-  - [ ] Azure module (LLM + Embeddings)
+  - [x] Azure module (LLM + Embeddings)
   - [x] Anthropic module (LLM only)
   - [x] Cohere module (LLM + Embeddings)
   - [x] Update ONNX module (Embeddings only)

@@ -119,6 +119,11 @@
         </dependency>
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-azure</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-provider-cohere</artifactId>
             <version>1.0.0</version>
         </dependency>

@@ -35,6 +35,10 @@
         </dependency>
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-azure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-provider-cohere</artifactId>
         </dependency>
         <dependency>

@@ -77,6 +77,7 @@ public class AIProviderConfig {
         String provider = normalize(embeddingProvider);
         return switch (provider) {
             case "openai" -> openai.toEmbeddingDefaults("openai");
+            case "azure" -> azure.toEmbeddingDefaults("azure");
             case "rest" -> rest.toEmbeddingDefaults("rest");
             case "onnx" ->
                 onnx.toEmbeddingDefaults("onnx");
