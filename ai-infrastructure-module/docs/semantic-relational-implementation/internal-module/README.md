@@ -125,6 +125,7 @@ MODULE_ARCHITECTURE_GUIDE.md
 - `TECHNICAL_EXECUTION_FLOW.md` - Technical implementation details
 - `REAL_WORLD_UNIFIED_SEARCH_CASES.md` - Use cases
 - `MARKET_ANALYSIS_AND_COMPETITIVE_LANDSCAPE.md` - Market analysis
+- `PATENT_ANALYSIS_AND_STRATEGY.md` - Patent analysis and IP strategy
 
 **Module Code:**
 - `/ai-infrastructure-relationship-query/` - Actual module implementation
