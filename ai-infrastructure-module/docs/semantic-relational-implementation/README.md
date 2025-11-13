@@ -10,30 +10,17 @@ This folder contains all documentation related to the **Relationship-Aware Query
 
 ### **📋 Planning & Architecture**
 
-1. **COMPREHENSIVE_IMPLEMENTATION_PLAN.md**
-   - Complete 7-week implementation plan
-   - All phases, components, and tasks
-   - Timeline and success criteria
+**Internal Module Documentation** (see `internal-module/` folder):
+- `COMPREHENSIVE_IMPLEMENTATION_PLAN.md` - Complete 7-week plan
+- `IMPLEMENTATION_CHECKLIST.md` - Task checklist
+- `EXECUTIVE_SUMMARY_IMPLEMENTATION.md` - Executive summary
+- `MODULE_ARCHITECTURE_GUIDE.md` - Architecture guide
 
-2. **IMPLEMENTATION_CHECKLIST.md**
-   - Quick reference checklist
-   - Priority order
-   - Definition of done
-
-3. **EXECUTIVE_SUMMARY_IMPLEMENTATION.md**
-   - High-level overview
-   - Key decisions and timeline
-   - Expected impact
-
-4. **ARCHITECTURE_RECOMMENDATION.md**
+**Public Documentation:**
+1. **ARCHITECTURE_RECOMMENDATION.md**
    - Architecture decision analysis
    - Separate module vs core
    - Benefits and trade-offs
-
-5. **MODULE_ARCHITECTURE_GUIDE.md**
-   - Module structure details
-   - Integration patterns
-   - Usage examples
 
 ---
 
@@ -120,9 +107,11 @@ This folder contains all documentation related to the **Relationship-Aware Query
 ## 🎯 Quick Navigation
 
 ### **Getting Started:**
-- Start with: `EXECUTIVE_SUMMARY_IMPLEMENTATION.md`
-- Then read: `COMPREHENSIVE_IMPLEMENTATION_PLAN.md`
-- Check: `IMPLEMENTATION_CHECKLIST.md`
+- **For Implementation:** See `internal-module/` folder
+  - Start with: `internal-module/EXECUTIVE_SUMMARY_IMPLEMENTATION.md`
+  - Then read: `internal-module/COMPREHENSIVE_IMPLEMENTATION_PLAN.md`
+  - Check: `internal-module/IMPLEMENTATION_CHECKLIST.md`
+- **For Understanding:** See public docs below
 
 ### **Understanding the Flow:**
 - Technical flow: `TECHNICAL_EXECUTION_FLOW.md`
@@ -135,7 +124,7 @@ This folder contains all documentation related to the **Relationship-Aware Query
 
 ### **Architecture:**
 - Architecture decision: `ARCHITECTURE_RECOMMENDATION.md`
-- Module guide: `MODULE_ARCHITECTURE_GUIDE.md`
+- Module guide: `internal-module/MODULE_ARCHITECTURE_GUIDE.md` (internal)
 
 ### **Analysis:**
 - Evaluation: `LLM_JPA_APPROACH_EVALUATION.md`
@@ -146,10 +135,9 @@ This folder contains all documentation related to the **Relationship-Aware Query
 
 ## 📊 Document Categories
 
-### **Planning Documents (5)**
-- Implementation plans
-- Checklists
-- Architecture decisions
+### **Planning Documents**
+- **Internal (4):** See `internal-module/` folder
+- **Public (1):** `ARCHITECTURE_RECOMMENDATION.md`
 
 ### **Technical Documents (5)**
 - Technical flows
