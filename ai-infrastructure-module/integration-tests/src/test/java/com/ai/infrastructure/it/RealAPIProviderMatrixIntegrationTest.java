@@ -136,7 +136,8 @@ class RealAPIProviderMatrixIntegrationTest {
     }
 
     private List<ProviderCombination> discoverAvailableCombinations() {
-        configureProviderProperties("openai", "onnx");
+        ProviderCombination defaultCombo = new ProviderCombination("openai", "onnx", null);
+        configureProviderProperties(defaultCombo);
 
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(TestApplication.class)
             .profiles("real-api-test")
@@ -167,7 +168,7 @@ class RealAPIProviderMatrixIntegrationTest {
             }
             return combinations;
         } finally {
-            clearProviderProperties();
+            clearProviderProperties(defaultCombo);
         }
     }
 
@@ -247,7 +248,7 @@ class RealAPIProviderMatrixIntegrationTest {
                     .collect(Collectors.joining(System.lineSeparator()));
                 log.error("✗ FAILED: {} ({} ms)", combination.displayName(), duration);
                 throw new AssertionError("Failures detected for " + combination.displayName() + 
-                    " (" + summary.getTotalFailureCount() + " failures, " + summary.getTotalAbortedCount() + " aborted)" +
+                    " (" + summary.getTotalFailureCount() + " failures)" +
                     System.lineSeparator() + failures);
             }
             
