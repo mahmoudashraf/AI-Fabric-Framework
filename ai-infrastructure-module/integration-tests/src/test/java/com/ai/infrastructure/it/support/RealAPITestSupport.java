@@ -7,26 +7,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.stream.Stream;
 
 /**
  * Utility methods shared across Real API integration tests.
  *
- * Performs environment bootstrapping (like loading the OpenAI API key)
- * so that provider-specific tests can focus on their scenarios without duplicating
- * file-reading logic.
+ * Loads OpenAI API key from env.dev file (line 29).
  */
 public final class RealAPITestSupport {
 
     private static final String OPENAI_KEY_PROPERTY = "OPENAI_API_KEY";
-    private static final Path[] CANDIDATE_ENV_PATHS = new Path[]{
-        Paths.get("../env.dev"),
-        Paths.get("../../env.dev"),
-        Paths.get("../../../env.dev"),
-        Paths.get("../backend/env.dev"),
-        Paths.get("../../backend/env.dev"),
-        Paths.get("/workspace/env.dev")
-    };
+    private static final Path ENV_DEV_PATH = Paths.get("/workspace/env.dev");
 
     private static volatile boolean configured = false;
 
@@ -35,20 +25,23 @@ public final class RealAPITestSupport {
 
     /**
      * Ensure the OpenAI API key is available via {@link System#getProperty(String)}.
-     * <p>
-     * The logic mirrors the existing Real API integration tests: prefer environment variables,
-     * then fall back to common {@code env.dev} locations.
+     * 
+     * Reads from env.dev line 29: OPENAI_API_KEY=sk-...
      */
     public static synchronized void ensureOpenAIConfigured() {
         if (configured) {
             return;
         }
 
+        // Prefer environment variable if already set
         String apiKey = System.getenv(OPENAI_KEY_PROPERTY);
+        
+        // Fall back to reading from env.dev file
         if (!StringUtils.hasText(apiKey)) {
-            apiKey = locateKeyFromEnvFiles();
+            apiKey = readOpenAIKeyFromEnvFile();
         }
 
+        // Set as system property if found
         if (StringUtils.hasText(apiKey)) {
             System.setProperty(OPENAI_KEY_PROPERTY, apiKey);
             System.setProperty("ai.providers.openai.api-key", apiKey);
@@ -56,30 +49,25 @@ public final class RealAPITestSupport {
         }
     }
 
-    private static String locateKeyFromEnvFiles() {
-        for (Path path : CANDIDATE_ENV_PATHS) {
-            if (Files.exists(path) && Files.isRegularFile(path)) {
-                String key = readKeyFromEnvFile(path, OPENAI_KEY_PROPERTY);
-                if (StringUtils.hasText(key)) {
-                    return key;
-                }
-            }
+    /**
+     * Read OpenAI API key directly from env.dev file.
+     * Line 29 format: OPENAI_API_KEY=sk-proj-...
+     */
+    private static String readOpenAIKeyFromEnvFile() {
+        if (!Files.exists(ENV_DEV_PATH) || !Files.isRegularFile(ENV_DEV_PATH)) {
+            return null;
         }
-        return null;
-    }
 
-    private static String readKeyFromEnvFile(Path file, String keyName) {
-        try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
-            return lines
+        try {
+            return Files.readAllLines(ENV_DEV_PATH, StandardCharsets.UTF_8)
+                .stream()
                 .map(String::trim)
-                .filter(line -> !line.isEmpty() && !line.startsWith("#") && line.contains("="))
-                .map(line -> line.split("=", 2))
-                .filter(parts -> parts.length == 2 && keyName.equals(parts[0].trim()))
-                .map(parts -> parts[1].trim())
+                .filter(line -> line.startsWith(OPENAI_KEY_PROPERTY + "="))
+                .map(line -> line.substring((OPENAI_KEY_PROPERTY + "=").length()))
                 .findFirst()
                 .orElse(null);
         } catch (IOException ex) {
-            System.err.printf("Unable to read %s from %s: %s%n", keyName, file, ex.getMessage());
+            System.err.printf("Unable to read OPENAI_API_KEY from %s: %s%n", ENV_DEV_PATH, ex.getMessage());
             return null;
         }
     }
