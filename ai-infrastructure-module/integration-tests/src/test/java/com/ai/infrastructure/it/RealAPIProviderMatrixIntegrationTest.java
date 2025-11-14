@@ -1,39 +1,58 @@
 package com.ai.infrastructure.it;
 
-import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
-import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
-import com.ai.infrastructure.it.entity.TestProduct;
-import com.ai.infrastructure.it.repository.TestProductRepository;
-import com.ai.infrastructure.provider.AIProvider;
-import com.ai.infrastructure.provider.AIProviderManager;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
-import com.ai.infrastructure.repository.IntentHistoryRepository;
-import com.ai.infrastructure.service.AICapabilityService;
-import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
+import com.ai.infrastructure.provider.AIProvider;
+import com.ai.infrastructure.provider.AIProviderManager;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.platform.launcher.Launcher;
+import org.junit.platform.launcher.LauncherDiscoveryRequest;
+import org.junit.platform.launcher.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.LauncherFactory;
+import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
+import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
+
 /**
- * Discovers available LLM and embedding providers at runtime and executes a smoke
- * Real API scenario for every combination.
+ * Executes the entire Real API integration test suite for every available provider combination.
  *
- * <p>The goal is to remove the need for hard-coding provider selections in the
- * integration suite. Whenever a new provider module is added (and reports as
- * available), it automatically becomes part of the matrix.</p>
+ * <p>The combinations can be supplied via {@code -Dai.providers.real-api.matrix} (or
+ * {@code AI_PROVIDERS_REAL_API_MATRIX}) using the syntax {@code llm:embedding,llm2:embedding2}.
+ * When the matrix is not provided, all discovered provider pairings are exercised.</p>
  */
 class RealAPIProviderMatrixIntegrationTest {
+
+    private static final String MATRIX_PROPERTY = "ai.providers.real-api.matrix";
+    private static final String MATRIX_ENV = "AI_PROVIDERS_REAL_API_MATRIX";
+
+    private static final Class<?>[] REAL_API_TEST_CLASSES = {
+        RealAPIIntegrationTest.class,
+        RealAPIONNXFallbackIntegrationTest.class,
+        RealAPISmartValidationIntegrationTest.class,
+        RealAPIVectorLifecycleIntegrationTest.class,
+        RealAPIHybridRetrievalToggleIntegrationTest.class,
+        RealAPIIntentHistoryAggregationIntegrationTest.class,
+        RealAPIActionErrorRecoveryIntegrationTest.class,
+        RealAPIActionFlowIntegrationTest.class,
+        RealAPIMultiProviderFailoverIntegrationTest.class,
+        RealAPISmartSuggestionsIntegrationTest.class,
+        RealAPIPIIEdgeSpectrumIntegrationTest.class
+    };
 
     static {
         RealAPITestSupport.ensureOpenAIConfigured();
@@ -41,20 +60,36 @@ class RealAPIProviderMatrixIntegrationTest {
 
     @TestFactory
     Stream<DynamicTest> providerMatrix() {
-        List<ProviderCombination> combinations = discoverProviderMatrix();
-
+        List<ProviderCombination> combinations = resolveProviderMatrix();
         Assertions.assertThat(combinations)
-            .as("At least one provider combination should be available for dynamic Real API tests")
+            .as("Provider matrix should not be empty")
             .isNotEmpty();
 
         return combinations.stream()
             .map(combo -> DynamicTest.dynamicTest(
-                String.format("LLM=%s | Embedding=%s", combo.llmProvider(), combo.embeddingProvider()),
-                () -> runScenario(combo)
+                "LLM=" + combo.llmProvider() + " | Embedding=" + combo.embeddingProvider(),
+                () -> executeSuite(combo)
             ));
     }
 
-    private List<ProviderCombination> discoverProviderMatrix() {
+    private List<ProviderCombination> resolveProviderMatrix() {
+        List<ProviderCombination> availableCombinations = discoverAvailableCombinations();
+
+        String matrixSpec = System.getProperty(MATRIX_PROPERTY);
+        if (!StringUtils.hasText(matrixSpec)) {
+            matrixSpec = System.getenv(MATRIX_ENV);
+        }
+
+        if (!StringUtils.hasText(matrixSpec)) {
+            return availableCombinations;
+        }
+
+        List<ProviderCombination> requestedCombinations = parseMatrixSpec(matrixSpec);
+        validateRequestedCombinations(requestedCombinations, availableCombinations);
+        return requestedCombinations;
+    }
+
+    private List<ProviderCombination> discoverAvailableCombinations() {
         configureProviderProperties("openai", "onnx");
 
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(TestApplication.class)
@@ -69,14 +104,14 @@ class RealAPIProviderMatrixIntegrationTest {
             List<String> llmProviders = providerManager.getAvailableProviders().stream()
                 .map(AIProvider::getProviderName)
                 .sorted()
-                .collect(Collectors.toList());
+                .toList();
 
             List<String> embeddingProviders = context.getBeansOfType(EmbeddingProvider.class).values().stream()
                 .filter(EmbeddingProvider::isAvailable)
                 .map(EmbeddingProvider::getProviderName)
                 .distinct()
                 .sorted()
-                .collect(Collectors.toList());
+                .toList();
 
             List<ProviderCombination> combinations = new ArrayList<>();
             for (String llm : llmProviders) {
@@ -90,66 +125,63 @@ class RealAPIProviderMatrixIntegrationTest {
         }
     }
 
-    private void runScenario(ProviderCombination combination) {
+    private List<ProviderCombination> parseMatrixSpec(String matrixSpec) {
+        return Arrays.stream(matrixSpec.split(","))
+            .map(String::trim)
+            .filter(StringUtils::hasText)
+            .map(entry -> entry.split(":", 2))
+            .map(parts -> {
+                if (parts.length != 2 || !StringUtils.hasText(parts[0]) || !StringUtils.hasText(parts[1])) {
+                    throw new IllegalArgumentException(
+                        "Invalid provider matrix entry: '" + Arrays.toString(parts) + "'. Expected format llm:embedding");
+                }
+                return new ProviderCombination(parts[0].trim(), parts[1].trim());
+            })
+            .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private void validateRequestedCombinations(List<ProviderCombination> requested,
+                                               List<ProviderCombination> available) {
+        Set<ProviderCombination> availableSet = new LinkedHashSet<>(available);
+        List<ProviderCombination> missing = requested.stream()
+            .filter(combo -> !availableSet.contains(combo))
+            .toList();
+
+        if (!missing.isEmpty()) {
+            String availableSummary = available.stream()
+                .map(ProviderCombination::toString)
+                .collect(Collectors.joining(", "));
+            String missingSummary = missing.stream()
+                .map(ProviderCombination::toString)
+                .collect(Collectors.joining(", "));
+            throw new IllegalArgumentException(
+                "Requested provider combinations are not available. Missing: [" + missingSummary + "] "
+                    + "Available combinations: [" + availableSummary + "]");
+        }
+    }
+
+    private void executeSuite(ProviderCombination combination) {
         configureProviderProperties(combination.llmProvider(), combination.embeddingProvider());
 
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(TestApplication.class)
-            .profiles("real-api-test")
-            .properties(Map.of(
-                "ai.providers.llm-provider", combination.llmProvider(),
-                "ai.providers.embedding-provider", combination.embeddingProvider()
-            ))
-            .run()) {
+        try {
+            SummaryGeneratingListener listener = new SummaryGeneratingListener();
+            Launcher launcher = LauncherFactory.create();
 
-            // Obtain required beans
-            AICapabilityService capabilityService = context.getBean(AICapabilityService.class);
-            VectorManagementService vectorManagementService = context.getBean(VectorManagementService.class);
-            TestProductRepository productRepository = context.getBean(TestProductRepository.class);
-            AISearchableEntityRepository searchableEntityRepository = context.getBean(AISearchableEntityRepository.class);
-            IntentHistoryRepository intentHistoryRepository = context.getBean(IntentHistoryRepository.class);
-            RAGOrchestrator orchestrator = context.getBean(RAGOrchestrator.class);
+            LauncherDiscoveryRequestBuilder requestBuilder = LauncherDiscoveryRequestBuilder.request();
+            for (Class<?> testClass : REAL_API_TEST_CLASSES) {
+                requestBuilder.selectors(selectClass(testClass));
+            }
 
-            // Reset state
-            vectorManagementService.clearAllVectors();
-            searchableEntityRepository.deleteAll();
-            productRepository.deleteAll();
-            intentHistoryRepository.deleteAll();
+            LauncherDiscoveryRequest request = requestBuilder.build();
+            launcher.execute(request, listener);
 
-            TestProduct product = TestProduct.builder()
-                .name("Dynamic Provider Matrix Product")
-                .description("""
-                    This product validates dynamic provider selection.
-                    It exercises both LLM and embedding providers within the Real API test run.
-                    """)
-                .category("Testing")
-                .brand("MatrixBrand")
-                .price(new BigDecimal("123.45"))
-                .sku("MATRIX-001")
-                .stockQuantity(50)
-                .active(true)
-                .build();
-
-            product = productRepository.save(product);
-            capabilityService.processEntityForAI(product, "test-product");
-
-            Assertions.assertThat(searchableEntityRepository.count())
-                .as("Searchable entities should be created for provider combo %s", combination)
-                .isGreaterThanOrEqualTo(1L);
-
-            Assertions.assertThat(
-                vectorManagementService.vectorExists("test-product", String.valueOf(product.getId()))
-            ).as("Vector should exist for provider combo %s", combination)
-             .isTrue();
-
-            OrchestrationResult orchestrationResult =
-                orchestrator.orchestrate("Tell me about the Dynamic Provider Matrix Product", "provider-matrix-user");
-
-            Assertions.assertThat(orchestrationResult)
-                .as("Orchestration result should be present for %s", combination)
-                .isNotNull();
-            Assertions.assertThat(orchestrationResult.isSuccess())
-                .as("Orchestration should succeed for %s", combination)
-                .isTrue();
+            TestExecutionSummary summary = listener.getSummary();
+            if (summary.getTotalFailureCount() > 0) {
+                String failures = summary.getFailures().stream()
+                    .map(failure -> failure.getTestIdentifier().getDisplayName() + " -> " + failure.getException().getMessage())
+                    .collect(Collectors.joining(System.lineSeparator()));
+                throw new AssertionError("Failures detected for combination " + combination + System.lineSeparator() + failures);
+            }
         } finally {
             clearProviderProperties();
         }
