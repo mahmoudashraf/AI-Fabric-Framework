@@ -67,7 +67,7 @@ public class AIProfileConfiguration {
     private static class MockAIService extends AICoreService {
         
         public MockAIService() {
-            super(null, null, null); // Initialize with null dependencies for mock
+            super(null, null, null, null); // Initialize with null dependencies for mock
         }
         
         @Override
@@ -253,7 +253,7 @@ public class AIProfileConfiguration {
     private static class ProductionAIService extends AICoreService {
         
         public ProductionAIService() {
-            super(null, null, null); // Initialize with null dependencies for now
+            super(null, null, null, null); // Initialize with null dependencies for now
         }
         
         @Override

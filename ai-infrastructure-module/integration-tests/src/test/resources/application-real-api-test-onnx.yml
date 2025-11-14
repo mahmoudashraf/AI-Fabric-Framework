@@ -74,49 +74,45 @@ ai:
         enabled: true
         confidence: 1.0
         context-note: "Social security number redacted"
-  response-sanitization:
-    enabled: true
-    force-redaction: true
-    suggestion-limit: 3
-    high-risk-types: ["CREDIT_CARD", "SSN", "PASSPORT"]
-    high-risk-warning-message: "SECURITY ALERT: Sensitive payment information was detected and redacted from this response."
-    medium-risk-warning-message: "Some personal details were hidden before presenting this response."
-    warning-enabled: true
-    warning-level-high-risk: BLOCK
-    warning-level-medium-risk: WARN
-    guidance-enabled: true
-    guidance-message: "Avoid sharing card numbers or sensitive identifiers in chat."
-    include-suggestion-metadata: true
-    include-error-codes: true
-    publish-events: true
-    filtered-data-keys: ["password", "token", "secret", "apiKey"]
-    default-replacement: "[REDACTED]"
+    response-sanitization:
+      enabled: true
+      force-redaction: true
+      suggestion-limit: 3
+      high-risk-types: ["CREDIT_CARD", "SSN", "PASSPORT"]
+      high-risk-warning-message: "SECURITY ALERT: Sensitive payment information was detected and redacted from this response."
+      medium-risk-warning-message: "Some personal details were hidden before presenting this response."
+      warning-enabled: true
+      warning-level-high-risk: BLOCK
+      warning-level-medium-risk: WARN
+      guidance-enabled: true
+      guidance-message: "Avoid sharing card numbers or sensitive identifiers in chat."
+      include-suggestion-metadata: true
+      include-error-codes: true
+      publish-events: true
+      filtered-data-keys: ["password", "token", "secret", "apiKey"]
+      default-replacement: "[REDACTED]"
   providers:
-    # ONNX Embedding Provider (LOCAL)
+    llm-provider: ${LLM_PROVIDER:openai}
     embedding-provider: onnx
-    onnx-model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
-    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
-    onnx-max-sequence-length: 512
-    onnx-use-gpu: false
+    enable-fallback: true
+
+    onnx:
+      enabled: true
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+      max-sequence-length: 512
+      use-gpu: false
+      model-alias: all-MiniLM-L6-v2
     
-    # OpenAI Configuration (for intent extraction, NOT embeddings)
-    openai-api-key: ${OPENAI_API_KEY}
-    openai-model: gpt-4o-mini
-    openai-embedding-model: text-embedding-3-small
-    openai-max-tokens: 2000
-    openai-temperature: 0
-    openai-top-p: 0.1
-    openai-timeout: 30
-    openai-priority: 100
-    
-    enable-rag: true
-    enable-behavioral-ai: true
-    enable-smart-validation: true
-    enable-auto-generation: true
-    
-    max-concurrent-requests: 3
-    cache-timeout-minutes: 0
-    enable-caching: false
+    openai:
+      enabled: true
+      api-key: ${OPENAI_API_KEY}
+      model: gpt-4o-mini
+      embedding-model: text-embedding-3-small
+      max-tokens: 2000
+      temperature: 0.0
+      timeout: 30
+      priority: 100
 
   # Vector Database Configuration - Memory for fast tests
   vector-db:
@@ -127,19 +123,21 @@ ai:
   service:
     enabled: true
     auto-configuration: true
-    # Default to ONNX provider for embeddings, OpenAI for LLM
-    default-provider: onnx
-    caching:
-      enabled: false
-    metrics:
-      enabled: true
-    health-checks:
-      enabled: true
-    logging:
-      enabled: true
-    default-timeout: 30000
+    caching-enabled: false
+    metrics-enabled: true
+    health-checks-enabled: true
+    logging-enabled: true
+    default-timeout: 30
     max-retries: 2
     retry-delay: 1000
+    feature-flags-enabled: true
+    feature-flags:
+      enableRAG: true
+      enableBehavioralAI: true
+      enableSmartValidation: true
+      enableAutoGeneration: true
+    performance:
+      max-concurrent-requests: 3
 
 # Logging for ONNX Real API Testing
 logging:

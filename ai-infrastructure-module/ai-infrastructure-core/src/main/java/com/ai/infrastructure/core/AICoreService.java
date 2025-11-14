@@ -227,14 +227,16 @@ public class AICoreService {
      */
     public String generateText(String prompt) {
         try {
+            AIProviderConfig.GenerationDefaults defaults = aiProviderConfig.resolveLlmDefaults();
+
             AIGenerationRequest request = AIGenerationRequest.builder()
                 .entityId("adhoc-" + UUID.randomUUID())
                 .entityType("adhoc")
                 .generationType("text")
                 .prompt(prompt)
-                .model(aiProviderConfig.getOpenaiModel())
-                .maxTokens(Math.min(aiProviderConfig.getOpenaiMaxTokens(), 1000))
-                .temperature(aiProviderConfig.getOpenaiTemperature())
+                .model(defaults.model())
+                .maxTokens(Math.min(defaults.maxTokens(), 1000))
+                .temperature(defaults.temperature())
                 .build();
 
             return generateContent(request).getContent();
@@ -249,6 +251,8 @@ public class AICoreService {
         if (request == null) {
             throw new AIServiceException("Generation request cannot be null");
         }
+
+        AIProviderConfig.GenerationDefaults defaults = aiProviderConfig.resolveLlmDefaults();
 
         boolean requiresDefaults = request.getModel() == null
             || request.getMaxTokens() == null
@@ -268,9 +272,9 @@ public class AICoreService {
             .purpose(request.getPurpose())
             .parameters(request.getParameters())
             .userId(request.getUserId())
-            .model(request.getModel() != null ? request.getModel() : aiProviderConfig.getOpenaiModel())
-            .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : aiProviderConfig.getOpenaiMaxTokens())
-            .temperature(request.getTemperature() != null ? request.getTemperature() : aiProviderConfig.getOpenaiTemperature())
+            .model(request.getModel() != null ? request.getModel() : defaults.model())
+            .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : defaults.maxTokens())
+            .temperature(request.getTemperature() != null ? request.getTemperature() : defaults.temperature())
             .build();
     }
 
@@ -283,12 +287,14 @@ public class AICoreService {
             return request;
         }
 
+        AIProviderConfig.EmbeddingDefaults defaults = aiProviderConfig.resolveEmbeddingDefaults();
+
         return AIEmbeddingRequest.builder()
             .text(request.getText())
             .entityType(request.getEntityType())
             .entityId(request.getEntityId())
             .metadata(request.getMetadata())
-            .model(aiProviderConfig.getOpenaiEmbeddingModel())
+            .model(defaults.model())
             .build();
     }
 }

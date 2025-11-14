@@ -1,7 +1,7 @@
 package com.ai.infrastructure.onnxstarter;
 
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
-import com.ai.infrastructure.embedding.ONNXEmbeddingProvider;
+import com.ai.infrastructure.provider.onnx.ONNXEmbeddingProvider;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

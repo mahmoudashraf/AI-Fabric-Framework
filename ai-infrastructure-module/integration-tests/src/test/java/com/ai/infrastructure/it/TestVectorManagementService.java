@@ -1,6 +1,6 @@
 package com.ai.infrastructure.it;
 
-import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
+import com.ai.infrastructure.vector.memory.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.provider.ProviderConfig;
 import org.junit.jupiter.api.Test;

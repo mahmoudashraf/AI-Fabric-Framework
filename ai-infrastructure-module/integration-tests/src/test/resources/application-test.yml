@@ -1,9 +1,3 @@
-# Test Profile Configuration for Integration Tests
-# This configuration ensures ONNX embedding provider is used for tests
-
-# Test Profile Configuration for Integration Tests
-# This configuration ensures ONNX embedding provider is used for tests
-
 ai:
   enabled: true
   pii-detection:
@@ -19,17 +13,27 @@ ai:
         context-note: API key redacted
 
   providers:
-    # Embedding Provider Configuration (ONNX for testing)
+    llm-provider: ${LLM_PROVIDER:openai}
     embedding-provider: ${EMBEDDING_PROVIDER:onnx}
-    onnx-model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
-    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
-    onnx-max-sequence-length: 512
-    onnx-use-gpu: false
+    enable-fallback: true
+
+    onnx:
+      enabled: true
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+      max-sequence-length: 512
+      use-gpu: false
+      model-alias: all-MiniLM-L6-v2
     
-    # OpenAI Configuration (disabled for tests - use ONNX)
-    openai-api-key: ${OPENAI_API_KEY:test-key}
-    openai-model: gpt-4o-mini
-    openai-embedding-model: text-embedding-3-small
+    openai:
+      enabled: ${OPENAI_ENABLED:false}
+      api-key: ${OPENAI_API_KEY:test-key}
+      model: gpt-4o-mini
+      embedding-model: text-embedding-3-small
+      max-tokens: 2000
+      temperature: 0.3
+      timeout: 60
+      priority: 100
     
   # Vector Database Configuration - Memory for fast tests
   vector-db:
@@ -52,6 +56,3 @@ logging:
     com.ai.infrastructure: DEBUG
     com.ai.infrastructure.embedding: DEBUG
     org.springframework: WARN
-
-
-

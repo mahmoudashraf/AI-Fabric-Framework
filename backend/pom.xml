@@ -112,12 +112,62 @@
             <version>1.0.0</version>
         </dependency>
 
-        <!-- OpenAI Java SDK -->
         <dependency>
-            <groupId>com.theokanning.openai-gpt3-java</groupId>
-            <artifactId>service</artifactId>
-            <version>0.18.2</version>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-openai</artifactId>
+            <version>1.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-azure</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-cohere</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-anthropic</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-rest</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-lucene</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-pinecone</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-memory</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-milvus</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
 
         <!-- Apache POI for Word document parsing -->
         <dependency>
@@ -163,12 +213,6 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- AI Infrastructure Module -->
-        <dependency>
-            <groupId>com.ai.infrastructure</groupId>
-            <artifactId>ai-infrastructure-core</artifactId>
-            <version>1.0.0</version>
-        </dependency>
     </dependencies>
 
     <build>

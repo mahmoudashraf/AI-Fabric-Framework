@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
+import com.ai.infrastructure.provider.AIProviderManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,11 +30,22 @@ class AICoreServiceTest {
     @Mock
     private AISearchService searchService;
     
+    @Mock
+    private AIProviderManager providerManager;
+    
     private AICoreService aiCoreService;
     
     @BeforeEach
     void setUp() {
-        aiCoreService = new AICoreService(config, embeddingService, searchService);
+        AIProviderConfig.GenerationDefaults generationDefaults = new AIProviderConfig.GenerationDefaults(
+            "openai", "gpt-4o-mini", 2000, 0.3, 60, 100
+        );
+        AIProviderConfig.EmbeddingDefaults embeddingDefaults = new AIProviderConfig.EmbeddingDefaults(
+            "onnx", "text-embedding-3-small"
+        );
+        when(config.resolveLlmDefaults()).thenReturn(generationDefaults);
+        when(config.resolveEmbeddingDefaults()).thenReturn(embeddingDefaults);
+        aiCoreService = new AICoreService(config, embeddingService, searchService, providerManager);
     }
     
     @Test
@@ -45,11 +57,8 @@ class AICoreServiceTest {
             .build();
         
         // When
-        when(config.getOpenaiApiKey()).thenReturn("test-api-key");
-        when(config.getOpenaiModel()).thenReturn("gpt-4o-mini");
-        when(config.getOpenaiMaxTokens()).thenReturn(2000);
-        when(config.getOpenaiTemperature()).thenReturn(0.3);
-        when(config.getOpenaiTimeout()).thenReturn(60);
+        when(providerManager.generateContent(any(AIGenerationRequest.class)))
+            .thenThrow(new AIServiceException("Provider failure"));
         
         // Then
         assertThrows(Exception.class, () -> aiCoreService.generateContent(request));
@@ -160,11 +169,8 @@ class AICoreServiceTest {
             .build();
         
         // When
-        when(config.getOpenaiApiKey()).thenReturn("test-api-key");
-        when(config.getOpenaiModel()).thenReturn("gpt-4o-mini");
-        when(config.getOpenaiMaxTokens()).thenReturn(2000);
-        when(config.getOpenaiTemperature()).thenReturn(0.3);
-        when(config.getOpenaiTimeout()).thenReturn(60);
+        when(providerManager.generateContent(any(AIGenerationRequest.class)))
+            .thenThrow(new AIServiceException("Provider failure"));
         
         // Then
         assertThrows(Exception.class, () -> aiCoreService.validateContent(content, validationRules));

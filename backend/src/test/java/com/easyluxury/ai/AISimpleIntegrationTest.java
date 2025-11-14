@@ -29,9 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, classes = {com.easyluxury.EasyLuxuryApplication.class, AIInfrastructureAutoConfiguration.class})
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
-    "ai.providers.openai-api-key=test-key",
-    "ai.providers.openai-model=gpt-4o-mini",
-    "ai.providers.openai-embedding-model=text-embedding-3-small",
+    "ai.providers.openai.api-key=test-key",
+    "ai.providers.openai.model=gpt-4o-mini",
+    "ai.providers.openai.embedding-model=text-embedding-3-small",
     "ai.service.enabled=true",
     "ai.service.auto-configuration=true",
     "easyluxury.ai.product-index-name=test-products",
@@ -71,9 +71,10 @@ class AISimpleIntegrationTest {
     @Test
     void testAIProviderConfigLoaded() {
         assertNotNull(aiProviderConfig);
-        assertEquals("test-key", aiProviderConfig.getOpenaiApiKey());
-        assertEquals("gpt-4o-mini", aiProviderConfig.getOpenaiModel());
-        assertEquals("text-embedding-3-small", aiProviderConfig.getOpenaiEmbeddingModel());
+        AIProviderConfig.OpenAIConfig openai = aiProviderConfig.getOpenai();
+        assertEquals("test-key", openai.getApiKey());
+        assertEquals("gpt-4o-mini", openai.getModel());
+        assertEquals("text-embedding-3-small", openai.getEmbeddingModel());
     }
 
     @Test

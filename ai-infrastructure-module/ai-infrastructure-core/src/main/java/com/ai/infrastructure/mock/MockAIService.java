@@ -39,7 +39,7 @@ public class MockAIService {
         
         return AIEmbeddingResponse.builder()
             .embedding(embedding)
-            .model(config.getOpenaiEmbeddingModel())
+            .model(config.resolveEmbeddingDefaults().model())
             .dimensions(embedding.size())
             .processingTimeMs(50L) // Fast mock response
             .requestId("mock-embedding-" + UUID.randomUUID().toString().substring(0, 8))
@@ -56,7 +56,7 @@ public class MockAIService {
         
         return AIGenerationResponse.builder()
             .content(content)
-            .model(config.getOpenaiModel())
+            .model(config.resolveLlmDefaults().model())
             .usage(Map.of("maxTokens", request.getMaxTokens(), "temperature", request.getTemperature()))
             .processingTimeMs(100L) // Fast mock response
             .requestId("mock-generation-" + UUID.randomUUID().toString().substring(0, 8))
@@ -78,7 +78,7 @@ public class MockAIService {
             .processingTimeMs(75L) // Fast mock response
             .requestId("mock-search-" + UUID.randomUUID().toString().substring(0, 8))
             .query(request.getQuery())
-            .model(config.getOpenaiEmbeddingModel())
+            .model(config.resolveEmbeddingDefaults().model())
             .build();
     }
     

@@ -11,7 +11,7 @@ import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.monitoring.AIMetricsService;
-import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
+import com.ai.infrastructure.vector.memory.InMemoryVectorDatabaseService;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.service.BehaviorService;
@@ -46,9 +46,9 @@ public class TestAIConfiguration {
     
     @Bean
     @Primary
-    public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {
+    public AIConfigurationService aiConfigurationService(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
         log.info("Creating AIConfigurationService for test context");
-        return new AIConfigurationService(serviceConfig);
+        return new AIConfigurationService(providerConfig, serviceConfig);
     }
     
     @Bean
@@ -97,9 +97,9 @@ public class TestAIConfiguration {
     
     @Bean
     @Primary
-    public AICoreService aiCoreService(AIProviderConfig config, AIEmbeddingService embeddingService, AISearchService searchService) {
+    public AICoreService aiCoreService(AIProviderConfig config, AIEmbeddingService embeddingService, AISearchService searchService, AIProviderManager providerManager) {
         log.info("Creating AICoreService for test context");
-        return new AICoreService(config, embeddingService, searchService);
+        return new AICoreService(config, embeddingService, searchService, providerManager);
     }
     
     @Bean

@@ -62,13 +62,17 @@ public class RealAPIIntentHistoryAggregationIntegrationTest {
 
         if (StringUtils.hasText(apiKey)) {
             System.setProperty(OPENAI_KEY_PROPERTY, apiKey);
-            System.setProperty("ai.providers.openai-api-key", apiKey);
+            System.setProperty("ai.providers.openai.api-key", apiKey);
         }
 
+        System.setProperty("LLM_PROVIDER",
+            System.getProperty("LLM_PROVIDER", "openai"));
+        System.setProperty("ai.providers.llm-provider",
+            System.getProperty("ai.providers.llm-provider", "openai"));
         System.setProperty("EMBEDDING_PROVIDER",
-            System.getProperty("EMBEDDING_PROVIDER", "openai"));
+            System.getProperty("EMBEDDING_PROVIDER", "onnx"));
         System.setProperty("ai.providers.embedding-provider",
-            System.getProperty("ai.providers.embedding-provider", "openai"));
+            System.getProperty("ai.providers.embedding-provider", "onnx"));
     }
 
     private static String locateKeyFromEnvFiles() {

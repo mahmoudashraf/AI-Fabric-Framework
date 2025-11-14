@@ -41,12 +41,27 @@ ai:
       cleanupIntervalMinutes: 5
       maxVectorAgeMinutes: 30
   providers:
-    openai-api-key: ${OPENAI_API_KEY:sk-test-key}
-    openai-model: gpt-4o-mini
-    openai-embedding-model: text-embedding-3-small
-    openai-max-tokens: 1000
-    openai-temperature: 0.3
-    openai-timeout: 30
+    llm-provider: ${LLM_PROVIDER:openai}
+    embedding-provider: ${EMBEDDING_PROVIDER:openai}
+    enable-fallback: true
+
+    onnx:
+      enabled: ${ONNX_ENABLED:false}
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+      max-sequence-length: 512
+      use-gpu: false
+      model-alias: all-MiniLM-L6-v2
+
+    openai:
+      enabled: true
+      api-key: ${OPENAI_API_KEY:sk-test-key}
+      model: gpt-4o-mini
+      embedding-model: text-embedding-3-small
+      max-tokens: 1000
+      temperature: 0.3
+      timeout: 30
+      priority: 100
 
 # Logging configuration for tests
 logging:

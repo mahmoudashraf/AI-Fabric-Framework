@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * @version 1.0.0
  */
 @Slf4j
-@Service
+@Service("ragService")
 @RequiredArgsConstructor
 public class RAGService {
     
@@ -201,7 +201,7 @@ public class RAGService {
             // Generate query embedding
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
                 .text(sanitizedQuery)
-                .model(config.getOpenaiEmbeddingModel())
+                .model(config.resolveEmbeddingDefaults().model())
                 .build();
             
             var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
@@ -256,7 +256,7 @@ public class RAGService {
                     .collect(Collectors.toList()))
                 .processingTimeMs(processingTime)
                 .requestId(request.getRequestId())
-                .model(config.getOpenaiEmbeddingModel())
+                .model(config.resolveEmbeddingDefaults().model())
                 .success(true)
                 .hybridSearchUsed(request.getEnableHybridSearch())
                 .contextualSearchUsed(request.getEnableContextualSearch())
@@ -279,7 +279,7 @@ public class RAGService {
                 .relevanceScores(Collections.emptyList())
                 .processingTimeMs(0L)
                 .requestId(request.getRequestId())
-                .model(config.getOpenaiEmbeddingModel())
+                .model(config.resolveEmbeddingDefaults().model())
                 .success(false)
                 .errorMessage(e.getMessage())
                 .build();
@@ -460,7 +460,7 @@ public class RAGService {
                 .requestId(request.getRequestId())
                 .originalQuery(sanitizedQuery)
                 .entityType(request.getEntityType())
-                .model(config.getOpenaiModel())
+                .model(config.resolveLlmDefaults().model())
                 .timestamp(java.time.LocalDateTime.now())
                 .piiDetectionResult(piiDetectionResult)
                 .metadata(Collections.unmodifiableMap(aggregatedMetadata))

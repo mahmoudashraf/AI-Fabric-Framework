@@ -29,6 +29,51 @@
             <artifactId>ai-infrastructure-core</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-azure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-cohere</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-anthropic</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-lucene</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-pinecone</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-memory</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-vector-milvus</artifactId>
+        </dependency>
+
         <!-- Optional ONNX starter to supply bundled model/tokenizer assets -->
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
@@ -110,6 +155,14 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- JUnit Platform launcher for programmatic execution -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.10.0</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

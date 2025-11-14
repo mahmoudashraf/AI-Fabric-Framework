@@ -18,184 +18,75 @@ ai-infrastructure-module/
 
 ## Current State
 
-**Current**: Vector database implementations are in `ai-infrastructure-core`:
-- `LuceneVectorDatabaseService`
-- `PineconeVectorDatabaseService`
-- `InMemoryVectorDatabaseService`
+**Current**: Vector database implementations now reside in dedicated modules:
+- `ai-infrastructure-vector-lucene` (Lucene)
+- `ai-infrastructure-vector-pinecone` (Pinecone)
+- `ai-infrastructure-vector-memory` (In-Memory test support)
+- `ai-infrastructure-vector-weaviate` (Weaviate HTTP API)
+- `ai-infrastructure-vector-qdrant` (Qdrant REST API)
+- `ai-infrastructure-vector-milvus` (Milvus gRPC SDK)
 
-**Target**: Move each to its own module
+**Next**: Stand up a Milvus cluster (Testcontainers or shared infra) and record smoke-test scripts so the module can be exercised in CI and staging.
 
-## Vector Database Module Template
+## Module Implementations
 
-### Example: Weaviate Vector Database Module
+### Weaviate (`ai-infrastructure-vector-weaviate`)
+- Uses Spring's `RestTemplate` to call Weaviate's REST endpoints for CRUD and search.
+- Automatically provisions schema lookups and logs helpful diagnostics when classes are missing.
+- Configuration block (`ai.weaviate`): `scheme`, `host`, `port`, `apiKey`, and request timeout.
 
-**File**: `ai-infrastructure-module/ai-infrastructure-vector-weaviate/pom.xml`
+### Qdrant (`ai-infrastructure-vector-qdrant`)
+- Talks to Qdrant's REST API for upsert, search, scroll, and delete operations.
+- Supports raw JSON filter expressions via `AISearchRequest.filters` and auto-builds simple equality filters from `metadata`.
+- Configuration block (`ai.qdrant`): `host`, `port`, optional `apiKey`, timeout, and `preferGrpc` flag (reserved for future gRPC integration).
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0">
-    <modelVersion>4.0.0</modelVersion>
+### Milvus (`ai-infrastructure-vector-milvus`)
+- Uses the official Milvus Java SDK over gRPC to create collections, upsert vectors, run similarity search, and manage metadata.
+- Lazily provisions collections per entity type, creating IVF_FLAT indexes and loading them automatically.
+- Configuration block (`ai.milvus`): `host`, `port`, `username`, `password`, `databaseName`, `secure`, `timeout`.
 
-    <parent>
-        <groupId>com.ai.infrastructure</groupId>
-        <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
-        <version>1.0.0</version>
-    </parent>
-
-    <artifactId>ai-infrastructure-vector-weaviate</artifactId>
-    <packaging>jar</packaging>
-
-    <name>AI Infrastructure Weaviate Vector Database</name>
-    <description>Weaviate vector database implementation for AI Infrastructure</description>
-
-    <dependencies>
-        <!-- Core dependency -->
-        <dependency>
-            <groupId>com.ai.infrastructure</groupId>
-            <artifactId>ai-infrastructure-core</artifactId>
-        </dependency>
-
-        <!-- Weaviate Java client -->
-        <dependency>
-            <groupId>io.weaviate</groupId>
-            <artifactId>client</artifactId>
-            <version>4.0.0</version>
-        </dependency>
-
-        <!-- Spring Boot -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-    </dependencies>
-</project>
-```
-
-**File**: `ai-infrastructure-module/ai-infrastructure-vector-weaviate/src/main/java/com/ai/infrastructure/vector/weaviate/WeaviateVectorDatabaseAutoConfiguration.java`
-
-```java
-package com.ai.infrastructure.vector.weaviate;
-
-import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
-import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
-
-/**
- * Auto-configuration for Weaviate vector database
- * 
- * This configuration is automatically loaded when:
- * 1. Weaviate client is on classpath (ConditionalOnClass)
- * 2. ai.vector-db.type=weaviate
- */
-@Slf4j
-@Configuration
-@ConditionalOnClass(name = "io.weaviate.client.WeaviateClient")
-@ConditionalOnProperty(
-    prefix = "ai.vector-db",
-    name = "type",
-    havingValue = "weaviate"
-)
-@EnableConfigurationProperties(AIProviderConfig.class)
-public class WeaviateVectorDatabaseAutoConfiguration {
-
-    /**
-     * Create WeaviateVectorDatabaseService delegate
-     */
-    @Bean
-    public WeaviateVectorDatabaseService weaviateVectorDatabaseDelegate(AIProviderConfig config) {
-        log.info("Creating Weaviate vector database delegate");
-        return new WeaviateVectorDatabaseService(config);
-    }
-
-    /**
-     * Create primary VectorDatabaseService bean
-     * This wraps the delegate with SearchableEntityVectorDatabaseService
-     */
-    @Bean
-    @Primary
-    public VectorDatabaseService weaviateVectorDatabaseService(
-            WeaviateVectorDatabaseService delegate,
-            AISearchableEntityRepository searchableEntityRepository,
-            AIEntityConfigurationLoader configurationLoader) {
-        log.info("Creating Weaviate vector database service");
-        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
-    }
-}
-```
-
-**File**: `ai-infrastructure-module/ai-infrastructure-vector-weaviate/src/main/java/com/ai/infrastructure/vector/weaviate/WeaviateVectorDatabaseService.java`
-
-```java
-package com.ai.infrastructure.vector.weaviate;
-
-import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.VectorRecord;
-// ... imports
-
-/**
- * Weaviate Vector Database Service Implementation
- */
-@Slf4j
-public class WeaviateVectorDatabaseService implements VectorDatabaseService {
-    
-    private final AIProviderConfig config;
-    private final io.weaviate.client.WeaviateClient client;
-    
-    public WeaviateVectorDatabaseService(AIProviderConfig config) {
-        this.config = config;
-        // Initialize Weaviate client
-        this.client = initializeWeaviateClient();
-    }
-    
-    // Implement all VectorDatabaseService methods
-    @Override
-    public String storeVector(String entityType, String entityId, String content, 
-                             List<Double> embedding, Map<String, Object> metadata) {
-        // Weaviate implementation
-    }
-    
-    // ... other methods
-}
-```
+Each module contributes an auto-configuration entry under `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`, exposing both the raw delegate (`VectorDatabaseService` implementation) and the shared `SearchableEntityVectorDatabaseService` wrapper when selected with `ai.vector-db.type`.
 
 ## Configuration
 
-**application.yml**:
+**application.yml** (excerpt):
 ```yaml
 ai:
   vector-db:
-    type: weaviate  # Options: lucene, pinecone, weaviate, qdrant, milvus, memory
-    
+    type: qdrant   # lucene | pinecone | weaviate | qdrant | milvus | memory
+
     weaviate:
-      url: http://localhost:8080
-      api-key: ${WEAVIATE_API_KEY}
-      scheme: http  # or https
       host: localhost
       port: 8080
+      scheme: http
+      api-key: ${WEAVIATE_API_KEY:}
+      timeout: 30
+
+    qdrant:
+      host: localhost
+      port: 6333
+      api-key: ${QDRANT_API_KEY:}
+      timeout: 30
+
+    milvus:
+      host: localhost
+      port: 19530
+      username: root
+      password: ${MILVUS_PASSWORD:}
+      database-name: default
+      secure: false
+      timeout: 30
 ```
 
 ## Migration Steps
 
-1. **Move existing implementations** from core to modules
-2. **Create auto-configuration** for each vector database
-3. **Update parent POM** to include new modules
-4. **Update tests** to use new modules
+1. [x] **Move existing implementations** from core to modules
+2. [x] **Create auto-configuration** for each vector database
+3. [x] **Update parent POM** to include new modules
+4. [x] **Update tests** to use new modules
+5. [x] **Implement Weaviate integration**
+6. [x] **Implement Qdrant integration**
+7. [x] **Finalize Milvus integration (SDK wiring + tests)**
 
 ## Benefits
 
@@ -203,3 +94,28 @@ ai:
 - ✅ Independent versioning
 - ✅ Smaller artifacts
 - ✅ Easy to add new vector databases
+
+
+## Roadmap: Additional Provider Modules
+
+The next vector integrations share the same packaging conventions used for Lucene, Pinecone, and the in-memory adapter. Each module will expose a Spring Boot auto-configuration and delegate that implements `VectorDatabaseService`.
+
+| Module | Primary Dependency | Notes | Target Stories |
+| --- | --- | --- | --- |
+| `ai-infrastructure-vector-milvus` | `io.milvus:milvus-sdk-java` | Add automated smoke tests and CI profile once a Milvus container/cluster is available. | Testcontainers profile, sample dataset + documentation, monitoring hooks. |
+
+### Implementation Checklist (per module)
+
+1. Create Maven module (`ai-infrastructure-vector-<provider>`), add to parent `<modules>` list and dependency management.
+2. Implement `<Provider>VectorDatabaseService` with full CRUD/search parity.
+3. Add `<Provider>VectorAutoConfiguration` that exposes delegate plus `SearchableEntityVectorDatabaseService` wrapper.
+4. Provide configuration section in `CONFIGURATION_REFERENCE.md` and sample YAML in `integration-tests` resources.
+5. Extend integration test matrix with provider-specific profile and smoke test (can be profile-disabled until CI infra is available).
+6. Document environment prerequisites (container image, env vars) in this roadmap and `INTEGRATION_TEST_CHANGES.md`.
+
+### Open Questions
+- **Testing Strategy:** Decide whether to spin up containers in CI (Testcontainers) or rely on contract tests against vendor mocks.
+- **Schema Management:** Determine common abstraction for schema bootstrapping (e.g., vector dimension, metadata fields) to avoid duplication across modules.
+- **Resilience:** Evaluate retry/backoff defaults per provider; some SDKs already expose resilient clients.
+
+Capturing this roadmap here keeps the remaining work visible until the modules are implemented. Each bullet can be promoted to a tracked story as prioritization solidifies.

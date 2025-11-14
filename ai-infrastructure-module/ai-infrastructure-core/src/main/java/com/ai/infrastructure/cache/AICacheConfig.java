@@ -1,6 +1,6 @@
 package com.ai.infrastructure.cache;
 
-import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.config.AIServiceConfig;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,7 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class AICacheConfig {
     
-    private final AIProviderConfig config;
+    private final AIServiceConfig serviceConfig;
     
     /**
      * Configure Caffeine cache manager for AI services
@@ -38,10 +38,23 @@ public class AICacheConfig {
     public CacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager();
         
+        AIServiceConfig.PerformanceConfig performance = serviceConfig.getPerformance();
+        AIServiceConfig.CacheConfig cache = serviceConfig.getCache();
+
+        int maxConcurrentRequests = performance != null && performance.getMaxConcurrentRequests() != null
+            ? performance.getMaxConcurrentRequests()
+            : 10;
+        long configuredMaxSize = cache != null && cache.getMaxSize() != null
+            ? cache.getMaxSize()
+            : maxConcurrentRequests * 10L;
+        Duration ttl = cache != null && cache.getDefaultTtl() != null
+            ? cache.getDefaultTtl()
+            : Duration.ofMinutes(60);
+        
         // Configure Caffeine cache
         Caffeine<Object, Object> caffeine = Caffeine.newBuilder()
-            .maximumSize(config.getMaxConcurrentRequests() * 10) // 10x concurrent requests
-            .expireAfterWrite(Duration.ofMinutes(config.getCacheTimeoutMinutes()))
+            .maximumSize(Math.max(configuredMaxSize, 1))
+            .expireAfterWrite(ttl)
             .recordStats()
             .removalListener((key, value, cause) -> 
                 log.debug("Cache entry removed: {} - {}", key, cause));
@@ -60,8 +73,7 @@ public class AICacheConfig {
             "behaviorRetention"
         ));
         
-        log.info("AI Cache Manager configured with {} max size and {} minute TTL", 
-            config.getMaxConcurrentRequests() * 10, config.getCacheTimeoutMinutes());
+        log.info("AI Cache Manager configured with max size {} and TTL {}", configuredMaxSize, ttl);
         
         return cacheManager;
     }

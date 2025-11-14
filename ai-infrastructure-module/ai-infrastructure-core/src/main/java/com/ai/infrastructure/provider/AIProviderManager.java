@@ -4,10 +4,12 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.config.AIProviderConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -27,12 +29,14 @@ import java.util.stream.Collectors;
 public class AIProviderManager {
     
     private final List<AIProvider> providers;
+    private final AIProviderConfig providerConfig;
     private final Map<String, AIProvider> providerMap = new ConcurrentHashMap<>();
     private final Map<String, ProviderStatus> providerStatuses = new ConcurrentHashMap<>();
     
     /**
      * Initialize provider manager
      */
+    @PostConstruct
     public void initialize() {
         log.info("Initializing AI Provider Manager with {} providers", providers.size());
         
@@ -59,8 +63,11 @@ public class AIProviderManager {
             throw new RuntimeException("No AI providers available");
         }
         
-        // Select best provider based on strategy
-        AIProvider selectedProvider = selectProvider(availableProviders, "generation");
+        String configuredProvider = providerConfig.getLlmProvider();
+        AIProvider selectedProvider = findPreferredProvider(availableProviders, configuredProvider);
+        if (selectedProvider == null) {
+            selectedProvider = selectProvider(availableProviders, "generation");
+        }
         
         try {
             log.debug("Using provider: {} for content generation", selectedProvider.getProviderName());
@@ -76,6 +83,9 @@ public class AIProviderManager {
             updateProviderStatus(selectedProvider.getProviderName(), false);
             
             // Try fallback providers
+            if (!isFallbackEnabled()) {
+                throw e;
+            }
             return tryFallbackProviders(request, availableProviders, selectedProvider);
         }
     }
@@ -94,8 +104,11 @@ public class AIProviderManager {
             throw new RuntimeException("No AI providers available");
         }
         
-        // Select best provider based on strategy
-        AIProvider selectedProvider = selectProvider(availableProviders, "embedding");
+        String configuredProvider = providerConfig.getEmbeddingProvider();
+        AIProvider selectedProvider = findPreferredProvider(availableProviders, configuredProvider);
+        if (selectedProvider == null) {
+            selectedProvider = selectProvider(availableProviders, "embedding");
+        }
         
         try {
             log.debug("Using provider: {} for embedding generation", selectedProvider.getProviderName());
@@ -111,6 +124,9 @@ public class AIProviderManager {
             updateProviderStatus(selectedProvider.getProviderName(), false);
             
             // Try fallback providers
+            if (!isFallbackEnabled()) {
+                throw e;
+            }
             return tryFallbackEmbedding(request, availableProviders, selectedProvider);
         }
     }
@@ -320,6 +336,20 @@ public class AIProviderManager {
         throw new RuntimeException("All providers failed for embedding generation");
     }
     
+    private AIProvider findPreferredProvider(List<AIProvider> availableProviders, String preferredName) {
+        if (preferredName == null || preferredName.isBlank()) {
+            return null;
+        }
+        return availableProviders.stream()
+            .filter(provider -> preferredName.equalsIgnoreCase(provider.getProviderName()))
+            .findFirst()
+            .orElse(null);
+    }
+
+    private boolean isFallbackEnabled() {
+        return providerConfig.getEnableFallback() == null || providerConfig.getEnableFallback();
+    }
+
     /**
      * Update provider status
      * 

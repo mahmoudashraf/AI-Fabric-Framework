@@ -34,17 +34,27 @@ ai:
     store-encrypted-query: false
 
   providers:
-    # Embedding Provider Configuration (ONNX default for local development)
+    llm-provider: ${LLM_PROVIDER:openai}
     embedding-provider: onnx
-    onnx-model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
-    onnx-tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
-    onnx-max-sequence-length: 512
-    onnx-use-gpu: false
+    enable-fallback: true
 
-    # OpenAI Configuration (optional fallback)
-    openai-api-key: ${OPENAI_API_KEY:}
-    openai-embedding-model: text-embedding-3-small
-    openai-timeout: 60
+    onnx:
+      enabled: true
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+      max-sequence-length: 512
+      use-gpu: false
+      model-alias: all-MiniLM-L6-v2
+
+    openai:
+      enabled: ${OPENAI_ENABLED:false}
+      api-key: ${OPENAI_API_KEY:}
+      model: gpt-4o-mini
+      embedding-model: text-embedding-3-small
+      max-tokens: 2000
+      temperature: 0.3
+      timeout: 60
+      priority: 100
 
   vector-db:
     type: lucene

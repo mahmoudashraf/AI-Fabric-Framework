@@ -25,6 +25,27 @@ This report summarizes the comprehensive integration testing suite created for t
 ✅ Real OpenAI API integration working
 ```
 
+#### 2025-11-13 Real API Regression Run
+- **Environment**: Java 21, Maven 3.8.7, profile `real-api-test`
+- **Provider Selection**: Enforced via system properties -> `LLM_PROVIDER=openai`, `EMBEDDING_PROVIDER=onnx`
+- **Executed Classes** (each run individually):
+  - `RealAPIIntegrationTest`
+  - `RealAPIONNXFallbackIntegrationTest`
+  - `RealAPISmartValidationIntegrationTest`
+  - `RealAPIVectorLifecycleIntegrationTest`
+  - `RealAPIHybridRetrievalToggleIntegrationTest`
+  - `RealAPIIntentHistoryAggregationIntegrationTest`
+  - `RealAPIActionErrorRecoveryIntegrationTest`
+  - `RealAPIActionFlowIntegrationTest`
+  - `RealAPIMultiProviderFailoverIntegrationTest`
+  - `RealAPISmartSuggestionsIntegrationTest`
+  - `RealAPIPIIEdgeSpectrumIntegrationTest`
+
+**Highlights**:
+- Confirmed ONNX embeddings and OpenAI LLM modules are auto-selected through the modular provider architecture.
+- Observed consistent OpenAI response handling (JSON repair, audit insights) across failover and PII edge scenarios.
+- ONNX fallback maintained ≥100% success rate where applicable; vector lifecycle tests validated reseed + purge flows.
+
 ### 2. Mock Integration Tests ⚠️ NEEDS CONFIGURATION
 - **Status**: ⚠️ Requires mock service configuration
 - **Test Class**: `MockIntegrationTest`

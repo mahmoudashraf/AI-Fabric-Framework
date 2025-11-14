@@ -219,6 +219,9 @@ public class AIProviderConfig {
     private ONNXConfig onnx;
     private RestConfig rest;
     private CohereConfig cohere;
+    private WeaviateConfig weaviate;
+    private QdrantConfig qdrant;
+    private MilvusConfig milvus;
     
     // Legacy support (deprecated)
     @Deprecated
@@ -269,8 +272,40 @@ public class AIProviderConfig {
         private Integer maxSequenceLength = 512;
         private Boolean useGpu = false;
     }
-    
-    // ... other provider configs
+
+    @Data
+    public static class WeaviateConfig {
+        private Boolean enabled = false;
+        private String scheme = "https";
+        private String host;
+        private Integer port = 443;
+        private String apiKey;
+        private Integer timeout = 30;
+        private Boolean consistencyLevelStrong = false;
+    }
+
+    @Data
+    public static class QdrantConfig {
+        private Boolean enabled = false;
+        private String host = "localhost";
+        private Integer port = 6333;
+        private String apiKey;
+        private Integer timeout = 30;
+        private Integer grpcPort = 6334;
+        private Boolean preferGrpc = false;
+    }
+
+    @Data
+    public static class MilvusConfig {
+        private Boolean enabled = false;
+        private String host = "localhost";
+        private Integer port = 19530;
+        private String username = "";
+        private String password = "";
+        private String databaseName = "default";
+        private Integer timeout = 30;
+        private Boolean secure = false;
+    }
 }
 ```
 
@@ -756,21 +791,22 @@ ai:
 - [ ] Phase 1: Refactor Core
   - [ ] Update `AIProviderConfig` with `llmProvider` and `embeddingProvider`
   - [ ] Update `AIProviderManager` to select LLM provider
-  - [ ] Update `AIEmbeddingService` to select embedding provider independently
-  - [ ] Remove hardcoded provider dependencies from core
+  - [x] Update `AIEmbeddingService` to select embedding provider independently
+  - [x] Remove hardcoded provider dependencies from core
 
-- [ ] Phase 2: Create OpenAI Provider Module
-  - [ ] Create module structure
-  - [ ] Move `OpenAIProvider` from core
-  - [ ] Move `OpenAIEmbeddingProvider` from core
-  - [ ] Create `OpenAIAutoConfiguration` (creates both beans)
+- [x] Phase 2: Create OpenAI Provider Module
+  - [x] Create module structure
+  - [x] Move `OpenAIProvider` from core
+  - [x] Move `OpenAIEmbeddingProvider` from core
+  - [x] Create `OpenAIAutoConfiguration` (creates both beans)
   - [ ] Test independent selection
 
 - [ ] Phase 3: Create Additional Provider Modules
-  - [ ] Azure module (LLM + Embeddings)
-  - [ ] Anthropic module (LLM only)
-  - [ ] Cohere module (LLM + Embeddings)
-  - [ ] Update ONNX module (Embeddings only)
+  - [x] REST module (Embeddings only)
+  - [x] Azure module (LLM + Embeddings)
+  - [x] Anthropic module (LLM only)
+  - [x] Cohere module (LLM + Embeddings)
+  - [x] Update ONNX module (Embeddings only)
 
 - [ ] Phase 4: Update Integration Tests
   - [ ] Test LLM=OpenAI, Embedding=ONNX

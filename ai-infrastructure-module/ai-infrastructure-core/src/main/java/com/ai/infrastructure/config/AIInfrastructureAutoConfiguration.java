@@ -26,15 +26,8 @@ import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.deletion.UserDataDeletionService;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
-import com.ai.infrastructure.rag.InMemoryVectorDatabaseService;
-import com.ai.infrastructure.rag.LuceneVectorDatabaseService;
-import com.ai.infrastructure.rag.PineconeVectorDatabaseService;
-import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
-import com.ai.infrastructure.embedding.ONNXEmbeddingProvider;
-import com.ai.infrastructure.embedding.RestEmbeddingProvider;
-import com.ai.infrastructure.embedding.OpenAIEmbeddingProvider;
 import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.VectorDatabaseServiceAdapter;
@@ -64,14 +57,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.lang.Nullable;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Auto-configuration for AI Infrastructure module
@@ -105,84 +98,40 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     // EmbeddingProvider beans - selected based on configuration
-    // The specific implementation is selected based on ai.providers.embedding-provider:
-    // - ONNXEmbeddingProvider (default when not specified or set to "onnx")
-    // - RestEmbeddingProvider (only when explicitly set to "rest")
-    // - OpenAIEmbeddingProvider (only when explicitly set to "openai")
-    // IMPORTANT: Define EmbeddingProvider BEFORE other beans that depend on it
-    // IMPORTANT: ONNX is marked as @Primary to ensure it's used when multiple providers exist
-    
-    @Bean
-    @org.springframework.context.annotation.Primary
-    @org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
-    @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "onnx", matchIfMissing = true)
-    public EmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
-        log.info("Creating ONNX Embedding Provider (primary/default)");
-        log.info("ONNX will be used for all embedding generation - no fallback to other providers");
-        ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
-        if (!provider.isAvailable()) {
-            log.warn("WARNING: ONNX Embedding Provider is not available. Model file may be missing.");
-            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnxModelPath());
-        }
-        return provider;
-    }
-    
-    @Bean
-    @Primary
-    @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "rest")
-    @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
-    public EmbeddingProvider restEmbeddingProvider(AIProviderConfig config) {
-        log.info("Creating REST Embedding Provider");
-        log.warn("ONNX is NOT being used. Using REST provider instead.");
-        return new RestEmbeddingProvider(config);
-    }
-    
-    @Bean
-    @Primary
-    @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "openai")
-    @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
-    public EmbeddingProvider openaiEmbeddingProvider(AIProviderConfig config) {
-        log.info("Creating OpenAI Embedding Provider");
-        log.warn("ONNX is NOT being used. Using OpenAI provider instead.");
-        return new OpenAIEmbeddingProvider(config);
-    }
-    
-    @Bean(name = "onnxFallbackEmbeddingProvider")
-    @ConditionalOnProperty(name = "ai.providers.enable-fallback", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
-    public EmbeddingProvider onnxFallbackEmbeddingProvider(AIProviderConfig config) {
-        log.info("Creating ONNX fallback Embedding Provider");
-        ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
-        if (!provider.isAvailable()) {
-            log.warn("WARNING: ONNX fallback provider is not available. Model file may be missing.");
-            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnxModelPath());
-        }
-        return provider;
-    }
-    
+    // Embedding provider implementations are supplied by dedicated modules
+
     @Bean
     public AIEmbeddingService aiEmbeddingService(AIProviderConfig config,
                                                  List<EmbeddingProvider> embeddingProviders,
                                                  ObjectProvider<CacheManager> cacheManagerProvider,
-                                                 @Qualifier("onnxFallbackEmbeddingProvider") @Nullable EmbeddingProvider fallbackEmbeddingProvider) {
+                                                 @Qualifier("onnxFallbackEmbeddingProvider") ObjectProvider<EmbeddingProvider> fallbackProvider) {
+        String requestedProvider = config.getEmbeddingProvider() != null
+            ? config.getEmbeddingProvider().toLowerCase()
+            : null;
+
         EmbeddingProvider selectedProvider = embeddingProviders.stream()
             .filter(provider -> provider != null && provider.getProviderName() != null)
-            .filter(provider -> provider.getProviderName().equalsIgnoreCase(config.getEmbeddingProvider()))
+            .filter(provider -> requestedProvider == null
+                || provider.getProviderName().equalsIgnoreCase(requestedProvider))
             .findFirst()
             .orElseGet(() -> embeddingProviders.isEmpty() ? null : embeddingProviders.get(0));
 
         String providerName = selectedProvider != null ? selectedProvider.getProviderName() : "null";
-        log.info("Creating AIEmbeddingService with provider: {}", providerName);
-        
-        // Validate that ONNX is being used (if that's what we want)
-        if (!"onnx".equals(providerName)) {
-            log.warn("WARNING: AIEmbeddingService is NOT using ONNX provider. Current provider: {}", providerName);
-            log.warn("To use ONNX, ensure ai.providers.embedding-provider=onnx in configuration");
-        } else {
-            log.info("✅ AIEmbeddingService configured to use ONNX provider (no fallback to other providers)");
+        log.info("Creating AIEmbeddingService with embedding provider '{}' (requested '{}')",
+            providerName,
+            requestedProvider != null ? requestedProvider : "unspecified");
+
+        if (selectedProvider == null) {
+            log.warn("No embedding provider matched request '{}'. Available providers: {}",
+                requestedProvider,
+                embeddingProviders.stream()
+                    .filter(Objects::nonNull)
+                    .map(EmbeddingProvider::getProviderName)
+                    .collect(Collectors.joining(", ")));
         }
         
         CacheManager cacheManager = cacheManagerProvider.getIfAvailable(NoOpCacheManager::new);
+        EmbeddingProvider fallbackEmbeddingProvider = fallbackProvider != null ? fallbackProvider.getIfAvailable() : null;
         return new AIEmbeddingService(config, selectedProvider, cacheManager, fallbackEmbeddingProvider);
     }
     
@@ -283,61 +232,8 @@ public class AIInfrastructureAutoConfiguration {
         return Clock.systemUTC();
     }
     
-    // VectorDatabaseService is now an interface with multiple implementations
-    // The specific implementation is selected based on configuration:
-    // - LuceneVectorDatabaseService (default)
-    // - PineconeVectorDatabaseService
-    // - InMemoryVectorDatabaseService
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
-    public LuceneVectorDatabaseService luceneVectorDatabaseDelegate(AIProviderConfig config) {
-        return new LuceneVectorDatabaseService(config);
-    }
+    // Vector database implementations are provided by dedicated vector modules
 
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
-    @Primary
-    public VectorDatabaseService luceneVectorDatabaseService(
-            LuceneVectorDatabaseService delegate,
-            AISearchableEntityRepository searchableEntityRepository,
-            AIEntityConfigurationLoader configurationLoader) {
-        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config,
-                                                                       org.springframework.web.client.RestTemplate restTemplate) {
-        return new PineconeVectorDatabaseService(config, restTemplate);
-    }
-
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    @Primary
-    public VectorDatabaseService pineconeVectorDatabaseService(
-            PineconeVectorDatabaseService delegate,
-            AISearchableEntityRepository searchableEntityRepository,
-            AIEntityConfigurationLoader configurationLoader) {
-        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
-    public InMemoryVectorDatabaseService inMemoryVectorDatabaseDelegate(AIProviderConfig config) {
-        return new InMemoryVectorDatabaseService(config);
-    }
-
-    @Bean
-    @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "memory")
-    @Primary
-    public VectorDatabaseService inMemoryVectorDatabaseService(
-            InMemoryVectorDatabaseService delegate,
-            AISearchableEntityRepository searchableEntityRepository,
-            AIEntityConfigurationLoader configurationLoader) {
-        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
-    }
-    
     @Bean
     @ConditionalOnMissingBean
     public AIEntityConfigurationLoader aiEntityConfigurationLoader(ResourceLoader resourceLoader) {
@@ -394,8 +290,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIConfigurationService aiConfigurationService(AIServiceConfig serviceConfig) {
-        return new AIConfigurationService(serviceConfig);
+    public AIConfigurationService aiConfigurationService(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
+        return new AIConfigurationService(providerConfig, serviceConfig);
     }
     
     @Bean
@@ -425,27 +321,6 @@ public class AIInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean
     public com.ai.infrastructure.service.AIInfrastructureProfileService aiInfrastructureProfileService(com.ai.infrastructure.repository.AIInfrastructureProfileRepository aiInfrastructureProfileRepository, AICapabilityService aiCapabilityService) {
         return new com.ai.infrastructure.service.AIInfrastructureProfileService(aiInfrastructureProfileRepository, aiCapabilityService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public com.ai.infrastructure.provider.ProviderConfig providerConfig(AIProviderConfig aiProviderConfig) {
-        return com.ai.infrastructure.provider.ProviderConfig.builder()
-                .providerName("openai")
-                .apiKey(aiProviderConfig.getOpenaiApiKey())
-                .baseUrl("https://api.openai.com/v1")
-                .defaultModel(aiProviderConfig.getOpenaiModel())
-                .defaultEmbeddingModel(aiProviderConfig.getOpenaiEmbeddingModel())
-                .maxTokens(aiProviderConfig.getOpenaiMaxTokens())
-                .temperature(aiProviderConfig.getOpenaiTemperature())
-                .timeoutSeconds(aiProviderConfig.getOpenaiTimeout())
-                .maxRetries(3)
-                .retryDelayMs(1000L)
-                .rateLimitPerMinute(60)
-                .rateLimitPerDay(10000)
-                .enabled(true)
-                .priority(1)
-                .build();
     }
 
     private CacheConfig resolveCacheConfig(AIServiceConfig serviceConfig) {

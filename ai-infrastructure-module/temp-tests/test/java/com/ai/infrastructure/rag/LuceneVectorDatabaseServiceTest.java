@@ -3,6 +3,7 @@ package com.ai.infrastructure.rag;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
+import com.ai.infrastructure.vector.lucene.LuceneVectorDatabaseService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,9 +40,9 @@ class LuceneVectorDatabaseServiceTest {
         ReflectionTestUtils.setField(service, "similarityThreshold", 0.5);
         ReflectionTestUtils.setField(service, "maxResults", 10);
         
-        // Mock config
-        // Mock configuration
-        lenient().when(config.getOpenaiEmbeddingModel()).thenReturn("text-embedding-3-small");
+        // Mock configuration defaults
+        lenient().when(config.resolveEmbeddingDefaults())
+            .thenReturn(new AIProviderConfig.EmbeddingDefaults("onnx", "text-embedding-3-small"));
         
         // Initialize the service
         service.initialize();

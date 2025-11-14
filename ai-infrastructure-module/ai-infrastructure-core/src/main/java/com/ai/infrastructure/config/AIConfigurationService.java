@@ -1,6 +1,5 @@
 package com.ai.infrastructure.config;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 // import org.springframework.cloud.context.config.annotation.RefreshScope;
@@ -24,11 +23,11 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 // @Service // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
-@RequiredArgsConstructor
 // @RefreshScope
 public class AIConfigurationService {
     
     private final AIServiceConfig aiServiceConfig;
+    private final AIProviderConfig aiProviderConfig;
     
     @Value("${ai.config.refresh-interval:300}")
     private long refreshIntervalSeconds;
@@ -39,6 +38,22 @@ public class AIConfigurationService {
     private final Map<String, Object> dynamicConfig = new ConcurrentHashMap<>();
     private final Map<String, Long> configTimestamps = new ConcurrentHashMap<>();
     private ScheduledExecutorService scheduler;
+    
+    public AIConfigurationService(AIProviderConfig aiProviderConfig, AIServiceConfig aiServiceConfig) {
+        this.aiProviderConfig = aiProviderConfig;
+        this.aiServiceConfig = aiServiceConfig;
+    }
+
+    /**
+     * Legacy constructor retained for compatibility with components that only contribute
+     * {@link AIServiceConfig}. A default {@link AIProviderConfig} will be created.
+     *
+     * @deprecated prefer {@link #AIConfigurationService(AIProviderConfig, AIServiceConfig)}
+     */
+    @Deprecated
+    public AIConfigurationService(AIServiceConfig aiServiceConfig) {
+        this(new AIProviderConfig(), aiServiceConfig);
+    }
     
     @PostConstruct
     public void initialize() {
