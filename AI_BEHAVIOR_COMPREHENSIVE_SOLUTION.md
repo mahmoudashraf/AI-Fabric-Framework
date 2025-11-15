@@ -2465,6 +2465,1258 @@ log.error("Failed to process behavior event",
 
 ---
 
+## Code Cleanup Plan
+
+### Overview
+
+Before starting the new implementation, clean up the existing behavior tracking code to avoid confusion and conflicts. This section details what to remove and what to keep.
+
+### Files to Remove
+
+#### 1. Old Behavior Entities
+
+```bash
+# Remove duplicate behavior entities
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/entity/Behavior.java
+rm -f backend/src/main/java/com/easyluxury/entity/UserBehavior.java
+
+# Remove DTOs
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/dto/BehaviorRequest.java
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/dto/BehaviorResponse.java
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/dto/BehaviorAnalysisResult.java
+rm -f backend/src/main/java/com/easyluxury/ai/dto/UserBehaviorRequest.java
+rm -f backend/src/main/java/com/easyluxury/ai/dto/UserBehaviorResponse.java
+```
+
+#### 2. Old Repositories
+
+```bash
+# Remove repositories
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/repository/BehaviorRepository.java
+rm -f backend/src/main/java/com/easyluxury/repository/UserBehaviorRepository.java
+```
+
+#### 3. Old Services
+
+```bash
+# Remove behavior services
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/service/BehaviorService.java
+rm -f backend/src/main/java/com/easyluxury/ai/service/BehaviorTrackingService.java
+
+# Remove retention service (will be replaced in ai-behavior)
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/behavior/BehaviorRetentionService.java
+```
+
+#### 4. Old Controllers
+
+```bash
+# Remove behavior controllers
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/controller/BehaviorController.java
+rm -f backend/src/main/java/com/easyluxury/ai/controller/BehavioralAIController.java
+```
+
+#### 5. Old Adapters
+
+```bash
+# Remove adapters bridging old systems
+rm -f backend/src/main/java/com/easyluxury/ai/adapter/UserBehaviorAdapter.java
+rm -f backend/src/main/java/com/easyluxury/ai/adapter/ProductAIAdapter.java  # If behavior-specific
+rm -f backend/src/main/java/com/easyluxury/ai/adapter/OrderAIAdapter.java    # If behavior-specific
+```
+
+#### 6. Old Tests
+
+```bash
+# Remove old behavior tests
+rm -rf ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/Behavior*
+rm -f ai-infrastructure-module/ai-infrastructure-core/src/test/java/com/ai/infrastructure/behavior/BehaviorRetentionServiceTest.java
+```
+
+#### 7. Old Configuration
+
+Remove behavior-related configuration from auto-configuration:
+
+```bash
+# Edit this file to remove behavior beans
+vi ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/config/AIInfrastructureAutoConfiguration.java
+```
+
+Remove these bean definitions:
+```java
+// REMOVE these from AIInfrastructureAutoConfiguration:
+@Bean
+public BehaviorRetentionService behaviorRetentionService(...)
+
+@Bean
+public com.ai.infrastructure.service.BehaviorService behaviorService(...)
+```
+
+---
+
+### Files to Update
+
+#### 1. RecommendationEngine
+
+**File:** `backend/src/main/java/com/easyluxury/ai/service/RecommendationEngine.java`
+
+**Changes:**
+```java
+// REMOVE old imports
+import com.easyluxury.repository.UserBehaviorRepository;
+import com.easyluxury.entity.UserBehavior;
+
+// ADD new imports
+import com.ai.behavior.service.BehaviorInsightsService;
+import com.ai.behavior.service.BehaviorQueryService;
+import com.ai.behavior.model.BehaviorInsights;
+import com.ai.behavior.model.BehaviorQuery;
+
+@Service
+@RequiredArgsConstructor
+public class RecommendationEngine {
+    
+    // REMOVE
+    // private final UserBehaviorRepository userBehaviorRepository;
+    
+    // ADD
+    private final BehaviorInsightsService insightsService;
+    private final BehaviorQueryService queryService;
+    
+    public List<Product> generateProductRecommendations(UUID userId, int limit, ...) {
+        // OLD CODE (remove):
+        // List<UserBehavior> behaviors = userBehaviorRepository
+        //     .findByUserIdOrderByCreatedAtDesc(userId)
+        //     .stream()
+        //     .limit(200)
+        //     .toList();
+        
+        // NEW CODE:
+        // Get pre-computed insights (fast!)
+        BehaviorInsights insights = insightsService.getUserInsights(userId);
+        
+        if (insights == null || !insights.isValid()) {
+            return getDefaultRecommendations(limit);
+        }
+        
+        // Use insights for recommendations
+        List<String> preferredCategories = (List<String>) 
+            insights.getPreferences().get("preferred_categories");
+        
+        return productRepository.findByPreferences(
+            preferredCategories,
+            limit
+        );
+    }
+}
+```
+
+#### 2. UIAdaptationService
+
+**File:** `backend/src/main/java/com/easyluxury/ai/service/UIAdaptationService.java`
+
+**Changes:**
+```java
+// REMOVE old imports
+import com.easyluxury.repository.UserBehaviorRepository;
+
+// ADD new imports
+import com.ai.behavior.service.BehaviorInsightsService;
+
+@Service
+@RequiredArgsConstructor
+public class UIAdaptationService {
+    
+    // REMOVE
+    // private final UserBehaviorRepository userBehaviorRepository;
+    
+    // ADD
+    private final BehaviorInsightsService insightsService;
+    
+    public Map<String, Object> generatePersonalizedUIConfig(UUID userId) {
+        // OLD CODE (remove):
+        // List<UserBehavior> behaviors = userBehaviorRepository
+        //     .findByUserIdOrderByCreatedAtDesc(userId);
+        
+        // NEW CODE:
+        BehaviorInsights insights = insightsService.getUserInsights(userId);
+        
+        return Map.of(
+            "theme", insights.getPreferences().get("preferred_theme"),
+            "layout", insights.getPreferences().get("preferred_layout"),
+            "features", insights.getRecommendations()
+        );
+    }
+}
+```
+
+#### 3. UserDataDeletionService
+
+**File:** `ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/deletion/UserDataDeletionService.java`
+
+**Changes:**
+```java
+// REMOVE old imports
+import com.ai.infrastructure.repository.BehaviorRepository;
+
+// ADD new imports
+import com.ai.behavior.service.BehaviorDeletionService;
+
+@Service
+@RequiredArgsConstructor
+public class UserDataDeletionService {
+    
+    // REMOVE
+    // private final BehaviorRepository behaviorRepository;
+    
+    // ADD
+    private final BehaviorDeletionService behaviorDeletionService;
+    
+    @Transactional
+    public UserDataDeletionResult deleteUserData(String userId) {
+        UUID userUuid = UUID.fromString(userId);
+        
+        // OLD CODE (remove):
+        // List<Behavior> behaviors = behaviorRepository
+        //     .findByUserIdOrderByCreatedAtDesc(userUuid);
+        // behaviorRepository.deleteAllInBatch(behaviors);
+        
+        // NEW CODE:
+        behaviorDeletionService.deleteUserBehaviors(userUuid);
+        
+        // ... rest of deletion logic
+    }
+}
+```
+
+---
+
+### Database Cleanup
+
+#### Drop Old Tables
+
+```sql
+-- Drop old behavior tables
+DROP TABLE IF EXISTS behaviors CASCADE;
+DROP TABLE IF EXISTS user_behaviors CASCADE;
+
+-- Drop old indexes (if they weren't cascade deleted)
+DROP INDEX IF EXISTS idx_behavior_user_id;
+DROP INDEX IF EXISTS idx_user_behavior_user_id;
+```
+
+#### Remove Old Migrations
+
+```bash
+# Archive old migration files (don't delete, for reference)
+mkdir -p ai-infrastructure-module/ai-infrastructure-core/src/main/resources/db/migration/archived
+mv ai-infrastructure-module/ai-infrastructure-core/src/main/resources/db/migration/*Behavior*.sql \
+   ai-infrastructure-module/ai-infrastructure-core/src/main/resources/db/migration/archived/
+```
+
+---
+
+### Dependency Cleanup
+
+#### Update pom.xml Files
+
+Remove any behavior-specific test dependencies:
+
+```xml
+<!-- REMOVE from backend/pom.xml if present -->
+<!-- Old behavior test utils, mocks, etc. -->
+```
+
+---
+
+### Configuration Cleanup
+
+#### application.yml
+
+Remove old behavior configuration:
+
+```yaml
+# REMOVE these sections from application.yml
+
+# Old behavior tracking config (remove)
+# ai:
+#   infrastructure:
+#     behavior:
+#       retention-days: 90
+#       auto-cleanup: true
+```
+
+---
+
+### Test Configuration Cleanup
+
+**File:** `backend/src/test/java/com/easyluxury/ai/config/TestAIConfiguration.java`
+
+```java
+// REMOVE old behavior mocks
+@Bean
+public BehaviorRepository behaviorRepository() {
+    return Mockito.mock(BehaviorRepository.class);
+}
+
+@Bean
+public BehaviorService behaviorService(...) {
+    return new BehaviorService(...);
+}
+```
+
+---
+
+### Cleanup Verification Script
+
+Create a script to verify cleanup:
+
+```bash
+#!/bin/bash
+# cleanup-verification.sh
+
+echo "Verifying behavior code cleanup..."
+
+# Check for old entity references
+echo "Checking for old Behavior entity references..."
+grep -r "import.*\.entity\.Behavior" . --include="*.java" && echo "❌ Found old Behavior imports" || echo "✅ No old Behavior imports"
+
+grep -r "import.*entity\.UserBehavior" . --include="*.java" && echo "❌ Found old UserBehavior imports" || echo "✅ No old UserBehavior imports"
+
+# Check for old repository references
+echo "Checking for old repository references..."
+grep -r "BehaviorRepository" . --include="*.java" --exclude-dir=ai-behavior-module && echo "❌ Found old BehaviorRepository" || echo "✅ No old BehaviorRepository"
+
+grep -r "UserBehaviorRepository" . --include="*.java" --exclude-dir=ai-behavior-module && echo "❌ Found old UserBehaviorRepository" || echo "✅ No old UserBehaviorRepository"
+
+# Check for old service references
+echo "Checking for old service references..."
+grep -r "BehaviorService" . --include="*.java" --exclude-dir=ai-behavior-module && echo "❌ Found old BehaviorService" || echo "✅ No old BehaviorService"
+
+grep -r "BehaviorTrackingService" . --include="*.java" --exclude-dir=ai-behavior-module && echo "❌ Found old BehaviorTrackingService" || echo "✅ No old BehaviorTrackingService"
+
+# Check database
+echo "Checking database for old tables..."
+psql -U postgres -d your_database -c "SELECT tablename FROM pg_tables WHERE tablename IN ('behaviors', 'user_behaviors');" | grep -q "0 rows" && echo "✅ Old tables removed" || echo "❌ Old tables still exist"
+
+echo "Cleanup verification complete!"
+```
+
+---
+
+### Summary Checklist
+
+- [ ] Remove old Behavior and UserBehavior entities
+- [ ] Remove old repositories (BehaviorRepository, UserBehaviorRepository)
+- [ ] Remove old services (BehaviorService, BehaviorTrackingService)
+- [ ] Remove old controllers (BehaviorController, BehavioralAIController)
+- [ ] Remove old adapters (UserBehaviorAdapter, etc.)
+- [ ] Remove old tests
+- [ ] Update RecommendationEngine to use new ai-behavior
+- [ ] Update UIAdaptationService to use new ai-behavior
+- [ ] Update UserDataDeletionService to use new ai-behavior
+- [ ] Drop old database tables (behaviors, user_behaviors)
+- [ ] Archive old migration files
+- [ ] Clean up configuration files
+- [ ] Clean up test configurations
+- [ ] Run cleanup verification script
+- [ ] Verify application compiles
+- [ ] Run all tests to ensure nothing broken
+
+---
+
+## AI-Core Integration
+
+### Overview
+
+The `ai-behavior` module **uses** `ai-core` for AI capabilities but maintains clear separation. `ai-core` provides generic AI primitives (embeddings, search, pattern detection), while `ai-behavior` applies them to behavior tracking domain.
+
+### Integration Architecture
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                    AI-BEHAVIOR MODULE                       │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │  Domain-Specific Behavior Logic                      │ │
+│  │  - BehaviorEvent models                              │ │
+│  │  - BehaviorInsights                                  │ │
+│  │  - Behavior-specific analysis                        │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                          │                                  │
+│                          │ Uses (via interfaces)            │
+│                          ↓                                  │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │  Integration Layer                                   │ │
+│  │  - BehaviorEmbeddingService (wraps AICoreService)   │ │
+│  │  - BehaviorSearchService (wraps AISearchService)    │ │
+│  │  - PatternAnalyzer (uses ai-core primitives)        │ │
+│  └──────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────┘
+                          │
+                          │ Calls
+                          ↓
+┌────────────────────────────────────────────────────────────┐
+│                     AI-CORE MODULE                          │
+│                (Generic AI Primitives)                      │
+│                                                             │
+│  - AICoreService (embeddings)                              │
+│  - AISearchService (vector search)                         │
+│  - RAGService (retrieval augmented generation)             │
+│  - AIAnalysisService (generic pattern detection)           │
+│  - AICapabilityService (entity processing)                 │
+│                                                             │
+│  Does NOT know about: behaviors, users, products          │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Key Principle: Dependency Direction
+
+```
+ai-behavior → ai-core  ✅ (ai-behavior depends on ai-core)
+ai-core → ai-behavior  ❌ (ai-core never knows about ai-behavior)
+```
+
+---
+
+### Integration Points
+
+#### 1. Embedding Generation
+
+**Scenario:** Generate embeddings for text content (feedback, reviews, search queries)
+
+```java
+package com.ai.behavior.service;
+
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorEmbedding;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+/**
+ * BehaviorEmbeddingService
+ * 
+ * Wraps ai-core embedding capabilities for behavior-specific use.
+ * Knows WHEN to embed (selective), ai-core knows HOW to embed.
+ */
+@Service
+@RequiredArgsConstructor
+public class BehaviorEmbeddingService {
+    
+    private final AICoreService aiCoreService;  // From ai-core
+    private final BehaviorEmbeddingRepository embeddingRepository;
+    
+    /**
+     * Generate embedding for behavior event (if applicable)
+     * 
+     * ai-behavior decides: Should we embed this event?
+     * ai-core provides: Embedding generation capability
+     */
+    public BehaviorEmbedding generateEmbedding(BehaviorEvent event) {
+        // ai-behavior logic: check if embedding needed
+        if (!shouldEmbed(event)) {
+            return null;
+        }
+        
+        String text = extractText(event);
+        if (text == null || text.length() < 10) {
+            return null;
+        }
+        
+        // ai-core capability: generate embedding
+        float[] embedding = aiCoreService.generateEmbedding(text);
+        
+        // ai-behavior logic: store with behavior context
+        BehaviorEmbedding behaviorEmbedding = BehaviorEmbedding.builder()
+            .behaviorEventId(event.getId())
+            .embeddingType(event.getEventType())
+            .originalText(text)
+            .embedding(embedding)
+            .model("text-embedding-3-small")
+            .build();
+        
+        return embeddingRepository.save(behaviorEmbedding);
+    }
+    
+    /**
+     * ai-behavior decision logic
+     */
+    private boolean shouldEmbed(BehaviorEvent event) {
+        // Only embed text-heavy events
+        return List.of("feedback", "review", "search").contains(event.getEventType());
+    }
+    
+    private String extractText(BehaviorEvent event) {
+        if (event.getMetadata() == null) {
+            return null;
+        }
+        
+        // Extract text based on event type (behavior domain knowledge)
+        switch (event.getEventType()) {
+            case "feedback":
+                return (String) event.getMetadata().get("feedback_text");
+            case "review":
+                return (String) event.getMetadata().get("review_text");
+            case "search":
+                return (String) event.getMetadata().get("query");
+            default:
+                return null;
+        }
+    }
+}
+```
+
+---
+
+#### 2. Semantic Search
+
+**Scenario:** Find similar feedback/reviews using vector search
+
+```java
+package com.ai.behavior.service;
+
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.rag.AISearchService;
+import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorEmbedding;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * BehaviorSearchService
+ * 
+ * Wraps ai-core search capabilities for behavior-specific searches.
+ */
+@Service
+@RequiredArgsConstructor
+public class BehaviorSearchService {
+    
+    private final AICoreService aiCoreService;           // For embedding query
+    private final AISearchService aiSearchService;        // For vector search
+    private final BehaviorEmbeddingRepository embeddingRepo;
+    private final BehaviorEventRepository eventRepo;
+    
+    /**
+     * Find similar feedback to given text
+     * 
+     * Example: User submits feedback "Checkout is confusing"
+     * Find all similar past feedback to identify patterns
+     */
+    public List<BehaviorEvent> findSimilarFeedback(String feedbackText, int limit) {
+        // Step 1: Generate embedding for search query (ai-core)
+        float[] queryEmbedding = aiCoreService.generateEmbedding(feedbackText);
+        
+        // Step 2: Search for similar embeddings (ai-core)
+        // Note: We'd need to integrate with vector database here
+        // This is simplified - actual implementation depends on vector DB
+        List<UUID> similarEmbeddingIds = aiSearchService.findSimilarVectors(
+            queryEmbedding,
+            "behavior_embeddings",
+            limit
+        );
+        
+        // Step 3: Get behavior events (ai-behavior domain)
+        List<BehaviorEmbedding> embeddings = embeddingRepo.findAllById(similarEmbeddingIds);
+        
+        List<UUID> eventIds = embeddings.stream()
+            .map(BehaviorEmbedding::getBehaviorEventId)
+            .collect(Collectors.toList());
+        
+        return eventRepo.findAllById(eventIds);
+    }
+    
+    /**
+     * Find users with similar search patterns
+     */
+    public List<UUID> findUsersWithSimilarSearches(UUID userId, int limit) {
+        // Get user's search queries
+        List<BehaviorEvent> userSearches = eventRepo.findByUserIdAndEventType(
+            userId,
+            "search"
+        );
+        
+        if (userSearches.isEmpty()) {
+            return List.of();
+        }
+        
+        // Get embeddings for user's searches
+        List<BehaviorEmbedding> userSearchEmbeddings = embeddingRepo
+            .findByBehaviorEventIdIn(
+                userSearches.stream().map(BehaviorEvent::getId).collect(Collectors.toList())
+            );
+        
+        // Calculate average embedding (user's search profile)
+        float[] avgEmbedding = calculateAverageEmbedding(userSearchEmbeddings);
+        
+        // Find similar search patterns (ai-core)
+        List<UUID> similarEmbeddingIds = aiSearchService.findSimilarVectors(
+            avgEmbedding,
+            "behavior_embeddings",
+            limit
+        );
+        
+        // Get users from those searches
+        List<BehaviorEmbedding> similarEmbeddings = embeddingRepo.findAllById(similarEmbeddingIds);
+        List<UUID> eventIds = similarEmbeddings.stream()
+            .map(BehaviorEmbedding::getBehaviorEventId)
+            .collect(Collectors.toList());
+        
+        List<BehaviorEvent> events = eventRepo.findAllById(eventIds);
+        
+        return events.stream()
+            .map(BehaviorEvent::getUserId)
+            .distinct()
+            .filter(id -> !id.equals(userId))  // Exclude original user
+            .collect(Collectors.toList());
+    }
+    
+    private float[] calculateAverageEmbedding(List<BehaviorEmbedding> embeddings) {
+        // Simple average - could use more sophisticated methods
+        if (embeddings.isEmpty()) {
+            return new float[1536];  // text-embedding-3-small dimension
+        }
+        
+        float[] sum = new float[1536];
+        for (BehaviorEmbedding emb : embeddings) {
+            float[] vec = emb.getEmbedding();
+            for (int i = 0; i < vec.length; i++) {
+                sum[i] += vec[i];
+            }
+        }
+        
+        for (int i = 0; i < sum.length; i++) {
+            sum[i] /= embeddings.size();
+        }
+        
+        return sum;
+    }
+}
+```
+
+---
+
+#### 3. Pattern Detection
+
+**Scenario:** Detect behavioral patterns using ai-core's analysis capabilities
+
+```java
+package com.ai.behavior.processing.analyzer;
+
+import com.ai.infrastructure.analysis.AIAnalysisService;
+import com.ai.infrastructure.dto.AnalysisRequest;
+import com.ai.infrastructure.dto.AnalysisResult;
+import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorInsights;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * PatternAnalyzer
+ * 
+ * Analyzes behavior patterns using ai-core's pattern detection.
+ * ai-behavior provides domain context, ai-core provides pattern detection algorithms.
+ */
+@Component
+@RequiredArgsConstructor
+public class PatternAnalyzer implements BehaviorAnalyzer {
+    
+    private final AIAnalysisService aiAnalysisService;  // From ai-core
+    
+    @Override
+    public BehaviorInsights analyze(UUID userId, List<BehaviorEvent> events) {
+        if (events.isEmpty()) {
+            return null;
+        }
+        
+        // Step 1: Convert behavior events to time-series data (ai-behavior domain)
+        List<TimeSeriesDataPoint> timeSeries = convertToTimeSeries(events);
+        
+        // Step 2: Detect patterns using ai-core (generic pattern detection)
+        AnalysisRequest request = AnalysisRequest.builder()
+            .dataPoints(timeSeries)
+            .analysisType("pattern_detection")
+            .parameters(Map.of(
+                "window_size", 24,
+                "min_support", 0.3
+            ))
+            .build();
+        
+        AnalysisResult result = aiAnalysisService.analyze(request);
+        
+        // Step 3: Interpret patterns in behavior context (ai-behavior domain)
+        List<String> patterns = interpretPatterns(result.getPatterns(), events);
+        
+        // Step 4: Calculate behavior-specific scores (ai-behavior domain)
+        Map<String, Double> scores = calculateBehaviorScores(events, patterns);
+        
+        // Step 5: Detect preferences (ai-behavior domain)
+        Map<String, Object> preferences = detectPreferences(events);
+        
+        // Step 6: Generate recommendations (ai-behavior domain)
+        List<String> recommendations = generateRecommendations(patterns, scores);
+        
+        // Step 7: Determine segment (ai-behavior domain)
+        String segment = determineSegment(scores, patterns);
+        
+        return BehaviorInsights.builder()
+            .userId(userId)
+            .patterns(patterns)
+            .scores(scores)
+            .segment(segment)
+            .preferences(preferences)
+            .recommendations(recommendations)
+            .analyzedAt(LocalDateTime.now())
+            .validUntil(LocalDateTime.now().plusMinutes(5))
+            .analysisVersion("1.0")
+            .build();
+    }
+    
+    /**
+     * Convert behavior events to generic time-series format (ai-core compatible)
+     */
+    private List<TimeSeriesDataPoint> convertToTimeSeries(List<BehaviorEvent> events) {
+        return events.stream()
+            .map(event -> TimeSeriesDataPoint.builder()
+                .timestamp(event.getTimestamp())
+                .value(getEventWeight(event.getEventType()))
+                .category(event.getEventType())
+                .metadata(event.getMetadata())
+                .build())
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Behavior domain knowledge: event importance
+     */
+    private double getEventWeight(String eventType) {
+        switch (eventType) {
+            case "purchase": return 10.0;
+            case "add_to_cart": return 5.0;
+            case "view": return 1.0;
+            case "search": return 2.0;
+            case "feedback": return 3.0;
+            default: return 1.0;
+        }
+    }
+    
+    /**
+     * Interpret generic patterns in behavior domain context
+     */
+    private List<String> interpretPatterns(List<String> genericPatterns, List<BehaviorEvent> events) {
+        List<String> behaviorPatterns = new ArrayList<>();
+        
+        // Map generic patterns to behavior patterns
+        for (String pattern : genericPatterns) {
+            if (pattern.contains("high_frequency")) {
+                // Check what's frequent
+                Map<String, Long> eventCounts = events.stream()
+                    .collect(Collectors.groupingBy(
+                        BehaviorEvent::getEventType,
+                        Collectors.counting()
+                    ));
+                
+                if (eventCounts.getOrDefault("purchase", 0L) > 5) {
+                    behaviorPatterns.add("frequent_buyer");
+                }
+                if (eventCounts.getOrDefault("view", 0L) > 50) {
+                    behaviorPatterns.add("heavy_browser");
+                }
+            }
+            
+            if (pattern.contains("time_clustering")) {
+                // Detect time-based patterns
+                Map<Integer, Long> hourCounts = events.stream()
+                    .collect(Collectors.groupingBy(
+                        e -> e.getTimestamp().getHour(),
+                        Collectors.counting()
+                    ));
+                
+                long eveningCount = hourCounts.entrySet().stream()
+                    .filter(e -> e.getKey() >= 18 && e.getKey() <= 23)
+                    .mapToLong(Map.Entry::getValue)
+                    .sum();
+                
+                if (eveningCount > events.size() * 0.6) {
+                    behaviorPatterns.add("evening_shopper");
+                }
+            }
+        }
+        
+        // Add domain-specific patterns
+        detectCartAbandonment(events).ifPresent(behaviorPatterns::add);
+        detectPriceChecker(events).ifPresent(behaviorPatterns::add);
+        
+        return behaviorPatterns;
+    }
+    
+    /**
+     * Behavior-specific pattern: cart abandonment
+     */
+    private Optional<String> detectCartAbandonment(List<BehaviorEvent> events) {
+        long addToCartCount = events.stream()
+            .filter(e -> e.getEventType().equals("add_to_cart"))
+            .count();
+        
+        long purchaseCount = events.stream()
+            .filter(e -> e.getEventType().equals("purchase"))
+            .count();
+        
+        if (addToCartCount > 3 && purchaseCount == 0) {
+            return Optional.of("cart_abandoner");
+        }
+        
+        return Optional.empty();
+    }
+    
+    /**
+     * Behavior-specific pattern: price checker
+     */
+    private Optional<String> detectPriceChecker(List<BehaviorEvent> events) {
+        // User views same product multiple times
+        Map<String, Long> entityViews = events.stream()
+            .filter(e -> e.getEventType().equals("view"))
+            .filter(e -> "product".equals(e.getEntityType()))
+            .collect(Collectors.groupingBy(
+                BehaviorEvent::getEntityId,
+                Collectors.counting()
+            ));
+        
+        boolean multipleViews = entityViews.values().stream()
+            .anyMatch(count -> count >= 3);
+        
+        if (multipleViews) {
+            return Optional.of("price_checker");
+        }
+        
+        return Optional.empty();
+    }
+    
+    /**
+     * Calculate behavior-specific scores
+     */
+    private Map<String, Double> calculateBehaviorScores(
+            List<BehaviorEvent> events,
+            List<String> patterns) {
+        
+        Map<String, Double> scores = new HashMap<>();
+        
+        // Engagement score (based on event frequency and diversity)
+        double engagementScore = calculateEngagementScore(events);
+        scores.put("engagement_score", engagementScore);
+        
+        // Conversion probability (based on patterns)
+        double conversionProb = calculateConversionProbability(events, patterns);
+        scores.put("conversion_probability", conversionProb);
+        
+        // Churn risk (based on activity decline)
+        double churnRisk = calculateChurnRisk(events);
+        scores.put("churn_risk", churnRisk);
+        
+        return scores;
+    }
+    
+    private double calculateEngagementScore(List<BehaviorEvent> events) {
+        // Frequency component
+        long daysSinceFirst = ChronoUnit.DAYS.between(
+            events.get(events.size() - 1).getTimestamp(),
+            events.get(0).getTimestamp()
+        );
+        double frequency = events.size() / Math.max(1.0, daysSinceFirst);
+        
+        // Diversity component
+        long uniqueEventTypes = events.stream()
+            .map(BehaviorEvent::getEventType)
+            .distinct()
+            .count();
+        double diversity = uniqueEventTypes / 10.0;  // Max 10 event types
+        
+        // Weighted average
+        return Math.min(1.0, (frequency * 0.6 + diversity * 0.4));
+    }
+    
+    private double calculateConversionProbability(
+            List<BehaviorEvent> events,
+            List<String> patterns) {
+        
+        double baseProbability = 0.1;  // 10% base
+        
+        // Increase based on patterns
+        if (patterns.contains("frequent_buyer")) {
+            baseProbability += 0.5;
+        }
+        if (patterns.contains("cart_abandoner")) {
+            baseProbability -= 0.2;
+        }
+        if (patterns.contains("price_checker")) {
+            baseProbability += 0.2;
+        }
+        
+        // Increase based on recent activity
+        long recentViews = events.stream()
+            .filter(e -> e.getTimestamp().isAfter(LocalDateTime.now().minusDays(7)))
+            .filter(e -> e.getEventType().equals("view"))
+            .count();
+        
+        if (recentViews > 10) {
+            baseProbability += 0.2;
+        }
+        
+        return Math.min(1.0, Math.max(0.0, baseProbability));
+    }
+    
+    private double calculateChurnRisk(List<BehaviorEvent> events) {
+        // Check activity decline
+        LocalDateTime now = LocalDateTime.now();
+        
+        long lastWeekEvents = events.stream()
+            .filter(e -> e.getTimestamp().isAfter(now.minusWeeks(1)))
+            .count();
+        
+        long previousWeekEvents = events.stream()
+            .filter(e -> e.getTimestamp().isBefore(now.minusWeeks(1)))
+            .filter(e -> e.getTimestamp().isAfter(now.minusWeeks(2)))
+            .count();
+        
+        if (previousWeekEvents == 0) {
+            return 0.0;  // Not enough data
+        }
+        
+        double activityRatio = (double) lastWeekEvents / previousWeekEvents;
+        
+        if (activityRatio < 0.3) {
+            return 0.8;  // High churn risk
+        } else if (activityRatio < 0.7) {
+            return 0.5;  // Medium churn risk
+        } else {
+            return 0.2;  // Low churn risk
+        }
+    }
+    
+    /**
+     * Detect user preferences from behavior
+     */
+    private Map<String, Object> detectPreferences(List<BehaviorEvent> events) {
+        Map<String, Object> preferences = new HashMap<>();
+        
+        // Preferred categories
+        Map<String, Long> categories = events.stream()
+            .filter(e -> e.getMetadata() != null)
+            .filter(e -> e.getMetadata().containsKey("category"))
+            .collect(Collectors.groupingBy(
+                e -> (String) e.getMetadata().get("category"),
+                Collectors.counting()
+            ));
+        
+        List<String> topCategories = categories.entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+            .limit(3)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+        
+        preferences.put("preferred_categories", topCategories);
+        
+        // Price range
+        List<Double> prices = events.stream()
+            .filter(e -> e.getMetadata() != null)
+            .filter(e -> e.getMetadata().containsKey("price"))
+            .map(e -> ((Number) e.getMetadata().get("price")).doubleValue())
+            .collect(Collectors.toList());
+        
+        if (!prices.isEmpty()) {
+            double avgPrice = prices.stream()
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0.0);
+            
+            String priceRange;
+            if (avgPrice > 1000) {
+                priceRange = "luxury";
+            } else if (avgPrice > 500) {
+                priceRange = "premium";
+            } else if (avgPrice > 100) {
+                priceRange = "mid_range";
+            } else {
+                priceRange = "budget";
+            }
+            
+            preferences.put("price_range", priceRange);
+        }
+        
+        return preferences;
+    }
+    
+    /**
+     * Generate recommendations based on analysis
+     */
+    private List<String> generateRecommendations(
+            List<String> patterns,
+            Map<String, Double> scores) {
+        
+        List<String> recommendations = new ArrayList<>();
+        
+        if (patterns.contains("cart_abandoner")) {
+            recommendations.add("send_cart_reminder");
+            recommendations.add("offer_discount");
+        }
+        
+        if (patterns.contains("frequent_buyer")) {
+            recommendations.add("offer_vip_upgrade");
+            recommendations.add("exclusive_early_access");
+        }
+        
+        if (scores.get("churn_risk") > 0.7) {
+            recommendations.add("re_engagement_campaign");
+            recommendations.add("win_back_offer");
+        }
+        
+        if (scores.get("engagement_score") > 0.8) {
+            recommendations.add("request_review");
+            recommendations.add("referral_program");
+        }
+        
+        return recommendations;
+    }
+    
+    /**
+     * Determine user segment
+     */
+    private String determineSegment(Map<String, Double> scores, List<String> patterns) {
+        if (patterns.contains("frequent_buyer") && scores.get("engagement_score") > 0.7) {
+            return "VIP";
+        }
+        
+        if (scores.get("churn_risk") > 0.7) {
+            return "at_risk";
+        }
+        
+        if (scores.get("engagement_score") < 0.3) {
+            return "dormant";
+        }
+        
+        if (patterns.contains("cart_abandoner")) {
+            return "needs_nurturing";
+        }
+        
+        return "active";
+    }
+    
+    @Override
+    public String getAnalyzerType() {
+        return "pattern_detection";
+    }
+    
+    @Override
+    public boolean supports(List<String> eventTypes) {
+        // Supports all event types
+        return true;
+    }
+}
+```
+
+---
+
+#### 4. RAG Integration
+
+**Scenario:** Use behavior data in RAG context for AI-powered insights
+
+```java
+package com.ai.behavior.service;
+
+import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.dto.RAGRequest;
+import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorInsights;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * BehaviorRAGService
+ * 
+ * Uses RAG (Retrieval Augmented Generation) to provide AI-powered
+ * behavioral insights and recommendations.
+ */
+@Service
+@RequiredArgsConstructor
+public class BehaviorRAGService {
+    
+    private final RAGService ragService;  // From ai-core
+    private final BehaviorDataProvider behaviorProvider;
+    private final BehaviorInsightsService insightsService;
+    
+    /**
+     * Get AI-powered explanation of user behavior
+     * 
+     * Example: "Why did this user abandon their cart?"
+     */
+    public String explainUserBehavior(UUID userId, String question) {
+        // Get user behavior context
+        List<BehaviorEvent> events = behaviorProvider.getRecentEvents(userId, 100);
+        BehaviorInsights insights = insightsService.getUserInsights(userId);
+        
+        // Build context for RAG
+        String context = buildBehaviorContext(events, insights);
+        
+        // Use ai-core RAG to generate explanation
+        RAGRequest request = RAGRequest.builder()
+            .query(question)
+            .context(context)
+            .maxTokens(500)
+            .temperature(0.7)
+            .build();
+        
+        RAGResponse response = ragService.generate(request);
+        
+        return response.getGeneratedText();
+    }
+    
+    /**
+     * Get personalized recommendations using RAG
+     */
+    public String getPersonalizedRecommendations(UUID userId) {
+        List<BehaviorEvent> events = behaviorProvider.getRecentEvents(userId, 100);
+        BehaviorInsights insights = insightsService.getUserInsights(userId);
+        
+        String context = buildBehaviorContext(events, insights);
+        
+        RAGRequest request = RAGRequest.builder()
+            .query("Based on this user's behavior, what products should we recommend and why?")
+            .context(context)
+            .maxTokens(300)
+            .temperature(0.7)
+            .build();
+        
+        RAGResponse response = ragService.generate(request);
+        
+        return response.getGeneratedText();
+    }
+    
+    /**
+     * Build behavior context for RAG
+     */
+    private String buildBehaviorContext(List<BehaviorEvent> events, BehaviorInsights insights) {
+        StringBuilder context = new StringBuilder();
+        
+        // Add user segment
+        context.append("User Segment: ").append(insights.getSegment()).append("\n");
+        
+        // Add patterns
+        context.append("Detected Patterns: ")
+            .append(String.join(", ", insights.getPatterns()))
+            .append("\n");
+        
+        // Add scores
+        context.append("Engagement Score: ")
+            .append(String.format("%.2f", insights.getScore("engagement_score")))
+            .append("\n");
+        context.append("Conversion Probability: ")
+            .append(String.format("%.2f", insights.getScore("conversion_probability")))
+            .append("\n");
+        
+        // Add preferences
+        context.append("Preferred Categories: ")
+            .append(insights.getPreferences().get("preferred_categories"))
+            .append("\n");
+        context.append("Price Range: ")
+            .append(insights.getPreferences().get("price_range"))
+            .append("\n");
+        
+        // Add recent behavior summary
+        Map<String, Long> eventCounts = events.stream()
+            .collect(Collectors.groupingBy(
+                BehaviorEvent::getEventType,
+                Collectors.counting()
+            ));
+        
+        context.append("\nRecent Activity (last 100 events):\n");
+        eventCounts.forEach((type, count) -> 
+            context.append("- ").append(type).append(": ").append(count).append("\n")
+        );
+        
+        return context.toString();
+    }
+}
+```
+
+---
+
+### Integration Configuration
+
+**pom.xml for ai-behavior module:**
+
+```xml
+<dependencies>
+    <!-- AI-Core dependency -->
+    <dependency>
+        <groupId>com.ai.infrastructure</groupId>
+        <artifactId>ai-infrastructure-core</artifactId>
+        <version>${ai-core.version}</version>
+    </dependency>
+    
+    <!-- Spring Boot -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    
+    <!-- Other dependencies -->
+</dependencies>
+```
+
+**Spring Configuration:**
+
+```java
+package com.ai.behavior.config;
+
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.analysis.AIAnalysisService;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+
+/**
+ * Import ai-core services into ai-behavior context
+ */
+@Configuration
+@Import({
+    AICoreService.class,
+    RAGService.class,
+    AIAnalysisService.class
+})
+public class AIBehaviorConfiguration {
+    // ai-core services now available for injection
+}
+```
+
+---
+
+### Summary: Clear Separation
+
+| Responsibility | ai-behavior | ai-core |
+|----------------|-------------|---------|
+| **Domain Knowledge** | Behavior events, patterns, insights | Generic AI operations |
+| **When to use AI** | Decides which events need embedding | Doesn't decide |
+| **How to use AI** | Calls ai-core services | Provides services |
+| **Pattern Interpretation** | Maps generic patterns to behavior context | Detects generic patterns |
+| **Scoring** | Behavior-specific scores (engagement, churn) | Generic analysis scores |
+| **Storage** | Behavior events, embeddings, insights | AI operation logs only |
+| **API** | Behavior-specific endpoints | Generic AI endpoints |
+
+**Key principle:** ai-behavior adds **domain intelligence** on top of ai-core's **generic capabilities**.
+
+---
+
 ## Implementation Roadmap
 
 ### Phase 1: Core Module Setup (Week 1)
