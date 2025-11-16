@@ -12,9 +12,13 @@ import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.cleanup.CleanupPolicyProvider;
+import com.ai.infrastructure.cleanup.DefaultCleanupPolicyProvider;
+import com.ai.infrastructure.cleanup.SearchableEntityCleanupScheduler;
 import com.ai.infrastructure.indexing.IndexingCoordinator;
 import com.ai.infrastructure.indexing.IndexingStrategyResolver;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
+import com.ai.infrastructure.indexing.visibility.VisibilityCacheService;
 import com.ai.infrastructure.indexing.worker.AsyncIndexingWorker;
 import com.ai.infrastructure.indexing.worker.BatchIndexingWorker;
 import com.ai.infrastructure.indexing.worker.IndexingCleanupScheduler;
@@ -94,7 +98,9 @@ import java.util.stream.Collectors;
         ResponseSanitizationProperties.class,
         IntentHistoryProperties.class,
         SecurityProperties.class,
-        AIIndexingProperties.class
+        AIIndexingProperties.class,
+        AICleanupProperties.class,
+        VisibilityCacheProperties.class
     })
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
@@ -258,6 +264,42 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
+    public CleanupPolicyProvider cleanupPolicyProvider(AICleanupProperties cleanupProperties) {
+        return new DefaultCleanupPolicyProvider(cleanupProperties);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ai.cleanup", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public SearchableEntityCleanupScheduler searchableEntityCleanupScheduler(
+        AICleanupProperties cleanupProperties,
+        CleanupPolicyProvider cleanupPolicyProvider,
+        AISearchableEntityRepository repository,
+        VectorManagementService vectorManagementService,
+        ObjectMapper objectMapper,
+        Clock clock
+    ) {
+        return new SearchableEntityCleanupScheduler(
+            cleanupProperties,
+            cleanupPolicyProvider,
+            repository,
+            vectorManagementService,
+            objectMapper,
+            clock
+        );
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ai.indexing.visibility-cache", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public VisibilityCacheService visibilityCacheService(
+        VisibilityCacheProperties visibilityCacheProperties,
+        ObjectMapper objectMapper,
+        Clock clock
+    ) {
+        return new VisibilityCacheService(visibilityCacheProperties, objectMapper, clock);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
     public IndexingStrategyResolver indexingStrategyResolver() {
         return new IndexingStrategyResolver();
     }
@@ -290,7 +332,8 @@ public class AIInfrastructureAutoConfiguration {
         AIEntityConfigurationLoader configurationLoader,
         AIIndexingProperties indexingProperties,
         ObjectMapper objectMapper,
-        AICapabilityService capabilityService
+        AICapabilityService capabilityService,
+        ObjectProvider<VisibilityCacheService> visibilityCacheServiceProvider
     ) {
         return new IndexingCoordinator(
             indexingStrategyResolver,
@@ -298,7 +341,8 @@ public class AIInfrastructureAutoConfiguration {
             configurationLoader,
             indexingProperties,
             objectMapper,
-            capabilityService
+            capabilityService,
+            visibilityCacheServiceProvider.getIfAvailable()
         );
     }
 

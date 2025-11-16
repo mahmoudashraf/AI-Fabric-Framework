@@ -134,8 +134,32 @@ ai:
         sweep-interval: PT1M
         completed-retention: P1D
         dead-letter-retention: P7D
+      visibility-cache:
+        enabled: true
+        ttl: PT5M
+        cleanup-interval: PT30S
+        max-entries: 2000
 
-# Easy Luxury AI Configuration for Development
+    cleanup:
+      enabled: false
+      retention-cron: "0 0 3 * * *"
+      orphaned-entities:
+        enabled: false
+        cron: "0 0 4 * * SUN"
+      no-vector-entities:
+        enabled: true
+        cron: "0 0 5 * * SUN"
+        retention-hours: 6
+      strategies:
+        product: SOFT_DELETE
+        behavior: HARD_DELETE
+        default: SOFT_DELETE
+      retention-days:
+        product: 30
+        behavior: 7
+        default: 30
+
+  # Easy Luxury AI Configuration for Development
 easyluxury:
   ai:
     # Index Names

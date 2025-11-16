@@ -120,6 +120,11 @@ ai:
         sweep-interval: ${AI_INDEXING_SWEEP_INTERVAL:PT5M}
         completed-retention: ${AI_INDEXING_COMPLETED_RETENTION:P7D}
         dead-letter-retention: ${AI_INDEXING_DEAD_LETTER_RETENTION:P30D}
+      visibility-cache:
+        enabled: ${AI_INDEXING_VISIBILITY_CACHE_ENABLED:true}
+        ttl: ${AI_INDEXING_VISIBILITY_CACHE_TTL:PT10M}
+        cleanup-interval: ${AI_INDEXING_VISIBILITY_CACHE_SWEEP:PT1M}
+        max-entries: ${AI_INDEXING_VISIBILITY_CACHE_MAX:10000}
   
   # Vector Database Configuration
   vector-db:
@@ -183,7 +188,31 @@ ai:
         rate-limit: 1000
         timeout: 5000
 
-# Easy Luxury AI Configuration
+  cleanup:
+    enabled: true
+    retention-cron: "0 30 3 * * *"
+    orphaned-entities:
+      enabled: true
+      cron: "0 0 4 * * SUN"
+    no-vector-entities:
+      enabled: true
+      cron: "0 0 5 * * SUN"
+      retention-hours: 24
+    strategies:
+      order: ARCHIVE
+      user: ARCHIVE
+      product: SOFT_DELETE
+      behavior: HARD_DELETE
+      analytics: HARD_DELETE
+    retention-days:
+      order: 2555
+      user: 365
+      product: 180
+      behavior: 90
+      analytics: 30
+      default: 180
+
+  # Easy Luxury AI Configuration
 easyluxury:
   ai:
     # Index Names
