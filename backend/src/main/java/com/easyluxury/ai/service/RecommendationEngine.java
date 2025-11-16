@@ -576,11 +576,8 @@ public class RecommendationEngine {
      * Find similar users
      */
     private List<UUID> findSimilarUsers(UUID userId, List<UserBehavior> userBehaviors) {
-        // Simple similarity implementation - in real scenario, this would use ML algorithms
-        return userBehaviorRepository.findAll()
-            .stream()
-            .map(UserBehavior::getUserId)
-            .distinct()
+        return userRepository.findAll().stream()
+            .map(User::getId)
             .filter(id -> !id.equals(userId))
             .limit(10)
             .collect(Collectors.toList());

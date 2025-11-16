@@ -6,7 +6,6 @@ import com.ai.behavior.model.BehaviorEvent;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.model.EventType;
 import com.ai.behavior.service.BehaviorAnalysisService;
-import com.ai.behavior.service.BehaviorInsightsService;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import com.ai.behavior.storage.BehaviorEventRepository;
 import com.ai.infrastructure.dto.BehaviorAnalysisResult;
@@ -29,7 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Legacy-compatible behavior service that forwards to the new ai-behavior module.
