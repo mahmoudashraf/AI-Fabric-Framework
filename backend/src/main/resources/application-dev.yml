@@ -134,11 +134,6 @@ ai:
         sweep-interval: PT1M
         completed-retention: P1D
         dead-letter-retention: P7D
-      visibility-cache:
-        enabled: true
-        ttl: PT5M
-        cleanup-interval: PT30S
-        max-entries: 2000
 
     cleanup:
       enabled: false

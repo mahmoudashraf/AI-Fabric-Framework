@@ -120,11 +120,6 @@ ai:
         sweep-interval: ${AI_INDEXING_SWEEP_INTERVAL:PT5M}
         completed-retention: ${AI_INDEXING_COMPLETED_RETENTION:P7D}
         dead-letter-retention: ${AI_INDEXING_DEAD_LETTER_RETENTION:P30D}
-      visibility-cache:
-        enabled: ${AI_INDEXING_VISIBILITY_CACHE_ENABLED:true}
-        ttl: ${AI_INDEXING_VISIBILITY_CACHE_TTL:PT10M}
-        cleanup-interval: ${AI_INDEXING_VISIBILITY_CACHE_SWEEP:PT1M}
-        max-entries: ${AI_INDEXING_VISIBILITY_CACHE_MAX:10000}
   
   # Vector Database Configuration
   vector-db:

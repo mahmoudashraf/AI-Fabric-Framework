@@ -86,9 +86,6 @@ ai:
         strategy: BATCH
       cleanup:
         enabled: false
-      visibility-cache:
-        enabled: false
-
     cleanup:
       enabled: false
 

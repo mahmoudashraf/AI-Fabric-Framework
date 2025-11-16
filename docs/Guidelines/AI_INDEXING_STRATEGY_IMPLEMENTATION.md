@@ -149,8 +149,7 @@ public enum IndexingStrategy {
 ├─────────────────────────────────────────────────────────────────┤
 │ YES → Is this a legal/compliance requirement?                  │
 │       ├─ YES → SYNC (only option for guaranteed compliance)     │
-│       └─ NO  → Use visibility cache + ASYNC                     │
-│                (immediate visibility without blocking)           │
+│       └─ NO  → Use ASYNC with short-term read fallback           │
 ├─────────────────────────────────────────────────────────────────┤
 │ NO → Is this user-facing content that should be searchable     │
 │      within a few seconds?                                      │
@@ -297,34 +296,6 @@ public @interface AICapable {
      */
     IndexingStrategy onDeleteStrategy() default IndexingStrategy.AUTO;
     
-    // ════════════════════════════════════════════════════════
-    // Advanced Configuration
-    // ════════════════════════════════════════════════════════
-    
-    /**
-     * Update visibility cache immediately for instant search visibility
-     * 
-     * When true:
-     * - Updates Redis/cache with critical fields immediately (<10ms)
-     * - Full indexing still happens async in background
-     * - Search results reflect changes instantly
-     * 
-     * Use for:
-     * - Deletions (hide from search immediately)
-     * - Status changes (order status, product availability)
-     * - Price updates (prevent stale pricing in search)
-     * 
-     * Performance: Adds ~5-10ms cache write overhead
-     */
-    boolean updateVisibilityCache() default false;
-    
-    /**
-     * Critical fields to cache for immediate visibility
-     * Only used when updateVisibilityCache = true
-     * 
-     * Example: {"status", "price", "availability", "deleted"}
-     */
-    String[] cachedFields() default {};
     
     /**
      * Maximum indexing delay allowed before alerting (in seconds)
@@ -393,13 +364,6 @@ public @interface AIProcess {
      */
     IndexingStrategy indexingStrategy() default IndexingStrategy.AUTO;
     
-    /**
-     * Override visibility cache update for this method
-     * -1 = inherit from @AICapable
-     *  0 = disable
-     *  1 = enable
-     */
-    int updateVisibilityCache() default -1;
 }
 ```
 
@@ -499,27 +463,6 @@ public class IndexingStrategyResolver {
         };
     }
     
-    /**
-     * Check if visibility cache should be updated
-     */
-    public boolean shouldUpdateVisibilityCache(
-            Method method,
-            Class<?> entityClass) {
-        
-        // Check method override
-        AIProcess processAnnotation = method.getAnnotation(AIProcess.class);
-        if (processAnnotation != null && processAnnotation.updateVisibilityCache() >= 0) {
-            return processAnnotation.updateVisibilityCache() == 1;
-        }
-        
-        // Check entity-level setting
-        AICapable capableAnnotation = entityClass.getAnnotation(AICapable.class);
-        if (capableAnnotation != null) {
-            return capableAnnotation.updateVisibilityCache();
-        }
-        
-        return false;
-    }
 }
 ```
 
@@ -1604,9 +1547,7 @@ databaseChangeLog:
     indexingStrategy = IndexingStrategy.ASYNC,
     onCreateStrategy = IndexingStrategy.ASYNC,
     onUpdateStrategy = IndexingStrategy.ASYNC,
-    onDeleteStrategy = IndexingStrategy.SYNC,
-    updateVisibilityCache = true,
-    cachedFields = {"id", "name", "price", "status", "deleted"}
+    onDeleteStrategy = IndexingStrategy.SYNC
 )
 public class Product {
     // ... existing fields
@@ -1632,9 +1573,7 @@ public class Behavior {
 @AICapable(
     entityType = "order",
     indexingStrategy = IndexingStrategy.ASYNC,
-    onDeleteStrategy = IndexingStrategy.SYNC,
-    updateVisibilityCache = true,
-    cachedFields = {"id", "status", "deleted"}
+    onDeleteStrategy = IndexingStrategy.SYNC
 )
 public class Order {
     // ... existing fields
@@ -1723,6 +1662,8 @@ ai:
       dead-letter-retention: ${AI_INDEXING_DEAD_LETTER_RETENTION:P30D}
 
   cleanup:
+    enabled: true
+    retention-cron: "0 30 3 * * *"
     orphaned-entities:
       enabled: true
       cron: "0 0 4 * * SUN"
@@ -1938,7 +1879,6 @@ alerts:
 2. Enable orphaned entity cleanup
 3. Tune worker intervals based on metrics
 4. Optimize batch sizes
-5. Add visibility cache for critical entities
 
 **Validation:**
 - Cleanup processes running successfully

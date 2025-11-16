@@ -18,7 +18,6 @@ import com.ai.infrastructure.cleanup.SearchableEntityCleanupScheduler;
 import com.ai.infrastructure.indexing.IndexingCoordinator;
 import com.ai.infrastructure.indexing.IndexingStrategyResolver;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
-import com.ai.infrastructure.indexing.visibility.VisibilityCacheService;
 import com.ai.infrastructure.indexing.worker.AsyncIndexingWorker;
 import com.ai.infrastructure.indexing.worker.BatchIndexingWorker;
 import com.ai.infrastructure.indexing.worker.IndexingCleanupScheduler;
@@ -99,8 +98,7 @@ import java.util.stream.Collectors;
         IntentHistoryProperties.class,
         SecurityProperties.class,
         AIIndexingProperties.class,
-        AICleanupProperties.class,
-        VisibilityCacheProperties.class
+        AICleanupProperties.class
     })
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
@@ -289,16 +287,6 @@ public class AIInfrastructureAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "ai.indexing.visibility-cache", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public VisibilityCacheService visibilityCacheService(
-        VisibilityCacheProperties visibilityCacheProperties,
-        ObjectMapper objectMapper,
-        Clock clock
-    ) {
-        return new VisibilityCacheService(visibilityCacheProperties, objectMapper, clock);
-    }
-    
-    @Bean
     @ConditionalOnMissingBean
     public IndexingStrategyResolver indexingStrategyResolver() {
         return new IndexingStrategyResolver();
@@ -332,8 +320,7 @@ public class AIInfrastructureAutoConfiguration {
         AIEntityConfigurationLoader configurationLoader,
         AIIndexingProperties indexingProperties,
         ObjectMapper objectMapper,
-        AICapabilityService capabilityService,
-        ObjectProvider<VisibilityCacheService> visibilityCacheServiceProvider
+        AICapabilityService capabilityService
     ) {
         return new IndexingCoordinator(
             indexingStrategyResolver,
@@ -341,8 +328,7 @@ public class AIInfrastructureAutoConfiguration {
             configurationLoader,
             indexingProperties,
             objectMapper,
-            capabilityService,
-            visibilityCacheServiceProvider.getIfAvailable()
+            capabilityService
         );
     }
 

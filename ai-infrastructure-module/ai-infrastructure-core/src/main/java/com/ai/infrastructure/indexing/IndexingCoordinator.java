@@ -5,11 +5,9 @@ import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.config.AIIndexingProperties;
 import com.ai.infrastructure.dto.AIEntityConfig;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
-import com.ai.infrastructure.indexing.visibility.VisibilityCacheService;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.lang.Nullable;
 
 import java.time.LocalDateTime;
 
@@ -25,7 +23,6 @@ public class IndexingCoordinator {
     private final AIIndexingProperties properties;
     private final ObjectMapper objectMapper;
     private final AICapabilityService capabilityService;
-    private final @Nullable VisibilityCacheService visibilityCacheService;
 
     public IndexingCoordinator(
         IndexingStrategyResolver strategyResolver,
@@ -33,8 +30,7 @@ public class IndexingCoordinator {
         AIEntityConfigurationLoader configurationLoader,
         AIIndexingProperties properties,
         ObjectMapper objectMapper,
-        AICapabilityService capabilityService,
-        @Nullable VisibilityCacheService visibilityCacheService
+        AICapabilityService capabilityService
     ) {
         this.strategyResolver = strategyResolver;
         this.queueService = queueService;
@@ -42,7 +38,6 @@ public class IndexingCoordinator {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.capabilityService = capabilityService;
-        this.visibilityCacheService = visibilityCacheService;
     }
 
     public void handle(
@@ -59,7 +54,6 @@ public class IndexingCoordinator {
         Class<?> entityClass = entity.getClass();
         String entityId = capabilityService.resolveEntityId(entity);
         IndexingStrategy strategy = resolveStrategy(entityClass, operation, aiProcess);
-        updateVisibilityCache(entityType, entityId, entity, actionPlan);
 
         if (strategy == IndexingStrategy.SYNC) {
             executeNow(entity, entityType, actionPlan);
@@ -137,15 +131,4 @@ public class IndexingCoordinator {
         }
     }
 
-    private void updateVisibilityCache(
-        String entityType,
-        String entityId,
-        Object entity,
-        IndexingActionPlan actionPlan
-    ) {
-        if (visibilityCacheService == null || entityId == null) {
-            return;
-        }
-        visibilityCacheService.record(entityType, entityId, entity, actionPlan);
-    }
 }
