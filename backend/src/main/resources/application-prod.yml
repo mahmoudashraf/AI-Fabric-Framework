@@ -91,6 +91,28 @@ ai:
       threshold: 5
       timeout: 60000
 
+    indexing:
+      enabled: true
+      queue:
+        max-retries: ${AI_INDEXING_MAX_RETRIES:5}
+        visibility-timeout: ${AI_INDEXING_VISIBILITY_TIMEOUT:PT1M}
+      async-worker:
+        enabled: true
+        fixed-delay: ${AI_INDEXING_ASYNC_DELAY:PT0.5S}
+        batch-size: ${AI_INDEXING_ASYNC_BATCH:200}
+        strategy: ASYNC
+      batch-worker:
+        enabled: true
+        fixed-delay: ${AI_INDEXING_BATCH_DELAY:PT20S}
+        batch-size: ${AI_INDEXING_BATCH_SIZE:2000}
+        strategy: BATCH
+      cleanup:
+        enabled: true
+        stuck-threshold: ${AI_INDEXING_STUCK_THRESHOLD:PT5M}
+        sweep-interval: ${AI_INDEXING_SWEEP_INTERVAL:PT2M}
+        completed-retention: ${AI_INDEXING_COMPLETED_RETENTION:P7D}
+        dead-letter-retention: ${AI_INDEXING_DEAD_LETTER_RETENTION:P30D}
+
 # Easy Luxury AI Configuration for Production
 easyluxury:
   ai:

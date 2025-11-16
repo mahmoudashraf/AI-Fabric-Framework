@@ -1537,75 +1537,59 @@ public class CleanupConfiguration {
 
 ### Step 1: Database Migration
 
-```sql
--- File: V3.0__Add_Indexing_Queue.sql
+```yaml
+# backend/src/main/resources/db/changelog/V003__ai_indexing_queue.yaml
+databaseChangeLog:
+  - changeSet:
+      id: 9
+      author: ai-infrastructure
+      changes:
+        - createTable:
+            tableName: ai_indexing_queue
+            columns:
+              - column: { name: id, type: UUID, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: entity_type, type: VARCHAR(128), constraints: { nullable: false } }
+              - column: { name: entity_id, type: VARCHAR(128) }
+              - column: { name: entity_class, type: VARCHAR(256), constraints: { nullable: false } }
+              - column: { name: operation, type: VARCHAR(32), constraints: { nullable: false } }
+              - column: { name: strategy, type: VARCHAR(32), constraints: { nullable: false } }
+              - column: { name: status, type: VARCHAR(32), defaultValue: PENDING, constraints: { nullable: false } }
+              - column: { name: priority, type: VARCHAR(32), constraints: { nullable: false } }
+              - column: { name: priority_weight, type: INT, defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: generate_embedding, type: BOOLEAN, defaultValueBoolean: false, constraints: { nullable: false } }
+              - column: { name: index_for_search, type: BOOLEAN, defaultValueBoolean: false, constraints: { nullable: false } }
+              - column: { name: enable_analysis, type: BOOLEAN, defaultValueBoolean: false, constraints: { nullable: false } }
+              - column: { name: remove_from_search, type: BOOLEAN, defaultValueBoolean: false, constraints: { nullable: false } }
+              - column: { name: cleanup_embeddings, type: BOOLEAN, defaultValueBoolean: false, constraints: { nullable: false } }
+              - column: { name: payload, type: TEXT, constraints: { nullable: false } }
+              - column: { name: max_retries, type: INT, defaultValueNumeric: 5, constraints: { nullable: false } }
+              - column: { name: retry_count, type: INT, defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: requested_at, type: TIMESTAMP, defaultValueComputed: CURRENT_TIMESTAMP, constraints: { nullable: false } }
+              - column: { name: scheduled_for, type: TIMESTAMP, defaultValueComputed: CURRENT_TIMESTAMP, constraints: { nullable: false } }
+              - column: { name: created_at, type: TIMESTAMP, defaultValueComputed: CURRENT_TIMESTAMP, constraints: { nullable: false } }
+              - column: { name: updated_at, type: TIMESTAMP, defaultValueComputed: CURRENT_TIMESTAMP, constraints: { nullable: false } }
 
--- Create indexing queue table
-CREATE TABLE indexing_queue (
-    id VARCHAR(36) PRIMARY KEY,
-    
-    -- Operation details
-    operation VARCHAR(20) NOT NULL,
-    entity_type VARCHAR(100) NOT NULL,
-    entity_id VARCHAR(255) NOT NULL,
-    vector_id VARCHAR(255),
-    content TEXT,
-    metadata JSONB,
-    
-    -- Strategy & priority
-    priority VARCHAR(20) NOT NULL,
-    
-    -- Status & lifecycle
-    status VARCHAR(20) NOT NULL,
-    requested_at TIMESTAMP NOT NULL,
-    scheduled_for TIMESTAMP NOT NULL,
-    started_at TIMESTAMP,
-    processed_at TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL,
-    
-    -- Retry & error handling
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    max_retries INTEGER NOT NULL DEFAULT 3,
-    error_message TEXT,
-    last_error_at TIMESTAMP,
-    
-    -- Distributed processing
-    processing_node VARCHAR(255),
-    lock_acquired_at TIMESTAMP,
-    lock_expires_at TIMESTAMP
-);
-
--- Primary query index
-CREATE INDEX idx_indexing_queue_status_priority_scheduled 
-ON indexing_queue(status, priority, scheduled_for);
-
--- Lookup by entity
-CREATE INDEX idx_indexing_queue_entity 
-ON indexing_queue(entity_type, entity_id);
-
--- Cleanup indexes
-CREATE INDEX idx_indexing_queue_completed_processed 
-ON indexing_queue(status, processed_at);
-
-CREATE INDEX idx_indexing_queue_processing_updated 
-ON indexing_queue(status, updated_at);
-
--- Monitoring index
-CREATE INDEX idx_indexing_queue_requested 
-ON indexing_queue(requested_at);
-
--- Add composite unique index to AISearchableEntity
-CREATE UNIQUE INDEX uk_ai_searchable_entity_type_id 
-ON ai_searchable_entities(entity_type, entity_id);
-
--- Add index for orphan cleanup
-CREATE INDEX idx_ai_searchable_vector_null 
-ON ai_searchable_entities(created_at) 
-WHERE vector_id IS NULL;
-
--- Analyze tables
-ANALYZE indexing_queue;
-ANALYZE ai_searchable_entities;
+  - changeSet:
+      id: 10
+      author: ai-infrastructure
+      changes:
+        - createIndex:
+            tableName: ai_indexing_queue
+            indexName: idx_ai_queue_status_strategy
+            columns:
+              - column: { name: status }
+              - column: { name: strategy }
+        - createIndex:
+            tableName: ai_indexing_queue
+            indexName: idx_ai_queue_scheduled
+            columns:
+              - column: { name: scheduled_for }
+        - createIndex:
+            tableName: ai_indexing_queue
+            indexName: idx_ai_queue_entity
+            columns:
+              - column: { name: entity_type }
+              - column: { name: entity_id }
 ```
 
 ### Step 2: Update Existing Entities
@@ -1708,102 +1692,58 @@ public class ProductService {
 
 ## 7. Configuration
 
-### application.yml
+### application.yml (base defaults)
 
 ```yaml
 ai:
   indexing:
-    # ═══════════════════════════════════════════════════════
-    # SYNC Strategy Configuration
-    # ═══════════════════════════════════════════════════════
-    sync:
-      enabled: true
-      timeout: 5000  # Max time to wait for sync indexing (ms)
-    
-    # ═══════════════════════════════════════════════════════
-    # ASYNC Strategy Configuration
-    # ═══════════════════════════════════════════════════════
-    async:
-      enabled: true
-      interval: 1000          # Process queue every 1 second
-      batch-size: 100         # Process up to 100 entries per run
-      workers: 5              # Number of worker threads
-      max-retries: 3          # Retry failed entries up to 3 times
-    
-    # ═══════════════════════════════════════════════════════
-    # BATCH Strategy Configuration
-    # ═══════════════════════════════════════════════════════
-    batch:
-      enabled: true
-      interval: 30000         # Process queue every 30 seconds
-      batch-size: 1000        # Process up to 1000 entries per run
-      workers: 3              # Number of worker threads
-      max-retries: 5          # Retry failed entries up to 5 times
-    
-    # ═══════════════════════════════════════════════════════
-    # Queue Configuration
-    # ═══════════════════════════════════════════════════════
+    enabled: true
+
     queue:
-      type: database          # database, redis, kafka (future)
-      deduplication: true     # Prevent duplicate pending entries
-      
-    # ═══════════════════════════════════════════════════════
-    # Cleanup Configuration
-    # ═══════════════════════════════════════════════════════
+      max-retries: ${AI_INDEXING_QUEUE_MAX_RETRIES:5}
+      visibility-timeout: ${AI_INDEXING_QUEUE_VISIBILITY_TIMEOUT:PT2M}
+
+    async-worker:
+      enabled: true
+      fixed-delay: ${AI_INDEXING_ASYNC_DELAY:PT0.5S}
+      batch-size: ${AI_INDEXING_ASYNC_BATCH:100}
+      strategy: ASYNC
+
+    batch-worker:
+      enabled: true
+      fixed-delay: ${AI_INDEXING_BATCH_DELAY:PT30S}
+      batch-size: ${AI_INDEXING_BATCH_SIZE:1000}
+      strategy: BATCH
+
     cleanup:
       enabled: true
-      
-      # Completed entries cleanup
-      completed-retention-days: 7
-      completed-cron: "0 0 2 * * *"  # Daily at 2 AM
-      
-      # Dead letter queue
-      dead-letter-retention-days: 30
-      dead-letter-cron: "0 0 3 * * *"  # Daily at 3 AM
-      
-      # Stuck entries reset
-      stuck-threshold-minutes: 10
-      stuck-check-interval: 300000    # Every 5 minutes
-      
-    # ═══════════════════════════════════════════════════════
-    # Visibility Cache Configuration
-    # ═══════════════════════════════════════════════════════
-    visibility-cache:
-      enabled: true
-      type: redis
-      ttl: 600                # Cache TTL in seconds (10 minutes)
-      
-  # ═══════════════════════════════════════════════════════
-  # Cleanup Configuration
-  # ═══════════════════════════════════════════════════════
+      stuck-threshold: ${AI_INDEXING_STUCK_THRESHOLD:PT10M}
+      sweep-interval: ${AI_INDEXING_SWEEP_INTERVAL:PT5M}
+      completed-retention: ${AI_INDEXING_COMPLETED_RETENTION:P7D}
+      dead-letter-retention: ${AI_INDEXING_DEAD_LETTER_RETENTION:P30D}
+
   cleanup:
     orphaned-entities:
       enabled: true
-      cron: "0 0 4 * * SUN"   # Weekly on Sunday at 4 AM
-      
+      cron: "0 0 4 * * SUN"
     no-vector-entities:
       enabled: true
-      cron: "0 0 5 * * SUN"   # Weekly on Sunday at 5 AM
-      retention-hours: 24     # Clean up after 24 hours
-      
+      cron: "0 0 5 * * SUN"
+      retention-hours: 24
     strategies:
       order: ARCHIVE
       user: ARCHIVE
       product: SOFT_DELETE
       behavior: HARD_DELETE
       analytics: HARD_DELETE
-      
     retention-days:
-      order: 2555      # 7 years
-      user: 365        # 1 year
-      product: 180     # 6 months
-      behavior: 90     # 3 months
-      analytics: 30    # 1 month
-      default: 180     # 6 months
+      order: 2555
+      user: 365
+      product: 180
+      behavior: 90
+      analytics: 30
+      default: 180
 
-# ═══════════════════════════════════════════════════════
-# Monitoring & Metrics
-# ═══════════════════════════════════════════════════════
 management:
   metrics:
     export:
@@ -1817,9 +1757,21 @@ management:
         include: health,metrics,prometheus
 ```
 
+### Environment overrides
+
+| Profile | Async delay / batch size | Batch delay / batch size | Cleanup retention | Notes |
+|---------|-------------------------|--------------------------|-------------------|-------|
+| `application-dev.yml` | `PT2S` / `10` | disabled (fixed delay `PT1M`, `enabled: false`) | Completed `P1D`, dead-letter `P7D` | Lightweight queueing for laptops |
+| `application-test.yml` | disabled | disabled | Cleanup disabled | Forces SYNC for deterministic tests |
+| `application-prod.yml` | `PT0.5S` / `200` | `PT20S` / `2000` | Completed `P7D`, dead-letter `P30D` | Throughput-focused defaults |
+
+The tuned blocks live next to the other Spring profile settings in `backend/src/main/resources`.
+
 ---
 
 ## 8. Monitoring & Metrics
+
+> **Operations Runbook:** Surface `indexing.queue.pending`, `indexing.queue.dead_letter`, `indexing.queue.oldest_pending_age_seconds`, and `indexing.queue.failed` on shared dashboards so SRE can spot backlog, dead-letter drift, and worker stalls in real time.
 
 ### Key Metrics to Track
 

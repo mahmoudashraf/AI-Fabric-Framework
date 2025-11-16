@@ -69,6 +69,24 @@ ai:
       threshold: 10
       timeout: 10000
 
+    indexing:
+      enabled: false
+      queue:
+        max-retries: 1
+        visibility-timeout: PT15S
+      async-worker:
+        enabled: false
+        fixed-delay: PT5S
+        batch-size: 5
+        strategy: ASYNC
+      batch-worker:
+        enabled: false
+        fixed-delay: PT1M
+        batch-size: 50
+        strategy: BATCH
+      cleanup:
+        enabled: false
+
   # Vector Database Configuration for Testing
   vector-db:
     type: memory  # Use in-memory for tests

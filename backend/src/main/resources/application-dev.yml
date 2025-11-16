@@ -113,6 +113,28 @@ ai:
       threshold: 10
       timeout: 30000
 
+    indexing:
+      enabled: true
+      queue:
+        max-retries: 3
+        visibility-timeout: PT30S
+      async-worker:
+        enabled: true
+        fixed-delay: PT2S
+        batch-size: 10
+        strategy: ASYNC
+      batch-worker:
+        enabled: false
+        fixed-delay: PT1M
+        batch-size: 100
+        strategy: BATCH
+      cleanup:
+        enabled: true
+        stuck-threshold: PT2M
+        sweep-interval: PT1M
+        completed-retention: P1D
+        dead-letter-retention: P7D
+
 # Easy Luxury AI Configuration for Development
 easyluxury:
   ai:
