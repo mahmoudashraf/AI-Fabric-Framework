@@ -5,10 +5,10 @@ import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider.UserEntityReference;
 import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.entity.Behavior;
+import com.ai.infrastructure.deletion.port.BehaviorDeletionPort;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
-import com.ai.infrastructure.repository.BehaviorRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import org.springframework.beans.factory.ObjectProvider;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -33,13 +33,13 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class UserDataDeletionService {
 
-    private final BehaviorRepository behaviorRepository;
     private final AISearchableEntityRepository searchableEntityRepository;
     private final VectorDatabaseService vectorDatabaseService;
     private final AIAuditService aiAuditService;
     private final AuditService auditLogger;
     private final Clock clock;
     private final UserDataDeletionProvider userDataDeletionProvider;
+    private final ObjectProvider<BehaviorDeletionPort> behaviorDeletionPort;
 
     /**
      * Execute a full deletion workflow for the supplied user identifier.
@@ -92,14 +92,13 @@ public class UserDataDeletionService {
     }
 
     private int deleteBehaviors(String userId) {
+        BehaviorDeletionPort port = behaviorDeletionPort.getIfAvailable();
+        if (port == null) {
+            return 0;
+        }
         try {
             UUID userUuid = UUID.fromString(userId);
-            List<Behavior> behaviors = behaviorRepository.findByUserIdOrderByCreatedAtDesc(userUuid);
-            if (CollectionUtils.isEmpty(behaviors)) {
-                return 0;
-            }
-            behaviorRepository.deleteAllInBatch(behaviors);
-            return behaviors.size();
+            return port.deleteUserBehaviors(userUuid);
         } catch (IllegalArgumentException ex) {
             log.debug("Skipping behavior deletion: userId {} is not a UUID", userId);
             return 0;

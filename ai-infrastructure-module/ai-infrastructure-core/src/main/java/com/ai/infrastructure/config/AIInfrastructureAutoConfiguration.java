@@ -27,8 +27,6 @@ import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.audit.AIAuditService;
 import com.ai.infrastructure.audit.AuditService;
-import com.ai.infrastructure.behavior.BehaviorRetentionService;
-import com.ai.infrastructure.behavior.policy.BehaviorRetentionPolicyProvider;
 import com.ai.infrastructure.privacy.AIDataPrivacyService;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.filter.AIContentFilterService;
@@ -36,6 +34,7 @@ import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.deletion.UserDataDeletionService;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
+import com.ai.infrastructure.deletion.port.BehaviorDeletionPort;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.cache.AICacheConfig;
@@ -52,7 +51,6 @@ import com.ai.infrastructure.cache.AIIntelligentCacheService;
 import com.ai.infrastructure.cache.CacheConfig;
 import com.ai.infrastructure.cache.DefaultAIIntelligentCacheService;
 import com.ai.infrastructure.provider.AIProviderManager;
-import com.ai.infrastructure.repository.BehaviorRepository;
 import com.ai.infrastructure.repository.IndexingQueueRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import lombok.extern.slf4j.Slf4j;
@@ -177,34 +175,21 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public BehaviorRetentionService behaviorRetentionService(BehaviorRepository behaviorRepository,
-                                                             AuditService auditService,
-                                                             Clock clock,
-                                                             ObjectProvider<BehaviorRetentionPolicyProvider> retentionPolicyProvider) {
-        return new BehaviorRetentionService(
-            behaviorRepository,
-            retentionPolicyProvider.getIfAvailable(),
-            auditService,
-            clock
-        );
-    }
-
-    @Bean
-    public UserDataDeletionService userDataDeletionService(BehaviorRepository behaviorRepository,
-                                                           AISearchableEntityRepository searchableEntityRepository,
+    public UserDataDeletionService userDataDeletionService(AISearchableEntityRepository searchableEntityRepository,
                                                            VectorDatabaseService vectorDatabaseService,
                                                            AIAuditService aiAuditService,
                                                            AuditService auditService,
                                                            Clock clock,
-                                                           ObjectProvider<UserDataDeletionProvider> deletionProvider) {
+                                                           ObjectProvider<UserDataDeletionProvider> deletionProvider,
+                                                           ObjectProvider<BehaviorDeletionPort> behaviorDeletionPort) {
         return new UserDataDeletionService(
-            behaviorRepository,
             searchableEntityRepository,
             vectorDatabaseService,
             aiAuditService,
             auditService,
             clock,
-            deletionProvider.getIfAvailable()
+            deletionProvider.getIfAvailable(),
+            behaviorDeletionPort
         );
     }
     

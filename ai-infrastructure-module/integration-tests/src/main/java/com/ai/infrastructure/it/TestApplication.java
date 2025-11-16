@@ -21,14 +21,16 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@SpringBootApplication(scanBasePackages = {"com.ai.infrastructure", "com.ai.infrastructure.it"})
+@SpringBootApplication(scanBasePackages = {"com.ai.infrastructure", "com.ai.behavior", "com.ai.infrastructure.it"})
 @Import(AIInfrastructureAutoConfiguration.class)
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
+    "com.ai.behavior.model",
     "com.ai.infrastructure.it.entity"
 })
 @EnableJpaRepositories(basePackages = {
     "com.ai.infrastructure.repository",
+    "com.ai.behavior.storage",
     "com.ai.infrastructure.it.repository"
 })
 public class TestApplication {
