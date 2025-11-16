@@ -1,6 +1,7 @@
 package com.ai.infrastructure.it.service;
 
 import com.ai.infrastructure.annotation.AIProcess;
+import com.ai.infrastructure.indexing.IndexingStrategy;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -64,6 +65,12 @@ public class TestProductService {
     @Transactional
     public TestProduct createProductWithoutEmbedding(TestProduct product) {
         return productRepository.save(product);
+    }
+
+    @AIProcess(entityType = "product", processType = "create", indexingStrategy = IndexingStrategy.BATCH)
+    @Transactional
+    public List<TestProduct> bulkImportProducts(List<TestProduct> products) {
+        return productRepository.saveAll(products);
     }
 
     @AIProcess(entityType = "product", processType = "create", indexForSearch = false)
