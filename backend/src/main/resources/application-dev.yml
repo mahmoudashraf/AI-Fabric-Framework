@@ -113,7 +113,48 @@ ai:
       threshold: 10
       timeout: 30000
 
-# Easy Luxury AI Configuration for Development
+    indexing:
+      enabled: true
+      queue:
+        max-retries: 3
+        visibility-timeout: PT30S
+      async-worker:
+        enabled: true
+        fixed-delay: PT2S
+        batch-size: 10
+        strategy: ASYNC
+      batch-worker:
+        enabled: false
+        fixed-delay: PT1M
+        batch-size: 100
+        strategy: BATCH
+      cleanup:
+        enabled: true
+        stuck-threshold: PT2M
+        sweep-interval: PT1M
+        completed-retention: P1D
+        dead-letter-retention: P7D
+
+    cleanup:
+      enabled: false
+      retention-cron: "0 0 3 * * *"
+      orphaned-entities:
+        enabled: false
+        cron: "0 0 4 * * SUN"
+      no-vector-entities:
+        enabled: true
+        cron: "0 0 5 * * SUN"
+        retention-hours: 6
+      strategies:
+        product: SOFT_DELETE
+        behavior: HARD_DELETE
+        default: SOFT_DELETE
+      retention-days:
+        product: 30
+        behavior: 7
+        default: 30
+
+  # Easy Luxury AI Configuration for Development
 easyluxury:
   ai:
     # Index Names

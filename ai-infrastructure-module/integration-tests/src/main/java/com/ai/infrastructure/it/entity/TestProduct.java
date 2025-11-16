@@ -1,6 +1,7 @@
 package com.ai.infrastructure.it.entity;
 
 import com.ai.infrastructure.annotation.AICapable;
+import com.ai.infrastructure.indexing.IndexingStrategy;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,7 +26,11 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@AICapable
+@AICapable(
+    entityType = "product",
+    indexingStrategy = IndexingStrategy.ASYNC,
+    onDeleteStrategy = IndexingStrategy.SYNC
+)
 public class TestProduct {
 
     @Id

@@ -1,5 +1,7 @@
 package com.ai.infrastructure.annotation;
 
+import com.ai.infrastructure.indexing.IndexingStrategy;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -67,4 +69,24 @@ public @interface AICapable {
      * Default: true
      */
     boolean indexable() default true;
+
+    /**
+     * Default indexing strategy for all operations.
+     */
+    IndexingStrategy indexingStrategy() default IndexingStrategy.ASYNC;
+
+    /**
+     * Override for create operations. Set to AUTO to inherit {@link #indexingStrategy()}.
+     */
+    IndexingStrategy onCreateStrategy() default IndexingStrategy.AUTO;
+
+    /**
+     * Override for update operations. Set to AUTO to inherit {@link #indexingStrategy()}.
+     */
+    IndexingStrategy onUpdateStrategy() default IndexingStrategy.AUTO;
+
+    /**
+     * Override for delete operations. Set to AUTO to inherit {@link #indexingStrategy()}.
+     */
+    IndexingStrategy onDeleteStrategy() default IndexingStrategy.AUTO;
 }

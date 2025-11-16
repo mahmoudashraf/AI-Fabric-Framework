@@ -91,6 +91,52 @@ ai:
       threshold: 5
       timeout: 60000
 
+    indexing:
+      enabled: true
+      queue:
+        max-retries: ${AI_INDEXING_MAX_RETRIES:5}
+        visibility-timeout: ${AI_INDEXING_VISIBILITY_TIMEOUT:PT1M}
+      async-worker:
+        enabled: true
+        fixed-delay: ${AI_INDEXING_ASYNC_DELAY:PT0.5S}
+        batch-size: ${AI_INDEXING_ASYNC_BATCH:200}
+        strategy: ASYNC
+      batch-worker:
+        enabled: true
+        fixed-delay: ${AI_INDEXING_BATCH_DELAY:PT20S}
+        batch-size: ${AI_INDEXING_BATCH_SIZE:2000}
+        strategy: BATCH
+      cleanup:
+        enabled: true
+        stuck-threshold: ${AI_INDEXING_STUCK_THRESHOLD:PT5M}
+        sweep-interval: ${AI_INDEXING_SWEEP_INTERVAL:PT2M}
+        completed-retention: ${AI_INDEXING_COMPLETED_RETENTION:P7D}
+        dead-letter-retention: ${AI_INDEXING_DEAD_LETTER_RETENTION:P30D}
+
+    cleanup:
+      enabled: true
+      retention-cron: "0 30 3 * * *"
+      orphaned-entities:
+        enabled: true
+        cron: "0 0 4 * * SUN"
+      no-vector-entities:
+        enabled: true
+        cron: "0 0 5 * * SUN"
+        retention-hours: 24
+      strategies:
+        order: ARCHIVE
+        user: ARCHIVE
+        product: SOFT_DELETE
+        behavior: HARD_DELETE
+        analytics: HARD_DELETE
+      retention-days:
+        order: 2555
+        user: 365
+        product: 180
+        behavior: 90
+        analytics: 30
+        default: 180
+
 # Easy Luxury AI Configuration for Production
 easyluxury:
   ai:

@@ -1,5 +1,7 @@
 package com.ai.infrastructure.annotation;
 
+import com.ai.infrastructure.indexing.IndexingStrategy;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -49,4 +51,10 @@ public @interface AIProcess {
      * Default: false
      */
     boolean enableAnalysis() default false;
+
+    /**
+     * Optional indexing strategy override for this method.
+     * Defaults to AUTO which inherits the resolved entity operation strategy.
+     */
+    IndexingStrategy indexingStrategy() default IndexingStrategy.AUTO;
 }

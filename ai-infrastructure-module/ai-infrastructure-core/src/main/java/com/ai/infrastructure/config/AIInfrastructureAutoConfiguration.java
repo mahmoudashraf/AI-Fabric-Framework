@@ -12,6 +12,16 @@ import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.cleanup.CleanupPolicyProvider;
+import com.ai.infrastructure.cleanup.DefaultCleanupPolicyProvider;
+import com.ai.infrastructure.cleanup.SearchableEntityCleanupScheduler;
+import com.ai.infrastructure.indexing.IndexingCoordinator;
+import com.ai.infrastructure.indexing.IndexingStrategyResolver;
+import com.ai.infrastructure.indexing.queue.IndexingQueueService;
+import com.ai.infrastructure.indexing.worker.AsyncIndexingWorker;
+import com.ai.infrastructure.indexing.worker.BatchIndexingWorker;
+import com.ai.infrastructure.indexing.worker.IndexingCleanupScheduler;
+import com.ai.infrastructure.indexing.worker.IndexingWorkProcessor;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
@@ -43,6 +53,7 @@ import com.ai.infrastructure.cache.CacheConfig;
 import com.ai.infrastructure.cache.DefaultAIIntelligentCacheService;
 import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.repository.BehaviorRepository;
+import com.ai.infrastructure.repository.IndexingQueueRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -59,6 +70,7 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.core.io.ResourceLoader;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -84,7 +96,9 @@ import java.util.stream.Collectors;
         SmartSuggestionsProperties.class,
         ResponseSanitizationProperties.class,
         IntentHistoryProperties.class,
-        SecurityProperties.class
+        SecurityProperties.class,
+        AIIndexingProperties.class,
+        AICleanupProperties.class
     })
 @Import(ProviderConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
@@ -248,6 +262,105 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
+    public CleanupPolicyProvider cleanupPolicyProvider(AICleanupProperties cleanupProperties) {
+        return new DefaultCleanupPolicyProvider(cleanupProperties);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ai.cleanup", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public SearchableEntityCleanupScheduler searchableEntityCleanupScheduler(
+        AICleanupProperties cleanupProperties,
+        CleanupPolicyProvider cleanupPolicyProvider,
+        AISearchableEntityRepository repository,
+        VectorManagementService vectorManagementService,
+        ObjectMapper objectMapper,
+        Clock clock
+    ) {
+        return new SearchableEntityCleanupScheduler(
+            cleanupProperties,
+            cleanupPolicyProvider,
+            repository,
+            vectorManagementService,
+            objectMapper,
+            clock
+        );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public IndexingStrategyResolver indexingStrategyResolver() {
+        return new IndexingStrategyResolver();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public IndexingQueueService indexingQueueService(
+        IndexingQueueRepository repository,
+        AIIndexingProperties indexingProperties,
+        Clock clock
+    ) {
+        return new IndexingQueueService(repository, indexingProperties, clock);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public IndexingWorkProcessor indexingWorkProcessor(
+        ObjectMapper objectMapper,
+        AIEntityConfigurationLoader configurationLoader,
+        AICapabilityService capabilityService
+    ) {
+        return new IndexingWorkProcessor(objectMapper, configurationLoader, capabilityService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public IndexingCoordinator indexingCoordinator(
+        IndexingStrategyResolver indexingStrategyResolver,
+        IndexingQueueService indexingQueueService,
+        AIEntityConfigurationLoader configurationLoader,
+        AIIndexingProperties indexingProperties,
+        ObjectMapper objectMapper,
+        AICapabilityService capabilityService
+    ) {
+        return new IndexingCoordinator(
+            indexingStrategyResolver,
+            indexingQueueService,
+            configurationLoader,
+            indexingProperties,
+            objectMapper,
+            capabilityService
+        );
+    }
+
+    @Bean
+    public AsyncIndexingWorker asyncIndexingWorker(
+        IndexingQueueService indexingQueueService,
+        IndexingWorkProcessor indexingWorkProcessor,
+        AIIndexingProperties indexingProperties
+    ) {
+        return new AsyncIndexingWorker(indexingQueueService, indexingWorkProcessor, indexingProperties);
+    }
+
+    @Bean
+    public BatchIndexingWorker batchIndexingWorker(
+        IndexingQueueService indexingQueueService,
+        IndexingWorkProcessor indexingWorkProcessor,
+        AIIndexingProperties indexingProperties
+    ) {
+        return new BatchIndexingWorker(indexingQueueService, indexingWorkProcessor, indexingProperties);
+    }
+
+    @Bean
+    public IndexingCleanupScheduler indexingCleanupScheduler(
+        IndexingQueueService indexingQueueService,
+        AIIndexingProperties indexingProperties,
+        Clock clock
+    ) {
+        return new IndexingCleanupScheduler(indexingQueueService, indexingProperties, clock);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
     public AICapabilityService aiCapabilityService(
             AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
@@ -261,8 +374,9 @@ public class AIInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean
     public AICapableAspect aiCapableAspect(
             AIEntityConfigurationLoader configLoader,
-            AICapabilityService aiCapabilityService) {
-        return new AICapableAspect(configLoader, aiCapabilityService);
+            AICapabilityService aiCapabilityService,
+            IndexingCoordinator indexingCoordinator) {
+        return new AICapableAspect(configLoader, aiCapabilityService, indexingCoordinator);
     }
     
     @Bean

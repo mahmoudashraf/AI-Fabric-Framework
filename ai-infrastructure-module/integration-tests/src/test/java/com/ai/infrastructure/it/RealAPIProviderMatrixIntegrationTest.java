@@ -75,7 +75,8 @@ class RealAPIProviderMatrixIntegrationTest {
         RealAPIActionFlowIntegrationTest.class,
         RealAPIMultiProviderFailoverIntegrationTest.class,
         RealAPISmartSuggestionsIntegrationTest.class,
-        RealAPIPIIEdgeSpectrumIntegrationTest.class
+        RealAPIPIIEdgeSpectrumIntegrationTest.class,
+        IndexingStrategyIntegrationTest.class
     };
 
     static {

@@ -126,6 +126,10 @@ public class AICapableProcessor {
             config.put("autoProcess", annotation.autoProcess());
             config.put("indexable", annotation.indexable());
             config.put("features", Arrays.asList(annotation.features()));
+            config.put("indexingStrategy", annotation.indexingStrategy());
+            config.put("onCreateStrategy", annotation.onCreateStrategy());
+            config.put("onUpdateStrategy", annotation.onUpdateStrategy());
+            config.put("onDeleteStrategy", annotation.onDeleteStrategy());
         }
         
         return config;

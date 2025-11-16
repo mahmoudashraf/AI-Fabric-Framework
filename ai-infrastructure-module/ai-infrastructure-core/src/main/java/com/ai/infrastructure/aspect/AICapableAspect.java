@@ -4,6 +4,9 @@ import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.annotation.AIProcess;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.AIEntityConfig;
+import com.ai.infrastructure.indexing.IndexingActionPlan;
+import com.ai.infrastructure.indexing.IndexingCoordinator;
+import com.ai.infrastructure.indexing.IndexingOperation;
 import com.ai.infrastructure.service.AICapabilityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,8 +19,11 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.lang.reflect.Method;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * AICapable Aspect
@@ -36,6 +42,7 @@ public class AICapableAspect {
     
     private final AIEntityConfigurationLoader configLoader;
     private final AICapabilityService aiCapabilityService;
+    private final IndexingCoordinator indexingCoordinator;
     
     @Around("@annotation(aiCapable)")
     public Object processAICapableMethod(ProceedingJoinPoint joinPoint, AICapable aiCapable) throws Throwable {
@@ -199,8 +206,8 @@ public class AICapableAspect {
                     shouldGenerateEmbedding = false;
                 }
 
-                if ((shouldGenerateEmbedding || shouldIndexForSearch)
-                    && TransactionSynchronizationManager.isSynchronizationActive()) {
+                  if ((shouldGenerateEmbedding || shouldIndexForSearch)
+                      && TransactionSynchronizationManager.isSynchronizationActive()) {
                     final Object entityRef = result;
                     TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                         @Override
@@ -224,25 +231,15 @@ public class AICapableAspect {
                 log.debug("AI processing flags resolved for operation {}: generateEmbedding={}, indexForSearch={}, enableAnalysis={} (annotationPresent={})",
                     operation, shouldGenerateEmbedding, shouldIndexForSearch, shouldEnableAnalysis, aiProcess != null);
 
-                if (shouldGenerateEmbedding) {
-                    aiCapabilityService.generateEmbeddings(result, config);
-                }
-                
-                if (shouldIndexForSearch) {
-                    aiCapabilityService.indexForSearch(result, config);
-                }
-                
-                if (shouldEnableAnalysis) {
-                    aiCapabilityService.analyzeEntity(result, config);
-                }
-                
-                if (shouldRemoveFromSearch) {
-                    aiCapabilityService.removeFromSearch(result, config);
-                }
-                
-                if (shouldCleanupEmbeddings) {
-                    aiCapabilityService.cleanupEmbeddings(result, config);
-                }
+                  IndexingActionPlan actionPlan = new IndexingActionPlan(
+                      shouldGenerateEmbedding,
+                      shouldIndexForSearch,
+                      shouldEnableAnalysis,
+                      shouldRemoveFromSearch,
+                      shouldCleanupEmbeddings
+                  );
+
+                  routeIndexingWork(result, entityType, operation, actionPlan, aiProcess);
             }
             
         } catch (Exception e) {
@@ -266,5 +263,38 @@ public class AICapableAspect {
         }
         
         return "create"; // Default
+    }
+
+    private void routeIndexingWork(
+        Object result,
+        String entityType,
+        String operation,
+        IndexingActionPlan actionPlan,
+        AIProcess aiProcess
+    ) {
+        if (result == null || !actionPlan.requiresWork()) {
+            return;
+        }
+
+        IndexingOperation indexingOperation = toIndexingOperation(operation);
+
+        if (result instanceof Collection<?> collection) {
+            collection.stream()
+                .filter(Objects::nonNull)
+                .forEach(entity -> indexingCoordinator.handle(entity, entityType, indexingOperation, actionPlan, aiProcess));
+        } else if (result instanceof Optional<?> optional) {
+            optional.ifPresent(entity -> indexingCoordinator.handle(entity, entityType, indexingOperation, actionPlan, aiProcess));
+        } else {
+            indexingCoordinator.handle(result, entityType, indexingOperation, actionPlan, aiProcess);
+        }
+    }
+
+    private IndexingOperation toIndexingOperation(String operation) {
+        return switch (operation.toLowerCase()) {
+            case "create" -> IndexingOperation.CREATE;
+            case "update" -> IndexingOperation.UPDATE;
+            case "delete" -> IndexingOperation.DELETE;
+            default -> IndexingOperation.CREATE;
+        };
     }
 }

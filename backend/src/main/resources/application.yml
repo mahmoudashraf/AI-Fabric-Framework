@@ -98,6 +98,28 @@ ai:
       enabled: true
       threshold: 5
       timeout: 60000
+
+    indexing:
+      enabled: true
+      queue:
+        max-retries: ${AI_INDEXING_QUEUE_MAX_RETRIES:5}
+        visibility-timeout: ${AI_INDEXING_QUEUE_VISIBILITY_TIMEOUT:PT2M}
+      async-worker:
+        enabled: true
+        fixed-delay: ${AI_INDEXING_ASYNC_DELAY:PT0.5S}
+        batch-size: ${AI_INDEXING_ASYNC_BATCH:100}
+        strategy: ASYNC
+      batch-worker:
+        enabled: true
+        fixed-delay: ${AI_INDEXING_BATCH_DELAY:PT30S}
+        batch-size: ${AI_INDEXING_BATCH_SIZE:1000}
+        strategy: BATCH
+      cleanup:
+        enabled: true
+        stuck-threshold: ${AI_INDEXING_STUCK_THRESHOLD:PT10M}
+        sweep-interval: ${AI_INDEXING_SWEEP_INTERVAL:PT5M}
+        completed-retention: ${AI_INDEXING_COMPLETED_RETENTION:P7D}
+        dead-letter-retention: ${AI_INDEXING_DEAD_LETTER_RETENTION:P30D}
   
   # Vector Database Configuration
   vector-db:
@@ -161,7 +183,31 @@ ai:
         rate-limit: 1000
         timeout: 5000
 
-# Easy Luxury AI Configuration
+  cleanup:
+    enabled: true
+    retention-cron: "0 30 3 * * *"
+    orphaned-entities:
+      enabled: true
+      cron: "0 0 4 * * SUN"
+    no-vector-entities:
+      enabled: true
+      cron: "0 0 5 * * SUN"
+      retention-hours: 24
+    strategies:
+      order: ARCHIVE
+      user: ARCHIVE
+      product: SOFT_DELETE
+      behavior: HARD_DELETE
+      analytics: HARD_DELETE
+    retention-days:
+      order: 2555
+      user: 365
+      product: 180
+      behavior: 90
+      analytics: 30
+      default: 180
+
+  # Easy Luxury AI Configuration
 easyluxury:
   ai:
     # Index Names
