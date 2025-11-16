@@ -1,0 +1,118 @@
+databaseChangeLog:
+  - changeSet:
+      id: behavior-events-table
+      author: ai-behavior-module
+      changes:
+        - sql: |
+            CREATE TABLE IF NOT EXISTS behavior_events (
+                id UUID PRIMARY KEY,
+                user_id UUID NULL,
+                event_type VARCHAR(50) NOT NULL,
+                entity_type VARCHAR(50),
+                entity_id VARCHAR(255),
+                session_id VARCHAR(255),
+                timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                metadata JSONB,
+                ingested_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+            );
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_user_time ON behavior_events (user_id, timestamp DESC);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_entity ON behavior_events (entity_type, entity_id);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_type ON behavior_events (event_type);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_session ON behavior_events (session_id);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_timestamp ON behavior_events (timestamp DESC);
+
+  - changeSet:
+      id: behavior-insights-table
+      author: ai-behavior-module
+      changes:
+        - sql: |
+            CREATE TABLE IF NOT EXISTS behavior_insights (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                patterns JSONB,
+                scores JSONB,
+                segment VARCHAR(100),
+                preferences JSONB,
+                recommendations JSONB,
+                analyzed_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                valid_until TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                analysis_version VARCHAR(50)
+            );
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_insights_user ON behavior_insights (user_id);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_insights_valid ON behavior_insights (valid_until);
+
+  - changeSet:
+      id: behavior-metrics-table
+      author: ai-behavior-module
+      changes:
+        - sql: |
+            CREATE TABLE IF NOT EXISTS behavior_metrics (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                metric_date DATE NOT NULL,
+                view_count INTEGER DEFAULT 0,
+                click_count INTEGER DEFAULT 0,
+                search_count INTEGER DEFAULT 0,
+                add_to_cart_count INTEGER DEFAULT 0,
+                purchase_count INTEGER DEFAULT 0,
+                feedback_count INTEGER DEFAULT 0,
+                session_count INTEGER DEFAULT 0,
+                avg_session_duration_seconds INTEGER DEFAULT 0,
+                conversion_rate DOUBLE PRECISION DEFAULT 0,
+                total_revenue DOUBLE PRECISION DEFAULT 0
+            );
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_metrics_user_date ON behavior_metrics (user_id, metric_date DESC);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_metrics_date ON behavior_metrics (metric_date DESC);
+
+  - changeSet:
+      id: behavior-embeddings-table
+      author: ai-behavior-module
+      changes:
+        - sql: |
+            CREATE TABLE IF NOT EXISTS behavior_embeddings (
+                id UUID PRIMARY KEY,
+                behavior_event_id UUID NOT NULL,
+                embedding_type VARCHAR(50) NOT NULL,
+                original_text TEXT,
+                embedding FLOAT4[],
+                model VARCHAR(100),
+                created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                detected_category VARCHAR(100),
+                sentiment_score DOUBLE PRECISION
+            );
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_embedding_event ON behavior_embeddings (behavior_event_id);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_embedding_type ON behavior_embeddings (embedding_type);
+
+  - changeSet:
+      id: behavior-additional-indexes
+      author: ai-behavior-module
+      changes:
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_events_user_desc ON behavior_events (user_id DESC NULLS LAST, timestamp DESC);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_events_entity_desc ON behavior_events (entity_type, entity_id, timestamp DESC);
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_behavior_insights_valid_until ON behavior_insights (valid_until);
+        - sql: |
+            DROP MATERIALIZED VIEW IF EXISTS mv_behavior_daily_counts;
+        - sql: |
+            CREATE MATERIALIZED VIEW mv_behavior_daily_counts AS
+            SELECT
+                date_trunc('day', timestamp) AS event_day,
+                event_type,
+                count(*) AS total_events
+            FROM behavior_events
+            GROUP BY event_day, event_type;
+        - sql: |
+            CREATE INDEX IF NOT EXISTS idx_mv_behavior_daily_counts ON mv_behavior_daily_counts (event_day, event_type);

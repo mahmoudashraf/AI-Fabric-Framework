@@ -5,7 +5,7 @@
 The `ai-behavior-module` isolates behavior tracking from `ai-infrastructure-core` and exposes a self-contained Spring Boot starter that can be dropped into any service.
 
 - **Ingestion:** `POST /api/ai-behavior/ingest` (+ `/batch`) with JSON payloads validated by `BehaviorEventValidator`.
-- **Storage:** JPA entities (`BehaviorEvent`, `BehaviorInsights`, `BehaviorMetrics`, `BehaviorEmbedding`) backed by Flyway migrations (`V1`–`V5`).
+- **Storage:** JPA entities (`BehaviorEvent`, `BehaviorInsights`, `BehaviorMetrics`, `BehaviorEmbedding`) backed by Liquibase changelog `classpath:db/changelog/behavior/db.changelog-master.yaml`.
 - **Processing:** Async workers update aggregates, generate embeddings via `AICoreService`, and schedule pattern detection.
 - **Insights:** `BehaviorAnalysisService` orchestrates pluggable `BehaviorAnalyzer` implementations (default: `PatternAnalyzer`) and caches results through `BehaviorInsightsService`.
 - **Query:** `BehaviorQueryService` wraps pluggable `BehaviorDataProvider` implementations; the default `DatabaseBehaviorProvider` uses JPA specifications.
@@ -69,7 +69,7 @@ ai:
 ## Operational Notes
 
 - All async workers share the `ai-behavior-` thread pool configured via `processing.async-executor`.
-- Flyway migrations live inside the module; include the jar on the Flyway classpath or copy the SQL files when operating standalone.
+- Liquibase changelog ships inside the module; every app that registers the `AIBehaviorAutoConfiguration` bean automatically runs `db/changelog/behavior/db.changelog-master.yaml` via a dedicated `SpringLiquibase` instance.
 - `BehaviorEvent` metadata is stored as JSONB and queried via `jsonb_extract_path_text`, so Postgres 14+ (or compatible) is recommended.
 - Embedding generation costs are controlled by selective event types + minimum text length; the worker skips short/plain queries automatically.
 - Monitoring endpoint: `GET /api/ai-behavior/monitoring/summary` ⇒ `{sinkType, events, insights, metrics}`.
