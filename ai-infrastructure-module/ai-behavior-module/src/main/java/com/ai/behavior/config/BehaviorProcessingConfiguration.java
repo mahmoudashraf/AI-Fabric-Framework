@@ -1,6 +1,6 @@
 package com.ai.behavior.config;
 
-import jakarta.sql.DataSource;
+import javax.sql.DataSource;
 import liquibase.integration.spring.SpringLiquibase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
