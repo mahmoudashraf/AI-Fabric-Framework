@@ -24,7 +24,21 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "ai_searchable_entities")
+@Table(
+    name = "ai_searchable_entities",
+    indexes = {
+        @Index(name = "idx_ai_searchable_vector_id", columnList = "vector_id"),
+        @Index(name = "idx_ai_searchable_vector_updated", columnList = "vector_updated_at"),
+        @Index(name = "idx_ai_searchable_entity_type", columnList = "entity_type"),
+        @Index(name = "idx_ai_searchable_created_at", columnList = "created_at")
+    },
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_ai_searchable_entity_type_id",
+            columnNames = {"entity_type", "entity_id"}
+        )
+    }
+)
 public class AISearchableEntity {
     
     @Id
