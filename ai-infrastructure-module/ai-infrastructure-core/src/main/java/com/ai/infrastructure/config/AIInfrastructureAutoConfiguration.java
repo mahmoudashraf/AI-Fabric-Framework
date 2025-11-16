@@ -410,12 +410,6 @@ public class AIInfrastructureAutoConfiguration {
         return new DefaultAIIntelligentCacheService(resolveCacheConfig(serviceConfig));
     }
     
-            @Bean
-            @ConditionalOnMissingBean
-            public com.ai.infrastructure.service.BehaviorService behaviorService(com.ai.infrastructure.repository.BehaviorRepository behaviorRepository, AICapabilityService aiCapabilityService) {
-                return new com.ai.infrastructure.service.BehaviorService(behaviorRepository, aiCapabilityService);
-            }
-
     @Bean
     @ConditionalOnMissingBean
     public com.ai.infrastructure.service.AIInfrastructureProfileService aiInfrastructureProfileService(com.ai.infrastructure.repository.AIInfrastructureProfileRepository aiInfrastructureProfileRepository, AICapabilityService aiCapabilityService) {
