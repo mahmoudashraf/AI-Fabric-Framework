@@ -297,6 +297,10 @@ public class AICapabilityService {
         }
     }
     
+    public String resolveEntityId(Object entity) {
+        return getEntityId(entity);
+    }
+
     private String getEntityId(Object entity) {
         try {
             Field idField = entity.getClass().getDeclaredField("id");

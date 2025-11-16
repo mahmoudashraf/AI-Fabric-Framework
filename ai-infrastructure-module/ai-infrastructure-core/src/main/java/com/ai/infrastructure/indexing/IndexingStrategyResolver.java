@@ -2,12 +2,9 @@ package com.ai.infrastructure.indexing;
 
 import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.annotation.AIProcess;
-import org.springframework.stereotype.Component;
-
 /**
  * Resolves the effective indexing strategy for a given entity operation.
  */
-@Component
 public class IndexingStrategyResolver {
 
     /**
