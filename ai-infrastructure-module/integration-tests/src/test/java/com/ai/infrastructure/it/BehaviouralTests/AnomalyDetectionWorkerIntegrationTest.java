@@ -55,14 +55,15 @@ class AnomalyDetectionWorkerIntegrationTest {
         LocalDateTime now = LocalDateTime.now();
 
         BehaviorEvent highValuePurchase = purchaseEvent(userId, 25_000, now);
-        BehaviorEvent highVelocityPurchase = purchaseEvent(userId, 1000, now.minusSeconds(5));
+        BehaviorEvent highVelocityPurchase = purchaseEvent(userId, 1_000, now.minusSeconds(5));
+        BehaviorEvent additionalVelocityPurchase = purchaseEvent(userId, 900, now.minusSeconds(10));
 
-        eventBuffer.setEvents(List.of(highValuePurchase, highVelocityPurchase));
+        eventBuffer.setEvents(List.of(highValuePurchase, highVelocityPurchase, additionalVelocityPurchase));
 
         anomalyDetectionWorker.detect();
 
         List<BehaviorAlert> alerts = behaviorAlertRepository.findAll();
-        assertThat(alerts).hasSize(2);
+        assertThat(alerts).hasSize(3);
         assertThat(alerts)
             .anyMatch(alert -> "purchase_value_anomaly".equals(alert.getAlertType()) && "CRITICAL".equals(alert.getSeverity()))
             .anyMatch(alert -> "velocity_anomaly".equals(alert.getAlertType()) && !"LOW".equals(alert.getSeverity()));

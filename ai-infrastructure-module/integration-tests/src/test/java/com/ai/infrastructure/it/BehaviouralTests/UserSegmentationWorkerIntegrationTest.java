@@ -45,7 +45,7 @@ class UserSegmentationWorkerIntegrationTest {
     void workerRefreshesSegments() {
         UUID userId = UUID.randomUUID();
 
-        for (int day = 0; day < 20; day++) {
+        for (int day = 0; day < 30; day++) {
             behaviorMetricsRepository.save(BehaviorMetrics.builder()
                 .userId(userId)
                 .metricDate(LocalDate.now().minusDays(day))
@@ -75,7 +75,7 @@ class UserSegmentationWorkerIntegrationTest {
         BehaviorInsights refreshed = behaviorInsightsRepository.findTopByUserIdOrderByAnalyzedAtDesc(userId)
             .orElseThrow();
 
-        assertThat(refreshed.getSegment()).isIn("VIP", "active");
+        assertThat(refreshed.getSegment()).isEqualTo("VIP");
         assertThat(refreshed.getPreferences()).isNotEmpty();
         assertThat(refreshed.getRecommendations()).isNotEmpty();
         assertThat(refreshed.getAnalyzedAt()).isAfter(LocalDateTime.now().minusMinutes(1));

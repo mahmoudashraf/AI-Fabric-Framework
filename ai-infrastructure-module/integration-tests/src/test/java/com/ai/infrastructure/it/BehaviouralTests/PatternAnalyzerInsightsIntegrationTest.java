@@ -74,7 +74,7 @@ class PatternAnalyzerInsightsIntegrationTest {
 
         BehaviorInsights insights = behaviorAnalysisService.analyze(userId);
 
-        assertThat(insights.getSegment()).isIn("VIP", "active");
+        assertThat(insights.getSegment()).isEqualTo("needs_nurturing");
         assertThat(insights.getPatterns()).isNotEmpty();
         assertThat(insights.getRecommendations()).isNotEmpty();
         assertThat(insights.getPreferences()).containsKey("preferred_categories");

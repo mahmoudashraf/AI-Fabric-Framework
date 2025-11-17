@@ -25,7 +25,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(
     classes = TestApplication.class,
     properties = {
-        "ai.behavior.providers.aggregated.enabled=false"
+        "ai.behavior.providers.aggregated.enabled=true",
+        "ai.behavior.providers.aggregated.provider-order[0]=external",
+        "ai.behavior.providers.aggregated.max-providers=1"
     }
 )
 @ActiveProfiles("dev")
@@ -40,7 +42,7 @@ class ExternalAnalyticsAdapterContractTest {
 
     @Autowired
     private ExternalAnalyticsAdapter externalAnalyticsAdapter;
-
+    
     @AfterAll
     void stopServer() {
         wireMockServer.stop();
