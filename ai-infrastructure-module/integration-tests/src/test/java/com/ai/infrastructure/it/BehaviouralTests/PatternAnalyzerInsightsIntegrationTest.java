@@ -18,7 +18,10 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(classes = TestApplication.class)
+@SpringBootTest(
+    classes = TestApplication.class,
+    properties = "spring.sql.init.mode=always"
+)
 @ActiveProfiles("dev")
 class PatternAnalyzerInsightsIntegrationTest {
 

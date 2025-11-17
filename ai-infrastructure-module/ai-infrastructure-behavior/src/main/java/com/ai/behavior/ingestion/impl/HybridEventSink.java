@@ -8,6 +8,7 @@ import com.ai.behavior.storage.BehaviorEventRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.util.List;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 @ConditionalOnClass(StringRedisTemplate.class)
@@ -31,17 +33,17 @@ public class HybridEventSink implements BehaviorEventSink {
     @Override
     @Transactional
     public void accept(BehaviorEvent event) throws BehaviorStorageException {
-        cache(event);
-        repository.save(event);
+        BehaviorEvent persisted = repository.save(event);
+        cache(persisted);
     }
 
     @Override
     @Transactional
     public void acceptBatch(List<BehaviorEvent> events) throws BehaviorStorageException {
-        for (BehaviorEvent event : events) {
+        List<BehaviorEvent> persisted = repository.saveAll(events);
+        for (BehaviorEvent event : persisted) {
             cache(event);
         }
-        repository.saveAll(events);
     }
 
     @Override
@@ -53,7 +55,13 @@ public class HybridEventSink implements BehaviorEventSink {
         try {
             String payload = objectMapper.writeValueAsString(event);
             Duration ttl = resolveTtl();
-            redisTemplate.opsForValue().set(key(event), payload, ttl);
+            String cacheKey = key(event);
+            redisTemplate.opsForValue().set(cacheKey, payload, ttl);
+            if (log.isDebugEnabled()) {
+                boolean cached = Boolean.TRUE.equals(redisTemplate.hasKey(cacheKey));
+                log.debug("Cached behavior event {} (key={}, ttl={}s, cached={})",
+                    event.getId(), cacheKey, ttl.toSeconds(), cached);
+            }
         } catch (JsonProcessingException ex) {
             throw new BehaviorStorageException("Failed to serialize behavior event for hybrid sink", ex);
         }

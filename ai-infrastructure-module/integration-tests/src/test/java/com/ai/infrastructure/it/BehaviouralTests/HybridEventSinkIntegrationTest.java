@@ -1,17 +1,22 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
+import com.ai.behavior.ingestion.BehaviorEventSink;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
+import com.ai.behavior.ingestion.impl.HybridEventSink;
 import com.ai.behavior.model.BehaviorEvent;
 import com.ai.behavior.model.EventType;
 import com.ai.behavior.storage.BehaviorEventRepository;
 import com.ai.infrastructure.it.TestApplication;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import lombok.extern.slf4j.Slf4j;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -34,14 +39,16 @@ import static org.assertj.core.api.Assertions.assertThat;
     classes = TestApplication.class,
     properties = {
         "ai.behavior.sink.type=hybrid",
-        "ai.behavior.sink.hybrid.hot-retention-seconds=20",
+        "ai.behavior.sink.hybrid.hot-retention-seconds=120",
         "spring.sql.init.mode=never",
         "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"
+        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect",
+        "logging.level.com.ai.behavior.ingestion.impl=DEBUG"
     }
 )
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@Slf4j
 class HybridEventSinkIntegrationTest {
 
     private static EmbeddedPostgres POSTGRES;
@@ -91,10 +98,16 @@ class HybridEventSinkIntegrationTest {
     private BehaviorIngestionService ingestionService;
 
     @Autowired
+    private BehaviorEventSink behaviorEventSink;
+
+    @Autowired
     private BehaviorEventRepository behaviorEventRepository;
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private RedisConnectionFactory redisConnectionFactory;
 
     @Test
     void hybridSinkWritesToRedisAndDatabase() {
@@ -110,17 +123,33 @@ class HybridEventSinkIntegrationTest {
                 .metadata(new HashMap<>(Map.of("index", i)))
                 .build());
             ingested.add(event);
+            log.info("Test ingested behavior event {}", event.getId());
         }
 
         assertThat(behaviorEventRepository.count()).isEqualTo(3);
         ingested.forEach(event -> assertThat(behaviorEventRepository.findById(event.getId())).isPresent());
 
+        assertThat(((LettuceConnectionFactory) redisConnectionFactory).getPort()).isEqualTo(redisPort);
+        assertThat(behaviorEventSink).isInstanceOf(HybridEventSink.class);
+
         for (BehaviorEvent event : ingested) {
             String key = "behavior:hot:" + event.getId();
             Awaitility.await()
-                .atMost(Duration.ofSeconds(5))
-                .untilAsserted(() -> assertThat(redisTemplate.opsForValue().get(key)).isNotBlank());
-            assertThat(redisTemplate.getExpire(key)).isGreaterThan(0);
+                .pollDelay(Duration.ZERO)
+                .pollInterval(Duration.ofMillis(200))
+                .atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> {
+                    var currentKeys = redisTemplate.keys("behavior:hot:*");
+                    String payload = redisTemplate.opsForValue().get(key);
+                    assertThat(payload)
+                        .withFailMessage("Redis payload missing for key %s; current keys: %s", key, currentKeys)
+                        .isNotBlank();
+                    Long ttlSeconds = redisTemplate.getExpire(key);
+                    assertThat(ttlSeconds)
+                        .withFailMessage("TTL missing for key %s; current keys: %s", key, currentKeys)
+                        .isNotNull();
+                    assertThat(ttlSeconds).isGreaterThan(5);
+                });
         }
     }
 }
