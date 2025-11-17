@@ -56,8 +56,8 @@ class RedisEventSinkIntegrationTest {
 
     @DynamicPropertySource
     static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.redis.host", () -> "localhost");
-        registry.add("spring.data.redis.port", () -> redisPort);
+        registry.add("spring.redis.host", () -> "localhost");
+        registry.add("spring.redis.port", () -> redisPort);
     }
 
     private static int findAvailablePort() {

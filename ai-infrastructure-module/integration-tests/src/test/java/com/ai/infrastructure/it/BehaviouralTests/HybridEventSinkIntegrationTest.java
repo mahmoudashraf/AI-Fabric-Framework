@@ -6,6 +6,7 @@ import com.ai.behavior.model.EventType;
 import com.ai.behavior.storage.BehaviorEventRepository;
 import com.ai.infrastructure.it.TestApplication;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import redis.embedded.RedisServer;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     classes = TestApplication.class,
     properties = {
         "ai.behavior.sink.type=hybrid",
-        "ai.behavior.sink.hybrid.hot-retention-seconds=5",
+        "ai.behavior.sink.hybrid.hot-retention-seconds=20",
         "spring.sql.init.mode=never",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"
@@ -70,8 +72,8 @@ class HybridEventSinkIntegrationTest {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "postgres");
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        registry.add("spring.data.redis.host", () -> "localhost");
-        registry.add("spring.data.redis.port", () -> redisPort);
+        registry.add("spring.redis.host", () -> "localhost");
+        registry.add("spring.redis.port", () -> redisPort);
     }
 
     private static int findAvailablePort() {
@@ -113,7 +115,9 @@ class HybridEventSinkIntegrationTest {
 
         for (BehaviorEvent event : ingested) {
             String key = "behavior:hot:" + event.getId();
-            assertThat(redisTemplate.opsForValue().get(key)).isNotBlank();
+            Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(redisTemplate.opsForValue().get(key)).isNotBlank());
             assertThat(redisTemplate.getExpire(key)).isGreaterThan(0);
         }
     }
