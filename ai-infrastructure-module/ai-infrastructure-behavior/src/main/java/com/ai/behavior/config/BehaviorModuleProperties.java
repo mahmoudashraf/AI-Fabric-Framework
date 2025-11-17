@@ -4,6 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -17,6 +18,7 @@ public class BehaviorModuleProperties {
     private Insights insights = new Insights();
     private Retention retention = new Retention();
     private Performance performance = new Performance();
+    private Providers providers = new Providers();
 
     @Data
     public static class Sink {
@@ -25,6 +27,7 @@ public class BehaviorModuleProperties {
         private Kafka kafka = new Kafka();
         private Redis redis = new Redis();
         private Hybrid hybrid = new Hybrid();
+        private S3 s3 = new S3();
 
         @Data
         public static class Database {
@@ -48,6 +51,14 @@ public class BehaviorModuleProperties {
             private int hotRetentionDays = 7;
             private String coldStorage = "database";
         }
+
+        @Data
+        public static class S3 {
+            private boolean compress = true;
+            private String bucket;
+            private String prefix = "ai-behavior";
+            private String storageClass = "STANDARD";
+        }
     }
 
     @Data
@@ -62,6 +73,7 @@ public class BehaviorModuleProperties {
         private PatternDetection patternDetection = new PatternDetection();
         private Embedding embedding = new Embedding();
         private Anomaly anomaly = new Anomaly();
+        private Segmentation segmentation = new Segmentation();
 
         @Data
         public static class Aggregation {
@@ -91,6 +103,15 @@ public class BehaviorModuleProperties {
             private String schedule = "0 * * * * *";
             private double sensitivity = 0.8d;
         }
+
+        @Data
+        public static class Segmentation {
+            private boolean enabled = true;
+            private String schedule = "0 30 2 * * *";
+            private int analysisWindowDays = 30;
+            private int minEvents = 25;
+            private double vipPurchaseThreshold = 1000.0d;
+        }
     }
 
     @Data
@@ -118,6 +139,28 @@ public class BehaviorModuleProperties {
             private int corePoolSize = 4;
             private int maxPoolSize = 16;
             private int queueCapacity = 1000;
+        }
+    }
+
+    @Data
+    public static class Providers {
+        private External external = new External();
+        private Aggregated aggregated = new Aggregated();
+
+        @Data
+        public static class External {
+            private boolean enabled = false;
+            private String baseUrl;
+            private String apiKey;
+            private String queryPath = "/behavior/query";
+            private Duration timeout = Duration.ofSeconds(5);
+        }
+
+        @Data
+        public static class Aggregated {
+            private boolean enabled = false;
+            private List<String> providerOrder = new ArrayList<>(List.of("database", "external"));
+            private int maxProviders = 2;
         }
     }
 }

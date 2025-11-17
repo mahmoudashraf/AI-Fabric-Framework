@@ -26,7 +26,7 @@ public class BehaviorIngestionController {
     @PostMapping("/event")
     public ResponseEntity<BehaviorIngestionResponse> ingest(@Valid @RequestBody BehaviorEventRequest request) {
         BehaviorEvent event = ingestionService.ingest(request.toEvent());
-        return ResponseEntity.accepted(BehaviorIngestionResponse.accepted(event.getId()));
+        return ResponseEntity.accepted().body(BehaviorIngestionResponse.accepted(event.getId()));
     }
 
     @PostMapping("/batch")
@@ -35,7 +35,7 @@ public class BehaviorIngestionController {
             .map(BehaviorEventRequest::toEvent)
             .toList();
         ingestionService.ingestBatch(events);
-        return ResponseEntity.accepted(Map.of(
+        return ResponseEntity.accepted().body(Map.of(
             "status", "accepted",
             "count", events.size()
         ));

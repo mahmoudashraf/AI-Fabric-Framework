@@ -1,5 +1,6 @@
 package com.ai.infrastructure.service;
 
+import com.ai.behavior.adapter.LegacySystemAdapter;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.ingestion.BehaviorEventValidator;
 import com.ai.behavior.model.BehaviorEvent;
@@ -11,8 +12,6 @@ import com.ai.behavior.storage.BehaviorEventRepository;
 import com.ai.infrastructure.dto.BehaviorAnalysisResult;
 import com.ai.infrastructure.dto.BehaviorRequest;
 import com.ai.infrastructure.dto.BehaviorResponse;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,11 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -43,26 +39,26 @@ public class BehaviorService {
     private final BehaviorEventRepository eventRepository;
     private final BehaviorDataProvider behaviorDataProvider;
     private final BehaviorAnalysisService analysisService;
-    private final ObjectMapper objectMapper;
+    private final LegacySystemAdapter legacySystemAdapter;
 
     public BehaviorResponse createBehavior(BehaviorRequest request) {
-        BehaviorEvent event = toBehaviorEvent(request);
+        BehaviorEvent event = legacySystemAdapter.toBehaviorEvent(request);
         validator.validate(event);
         BehaviorEvent stored = ingestionService.ingest(event);
-        return toBehaviorResponse(stored);
+        return legacySystemAdapter.toBehaviorResponse(stored);
     }
 
     @Transactional(readOnly = true)
     public BehaviorResponse getBehaviorById(UUID id) {
         return eventRepository.findById(id)
-            .map(this::toBehaviorResponse)
+              .map(legacySystemAdapter::toBehaviorResponse)
             .orElseThrow(() -> new IllegalArgumentException("Behavior not found: " + id));
     }
 
     @Transactional(readOnly = true)
     public List<BehaviorResponse> getBehaviorsByUserId(UUID userId) {
         return eventRepository.findByUserIdOrderByTimestampDesc(userId).stream()
-            .map(this::toBehaviorResponse)
+            .map(legacySystemAdapter::toBehaviorResponse)
             .toList();
     }
 
@@ -75,14 +71,14 @@ public class BehaviorService {
                 .limit(500)
                 .build())
             .stream()
-            .map(this::toBehaviorResponse)
+              .map(legacySystemAdapter::toBehaviorResponse)
             .toList();
     }
 
     @Transactional(readOnly = true)
     public Page<BehaviorResponse> getBehaviorsByUserId(UUID userId, Pageable pageable) {
         List<BehaviorResponse> responses = eventRepository.findRecentEvents(userId, pageable).stream()
-            .map(this::toBehaviorResponse)
+            .map(legacySystemAdapter::toBehaviorResponse)
             .toList();
         return new PageImpl<>(responses, pageable, responses.size());
     }
@@ -94,7 +90,7 @@ public class BehaviorService {
                 .limit(500)
                 .build())
             .stream()
-            .map(this::toBehaviorResponse)
+              .map(legacySystemAdapter::toBehaviorResponse)
             .toList();
     }
 
@@ -110,7 +106,7 @@ public class BehaviorService {
     @Transactional(readOnly = true)
     public List<BehaviorResponse> getBehaviorsBySession(String sessionId) {
         return eventRepository.findBySessionIdOrderByTimestampDesc(sessionId).stream()
-            .map(this::toBehaviorResponse)
+            .map(legacySystemAdapter::toBehaviorResponse)
             .toList();
     }
 
@@ -122,7 +118,7 @@ public class BehaviorService {
                 .limit(1000)
                 .build())
             .stream()
-            .map(this::toBehaviorResponse)
+              .map(legacySystemAdapter::toBehaviorResponse)
             .toList();
     }
 
@@ -135,18 +131,18 @@ public class BehaviorService {
                 .limit(1000)
                 .build())
             .stream()
-            .map(this::toBehaviorResponse)
+              .map(legacySystemAdapter::toBehaviorResponse)
             .toList();
     }
 
     public BehaviorResponse updateBehavior(UUID id, BehaviorRequest request) {
         BehaviorEvent existing = eventRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Behavior not found: " + id));
-        BehaviorEvent updated = toBehaviorEvent(request);
+        BehaviorEvent updated = legacySystemAdapter.toBehaviorEvent(request);
         updated.setId(existing.getId());
         updated.setIngestedAt(existing.getIngestedAt());
         validator.validate(updated);
-        return toBehaviorResponse(eventRepository.save(updated));
+        return legacySystemAdapter.toBehaviorResponse(eventRepository.save(updated));
     }
 
     public void deleteBehavior(UUID id) {
@@ -170,85 +166,10 @@ public class BehaviorService {
             .build();
     }
 
-    private BehaviorEvent toBehaviorEvent(BehaviorRequest request) {
-        Map<String, Object> metadata = parseMetadata(request.getMetadata());
-        if (StringUtils.hasText(request.getAction())) {
-            metadata.put("action", request.getAction());
-        }
-        if (StringUtils.hasText(request.getContext())) {
-            metadata.put("context", request.getContext());
-        }
-        if (StringUtils.hasText(request.getDeviceInfo())) {
-            metadata.put("deviceInfo", request.getDeviceInfo());
-        }
-        if (StringUtils.hasText(request.getLocationInfo())) {
-            metadata.put("locationInfo", request.getLocationInfo());
-        }
-        if (request.getDurationSeconds() != null) {
-            metadata.put("durationSeconds", request.getDurationSeconds());
-        }
-        if (StringUtils.hasText(request.getValue())) {
-            metadata.put("value", request.getValue());
-        }
-        return BehaviorEvent.builder()
-            .userId(parseUuid(request.getUserId()))
-            .sessionId(request.getSessionId())
-            .eventType(parseEventType(request.getBehaviorType()))
-            .entityType(request.getEntityType())
-            .entityId(request.getEntityId())
-            .timestamp(LocalDateTime.now())
-            .metadata(metadata)
-            .build();
-    }
-
     private List<BehaviorResponse> queryForResponses(BehaviorQuery query) {
         return behaviorDataProvider.query(query).stream()
-            .map(this::toBehaviorResponse)
+            .map(legacySystemAdapter::toBehaviorResponse)
             .toList();
-    }
-
-    private BehaviorResponse toBehaviorResponse(BehaviorEvent event) {
-        return BehaviorResponse.builder()
-            .id(event.getId() != null ? event.getId().toString() : null)
-            .userId(event.getUserId() != null ? event.getUserId().toString() : null)
-            .behaviorType(event.getEventType().name())
-            .entityType(event.getEntityType())
-            .entityId(event.getEntityId())
-            .action(metadataValue(event, "action"))
-            .context(metadataValue(event, "context"))
-            .deviceInfo(metadataValue(event, "deviceInfo"))
-            .locationInfo(metadataValue(event, "locationInfo"))
-            .durationSeconds(parseLong(metadataValue(event, "durationSeconds")))
-            .value(metadataValue(event, "value"))
-            .metadata(serializeMetadata(event.getMetadata()))
-            .sessionId(event.getSessionId())
-            .createdAt(event.getTimestamp())
-            .build();
-    }
-
-    private Map<String, Object> parseMetadata(String metadata) {
-        if (!StringUtils.hasText(metadata)) {
-            return new HashMap<>();
-        }
-        try {
-            return objectMapper.readValue(metadata, Map.class);
-        } catch (IOException ex) {
-            log.debug("Failed to parse behavior metadata, storing as raw string");
-            Map<String, Object> fallback = new HashMap<>();
-            fallback.put("raw", metadata);
-            return fallback;
-        }
-    }
-
-    private String serializeMetadata(Map<String, Object> metadata) {
-        if (metadata == null || metadata.isEmpty()) {
-            return null;
-        }
-        try {
-            return objectMapper.writeValueAsString(metadata);
-        } catch (JsonProcessingException e) {
-            return metadata.toString();
-        }
     }
 
     private EventType parseEventType(String behaviorType) {
@@ -271,35 +192,5 @@ public class BehaviorService {
             case "SAVE" -> EventType.SAVE;
             default -> EventType.CUSTOM;
         };
-    }
-
-    private UUID parseUuid(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
-    }
-
-    private String metadataValue(BehaviorEvent event, String key) {
-        if (event.getMetadata() == null || !event.getMetadata().containsKey(key)) {
-            return null;
-        }
-        Object value = event.getMetadata().get(key);
-        return value != null ? value.toString() : null;
-    }
-
-    private Long parseLong(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException ex) {
-            return null;
-        }
     }
 }

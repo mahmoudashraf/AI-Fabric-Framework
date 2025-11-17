@@ -92,6 +92,22 @@ backend/src/main/java/com/easyluxury/ai/
 
 ## 🚀 **Implementation Phases**
 
+### 🔍 **Comprehensive Test Suites (ai-behavior)**
+To keep the new behavior module production-ready we are expanding the integration test suite housed in `ai-infrastructure-module/integration-tests`. The new document `BEHAVIOR_MODULE_INTEGRATION_TESTS.md` outlines ten high-signal scenarios:
+
+- **BEH-IT-001** Database sink + REST roundtrip validation  
+- **BEH-IT-002** Kafka sink fan-out using embedded Kafka  
+- **BEH-IT-003** Redis sink TTL enforcement  
+- **BEH-IT-004** Hybrid sink dual-write consistency  
+- **BEH-IT-005** S3 archival contract via LocalStack  
+- **BEH-IT-006** Aggregated provider failover sequencing  
+- **BEH-IT-007** External analytics adapter contract tests (WireMock)  
+- **BEH-IT-008** Anomaly detection worker alert generation  
+- **BEH-IT-009** User segmentation worker refresh over aggregated metrics  
+- **BEH-IT-010** Pattern analyzer insight correctness regression
+
+Each test will live under `src/test/java/com/ai/infrastructure/it/behavior/` with focused fixtures (Testcontainers Postgres/Redis/Kafka/S3) so the behavior layer can be verified independently of downstream application code.
+
 ### **Phase 1: Generic AI Module Foundation (3 weeks)**
 
 #### **Week 1: Core AI Services**

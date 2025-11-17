@@ -90,6 +90,10 @@ public class Behavior {
         return metadataValue("value");
     }
 
+    public String getPatternFlags() {
+        return metadataValue("patternFlags");
+    }
+
     public String getMetadataAsString() {
         return metadata != null ? metadata.toString() : null;
     }
