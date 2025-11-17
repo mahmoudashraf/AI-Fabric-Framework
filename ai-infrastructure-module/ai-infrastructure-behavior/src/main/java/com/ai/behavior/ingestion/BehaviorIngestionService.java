@@ -24,6 +24,7 @@ public class BehaviorIngestionService {
     private final BehaviorEventSink sink;
     private final ApplicationEventPublisher eventPublisher;
     private final BehaviorModuleProperties properties;
+    private final BehaviorIngestionMetrics ingestionMetrics;
 
     @Transactional
     public BehaviorEvent ingest(BehaviorEvent event) {
@@ -31,6 +32,7 @@ public class BehaviorIngestionService {
             validator.validate(event);
             BehaviorEvent enriched = enrich(event);
             sink.accept(enriched);
+            ingestionMetrics.record(enriched);
             publishEvent(enriched);
             log.debug("Ingested behavior event {}", enriched.getId());
             return enriched;
@@ -55,6 +57,7 @@ public class BehaviorIngestionService {
             events.forEach(validator::validate);
             List<BehaviorEvent> enriched = events.stream().map(this::enrich).toList();
             sink.acceptBatch(enriched);
+            ingestionMetrics.recordBatch(enriched);
             publishBatch(enriched);
             log.info("Ingested batch of {} behavior events", enriched.size());
         } catch (BehaviorIngestionException ex) {

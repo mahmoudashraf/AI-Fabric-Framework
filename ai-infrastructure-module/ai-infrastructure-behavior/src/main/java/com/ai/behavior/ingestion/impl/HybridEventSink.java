@@ -52,7 +52,7 @@ public class HybridEventSink implements BehaviorEventSink {
     private void cache(BehaviorEvent event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
-            Duration ttl = Duration.ofDays(properties.getSink().getHybrid().getHotRetentionDays());
+            Duration ttl = resolveTtl();
             redisTemplate.opsForValue().set(key(event), payload, ttl);
         } catch (JsonProcessingException ex) {
             throw new BehaviorStorageException("Failed to serialize behavior event for hybrid sink", ex);
@@ -61,5 +61,14 @@ public class HybridEventSink implements BehaviorEventSink {
 
     private String key(BehaviorEvent event) {
         return "behavior:hot:" + event.getId();
+    }
+
+    private Duration resolveTtl() {
+        long ttlSeconds = properties.getSink().getHybrid().getHotRetentionSeconds();
+        if (ttlSeconds > 0) {
+            return Duration.ofSeconds(ttlSeconds);
+        }
+        int ttlDays = Math.max(1, properties.getSink().getHybrid().getHotRetentionDays());
+        return Duration.ofDays(ttlDays);
     }
 }

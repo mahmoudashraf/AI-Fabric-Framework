@@ -43,6 +43,7 @@ public class BehaviorModuleProperties {
         @Data
         public static class Redis {
             private int ttlDays = 7;
+            private long ttlSeconds = -1;
         }
 
         @Data
@@ -50,6 +51,7 @@ public class BehaviorModuleProperties {
             private String hotStorage = "redis";
             private int hotRetentionDays = 7;
             private String coldStorage = "database";
+            private long hotRetentionSeconds = -1;
         }
 
         @Data

@@ -2,11 +2,13 @@ package com.ai.behavior.service;
 
 import com.ai.behavior.api.dto.BehaviorHealthResponse;
 import com.ai.behavior.ingestion.BehaviorEventSink;
+import com.ai.behavior.ingestion.BehaviorIngestionMetrics;
 import com.ai.behavior.storage.BehaviorEventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Service
@@ -15,19 +17,36 @@ public class BehaviorMonitoringService {
 
     private final BehaviorEventRepository eventRepository;
     private final BehaviorEventSink eventSink;
+    private final BehaviorIngestionMetrics ingestionMetrics;
 
     @Transactional(readOnly = true)
     public BehaviorHealthResponse health() {
-        long totalEvents = eventRepository.count();
-        long recentEvents = eventRepository.countByIngestedAtAfter(LocalDateTime.now().minusMinutes(5));
+        String sinkType = eventSink.getSinkType();
+        boolean persistentSink = isPersistentSink(sinkType);
+
+        long totalEvents = persistentSink
+            ? eventRepository.count()
+            : ingestionMetrics.totalCount();
+
+        long recentEvents = persistentSink
+            ? eventRepository.countByIngestedAtAfter(LocalDateTime.now().minusMinutes(5))
+            : ingestionMetrics.countInLast(Duration.ofMinutes(5));
+
         boolean healthy = recentEvents > 0;
         String message = healthy ? "ingestion_active" : "no_recent_events";
         return BehaviorHealthResponse.builder()
             .totalEvents(totalEvents)
             .recentEvents(recentEvents)
-            .sinkType(eventSink.getSinkType())
+            .sinkType(sinkType)
             .healthy(healthy)
             .message(message)
             .build();
+    }
+
+    private boolean isPersistentSink(String sinkType) {
+        if (sinkType == null) {
+            return false;
+        }
+        return "database".equalsIgnoreCase(sinkType) || "hybrid".equalsIgnoreCase(sinkType);
     }
 }

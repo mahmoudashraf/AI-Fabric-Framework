@@ -48,7 +48,7 @@ public class RedisEventSink implements BehaviorEventSink {
     private void store(BehaviorEvent event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
-            Duration ttl = Duration.ofDays(properties.getSink().getRedis().getTtlDays());
+            Duration ttl = resolveTtl();
             redisTemplate.opsForValue().set(key(event), payload, ttl);
         } catch (JsonProcessingException ex) {
             throw new BehaviorStorageException("Failed to serialize behavior event for Redis", ex);
@@ -57,5 +57,14 @@ public class RedisEventSink implements BehaviorEventSink {
 
     private String key(BehaviorEvent event) {
         return "behavior:event:" + event.getId();
+    }
+
+    private Duration resolveTtl() {
+        long ttlSeconds = properties.getSink().getRedis().getTtlSeconds();
+        if (ttlSeconds > 0) {
+            return Duration.ofSeconds(ttlSeconds);
+        }
+        int ttlDays = Math.max(1, properties.getSink().getRedis().getTtlDays());
+        return Duration.ofDays(ttlDays);
     }
 }
