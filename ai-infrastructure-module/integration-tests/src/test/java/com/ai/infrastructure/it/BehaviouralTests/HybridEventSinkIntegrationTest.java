@@ -74,6 +74,8 @@ class HybridEventSinkIntegrationTest {
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.redis.host", () -> "localhost");
         registry.add("spring.redis.port", () -> redisPort);
+        registry.add("spring.data.redis.host", () -> "localhost");
+        registry.add("spring.data.redis.port", () -> redisPort);
     }
 
     private static int findAvailablePort() {

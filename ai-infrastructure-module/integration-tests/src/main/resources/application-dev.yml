@@ -2,10 +2,10 @@
 # This configuration enables Lucene vector database for integration testing
 
 spring:
-    datasource:
-      url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=RUNSCRIPT FROM 'classpath:schema-h2.sql'
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=RUNSCRIPT FROM 'classpath:schema-h2.sql'
     username: sa
-    password: 
+    password:
     driver-class-name: org.h2.Driver
     hikari:
       maximum-pool-size: 5
@@ -14,10 +14,10 @@ spring:
       auto-commit: true
       pool-name: HikariCP-Test
 
-    sql:
-      init:
-        mode: always
-        schema-locations: classpath:schema-h2.sql
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
 
   jpa:
     hibernate:
