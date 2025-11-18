@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     }
 )
 @ActiveProfiles("dev")
-class AnomalyDetectionWorkerIntegrationTest {
+public class AnomalyDetectionWorkerIntegrationTest {
 
     @Autowired
     private AnomalyDetectionWorker anomalyDetectionWorker;

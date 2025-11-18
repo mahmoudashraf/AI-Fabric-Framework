@@ -55,7 +55,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-class S3EventSinkIntegrationTest {
+public class S3EventSinkIntegrationTest {
 
     static final String BUCKET = "behavior-it-bucket";
     static final String PREFIX = "ai-behavior-tests";

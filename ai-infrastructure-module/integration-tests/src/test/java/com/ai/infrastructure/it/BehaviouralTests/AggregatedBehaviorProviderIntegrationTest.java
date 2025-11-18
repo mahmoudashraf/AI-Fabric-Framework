@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     }
 )
 @ActiveProfiles("dev")
-class AggregatedBehaviorProviderIntegrationTest {
+public class AggregatedBehaviorProviderIntegrationTest {
 
     @Autowired
     private BehaviorEventRepository eventRepository;

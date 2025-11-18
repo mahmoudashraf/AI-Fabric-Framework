@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @ActiveProfiles("dev")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class ExternalAnalyticsAdapterContractTest {
+public class ExternalAnalyticsAdapterContractTest {
 
     private static final WireMockServer wireMockServer = new WireMockServer(options().dynamicPort());
 

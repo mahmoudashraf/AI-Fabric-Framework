@@ -49,7 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Slf4j
-class HybridEventSinkIntegrationTest {
+public class HybridEventSinkIntegrationTest {
 
     private static EmbeddedPostgres POSTGRES;
     private static RedisServer redisServer;

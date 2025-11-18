@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     properties = "spring.sql.init.mode=always"
 )
 @ActiveProfiles("dev")
-class PatternAnalyzerInsightsIntegrationTest {
+public class PatternAnalyzerInsightsIntegrationTest {
 
     @Autowired
     private BehaviorService behaviorService;

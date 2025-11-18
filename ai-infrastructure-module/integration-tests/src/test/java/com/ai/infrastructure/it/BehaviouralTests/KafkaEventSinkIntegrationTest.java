@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestPropertySource(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-class KafkaEventSinkIntegrationTest {
+public class KafkaEventSinkIntegrationTest {
 
     static final String TOPIC = "behavior-events-test";
 

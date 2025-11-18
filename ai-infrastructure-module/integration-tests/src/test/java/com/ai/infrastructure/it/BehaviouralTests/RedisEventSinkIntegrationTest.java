@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-class RedisEventSinkIntegrationTest {
+public class RedisEventSinkIntegrationTest {
 
     private static RedisServer redisServer;
     private static int redisPort;

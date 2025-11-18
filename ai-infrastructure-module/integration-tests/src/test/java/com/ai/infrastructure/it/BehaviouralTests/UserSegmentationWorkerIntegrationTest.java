@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
-class UserSegmentationWorkerIntegrationTest {
+public class UserSegmentationWorkerIntegrationTest {
 
     @Autowired
     private UserSegmentationWorker userSegmentationWorker;
