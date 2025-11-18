@@ -290,6 +290,156 @@ Spring Boot, JPA, etc.
 
 ---
 
+## Detailed Design
+
+### 1. Data Model & Persistence
+
+| Artifact | Description | Notes |
+|----------|-------------|-------|
+| `BehaviorSignal` (entity) | Canonical record for an observed signal. Fields: `id (UUID)`, `tenantId`, `userId`, `sessionId`, `schemaId`, `signalKey`, `source`, `timestamp`, `ingestedAt`, `attributes (JSONB)`, `version`. | Replaces `BehaviorEvent`. `signalKey` supports idempotency and correlation. |
+| `BehaviorSignalAttributes` | Type-safe map wrapper with helpers (`asString`, `asNumber`, `asBoolean`, `asList`). | Enforces schema-defined types and prevents unchecked casts. |
+| `behavior_signals` | Primary table with composite indexes (`tenant_id,schema_id,timestamp DESC`, `user_id,schema_id,timestamp DESC`, `schema_id,signal_key`). | Created via `V1__create_behavior_signals.sql`. |
+| `behavior_signal_metrics` | Flexible key/value store for projector output: `metric_key`, `metric_value`, `metric_type`, optional attributes JSON. | Replaces rigid `BehaviorMetrics` columns. |
+| `behavior_insights` | Persists strategy output with neutral columns: `insight_type`, `scores`, `labels`, `segment`, `evidence`. | `insight_type` differentiates multiple strategy outputs per user. |
+
+### 2. Schema Registry & Definitions
+
+- `BehaviorSchemaRegistry` lives in `com.ai.behavior.schema` and loads YAML descriptors from `classpath:/behavior/schemas/*.yml` (overridable via configuration).
+- Each `BehaviorSignalDefinition` contains:
+  - `id`, `domain`, `summary`, `version`.
+  - `attributes[]` with `name`, `type`, `required`, `validation` rules.
+  - `embeddingPolicy` (enabled, minLength, adapters).
+  - `metricHints` (keys, aggregation hints) used by default projectors.
+  - `retentionDays`, `pii` classification for governance.
+- Registry exposes discovery endpoints (`GET /api/ai-behavior/schemas`) and developer tooling (e.g., JSON Schema export).
+
+Sample descriptor:
+
+```
+- id: content.view
+  domain: media
+  version: 1
+  summary: User viewed a piece of content
+  retentionDays: 180
+  attributes:
+    - name: contentId
+      type: string
+      required: true
+      maxLength: 64
+    - name: durationSeconds
+      type: number
+      required: false
+      minimum: 0
+    - name: device
+      type: enum
+      values: [web, ios, android, tv]
+  embeddingPolicy:
+    enabled: false
+  metricHints:
+    - key: engagement.view
+      aggregation: count
+```
+
+### 3. Ingestion Flow
+
+1. `POST /api/ai-behavior/signals` accepts `CreateBehaviorSignalRequest` with `schemaId`, `signalKey`, `userId/sessionId`, `timestamp`, and `attributes`.
+2. `BehaviorSignalIngestionService` resolves schema, validates attributes via `BehaviorSignalValidator`, enriches metadata, and delegates to `BehaviorSignalSink`.
+3. Persisted signals emit `BehaviorSignalIngested` events consumed by metrics, insight, and embedding workers.
+4. Batch ingestion uses `POST /api/ai-behavior/signals/batch` with server-side validation against `ai.behavior.ingestion.maxBatchSize`.
+
+### 4. Storage & Query
+
+- `BehaviorSignalRepository` provides specification-based queries across schemaId, user, tenant, time range, and attribute predicates (`jsonb_path_query`).
+- `BehaviorQueryService` evolves into `BehaviorSignalQueryService` that translates query DSL objects into repository criteria.
+- `BehaviorDataProvider` stays interface-driven but works with `BehaviorSignal` objects and supports streaming for high-volume analytics.
+
+### 5. Metrics Projection Layer
+
+- SPI: `BehaviorMetricProjector`.
+  - `boolean supports(String schemaId, BehaviorSignalDefinition definition)`
+  - `void project(BehaviorSignal signal, MetricAccumulator accumulator)`
+- `MetricProjectionWorker` listens to ingestion events, finds applicable projectors (configured via `ai.behavior.metrics.projectors`), and writes aggregates to `behavior_signal_metrics`.
+- Default projector (`EngagementProjector`) tracks engagement_score inputs (views, interactions, recency, dwell time) using schema hints rather than hard-coded event types.
+- Additional projectors can be packaged as Spring starters (e.g., `behavior-metrics-commerce`).
+
+### 6. Insight & Segmentation Strategies
+
+- SPI: `BehaviorInsightStrategy`.
+  - Input: `BehaviorInsightContext` containing recent signals, metrics, schema definitions.
+  - Output: `BehaviorInsightResult` with neutral KPIs (`engagement_score`, `interaction_density`, `recency_index`, `preferred_schemas`).
+- `SegmentationStrategy` assigns segments such as `new`, `active`, `dormant`, `super_engaged` using configurable thresholds.
+- Commerce-specific heuristics (cart abandoner, VIP) move to optional add-on modules so the base package remains domain-agnostic.
+
+### 7. API Contract Updates
+
+| Endpoint | Request Highlights | Response |
+|----------|-------------------|----------|
+| `POST /api/ai-behavior/signals` | `{ schemaId, signalKey?, userId?, sessionId?, attributes{} }` | Stored signal summary. |
+| `POST /api/ai-behavior/signals/batch` | Array of request objects respecting `maxBatchSize`. | Count of stored signals. |
+| `GET /api/ai-behavior/schemas` | Optional filters (`domain`, `version`). | List of definitions + JSON Schema refs. |
+| `GET /api/ai-behavior/users/{id}/signals` | Query params: `schemaId`, `start`, `end`, attribute filter expressions. | Paginated `BehaviorSignal` records. |
+| `GET /api/ai-behavior/users/{id}/metrics` | `metricKey`, `startDate`, `endDate`. | Aggregated metric values. |
+| `GET /api/ai-behavior/users/{id}/insights` | `insightType` optional. | Latest `BehaviorInsightResult` objects. |
+
+OpenAPI definitions must be regenerated to reflect `schemaId` + `attributes` payloads and the new discovery endpoint.
+
+### 8. Configuration & Extensibility
+
+```
+ai:
+  behavior:
+    schemas:
+      path: classpath:/behavior/schemas/*.yml
+    ingestion:
+      maxBatchSize: 500
+      publishApplicationEvents: true
+    sink:
+      type: database
+    metrics:
+      projectors:
+        - engagementProjector
+    insights:
+      strategies:
+        - engagementInsightStrategy
+        - segmentInsightStrategy
+    retention:
+      signalsDays: 180
+      metricsDays: 365
+      insightsDays: 90
+```
+
+- Additional sinks (Kafka, S3, Redis) are enabled via existing auto-configuration but now consume `BehaviorSignal`.
+- Teams can package domain-specific schemas/projectors as separate starters to keep the base module slim.
+
+### 9. Observability & Tooling
+
+- Micrometer metrics:
+  - `behavior.signals.ingested{schemaId}`
+  - `behavior.signals.validation.failures{schemaId,reason}`
+  - `behavior.metrics.projector.duration{projector}`
+  - `behavior.insights.strategy.duration{strategy}`
+- Structured logs include `schemaId`, `signalKey`, and `tenantId`.
+- Utility scripts (optional):
+  - `schema-doctor` – validates YAML descriptors and generates JSON Schema.
+  - `signal-replay` – replays stored signals through projectors for backfill/testing.
+
+### 10. Verification Plan
+
+1. **Unit tests** for schema validation, attribute coercion, projector calculations, strategy outputs.
+2. **Integration tests** ingesting multiple schema types (commerce-like, media, support) and verifying metrics/insights endpoints.
+3. **Performance tests** for batch ingestion and projector throughput using Testcontainers.
+4. **Documentation checks** ensuring `/schemas` endpoint matches YAML files and developer docs.
+
+### 11. Rollout Notes
+
+- Because no downstream services rely on the old APIs, merge everything in one release (e.g., `v1.0.0-beta`).
+- Integration steps for adopter teams:
+  1. Define schemas via YAML and include them on the classpath.
+  2. Configure sinks/projectors/strategies via Spring (`application.yml`).
+  3. Wire ingestion clients to the new schema-aware API and leverage `/schemas` for validation.
+
+---
+
 ## Module Structure
 
 ### Directory Structure
