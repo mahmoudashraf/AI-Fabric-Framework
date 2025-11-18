@@ -1,6 +1,6 @@
 package com.ai.behavior.service;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorInsights;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import com.ai.infrastructure.dto.RAGRequest;
@@ -22,7 +22,7 @@ public class BehaviorRAGService {
     private final BehaviorInsightsService insightsService;
 
     public String explainUserBehavior(UUID userId, String question) {
-        List<BehaviorEvent> events = dataProvider.getRecentEvents(userId, 100);
+        List<BehaviorSignal> events = dataProvider.getRecentEvents(userId, 100);
         BehaviorInsights insights = insightsService.getUserInsights(userId);
         String context = buildContext(events, insights);
         RAGRequest request = RAGRequest.builder()
@@ -35,7 +35,7 @@ public class BehaviorRAGService {
         return response.getResponse();
     }
 
-    private String buildContext(List<BehaviorEvent> events, BehaviorInsights insights) {
+    private String buildContext(List<BehaviorSignal> events, BehaviorInsights insights) {
         StringBuilder builder = new StringBuilder();
         builder.append("Segment: ").append(insights.getSegment()).append("\n");
         builder.append("Patterns: ").append(String.join(", ", insights.getPatterns())).append("\n");

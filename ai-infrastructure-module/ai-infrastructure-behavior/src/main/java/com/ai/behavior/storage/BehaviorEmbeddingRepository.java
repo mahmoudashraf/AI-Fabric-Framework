@@ -9,11 +9,11 @@ import java.util.UUID;
 
 public interface BehaviorEmbeddingRepository extends JpaRepository<BehaviorEmbedding, UUID> {
 
-    List<BehaviorEmbedding> findByBehaviorEventIdIn(List<UUID> eventIds);
+    List<BehaviorEmbedding> findByBehaviorSignalIdIn(List<UUID> eventIds);
 
-    void deleteByBehaviorEventId(UUID eventId);
+    void deleteByBehaviorSignalId(UUID eventId);
 
-    void deleteByBehaviorEventIdIn(List<UUID> eventIds);
+    void deleteByBehaviorSignalIdIn(List<UUID> eventIds);
 
     long deleteByCreatedAtBefore(LocalDateTime cutoff);
 }

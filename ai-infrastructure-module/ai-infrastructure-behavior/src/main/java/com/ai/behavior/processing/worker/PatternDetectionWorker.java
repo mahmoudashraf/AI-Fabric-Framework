@@ -1,7 +1,7 @@
 package com.ai.behavior.processing.worker;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.behavior.service.BehaviorInsightsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +19,7 @@ import java.util.UUID;
 public class PatternDetectionWorker {
 
     private final BehaviorModuleProperties properties;
-    private final BehaviorEventRepository eventRepository;
+    private final BehaviorSignalRepository eventRepository;
     private final BehaviorInsightsService insightsService;
 
     @Scheduled(cron = "${ai.behavior.processing.pattern-detection.schedule:0 */5 * * * *}")

@@ -2,7 +2,7 @@ package com.ai.behavior.service;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.model.BehaviorEmbedding;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.storage.BehaviorEmbeddingRepository;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
@@ -24,7 +24,7 @@ public class BehaviorEmbeddingService {
     private final AICoreService aiCoreService;
 
     @Transactional
-    public void handleEmbedding(BehaviorEvent event) {
+    public void handleEmbedding(BehaviorSignal event) {
         var embeddingConfig = properties.getProcessing().getEmbedding();
         if (!embeddingConfig.isEnabled()) {
             return;
@@ -55,7 +55,7 @@ public class BehaviorEmbeddingService {
         log.debug("Generated embedding for event {}", event.getId());
     }
 
-    private String extractText(BehaviorEvent event) {
+    private String extractText(BehaviorSignal event) {
         return switch (event.getEventType()) {
             case FEEDBACK -> event.metadataValue("feedback_text").orElse(null);
             case REVIEW -> event.metadataValue("review_text").orElse(null);

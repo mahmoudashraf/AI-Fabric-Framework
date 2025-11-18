@@ -2,8 +2,8 @@ package com.ai.behavior.ingestion.impl;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.exception.BehaviorStorageException;
-import com.ai.behavior.ingestion.BehaviorEventSink;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
+import com.ai.behavior.model.BehaviorSignal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -24,7 +24,7 @@ import java.util.zip.GZIPOutputStream;
 @RequiredArgsConstructor
 @ConditionalOnClass(S3Client.class)
 @ConditionalOnProperty(prefix = "ai.behavior.sink", name = "type", havingValue = "s3")
-public class S3EventSink implements BehaviorEventSink {
+public class S3EventSink implements BehaviorSignalSink {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
@@ -34,14 +34,14 @@ public class S3EventSink implements BehaviorEventSink {
 
     @Override
     @Transactional
-    public void accept(BehaviorEvent event) throws BehaviorStorageException {
+    public void accept(BehaviorSignal event) throws BehaviorStorageException {
         upload(event);
     }
 
     @Override
     @Transactional
-    public void acceptBatch(List<BehaviorEvent> events) throws BehaviorStorageException {
-        for (BehaviorEvent event : events) {
+    public void acceptBatch(List<BehaviorSignal> events) throws BehaviorStorageException {
+        for (BehaviorSignal event : events) {
             upload(event);
         }
     }
@@ -51,7 +51,7 @@ public class S3EventSink implements BehaviorEventSink {
         return "s3";
     }
 
-    private void upload(BehaviorEvent event) {
+    private void upload(BehaviorSignal event) {
         try {
             byte[] payload = serialize(event);
             PutObjectRequest request = PutObjectRequest.builder()
@@ -68,7 +68,7 @@ public class S3EventSink implements BehaviorEventSink {
         }
     }
 
-    private String objectKey(BehaviorEvent event) {
+    private String objectKey(BehaviorSignal event) {
         String dateFolder = event.getTimestamp() != null
             ? DATE_FORMATTER.format(event.getTimestamp())
             : "undated";
@@ -76,7 +76,7 @@ public class S3EventSink implements BehaviorEventSink {
             (properties.getSink().getS3().isCompress() ? ".gz" : "");
     }
 
-    private byte[] serialize(BehaviorEvent event) throws IOException {
+    private byte[] serialize(BehaviorSignal event) throws IOException {
         byte[] json = objectMapper.writeValueAsBytes(event);
         if (!properties.getSink().getS3().isCompress()) {
             return json;

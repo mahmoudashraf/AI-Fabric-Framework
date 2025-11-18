@@ -1,7 +1,7 @@
 package com.ai.behavior.processing.analyzer;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorMetrics;
 import com.ai.behavior.model.EventType;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ public class SegmentationAnalyzer {
     public record SegmentationSnapshot(String segment, Map<String, Object> preferences, List<String> recommendations) {
     }
 
-    public SegmentationSnapshot fromEvents(List<BehaviorEvent> events,
+    public SegmentationSnapshot fromEvents(List<BehaviorSignal> events,
                                            Map<String, Double> scores,
                                            List<String> patterns) {
         Map<String, Object> preferences = detectPreferences(events);
@@ -76,7 +76,7 @@ public class SegmentationAnalyzer {
         return new SegmentationSnapshot(segment, preferences, recommendations);
     }
 
-    private Map<String, Object> detectPreferences(List<BehaviorEvent> events) {
+    private Map<String, Object> detectPreferences(List<BehaviorSignal> events) {
         Map<String, Long> categoryCounts = events.stream()
             .map(event -> event.metadataValue("category").orElse(null))
             .filter(category -> category != null && !category.isBlank())

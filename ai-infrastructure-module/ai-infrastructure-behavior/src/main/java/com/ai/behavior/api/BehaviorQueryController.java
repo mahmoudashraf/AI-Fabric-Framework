@@ -1,6 +1,6 @@
 package com.ai.behavior.api;
 
-import com.ai.behavior.api.dto.BehaviorEventResponse;
+import com.ai.behavior.api.dto.BehaviorSignalResponse;
 import com.ai.behavior.api.dto.BehaviorQueryRequest;
 import com.ai.behavior.service.BehaviorQueryService;
 import com.ai.behavior.storage.BehaviorAlertRepository;
@@ -27,26 +27,26 @@ public class BehaviorQueryController {
     }
 
     @GetMapping("/events/{eventId}")
-    public ResponseEntity<BehaviorEventResponse> getEvent(@PathVariable UUID eventId) {
-        return ResponseEntity.ok(BehaviorEventResponse.from(queryService.getEvent(eventId)));
+    public ResponseEntity<BehaviorSignalResponse> getEvent(@PathVariable UUID eventId) {
+        return ResponseEntity.ok(BehaviorSignalResponse.from(queryService.getEvent(eventId)));
     }
 
     @GetMapping("/users/{userId}/events")
-    public ResponseEntity<List<BehaviorEventResponse>> getUserEvents(@PathVariable UUID userId,
+    public ResponseEntity<List<BehaviorSignalResponse>> getUserEvents(@PathVariable UUID userId,
                                                                      @RequestParam(defaultValue = "50") int limit) {
         return ResponseEntity.ok(
             queryService.recentEvents(userId, limit).stream()
-                .map(BehaviorEventResponse::from)
+                .map(BehaviorSignalResponse::from)
                 .toList()
         );
     }
 
     @PostMapping("/users/{userId}/events/query")
-    public ResponseEntity<List<BehaviorEventResponse>> query(@PathVariable UUID userId,
+    public ResponseEntity<List<BehaviorSignalResponse>> query(@PathVariable UUID userId,
                                                              @RequestBody BehaviorQueryRequest request) {
         return ResponseEntity.ok(
             queryService.query(userId, request.toQuery()).stream()
-                .map(BehaviorEventResponse::from)
+                .map(BehaviorSignalResponse::from)
                 .toList()
         );
     }

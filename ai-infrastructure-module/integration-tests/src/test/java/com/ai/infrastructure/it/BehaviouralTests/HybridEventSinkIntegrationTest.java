@@ -1,11 +1,11 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
-import com.ai.behavior.ingestion.BehaviorEventSink;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.ingestion.impl.HybridEventSink;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.EventType;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import lombok.extern.slf4j.Slf4j;
@@ -98,10 +98,10 @@ public class HybridEventSinkIntegrationTest {
     private BehaviorIngestionService ingestionService;
 
     @Autowired
-    private BehaviorEventSink behaviorEventSink;
+    private BehaviorSignalSink behaviorEventSink;
 
     @Autowired
-    private BehaviorEventRepository behaviorEventRepository;
+    private BehaviorSignalRepository behaviorEventRepository;
 
     @Autowired
     private StringRedisTemplate redisTemplate;
@@ -111,9 +111,9 @@ public class HybridEventSinkIntegrationTest {
 
     @Test
     void hybridSinkWritesToRedisAndDatabase() {
-        List<BehaviorEvent> ingested = new ArrayList<>();
+        List<BehaviorSignal> ingested = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
-            BehaviorEvent event = ingestionService.ingest(BehaviorEvent.builder()
+            BehaviorSignal event = ingestionService.ingest(BehaviorSignal.builder()
                 .userId(UUID.randomUUID())
                 .sessionId("hybrid-session")
                 .eventType(EventType.VIEW)
@@ -132,7 +132,7 @@ public class HybridEventSinkIntegrationTest {
         assertThat(((LettuceConnectionFactory) redisConnectionFactory).getPort()).isEqualTo(redisPort);
         assertThat(behaviorEventSink).isInstanceOf(HybridEventSink.class);
 
-        for (BehaviorEvent event : ingested) {
+        for (BehaviorSignal event : ingested) {
             String key = "behavior:hot:" + event.getId();
             Awaitility.await()
                 .pollDelay(Duration.ZERO)

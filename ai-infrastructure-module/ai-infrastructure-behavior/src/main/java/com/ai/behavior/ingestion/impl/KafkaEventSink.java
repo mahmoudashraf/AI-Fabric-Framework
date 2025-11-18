@@ -2,8 +2,8 @@ package com.ai.behavior.ingestion.impl;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.exception.BehaviorStorageException;
-import com.ai.behavior.ingestion.BehaviorEventSink;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
+import com.ai.behavior.model.BehaviorSignal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @ConditionalOnClass(KafkaTemplate.class)
 @ConditionalOnProperty(prefix = "ai.behavior.sink", name = "type", havingValue = "kafka")
-public class KafkaEventSink implements BehaviorEventSink {
+public class KafkaEventSink implements BehaviorSignalSink {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
@@ -29,14 +29,14 @@ public class KafkaEventSink implements BehaviorEventSink {
 
     @Override
     @Transactional
-    public void accept(BehaviorEvent event) throws BehaviorStorageException {
+    public void accept(BehaviorSignal event) throws BehaviorStorageException {
         send(event);
     }
 
     @Override
     @Transactional
-    public void acceptBatch(List<BehaviorEvent> events) throws BehaviorStorageException {
-        for (BehaviorEvent event : events) {
+    public void acceptBatch(List<BehaviorSignal> events) throws BehaviorStorageException {
+        for (BehaviorSignal event : events) {
             send(event);
         }
     }
@@ -46,7 +46,7 @@ public class KafkaEventSink implements BehaviorEventSink {
         return "kafka";
     }
 
-    private void send(BehaviorEvent event) {
+    private void send(BehaviorSignal event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
             String key = event.getUserIdentifier();

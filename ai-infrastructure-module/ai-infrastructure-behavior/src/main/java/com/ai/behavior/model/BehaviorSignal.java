@@ -26,7 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Canonical behavior event entity. Optimized for write-heavy workloads with a compact set of fields.
+ * Canonical behavior signal entity. Optimized for write-heavy workloads with a compact set of fields.
  */
 @Entity
 @Table(name = "behavior_events",
@@ -34,7 +34,9 @@ import java.util.UUID;
         @Index(name = "idx_behavior_user_time", columnList = "user_id,timestamp DESC"),
         @Index(name = "idx_behavior_session_time", columnList = "session_id,timestamp DESC"),
         @Index(name = "idx_behavior_entity", columnList = "entity_type,entity_id"),
-        @Index(name = "idx_behavior_event_type", columnList = "event_type")
+        @Index(name = "idx_behavior_event_type", columnList = "event_type"),
+        @Index(name = "idx_behavior_schema_time", columnList = "schema_id,timestamp DESC"),
+        @Index(name = "idx_behavior_signal_key", columnList = "schema_id,signal_key")
     }
 )
 @Getter
@@ -42,7 +44,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BehaviorEvent {
+public class BehaviorSignal {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -66,6 +68,12 @@ public class BehaviorEvent {
     @Column(name = "session_id", length = 128)
     private String sessionId;
 
+    @Column(name = "schema_id", length = 128)
+    private String schemaId;
+
+    @Column(name = "signal_key", length = 128)
+    private String signalKey;
+
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false, length = 40)
@@ -83,6 +91,10 @@ public class BehaviorEvent {
     @Column(name = "channel", length = 50)
     private String channel;
 
+    @Builder.Default
+    @Column(name = "version", length = 16)
+    private String version = "1.0";
+
     @NotNull
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
@@ -93,7 +105,7 @@ public class BehaviorEvent {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")
-    private Map<String, Object> metadata;
+    private Map<String, Object> attributes;
 
     public boolean isAnonymous() {
         return userId == null;
@@ -106,18 +118,50 @@ public class BehaviorEvent {
         return sessionId;
     }
 
-    public Map<String, Object> safeMetadata() {
-        if (metadata == null) {
-            metadata = new HashMap<>();
+    public Map<String, Object> safeAttributes() {
+        if (attributes == null) {
+            attributes = new HashMap<>();
         }
-        return metadata;
+        return attributes;
     }
 
-    public Optional<String> metadataValue(String key) {
-        if (metadata == null || !metadata.containsKey(key)) {
+    public Optional<String> attributeValue(String key) {
+        if (attributes == null || !attributes.containsKey(key)) {
             return Optional.empty();
         }
-        Object value = metadata.get(key);
+        Object value = attributes.get(key);
         return Optional.ofNullable(value).map(Object::toString);
+    }
+
+    /**
+     * @deprecated Prefer {@link #safeAttributes()}.
+     */
+    @Deprecated
+    public Map<String, Object> safeMetadata() {
+        return safeAttributes();
+    }
+
+    /**
+     * @deprecated Prefer {@link #attributeValue(String)}.
+     */
+    @Deprecated
+    public Optional<String> metadataValue(String key) {
+        return attributeValue(key);
+    }
+
+    /**
+     * @deprecated Prefer {@link #getAttributes()}.
+     */
+    @Deprecated
+    public Map<String, Object> getMetadata() {
+        return attributes;
+    }
+
+    /**
+     * @deprecated Prefer {@link #setAttributes(Map)}.
+     */
+    @Deprecated
+    public void setMetadata(Map<String, Object> metadata) {
+        this.attributes = metadata;
     }
 }

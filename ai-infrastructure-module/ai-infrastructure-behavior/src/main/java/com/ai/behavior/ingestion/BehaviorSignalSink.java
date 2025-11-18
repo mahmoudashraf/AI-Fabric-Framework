@@ -1,18 +1,18 @@
 package com.ai.behavior.ingestion;
 
 import com.ai.behavior.exception.BehaviorStorageException;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 
 import java.util.List;
 
 /**
  * Pluggable storage abstraction for behavior event ingestion.
  */
-public interface BehaviorEventSink {
+public interface BehaviorSignalSink {
 
-    void accept(BehaviorEvent event) throws BehaviorStorageException;
+    void accept(BehaviorSignal event) throws BehaviorStorageException;
 
-    void acceptBatch(List<BehaviorEvent> events) throws BehaviorStorageException;
+    void acceptBatch(List<BehaviorSignal> events) throws BehaviorStorageException;
 
     default void flush() {
         // no-op by default

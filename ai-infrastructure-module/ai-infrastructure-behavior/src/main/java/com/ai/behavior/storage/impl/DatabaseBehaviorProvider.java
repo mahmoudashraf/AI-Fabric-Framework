@@ -1,9 +1,9 @@
 package com.ai.behavior.storage.impl;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.storage.BehaviorDataProvider;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,11 +19,11 @@ public class DatabaseBehaviorProvider implements BehaviorDataProvider {
 
     private static final String PROVIDER_TYPE = "database";
 
-    private final BehaviorEventRepository repository;
+    private final BehaviorSignalRepository repository;
 
     @Override
-    public List<BehaviorEvent> query(BehaviorQuery query) {
-        Specification<BehaviorEvent> specification = Specification.where(null);
+    public List<BehaviorSignal> query(BehaviorQuery query) {
+        Specification<BehaviorSignal> specification = Specification.where(null);
 
         if (query.getUserId() != null) {
             specification = specification.and((root, cq, cb) -> cb.equal(root.get("userId"), query.getUserId()));

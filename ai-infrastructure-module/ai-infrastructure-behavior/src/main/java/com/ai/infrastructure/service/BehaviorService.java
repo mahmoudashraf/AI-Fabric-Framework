@@ -2,13 +2,13 @@ package com.ai.infrastructure.service;
 
 import com.ai.behavior.adapter.LegacySystemAdapter;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
-import com.ai.behavior.ingestion.BehaviorEventValidator;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.ingestion.BehaviorSignalValidator;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.model.EventType;
 import com.ai.behavior.service.BehaviorAnalysisService;
 import com.ai.behavior.storage.BehaviorDataProvider;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.dto.BehaviorAnalysisResult;
 import com.ai.infrastructure.dto.BehaviorRequest;
 import com.ai.infrastructure.dto.BehaviorResponse;
@@ -35,16 +35,16 @@ import java.util.UUID;
 public class BehaviorService {
 
     private final BehaviorIngestionService ingestionService;
-    private final BehaviorEventValidator validator;
-    private final BehaviorEventRepository eventRepository;
+    private final BehaviorSignalValidator validator;
+    private final BehaviorSignalRepository eventRepository;
     private final BehaviorDataProvider behaviorDataProvider;
     private final BehaviorAnalysisService analysisService;
     private final LegacySystemAdapter legacySystemAdapter;
 
     public BehaviorResponse createBehavior(BehaviorRequest request) {
-        BehaviorEvent event = legacySystemAdapter.toBehaviorEvent(request);
+        BehaviorSignal event = legacySystemAdapter.toBehaviorSignal(request);
         validator.validate(event);
-        BehaviorEvent stored = ingestionService.ingest(event);
+        BehaviorSignal stored = ingestionService.ingest(event);
         return legacySystemAdapter.toBehaviorResponse(stored);
     }
 
@@ -136,9 +136,9 @@ public class BehaviorService {
     }
 
     public BehaviorResponse updateBehavior(UUID id, BehaviorRequest request) {
-        BehaviorEvent existing = eventRepository.findById(id)
+        BehaviorSignal existing = eventRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Behavior not found: " + id));
-        BehaviorEvent updated = legacySystemAdapter.toBehaviorEvent(request);
+        BehaviorSignal updated = legacySystemAdapter.toBehaviorSignal(request);
         updated.setId(existing.getId());
         updated.setIngestedAt(existing.getIngestedAt());
         validator.validate(updated);

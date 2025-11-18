@@ -1,7 +1,7 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.ingestion.BehaviorIngestionService;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.EventType;
 import com.ai.infrastructure.it.TestApplication;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -102,7 +102,7 @@ public class S3EventSinkIntegrationTest {
 
     @Test
     void s3SinkArchivesCompressedObjects() throws IOException {
-        BehaviorEvent event = ingestionService.ingest(BehaviorEvent.builder()
+        BehaviorSignal event = ingestionService.ingest(BehaviorSignal.builder()
             .userId(UUID.randomUUID())
             .sessionId("s3-session")
             .eventType(EventType.SEARCH)
@@ -128,7 +128,7 @@ public class S3EventSinkIntegrationTest {
             GetObjectRequest.builder().bucket(BUCKET).key(object.key()).build())) {
             decompressed = gunzip(stream.readAllBytes());
         }
-        BehaviorEvent stored = objectMapper.readValue(decompressed, BehaviorEvent.class);
+        BehaviorSignal stored = objectMapper.readValue(decompressed, BehaviorSignal.class);
 
         assertThat(stored.getId()).isEqualTo(event.getId());
         assertThat(stored.getEventType()).isEqualTo(EventType.SEARCH);

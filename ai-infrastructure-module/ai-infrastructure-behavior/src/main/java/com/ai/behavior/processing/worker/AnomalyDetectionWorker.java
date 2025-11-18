@@ -2,7 +2,7 @@ package com.ai.behavior.processing.worker;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.model.BehaviorAlert;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.model.EventType;
 import com.ai.behavior.processing.analyzer.AnomalyAnalyzer;
@@ -34,7 +34,7 @@ public class AnomalyDetectionWorker {
             return;
         }
         LocalDateTime since = LocalDateTime.now().minusMinutes(1);
-        List<BehaviorEvent> purchases = dataProvider.query(BehaviorQuery.builder()
+        List<BehaviorSignal> purchases = dataProvider.query(BehaviorQuery.builder()
             .eventType(EventType.PURCHASE)
             .startTime(since)
             .limit(500)

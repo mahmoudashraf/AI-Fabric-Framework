@@ -24,7 +24,7 @@ public class BehaviorAlertResponse {
         return BehaviorAlertResponse.builder()
             .id(alert.getId())
             .userId(alert.getUserId())
-            .behaviorEventId(alert.getBehaviorEventId())
+            .behaviorEventId(alert.getBehaviorSignalId())
             .alertType(alert.getAlertType())
             .severity(alert.getSeverity())
             .message(alert.getMessage())

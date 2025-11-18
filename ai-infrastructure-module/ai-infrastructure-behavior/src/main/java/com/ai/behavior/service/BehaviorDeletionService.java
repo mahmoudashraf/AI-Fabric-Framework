@@ -1,9 +1,9 @@
 package com.ai.behavior.service;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.storage.BehaviorAlertRepository;
 import com.ai.behavior.storage.BehaviorEmbeddingRepository;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.behavior.storage.BehaviorInsightsRepository;
 import com.ai.behavior.storage.BehaviorMetricsRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BehaviorDeletionService implements com.ai.infrastructure.deletion.port.BehaviorDeletionPort {
 
-    private final BehaviorEventRepository eventRepository;
+    private final BehaviorSignalRepository eventRepository;
     private final BehaviorEmbeddingRepository embeddingRepository;
     private final BehaviorInsightsRepository insightsRepository;
     private final BehaviorMetricsRepository metricsRepository;
@@ -29,10 +29,10 @@ public class BehaviorDeletionService implements com.ai.infrastructure.deletion.p
     @Override
     public int deleteUserBehaviors(UUID userId) {
         List<UUID> eventIds = eventRepository.findByUserIdOrderByTimestampDesc(userId).stream()
-            .map(BehaviorEvent::getId)
+            .map(BehaviorSignal::getId)
             .toList();
         if (!eventIds.isEmpty()) {
-            embeddingRepository.deleteByBehaviorEventIdIn(eventIds);
+            embeddingRepository.deleteByBehaviorSignalIdIn(eventIds);
         }
         alertRepository.deleteByUserId(userId);
         metricsRepository.deleteByUserId(userId);

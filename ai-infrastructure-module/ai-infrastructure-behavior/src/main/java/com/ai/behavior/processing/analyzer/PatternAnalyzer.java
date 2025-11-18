@@ -1,7 +1,7 @@
 package com.ai.behavior.processing.analyzer;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorInsights;
 import com.ai.behavior.model.EventType;
 import lombok.RequiredArgsConstructor;
@@ -27,12 +27,12 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     private final SegmentationAnalyzer segmentationAnalyzer;
 
     @Override
-    public BehaviorInsights analyze(UUID userId, List<BehaviorEvent> events) {
+    public BehaviorInsights analyze(UUID userId, List<BehaviorSignal> events) {
         if (events == null || events.isEmpty()) {
             return emptyInsights(userId);
         }
 
-        events.sort(Comparator.comparing(BehaviorEvent::getTimestamp, Comparator.nullsLast(LocalDateTime::compareTo)));
+        events.sort(Comparator.comparing(BehaviorSignal::getTimestamp, Comparator.nullsLast(LocalDateTime::compareTo)));
         Map<String, Double> scores = computeScores(events);
         List<String> patterns = detectPatterns(events, scores);
         SegmentationAnalyzer.SegmentationSnapshot snapshot = segmentationAnalyzer.fromEvents(events, scores, patterns);
@@ -78,7 +78,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
             .build();
     }
 
-    private Map<String, Double> computeScores(List<BehaviorEvent> events) {
+    private Map<String, Double> computeScores(List<BehaviorSignal> events) {
         Map<String, Double> scores = new HashMap<>();
         long totalEvents = events.size();
         long viewCount = events.stream().filter(e -> e.getEventType() == EventType.VIEW).count();
@@ -100,7 +100,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         return scores;
     }
 
-    private List<String> detectPatterns(List<BehaviorEvent> events, Map<String, Double> scores) {
+    private List<String> detectPatterns(List<BehaviorSignal> events, Map<String, Double> scores) {
         Set<String> patterns = new HashSet<>();
         long purchases = events.stream().filter(e -> e.getEventType() == EventType.PURCHASE).count();
         long addToCart = events.stream().filter(e -> e.getEventType() == EventType.ADD_TO_CART).count();
@@ -131,7 +131,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         return new ArrayList<>(patterns);
     }
 
-    private boolean isEveningShopper(List<BehaviorEvent> events) {
+    private boolean isEveningShopper(List<BehaviorSignal> events) {
         long eveningEvents = events.stream()
             .filter(e -> e.getTimestamp() != null)
             .filter(e -> {
@@ -142,7 +142,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         return !events.isEmpty() && (double) eveningEvents / events.size() >= 0.6;
     }
 
-    private boolean isWeekendHeavy(List<BehaviorEvent> events) {
+    private boolean isWeekendHeavy(List<BehaviorSignal> events) {
         long weekendEvents = events.stream()
             .filter(e -> e.getTimestamp() != null)
             .filter(e -> switch (e.getTimestamp().getDayOfWeek()) {
@@ -153,7 +153,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         return !events.isEmpty() && (double) weekendEvents / events.size() >= 0.5;
     }
 
-    private boolean hasHighSearchIntent(List<BehaviorEvent> events) {
+    private boolean hasHighSearchIntent(List<BehaviorSignal> events) {
         long searchEvents = events.stream()
             .filter(e -> e.getEventType() == EventType.SEARCH)
             .count();

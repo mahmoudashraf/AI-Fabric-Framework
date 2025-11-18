@@ -1,7 +1,7 @@
 package com.ai.behavior.adapter;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,7 +39,7 @@ public class RestExternalAnalyticsAdapter implements ExternalAnalyticsAdapter {
     private RestTemplate cachedTemplate;
 
     @Override
-    public List<BehaviorEvent> fetchEvents(BehaviorQuery query) {
+    public List<BehaviorSignal> fetchEvents(BehaviorQuery query) {
         BehaviorModuleProperties.Providers.External config = properties.getProviders().getExternal();
         if (config.getBaseUrl() == null) {
             log.warn("External analytics base URL not configured, skipping fetch");
@@ -123,16 +123,16 @@ public class RestExternalAnalyticsAdapter implements ExternalAnalyticsAdapter {
         return payload;
     }
 
-    private List<BehaviorEvent> mapResponse(String body) {
+    private List<BehaviorSignal> mapResponse(String body) {
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode eventsNode = root.isArray() ? root : root.path("events");
-            List<BehaviorEvent> events = new ArrayList<>();
+            List<BehaviorSignal> events = new ArrayList<>();
             if (!eventsNode.isArray()) {
                 return events;
             }
             for (JsonNode node : eventsNode) {
-                events.add(objectMapper.treeToValue(node, BehaviorEvent.class));
+                events.add(objectMapper.treeToValue(node, BehaviorSignal.class));
             }
             return events;
         } catch (Exception ex) {

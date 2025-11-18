@@ -1,7 +1,7 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.adapter.ExternalAnalyticsAdapter;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.model.EventType;
 import com.ai.infrastructure.it.TestApplication;
@@ -86,7 +86,7 @@ public class ExternalAnalyticsAdapterContractTest {
             .limit(25)
             .build();
 
-        List<BehaviorEvent> events = externalAnalyticsAdapter.fetchEvents(query);
+        List<BehaviorSignal> events = externalAnalyticsAdapter.fetchEvents(query);
 
         assertThat(events).hasSize(2);
         assertThat(events.get(0).getEventType()).isEqualTo(EventType.VIEW);

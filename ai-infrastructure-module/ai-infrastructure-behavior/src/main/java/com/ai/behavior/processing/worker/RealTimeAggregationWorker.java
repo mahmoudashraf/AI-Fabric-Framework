@@ -1,8 +1,8 @@
 package com.ai.behavior.processing.worker;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
-import com.ai.behavior.ingestion.event.BehaviorEventIngested;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.ingestion.event.BehaviorSignalIngested;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorMetrics;
 import com.ai.behavior.storage.BehaviorMetricsRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +23,11 @@ public class RealTimeAggregationWorker {
 
     @Async("behaviorAsyncExecutor")
     @EventListener
-    public void onEvent(BehaviorEventIngested ingested) {
+    public void onEvent(BehaviorSignalIngested ingested) {
         if (!properties.getProcessing().getAggregation().isEnabled()) {
             return;
         }
-        BehaviorEvent event = ingested.event();
+        BehaviorSignal event = ingested.event();
         if (event.getUserId() == null || event.getTimestamp() == null) {
             return;
         }

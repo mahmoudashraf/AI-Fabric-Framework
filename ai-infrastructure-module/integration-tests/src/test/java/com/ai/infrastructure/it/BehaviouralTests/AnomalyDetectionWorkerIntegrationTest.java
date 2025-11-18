@@ -2,7 +2,7 @@ package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.model.BehaviorAlert;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.EventType;
 import com.ai.behavior.processing.worker.AnomalyDetectionWorker;
 import com.ai.behavior.storage.BehaviorAlertRepository;
@@ -54,9 +54,9 @@ public class AnomalyDetectionWorkerIntegrationTest {
         UUID userId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
 
-        BehaviorEvent highValuePurchase = purchaseEvent(userId, 25_000, now);
-        BehaviorEvent highVelocityPurchase = purchaseEvent(userId, 1_000, now.minusSeconds(5));
-        BehaviorEvent additionalVelocityPurchase = purchaseEvent(userId, 900, now.minusSeconds(10));
+        BehaviorSignal highValuePurchase = purchaseEvent(userId, 25_000, now);
+        BehaviorSignal highVelocityPurchase = purchaseEvent(userId, 1_000, now.minusSeconds(5));
+        BehaviorSignal additionalVelocityPurchase = purchaseEvent(userId, 900, now.minusSeconds(10));
 
         eventBuffer.setEvents(List.of(highValuePurchase, highVelocityPurchase, additionalVelocityPurchase));
 
@@ -69,8 +69,8 @@ public class AnomalyDetectionWorkerIntegrationTest {
             .anyMatch(alert -> "velocity_anomaly".equals(alert.getAlertType()) && !"LOW".equals(alert.getSeverity()));
     }
 
-    private BehaviorEvent purchaseEvent(UUID userId, double amount, LocalDateTime timestamp) {
-        return BehaviorEvent.builder()
+    private BehaviorSignal purchaseEvent(UUID userId, double amount, LocalDateTime timestamp) {
+        return BehaviorSignal.builder()
             .id(UUID.randomUUID())
             .userId(userId)
             .eventType(EventType.PURCHASE)
@@ -92,7 +92,7 @@ public class AnomalyDetectionWorkerIntegrationTest {
         BehaviorDataProvider stubBehaviorDataProvider(EventBuffer buffer, BehaviorModuleProperties properties) {
             return new BehaviorDataProvider() {
                 @Override
-                public List<BehaviorEvent> query(com.ai.behavior.model.BehaviorQuery query) {
+                public List<BehaviorSignal> query(com.ai.behavior.model.BehaviorQuery query) {
                     return buffer.getEvents();
                 }
 
@@ -104,13 +104,13 @@ public class AnomalyDetectionWorkerIntegrationTest {
         }
 
         static class EventBuffer {
-            private List<BehaviorEvent> events = List.of();
+            private List<BehaviorSignal> events = List.of();
 
-            void setEvents(List<BehaviorEvent> events) {
+            void setEvents(List<BehaviorSignal> events) {
                 this.events = events;
             }
 
-            List<BehaviorEvent> getEvents() {
+            List<BehaviorSignal> getEvents() {
                 return events;
             }
         }

@@ -1,6 +1,6 @@
 package com.ai.behavior.api.dto;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.EventType;
 import lombok.Builder;
 import lombok.Value;
@@ -11,12 +11,15 @@ import java.util.UUID;
 
 @Value
 @Builder
-public class BehaviorEventResponse {
+public class BehaviorSignalResponse {
 
     UUID id;
     UUID userId;
     String tenantId;
     String sessionId;
+    String schemaId;
+    String signalKey;
+    String version;
     EventType eventType;
     String entityType;
     String entityId;
@@ -24,14 +27,17 @@ public class BehaviorEventResponse {
     String channel;
     LocalDateTime timestamp;
     LocalDateTime ingestedAt;
-    Map<String, Object> metadata;
+    Map<String, Object> attributes;
 
-    public static BehaviorEventResponse from(BehaviorEvent event) {
-        return BehaviorEventResponse.builder()
+    public static BehaviorSignalResponse from(BehaviorSignal event) {
+        return BehaviorSignalResponse.builder()
             .id(event.getId())
             .userId(event.getUserId())
             .tenantId(event.getTenantId())
             .sessionId(event.getSessionId())
+            .schemaId(event.getSchemaId())
+            .signalKey(event.getSignalKey())
+            .version(event.getVersion())
             .eventType(event.getEventType())
             .entityType(event.getEntityType())
             .entityId(event.getEntityId())
@@ -39,7 +45,7 @@ public class BehaviorEventResponse {
             .channel(event.getChannel())
             .timestamp(event.getTimestamp())
             .ingestedAt(event.getIngestedAt())
-            .metadata(event.getMetadata())
+            .attributes(event.getAttributes())
             .build();
     }
 }

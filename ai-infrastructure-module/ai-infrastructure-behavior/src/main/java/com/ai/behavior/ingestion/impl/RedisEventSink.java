@@ -2,8 +2,8 @@ package com.ai.behavior.ingestion.impl;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.exception.BehaviorStorageException;
-import com.ai.behavior.ingestion.BehaviorEventSink;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
+import com.ai.behavior.model.BehaviorSignal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @ConditionalOnClass(StringRedisTemplate.class)
 @ConditionalOnProperty(prefix = "ai.behavior.sink", name = "type", havingValue = "redis")
-public class RedisEventSink implements BehaviorEventSink {
+public class RedisEventSink implements BehaviorSignalSink {
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -28,14 +28,14 @@ public class RedisEventSink implements BehaviorEventSink {
 
     @Override
     @Transactional
-    public void accept(BehaviorEvent event) throws BehaviorStorageException {
+    public void accept(BehaviorSignal event) throws BehaviorStorageException {
         store(event);
     }
 
     @Override
     @Transactional
-    public void acceptBatch(List<BehaviorEvent> events) throws BehaviorStorageException {
-        for (BehaviorEvent event : events) {
+    public void acceptBatch(List<BehaviorSignal> events) throws BehaviorStorageException {
+        for (BehaviorSignal event : events) {
             store(event);
         }
     }
@@ -45,7 +45,7 @@ public class RedisEventSink implements BehaviorEventSink {
         return "redis";
     }
 
-    private void store(BehaviorEvent event) {
+    private void store(BehaviorSignal event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
             Duration ttl = resolveTtl();
@@ -55,7 +55,7 @@ public class RedisEventSink implements BehaviorEventSink {
         }
     }
 
-    private String key(BehaviorEvent event) {
+    private String key(BehaviorSignal event) {
         return "behavior:event:" + event.getId();
     }
 

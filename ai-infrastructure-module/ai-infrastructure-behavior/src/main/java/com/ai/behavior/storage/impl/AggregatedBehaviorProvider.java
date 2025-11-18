@@ -1,7 +1,7 @@
 package com.ai.behavior.storage.impl;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import lombok.RequiredArgsConstructor;
@@ -31,14 +31,14 @@ public class AggregatedBehaviorProvider implements BehaviorDataProvider {
     private final BehaviorModuleProperties properties;
 
     @Override
-    public List<BehaviorEvent> query(BehaviorQuery query) {
+    public List<BehaviorSignal> query(BehaviorQuery query) {
         var config = properties.getProviders().getAggregated();
         Map<String, BehaviorDataProvider> available = availableProviders();
         List<String> order = config.getProviderOrder() == null || config.getProviderOrder().isEmpty()
             ? new ArrayList<>(available.keySet())
             : config.getProviderOrder();
 
-        List<BehaviorEvent> aggregated = new ArrayList<>();
+        List<BehaviorSignal> aggregated = new ArrayList<>();
         int maxProviders = Math.max(1, config.getMaxProviders());
         int providersUsed = 0;
 
@@ -61,7 +61,7 @@ public class AggregatedBehaviorProvider implements BehaviorDataProvider {
             }
         }
 
-        Comparator<BehaviorEvent> comparator = Comparator.comparing(BehaviorEvent::getTimestamp,
+        Comparator<BehaviorSignal> comparator = Comparator.comparing(BehaviorSignal::getTimestamp,
             Comparator.nullsLast(LocalDateTime::compareTo));
         if (!query.isAscending()) {
             comparator = comparator.reversed();

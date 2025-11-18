@@ -1,7 +1,7 @@
 package com.ai.behavior.ingestion;
 
 import com.ai.behavior.exception.BehaviorValidationException;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -9,9 +9,9 @@ import java.time.LocalDateTime;
 
 @Slf4j
 @Component
-public class BehaviorEventValidator {
+public class BehaviorSignalValidator {
 
-    public void validate(BehaviorEvent event) {
+    public void validate(BehaviorSignal event) {
         if (event == null) {
             throw new BehaviorValidationException("Behavior event cannot be null");
         }

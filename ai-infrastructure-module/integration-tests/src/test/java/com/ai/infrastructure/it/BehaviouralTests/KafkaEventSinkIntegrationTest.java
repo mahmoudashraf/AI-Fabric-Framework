@@ -1,7 +1,7 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.ingestion.BehaviorIngestionMetrics;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.EventType;
 import com.ai.behavior.service.BehaviorMonitoringService;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
@@ -77,7 +77,7 @@ public class KafkaEventSinkIntegrationTest {
 
         UUID userId = UUID.randomUUID();
         for (int i = 0; i < 5; i++) {
-            ingestionService.ingest(BehaviorEvent.builder()
+            ingestionService.ingest(BehaviorSignal.builder()
                 .userId(userId)
                 .sessionId("session-" + i)
                 .eventType(EventType.PURCHASE)

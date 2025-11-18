@@ -2,9 +2,9 @@ package com.ai.behavior.ingestion;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.exception.BehaviorIngestionException;
-import com.ai.behavior.ingestion.event.BehaviorEventBatchIngested;
-import com.ai.behavior.ingestion.event.BehaviorEventIngested;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.ingestion.event.BehaviorSignalBatchIngested;
+import com.ai.behavior.ingestion.event.BehaviorSignalIngested;
+import com.ai.behavior.model.BehaviorSignal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -20,17 +20,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BehaviorIngestionService {
 
-    private final BehaviorEventValidator validator;
-    private final BehaviorEventSink sink;
+    private final BehaviorSignalValidator validator;
+    private final BehaviorSignalSink sink;
     private final ApplicationEventPublisher eventPublisher;
     private final BehaviorModuleProperties properties;
     private final BehaviorIngestionMetrics ingestionMetrics;
 
     @Transactional
-    public BehaviorEvent ingest(BehaviorEvent event) {
+    public BehaviorSignal ingest(BehaviorSignal event) {
         try {
             validator.validate(event);
-            BehaviorEvent enriched = enrich(event);
+            BehaviorSignal enriched = enrich(event);
             sink.accept(enriched);
             ingestionMetrics.record(enriched);
             publishEvent(enriched);
@@ -44,7 +44,7 @@ public class BehaviorIngestionService {
     }
 
     @Transactional
-    public void ingestBatch(List<BehaviorEvent> events) {
+    public void ingestBatch(List<BehaviorSignal> events) {
         if (events == null || events.isEmpty()) {
             return;
         }
@@ -55,7 +55,7 @@ public class BehaviorIngestionService {
 
         try {
             events.forEach(validator::validate);
-            List<BehaviorEvent> enriched = events.stream().map(this::enrich).toList();
+            List<BehaviorSignal> enriched = events.stream().map(this::enrich).toList();
             sink.acceptBatch(enriched);
             ingestionMetrics.recordBatch(enriched);
             publishBatch(enriched);
@@ -67,9 +67,15 @@ public class BehaviorIngestionService {
         }
     }
 
-    private BehaviorEvent enrich(BehaviorEvent event) {
+    private BehaviorSignal enrich(BehaviorSignal event) {
         if (event.getId() == null) {
             event.setId(UUID.randomUUID());
+        }
+        if (event.getSchemaId() == null) {
+            event.setSchemaId(resolveLegacySchema(event.getEventType()));
+        }
+        if (event.getVersion() == null) {
+            event.setVersion("1.0");
         }
         if (event.getTimestamp() == null) {
             event.setTimestamp(LocalDateTime.now());
@@ -77,22 +83,29 @@ public class BehaviorIngestionService {
         if (event.getIngestedAt() == null) {
             event.setIngestedAt(LocalDateTime.now());
         }
-        event.safeMetadata().put("_ingested_at", event.getIngestedAt().toString());
-        event.safeMetadata().put("_version", "1.0");
+        event.safeAttributes().put("_ingested_at", event.getIngestedAt().toString());
+        event.safeAttributes().put("_version", event.getVersion());
         return event;
     }
 
-    private void publishEvent(BehaviorEvent event) {
-        if (!properties.getIngestion().isPublishApplicationEvents()) {
-            return;
+    private String resolveLegacySchema(com.ai.behavior.model.EventType eventType) {
+        if (eventType == null) {
+            return "legacy.unknown";
         }
-        eventPublisher.publishEvent(new BehaviorEventIngested(event));
+        return "legacy." + eventType.name().toLowerCase();
     }
 
-    private void publishBatch(List<BehaviorEvent> events) {
+    private void publishEvent(BehaviorSignal event) {
         if (!properties.getIngestion().isPublishApplicationEvents()) {
             return;
         }
-        eventPublisher.publishEvent(new BehaviorEventBatchIngested(events));
+        eventPublisher.publishEvent(new BehaviorSignalIngested(event));
+    }
+
+    private void publishBatch(List<BehaviorSignal> events) {
+        if (!properties.getIngestion().isPublishApplicationEvents()) {
+            return;
+        }
+        eventPublisher.publishEvent(new BehaviorSignalBatchIngested(events));
     }
 }

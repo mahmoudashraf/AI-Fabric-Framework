@@ -1,11 +1,11 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.adapter.ExternalAnalyticsAdapter;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.model.EventType;
 import com.ai.behavior.service.BehaviorQueryService;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class AggregatedBehaviorProviderIntegrationTest {
 
     @Autowired
-    private BehaviorEventRepository eventRepository;
+    private BehaviorSignalRepository eventRepository;
 
     @Autowired
     private BehaviorQueryService behaviorQueryService;
@@ -57,7 +57,7 @@ public class AggregatedBehaviorProviderIntegrationTest {
     void aggregatedProviderMergesSources() {
         UUID userId = UUID.randomUUID();
 
-        BehaviorEvent databaseEvent = BehaviorEvent.builder()
+        BehaviorSignal databaseEvent = BehaviorSignal.builder()
             .id(UUID.randomUUID())
             .userId(userId)
             .eventType(EventType.VIEW)
@@ -66,7 +66,7 @@ public class AggregatedBehaviorProviderIntegrationTest {
             .build();
         eventRepository.save(databaseEvent);
 
-        BehaviorEvent externalEvent = BehaviorEvent.builder()
+        BehaviorSignal externalEvent = BehaviorSignal.builder()
             .id(UUID.randomUUID())
             .userId(userId)
             .eventType(EventType.CLICK)
@@ -75,7 +75,7 @@ public class AggregatedBehaviorProviderIntegrationTest {
             .build();
         externalEventHolder.setEvents(List.of(externalEvent));
 
-        List<BehaviorEvent> result = behaviorQueryService.recentEvents(userId, 10);
+        List<BehaviorSignal> result = behaviorQueryService.recentEvents(userId, 10);
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getMetadata().get("source")).isEqualTo("external");
@@ -95,7 +95,7 @@ public class AggregatedBehaviorProviderIntegrationTest {
         ExternalAnalyticsAdapter stubExternalAnalyticsAdapter(ExternalEventHolder holder) {
             return new ExternalAnalyticsAdapter() {
                 @Override
-                public List<BehaviorEvent> fetchEvents(BehaviorQuery query) {
+                public List<BehaviorSignal> fetchEvents(BehaviorQuery query) {
                     if (query.getUserId() == null) {
                         return List.of();
                     }
@@ -110,13 +110,13 @@ public class AggregatedBehaviorProviderIntegrationTest {
         }
 
         static class ExternalEventHolder {
-            private List<BehaviorEvent> events = List.of();
+            private List<BehaviorSignal> events = List.of();
 
-            void setEvents(List<BehaviorEvent> events) {
+            void setEvents(List<BehaviorSignal> events) {
                 this.events = events;
             }
 
-            List<BehaviorEvent> getEvents() {
+            List<BehaviorSignal> getEvents() {
                 return events;
             }
         }

@@ -1,7 +1,7 @@
 package com.ai.behavior.processing.analyzer;
 
 import com.ai.behavior.model.BehaviorAlert;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.EventType;
 import org.springframework.stereotype.Component;
 
@@ -14,16 +14,16 @@ import java.util.stream.Collectors;
 @Component
 public class AnomalyAnalyzer {
 
-    public List<BehaviorAlert> detect(List<BehaviorEvent> events, double sensitivity) {
+    public List<BehaviorAlert> detect(List<BehaviorSignal> events, double sensitivity) {
         if (events == null || events.isEmpty()) {
             return List.of();
         }
         Map<UUID, Long> purchasesPerUser = events.stream()
             .filter(event -> event.getUserId() != null)
-            .collect(Collectors.groupingBy(BehaviorEvent::getUserId, Collectors.counting()));
+            .collect(Collectors.groupingBy(BehaviorSignal::getUserId, Collectors.counting()));
 
         List<BehaviorAlert> alerts = new ArrayList<>();
-        for (BehaviorEvent event : events) {
+        for (BehaviorSignal event : events) {
             if (event.getUserId() == null) {
                 continue;
             }
@@ -41,7 +41,7 @@ public class AnomalyAnalyzer {
         return count >= threshold;
     }
 
-    private boolean isHighValue(BehaviorEvent event) {
+    private boolean isHighValue(BehaviorSignal event) {
         return event.metadataValue("amount")
             .map(this::safeDouble)
             .filter(amount -> amount >= 10000)
@@ -56,7 +56,7 @@ public class AnomalyAnalyzer {
         }
     }
 
-    private BehaviorAlert buildAlert(BehaviorEvent event, boolean highVelocity, boolean highValue) {
+    private BehaviorAlert buildAlert(BehaviorSignal event, boolean highVelocity, boolean highValue) {
         String severity = highValue ? "CRITICAL" : (highVelocity ? "HIGH" : "MEDIUM");
         String reason = highValue ? "purchase_value_anomaly" : "velocity_anomaly";
         return BehaviorAlert.builder()
@@ -73,7 +73,7 @@ public class AnomalyAnalyzer {
             .build();
     }
 
-    private String buildMessage(BehaviorEvent event, boolean highVelocity, boolean highValue) {
+    private String buildMessage(BehaviorSignal event, boolean highVelocity, boolean highValue) {
         if (highValue && highVelocity) {
             return "High value purchase performed during suspicious velocity window";
         }

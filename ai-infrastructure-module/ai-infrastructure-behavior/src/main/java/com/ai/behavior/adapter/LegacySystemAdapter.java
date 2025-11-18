@@ -1,6 +1,6 @@
 package com.ai.behavior.adapter;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.EventType;
 import com.ai.infrastructure.dto.BehaviorRequest;
 import com.ai.infrastructure.dto.BehaviorResponse;
@@ -26,7 +26,7 @@ public class LegacySystemAdapter {
 
     private final ObjectMapper objectMapper;
 
-    public BehaviorEvent toBehaviorEvent(BehaviorRequest request) {
+    public BehaviorSignal toBehaviorSignal(BehaviorRequest request) {
         Map<String, Object> metadata = parseMetadata(request.getMetadata());
         addIfHasText(metadata, "action", request.getAction());
         addIfHasText(metadata, "context", request.getContext());
@@ -37,18 +37,20 @@ public class LegacySystemAdapter {
         }
         addIfHasText(metadata, "value", request.getValue());
 
-        return BehaviorEvent.builder()
+        EventType eventType = parseEventType(request.getBehaviorType());
+        return BehaviorSignal.builder()
             .userId(parseUuid(request.getUserId()))
             .sessionId(request.getSessionId())
-            .eventType(parseEventType(request.getBehaviorType()))
+            .schemaId("legacy." + eventType.name().toLowerCase())
+            .eventType(eventType)
             .entityType(request.getEntityType())
             .entityId(request.getEntityId())
             .timestamp(LocalDateTime.now())
-            .metadata(metadata)
+            .attributes(metadata)
             .build();
     }
 
-    public BehaviorResponse toBehaviorResponse(BehaviorEvent event) {
+    public BehaviorResponse toBehaviorResponse(BehaviorSignal event) {
         return BehaviorResponse.builder()
             .id(event.getId() != null ? event.getId().toString() : null)
             .userId(event.getUserId() != null ? event.getUserId().toString() : null)
@@ -59,7 +61,7 @@ public class LegacySystemAdapter {
             .context(metadataValue(event, "context"))
             .deviceInfo(metadataValue(event, "deviceInfo"))
             .locationInfo(metadataValue(event, "locationInfo"))
-            .metadata(serializeMetadata(event.getMetadata()))
+            .metadata(serializeMetadata(event.getAttributes()))
             .sessionId(event.getSessionId())
             .durationSeconds(parseLong(metadataValue(event, "durationSeconds")))
             .value(metadataValue(event, "value"))
@@ -120,11 +122,11 @@ public class LegacySystemAdapter {
         }
     }
 
-    private String metadataValue(BehaviorEvent event, String key) {
-        if (event.getMetadata() == null || key == null) {
+    private String metadataValue(BehaviorSignal event, String key) {
+        if (event.getAttributes() == null || key == null) {
             return null;
         }
-        Object value = event.getMetadata().get(key);
+        Object value = event.getAttributes().get(key);
         return value != null ? value.toString() : null;
     }
 

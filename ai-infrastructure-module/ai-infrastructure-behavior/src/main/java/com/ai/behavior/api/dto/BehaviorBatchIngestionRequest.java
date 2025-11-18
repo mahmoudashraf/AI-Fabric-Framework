@@ -11,5 +11,5 @@ public class BehaviorBatchIngestionRequest {
 
     @NotEmpty
     @Valid
-    private List<BehaviorEventRequest> events;
+    private List<BehaviorSignalRequest> events;
 }

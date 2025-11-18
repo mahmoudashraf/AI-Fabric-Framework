@@ -2,9 +2,9 @@ package com.ai.behavior.ingestion.impl;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.exception.BehaviorStorageException;
-import com.ai.behavior.ingestion.BehaviorEventSink;
-import com.ai.behavior.model.BehaviorEvent;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
+import com.ai.behavior.model.BehaviorSignal;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -23,25 +23,25 @@ import java.util.List;
 @RequiredArgsConstructor
 @ConditionalOnClass(StringRedisTemplate.class)
 @ConditionalOnProperty(prefix = "ai.behavior.sink", name = "type", havingValue = "hybrid")
-public class HybridEventSink implements BehaviorEventSink {
+public class HybridEventSink implements BehaviorSignalSink {
 
     private final StringRedisTemplate redisTemplate;
-    private final BehaviorEventRepository repository;
+    private final BehaviorSignalRepository repository;
     private final ObjectMapper objectMapper;
     private final BehaviorModuleProperties properties;
 
     @Override
     @Transactional
-    public void accept(BehaviorEvent event) throws BehaviorStorageException {
-        BehaviorEvent persisted = repository.save(event);
+    public void accept(BehaviorSignal event) throws BehaviorStorageException {
+        BehaviorSignal persisted = repository.save(event);
         cache(persisted);
     }
 
     @Override
     @Transactional
-    public void acceptBatch(List<BehaviorEvent> events) throws BehaviorStorageException {
-        List<BehaviorEvent> persisted = repository.saveAll(events);
-        for (BehaviorEvent event : persisted) {
+    public void acceptBatch(List<BehaviorSignal> events) throws BehaviorStorageException {
+        List<BehaviorSignal> persisted = repository.saveAll(events);
+        for (BehaviorSignal event : persisted) {
             cache(event);
         }
     }
@@ -51,7 +51,7 @@ public class HybridEventSink implements BehaviorEventSink {
         return "hybrid";
     }
 
-    private void cache(BehaviorEvent event) {
+    private void cache(BehaviorSignal event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
             Duration ttl = resolveTtl();
@@ -67,7 +67,7 @@ public class HybridEventSink implements BehaviorEventSink {
         }
     }
 
-    private String key(BehaviorEvent event) {
+    private String key(BehaviorSignal event) {
         return "behavior:hot:" + event.getId();
     }
 

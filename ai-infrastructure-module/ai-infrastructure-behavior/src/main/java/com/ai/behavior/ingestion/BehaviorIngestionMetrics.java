@@ -1,6 +1,6 @@
 package com.ai.behavior.ingestion;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -22,7 +22,7 @@ public class BehaviorIngestionMetrics {
     private final AtomicLong totalIngested = new AtomicLong();
     private final ConcurrentLinkedQueue<Instant> ingestedInstants = new ConcurrentLinkedQueue<>();
 
-    public void record(BehaviorEvent event) {
+    public void record(BehaviorSignal event) {
         if (event == null) {
             return;
         }
@@ -30,7 +30,7 @@ public class BehaviorIngestionMetrics {
         ingestedInstants.add(toInstant(event.getIngestedAt()));
     }
 
-    public void recordBatch(List<BehaviorEvent> events) {
+    public void recordBatch(List<BehaviorSignal> events) {
         if (events == null || events.isEmpty()) {
             return;
         }

@@ -1,7 +1,7 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.ingestion.BehaviorIngestionService;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.EventType;
 import com.ai.infrastructure.it.TestApplication;
 import org.awaitility.Awaitility;
@@ -79,7 +79,7 @@ public class RedisEventSinkIntegrationTest {
 
     @Test
     void redisSinkStoresEventWithTtl() {
-        BehaviorEvent event = ingestionService.ingest(BehaviorEvent.builder()
+        BehaviorSignal event = ingestionService.ingest(BehaviorSignal.builder()
             .userId(UUID.randomUUID())
             .sessionId("redis-session")
             .eventType(EventType.VIEW)

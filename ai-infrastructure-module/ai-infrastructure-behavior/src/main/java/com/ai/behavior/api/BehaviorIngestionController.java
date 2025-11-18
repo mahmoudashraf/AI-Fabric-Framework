@@ -1,10 +1,10 @@
 package com.ai.behavior.api;
 
 import com.ai.behavior.api.dto.BehaviorBatchIngestionRequest;
-import com.ai.behavior.api.dto.BehaviorEventRequest;
+import com.ai.behavior.api.dto.BehaviorSignalRequest;
 import com.ai.behavior.api.dto.BehaviorIngestionResponse;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,15 +24,15 @@ public class BehaviorIngestionController {
     private final BehaviorIngestionService ingestionService;
 
     @PostMapping("/event")
-    public ResponseEntity<BehaviorIngestionResponse> ingest(@Valid @RequestBody BehaviorEventRequest request) {
-        BehaviorEvent event = ingestionService.ingest(request.toEvent());
+    public ResponseEntity<BehaviorIngestionResponse> ingest(@Valid @RequestBody BehaviorSignalRequest request) {
+        BehaviorSignal event = ingestionService.ingest(request.toEvent());
         return ResponseEntity.accepted().body(BehaviorIngestionResponse.accepted(event.getId()));
     }
 
     @PostMapping("/batch")
     public ResponseEntity<Map<String, Object>> ingestBatch(@Valid @RequestBody BehaviorBatchIngestionRequest request) {
-        List<BehaviorEvent> events = request.getEvents().stream()
-            .map(BehaviorEventRequest::toEvent)
+        List<BehaviorSignal> events = request.getEvents().stream()
+            .map(BehaviorSignalRequest::toEvent)
             .toList();
         ingestionService.ingestBatch(events);
         return ResponseEntity.accepted().body(Map.of(

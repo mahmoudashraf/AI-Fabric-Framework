@@ -3,7 +3,7 @@ package com.ai.behavior.retention;
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.storage.BehaviorAlertRepository;
 import com.ai.behavior.storage.BehaviorEmbeddingRepository;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.behavior.storage.BehaviorInsightsRepository;
 import com.ai.behavior.storage.BehaviorMetricsRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 public class BehaviorRetentionService {
 
     private final BehaviorModuleProperties properties;
-    private final BehaviorEventRepository eventRepository;
+    private final BehaviorSignalRepository eventRepository;
     private final BehaviorInsightsRepository insightsRepository;
     private final BehaviorMetricsRepository metricsRepository;
     private final BehaviorEmbeddingRepository embeddingRepository;

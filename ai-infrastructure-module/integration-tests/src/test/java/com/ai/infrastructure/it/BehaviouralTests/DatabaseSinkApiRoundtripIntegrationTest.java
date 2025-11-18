@@ -1,10 +1,10 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
-import com.ai.behavior.api.dto.BehaviorEventRequest;
-import com.ai.behavior.api.dto.BehaviorEventResponse;
+import com.ai.behavior.api.dto.BehaviorSignalRequest;
+import com.ai.behavior.api.dto.BehaviorSignalResponse;
 import com.ai.behavior.api.dto.BehaviorIngestionResponse;
 import com.ai.behavior.model.EventType;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
@@ -71,16 +71,16 @@ public class DatabaseSinkApiRoundtripIntegrationTest {
     private TestRestTemplate restTemplate;
 
     @Autowired
-    private BehaviorEventRepository behaviorEventRepository;
+    private BehaviorSignalRepository behaviorEventRepository;
 
     @Test
     void databaseSinkPersistsAndQueryReturnsEvents() {
         UUID userId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
 
-        BehaviorEventRequest viewEvent = buildRequest(userId, "session-a", EventType.VIEW, "product-1",
+        BehaviorSignalRequest viewEvent = buildRequest(userId, "session-a", EventType.VIEW, "product-1",
             now.minusMinutes(5), Map.of("category", "luxury", "rank", 1));
-        BehaviorEventRequest purchaseEvent = buildRequest(userId, "session-a", EventType.PURCHASE, "order-55",
+        BehaviorSignalRequest purchaseEvent = buildRequest(userId, "session-a", EventType.PURCHASE, "order-55",
             now.minusMinutes(1), Map.of("amount", 2500, "currency", "USD"));
 
         ResponseEntity<BehaviorIngestionResponse> firstIngest = restTemplate.postForEntity(
@@ -92,19 +92,19 @@ public class DatabaseSinkApiRoundtripIntegrationTest {
         assertThat(secondIngest.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(behaviorEventRepository.count()).isEqualTo(2);
 
-        ParameterizedTypeReference<List<BehaviorEventResponse>> typeRef = new ParameterizedTypeReference<>() {};
-        ResponseEntity<List<BehaviorEventResponse>> response = restTemplate.exchange(
+        ParameterizedTypeReference<List<BehaviorSignalResponse>> typeRef = new ParameterizedTypeReference<>() {};
+        ResponseEntity<List<BehaviorSignalResponse>> response = restTemplate.exchange(
             "/api/ai-behavior/users/" + userId + "/events?limit=10",
             HttpMethod.GET,
             null,
             typeRef);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        List<BehaviorEventResponse> events = response.getBody();
+        List<BehaviorSignalResponse> events = response.getBody();
         assertThat(events).hasSize(2);
 
-        BehaviorEventResponse first = events.get(0);
-        BehaviorEventResponse second = events.get(1);
+        BehaviorSignalResponse first = events.get(0);
+        BehaviorSignalResponse second = events.get(1);
 
         assertThat(first.getEventType()).isEqualTo(EventType.PURCHASE);
         assertThat(first.getMetadata()).containsEntry("amount", 2500);
@@ -118,13 +118,13 @@ public class DatabaseSinkApiRoundtripIntegrationTest {
             .ifPresent(entity -> assertThat(entity.getIngestedAt()).isEqualTo(first.getIngestedAt()));
     }
 
-    private BehaviorEventRequest buildRequest(UUID userId,
+    private BehaviorSignalRequest buildRequest(UUID userId,
                                               String sessionId,
                                               EventType eventType,
                                               String entityId,
                                               LocalDateTime timestamp,
                                               Map<String, Object> metadata) {
-        BehaviorEventRequest request = new BehaviorEventRequest();
+        BehaviorSignalRequest request = new BehaviorSignalRequest();
         request.setUserId(userId);
         request.setSessionId(sessionId);
         request.setEventType(eventType);

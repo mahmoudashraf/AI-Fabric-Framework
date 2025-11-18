@@ -1,7 +1,7 @@
 package com.ai.behavior.processing.worker;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
-import com.ai.behavior.ingestion.event.BehaviorEventIngested;
+import com.ai.behavior.ingestion.event.BehaviorSignalIngested;
 import com.ai.behavior.service.BehaviorEmbeddingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
@@ -17,7 +17,7 @@ public class EmbeddingGenerationWorker {
 
     @Async("behaviorAsyncExecutor")
     @EventListener
-    public void onEvent(BehaviorEventIngested ingested) {
+    public void onEvent(BehaviorSignalIngested ingested) {
         if (!properties.getProcessing().getEmbedding().isEnabled()) {
             return;
         }

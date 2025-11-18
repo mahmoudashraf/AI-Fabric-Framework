@@ -1,7 +1,7 @@
 package com.ai.behavior.storage.impl;
 
 import com.ai.behavior.adapter.ExternalAnalyticsAdapter;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +18,7 @@ public class ExternalAnalyticsBehaviorProvider implements BehaviorDataProvider {
     private final ExternalAnalyticsAdapter adapter;
 
     @Override
-    public List<BehaviorEvent> query(BehaviorQuery query) {
+    public List<BehaviorSignal> query(BehaviorQuery query) {
         return adapter.fetchEvents(query);
     }
 

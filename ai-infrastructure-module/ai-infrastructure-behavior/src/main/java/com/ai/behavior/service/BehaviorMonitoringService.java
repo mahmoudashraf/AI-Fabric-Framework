@@ -1,9 +1,9 @@
 package com.ai.behavior.service;
 
 import com.ai.behavior.api.dto.BehaviorHealthResponse;
-import com.ai.behavior.ingestion.BehaviorEventSink;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
 import com.ai.behavior.ingestion.BehaviorIngestionMetrics;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,8 +15,8 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class BehaviorMonitoringService {
 
-    private final BehaviorEventRepository eventRepository;
-    private final BehaviorEventSink eventSink;
+    private final BehaviorSignalRepository eventRepository;
+    private final BehaviorSignalSink eventSink;
     private final BehaviorIngestionMetrics ingestionMetrics;
 
     @Transactional(readOnly = true)

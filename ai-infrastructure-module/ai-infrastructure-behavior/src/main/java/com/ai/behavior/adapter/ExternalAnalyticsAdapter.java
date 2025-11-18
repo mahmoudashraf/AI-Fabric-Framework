@@ -1,6 +1,6 @@
 package com.ai.behavior.adapter;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 
 import java.util.List;
@@ -10,7 +10,7 @@ import java.util.List;
  */
 public interface ExternalAnalyticsAdapter {
 
-    List<BehaviorEvent> fetchEvents(BehaviorQuery query);
+    List<BehaviorSignal> fetchEvents(BehaviorQuery query);
 
     String getProviderName();
 }

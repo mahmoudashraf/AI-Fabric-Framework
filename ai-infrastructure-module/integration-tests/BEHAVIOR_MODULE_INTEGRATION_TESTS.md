@@ -61,7 +61,7 @@ The new ai-behavior module introduces dedicated ingestion pipelines, pluggable s
 - **Goal:** Exercise REST adapter payload + header contract.
 - **Setup:** WireMock server for `/behavior/query`, configure baseUrl + apiKey.
 - **Flow:** Execute `BehaviorQueryService` query for user; stub returns JSON array.
-- **Assertions:** Adapter sends POST with metadata filter payload, returned events mapped to `BehaviorEvent`, provider type is `external-rest`.
+- **Assertions:** Adapter sends POST with metadata filter payload, returned events mapped to `BehaviorSignal`, provider type is `external-rest`.
 
 ### BEH-IT-008: Anomaly Detection Worker Alerts
 - **Goal:** Ensure worker emits alerts for high-value & high-velocity purchases.

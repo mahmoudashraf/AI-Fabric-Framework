@@ -2,7 +2,7 @@ package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.model.BehaviorInsights;
 import com.ai.behavior.service.BehaviorAnalysisService;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.dto.BehaviorRequest;
 import com.ai.infrastructure.it.TestApplication;
 import com.ai.infrastructure.service.BehaviorService;
@@ -32,7 +32,7 @@ public class PatternAnalyzerInsightsIntegrationTest {
     private BehaviorAnalysisService behaviorAnalysisService;
 
     @Autowired
-    private BehaviorEventRepository behaviorEventRepository;
+    private BehaviorSignalRepository behaviorEventRepository;
 
     @AfterEach
     void clean() {
