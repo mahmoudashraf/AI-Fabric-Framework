@@ -194,9 +194,10 @@ Spring Boot, JPA, etc.
 
 ### Code Audit Summary (2025-11-18)
 
-- The `ai-infrastructure-behavior` module exposes clean ingestion, storage, processing, and query layers, but several core classes embed e-commerce-specific assumptions in their models and analyzers.
-- Compatibility shims such as `com.ai.infrastructure.service.BehaviorService` currently live inside the module tree, creating tight coupling between the reusable AI artifact and the legacy application package structure.
-- AI-driven components (pattern detection, segmentation, metrics) depend on hard-coded metadata keys (`amount`, `category`, `price`, `durationSeconds`) that are neither validated nor documented outside the source files.
+- This module is brand new (no downstream adopters yet), so we can perform a breaking, single-shot refactor.
+- The current code separates ingestion, storage, processing, and API layers, but core models and analyzers embed e-commerce assumptions (event enums, purchase funnels, cart heuristics).
+- AI-driven components depend on hard-coded metadata keys (`amount`, `category`, `price`, `durationSeconds`) that are neither validated nor documented outside the source files.
+- The `com.ai.infrastructure.*` package bundles a legacy-style REST surface we do not intend to ship inside infrastructure modules.
 
 ### Domain Coupling Hotspots
 
@@ -217,46 +218,75 @@ Spring Boot, JPA, etc.
 
 ### Guiding Goals
 
-- Preserve the solid ingestion/query plumbing while isolating domain knowledge behind extension points.
-- Allow multiple domains (commerce, media, support, finance) to register their own event schemas, metrics projections, and insight strategies at runtime via configuration or SPI.
-- Ship the module with a neutral default profile plus optional commerce pack that can be enabled in host applications.
-- Keep ai-core interactions (embeddings, anomaly detection) domain-agnostic by exchanging typed payloads instead of commerce DTOs.
+- Deliver a single comprehensive refactor (no phased rollout) because the module has no external adopters.
+- Align authoring and implementation with `/docs/Guidelines` (clear extension points, neutral primitives, explicit configuration).
+- Remove backend-specific code so `ai-infrastructure-behavior` ships as a standalone AI infrastructure artifact.
+- Keep ai-core interactions generic (signals, embeddings, anomaly inputs) rather than commerce DTOs.
 
-### Architecture Changes
+### One-Shot Refactor Blueprint
 
-#### 1. Event Schema & Registry
-- Introduce a `BehaviorSignalDefinition` (id, canonical fields, required metadata, embedding policy) alongside a `BehaviorSchemaRegistry`.
-- Refactor `BehaviorEvent` to carry a `schemaId` (string/UUID) instead of—or in addition to—the fixed `EventType` enum. Provide a lightweight `BehaviorSignalType` interface so existing enums can be layered on top during migration.
-- Replace enum-based mapping logic in `LegacySystemAdapter`/`BehaviorService` with registry lookups, letting legacy applications supply their own schema set without editing the module.
+| Layer | Current State | Refactored State |
+|-------|---------------|------------------|
+| **Data Model** | `BehaviorEvent` + `EventType` enum hard-coded to commerce funnel. | Rename entity to `BehaviorSignal` with `schemaId`, `signalKey`, `attributes` (JSON). Event semantics come from configuration-driven `BehaviorSignalDefinition`. |
+| **Schema Management** | No formal schema; metadata is ad-hoc maps. | Introduce `BehaviorSchemaRegistry` (YAML + Java builder) that defines required attributes, types, embedding policy, retention hints, and validation constraints. |
+| **Ingestion** | `BehaviorIngestionService` + `BehaviorEventValidator` reference enums and metadata size only. | New `BehaviorSignalIngestionService` uses schema registry, enforces contracts, and writes via `BehaviorSignalSink` (renamed interface). Publishes neutral `BehaviorSignalIngested` events. |
+| **Storage** | Separate tables for events, metrics, embeddings; metrics table contains commerce-specific columns. | Consolidate to flexible tables: `behavior_signals` (tenant/user/session/signal), `behavior_signal_metrics` (key/value/attributes), `behavior_insights` (neutral payload). Embeddings/alerts remain optional tables referencing `schemaId`. |
+| **Metrics** | `RealTimeAggregationWorker` increments counters tied to commerce actions. | Replace with `MetricProjectionWorker` that runs `BehaviorMetricProjector` SPI instances loaded from Spring context. Projections persist as key/value metrics with optional attributes. |
+| **Analysis** | `PatternAnalyzer` & `SegmentationAnalyzer` encode commerce personas. | Introduce `BehaviorInsightStrategy` and `SegmentationStrategy` SPIs. Default strategies provide neutral engagement tiers; commerce-specific strategy lives in optional `ai-infrastructure-behavior-commerce` starter. |
+| **API/DTOs** | Mix of generic (`com.ai.behavior.api`) and backend-specific (`com.ai.infrastructure.*`). | Remove `com.ai.infrastructure.*`. Controllers and DTOs operate on `schemaId`, `attributes`, and typed metadata descriptions. Add `/schemas` discovery endpoint. |
+| **Config** | `BehaviorModuleProperties` assumes enum-based events. | Expand properties to declare schemas, signal sources, sink configs, projector list, and insight strategy order. Provide starter YAML aligned with `/docs/Guidelines/PROJECT_GUIDELINES.yaml`. |
 
-#### 2. Metrics Projection Layer
-- Create a `BehaviorMetricProjector` SPI that derives counters from ingested events. Provide a generic projector (totals, recency) plus a commerce-specific implementation that reproduces `BehaviorMetrics`.
-- Change `RealTimeAggregationWorker` to load active projectors from configuration (`ai.behavior.metrics.projectors[]`) and persist their outputs in a flexible table (e.g., `{user_id, metric_date, metric_key, metric_value}`) or JSON column.
+### Detailed Refactor Steps
 
-#### 3. Insight & Segmentation Strategies
-- Define `BehaviorInsightStrategy` and `SegmentationStrategy` interfaces that accept `BehaviorEvent`/`BehaviorMetrics` streams and return `BehaviorInsights`.
-- Move the current commerce heuristics into an optional `commerce.strategy` package while the default module ships a neutral engagement scorer.
-- Update `BehaviorAnalysisService` to orchestrate the strategies via Spring's ordered beans so host applications can register their own analyzers without touching core code.
+1. **Data model + migrations**
+   - Rename `BehaviorEvent` → `BehaviorSignal`, drop `EventType`, add `schema_id`, `signal_key`, `attributes` JSONB, `version`.
+   - Generate new Flyway scripts (`V1__create_behavior_signals.sql`, `V2__create_behavior_signal_metrics.sql`, `V3__create_behavior_insights.sql`) and remove commerce-specific columns.
+   - Update repositories and query builders to reference `schemaId`/`attributes`.
 
-#### 4. Legacy Boundary Extraction
-- Relocate `com.ai.infrastructure.{controller,dto,service,entity}` into the host backend (or a dedicated compatibility artifact). Within `ai-infrastructure-behavior`, expose only the generic controllers already under `com.ai.behavior.api`.
-- Provide a documented shim (`LegacyBehaviorBridge`) that converts legacy DTOs to `BehaviorEvent` using the schema registry instead of hard-coded switch statements.
+2. **Schema registry + validation**
+   - Add `BehaviorSignalDefinition`, `SignalFieldDefinition`, `SchemaValidationRule`.
+   - Implement `BehaviorSchemaRegistry` that loads YAML definitions from `classpath:/behavior/schemas/*.yml` and exposes discovery APIs.
+   - Replace `BehaviorEventValidator` with `BehaviorSignalValidator` that enforces schema types, allowed enums, max metadata size, etc.
 
-#### 5. Metadata Contracts & Validation
-- Declare metadata requirements per schema (type, optional/required) and expose validation helpers so ingestion rejects malformed events earlier.
-- Generate OpenAPI/JSON Schema for every registered event definition, letting product teams inspect required attributes without reading code.
+3. **Ingestion + sinks**
+   - Rename `BehaviorEventSink` → `BehaviorSignalSink`. Provide default Postgres sink plus Kafka/S3 sinks.
+   - Update ingestion service, controllers, DTOs to accept `schemaId` and `attributes`.
+   - Emit standardized application events (`BehaviorSignalIngested`, `BehaviorSignalBatchIngested`) for workers to consume.
 
-### Phased Plan
+4. **Metrics projection**
+   - Define `BehaviorMetricProjector` SPI with `supports(schemaId)` and `project(BehaviorSignal signal, MetricAccumulator accumulator)`.
+   - Replace `RealTimeAggregationWorker` with `MetricProjectionWorker` that routes signals to enabled projectors configured in `ai.behavior.metrics.projectors`.
+   - Persist results in `behavior_signal_metrics` as `{metric_key, metric_value, metric_type, attributes_json}` keyed by user/date/tenant.
 
-| Phase | Focus | Key Deliverables |
-|-------|-------|------------------|
-| **Phase 0 – Boundary cleanup** | Separate `com.ai.infrastructure.*` into the host repo; add a `BehaviorDomainProfile` configuration object that lists active schemas and strategies. | New starter that auto-configures the default profile plus documentation updates. |
-| **Phase 1 – Schema registry** | Introduce `BehaviorSignalDefinition`, update ingestion/validator/DAO to reference schema IDs, migrate enum usages. | Registry API, YAML-based schema loader, backwards-compatible adapter for current enum values. |
-| **Phase 2 – Metrics refactor** | Implement the `BehaviorMetricProjector` SPI, add flexible storage, migrate `RealTimeAggregationWorker` and repositories. | Default aggregate projector, commerce projector module, migration scripts (`V6__behavior_metric_values.sql`). |
-| **Phase 3 – Insight strategy plugins** | Add strategy interfaces, move commerce heuristics to the optional pack, expose neutral insight DTOs. | `BehaviorInsightStrategy`, `SegmentationStrategy`, updated `BehaviorAnalysisService`, config toggles. |
-| **Phase 4 – Metadata enforcement & docs** | Enforce schema validation, publish generated schemas, document extension guide. | Validator enhancements, schema export CLI, updated design docs. |
+5. **Insights + segmentation**
+   - Create `BehaviorInsightStrategy` and `SegmentationStrategy` interfaces; re-implement default strategy to use neutral KPIs (engagement_score, interaction_density, recency_index).
+   - Move commerce heuristics (cart abandoner, frequent buyer, VIP) to optional `ai-infrastructure-behavior-commerce` package that depends on the base module but is not packaged by default.
+   - `BehaviorAnalysisService` resolves strategy beans via Spring ordering and merges their outputs.
 
-Each phase is mergeable on its own; backward compatibility is maintained by shipping the commerce profile as an add-on starter that registers today's enum, metrics, and insight beans.
+6. **API + DTO cleanup**
+   - Delete `com.ai.infrastructure.{controller,dto,service,entity}` packages.
+   - Update `com.ai.behavior.api` DTOs to include `schemaId`, `attributes`, `signalKey`, and typed metadata map.
+   - Add `/schemas` endpoints for discovery, `/signals` for ingestion, `/insights` for querying precomputed results.
+
+7. **Configuration & docs**
+   - Extend `BehaviorModuleProperties` to include schema loading paths, default sink, metric projector list, insight strategies, retention per schema.
+   - Provide sample `behavior-schemas.yml` plus `application.yml` snippets under `docs/examples`.
+   - Update README + development guide sections to describe schema registration workflow and SPI usage.
+
+8. **Testing & observability**
+   - Build unit + integration tests covering schema validation, projector execution, insight strategies, and API contracts.
+   - Export Micrometer metrics: `behavior.signals.ingested`, `behavior.projector.execution`, `behavior.insights.latency`.
+
+### Execution Checklist (Single Sprint)
+
+- [ ] Remove backend-specific packages and DTOs.
+- [ ] Introduce schema registry, definitions, and YAML loader.
+- [ ] Rename entities/repositories/migrations to `BehaviorSignal`.
+- [ ] Replace ingestion validator + sink to use schema metadata.
+- [ ] Implement metric projector SPI and worker.
+- [ ] Implement insight/segmentation strategy SPIs with neutral defaults.
+- [ ] Update configuration properties, documentation, and OpenAPI.
+- [ ] Add end-to-end tests covering ingestion → projection → insights.
 
 ---
 
