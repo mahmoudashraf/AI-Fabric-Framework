@@ -120,7 +120,12 @@ public class BehaviorModuleProperties {
 
         @Data
         public static class Metrics {
-            private List<String> enabledProjectors = new ArrayList<>(List.of("engagementMetricProjector"));
+            private List<String> enabledProjectors = new ArrayList<>(List.of(
+                "engagementMetricProjector",
+                "recencyMetricProjector",
+                "diversityMetricProjector"
+            ));
+            private List<String> highlightedDomains = new ArrayList<>();
         }
     }
 
@@ -179,5 +184,6 @@ public class BehaviorModuleProperties {
         private String path = "classpath:/behavior/schemas/*.yml";
         private boolean failOnStartupIfMissing = true;
         private int maxAttributeCount = 128;
+        private int cacheTtlSeconds = 60;
     }
 }

@@ -109,11 +109,20 @@ public class SegmentationAnalyzer {
     private List<String> buildRecommendations(List<String> patterns,
                                               Map<String, Double> scores) {
         List<String> recommendations = new ArrayList<>();
-        if (patterns.contains("dormant") || scores.getOrDefault("recency_score", 0.0) < 0.3) {
+        double recency = scores.getOrDefault("recency_score", 0.0);
+        double engagement = scores.getOrDefault("engagement_score", 0.0);
+        double diversity = scores.getOrDefault("diversity_score", 0.0);
+
+        if (patterns.contains("dormant") || recency < 0.3) {
             recommendations.add("trigger_reengagement_sequence");
         }
-        if (scores.getOrDefault("engagement_score", 0.0) > 0.7) {
+        if (engagement > 0.7) {
             recommendations.add("offer_advocacy_program");
+        }
+        if (diversity >= 0.6) {
+            recommendations.add("promote_cross_sell");
+        } else if (diversity < 0.3) {
+            recommendations.add("deliver_personalized_bundle");
         }
         if (recommendations.isEmpty()) {
             recommendations.add("monitor_behavior");
@@ -124,14 +133,21 @@ public class SegmentationAnalyzer {
     private String determineSegment(Map<String, Double> scores) {
         double engagement = scores.getOrDefault("engagement_score", 0.0);
         double recency = scores.getOrDefault("recency_score", 0.0);
+        double diversity = scores.getOrDefault("diversity_score", 0.0);
+        if (engagement >= 0.75 && recency >= 0.6 && diversity >= 0.5) {
+            return "active_explorer";
+        }
         if (engagement >= 0.75 && recency >= 0.6) {
-            return "active";
+            return "active_specialist";
         }
         if (engagement >= 0.4 && recency >= 0.4) {
-            return "steady";
+            return diversity >= 0.4 ? "steady" : "steady_focused";
         }
         if (recency < 0.2) {
             return "dormant";
+        }
+        if (diversity < 0.3) {
+            return "focused";
         }
         return "emerging";
     }

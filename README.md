@@ -57,6 +57,38 @@ npm install
 ./stop.sh
 ```
 
+### AI Behavior Module Setup
+
+1. **Drop or point to your schemas** – place YAML descriptors under `ai-infrastructure-module/ai-infrastructure-behavior/src/main/resources/behavior/schemas` (or override `ai.behavior.schemas.path`). Run `./ai-infrastructure-module/scripts/schema-doctor.sh` to lint the files before committing.
+2. **Enable Liquibase migrations** – the host Spring Boot app must include the bundled change-log so the `behavior_*` tables are created:
+
+   ```yaml
+   spring:
+     liquibase:
+       change-log: classpath:/db/changelog/db.changelog-master.yaml
+       enabled: true
+   ```
+
+3. **Register projectors and strategies** – wire neutral KPIs by toggling the provided SPIs in `application.yml`:
+
+   ```yaml
+   ai:
+     behavior:
+       processing:
+         metrics:
+           enabled-projectors:
+             - engagementMetricProjector
+             - recencyMetricProjector
+             - diversityMetricProjector
+           highlighted-domains: [ ]
+       insights:
+         strategies:
+           - engagementInsightStrategy
+           - segmentInsightStrategy
+   ```
+
+4. **Replay and verify signals** – use `./ai-infrastructure-module/scripts/signal-replay.sh <signals.json|jsonl> [base-url]` to push captured payloads through `/api/ai-behavior/signals/batch` and validate the `/users/{id}/metrics` and `/users/{id}/insights` responses.
+
 ---
 
 ## 🏗️ Project Overview

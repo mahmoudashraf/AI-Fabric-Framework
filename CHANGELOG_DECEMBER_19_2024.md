@@ -8,6 +8,15 @@
 
 ---
 
+## ⚠️ **Behavior Module Breaking Changes (November 2025 refresh)**
+
+- **New API surface** – `/api/ai-behavior/signals`, `/users/{id}/metrics`, and `/users/{id}/insights` now emit neutral KPI payloads (`engagement`, `recency`, `diversity`) via JSON-based metric projectors.
+- **Package cleanup** – legacy `com.ai.infrastructure.*` behavior classes have been removed in favor of the dedicated `com.ai.behavior.*` module; adopters must update imports accordingly.
+- **Schema-first ingestion** – YAML descriptors under `behavior/schemas/*.yml` are now required at startup; missing or invalid schemas block the module until fixed (use `scripts/schema-doctor.sh` to lint them).
+- **Liquibase-only migrations** – Flyway support has been dropped; point `spring.liquibase.change-log` to `classpath:/db/changelog/db.changelog-master.yaml` to provision `behavior_*` tables.
+
+---
+
 ## 🚀 **New Features**
 
 ### **Enhanced Configuration Management**

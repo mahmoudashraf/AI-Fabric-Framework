@@ -17,8 +17,12 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -78,5 +82,45 @@ public class BehaviorMetrics {
 
     public double metricValue(String key) {
         return safeMetrics().getOrDefault(key, 0.0d);
+    }
+
+    public Map<String, Object> safeAttributes() {
+        if (attributes == null) {
+            attributes = new HashMap<>();
+        }
+        return attributes;
+    }
+
+    public void setAttribute(String key, Object value) {
+        if (key == null) {
+            return;
+        }
+        safeAttributes().put(key, value);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void addDistinctAttributeValue(String key, String value) {
+        if (key == null || value == null) {
+            return;
+        }
+        List<String> values = (List<String>) safeAttributes().computeIfAbsent(key, ignored -> new ArrayList<>());
+        if (values.stream().noneMatch(existing -> Objects.equals(existing, value))) {
+            values.add(value);
+        }
+    }
+
+    public int distinctAttributeCount(String key) {
+        if (key == null) {
+            return 0;
+        }
+        Object raw = safeAttributes().get(key);
+        if (raw instanceof Collection<?> collection) {
+            return (int) collection.stream()
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .distinct()
+                .count();
+        }
+        return 0;
     }
 }

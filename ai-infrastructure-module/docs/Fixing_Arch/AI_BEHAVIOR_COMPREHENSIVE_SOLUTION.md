@@ -409,6 +409,58 @@ PY
 | `GET /api/ai-behavior/users/{id}/metrics` | `metricKey`, `startDate`, `endDate`. | Aggregated metric values. |
 | `GET /api/ai-behavior/users/{id}/insights` | `insightType` optional. | Latest `BehaviorInsightResult` objects. |
 
+Example payloads now surface the neutral KPIs directly:
+
+```json
+[
+  {
+    "userId": "2ef3fa16-1d12-4c53-9ae5-7dc59a9d24c5",
+    "metricDate": "2025-01-10",
+    "neutralKpis": {
+      "engagement": 0.82,
+      "recency": 0.61,
+      "diversity": 0.58
+    },
+    "metrics": {
+      "count.total": 42,
+      "value.amount_total": 1800.0,
+      "kpi.engagement_score": 0.82,
+      "kpi.recency_score": 0.61,
+      "kpi.diversity_score": 0.58
+    },
+    "attributes": {
+      "diversity.schemas": ["engagement.view", "intent.search"],
+      "recency.last_seen_at": "2025-01-10T11:15:30Z"
+    }
+  }
+]
+```
+
+```json
+{
+  "userId": "2ef3fa16-1d12-4c53-9ae5-7dc59a9d24c5",
+  "patterns": ["power_user", "multi_interest"],
+  "scores": {
+    "engagement_score": 0.84,
+    "recency_score": 0.66,
+    "diversity_score": 0.62,
+    "velocity_score": 0.22
+  },
+  "neutralKpis": {
+    "engagement": 0.84,
+    "recency": 0.66,
+    "diversity": 0.62
+  },
+  "segment": "active_explorer",
+  "recommendations": ["offer_advocacy_program", "promote_cross_sell"],
+  "analyzedAt": "2025-01-10T11:20:00Z",
+  "validUntil": "2025-01-10T11:30:00Z",
+  "analysisVersion": "2.0.0"
+}
+```
+
+The schema discovery endpoint now returns `ETag`/`Cache-Control` headers using the configurable `schemas.cacheTtlSeconds` to help clients cache responses safely.
+
 OpenAPI definitions must be regenerated to reflect `schemaId` + `attributes` payloads and the new discovery endpoint.
 
 ### 8. Configuration & Extensibility
@@ -418,14 +470,23 @@ ai:
   behavior:
     schemas:
       path: classpath:/behavior/schemas/*.yml
+      cacheTtlSeconds: 60
     ingestion:
       maxBatchSize: 500
       publishApplicationEvents: true
     sink:
       type: database
-    metrics:
-      projectors:
-        - engagementProjector
+    processing:
+      metrics:
+        enabledProjectors:
+          - engagementMetricProjector
+          - recencyMetricProjector
+          - diversityMetricProjector
+        highlightedDomains: [ ]   # e.g. [commerce, media] to enable domain add-ons
+      segmentation:
+        analysisWindowDays: 30
+      aggregation:
+        enabled: true
     insights:
       strategies:
         - engagementInsightStrategy
@@ -447,9 +508,9 @@ ai:
   - `behavior.metrics.projector.duration{projector}`
   - `behavior.insights.strategy.duration{strategy}`
 - Structured logs include `schemaId`, `signalKey`, and `tenantId`.
-- Utility scripts (optional):
-  - `schema-doctor` – validates YAML descriptors and generates JSON Schema.
-  - `signal-replay` – replays stored signals through projectors for backfill/testing.
+- Utility scripts:
+  - `./ai-infrastructure-module/scripts/schema-doctor.sh [schema-dir]` – validates YAML descriptors (duplicate IDs, enums) before committing.
+  - `./ai-infrastructure-module/scripts/signal-replay.sh <signals.json|jsonl> [base-url]` – replays signals through the ingestion/metric pipeline for backfill or troubleshooting.
 
 ### 10. Verification Plan
 

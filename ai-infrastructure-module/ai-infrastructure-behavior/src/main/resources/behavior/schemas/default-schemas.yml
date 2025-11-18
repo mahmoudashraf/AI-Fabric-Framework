@@ -16,6 +16,7 @@
       type: string
       required: false
       maxLength: 32
+      enumValues: [web, ios, android, tv]
   embedding:
     enabled: false
 

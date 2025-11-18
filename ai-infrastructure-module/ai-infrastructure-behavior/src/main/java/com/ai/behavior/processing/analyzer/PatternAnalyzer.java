@@ -111,6 +111,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         double engagement = scores.getOrDefault("engagement_score", 0.0);
         double recency = scores.getOrDefault("recency_score", 0.0);
         double velocity = scores.getOrDefault("velocity_score", 0.0);
+        double diversity = scores.getOrDefault("diversity_score", 0.0);
 
         if (engagement >= 0.8) {
             patterns.add("power_user");
@@ -128,6 +129,11 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
 
         if (velocity > 0.6) {
             patterns.add("burst_activity");
+        }
+        if (diversity >= 0.6) {
+            patterns.add("multi_interest");
+        } else if (diversity < 0.2) {
+            patterns.add("narrow_focus");
         }
         if (isEveningHeavy(events)) {
             patterns.add("evening_bias");

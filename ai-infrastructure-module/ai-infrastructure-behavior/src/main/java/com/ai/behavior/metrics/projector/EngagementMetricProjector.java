@@ -5,18 +5,17 @@ import com.ai.behavior.metrics.MetricAccumulator;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.schema.BehaviorSignalDefinition;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Set;
 
 @Component
 public class EngagementMetricProjector implements BehaviorMetricProjector {
 
     private static final String NAME = "engagementMetricProjector";
 
-    private static final List<String> ACTIVE_TAGS = List.of("engagement", "experience", "conversion", "intent");
+    private static final Set<String> ACTIVE_TAGS = Set.of("engagement", "experience", "conversion", "intent");
 
     @Override
     public boolean supports(BehaviorSignal signal, BehaviorSignalDefinition definition) {
@@ -36,7 +35,7 @@ public class EngagementMetricProjector implements BehaviorMetricProjector {
             definition.getTags().forEach(tag ->
                 accumulator.increment(key("tag", sanitize(tag)), 1.0d)
             );
-            if (definition.getTags().stream().anyMatch(ACTIVE_TAGS::contains)) {
+            if (definition.getTags().stream().map(String::toLowerCase).anyMatch(ACTIVE_TAGS::contains)) {
                 accumulator.increment(key("count", "active"), 1.0d);
             }
         }
@@ -56,12 +55,12 @@ public class EngagementMetricProjector implements BehaviorMetricProjector {
             .map(this::safeDouble)
             .ifPresent(duration -> accumulator.increment("duration.total_seconds", duration));
 
-        // recency — seconds since event
-        if (signal.getTimestamp() != null) {
-            double hoursAgo = Duration.between(signal.getTimestamp(), LocalDateTime.now()).toHours();
-            double recencyScore = Math.max(0.0, 1.0 - (hoursAgo / 168.0));
-            accumulator.set("recency.last_score", recencyScore);
+        accumulator.attribute("engagement.last_schema", definition.getId());
+        if (!CollectionUtils.isEmpty(definition.getTags())) {
+            accumulator.attribute("engagement.last_tags", definition.getTags());
         }
+
+        accumulator.set("kpi.engagement_score", round(computeScore(accumulator)));
     }
 
     @Override
@@ -86,5 +85,29 @@ public class EngagementMetricProjector implements BehaviorMetricProjector {
 
     private String key(String prefix, String suffix) {
         return prefix + "." + suffix;
+    }
+
+    private double computeScore(MetricAccumulator accumulator) {
+        double total = accumulator.value(key("count", "total"));
+        double active = accumulator.value(key("count", "active"));
+        double transactions = accumulator.value("value.transaction_count");
+        double amount = accumulator.value("value.amount_total");
+        double durationSeconds = accumulator.value("duration.total_seconds");
+
+        double baseline = Math.min(1.0d, Math.log1p(total) / 5.0d);
+        double activeFactor = Math.min(1.0d, active / 25.0d);
+        double transactionFactor = Math.min(1.0d, transactions / 15.0d);
+        double valueFactor = Math.min(1.0d, amount / 5000.0d);
+        double durationFactor = Math.min(1.0d, durationSeconds / 7200.0d);
+
+        return (baseline * 0.35d) +
+            (activeFactor * 0.2d) +
+            (transactionFactor * 0.2d) +
+            (valueFactor * 0.15d) +
+            (durationFactor * 0.1d);
+    }
+
+    private double round(double value) {
+        return Math.round(Math.min(1.0d, value) * 100.0d) / 100.0d;
     }
 }

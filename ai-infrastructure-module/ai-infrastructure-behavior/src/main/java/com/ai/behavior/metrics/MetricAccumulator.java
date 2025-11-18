@@ -28,11 +28,27 @@ public class MetricAccumulator {
         return metrics.metricValue(key);
     }
 
+    public void attribute(String key, Object value) {
+        metrics.setAttribute(key, value);
+    }
+
+    public void addDistinctAttributeValue(String key, String value) {
+        metrics.addDistinctAttributeValue(key, value);
+    }
+
+    public int distinctAttributeCount(String key) {
+        return metrics.distinctAttributeCount(key);
+    }
+
     public BehaviorMetrics getMetrics() {
         return metrics;
     }
 
     public Map<String, Double> snapshot() {
         return metrics.safeMetrics();
+    }
+
+    public Map<String, Object> attributes() {
+        return metrics.safeAttributes();
     }
 }
