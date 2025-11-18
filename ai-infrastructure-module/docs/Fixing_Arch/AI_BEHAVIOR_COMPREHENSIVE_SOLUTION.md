@@ -11,17 +11,19 @@
 1. [Executive Summary](#executive-summary)
 2. [Architecture Overview](#architecture-overview)
 3. [Core Principles](#core-principles)
-4. [Module Structure](#module-structure)
-5. [Core Interfaces](#core-interfaces)
-6. [Data Models](#data-models)
-7. [Implementation Components](#implementation-components)
-8. [Integration Patterns](#integration-patterns)
-9. [Embedding Strategy](#embedding-strategy)
-10. [Configuration](#configuration)
-11. [Usage Examples](#usage-examples)
-12. [Performance Considerations](#performance-considerations)
-13. [Monitoring & Observability](#monitoring--observability)
-14. [Implementation Roadmap](#implementation-roadmap)
+4. [Implementation Review](#implementation-review)
+5. [Decoupling Strategy](#decoupling-strategy)
+6. [Module Structure](#module-structure)
+7. [Core Interfaces](#core-interfaces)
+8. [Data Models](#data-models)
+9. [Implementation Components](#implementation-components)
+10. [Integration Patterns](#integration-patterns)
+11. [Embedding Strategy](#embedding-strategy)
+12. [Configuration](#configuration)
+13. [Usage Examples](#usage-examples)
+14. [Performance Considerations](#performance-considerations)
+15. [Monitoring & Observability](#monitoring--observability)
+16. [Implementation Roadmap](#implementation-roadmap)
 
 ---
 
@@ -185,6 +187,76 @@ Spring Boot, JPA, etc.
 - SDK for local integration
 - Adapter pattern for legacy systems
 - Batch import for external analytics
+
+---
+
+## Implementation Review
+
+### Code Audit Summary (2025-11-18)
+
+- The `ai-infrastructure-behavior` module exposes clean ingestion, storage, processing, and query layers, but several core classes embed e-commerce-specific assumptions in their models and analyzers.
+- Compatibility shims such as `com.ai.infrastructure.service.BehaviorService` currently live inside the module tree, creating tight coupling between the reusable AI artifact and the legacy application package structure.
+- AI-driven components (pattern detection, segmentation, metrics) depend on hard-coded metadata keys (`amount`, `category`, `price`, `durationSeconds`) that are neither validated nor documented outside the source files.
+
+### Domain Coupling Hotspots
+
+1. **Rigid event taxonomy** – `com.ai.behavior.model.EventType` enumerates funnel actions like `ADD_TO_CART`, `PURCHASE`, and `WISHLIST`, and is referenced by ingestion (`BehaviorEventValidator`), adapters (`LegacySystemAdapter`), and analytics services. Adding a new domain requires editing this enum and all downstream `switch` statements such as those in `BehaviorService`.
+2. **Commerce-specific metrics schema** – `BehaviorMetrics` persists dedicated columns (`add_to_cart_count`, `purchase_count`, `total_revenue`, etc.), while `RealTimeAggregationWorker` increments those counters and parses `metadata.amount`. Other domains that care about different KPIs must fork these entities and migrations.
+3. **Insight heuristics baked in** – `PatternAnalyzer` and `SegmentationAnalyzer` publish labels like `cart_abandoner`, `frequent_buyer`, `VIP`, and compute scores (`conversion_probability`, `lifetime_value_estimate`) based on shopping behavior. These values are saved in `BehaviorInsights`, so every consumer inherits commerce terminology even if irrelevant.
+4. **Legacy REST surface bundled in** – The `com.ai.infrastructure.{controller,dto,service,entity}` stack mirrors the e-commerce backend API. Keeping those classes within the module forces every adopter to depend on application-specific DTOs.
+5. **Implicit metadata contracts** – Workers and analyzers expect keys such as `amount`, `category`, `price`, and `durationSeconds` without schema enforcement, making it impossible to validate payloads generically.
+
+### Impact
+
+- Deploying the module into a non-commerce product would require code changes plus database migrations, negating the purpose of a reusable AI infrastructure layer.
+- Even within commerce, evolving behavior definitions (e.g., adding loyalty events) touches entity fields, enum constants, workers, and analyzers simultaneously, increasing defect risk.
+
+---
+
+## Decoupling Strategy
+
+### Guiding Goals
+
+- Preserve the solid ingestion/query plumbing while isolating domain knowledge behind extension points.
+- Allow multiple domains (commerce, media, support, finance) to register their own event schemas, metrics projections, and insight strategies at runtime via configuration or SPI.
+- Ship the module with a neutral default profile plus optional commerce pack that can be enabled in host applications.
+- Keep ai-core interactions (embeddings, anomaly detection) domain-agnostic by exchanging typed payloads instead of commerce DTOs.
+
+### Architecture Changes
+
+#### 1. Event Schema & Registry
+- Introduce a `BehaviorSignalDefinition` (id, canonical fields, required metadata, embedding policy) alongside a `BehaviorSchemaRegistry`.
+- Refactor `BehaviorEvent` to carry a `schemaId` (string/UUID) instead of—or in addition to—the fixed `EventType` enum. Provide a lightweight `BehaviorSignalType` interface so existing enums can be layered on top during migration.
+- Replace enum-based mapping logic in `LegacySystemAdapter`/`BehaviorService` with registry lookups, letting legacy applications supply their own schema set without editing the module.
+
+#### 2. Metrics Projection Layer
+- Create a `BehaviorMetricProjector` SPI that derives counters from ingested events. Provide a generic projector (totals, recency) plus a commerce-specific implementation that reproduces `BehaviorMetrics`.
+- Change `RealTimeAggregationWorker` to load active projectors from configuration (`ai.behavior.metrics.projectors[]`) and persist their outputs in a flexible table (e.g., `{user_id, metric_date, metric_key, metric_value}`) or JSON column.
+
+#### 3. Insight & Segmentation Strategies
+- Define `BehaviorInsightStrategy` and `SegmentationStrategy` interfaces that accept `BehaviorEvent`/`BehaviorMetrics` streams and return `BehaviorInsights`.
+- Move the current commerce heuristics into an optional `commerce.strategy` package while the default module ships a neutral engagement scorer.
+- Update `BehaviorAnalysisService` to orchestrate the strategies via Spring's ordered beans so host applications can register their own analyzers without touching core code.
+
+#### 4. Legacy Boundary Extraction
+- Relocate `com.ai.infrastructure.{controller,dto,service,entity}` into the host backend (or a dedicated compatibility artifact). Within `ai-infrastructure-behavior`, expose only the generic controllers already under `com.ai.behavior.api`.
+- Provide a documented shim (`LegacyBehaviorBridge`) that converts legacy DTOs to `BehaviorEvent` using the schema registry instead of hard-coded switch statements.
+
+#### 5. Metadata Contracts & Validation
+- Declare metadata requirements per schema (type, optional/required) and expose validation helpers so ingestion rejects malformed events earlier.
+- Generate OpenAPI/JSON Schema for every registered event definition, letting product teams inspect required attributes without reading code.
+
+### Phased Plan
+
+| Phase | Focus | Key Deliverables |
+|-------|-------|------------------|
+| **Phase 0 – Boundary cleanup** | Separate `com.ai.infrastructure.*` into the host repo; add a `BehaviorDomainProfile` configuration object that lists active schemas and strategies. | New starter that auto-configures the default profile plus documentation updates. |
+| **Phase 1 – Schema registry** | Introduce `BehaviorSignalDefinition`, update ingestion/validator/DAO to reference schema IDs, migrate enum usages. | Registry API, YAML-based schema loader, backwards-compatible adapter for current enum values. |
+| **Phase 2 – Metrics refactor** | Implement the `BehaviorMetricProjector` SPI, add flexible storage, migrate `RealTimeAggregationWorker` and repositories. | Default aggregate projector, commerce projector module, migration scripts (`V6__behavior_metric_values.sql`). |
+| **Phase 3 – Insight strategy plugins** | Add strategy interfaces, move commerce heuristics to the optional pack, expose neutral insight DTOs. | `BehaviorInsightStrategy`, `SegmentationStrategy`, updated `BehaviorAnalysisService`, config toggles. |
+| **Phase 4 – Metadata enforcement & docs** | Enforce schema validation, publish generated schemas, document extension guide. | Validator enhancements, schema export CLI, updated design docs. |
+
+Each phase is mergeable on its own; backward compatibility is maintained by shipping the commerce profile as an add-on starter that registers today's enum, metrics, and insight beans.
 
 ---
 
