@@ -93,7 +93,7 @@ New `ai-behavior` module that:
 │  │  │    Sink      │  │    Sink      │  │    Sink      │   │ │
 │  │  └──────────────┘  └──────────────┘  └──────────────┘   │ │
 │  │          └─────────────┬──────────────┘                   │ │
-│  │                   BehaviorEventSink (Interface)            │ │
+│  │                   BehaviorSignalSink (Interface)            │ │
 │  └────────────────────────────────────────────────────────────┘ │
 │                            │                                     │
 │                            ↓                                     │
@@ -201,7 +201,7 @@ Spring Boot, JPA, etc.
 
 ### Domain Coupling Hotspots
 
-1. **Rigid event taxonomy** – `com.ai.behavior.model.EventType` enumerates funnel actions like `ADD_TO_CART`, `PURCHASE`, and `WISHLIST`, and is referenced by ingestion (`BehaviorEventValidator`), adapters (`LegacySystemAdapter`), and analytics services. Adding a new domain requires editing this enum and all downstream `switch` statements such as those in `BehaviorService`.
+1. **Rigid event taxonomy** – `com.ai.behavior.model.EventType` enumerates funnel actions like `ADD_TO_CART`, `PURCHASE`, and `WISHLIST`, and is referenced by ingestion (`BehaviorSignalValidator`), adapters (`LegacySystemAdapter`), and analytics services. Adding a new domain requires editing this enum and all downstream `switch` statements such as those in `BehaviorService`.
 2. **Commerce-specific metrics schema** – `BehaviorMetrics` persists dedicated columns (`add_to_cart_count`, `purchase_count`, `total_revenue`, etc.), while `MetricProjectionWorker` increments those counters and parses `metadata.amount`. Other domains that care about different KPIs must fork these entities and migrations.
 3. **Insight heuristics baked in** – `PatternAnalyzer` and `SegmentationAnalyzer` publish labels like `cart_abandoner`, `frequent_buyer`, `VIP`, and compute scores (`conversion_probability`, `lifetime_value_estimate`) based on shopping behavior. These values are saved in `BehaviorInsights`, so every consumer inherits commerce terminology even if irrelevant.
 4. **Legacy REST surface bundled in** – The `com.ai.infrastructure.{controller,dto,service,entity}` stack mirrors the e-commerce backend API. Keeping those classes within the module forces every adopter to depend on application-specific DTOs.
@@ -227,9 +227,9 @@ Spring Boot, JPA, etc.
 
 | Layer | Current State | Refactored State |
 |-------|---------------|------------------|
-| **Data Model** | `BehaviorEvent` + `EventType` enum hard-coded to commerce funnel. | Rename entity to `BehaviorSignal` with `schemaId`, `signalKey`, `attributes` (JSON). Event semantics come from configuration-driven `BehaviorSignalDefinition`. |
+| **Data Model** | `BehaviorSignal` + `EventType` enum hard-coded to commerce funnel. | Rename entity to `BehaviorSignal` with `schemaId`, `signalKey`, `attributes` (JSON). Event semantics come from configuration-driven `BehaviorSignalDefinition`. |
 | **Schema Management** | No formal schema; metadata is ad-hoc maps. | Introduce `BehaviorSchemaRegistry` (YAML + Java builder) that defines required attributes, types, embedding policy, retention hints, and validation constraints. |
-| **Ingestion** | `BehaviorIngestionService` + `BehaviorEventValidator` reference enums and metadata size only. | New `BehaviorSignalIngestionService` uses schema registry, enforces contracts, and writes via `BehaviorSignalSink` (renamed interface). Publishes neutral `BehaviorSignalIngested` events. |
+| **Ingestion** | `BehaviorIngestionService` + `BehaviorSignalValidator` reference enums and metadata size only. | New `BehaviorSignalIngestionService` uses schema registry, enforces contracts, and writes via `BehaviorSignalSink` (renamed interface). Publishes neutral `BehaviorSignalIngested` events. |
 | **Storage** | Separate tables for events, metrics, embeddings; metrics table contains commerce-specific columns. | Consolidate to flexible tables: `behavior_signals` (tenant/user/session/signal), `behavior_signal_metrics` (key/value/attributes), `behavior_insights` (neutral payload). Embeddings/alerts remain optional tables referencing `schemaId`. |
 | **Metrics** | `MetricProjectionWorker` increments counters tied to commerce actions. | Replace with `MetricProjectionWorker` that runs `BehaviorMetricProjector` SPI instances loaded from Spring context. Projections persist as key/value metrics with optional attributes. |
 | **Analysis** | `PatternAnalyzer` & `SegmentationAnalyzer` encode commerce personas. | Introduce `BehaviorInsightStrategy` and `SegmentationStrategy` SPIs. Default strategies provide neutral engagement tiers; commerce-specific strategy lives in optional `ai-infrastructure-behavior-commerce` starter. |
@@ -239,24 +239,24 @@ Spring Boot, JPA, etc.
 ### Detailed Refactor Steps
 
 1. **Data model + migrations**
-   - Rename `BehaviorEvent` → `BehaviorSignal`, drop `EventType`, add `schema_id`, `signal_key`, `attributes` JSONB, `version`.
-   - Generate new Flyway scripts (`V1__create_behavior_signals.sql`, `V2__create_behavior_signal_metrics.sql`, `V3__create_behavior_insights.sql`) and remove commerce-specific columns.
-   - Update repositories and query builders to reference `schemaId`/`attributes`.
+    - Rename `BehaviorEvent` → `BehaviorSignal`, drop `EventType`, add `schema_id`, `signal_key`, `attributes` JSONB, `version`.
+    - Author Liquibase change sets (`db/changelog/db.changelog-master.yaml`) to create `behavior_signals`, `behavior_signal_metrics`, `behavior_insights`, and `behavior_embeddings`, removing commerce-specific columns.
+    - Update repositories and query builders to reference `schemaId` and signal attributes.
 
 2. **Schema registry + validation**
    - Add `BehaviorSignalDefinition`, `SignalFieldDefinition`, `SchemaValidationRule`.
    - Implement `BehaviorSchemaRegistry` that loads YAML definitions from `classpath:/behavior/schemas/*.yml` and exposes discovery APIs.
-   - Replace `BehaviorEventValidator` with `BehaviorSignalValidator` that enforces schema types, allowed enums, max metadata size, etc.
+   - Replace `BehaviorSignalValidator` with `BehaviorSignalValidator` that enforces schema types, allowed enums, max metadata size, etc.
 
 3. **Ingestion + sinks**
-   - Rename `BehaviorEventSink` → `BehaviorSignalSink`. Provide default Postgres sink plus Kafka/S3 sinks.
+    - Rename `BehaviorEventSink` → `BehaviorSignalSink`. Provide default Postgres sink plus Kafka/S3 sinks.
    - Update ingestion service, controllers, DTOs to accept `schemaId` and `attributes`.
    - Emit standardized application events (`BehaviorSignalIngested`, `BehaviorSignalBatchIngested`) for workers to consume.
 
 4. **Metrics projection**
-   - Define `BehaviorMetricProjector` SPI with `supports(schemaId)` and `project(BehaviorSignal signal, MetricAccumulator accumulator)`.
-   - Replace `MetricProjectionWorker` with `MetricProjectionWorker` that routes signals to enabled projectors configured in `ai.behavior.metrics.projectors`.
-   - Persist results in `behavior_signal_metrics` as `{metric_key, metric_value, metric_type, attributes_json}` keyed by user/date/tenant.
+    - Define `BehaviorMetricProjector` SPI with `supports(schemaId)` and `project(BehaviorSignal signal, MetricAccumulator accumulator)`.
+    - Replace `RealTimeAggregationWorker` with `MetricProjectionWorker`, routing signals to the enabled projectors declared in `ai.behavior.processing.metrics.enabled-projectors`.
+    - Persist results in `behavior_signal_metrics` as `{metric_key, metric_value, metric_type, attributes_json}` keyed by user/date/tenant.
 
 5. **Insights + segmentation**
    - Create `BehaviorInsightStrategy` and `SegmentationStrategy` interfaces; re-implement default strategy to use neutral KPIs (engagement_score, interaction_density, recency_index).
@@ -298,8 +298,8 @@ Spring Boot, JPA, etc.
 |----------|-------------|-------|
 | `BehaviorSignal` (entity) | Canonical record for an observed signal. Fields: `id (UUID)`, `tenantId`, `userId`, `sessionId`, `schemaId`, `signalKey`, `source`, `timestamp`, `ingestedAt`, `attributes (JSONB)`, `version`. | Replaces `BehaviorEvent`. `signalKey` supports idempotency and correlation. |
 | `BehaviorSignalAttributes` | Type-safe map wrapper with helpers (`asString`, `asNumber`, `asBoolean`, `asList`). | Enforces schema-defined types and prevents unchecked casts. |
-| `behavior_signals` | Primary table with composite indexes (`tenant_id,schema_id,timestamp DESC`, `user_id,schema_id,timestamp DESC`, `schema_id,signal_key`). | Created via `V1__create_behavior_signals.sql`. |
-| `behavior_signal_metrics` | Flexible key/value store for projector output: `metric_key`, `metric_value`, `metric_type`, optional attributes JSON. | Replaces rigid `BehaviorMetrics` columns. |
+| `behavior_signals` | Primary table with composite indexes (`tenant_id,schema_id,timestamp DESC`, `user_id,schema_id,timestamp DESC`, `schema_id,signal_key`). | Managed via Liquibase (`db/changelog/db.changelog-master.yaml`). |
+| `behavior_signal_metrics` | Flexible key/value store for projector output: `metric_key`, `metric_value`, `metric_type`, optional attributes JSON. | Replaces rigid `BehaviorMetrics` columns; also managed via Liquibase. |
 | `behavior_insights` | Persists strategy output with neutral columns: `insight_type`, `scores`, `labels`, `segment`, `evidence`. | `insight_type` differentiates multiple strategy outputs per user. |
 
 ### 2. Schema Registry & Definitions
@@ -659,7 +659,7 @@ public interface BehaviorMetricProjector {
 ```java
 package com.ai.behavior.processing.analyzer;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorInsights;
 import java.util.List;
 import java.util.UUID;
@@ -682,7 +682,7 @@ public interface BehaviorAnalyzer {
      * @param events the behavior events to analyze
      * @return behavior insights
      */
-    BehaviorInsights analyze(UUID userId, List<BehaviorEvent> events);
+    BehaviorInsights analyze(UUID userId, List<BehaviorSignal> events);
     
     /**
      * Get the analyzer type
@@ -700,7 +700,7 @@ public interface BehaviorAnalyzer {
 
 ## Data Models
 
-### 1. BehaviorEvent (Core Event Model)
+### 1. BehaviorSignal (Core Event Model)
 
 **Simplified, lightweight, domain-agnostic**
 
@@ -721,7 +721,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * BehaviorEvent - Core lightweight event model
+ * BehaviorSignal - Core lightweight event model
  * 
  * Simplified from previous 20+ fields to essential data only.
  * Analysis results stored separately (not in event).
@@ -747,7 +747,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BehaviorEvent {
+public class BehaviorSignal {
     
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -1192,8 +1192,8 @@ public class BehaviorMetrics {
 ```java
 package com.ai.behavior.ingestion;
 
-import com.ai.behavior.model.BehaviorEvent;
-import com.ai.behavior.ingestion.validator.BehaviorEventValidator;
+import com.ai.behavior.model.BehaviorSignal;
+import com.ai.behavior.ingestion.validator.BehaviorSignalValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -1221,15 +1221,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BehaviorIngestionService {
     
-    private final BehaviorEventValidator validator;
-    private final BehaviorEventSink sink;
+    private final BehaviorSignalValidator validator;
+    private final BehaviorSignalSink sink;
     private final ApplicationEventPublisher eventPublisher;
     
     /**
      * Ingest a single behavior event
      */
     @Transactional
-    public void ingest(BehaviorEvent event) {
+    public void ingest(BehaviorSignal event) {
         log.debug("Ingesting behavior event: type={}, userId={}", 
             event.getEventType(), event.getUserId());
         
@@ -1244,7 +1244,7 @@ public class BehaviorIngestionService {
             sink.accept(event);
             
             // 4. Publish for async processing
-            eventPublisher.publishEvent(new BehaviorEventIngested(event));
+            eventPublisher.publishEvent(new BehaviorSignalIngested(event));
             
             log.debug("Successfully ingested event: {}", event.getId());
             
@@ -1258,7 +1258,7 @@ public class BehaviorIngestionService {
      * Ingest multiple events in batch (more efficient)
      */
     @Transactional
-    public void ingestBatch(List<BehaviorEvent> events) {
+    public void ingestBatch(List<BehaviorSignal> events) {
         log.info("Ingesting batch of {} events", events.size());
         
         try {
@@ -1272,7 +1272,7 @@ public class BehaviorIngestionService {
             sink.acceptBatch(events);
             
             // Publish batch event
-            eventPublisher.publishEvent(new BehaviorEventBatchIngested(events));
+            eventPublisher.publishEvent(new BehaviorSignalBatchIngested(events));
             
             log.info("Successfully ingested batch of {} events", events.size());
             
@@ -1285,7 +1285,7 @@ public class BehaviorIngestionService {
     /**
      * Enrich event with system metadata
      */
-    private void enrichEvent(BehaviorEvent event) {
+    private void enrichEvent(BehaviorSignal event) {
         // Set ID if not present
         if (event.getId() == null) {
             event.setId(UUID.randomUUID());
@@ -1314,26 +1314,26 @@ public class BehaviorIngestionService {
  * Event published after successful ingestion
  * Picked up by async workers
  */
-class BehaviorEventIngested {
-    private final BehaviorEvent event;
+class BehaviorSignalIngested {
+    private final BehaviorSignal event;
     
-    public BehaviorEventIngested(BehaviorEvent event) {
+    public BehaviorSignalIngested(BehaviorSignal event) {
         this.event = event;
     }
     
-    public BehaviorEvent getEvent() {
+    public BehaviorSignal getEvent() {
         return event;
     }
 }
 
-class BehaviorEventBatchIngested {
-    private final List<BehaviorEvent> events;
+class BehaviorSignalBatchIngested {
+    private final List<BehaviorSignal> events;
     
-    public BehaviorEventBatchIngested(List<BehaviorEvent> events) {
+    public BehaviorSignalBatchIngested(List<BehaviorSignal> events) {
         this.events = events;
     }
     
-    public List<BehaviorEvent> getEvents() {
+    public List<BehaviorSignal> getEvents() {
         return events;
     }
 }
@@ -1344,9 +1344,9 @@ class BehaviorEventBatchIngested {
 ```java
 package com.ai.behavior.ingestion.impl;
 
-import com.ai.behavior.ingestion.BehaviorEventSink;
-import com.ai.behavior.model.BehaviorEvent;
-import com.ai.behavior.storage.BehaviorEventRepository;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
+import com.ai.behavior.model.BehaviorSignal;
+import com.ai.behavior.storage.BehaviorSignalRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -1368,18 +1368,18 @@ import java.util.List;
     matchIfMissing = true  // Default
 )
 @RequiredArgsConstructor
-public class DatabaseEventSink implements BehaviorEventSink {
+public class DatabaseEventSink implements BehaviorSignalSink {
     
-    private final BehaviorEventRepository repository;
+    private final BehaviorSignalRepository repository;
     
     @Override
-    public void accept(BehaviorEvent event) {
+    public void accept(BehaviorSignal event) {
         log.trace("Storing event in database: {}", event.getId());
         repository.save(event);
     }
     
     @Override
-    public void acceptBatch(List<BehaviorEvent> events) {
+    public void acceptBatch(List<BehaviorSignal> events) {
         log.debug("Storing batch of {} events in database", events.size());
         repository.saveAll(events);
     }
@@ -1398,8 +1398,8 @@ public class DatabaseEventSink implements BehaviorEventSink {
 ```java
 package com.ai.behavior.processing.worker;
 
-import com.ai.behavior.ingestion.BehaviorEventIngested;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.ingestion.BehaviorSignalIngested;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorMetrics;
 import com.ai.behavior.storage.BehaviorMetricsRepository;
 import lombok.RequiredArgsConstructor;
@@ -1425,8 +1425,8 @@ public class MetricProjectionWorker {
     
     @Async
     @EventListener
-    public void onEventIngested(BehaviorEventIngested event) {
-        BehaviorEvent behaviorEvent = event.getEvent();
+    public void onEventIngested(BehaviorSignalIngested event) {
+        BehaviorSignal behaviorEvent = event.getEvent();
         
         // Skip anonymous events for user metrics
         if (behaviorEvent.getUserId() == null) {
@@ -1441,7 +1441,7 @@ public class MetricProjectionWorker {
         }
     }
     
-    private void updateMetrics(BehaviorEvent event) {
+    private void updateMetrics(BehaviorSignal event) {
         LocalDate date = event.getTimestamp().toLocalDate();
         
         // Get or create metrics for user + date
@@ -1482,7 +1482,7 @@ public class MetricProjectionWorker {
 ```java
 package com.ai.behavior.processing.worker;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorInsights;
 import com.ai.behavior.processing.analyzer.PatternAnalyzer;
 import com.ai.behavior.storage.BehaviorDataProvider;
@@ -1534,7 +1534,7 @@ public class PatternDetectionWorker {
     private void analyzeUserPatterns(UUID userId) {
         try {
             // Get last 24 hours of events
-            List<BehaviorEvent> events = dataProvider.getRecentEvents(userId, 1000);
+            List<BehaviorSignal> events = dataProvider.getRecentEvents(userId, 1000);
             
             if (events.isEmpty()) {
                 return;
@@ -1567,8 +1567,8 @@ public class PatternDetectionWorker {
 ```java
 package com.ai.behavior.processing.worker;
 
-import com.ai.behavior.ingestion.BehaviorEventIngested;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.ingestion.BehaviorSignalIngested;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorEmbedding;
 import com.ai.behavior.storage.BehaviorEmbeddingRepository;
 import com.ai.infrastructure.core.AICoreService;
@@ -1601,8 +1601,8 @@ public class EmbeddingGenerationWorker {
     
     @Async
     @EventListener
-    public void onEventIngested(BehaviorEventIngested event) {
-        BehaviorEvent behaviorEvent = event.getEvent();
+    public void onEventIngested(BehaviorSignalIngested event) {
+        BehaviorSignal behaviorEvent = event.getEvent();
         
         // Check if this event needs embedding
         if (!shouldGenerateEmbedding(behaviorEvent)) {
@@ -1616,7 +1616,7 @@ public class EmbeddingGenerationWorker {
         }
     }
     
-    private boolean shouldGenerateEmbedding(BehaviorEvent event) {
+    private boolean shouldGenerateEmbedding(BehaviorSignal event) {
         // Only generate for events with text content
         switch (event.getEventType()) {
             case "feedback":
@@ -1628,7 +1628,7 @@ public class EmbeddingGenerationWorker {
         }
     }
     
-    private void generateEmbedding(BehaviorEvent event) {
+    private void generateEmbedding(BehaviorSignal event) {
         String text = extractText(event);
         if (text == null || text.trim().isEmpty()) {
             return;
@@ -1654,7 +1654,7 @@ public class EmbeddingGenerationWorker {
         log.debug("Successfully generated embedding for event: {}", event.getId());
     }
     
-    private String extractText(BehaviorEvent event) {
+    private String extractText(BehaviorSignal event) {
         // Extract text from metadata based on event type
         if (event.getMetadata() == null) {
             return null;
@@ -1835,7 +1835,7 @@ public class BehaviorTracker {
     private final String apiUrl;
     private final UUID userId;
     private final String sessionId;
-    private final Queue<BehaviorEvent> queue;
+    private final Queue<BehaviorSignal> queue;
     private final ScheduledExecutorService executor;
     
     public BehaviorTracker(String apiUrl, UUID userId) {
@@ -1848,7 +1848,7 @@ public class BehaviorTracker {
     }
     
     public void track(String eventType, String entityType, String entityId, Map<String, Object> metadata) {
-        BehaviorEvent event = BehaviorEvent.builder()
+        BehaviorSignal event = BehaviorSignal.builder()
             .userId(userId)
             .eventType(eventType)
             .entityType(entityType)
@@ -1891,7 +1891,7 @@ public class BehaviorTracker {
             return;
         }
         
-        List<BehaviorEvent> events = new ArrayList<>();
+        List<BehaviorSignal> events = new ArrayList<>();
         while (!queue.isEmpty()) {
             events.add(queue.poll());
         }
@@ -1900,7 +1900,7 @@ public class BehaviorTracker {
         CompletableFuture.runAsync(() -> sendToAPI(events));
     }
     
-    private void sendToAPI(List<BehaviorEvent> events) {
+    private void sendToAPI(List<BehaviorSignal> events) {
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
@@ -1928,7 +1928,7 @@ public class BehaviorTracker {
 ```java
 package com.ai.behavior.adapter;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import lombok.RequiredArgsConstructor;
@@ -1952,7 +1952,7 @@ public class ExternalAnalyticsAdapter implements BehaviorDataProvider {
     private final MixpanelClient mixpanel;  // External analytics client
     
     @Override
-    public List<BehaviorEvent> query(BehaviorQuery query) {
+    public List<BehaviorSignal> query(BehaviorQuery query) {
         log.debug("Querying behaviors from Mixpanel for user: {}", query.getUserId());
         
         try {
@@ -1963,9 +1963,9 @@ public class ExternalAnalyticsAdapter implements BehaviorDataProvider {
                 query.getEndTime()
             );
             
-            // Convert to BehaviorEvent
+            // Convert to BehaviorSignal
             return externalEvents.stream()
-                .map(this::convertToBehaviorEvent)
+                .map(this::convertToBehaviorSignal)
                 .collect(Collectors.toList());
                 
         } catch (Exception e) {
@@ -1974,8 +1974,8 @@ public class ExternalAnalyticsAdapter implements BehaviorDataProvider {
         }
     }
     
-    private BehaviorEvent convertToBehaviorEvent(MixpanelEvent mixpanelEvent) {
-        return BehaviorEvent.builder()
+    private BehaviorSignal convertToBehaviorSignal(MixpanelEvent mixpanelEvent) {
+        return BehaviorSignal.builder()
             .userId(UUID.fromString(mixpanelEvent.getUserId()))
             .eventType(mapEventType(mixpanelEvent.getEventName()))
             .entityType(mixpanelEvent.getProperties().get("entity_type"))
@@ -2179,7 +2179,7 @@ ai:
 ```java
 package com.ai.behavior.config;
 
-import com.ai.behavior.ingestion.BehaviorEventSink;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -2192,7 +2192,7 @@ public class CustomBehaviorConfiguration {
      * Will be used instead of default if defined
      */
     @Bean
-    public BehaviorEventSink customEventSink() {
+    public BehaviorSignalSink customEventSink() {
         return new MyCustomSink();
     }
     
@@ -2234,7 +2234,7 @@ public class ProductService {
             .orElseThrow(() -> new ProductNotFoundException(productId));
         
         // Track view (async, non-blocking)
-        behaviorIngestion.ingest(BehaviorEvent.builder()
+        behaviorIngestion.ingest(BehaviorSignal.builder()
             .userId(userId)
             .eventType("view")
             .entityType("product")
@@ -2253,7 +2253,7 @@ public class ProductService {
         // Business logic...
         
         // Track add to cart
-        behaviorIngestion.ingest(BehaviorEvent.builder()
+        behaviorIngestion.ingest(BehaviorSignal.builder()
             .userId(userId)
             .eventType("add_to_cart")
             .entityType("product")
@@ -2278,7 +2278,7 @@ public class FeedbackService {
     
     public void submitFeedback(UUID userId, String feedbackText, String category) {
         // Track feedback event (will trigger embedding generation automatically)
-        behaviorIngestion.ingest(BehaviorEvent.builder()
+        behaviorIngestion.ingest(BehaviorSignal.builder()
             .userId(userId)
             .eventType("feedback")
             .entityType("app")
@@ -2296,7 +2296,7 @@ public class FeedbackService {
         // 4. Enable semantic search for similar feedback
     }
     
-    public List<BehaviorEvent> findSimilarFeedback(String feedbackText) {
+    public List<BehaviorSignal> findSimilarFeedback(String feedbackText) {
         // Generate embedding for search query
         float[] queryEmbedding = aiCoreService.generateEmbedding(feedbackText);
         
@@ -2366,7 +2366,7 @@ public class FraudDetectionService {
         // Get last minute of purchase events
         LocalDateTime oneMinuteAgo = LocalDateTime.now().minusMinutes(1);
         
-        List<BehaviorEvent> recentPurchases = behaviorProvider.query(
+        List<BehaviorSignal> recentPurchases = behaviorProvider.query(
             BehaviorQuery.builder()
                 .eventType("purchase")
                 .startTime(oneMinuteAgo)
@@ -2385,9 +2385,9 @@ public class FraudDetectionService {
         });
     }
     
-    private boolean isSuspicious(BehaviorEvent event) {
+    private boolean isSuspicious(BehaviorSignal event) {
         // Multiple purchases in short time
-        List<BehaviorEvent> userPurchases = behaviorProvider.query(
+        List<BehaviorSignal> userPurchases = behaviorProvider.query(
             BehaviorQuery.forUser(event.getUserId())
                 .eventType("purchase")
                 .lastMinutes(5)
@@ -2444,14 +2444,14 @@ CREATE INDEX idx_behavior_user_time_2025_11
 
 ```java
 // BAD: Loading all events then filtering in app
-List<BehaviorEvent> allEvents = repository.findByUserId(userId);
-List<BehaviorEvent> purchases = allEvents.stream()
+List<BehaviorSignal> allEvents = repository.findByUserId(userId);
+List<BehaviorSignal> purchases = allEvents.stream()
     .filter(e -> e.getEventType().equals("purchase"))
     .toList();
 
 // GOOD: Filter in database
-@Query("SELECT e FROM BehaviorEvent e WHERE e.userId = :userId AND e.eventType = :type ORDER BY e.timestamp DESC")
-List<BehaviorEvent> findByUserIdAndEventType(UUID userId, String eventType);
+@Query("SELECT e FROM BehaviorSignal e WHERE e.userId = :userId AND e.eventType = :type ORDER BY e.timestamp DESC")
+List<BehaviorSignal> findByUserIdAndEventType(UUID userId, String eventType);
 
 // BETTER: Use pre-computed metrics
 BehaviorMetrics metrics = metricsRepository.findByUserIdAndDate(userId, LocalDate.now());
@@ -2610,10 +2610,10 @@ public class BehaviorMetrics {
 public class BehaviorHealthIndicator implements HealthIndicator {
     
     @Autowired
-    private BehaviorEventRepository repository;
+    private BehaviorSignalRepository repository;
     
     @Autowired
-    private BehaviorEventSink sink;
+    private BehaviorSignalSink sink;
     
     @Override
     public Health health() {
@@ -3043,7 +3043,7 @@ The `ai-behavior` module **uses** `ai-core` for AI capabilities but maintains cl
 │                                                             │
 │  ┌──────────────────────────────────────────────────────┐ │
 │  │  Domain-Specific Behavior Logic                      │ │
-│  │  - BehaviorEvent models                              │ │
+│  │  - BehaviorSignal models                              │ │
 │  │  - BehaviorInsights                                  │ │
 │  │  - Behavior-specific analysis                        │ │
 │  └──────────────────────────────────────────────────────┘ │
@@ -3093,7 +3093,7 @@ ai-core → ai-behavior  ❌ (ai-core never knows about ai-behavior)
 package com.ai.behavior.service;
 
 import com.ai.infrastructure.core.AICoreService;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorEmbedding;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -3117,7 +3117,7 @@ public class BehaviorEmbeddingService {
      * ai-behavior decides: Should we embed this event?
      * ai-core provides: Embedding generation capability
      */
-    public BehaviorEmbedding generateEmbedding(BehaviorEvent event) {
+    public BehaviorEmbedding generateEmbedding(BehaviorSignal event) {
         // ai-behavior logic: check if embedding needed
         if (!shouldEmbed(event)) {
             return null;
@@ -3146,12 +3146,12 @@ public class BehaviorEmbeddingService {
     /**
      * ai-behavior decision logic
      */
-    private boolean shouldEmbed(BehaviorEvent event) {
+    private boolean shouldEmbed(BehaviorSignal event) {
         // Only embed text-heavy events
         return List.of("feedback", "review", "search").contains(event.getEventType());
     }
     
-    private String extractText(BehaviorEvent event) {
+    private String extractText(BehaviorSignal event) {
         if (event.getMetadata() == null) {
             return null;
         }
@@ -3182,7 +3182,7 @@ package com.ai.behavior.service;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.rag.AISearchService;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorEmbedding;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -3202,7 +3202,7 @@ public class BehaviorSearchService {
     private final AICoreService aiCoreService;           // For embedding query
     private final AISearchService aiSearchService;        // For vector search
     private final BehaviorEmbeddingRepository embeddingRepo;
-    private final BehaviorEventRepository eventRepo;
+    private final BehaviorSignalRepository eventRepo;
     
     /**
      * Find similar feedback to given text
@@ -3210,7 +3210,7 @@ public class BehaviorSearchService {
      * Example: User submits feedback "Checkout is confusing"
      * Find all similar past feedback to identify patterns
      */
-    public List<BehaviorEvent> findSimilarFeedback(String feedbackText, int limit) {
+    public List<BehaviorSignal> findSimilarFeedback(String feedbackText, int limit) {
         // Step 1: Generate embedding for search query (ai-core)
         float[] queryEmbedding = aiCoreService.generateEmbedding(feedbackText);
         
@@ -3227,7 +3227,7 @@ public class BehaviorSearchService {
         List<BehaviorEmbedding> embeddings = embeddingRepo.findAllById(similarEmbeddingIds);
         
         List<UUID> eventIds = embeddings.stream()
-            .map(BehaviorEmbedding::getBehaviorEventId)
+            .map(BehaviorEmbedding::getBehaviorSignalId)
             .collect(Collectors.toList());
         
         return eventRepo.findAllById(eventIds);
@@ -3238,7 +3238,7 @@ public class BehaviorSearchService {
      */
     public List<UUID> findUsersWithSimilarSearches(UUID userId, int limit) {
         // Get user's search queries
-        List<BehaviorEvent> userSearches = eventRepo.findByUserIdAndEventType(
+        List<BehaviorSignal> userSearches = eventRepo.findByUserIdAndEventType(
             userId,
             "search"
         );
@@ -3249,8 +3249,8 @@ public class BehaviorSearchService {
         
         // Get embeddings for user's searches
         List<BehaviorEmbedding> userSearchEmbeddings = embeddingRepo
-            .findByBehaviorEventIdIn(
-                userSearches.stream().map(BehaviorEvent::getId).collect(Collectors.toList())
+            .findByBehaviorSignalIdIn(
+                userSearches.stream().map(BehaviorSignal::getId).collect(Collectors.toList())
             );
         
         // Calculate average embedding (user's search profile)
@@ -3266,13 +3266,13 @@ public class BehaviorSearchService {
         // Get users from those searches
         List<BehaviorEmbedding> similarEmbeddings = embeddingRepo.findAllById(similarEmbeddingIds);
         List<UUID> eventIds = similarEmbeddings.stream()
-            .map(BehaviorEmbedding::getBehaviorEventId)
+            .map(BehaviorEmbedding::getBehaviorSignalId)
             .collect(Collectors.toList());
         
-        List<BehaviorEvent> events = eventRepo.findAllById(eventIds);
+        List<BehaviorSignal> events = eventRepo.findAllById(eventIds);
         
         return events.stream()
-            .map(BehaviorEvent::getUserId)
+            .map(BehaviorSignal::getUserId)
             .distinct()
             .filter(id -> !id.equals(userId))  // Exclude original user
             .collect(Collectors.toList());
@@ -3313,7 +3313,7 @@ package com.ai.behavior.processing.analyzer;
 import com.ai.infrastructure.analysis.AIAnalysisService;
 import com.ai.infrastructure.dto.AnalysisRequest;
 import com.ai.infrastructure.dto.AnalysisResult;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorInsights;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -3335,7 +3335,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     private final AIAnalysisService aiAnalysisService;  // From ai-core
     
     @Override
-    public BehaviorInsights analyze(UUID userId, List<BehaviorEvent> events) {
+    public BehaviorInsights analyze(UUID userId, List<BehaviorSignal> events) {
         if (events.isEmpty()) {
             return null;
         }
@@ -3386,7 +3386,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     /**
      * Convert behavior events to generic time-series format (ai-core compatible)
      */
-    private List<TimeSeriesDataPoint> convertToTimeSeries(List<BehaviorEvent> events) {
+    private List<TimeSeriesDataPoint> convertToTimeSeries(List<BehaviorSignal> events) {
         return events.stream()
             .map(event -> TimeSeriesDataPoint.builder()
                 .timestamp(event.getTimestamp())
@@ -3414,7 +3414,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     /**
      * Interpret generic patterns in behavior domain context
      */
-    private List<String> interpretPatterns(List<String> genericPatterns, List<BehaviorEvent> events) {
+    private List<String> interpretPatterns(List<String> genericPatterns, List<BehaviorSignal> events) {
         List<String> behaviorPatterns = new ArrayList<>();
         
         // Map generic patterns to behavior patterns
@@ -3423,7 +3423,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
                 // Check what's frequent
                 Map<String, Long> eventCounts = events.stream()
                     .collect(Collectors.groupingBy(
-                        BehaviorEvent::getEventType,
+                        BehaviorSignal::getEventType,
                         Collectors.counting()
                     ));
                 
@@ -3464,7 +3464,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     /**
      * Behavior-specific pattern: cart abandonment
      */
-    private Optional<String> detectCartAbandonment(List<BehaviorEvent> events) {
+    private Optional<String> detectCartAbandonment(List<BehaviorSignal> events) {
         long addToCartCount = events.stream()
             .filter(e -> e.getEventType().equals("add_to_cart"))
             .count();
@@ -3483,13 +3483,13 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     /**
      * Behavior-specific pattern: price checker
      */
-    private Optional<String> detectPriceChecker(List<BehaviorEvent> events) {
+    private Optional<String> detectPriceChecker(List<BehaviorSignal> events) {
         // User views same product multiple times
         Map<String, Long> entityViews = events.stream()
             .filter(e -> e.getEventType().equals("view"))
             .filter(e -> "product".equals(e.getEntityType()))
             .collect(Collectors.groupingBy(
-                BehaviorEvent::getEntityId,
+                BehaviorSignal::getEntityId,
                 Collectors.counting()
             ));
         
@@ -3507,7 +3507,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
      * Calculate behavior-specific scores
      */
     private Map<String, Double> calculateBehaviorScores(
-            List<BehaviorEvent> events,
+            List<BehaviorSignal> events,
             List<String> patterns) {
         
         Map<String, Double> scores = new HashMap<>();
@@ -3527,7 +3527,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         return scores;
     }
     
-    private double calculateEngagementScore(List<BehaviorEvent> events) {
+    private double calculateEngagementScore(List<BehaviorSignal> events) {
         // Frequency component
         long daysSinceFirst = ChronoUnit.DAYS.between(
             events.get(events.size() - 1).getTimestamp(),
@@ -3537,7 +3537,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         
         // Diversity component
         long uniqueEventTypes = events.stream()
-            .map(BehaviorEvent::getEventType)
+            .map(BehaviorSignal::getEventType)
             .distinct()
             .count();
         double diversity = uniqueEventTypes / 10.0;  // Max 10 event types
@@ -3547,7 +3547,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     }
     
     private double calculateConversionProbability(
-            List<BehaviorEvent> events,
+            List<BehaviorSignal> events,
             List<String> patterns) {
         
         double baseProbability = 0.1;  // 10% base
@@ -3576,7 +3576,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         return Math.min(1.0, Math.max(0.0, baseProbability));
     }
     
-    private double calculateChurnRisk(List<BehaviorEvent> events) {
+    private double calculateChurnRisk(List<BehaviorSignal> events) {
         // Check activity decline
         LocalDateTime now = LocalDateTime.now();
         
@@ -3607,7 +3607,7 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     /**
      * Detect user preferences from behavior
      */
-    private Map<String, Object> detectPreferences(List<BehaviorEvent> events) {
+    private Map<String, Object> detectPreferences(List<BehaviorSignal> events) {
         Map<String, Object> preferences = new HashMap<>();
         
         // Preferred categories
@@ -3737,7 +3737,7 @@ package com.ai.behavior.service;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorInsights;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -3767,7 +3767,7 @@ public class BehaviorRAGService {
      */
     public String explainUserBehavior(UUID userId, String question) {
         // Get user behavior context
-        List<BehaviorEvent> events = behaviorProvider.getRecentEvents(userId, 100);
+        List<BehaviorSignal> events = behaviorProvider.getRecentEvents(userId, 100);
         BehaviorInsights insights = insightsService.getUserInsights(userId);
         
         // Build context for RAG
@@ -3790,7 +3790,7 @@ public class BehaviorRAGService {
      * Get personalized recommendations using RAG
      */
     public String getPersonalizedRecommendations(UUID userId) {
-        List<BehaviorEvent> events = behaviorProvider.getRecentEvents(userId, 100);
+        List<BehaviorSignal> events = behaviorProvider.getRecentEvents(userId, 100);
         BehaviorInsights insights = insightsService.getUserInsights(userId);
         
         String context = buildBehaviorContext(events, insights);
@@ -3810,7 +3810,7 @@ public class BehaviorRAGService {
     /**
      * Build behavior context for RAG
      */
-    private String buildBehaviorContext(List<BehaviorEvent> events, BehaviorInsights insights) {
+    private String buildBehaviorContext(List<BehaviorSignal> events, BehaviorInsights insights) {
         StringBuilder context = new StringBuilder();
         
         // Add user segment
@@ -3840,7 +3840,7 @@ public class BehaviorRAGService {
         // Add recent behavior summary
         Map<String, Long> eventCounts = events.stream()
             .collect(Collectors.groupingBy(
-                BehaviorEvent::getEventType,
+                BehaviorSignal::getEventType,
                 Collectors.counting()
             ));
         
@@ -3948,8 +3948,8 @@ mkdir -p ai-behavior-module/src/test/java/com/ai/behavior
 
 **Key Deliverables:**
 - ✅ Module structure created
-- ✅ Core interfaces defined (BehaviorEventSink, BehaviorDataProvider, BehaviorAnalyzer)
-- ✅ Data models implemented (BehaviorEvent, BehaviorInsights, BehaviorMetrics, BehaviorEmbedding)
+- ✅ Core interfaces defined (BehaviorSignalSink, BehaviorDataProvider, BehaviorAnalyzer)
+- ✅ Data models implemented (BehaviorSignal, BehaviorInsights, BehaviorMetrics, BehaviorEmbedding)
 - ✅ Database schema created with proper indexes and partitioning
 - ✅ Unit tests for models and interfaces
 
@@ -3982,7 +3982,7 @@ CREATE TABLE behavior_events_2026_01 PARTITION OF behavior_events ...
 
 **Key Deliverables:**
 - ✅ DatabaseEventSink implemented and tested
-- ✅ BehaviorEventRepository with custom queries
+- ✅ BehaviorSignalRepository with custom queries
 - ✅ BehaviorInsightsRepository, BehaviorMetricsRepository, BehaviorEmbeddingRepository
 - ✅ DatabaseBehaviorProvider implemented
 - ✅ Integration tests for storage layer
@@ -4006,7 +4006,7 @@ CREATE TABLE behavior_events_2026_01 PARTITION OF behavior_events ...
 
 **Key Deliverables:**
 - ✅ BehaviorIngestionService implemented
-- ✅ BehaviorEventValidator with validation rules
+- ✅ BehaviorSignalValidator with validation rules
 - ✅ REST API controllers (ingestion, query, insights)
 - ✅ Event publishing to application event bus
 - ✅ API documentation (OpenAPI/Swagger)
