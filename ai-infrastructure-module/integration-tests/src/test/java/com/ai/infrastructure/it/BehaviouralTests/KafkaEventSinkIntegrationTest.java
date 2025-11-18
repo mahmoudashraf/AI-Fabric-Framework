@@ -2,7 +2,6 @@ package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.ingestion.BehaviorIngestionMetrics;
 import com.ai.behavior.model.BehaviorSignal;
-import com.ai.behavior.model.EventType;
 import com.ai.behavior.service.BehaviorMonitoringService;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.api.dto.BehaviorHealthResponse;

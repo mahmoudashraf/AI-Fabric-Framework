@@ -14,7 +14,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -38,6 +41,10 @@ public class BehaviorEmbeddingService {
         }
         EmbeddingPolicy policy = definition.getEmbedding();
         if (policy == null || !policy.isEnabled()) {
+            return;
+        }
+        List<String> configuredSchemas = embeddingConfig.getSchemaIds();
+        if (!CollectionUtils.isEmpty(configuredSchemas) && !configuredSchemas.contains(definition.getId())) {
             return;
         }
 

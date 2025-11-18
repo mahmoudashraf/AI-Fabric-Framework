@@ -77,6 +77,7 @@ public class BehaviorModuleProperties {
         private Embedding embedding = new Embedding();
         private Anomaly anomaly = new Anomaly();
         private Segmentation segmentation = new Segmentation();
+        private Metrics metrics = new Metrics();
 
         @Data
         public static class Aggregation {
@@ -115,6 +116,11 @@ public class BehaviorModuleProperties {
             private int analysisWindowDays = 30;
             private int minEvents = 25;
             private double vipPurchaseThreshold = 1000.0d;
+        }
+
+        @Data
+        public static class Metrics {
+            private List<String> enabledProjectors = new ArrayList<>(List.of("engagementMetricProjector"));
         }
     }
 

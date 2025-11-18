@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -27,7 +28,7 @@ public class BehaviorSignalRequest {
     private String source;
     private String channel;
     private LocalDateTime timestamp;
-    private Map<String, Object> attributes;
+    private Map<String, Object> attributes = new HashMap<>();
 
     public BehaviorSignal toEvent() {
         return BehaviorSignal.builder()

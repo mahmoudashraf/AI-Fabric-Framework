@@ -3,7 +3,6 @@ package com.ai.infrastructure.it.BehaviouralTests;
 import com.ai.behavior.adapter.ExternalAnalyticsAdapter;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
-import com.ai.behavior.model.EventType;
 import com.ai.infrastructure.it.TestApplication;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import org.junit.jupiter.api.AfterAll;

@@ -23,9 +23,9 @@ The new ai-behavior module introduces dedicated ingestion pipelines, pluggable s
 
 ### BEH-IT-001: Database Sink & API Roundtrip
 - **Goal:** Ensure baseline ingestion + query path works without alternative sinks.
-- **Setup:** Use Testcontainers Postgres. Apply Flyway migrations automatically.
-- **Flow:** POST `/api/ai-behavior/ingest/event` → store via `DatabaseEventSink` → GET `/api/ai-behavior/users/{id}/events`.
-- **Assertions:** Response contains all metadata fields, ingestion timestamps match DB row, query ordering honors `BehaviorQuery`.
+- **Setup:** Use Testcontainers Postgres. Allow Spring Boot to apply the bundled Liquibase changelog (`db/changelog/db.changelog-master.yaml`).
+- **Flow:** POST `/api/ai-behavior/signals` → store via `DatabaseEventSink` → GET `/api/ai-behavior/users/{id}/signals`.
+- **Assertions:** Response contains schema metadata (schemaId, attributes, timestamps), persisted rows match the API payload, query ordering honors `BehaviorQuery`.
 
 ### BEH-IT-002: Kafka Sink Fan-out Verification
 - **Goal:** Validate pluggable sink can publish to Kafka topic and monitoring endpoint reflects it.
@@ -34,22 +34,22 @@ The new ai-behavior module introduces dedicated ingestion pipelines, pluggable s
 - **Assertions:** All events present with serialized JSON, `BehaviorMonitoringController` reports sink type kafka and recent count = 5.
 
 ### BEH-IT-003: Redis Hot Cache TTL Enforcement
-- **Goal:** Confirm Redis sink stores events with TTL and expires after configured horizon.
-- **Setup:** Testcontainers Redis, `ai.behavior.sink.type=redis`, TTL=1 minute.
-- **Flow:** Ingest event, read from Redis key `behavior:event:{id}`, advance clock (Awaitility) to verify key eviction.
+- **Goal:** Confirm Redis sink stores signals with TTL and expires after the configured horizon.
+- **Setup:** Testcontainers Redis, `ai.behavior.sink.type=redis`, `ai.behavior.sink.redis.ttlSeconds=60`.
+- **Flow:** Ingest a signal, read from Redis key `behavior:signal:{id}`, advance time (Awaitility) to verify key eviction.
 - **Assertions:** Value exists immediately with JSON payload, key removed after TTL.
 
 ### BEH-IT-004: Hybrid Sink Dual-write Consistency
 - **Goal:** Ensure hybrid sink writes to Redis and Postgres atomically.
 - **Setup:** Redis + Postgres containers, `ai.behavior.sink.type=hybrid`.
-- **Flow:** Ingest batch of 3 events. Query Redis for hot copy, Query DB for durable copy.
-- **Assertions:** All IDs exist in both stores, Redis TTL matches config, DB row counts stable when Redis deleted.
+- **Flow:** Ingest batch of 3 signals. Query Redis for hot copy, query DB for durable copy.
+- **Assertions:** All IDs exist in both stores, Redis TTL matches config, DB row counts stay stable even after Redis eviction.
 
 ### BEH-IT-005: S3 Sink Archival Contract
-- **Goal:** Verify S3 sink uploads gzip-compressed JSON objects into expected key structure.
+- **Goal:** Verify S3 sink uploads gzip-compressed JSON objects into the expected schema-aware key structure.
 - **Setup:** LocalStack S3, bucket `behavior-tests`, `ai.behavior.sink.s3.compress=true`.
-- **Flow:** Ingest event with timestamp → fetch object `ai-behavior/yyyy/MM/dd/{id}.json.gz`.
-- **Assertions:** Object exists, decompress contains exact JSON, metadata preserved.
+- **Flow:** Ingest a timestamped signal → fetch object `ai-behavior/yyyy/MM/dd/{schemaId}/{signalId}.json.gz`.
+- **Assertions:** Object exists, decompress contains exact JSON (schemaId, attributes, timestamps), metadata preserved.
 
 ### BEH-IT-006: Aggregated Behavior Provider Failover
 - **Goal:** Confirm aggregated provider merges database + external results respecting order.

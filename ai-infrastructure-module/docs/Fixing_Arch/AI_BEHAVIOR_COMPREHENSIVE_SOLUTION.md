@@ -202,7 +202,7 @@ Spring Boot, JPA, etc.
 ### Domain Coupling Hotspots
 
 1. **Rigid event taxonomy** – `com.ai.behavior.model.EventType` enumerates funnel actions like `ADD_TO_CART`, `PURCHASE`, and `WISHLIST`, and is referenced by ingestion (`BehaviorEventValidator`), adapters (`LegacySystemAdapter`), and analytics services. Adding a new domain requires editing this enum and all downstream `switch` statements such as those in `BehaviorService`.
-2. **Commerce-specific metrics schema** – `BehaviorMetrics` persists dedicated columns (`add_to_cart_count`, `purchase_count`, `total_revenue`, etc.), while `RealTimeAggregationWorker` increments those counters and parses `metadata.amount`. Other domains that care about different KPIs must fork these entities and migrations.
+2. **Commerce-specific metrics schema** – `BehaviorMetrics` persists dedicated columns (`add_to_cart_count`, `purchase_count`, `total_revenue`, etc.), while `MetricProjectionWorker` increments those counters and parses `metadata.amount`. Other domains that care about different KPIs must fork these entities and migrations.
 3. **Insight heuristics baked in** – `PatternAnalyzer` and `SegmentationAnalyzer` publish labels like `cart_abandoner`, `frequent_buyer`, `VIP`, and compute scores (`conversion_probability`, `lifetime_value_estimate`) based on shopping behavior. These values are saved in `BehaviorInsights`, so every consumer inherits commerce terminology even if irrelevant.
 4. **Legacy REST surface bundled in** – The `com.ai.infrastructure.{controller,dto,service,entity}` stack mirrors the e-commerce backend API. Keeping those classes within the module forces every adopter to depend on application-specific DTOs.
 5. **Implicit metadata contracts** – Workers and analyzers expect keys such as `amount`, `category`, `price`, and `durationSeconds` without schema enforcement, making it impossible to validate payloads generically.
@@ -231,7 +231,7 @@ Spring Boot, JPA, etc.
 | **Schema Management** | No formal schema; metadata is ad-hoc maps. | Introduce `BehaviorSchemaRegistry` (YAML + Java builder) that defines required attributes, types, embedding policy, retention hints, and validation constraints. |
 | **Ingestion** | `BehaviorIngestionService` + `BehaviorEventValidator` reference enums and metadata size only. | New `BehaviorSignalIngestionService` uses schema registry, enforces contracts, and writes via `BehaviorSignalSink` (renamed interface). Publishes neutral `BehaviorSignalIngested` events. |
 | **Storage** | Separate tables for events, metrics, embeddings; metrics table contains commerce-specific columns. | Consolidate to flexible tables: `behavior_signals` (tenant/user/session/signal), `behavior_signal_metrics` (key/value/attributes), `behavior_insights` (neutral payload). Embeddings/alerts remain optional tables referencing `schemaId`. |
-| **Metrics** | `RealTimeAggregationWorker` increments counters tied to commerce actions. | Replace with `MetricProjectionWorker` that runs `BehaviorMetricProjector` SPI instances loaded from Spring context. Projections persist as key/value metrics with optional attributes. |
+| **Metrics** | `MetricProjectionWorker` increments counters tied to commerce actions. | Replace with `MetricProjectionWorker` that runs `BehaviorMetricProjector` SPI instances loaded from Spring context. Projections persist as key/value metrics with optional attributes. |
 | **Analysis** | `PatternAnalyzer` & `SegmentationAnalyzer` encode commerce personas. | Introduce `BehaviorInsightStrategy` and `SegmentationStrategy` SPIs. Default strategies provide neutral engagement tiers; commerce-specific strategy lives in optional `ai-infrastructure-behavior-commerce` starter. |
 | **API/DTOs** | Mix of generic (`com.ai.behavior.api`) and backend-specific (`com.ai.infrastructure.*`). | Remove `com.ai.infrastructure.*`. Controllers and DTOs operate on `schemaId`, `attributes`, and typed metadata descriptions. Add `/schemas` discovery endpoint. |
 | **Config** | `BehaviorModuleProperties` assumes enum-based events. | Expand properties to declare schemas, signal sources, sink configs, projector list, and insight strategy order. Provide starter YAML aligned with `/docs/Guidelines/PROJECT_GUIDELINES.yaml`. |
@@ -255,7 +255,7 @@ Spring Boot, JPA, etc.
 
 4. **Metrics projection**
    - Define `BehaviorMetricProjector` SPI with `supports(schemaId)` and `project(BehaviorSignal signal, MetricAccumulator accumulator)`.
-   - Replace `RealTimeAggregationWorker` with `MetricProjectionWorker` that routes signals to enabled projectors configured in `ai.behavior.metrics.projectors`.
+   - Replace `MetricProjectionWorker` with `MetricProjectionWorker` that routes signals to enabled projectors configured in `ai.behavior.metrics.projectors`.
    - Persist results in `behavior_signal_metrics` as `{metric_key, metric_value, metric_type, attributes_json}` keyed by user/date/tenant.
 
 5. **Insights + segmentation**
@@ -338,6 +338,34 @@ Sample descriptor:
   metricHints:
     - key: engagement.view
       aggregation: count
+```
+
+> **Validation Tip:** install PyYAML (`python -m pip install pyyaml`) and run the snippet below to lint all schema files before committing:
+
+```bash
+python3 - <<'PY'
+import json
+from pathlib import Path
+import yaml
+
+errors = []
+seen = set()
+for schema_file in Path("ai-infrastructure-module/ai-infrastructure-behavior/src/main/resources/behavior/schemas").rglob("*.yml"):
+    data = yaml.safe_load(schema_file.read_text())
+    for entry in data:
+        schema_id = entry.get("id")
+        if not schema_id:
+            errors.append(f"{schema_file}: missing id")
+            continue
+        if schema_id in seen:
+            errors.append(f"duplicate schema id: {schema_id}")
+        seen.add(schema_id)
+
+if errors:
+    print("\\n".join(errors))
+    raise SystemExit(1)
+print(f"Validated {len(seen)} schema definitions")
+PY
 ```
 
 ### 3. Ingestion Flow
@@ -438,6 +466,26 @@ ai:
   2. Configure sinks/projectors/strategies via Spring (`application.yml`).
   3. Wire ingestion clients to the new schema-aware API and leverage `/schemas` for validation.
 
+### 12. Migration Guidance for Existing Clones
+
+Even though this release treats the module as greenfield, anyone who cloned the repository before the Liquibase move should:
+
+1. **Drop legacy tables** – remove the old `behavior_events`, `behavior_metrics`, `behavior_insights`, `behavior_embeddings`, and `behavior_alerts` tables to avoid column mismatches.
+2. **Remove Flyway configuration** – delete any `spring.flyway.*` properties or custom Flyway beans. The new starter no longer ships Flyway migrations.
+3. **Enable Liquibase** – ensure the host application points to the bundled changelog by adding (or keeping) the default:
+
+   ```yaml
+   spring:
+     liquibase:
+       change-log: classpath:/db/changelog/db.changelog-master.yaml
+       enabled: true
+   ```
+
+4. **Apply the new schema** – run `./mvnw -pl ai-infrastructure-behavior liquibase:update` (or let Spring Boot execute Liquibase on startup).
+5. **Validate custom schemas** – run the YAML validation snippet described in “Detailed Design → Schema Registry & Definitions” (or an equivalent lint step) against every `behavior/schemas/*.yml` file before deployment.
+
+After these steps the repository will align with the Liquibase-driven `behavior_signals`/`behavior_signal_metrics` schema and the new schema registry.
+
 ---
 
 ## Module Structure
@@ -452,83 +500,56 @@ ai-behavior-module/
 ├── src/main/java/com/ai/behavior/
 │   │
 │   ├── model/
-│   │   ├── BehaviorEvent.java                    # Core event model
-│   │   ├── BehaviorQuery.java                    # Query builder
-│   │   ├── BehaviorInsights.java                 # Analysis results
-│   │   ├── BehaviorMetrics.java                  # Aggregated metrics
-│   │   ├── BehaviorEmbedding.java                # Text embeddings (selective)
-│   │   ├── BehaviorAlert.java                    # Anomaly alerts
-│   │   └── EventType.java                        # Simple enum (10-15 types)
+│   │   ├── BehaviorSignal.java                   # canonical signal aggregate (schemaId + attributes)
+│   │   ├── BehaviorQuery.java                    # query builder & attribute filters
+│   │   ├   BehaviorMetrics.java                  # JSON-based metric snapshots
+│   │   ├── BehaviorInsights.java                 # pre-computed insights/segments
+│   │   ├── BehaviorEmbedding.java                # stored embeddings
+│   │   └── BehaviorAlert.java                    # anomaly records
+│   │
+│   ├── schema/
+│   │   ├── BehaviorSchemaRegistry.java
+│   │   ├── BehaviorSignalDefinition.java
+│   │   ├── EmbeddingPolicy.java
+│   │   └── YamlBehaviorSchemaRegistry.java
+│   │
+│   ├── metrics/
+│   │   ├── MetricProjectionWorker.java
+│   │   ├── BehaviorMetricProjector.java
+│   │   └── projector/
+│   │       └── EngagementMetricProjector.java
 │   │
 │   ├── ingestion/
-│   │   ├── BehaviorIngestionService.java         # Main ingestion service
-│   │   ├── BehaviorIngestionController.java      # REST API
-│   │   ├── BehaviorEventSink.java                # Storage interface
-│   │   ├── impl/
-│   │   │   ├── DatabaseEventSink.java            # Default DB storage
-│   │   │   ├── KafkaEventSink.java               # Kafka integration
-│   │   │   ├── RedisEventSink.java               # Redis cache
-│   │   │   └── HybridEventSink.java              # Hot/cold storage
-│   │   └── validator/
-│   │       └── BehaviorEventValidator.java
+│   │   ├── BehaviorIngestionController.java       # `/api/ai-behavior/signals`
+│   │   ├── BehaviorSignalSink.java                # storage SPI
+│   │   ├── BehaviorSignalValidator.java           # schema-driven validation
+│   │   ├── BehaviorIngestionService.java
+│   │   └── impl/ (database, kafka, redis, S3, etc.)
 │   │
 │   ├── storage/
-│   │   ├── BehaviorDataProvider.java             # Query interface
-│   │   ├── BehaviorEventRepository.java          # JPA repository
-│   │   ├── BehaviorInsightsRepository.java
+│   │   ├── BehaviorSignalRepository.java
 │   │   ├── BehaviorMetricsRepository.java
-│   │   ├── BehaviorEmbeddingRepository.java
-│   │   └── impl/
-│   │       ├── DatabaseBehaviorProvider.java     # Default implementation
-│   │       ├── ExternalAnalyticsBehaviorProvider.java
-│   │       └── AggregatedBehaviorProvider.java   # Multi-source
+│   │   ├── BehaviorInsightsRepository.java
+│   │   ├── BehaviorDataProvider.java
+│   │   └── impl/ (database/external/aggregated providers)
 │   │
 │   ├── processing/
-│   │   ├── worker/
-│   │   │   ├── RealTimeAggregationWorker.java    # Async metrics
-│   │   │   ├── PatternDetectionWorker.java       # Scheduled patterns
-│   │   │   ├── AnomalyDetectionWorker.java       # Fraud/suspicious
-│   │   │   ├── EmbeddingGenerationWorker.java    # Selective embedding
-│   │   │   └── UserSegmentationWorker.java       # Daily segmentation
-│   │   └── analyzer/
-│   │       ├── PatternAnalyzer.java              # Uses ai-core
-│   │       ├── AnomalyAnalyzer.java
-│   │       └── SegmentationAnalyzer.java
-│   │
-│   ├── analysis/
-│   │   ├── BehaviorAnalysisService.java          # Main analysis service
-│   │   ├── BehaviorInsightsService.java          # Query insights
-│   │   └── BehaviorQueryService.java             # Query events
+│   │   ├── worker/ (metric projection, pattern, anomaly, embedding, segmentation)
+│   │   └── analyzer/ (pattern/anomaly/segmentation strategies)
 │   │
 │   ├── api/
-│   │   ├── BehaviorIngestionController.java      # POST events
-│   │   ├── BehaviorInsightsController.java       # GET insights
-│   │   ├── BehaviorQueryController.java          # GET events
-│   │   └── BehaviorMonitoringController.java     # Admin monitoring
+│   │   ├── BehaviorIngestionController
+│   │   ├── BehaviorSchemaController               # `/api/ai-behavior/schemas`
+│   │   ├── BehaviorQueryController
+│   │   ├── BehaviorInsightsController
+│   │   └── BehaviorMonitoringController
 │   │
-│   ├── adapter/
-│   │   ├── LegacySystemAdapter.java              # For old systems
-│   │   └── ExternalAnalyticsAdapter.java         # Mixpanel, GA, etc.
-│   │
-│   ├── config/
-│   │   ├── AIBehaviorAutoConfiguration.java      # Spring Boot auto-config
-│   │   ├── BehaviorStorageConfiguration.java
-│   │   ├── BehaviorProcessingConfiguration.java
-│   │   └── BehaviorProperties.java               # Configuration properties
-│   │
-│   └── exception/
-│       ├── BehaviorValidationException.java
-│       ├── BehaviorStorageException.java
-│       └── BehaviorAnalysisException.java
+│   ├── config/ (auto-configuration + `BehaviorModuleProperties`)
+│   └── exception/, service/, etc.
 │
 ├── src/main/resources/
-│   ├── db/migration/
-│   │   ├── V1__Create_Behavior_Events.sql
-│   │   ├── V2__Create_Behavior_Insights.sql
-│   │   ├── V3__Create_Behavior_Metrics.sql
-│   │   ├── V4__Create_Behavior_Embeddings.sql
-│   │   └── V5__Create_Indexes.sql
-│   └── application.yml
+│   ├── behavior/schemas/                         # default YAML signal definitions
+│   └── db/changelog/db.changelog-master.yaml     # Liquibase change log (Flyway removed)
 │
 └── src/test/java/com/ai/behavior/
     ├── integration/
@@ -539,118 +560,95 @@ ai-behavior-module/
 
 ## Core Interfaces
 
-### 1. BehaviorEventSink (Write Interface)
+### 1. BehaviorSignalSink (Write Interface)
 
-**Purpose:** Define WHERE events are stored (pluggable storage)
+**Purpose:** Define WHERE signals are stored (pluggable storage)**
 
 ```java
 package com.ai.behavior.ingestion;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import java.util.List;
 
-/**
- * Interface for storing behavior events.
- * Implementations can store in: Database, Kafka, Redis, S3, etc.
- * 
- * Users can provide custom implementations via:
- * @Component
- * public class MyCustomSink implements BehaviorEventSink { ... }
- */
-public interface BehaviorEventSink {
-    
-    /**
-     * Store a single behavior event
-     * 
-     * @param event the behavior event to store
-     * @throws BehaviorStorageException if storage fails
-     */
-    void accept(BehaviorEvent event);
-    
-    /**
-     * Store multiple behavior events in batch
-     * More efficient for bulk operations
-     * 
-     * @param events list of events to store
-     * @throws BehaviorStorageException if storage fails
-     */
-    void acceptBatch(List<BehaviorEvent> events);
-    
-    /**
-     * Optional: Flush any buffered events
-     * Some implementations may buffer for performance
-     */
+public interface BehaviorSignalSink {
+
+    void accept(BehaviorSignal signal);
+
+    void acceptBatch(List<BehaviorSignal> signals);
+
     default void flush() {
         // Default: no-op
     }
-    
-    /**
-     * Get the sink type identifier
-     * Used for monitoring and configuration
-     */
+
     String getSinkType();
 }
 ```
 
 ### 2. BehaviorDataProvider (Read Interface)
 
-**Purpose:** Define HOW to query behavior data (flexible sources)
+**Purpose:** Define HOW to query behavior data (flexible sources)**
 
 ```java
 package com.ai.behavior.storage;
 
-import com.ai.behavior.model.BehaviorEvent;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Interface for querying behavior events.
- * Implementations can read from: Database, Cache, External APIs, etc.
- * 
- * Users can provide custom implementations to integrate with:
- * - Internal databases
- * - External analytics (Mixpanel, Amplitude)
- * - Legacy systems
- * - Multiple sources (aggregated)
- */
 public interface BehaviorDataProvider {
-    
-    /**
-     * Query behavior events using flexible query builder
-     * 
-     * @param query the behavior query
-     * @return list of matching behavior events
-     */
-    List<BehaviorEvent> query(BehaviorQuery query);
-    
-    /**
-     * Get recent events for a user (convenience method)
-     * 
-     * @param userId the user ID
-     * @param limit max number of events
-     * @return list of recent events
-     */
-    default List<BehaviorEvent> getRecentEvents(UUID userId, int limit) {
+
+    List<BehaviorSignal> query(BehaviorQuery query);
+
+    default List<BehaviorSignal> getRecentEvents(UUID userId, int limit) {
         return query(BehaviorQuery.forUser(userId).limit(limit));
     }
-    
-    /**
-     * Get events for an entity (product, page, etc.)
-     * 
-     * @param entityType the entity type
-     * @param entityId the entity ID
-     * @return list of events related to entity
-     */
-    default List<BehaviorEvent> getEntityEvents(String entityType, String entityId) {
+
+    default List<BehaviorSignal> getEntityEvents(String entityType, String entityId) {
         return query(BehaviorQuery.forEntity(entityType, entityId));
     }
-    
-    /**
-     * Get the provider type identifier
-     * Used for monitoring and debugging
-     */
+
     String getProviderType();
+}
+```
+
+### 3. BehaviorSchemaRegistry (Schema Interface)
+
+**Purpose:** Expose registered behavior signal definitions to validators, APIs, and analyzers**
+
+```java
+package com.ai.behavior.schema;
+
+import java.util.Collection;
+import java.util.Optional;
+
+public interface BehaviorSchemaRegistry {
+
+    Optional<BehaviorSignalDefinition> find(String schemaId);
+
+    BehaviorSignalDefinition getRequired(String schemaId);
+
+    Collection<BehaviorSignalDefinition> getAll();
+}
+```
+
+### 4. BehaviorMetricProjector (Metrics SPI)
+
+```java
+package com.ai.behavior.metrics;
+
+import com.ai.behavior.model.BehaviorSignal;
+import com.ai.behavior.schema.BehaviorSignalDefinition;
+
+public interface BehaviorMetricProjector {
+
+    boolean supports(BehaviorSignal signal, BehaviorSignalDefinition definition);
+
+    void project(BehaviorSignal signal,
+                 BehaviorSignalDefinition definition,
+                 MetricAccumulator accumulator);
+
+    String getName();
 }
 ```
 
@@ -1013,7 +1011,7 @@ import java.util.UUID;
 @Table(
     name = "behavior_embeddings",
     indexes = {
-        @Index(name = "idx_embedding_event", columnList = "behavior_event_id"),
+    @Index(name = "idx_embedding_signal", columnList = "behavior_signal_id"),
         @Index(name = "idx_embedding_type", columnList = "embedding_type")
     }
 )
@@ -1028,10 +1026,10 @@ public class BehaviorEmbedding {
     private UUID id;
     
     /**
-     * Reference to the behavior event
+     * Reference to the behavior signal
      */
-    @Column(name = "behavior_event_id", nullable = false)
-    private UUID behaviorEventId;
+    @Column(name = "behavior_signal_id", nullable = false)
+    private UUID behaviorSignalId;
     
     /**
      * Type of embedding
@@ -1099,7 +1097,7 @@ import java.util.UUID;
 /**
  * BehaviorMetrics - Pre-aggregated metrics
  * 
- * Updated in real-time by RealTimeAggregationWorker.
+ * Updated in real-time by MetricProjectionWorker.
  * Provides fast counts without scanning raw events.
  * 
  * Partitioned by date for efficient queries.
@@ -1181,52 +1179,7 @@ public class BehaviorMetrics {
 }
 ```
 
-### 5. EventType (Simplified Enum)
 
-**Keep it simple: 10-15 core types**
-
-```java
-package com.ai.behavior.model;
-
-/**
- * EventType - Simplified behavior event types
- * 
- * Reduced from 115 types to ~10 essential types.
- * 
- * Principle: Simple events tracked here.
- * Complex business events (orders, payments) stay in their own domains.
- * System events (monitoring, logs) go to separate logging system.
- */
-public enum EventType {
-    
-    // Viewing & Navigation (most common)
-    VIEW,              // User viewed something (product, page, content)
-    NAVIGATION,        // User navigated to a page
-    
-    // Interaction
-    CLICK,             // User clicked something
-    SEARCH,            // User performed a search
-    FILTER,            // User applied filters/sorting
-    
-    // Conversion funnel
-    ADD_TO_CART,       // User added item to cart
-    REMOVE_FROM_CART,  // User removed item from cart
-    PURCHASE,          // User completed purchase
-    WISHLIST,          // User added to wishlist
-    
-    // User-generated content (text - needs embedding)
-    FEEDBACK,          // User submitted feedback
-    REVIEW,            // User wrote a review
-    RATING,            // User rated something
-    
-    // Engagement
-    SHARE,             // User shared content
-    SAVE,              // User saved/bookmarked
-    
-    // Generic fallback
-    CUSTOM             // Custom event type (use metadata.customType)
-}
-```
 
 ---
 
@@ -1440,7 +1393,7 @@ public class DatabaseEventSink implements BehaviorEventSink {
 
 ### 3. Async Processing Workers
 
-#### RealTimeAggregationWorker
+#### MetricProjectionWorker
 
 ```java
 package com.ai.behavior.processing.worker;
@@ -1458,7 +1411,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 
 /**
- * RealTimeAggregationWorker
+ * MetricProjectionWorker
  * 
  * Listens to ingested events and updates metrics in real-time.
  * Runs async, doesn't block ingestion.
@@ -1466,7 +1419,7 @@ import java.time.LocalDate;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RealTimeAggregationWorker {
+public class MetricProjectionWorker {
     
     private final BehaviorMetricsRepository metricsRepository;
     
@@ -4061,7 +4014,7 @@ CREATE TABLE behavior_events_2026_01 PARTITION OF behavior_events ...
 
 **API Endpoints:**
 ```
-POST   /api/ai-behavior/ingest/event        # Single event
+POST   /api/ai-behavior/signals        # Single event
 POST   /api/ai-behavior/ingest/batch        # Batch events (up to 1000)
 GET    /api/ai-behavior/events/{id}         # Get specific event
 GET    /api/ai-behavior/users/{id}/events   # Get user events (paginated)
@@ -4105,7 +4058,7 @@ GET    /api/ai-behavior/health              # Health check
 - Anomaly detection
 
 **Key Deliverables:**
-- ✅ RealTimeAggregationWorker (updates metrics on every event)
+- ✅ MetricProjectionWorker (updates metrics on every event)
 - ✅ PatternDetectionWorker (scheduled every 5 minutes)
 - ✅ EmbeddingGenerationWorker (selective, async)
 - ✅ AnomalyDetectionWorker (fraud detection, scheduled)
