@@ -26,14 +26,14 @@ public class BehaviorQueryController {
         this.queryService = queryService;
     }
 
-    @GetMapping("/events/{eventId}")
-    public ResponseEntity<BehaviorSignalResponse> getEvent(@PathVariable UUID eventId) {
-        return ResponseEntity.ok(BehaviorSignalResponse.from(queryService.getEvent(eventId)));
+    @GetMapping("/signals/{signalId}")
+    public ResponseEntity<BehaviorSignalResponse> getSignal(@PathVariable UUID signalId) {
+        return ResponseEntity.ok(BehaviorSignalResponse.from(queryService.getSignal(signalId)));
     }
 
-    @GetMapping("/users/{userId}/events")
-    public ResponseEntity<List<BehaviorSignalResponse>> getUserEvents(@PathVariable UUID userId,
-                                                                     @RequestParam(defaultValue = "50") int limit) {
+    @GetMapping("/users/{userId}/signals")
+    public ResponseEntity<List<BehaviorSignalResponse>> getUserSignals(@PathVariable UUID userId,
+                                                                       @RequestParam(defaultValue = "50") int limit) {
         return ResponseEntity.ok(
             queryService.recentEvents(userId, limit).stream()
                 .map(BehaviorSignalResponse::from)
@@ -41,7 +41,7 @@ public class BehaviorQueryController {
         );
     }
 
-    @PostMapping("/users/{userId}/events/query")
+    @PostMapping("/users/{userId}/signals/query")
     public ResponseEntity<List<BehaviorSignalResponse>> query(@PathVariable UUID userId,
                                                              @RequestBody BehaviorQueryRequest request) {
         return ResponseEntity.ok(

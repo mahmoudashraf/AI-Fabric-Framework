@@ -13,7 +13,7 @@ import java.util.UUID;
 public class BehaviorAlertResponse {
     UUID id;
     UUID userId;
-    UUID behaviorEventId;
+    UUID behaviorSignalId;
     String alertType;
     String severity;
     String message;
@@ -24,7 +24,7 @@ public class BehaviorAlertResponse {
         return BehaviorAlertResponse.builder()
             .id(alert.getId())
             .userId(alert.getUserId())
-            .behaviorEventId(alert.getBehaviorSignalId())
+            .behaviorSignalId(alert.getBehaviorSignalId())
             .alertType(alert.getAlertType())
             .severity(alert.getSeverity())
             .message(alert.getMessage())

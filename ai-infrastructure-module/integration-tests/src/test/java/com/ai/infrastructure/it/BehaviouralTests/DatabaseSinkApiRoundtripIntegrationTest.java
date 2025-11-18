@@ -1,9 +1,8 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
+import com.ai.behavior.api.dto.BehaviorIngestionResponse;
 import com.ai.behavior.api.dto.BehaviorSignalRequest;
 import com.ai.behavior.api.dto.BehaviorSignalResponse;
-import com.ai.behavior.api.dto.BehaviorIngestionResponse;
-import com.ai.behavior.model.EventType;
 import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -71,30 +70,30 @@ public class DatabaseSinkApiRoundtripIntegrationTest {
     private TestRestTemplate restTemplate;
 
     @Autowired
-    private BehaviorSignalRepository behaviorEventRepository;
+    private BehaviorSignalRepository behaviorSignalRepository;
 
     @Test
     void databaseSinkPersistsAndQueryReturnsEvents() {
         UUID userId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
 
-        BehaviorSignalRequest viewEvent = buildRequest(userId, "session-a", EventType.VIEW, "product-1",
+        BehaviorSignalRequest viewEvent = buildRequest(userId, "session-a", "engagement.view", "product-1",
             now.minusMinutes(5), Map.of("category", "luxury", "rank", 1));
-        BehaviorSignalRequest purchaseEvent = buildRequest(userId, "session-a", EventType.PURCHASE, "order-55",
+        BehaviorSignalRequest purchaseEvent = buildRequest(userId, "session-a", "conversion.transaction", "order-55",
             now.minusMinutes(1), Map.of("amount", 2500, "currency", "USD"));
 
         ResponseEntity<BehaviorIngestionResponse> firstIngest = restTemplate.postForEntity(
-            "/api/ai-behavior/ingest/event", viewEvent, BehaviorIngestionResponse.class);
+            "/api/ai-behavior/signals", viewEvent, BehaviorIngestionResponse.class);
         ResponseEntity<BehaviorIngestionResponse> secondIngest = restTemplate.postForEntity(
-            "/api/ai-behavior/ingest/event", purchaseEvent, BehaviorIngestionResponse.class);
+            "/api/ai-behavior/signals", purchaseEvent, BehaviorIngestionResponse.class);
 
         assertThat(firstIngest.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(secondIngest.getStatusCode().is2xxSuccessful()).isTrue();
-        assertThat(behaviorEventRepository.count()).isEqualTo(2);
+        assertThat(behaviorSignalRepository.count()).isEqualTo(2);
 
         ParameterizedTypeReference<List<BehaviorSignalResponse>> typeRef = new ParameterizedTypeReference<>() {};
         ResponseEntity<List<BehaviorSignalResponse>> response = restTemplate.exchange(
-            "/api/ai-behavior/users/" + userId + "/events?limit=10",
+            "/api/ai-behavior/users/" + userId + "/signals?limit=10",
             HttpMethod.GET,
             null,
             typeRef);
@@ -106,34 +105,34 @@ public class DatabaseSinkApiRoundtripIntegrationTest {
         BehaviorSignalResponse first = events.get(0);
         BehaviorSignalResponse second = events.get(1);
 
-        assertThat(first.getEventType()).isEqualTo(EventType.PURCHASE);
-        assertThat(first.getMetadata()).containsEntry("amount", 2500);
-        assertThat(second.getEventType()).isEqualTo(EventType.VIEW);
-        assertThat(second.getMetadata()).containsEntry("category", "luxury");
+        assertThat(first.getSchemaId()).isEqualTo("conversion.transaction");
+        assertThat(first.getAttributes()).containsEntry("amount", 2500);
+        assertThat(second.getSchemaId()).isEqualTo("engagement.view");
+        assertThat(second.getAttributes()).containsEntry("category", "luxury");
 
         assertThat(first.getIngestedAt()).isNotNull();
         assertThat(first.getIngestedAt()).isAfterOrEqualTo(second.getIngestedAt());
 
-        behaviorEventRepository.findById(first.getId())
+        behaviorSignalRepository.findById(first.getId())
             .ifPresent(entity -> assertThat(entity.getIngestedAt()).isEqualTo(first.getIngestedAt()));
     }
 
     private BehaviorSignalRequest buildRequest(UUID userId,
                                               String sessionId,
-                                              EventType eventType,
+                                              String schemaId,
                                               String entityId,
                                               LocalDateTime timestamp,
                                               Map<String, Object> metadata) {
         BehaviorSignalRequest request = new BehaviorSignalRequest();
         request.setUserId(userId);
         request.setSessionId(sessionId);
-        request.setEventType(eventType);
+        request.setSchemaId(schemaId);
         request.setEntityType("product");
         request.setEntityId(entityId);
         request.setTimestamp(timestamp);
         request.setChannel("web");
         request.setSource("integration-test");
-        request.setMetadata(metadata);
+        request.setAttributes(metadata);
         return request;
     }
 }

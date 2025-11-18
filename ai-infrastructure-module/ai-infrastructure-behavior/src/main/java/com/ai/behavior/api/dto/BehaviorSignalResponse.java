@@ -1,7 +1,6 @@
 package com.ai.behavior.api.dto;
 
 import com.ai.behavior.model.BehaviorSignal;
-import com.ai.behavior.model.EventType;
 import lombok.Builder;
 import lombok.Value;
 
@@ -20,7 +19,6 @@ public class BehaviorSignalResponse {
     String schemaId;
     String signalKey;
     String version;
-    EventType eventType;
     String entityType;
     String entityId;
     String source;
@@ -38,7 +36,6 @@ public class BehaviorSignalResponse {
             .schemaId(event.getSchemaId())
             .signalKey(event.getSignalKey())
             .version(event.getVersion())
-            .eventType(event.getEventType())
             .entityType(event.getEntityType())
             .entityId(event.getEntityId())
             .source(event.getSource())

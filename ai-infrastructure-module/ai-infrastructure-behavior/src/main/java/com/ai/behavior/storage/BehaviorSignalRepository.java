@@ -1,7 +1,6 @@
 package com.ai.behavior.storage;
 
 import com.ai.behavior.model.BehaviorSignal;
-import com.ai.behavior.model.EventType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -18,8 +17,6 @@ public interface BehaviorSignalRepository extends JpaRepository<BehaviorSignal, 
     List<BehaviorSignal> findByUserIdOrderByTimestampDesc(UUID userId);
 
     List<BehaviorSignal> findBySessionIdOrderByTimestampDesc(String sessionId);
-
-    List<BehaviorSignal> findByUserIdAndEventTypeOrderByTimestampDesc(UUID userId, EventType eventType);
 
     List<BehaviorSignal> findTop200ByUserIdOrderByTimestampDesc(UUID userId);
 

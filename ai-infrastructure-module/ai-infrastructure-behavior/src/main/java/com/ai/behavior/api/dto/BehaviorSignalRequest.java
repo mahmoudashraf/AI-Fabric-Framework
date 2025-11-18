@@ -1,9 +1,8 @@
 package com.ai.behavior.api.dto;
 
 import com.ai.behavior.model.BehaviorSignal;
-import com.ai.behavior.model.EventType;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -18,12 +17,10 @@ public class BehaviorSignalRequest {
     private UUID userId;
     private String tenantId;
     private String sessionId;
+    @NotBlank
     private String schemaId;
     private String signalKey;
     private String version;
-
-    @NotNull
-    private EventType eventType;
 
     private String entityType;
     private String entityId;
@@ -31,32 +28,22 @@ public class BehaviorSignalRequest {
     private String channel;
     private LocalDateTime timestamp;
     private Map<String, Object> attributes;
-    private Map<String, Object> metadata;
 
     public BehaviorSignal toEvent() {
-        Map<String, Object> payload = attributes != null ? attributes : metadata;
         return BehaviorSignal.builder()
             .id(id)
             .userId(userId)
             .tenantId(tenantId)
             .sessionId(sessionId)
-            .schemaId(resolveSchemaId())
+            .schemaId(schemaId)
             .signalKey(signalKey)
             .version(version)
-            .eventType(eventType)
             .entityType(entityType)
             .entityId(entityId)
             .source(source)
             .channel(channel)
             .timestamp(timestamp)
-            .attributes(payload)
+            .attributes(attributes)
             .build();
-    }
-
-    private String resolveSchemaId() {
-        if (schemaId != null && !schemaId.isBlank()) {
-            return schemaId;
-        }
-        return eventType != null ? "legacy." + eventType.name().toLowerCase() : null;
     }
 }

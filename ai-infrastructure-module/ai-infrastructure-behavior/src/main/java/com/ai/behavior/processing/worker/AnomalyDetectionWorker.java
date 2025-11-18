@@ -2,10 +2,10 @@ package com.ai.behavior.processing.worker;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.model.BehaviorAlert;
-import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
-import com.ai.behavior.model.EventType;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.processing.analyzer.AnomalyAnalyzer;
+import com.ai.behavior.schema.BehaviorSchemaRegistry;
 import com.ai.behavior.storage.BehaviorAlertRepository;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -26,6 +27,7 @@ public class AnomalyDetectionWorker {
     private final BehaviorDataProvider dataProvider;
     private final BehaviorAlertRepository alertRepository;
     private final AnomalyAnalyzer anomalyAnalyzer;
+    private final BehaviorSchemaRegistry schemaRegistry;
 
     @Scheduled(cron = "${ai.behavior.processing.anomaly.schedule:0 * * * * *}")
     @Transactional
@@ -34,16 +36,26 @@ public class AnomalyDetectionWorker {
             return;
         }
         LocalDateTime since = LocalDateTime.now().minusMinutes(1);
-        List<BehaviorSignal> purchases = dataProvider.query(BehaviorQuery.builder()
-            .eventType(EventType.PURCHASE)
-            .startTime(since)
-            .limit(500)
-            .build());
-        if (purchases.isEmpty()) {
+        List<String> monitoredSchemas = schemaRegistry.getAll().stream()
+            .filter(def -> def.hasTag("transaction"))
+            .map(def -> def.getId())
+            .toList();
+        if (monitoredSchemas.isEmpty()) {
+            return;
+        }
+        List<BehaviorSignal> signals = new ArrayList<>();
+        for (String schemaId : monitoredSchemas) {
+            signals.addAll(dataProvider.query(BehaviorQuery.builder()
+                .schemaId(schemaId)
+                .startTime(since)
+                .limit(200)
+                .build()));
+        }
+        if (signals.isEmpty()) {
             return;
         }
         double sensitivity = properties.getProcessing().getAnomaly().getSensitivity();
-        List<BehaviorAlert> alerts = anomalyAnalyzer.detect(purchases, sensitivity);
+        List<BehaviorAlert> alerts = anomalyAnalyzer.detect(signals, sensitivity);
         if (!alerts.isEmpty()) {
             alertRepository.saveAll(alerts);
             log.debug("Persisted {} behavior alerts", alerts.size());

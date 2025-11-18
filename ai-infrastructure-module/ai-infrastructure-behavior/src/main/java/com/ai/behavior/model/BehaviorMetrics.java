@@ -12,18 +12,22 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
  * Real-time aggregated metrics updated by async workers.
  */
 @Entity
-@Table(name = "behavior_metrics",
+@Table(name = "behavior_signal_metrics",
     indexes = {
-        @Index(name = "idx_behavior_metrics_user_date", columnList = "user_id,metric_date DESC"),
-        @Index(name = "idx_behavior_metrics_date", columnList = "metric_date DESC")
+        @Index(name = "idx_behavior_signal_metrics_user_date", columnList = "user_id,metric_date DESC")
     }
 )
 @Getter
@@ -40,70 +44,39 @@ public class BehaviorMetrics {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    @Column(name = "tenant_id")
+    private String tenantId;
+
     @Column(name = "metric_date", nullable = false)
     private LocalDate metricDate;
 
-    @Column(name = "view_count")
-    private int viewCount;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metrics", columnDefinition = "jsonb")
+    private Map<String, Double> metrics;
 
-    @Column(name = "click_count")
-    private int clickCount;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "attributes", columnDefinition = "jsonb")
+    private Map<String, Object> attributes;
 
-    @Column(name = "search_count")
-    private int searchCount;
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
-    @Column(name = "add_to_cart_count")
-    private int addToCartCount;
-
-    @Column(name = "purchase_count")
-    private int purchaseCount;
-
-    @Column(name = "feedback_count")
-    private int feedbackCount;
-
-    @Column(name = "session_count")
-    private int sessionCount;
-
-    @Column(name = "avg_session_duration_seconds")
-    private int avgSessionDurationSeconds;
-
-    @Column(name = "conversion_rate")
-    private double conversionRate;
-
-    @Column(name = "total_revenue")
-    private double totalRevenue;
-
-    public void incrementView() {
-        viewCount++;
-    }
-
-    public void incrementClick() {
-        clickCount++;
-    }
-
-    public void incrementSearch() {
-        searchCount++;
-    }
-
-    public void incrementAddToCart() {
-        addToCartCount++;
-    }
-
-    public void incrementFeedback() {
-        feedbackCount++;
-    }
-
-    public void incrementPurchase(double amount) {
-        purchaseCount++;
-        totalRevenue += amount;
-        recalculateConversionRate();
-    }
-
-    private void recalculateConversionRate() {
-        if (viewCount <= 0) {
-            conversionRate = 0.0d;
-            return;
+    public Map<String, Double> safeMetrics() {
+        if (metrics == null) {
+            metrics = new HashMap<>();
         }
-        conversionRate = (double) purchaseCount / viewCount;
+        return metrics;
+    }
+
+    public void incrementMetric(String key, double delta) {
+        safeMetrics().merge(key, delta, Double::sum);
+    }
+
+    public void setMetric(String key, double value) {
+        safeMetrics().put(key, value);
+    }
+
+    public double metricValue(String key) {
+        return safeMetrics().getOrDefault(key, 0.0d);
     }
 }

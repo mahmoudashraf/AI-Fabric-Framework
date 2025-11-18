@@ -3,7 +3,6 @@ package com.ai.behavior.processing.analyzer;
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorMetrics;
-import com.ai.behavior.model.EventType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -28,8 +27,8 @@ public class SegmentationAnalyzer {
                                            Map<String, Double> scores,
                                            List<String> patterns) {
         Map<String, Object> preferences = detectPreferences(events);
-        List<String> recommendations = buildRecommendations(patterns, scores, preferences);
-        String segment = determineSegment(patterns, scores);
+        List<String> recommendations = buildRecommendations(patterns, scores);
+        String segment = determineSegment(scores);
         return new SegmentationSnapshot(segment, preferences, recommendations);
     }
 
@@ -39,57 +38,55 @@ public class SegmentationAnalyzer {
             return new SegmentationSnapshot("insufficient_data", Map.of(), List.of("collect_additional_signals"));
         }
 
-        double totalRevenue = metrics.stream().mapToDouble(BehaviorMetrics::getTotalRevenue).sum();
-        int totalViews = metrics.stream().mapToInt(BehaviorMetrics::getViewCount).sum();
-        int totalPurchases = metrics.stream().mapToInt(BehaviorMetrics::getPurchaseCount).sum();
+        double totalSignals = metrics.stream().mapToDouble(m -> m.metricValue("count.total")).sum();
+        double transactionCount = metrics.stream().mapToDouble(m -> m.metricValue("value.transaction_count")).sum();
+        double amountTotal = metrics.stream().mapToDouble(m -> m.metricValue("value.amount_total")).sum();
 
         Map<String, Object> preferences = new HashMap<>();
         preferences.put("recent_days", metrics.stream()
             .map(BehaviorMetrics::getMetricDate)
             .max(Comparator.naturalOrder())
             .orElse(LocalDate.now()).toString());
-        preferences.put("avg_conversion_rate", totalViews == 0 ? 0.0 : (double) totalPurchases / totalViews);
-        preferences.put("total_revenue", totalRevenue);
+        preferences.put("total_signals", totalSignals);
+        preferences.put("transaction_count", transactionCount);
+        preferences.put("amount_total", amountTotal);
 
         String segment;
-        if (totalRevenue >= config.getVipPurchaseThreshold()) {
-            segment = "VIP";
-        } else if (totalPurchases > 0 && totalViews > 30) {
+        if (transactionCount > 0 && amountTotal >= config.getVipPurchaseThreshold()) {
+            segment = "high_value";
+        } else if (totalSignals >= config.getMinEvents()) {
             segment = "active";
-        } else if (totalViews > 50 && totalPurchases == 0) {
-            segment = "consideration";
-        } else if (totalViews < config.getMinEvents()) {
-            segment = "new_user";
+        } else if (totalSignals == 0) {
+            segment = "new";
         } else {
             segment = "dormant";
         }
 
         List<String> recommendations = new ArrayList<>();
-        switch (segment) {
-            case "VIP" -> recommendations.add("invite_loyalty_program");
-            case "consideration" -> recommendations.add("personalized_concierge_outreach");
-            case "dormant" -> recommendations.add("trigger_win_back_campaign");
-            case "active" -> recommendations.add("offer_referral_program");
-            default -> recommendations.add("monitor_behavior");
-        }
+        recommendations.add(switch (segment) {
+            case "high_value" -> "invite_loyalty_program";
+            case "active" -> "offer_referral_program";
+            case "dormant" -> "trigger_reengagement_sequence";
+            default -> "collect_additional_signals";
+        });
 
         return new SegmentationSnapshot(segment, preferences, recommendations);
     }
 
     private Map<String, Object> detectPreferences(List<BehaviorSignal> events) {
-        Map<String, Long> categoryCounts = events.stream()
-            .map(event -> event.metadataValue("category").orElse(null))
-            .filter(category -> category != null && !category.isBlank())
+        Map<String, Long> schemaCounts = events.stream()
+            .map(BehaviorSignal::getSchemaId)
+            .filter(schema -> schema != null && !schema.isBlank())
             .collect(Collectors.groupingBy(String::toLowerCase, Collectors.counting()));
 
-        List<String> topCategories = categoryCounts.entrySet().stream()
+        List<String> topSchemas = schemaCounts.entrySet().stream()
             .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
             .limit(3)
             .map(Map.Entry::getKey)
             .toList();
 
-        double avgPrice = events.stream()
-            .map(event -> event.metadataValue("price").orElse(null))
+        double avgDuration = events.stream()
+            .map(signal -> signal.attributeValue("durationSeconds").orElse(null))
             .filter(value -> value != null && !value.isBlank())
             .mapToDouble(value -> {
                 try {
@@ -98,49 +95,25 @@ public class SegmentationAnalyzer {
                     return 0.0;
                 }
             })
-            .filter(price -> price > 0)
+            .filter(duration -> duration > 0)
             .average()
             .orElse(0.0);
 
-        String priceRange;
-        if (avgPrice >= 1000) {
-            priceRange = "luxury";
-        } else if (avgPrice >= 500) {
-            priceRange = "premium";
-        } else if (avgPrice >= 100) {
-            priceRange = "mid_range";
-        } else {
-            priceRange = "entry";
-        }
-
         Map<String, Object> preferences = new HashMap<>();
-        preferences.put("preferred_categories", topCategories);
-        preferences.put("price_range", priceRange);
-        preferences.put("search_intensity", events.stream().filter(e -> e.getEventType() == EventType.SEARCH).count());
+        preferences.put("top_schemas", topSchemas);
+        preferences.put("avg_duration_seconds", avgDuration);
+        preferences.put("unique_schemas", schemaCounts.size());
         return preferences;
     }
 
     private List<String> buildRecommendations(List<String> patterns,
-                                              Map<String, Double> scores,
-                                              Map<String, Object> preferences) {
+                                              Map<String, Double> scores) {
         List<String> recommendations = new ArrayList<>();
-        if (patterns.contains("cart_abandoner")) {
-            recommendations.add("enable_cart_rescue_sequence");
-        }
-        if (patterns.contains("frequent_buyer")) {
-            recommendations.add("invite_loyalty_program");
-        }
-        if (patterns.contains("at_risk")) {
-            recommendations.add("trigger_win_back_campaign");
+        if (patterns.contains("dormant") || scores.getOrDefault("recency_score", 0.0) < 0.3) {
+            recommendations.add("trigger_reengagement_sequence");
         }
         if (scores.getOrDefault("engagement_score", 0.0) > 0.7) {
-            recommendations.add("offer_referral_program");
-        }
-        if (!preferences.isEmpty()) {
-            Object firstPreference = preferences.getOrDefault("preferred_categories", Collections.emptyList());
-            if (firstPreference instanceof List<?> list && !list.isEmpty()) {
-                recommendations.add("personalize_catalog_for_" + list.get(0));
-            }
+            recommendations.add("offer_advocacy_program");
         }
         if (recommendations.isEmpty()) {
             recommendations.add("monitor_behavior");
@@ -148,19 +121,18 @@ public class SegmentationAnalyzer {
         return recommendations;
     }
 
-    private String determineSegment(List<String> patterns, Map<String, Double> scores) {
-        if (patterns.contains("frequent_buyer") && scores.getOrDefault("engagement_score", 0.0) >= 0.6) {
-            return "VIP";
+    private String determineSegment(Map<String, Double> scores) {
+        double engagement = scores.getOrDefault("engagement_score", 0.0);
+        double recency = scores.getOrDefault("recency_score", 0.0);
+        if (engagement >= 0.75 && recency >= 0.6) {
+            return "active";
         }
-        if (patterns.contains("at_risk") || scores.getOrDefault("churn_risk", 0.0) > 0.7) {
-            return "at_risk";
+        if (engagement >= 0.4 && recency >= 0.4) {
+            return "steady";
         }
-        if (scores.getOrDefault("engagement_score", 0.0) < 0.2) {
+        if (recency < 0.2) {
             return "dormant";
         }
-        if (patterns.contains("cart_abandoner")) {
-            return "needs_nurturing";
-        }
-        return "active";
+        return "emerging";
     }
 }

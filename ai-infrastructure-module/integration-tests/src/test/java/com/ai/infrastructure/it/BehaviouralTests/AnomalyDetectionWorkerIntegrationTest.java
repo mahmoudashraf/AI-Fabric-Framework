@@ -3,7 +3,6 @@ package com.ai.infrastructure.it.BehaviouralTests;
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.model.BehaviorAlert;
 import com.ai.behavior.model.BehaviorSignal;
-import com.ai.behavior.model.EventType;
 import com.ai.behavior.processing.worker.AnomalyDetectionWorker;
 import com.ai.behavior.storage.BehaviorAlertRepository;
 import com.ai.behavior.storage.BehaviorDataProvider;
@@ -65,7 +64,7 @@ public class AnomalyDetectionWorkerIntegrationTest {
         List<BehaviorAlert> alerts = behaviorAlertRepository.findAll();
         assertThat(alerts).hasSize(3);
         assertThat(alerts)
-            .anyMatch(alert -> "purchase_value_anomaly".equals(alert.getAlertType()) && "CRITICAL".equals(alert.getSeverity()))
+            .anyMatch(alert -> "value_anomaly".equals(alert.getAlertType()) && "CRITICAL".equals(alert.getSeverity()))
             .anyMatch(alert -> "velocity_anomaly".equals(alert.getAlertType()) && !"LOW".equals(alert.getSeverity()));
     }
 
@@ -73,9 +72,9 @@ public class AnomalyDetectionWorkerIntegrationTest {
         return BehaviorSignal.builder()
             .id(UUID.randomUUID())
             .userId(userId)
-            .eventType(EventType.PURCHASE)
+            .schemaId("conversion.transaction")
             .timestamp(timestamp)
-            .metadata(new java.util.HashMap<>(java.util.Map.of("amount", amount)))
+            .attributes(new java.util.HashMap<>(java.util.Map.of("amount", amount)))
             .build();
     }
 

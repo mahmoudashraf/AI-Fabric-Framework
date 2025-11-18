@@ -44,8 +44,8 @@ public class BehaviorAlert {
     @Column(name = "user_id")
     private UUID userId;
 
-    @Column(name = "behavior_event_id")
-    private UUID behaviorEventId;
+    @Column(name = "behavior_signal_id")
+    private UUID behaviorSignalId;
 
     @Column(name = "alert_type", nullable = false, length = 64)
     private String alertType;

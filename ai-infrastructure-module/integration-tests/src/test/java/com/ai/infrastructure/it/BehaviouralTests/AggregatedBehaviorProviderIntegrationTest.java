@@ -3,7 +3,6 @@ package com.ai.infrastructure.it.BehaviouralTests;
 import com.ai.behavior.adapter.ExternalAnalyticsAdapter;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
-import com.ai.behavior.model.EventType;
 import com.ai.behavior.service.BehaviorQueryService;
 import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
@@ -60,26 +59,26 @@ public class AggregatedBehaviorProviderIntegrationTest {
         BehaviorSignal databaseEvent = BehaviorSignal.builder()
             .id(UUID.randomUUID())
             .userId(userId)
-            .eventType(EventType.VIEW)
+            .schemaId("engagement.view")
             .timestamp(LocalDateTime.now().minusMinutes(5))
-            .metadata(Map.of("source", "database"))
+            .attributes(Map.of("source", "database"))
             .build();
         eventRepository.save(databaseEvent);
 
         BehaviorSignal externalEvent = BehaviorSignal.builder()
             .id(UUID.randomUUID())
             .userId(userId)
-            .eventType(EventType.CLICK)
+            .schemaId("engagement.interaction")
             .timestamp(LocalDateTime.now().minusMinutes(1))
-            .metadata(Map.of("source", "external"))
+            .attributes(Map.of("source", "external"))
             .build();
         externalEventHolder.setEvents(List.of(externalEvent));
 
         List<BehaviorSignal> result = behaviorQueryService.recentEvents(userId, 10);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getMetadata().get("source")).isEqualTo("external");
-        assertThat(result.get(1).getMetadata().get("source")).isEqualTo("database");
+        assertThat(result.get(0).getAttributes().get("source")).isEqualTo("external");
+        assertThat(result.get(1).getAttributes().get("source")).isEqualTo("database");
     }
 
     @TestConfiguration
@@ -96,7 +95,7 @@ public class AggregatedBehaviorProviderIntegrationTest {
             return new ExternalAnalyticsAdapter() {
                 @Override
                 public List<BehaviorSignal> fetchEvents(BehaviorQuery query) {
-                    if (query.getUserId() == null) {
+                      if (query.getUserId() == null) {
                         return List.of();
                     }
                     return new ArrayList<>(holder.getEvents());

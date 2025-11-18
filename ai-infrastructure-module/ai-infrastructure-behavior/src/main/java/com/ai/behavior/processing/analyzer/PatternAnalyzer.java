@@ -1,12 +1,12 @@
 package com.ai.behavior.processing.analyzer;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
-import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorInsights;
-import com.ai.behavior.model.EventType;
+import com.ai.behavior.model.BehaviorSignal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -21,7 +21,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PatternAnalyzer implements BehaviorAnalyzer {
 
-    private static final String ANALYSIS_VERSION = "1.0.0";
+    private static final String ANALYSIS_VERSION = "2.0.0";
 
     private final BehaviorModuleProperties properties;
     private final SegmentationAnalyzer segmentationAnalyzer;
@@ -64,10 +64,10 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
             .userId(userId)
             .patterns(List.of("insufficient_data"))
             .scores(Map.of(
-                "engagement_score", 0.0,
-                "conversion_probability", 0.1,
-                "churn_risk", 0.5,
-                "lifetime_value_estimate", 0.0
+                  "engagement_score", 0.0,
+                  "recency_score", 0.0,
+                  "diversity_score", 0.0,
+                  "velocity_score", 0.0
             ))
             .segment("new_user")
             .preferences(Map.of())
@@ -81,62 +81,70 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
     private Map<String, Double> computeScores(List<BehaviorSignal> events) {
         Map<String, Double> scores = new HashMap<>();
         long totalEvents = events.size();
-        long viewCount = events.stream().filter(e -> e.getEventType() == EventType.VIEW).count();
-        long addToCart = events.stream().filter(e -> e.getEventType() == EventType.ADD_TO_CART).count();
-        long purchases = events.stream().filter(e -> e.getEventType() == EventType.PURCHASE).count();
-        long feedbacks = events.stream().filter(e -> e.getEventType() == EventType.FEEDBACK || e.getEventType() == EventType.REVIEW).count();
+        double engagementScore = Math.min(1.0, Math.log(totalEvents + 1) / 4.0);
+        double diversityScore = totalEvents == 0 ? 0.0 :
+            (double) events.stream().map(BehaviorSignal::getSchemaId).distinct().count() / totalEvents;
 
-        double engagementScore = Math.min(1.0, Math.log(totalEvents + 1) / 5.0);
-        double conversionProbability = viewCount == 0 ? 0.0 : (double) purchases / viewCount;
-        double churnRisk = Math.max(0.05, 1.0 - engagementScore - conversionProbability / 2.0);
-        double lifetimeValue = purchases * 250.0;
+        LocalDateTime mostRecent = events.stream()
+            .map(BehaviorSignal::getTimestamp)
+            .filter(t -> t != null)
+            .max(LocalDateTime::compareTo)
+            .orElse(LocalDateTime.now().minusWeeks(1));
+        double recencyHours = Duration.between(mostRecent, LocalDateTime.now()).toHours();
+        double recencyScore = Math.max(0.0, 1.0 - (recencyHours / 168.0));
+
+        long lastHourCount = events.stream()
+            .map(BehaviorSignal::getTimestamp)
+            .filter(t -> t != null && Duration.between(t, LocalDateTime.now()).toHours() <= 1)
+            .count();
+        double velocityScore = Math.min(1.0, lastHourCount / 20.0);
 
         scores.put("engagement_score", engagementScore);
-        scores.put("conversion_probability", conversionProbability);
-        scores.put("churn_risk", Math.min(1.0, churnRisk));
-        scores.put("lifetime_value_estimate", lifetimeValue);
-        scores.put("feedback_density", totalEvents == 0 ? 0.0 : (double) feedbacks / totalEvents);
-        scores.put("cart_intent", totalEvents == 0 ? 0.0 : (double) addToCart / totalEvents);
+        scores.put("diversity_score", diversityScore);
+        scores.put("recency_score", recencyScore);
+        scores.put("velocity_score", velocityScore);
         return scores;
     }
 
     private List<String> detectPatterns(List<BehaviorSignal> events, Map<String, Double> scores) {
         Set<String> patterns = new HashSet<>();
-        long purchases = events.stream().filter(e -> e.getEventType() == EventType.PURCHASE).count();
-        long addToCart = events.stream().filter(e -> e.getEventType() == EventType.ADD_TO_CART).count();
-        long views = events.stream().filter(e -> e.getEventType() == EventType.VIEW).count();
+        double engagement = scores.getOrDefault("engagement_score", 0.0);
+        double recency = scores.getOrDefault("recency_score", 0.0);
+        double velocity = scores.getOrDefault("velocity_score", 0.0);
 
-        if (purchases >= 3) {
-            patterns.add("frequent_buyer");
+        if (engagement >= 0.8) {
+            patterns.add("power_user");
+        } else if (engagement < 0.2) {
+            patterns.add("low_activity");
+        } else {
+            patterns.add("steady_state");
         }
-        if (addToCart > purchases && addToCart > 0) {
-            patterns.add("cart_abandoner");
+
+        if (recency < 0.3) {
+            patterns.add("dormant");
+        } else if (recency > 0.7) {
+            patterns.add("recent_engagement");
         }
-        if (isEveningShopper(events)) {
-            patterns.add("evening_shopper");
+
+        if (velocity > 0.6) {
+            patterns.add("burst_activity");
+        }
+        if (isEveningHeavy(events)) {
+            patterns.add("evening_bias");
         }
         if (isWeekendHeavy(events)) {
-            patterns.add("weekend_loyalist");
-        }
-        if (hasHighSearchIntent(events)) {
-            patterns.add("inspiration_seeker");
-        }
-        if (views > 0 && scores.getOrDefault("engagement_score", 0.0) < 0.2) {
-            patterns.add("at_risk");
-        }
-
-        if (patterns.isEmpty()) {
-            patterns.add("steady_state");
+            patterns.add("weekend_bias");
         }
         return new ArrayList<>(patterns);
     }
 
-    private boolean isEveningShopper(List<BehaviorSignal> events) {
+    private boolean isEveningHeavy(List<BehaviorSignal> events) {
         long eveningEvents = events.stream()
-            .filter(e -> e.getTimestamp() != null)
-            .filter(e -> {
-                int hour = e.getTimestamp().getHour();
-                return hour >= 18 && hour <= 22;
+            .map(BehaviorSignal::getTimestamp)
+            .filter(timestamp -> timestamp != null)
+            .filter(timestamp -> {
+                int hour = timestamp.getHour();
+                return hour >= 18 || hour < 4;
             })
             .count();
         return !events.isEmpty() && (double) eveningEvents / events.size() >= 0.6;
@@ -144,19 +152,13 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
 
     private boolean isWeekendHeavy(List<BehaviorSignal> events) {
         long weekendEvents = events.stream()
-            .filter(e -> e.getTimestamp() != null)
-            .filter(e -> switch (e.getTimestamp().getDayOfWeek()) {
+            .map(BehaviorSignal::getTimestamp)
+            .filter(timestamp -> timestamp != null)
+            .filter(timestamp -> switch (timestamp.getDayOfWeek()) {
                 case SATURDAY, SUNDAY -> true;
                 default -> false;
             })
             .count();
         return !events.isEmpty() && (double) weekendEvents / events.size() >= 0.5;
-    }
-
-    private boolean hasHighSearchIntent(List<BehaviorSignal> events) {
-        long searchEvents = events.stream()
-            .filter(e -> e.getEventType() == EventType.SEARCH)
-            .count();
-        return !events.isEmpty() && (double) searchEvents / events.size() >= 0.25;
     }
 }

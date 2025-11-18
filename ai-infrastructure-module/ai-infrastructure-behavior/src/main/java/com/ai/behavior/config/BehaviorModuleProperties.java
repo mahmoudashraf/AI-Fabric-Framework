@@ -19,6 +19,7 @@ public class BehaviorModuleProperties {
     private Retention retention = new Retention();
     private Performance performance = new Performance();
     private Providers providers = new Providers();
+    private Schemas schemas = new Schemas();
 
     @Data
     public static class Sink {
@@ -95,7 +96,7 @@ public class BehaviorModuleProperties {
         public static class Embedding {
             private boolean enabled = true;
             private boolean async = true;
-            private List<String> eventTypes = List.of("FEEDBACK", "REVIEW", "RATING", "SEARCH");
+            private List<String> schemaIds = List.of("feedback.message", "intent.search");
             private int minTextLength = 10;
         }
 
@@ -104,6 +105,7 @@ public class BehaviorModuleProperties {
             private boolean enabled = true;
             private String schedule = "0 * * * * *";
             private double sensitivity = 0.8d;
+            private double amountThreshold = 10000.0d;
         }
 
         @Data
@@ -164,5 +166,12 @@ public class BehaviorModuleProperties {
             private List<String> providerOrder = new ArrayList<>(List.of("database", "external"));
             private int maxProviders = 2;
         }
+    }
+
+    @Data
+    public static class Schemas {
+        private String path = "classpath:/behavior/schemas/*.yml";
+        private boolean failOnStartupIfMissing = true;
+        private int maxAttributeCount = 128;
     }
 }

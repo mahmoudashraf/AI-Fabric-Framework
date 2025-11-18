@@ -34,7 +34,7 @@ public class BehaviorIngestionService {
             sink.accept(enriched);
             ingestionMetrics.record(enriched);
             publishEvent(enriched);
-            log.debug("Ingested behavior event {}", enriched.getId());
+            log.debug("Ingested behavior signal {}", enriched.getId());
             return enriched;
         } catch (BehaviorIngestionException ex) {
             throw ex;
@@ -71,9 +71,6 @@ public class BehaviorIngestionService {
         if (event.getId() == null) {
             event.setId(UUID.randomUUID());
         }
-        if (event.getSchemaId() == null) {
-            event.setSchemaId(resolveLegacySchema(event.getEventType()));
-        }
         if (event.getVersion() == null) {
             event.setVersion("1.0");
         }
@@ -86,13 +83,6 @@ public class BehaviorIngestionService {
         event.safeAttributes().put("_ingested_at", event.getIngestedAt().toString());
         event.safeAttributes().put("_version", event.getVersion());
         return event;
-    }
-
-    private String resolveLegacySchema(com.ai.behavior.model.EventType eventType) {
-        if (eventType == null) {
-            return "legacy.unknown";
-        }
-        return "legacy." + eventType.name().toLowerCase();
     }
 
     private void publishEvent(BehaviorSignal event) {

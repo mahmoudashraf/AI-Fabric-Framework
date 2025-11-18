@@ -100,8 +100,8 @@ public class RestExternalAnalyticsAdapter implements ExternalAnalyticsAdapter {
         if (query.getSessionId() != null) {
             payload.put("sessionId", query.getSessionId());
         }
-        if (query.getEventType() != null) {
-            payload.put("eventType", query.getEventType().name());
+        if (query.getSchemaId() != null) {
+            payload.put("schemaId", query.getSchemaId());
         }
         if (query.getEntityType() != null) {
             payload.put("entityType", query.getEntityType());
@@ -117,8 +117,8 @@ public class RestExternalAnalyticsAdapter implements ExternalAnalyticsAdapter {
         }
         payload.put("limit", query.getLimit());
         payload.put("ascending", query.isAscending());
-        if (!query.safeMetadataEquals().isEmpty()) {
-            payload.put("metadataEquals", query.safeMetadataEquals());
+        if (!query.safeAttributeEquals().isEmpty()) {
+            payload.put("attributeEquals", query.safeAttributeEquals());
         }
         return payload;
     }

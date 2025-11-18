@@ -43,7 +43,7 @@ public class BehaviorRAGService {
         builder.append("Preferences: ").append(insights.getPreferences()).append("\n\n");
         builder.append("Recent activity:\n");
         var grouped = events.stream()
-            .collect(Collectors.groupingBy(e -> e.getEventType().name(), Collectors.counting()));
+            .collect(Collectors.groupingBy(BehaviorSignal::getSchemaId, Collectors.counting()));
         grouped.forEach((type, count) -> builder.append("- ").append(type).append(": ").append(count).append("\n"));
         return builder.toString();
     }

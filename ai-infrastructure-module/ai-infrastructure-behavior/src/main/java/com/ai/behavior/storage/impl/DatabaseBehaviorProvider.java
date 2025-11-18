@@ -33,8 +33,8 @@ public class DatabaseBehaviorProvider implements BehaviorDataProvider {
             specification = specification.and((root, cq, cb) -> cb.equal(root.get("sessionId"), query.getSessionId()));
         }
 
-        if (query.getEventType() != null) {
-            specification = specification.and((root, cq, cb) -> cb.equal(root.get("eventType"), query.getEventType()));
+        if (query.getSchemaId() != null) {
+            specification = specification.and((root, cq, cb) -> cb.equal(root.get("schemaId"), query.getSchemaId()));
         }
 
         if (query.getEntityType() != null) {
@@ -53,10 +53,10 @@ public class DatabaseBehaviorProvider implements BehaviorDataProvider {
             specification = specification.and((root, cq, cb) -> cb.lessThanOrEqualTo(root.get("timestamp"), query.getEndTime()));
         }
 
-        if (!query.safeMetadataEquals().isEmpty()) {
-            for (var entry : query.safeMetadataEquals().entrySet()) {
+        if (!query.safeAttributeEquals().isEmpty()) {
+            for (var entry : query.safeAttributeEquals().entrySet()) {
                 specification = specification.and((root, cq, cb) -> cb.equal(
-                    cb.function("jsonb_extract_path_text", String.class, root.get("metadata"), cb.literal(entry.getKey())),
+                    cb.function("jsonb_extract_path_text", String.class, root.get("attributes"), cb.literal(entry.getKey())),
                     entry.getValue() != null ? entry.getValue().toString() : null
                 ));
             }

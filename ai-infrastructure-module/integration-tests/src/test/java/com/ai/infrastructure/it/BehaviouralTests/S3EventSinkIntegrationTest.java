@@ -2,7 +2,6 @@ package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.model.BehaviorSignal;
-import com.ai.behavior.model.EventType;
 import com.ai.infrastructure.it.TestApplication;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
@@ -105,11 +104,11 @@ public class S3EventSinkIntegrationTest {
         BehaviorSignal event = ingestionService.ingest(BehaviorSignal.builder()
             .userId(UUID.randomUUID())
             .sessionId("s3-session")
-            .eventType(EventType.SEARCH)
+            .schemaId("intent.search")
             .entityType("catalog")
             .entityId("catalog-" + UUID.randomUUID())
             .timestamp(LocalDateTime.now())
-            .metadata(new HashMap<>(Map.of("channel", "mobile", "query", "ai sneakers")))
+            .attributes(new HashMap<>(Map.of("channel", "mobile", "query", "ai sneakers")))
             .build());
 
         ListObjectsV2Response objects = s3Client.listObjectsV2(ListObjectsV2Request.builder()
@@ -131,8 +130,8 @@ public class S3EventSinkIntegrationTest {
         BehaviorSignal stored = objectMapper.readValue(decompressed, BehaviorSignal.class);
 
         assertThat(stored.getId()).isEqualTo(event.getId());
-        assertThat(stored.getEventType()).isEqualTo(EventType.SEARCH);
-        assertThat(stored.getMetadata()).containsEntry("channel", "mobile");
+        assertThat(stored.getSchemaId()).isEqualTo("intent.search");
+        assertThat(stored.getAttributes()).containsEntry("channel", "mobile");
     }
 
     private void purgeBucket() {

@@ -82,11 +82,11 @@ public class RedisEventSinkIntegrationTest {
         BehaviorSignal event = ingestionService.ingest(BehaviorSignal.builder()
             .userId(UUID.randomUUID())
             .sessionId("redis-session")
-            .eventType(EventType.VIEW)
+            .schemaId("engagement.view")
             .entityType("product")
             .entityId("redis-product")
             .timestamp(LocalDateTime.now())
-            .metadata(new HashMap<>(Map.of("channel", "web")))
+            .attributes(new HashMap<>(Map.of("channel", "web")))
             .build());
 
         String key = "behavior:event:" + event.getId();

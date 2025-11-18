@@ -20,9 +20,9 @@ public class BehaviorQueryService {
     private final BehaviorDataProvider dataProvider;
 
     @Transactional(readOnly = true)
-    public BehaviorSignal getEvent(UUID id) {
+    public BehaviorSignal getSignal(UUID id) {
         return eventRepository.findById(id)
-            .orElseThrow(() -> new BehaviorAnalysisException("Behavior event not found: " + id));
+            .orElseThrow(() -> new BehaviorAnalysisException("Behavior signal not found: " + id));
     }
 
     @Transactional(readOnly = true)

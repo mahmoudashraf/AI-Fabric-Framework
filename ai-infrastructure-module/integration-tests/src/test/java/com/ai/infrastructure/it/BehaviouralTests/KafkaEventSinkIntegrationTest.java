@@ -80,11 +80,11 @@ public class KafkaEventSinkIntegrationTest {
             ingestionService.ingest(BehaviorSignal.builder()
                 .userId(userId)
                 .sessionId("session-" + i)
-                .eventType(EventType.PURCHASE)
+                .schemaId("conversion.transaction")
                 .entityType("order")
                 .entityId("order-" + i)
                 .timestamp(LocalDateTime.now().minusSeconds(i))
-                .metadata(new HashMap<>(Map.of("index", i, "total", 100 + i)))
+                .attributes(new HashMap<>(Map.of("index", i, "total", 100 + i)))
                 .build());
         }
 

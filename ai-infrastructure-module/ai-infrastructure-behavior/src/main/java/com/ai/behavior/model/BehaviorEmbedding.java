@@ -41,8 +41,8 @@ public class BehaviorEmbedding {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "behavior_event_id", nullable = false)
-    private UUID behaviorEventId;
+    @Column(name = "behavior_signal_id", nullable = false)
+    private UUID behaviorSignalId;
 
     @Column(name = "embedding_type", nullable = false, length = 40)
     private String embeddingType;

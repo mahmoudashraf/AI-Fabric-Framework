@@ -17,27 +17,27 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/ai-behavior/ingest")
+@RequestMapping("/api/ai-behavior/signals")
 @RequiredArgsConstructor
 public class BehaviorIngestionController {
 
     private final BehaviorIngestionService ingestionService;
 
-    @PostMapping("/event")
+    @PostMapping
     public ResponseEntity<BehaviorIngestionResponse> ingest(@Valid @RequestBody BehaviorSignalRequest request) {
-        BehaviorSignal event = ingestionService.ingest(request.toEvent());
-        return ResponseEntity.accepted().body(BehaviorIngestionResponse.accepted(event.getId()));
+        BehaviorSignal signal = ingestionService.ingest(request.toEvent());
+        return ResponseEntity.accepted().body(BehaviorIngestionResponse.accepted(signal.getId()));
     }
 
     @PostMapping("/batch")
     public ResponseEntity<Map<String, Object>> ingestBatch(@Valid @RequestBody BehaviorBatchIngestionRequest request) {
-        List<BehaviorSignal> events = request.getEvents().stream()
+        List<BehaviorSignal> signals = request.getEvents().stream()
             .map(BehaviorSignalRequest::toEvent)
             .toList();
-        ingestionService.ingestBatch(events);
+        ingestionService.ingestBatch(signals);
         return ResponseEntity.accepted().body(Map.of(
             "status", "accepted",
-            "count", events.size()
+            "count", signals.size()
         ));
     }
 }

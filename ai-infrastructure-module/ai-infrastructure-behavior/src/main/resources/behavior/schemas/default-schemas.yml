@@ -1,0 +1,96 @@
+- id: engagement.view
+  domain: engagement
+  summary: Generic content or page view.
+  version: "1.0"
+  tags: [view, engagement]
+  attributes:
+    - name: entityId
+      type: string
+      required: false
+      maxLength: 64
+    - name: durationSeconds
+      type: number
+      required: false
+      minimum: 0
+    - name: device
+      type: string
+      required: false
+      maxLength: 32
+  embedding:
+    enabled: false
+
+- id: engagement.interaction
+  domain: engagement
+  summary: Button clicks or lightweight interactions.
+  version: "1.0"
+  tags: [interaction, engagement]
+  attributes:
+    - name: action
+      type: string
+      required: true
+      maxLength: 64
+    - name: targetId
+      type: string
+      required: false
+      maxLength: 64
+  embedding:
+    enabled: false
+
+- id: intent.search
+  domain: intent
+  summary: User submitted search or query string.
+  version: "1.0"
+  tags: [search, text]
+  attributes:
+    - name: query
+      type: string
+      required: true
+      maxLength: 512
+    - name: filters
+      type: object
+      required: false
+  embedding:
+    enabled: true
+    textField: query
+    minTextLength: 3
+
+- id: feedback.message
+  domain: feedback
+  summary: Free-form textual feedback or review.
+  version: "1.0"
+  tags: [feedback, text]
+  attributes:
+    - name: message
+      type: string
+      required: true
+      maxLength: 2000
+    - name: rating
+      type: number
+      required: false
+      minimum: 0
+      maximum: 5
+  embedding:
+    enabled: true
+    textField: message
+    minTextLength: 10
+
+- id: conversion.transaction
+  domain: conversion
+  summary: Any committed transaction or goal completion.
+  version: "1.0"
+  tags: [transaction, conversion]
+  attributes:
+    - name: amount
+      type: number
+      required: false
+      minimum: 0
+    - name: currency
+      type: string
+      required: false
+      maxLength: 8
+    - name: referenceId
+      type: string
+      required: false
+      maxLength: 64
+  embedding:
+    enabled: false

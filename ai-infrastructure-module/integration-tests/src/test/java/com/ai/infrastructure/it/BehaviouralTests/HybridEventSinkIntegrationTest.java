@@ -1,10 +1,9 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
-import com.ai.behavior.ingestion.BehaviorSignalSink;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
+import com.ai.behavior.ingestion.BehaviorSignalSink;
 import com.ai.behavior.ingestion.impl.HybridEventSink;
 import com.ai.behavior.model.BehaviorSignal;
-import com.ai.behavior.model.EventType;
 import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -116,11 +115,11 @@ public class HybridEventSinkIntegrationTest {
             BehaviorSignal event = ingestionService.ingest(BehaviorSignal.builder()
                 .userId(UUID.randomUUID())
                 .sessionId("hybrid-session")
-                .eventType(EventType.VIEW)
+                .schemaId("engagement.view")
                 .entityType("article")
                 .entityId("article-" + i)
                 .timestamp(LocalDateTime.now().minusSeconds(i))
-                .metadata(new HashMap<>(Map.of("index", i)))
+                .attributes(new HashMap<>(Map.of("index", i)))
                 .build());
             ingested.add(event);
             log.info("Test ingested behavior event {}", event.getId());

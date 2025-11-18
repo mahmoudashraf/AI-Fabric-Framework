@@ -17,7 +17,7 @@ public class BehaviorQuery {
 
     UUID userId;
     String sessionId;
-    EventType eventType;
+    String schemaId;
     String entityType;
     String entityId;
     LocalDateTime startTime;
@@ -29,7 +29,7 @@ public class BehaviorQuery {
     @Builder.Default
     boolean ascending = false;
     @Builder.Default
-    Map<String, Object> metadataEquals = Collections.emptyMap();
+    Map<String, Object> attributeEquals = Collections.emptyMap();
 
     public static BehaviorQuery forUser(UUID userId) {
         return BehaviorQuery.builder()
@@ -50,12 +50,12 @@ public class BehaviorQuery {
         return toBuilder().limit(limit).build();
     }
 
-    public BehaviorQuery eventType(EventType type) {
-        return toBuilder().eventType(type).build();
+    public BehaviorQuery schemaId(String schemaId) {
+        return toBuilder().schemaId(schemaId).build();
     }
 
-    public Map<String, Object> safeMetadataEquals() {
-        return metadataEquals == null ? Collections.emptyMap() : metadataEquals;
+    public Map<String, Object> safeAttributeEquals() {
+        return attributeEquals == null ? Collections.emptyMap() : attributeEquals;
     }
 
     public boolean hasTimeWindow() {

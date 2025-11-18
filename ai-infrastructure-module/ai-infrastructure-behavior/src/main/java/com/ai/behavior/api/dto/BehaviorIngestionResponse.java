@@ -8,12 +8,12 @@ import java.util.UUID;
 @Value
 @Builder
 public class BehaviorIngestionResponse {
-    UUID eventId;
+    UUID signalId;
     String status;
 
     public static BehaviorIngestionResponse accepted(UUID id) {
         return BehaviorIngestionResponse.builder()
-            .eventId(id)
+            .signalId(id)
             .status("accepted")
             .build();
     }

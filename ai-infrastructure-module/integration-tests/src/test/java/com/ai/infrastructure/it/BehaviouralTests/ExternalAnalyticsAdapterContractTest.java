@@ -66,35 +66,35 @@ public class ExternalAnalyticsAdapterContractTest {
                   {
                     "id": "00000000-0000-0000-0000-000000000001",
                     "userId": "123e4567-e89b-12d3-a456-426614174000",
-                    "eventType": "VIEW",
+                      "schemaId": "engagement.view",
                     "timestamp": "2025-11-17T00:00:00",
-                    "metadata": {"source":"wiremock"}
+                      "attributes": {"source":"wiremock"}
                   },
                   {
                     "id": "00000000-0000-0000-0000-000000000002",
                     "userId": "123e4567-e89b-12d3-a456-426614174000",
-                    "eventType": "CLICK",
+                      "schemaId": "engagement.interaction",
                     "timestamp": "2025-11-17T00:01:00",
-                    "metadata": {"source":"wiremock"}
+                      "attributes": {"source":"wiremock"}
                   }
                 ]
                 """)));
 
         BehaviorQuery query = BehaviorQuery.builder()
             .userId(UUID.fromString("123e4567-e89b-12d3-a456-426614174000"))
-            .eventType(EventType.VIEW)
+            .schemaId("engagement.view")
             .limit(25)
             .build();
 
         List<BehaviorSignal> events = externalAnalyticsAdapter.fetchEvents(query);
 
         assertThat(events).hasSize(2);
-        assertThat(events.get(0).getEventType()).isEqualTo(EventType.VIEW);
-        assertThat(events.get(1).getEventType()).isEqualTo(EventType.CLICK);
+        assertThat(events.get(0).getSchemaId()).isEqualTo("engagement.view");
+        assertThat(events.get(1).getSchemaId()).isEqualTo("engagement.interaction");
 
         wireMockServer.verify(postRequestedFor(urlEqualTo("/behavior/query"))
             .withHeader("X-Api-Key", equalTo("test-key"))
             .withRequestBody(containing("\"limit\":25"))
-            .withRequestBody(containing("\"eventType\":\"VIEW\"")));
+            .withRequestBody(containing("\"schemaId\":\"engagement.view\"")));
     }
 }
