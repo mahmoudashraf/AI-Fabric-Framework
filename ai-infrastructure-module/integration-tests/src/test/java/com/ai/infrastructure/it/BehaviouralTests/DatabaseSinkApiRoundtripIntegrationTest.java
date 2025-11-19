@@ -5,7 +5,7 @@ import com.ai.behavior.api.dto.BehaviorSignalRequest;
 import com.ai.behavior.api.dto.BehaviorSignalResponse;
 import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
-import com.ai.infrastructure.it.behaviour.BehaviorPostgresIntegrationTest;
+import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,7 +14,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,9 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.behavior.sink.type=database"
     }
 )
-@ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-public class DatabaseSinkApiRoundtripIntegrationTest extends BehaviorPostgresIntegrationTest {
+@Import(PostgresTestContainerConfig.class)
+public class DatabaseSinkApiRoundtripIntegrationTest {
 
     @Autowired
     private TestRestTemplate restTemplate;

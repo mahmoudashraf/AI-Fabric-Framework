@@ -4,13 +4,14 @@ import com.ai.behavior.adapter.ExternalAnalyticsAdapter;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.infrastructure.it.TestApplication;
+import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -29,8 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.behavior.providers.aggregated.max-providers=1"
     }
 )
-@ActiveProfiles("dev")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Import(PostgresTestContainerConfig.class)
 public class ExternalAnalyticsAdapterContractTest {
 
     private static final WireMockServer wireMockServer = new WireMockServer(options().dynamicPort());

@@ -7,7 +7,7 @@ import com.ai.behavior.processing.worker.AnomalyDetectionWorker;
 import com.ai.behavior.storage.BehaviorAlertRepository;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import com.ai.infrastructure.it.TestApplication;
-import com.ai.infrastructure.it.behaviour.BehaviorPostgresIntegrationTest;
+import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,7 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,8 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.behavior.processing.anomaly.enabled=true"
     }
 )
-@ActiveProfiles("dev")
-public class AnomalyDetectionWorkerIntegrationTest extends BehaviorPostgresIntegrationTest {
+@Import(PostgresTestContainerConfig.class)
+public class AnomalyDetectionWorkerIntegrationTest {
 
     @Autowired
     private AnomalyDetectionWorker anomalyDetectionWorker;

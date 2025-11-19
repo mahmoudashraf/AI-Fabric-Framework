@@ -6,7 +6,7 @@ import com.ai.behavior.ingestion.impl.HybridEventSink;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
@@ -18,7 +18,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import redis.embedded.RedisServer;
@@ -39,24 +39,19 @@ import static org.assertj.core.api.Assertions.assertThat;
     properties = {
         "ai.behavior.sink.type=hybrid",
         "ai.behavior.sink.hybrid.hot-retention-seconds=120",
-        "spring.sql.init.mode=never",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect",
         "logging.level.com.ai.behavior.ingestion.impl=DEBUG"
     }
 )
-@ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@Import(PostgresTestContainerConfig.class)
 @Slf4j
 public class HybridEventSinkIntegrationTest {
 
-    private static EmbeddedPostgres POSTGRES;
     private static RedisServer redisServer;
     private static int redisPort;
 
     @BeforeAll
     static void startInfrastructure() throws IOException {
-        POSTGRES = EmbeddedPostgres.builder().setPort(0).start();
         redisPort = findAvailablePort();
         redisServer = new RedisServer(redisPort);
         redisServer.start();
@@ -67,17 +62,10 @@ public class HybridEventSinkIntegrationTest {
         if (redisServer != null) {
             redisServer.stop();
         }
-        if (POSTGRES != null) {
-            POSTGRES.close();
-        }
     }
 
     @DynamicPropertySource
     static void hybridProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl("postgres", "postgres"));
-        registry.add("spring.datasource.username", () -> "postgres");
-        registry.add("spring.datasource.password", () -> "postgres");
-        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.redis.host", () -> "localhost");
         registry.add("spring.redis.port", () -> redisPort);
         registry.add("spring.data.redis.host", () -> "localhost");
