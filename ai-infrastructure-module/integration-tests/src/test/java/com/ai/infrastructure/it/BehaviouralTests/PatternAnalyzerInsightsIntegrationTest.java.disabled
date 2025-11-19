@@ -5,24 +5,22 @@ import com.ai.behavior.service.BehaviorAnalysisService;
 import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.dto.BehaviorRequest;
 import com.ai.infrastructure.it.TestApplication;
+import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import com.ai.infrastructure.service.BehaviorService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 
 import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(
-    classes = TestApplication.class,
-    properties = "spring.sql.init.mode=always"
-)
-@ActiveProfiles("dev")
+@SpringBootTest(classes = TestApplication.class)
+@Import(PostgresTestContainerConfig.class)
 public class PatternAnalyzerInsightsIntegrationTest {
 
     @Autowired

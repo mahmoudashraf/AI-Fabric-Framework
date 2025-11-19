@@ -7,12 +7,13 @@ import com.ai.behavior.processing.worker.UserSegmentationWorker;
 import com.ai.behavior.storage.BehaviorInsightsRepository;
 import com.ai.behavior.storage.BehaviorMetricsRepository;
 import com.ai.infrastructure.it.TestApplication;
+import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -24,7 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(classes = TestApplication.class)
-@ActiveProfiles("dev")
+@Import(PostgresTestContainerConfig.class)
 public class UserSegmentationWorkerIntegrationTest {
 
     @Autowired

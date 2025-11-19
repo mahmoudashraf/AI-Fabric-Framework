@@ -3,14 +3,14 @@ package com.ai.infrastructure.it.BehaviouralTests;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.infrastructure.it.TestApplication;
-import com.ai.infrastructure.it.behaviour.BehaviorPostgresIntegrationTest;
+import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.AfterAll;
@@ -33,9 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.behavior.sink.redis.ttl-seconds=2"
     }
 )
-@ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-public class RedisEventSinkIntegrationTest extends BehaviorPostgresIntegrationTest {
+@Import(PostgresTestContainerConfig.class)
+public class RedisEventSinkIntegrationTest {
 
     private static RedisServer redisServer;
     private static int redisPort;
