@@ -1,3 +1,4 @@
+---
 - id: engagement.view
   domain: engagement
   summary: Generic content or page view.
@@ -5,15 +6,15 @@
   tags: [view, engagement]
   attributes:
     - name: entityId
-      type: string
+      type: STRING
       required: false
       maxLength: 64
     - name: durationSeconds
-      type: number
+      type: NUMBER
       required: false
       minimum: 0
     - name: device
-      type: string
+      type: STRING
       required: false
       maxLength: 32
   embedding:
@@ -26,11 +27,11 @@
   tags: [interaction, engagement]
   attributes:
     - name: action
-      type: string
+      type: STRING
       required: true
       maxLength: 64
     - name: targetId
-      type: string
+      type: STRING
       required: false
       maxLength: 64
   embedding:
@@ -43,11 +44,11 @@
   tags: [search, text]
   attributes:
     - name: query
-      type: string
+      type: STRING
       required: true
       maxLength: 512
     - name: filters
-      type: object
+      type: OBJECT
       required: false
   embedding:
     enabled: true
@@ -61,11 +62,11 @@
   tags: [feedback, text]
   attributes:
     - name: message
-      type: string
+      type: STRING
       required: true
       maxLength: 2000
     - name: rating
-      type: number
+      type: NUMBER
       required: false
       minimum: 0
       maximum: 5
@@ -81,15 +82,15 @@
   tags: [transaction, conversion]
   attributes:
     - name: amount
-      type: number
+      type: NUMBER
       required: false
       minimum: 0
     - name: currency
-      type: string
+      type: STRING
       required: false
       maxLength: 8
     - name: referenceId
-      type: string
+      type: STRING
       required: false
       maxLength: 64
   embedding:
