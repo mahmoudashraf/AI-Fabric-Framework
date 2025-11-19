@@ -274,7 +274,8 @@ Spring Boot, JPA, etc.
    - Update README + development guide sections to describe schema registration workflow and SPI usage.
 
 8. **Testing & observability**
-   - Build unit + integration tests covering schema validation, projector execution, insight strategies, and API contracts.
+    - Build unit + integration tests covering schema validation, projector execution, insight strategies, and API contracts.
+    - Behavioural integration tests must boot a Testcontainers PostgreSQL 15 instance so Liquibase applies the JSONB-aware schema automatically (no embedded H2 profile drift).
    - Export Micrometer metrics: `behavior.signals.ingested`, `behavior.projector.execution`, `behavior.insights.latency`.
 
 ### Execution Checklist (Single Sprint)
