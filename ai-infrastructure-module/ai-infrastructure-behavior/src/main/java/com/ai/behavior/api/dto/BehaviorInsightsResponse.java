@@ -15,26 +15,29 @@ public class BehaviorInsightsResponse {
     UUID id;
     UUID userId;
     List<String> patterns;
-    Map<String, Double> scores;
     String segment;
     Map<String, Object> preferences;
     List<String> recommendations;
     LocalDateTime analyzedAt;
     LocalDateTime validUntil;
     String analysisVersion;
+    BehaviorKpiSnapshot kpis;
+    Map<String, Double> scores;
 
     public static BehaviorInsightsResponse from(BehaviorInsights insights) {
+        Map<String, Double> safeScores = insights.safeScores();
         return BehaviorInsightsResponse.builder()
             .id(insights.getId())
             .userId(insights.getUserId())
             .patterns(insights.getPatterns())
-            .scores(insights.getScores())
             .segment(insights.getSegment())
             .preferences(insights.getPreferences())
             .recommendations(insights.getRecommendations())
             .analyzedAt(insights.getAnalyzedAt())
             .validUntil(insights.getValidUntil())
             .analysisVersion(insights.getAnalysisVersion())
+            .kpis(BehaviorKpiSnapshot.from(safeScores))
+            .scores(safeScores)
             .build();
     }
 }

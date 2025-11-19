@@ -1,5 +1,6 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
+import com.ai.behavior.metrics.KpiKeys;
 import com.ai.behavior.model.BehaviorInsights;
 import com.ai.behavior.model.BehaviorMetrics;
 import com.ai.behavior.processing.worker.UserSegmentationWorker;
@@ -15,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,22 +48,29 @@ public class UserSegmentationWorkerIntegrationTest {
         UUID userId = UUID.randomUUID();
 
         for (int day = 0; day < 30; day++) {
+            Map<String, Double> dailyMetrics = new HashMap<>();
+            dailyMetrics.put("count.total", 40.0 + day);
+            dailyMetrics.put("value.transaction_count", day % 4 == 0 ? 2.0 : 0.0);
+            dailyMetrics.put("value.amount_total", 1200.0 + (day * 50));
+            dailyMetrics.put(KpiKeys.ENGAGEMENT_SCORE, Math.min(1.0, 0.6 + (day * 0.01)));
+            dailyMetrics.put(KpiKeys.RECENCY_SCORE, 0.7);
+            dailyMetrics.put(KpiKeys.DIVERSITY_SCORE, 0.4 + (day * 0.005));
+
             behaviorMetricsRepository.save(BehaviorMetrics.builder()
                 .userId(userId)
                 .metricDate(LocalDate.now().minusDays(day))
-                .viewCount(40 + day)
-                .clickCount(10 + day)
-                .addToCartCount(5 + (day % 3))
-                .purchaseCount(day % 4 == 0 ? 2 : 0)
-                .totalRevenue(1200 + (day * 50))
-                .conversionRate(0.2)
+                .metrics(dailyMetrics)
                 .build());
         }
 
         behaviorInsightsRepository.save(BehaviorInsights.builder()
             .userId(userId)
             .patterns(List.of("insufficient_data"))
-            .scores(Map.of("engagement_score", 0.1))
+            .scores(Map.of(
+                KpiKeys.ENGAGEMENT_SCORE, 0.1,
+                KpiKeys.RECENCY_SCORE, 0.1,
+                KpiKeys.DIVERSITY_SCORE, 0.1
+            ))
             .segment("new_user")
             .preferences(Map.of())
             .recommendations(List.of("collect_additional_signals"))

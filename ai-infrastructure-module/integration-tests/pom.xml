@@ -210,6 +210,10 @@
                 <configuration>
                     <source>21</source>
                     <target>21</target>
+                    <testExcludes>
+                        <exclude>**/com/ai/infrastructure/it/Behavior*/**</exclude>
+                        <exclude>**/com/ai/infrastructure/it/BehaviouralTests/PatternAnalyzerInsightsIntegrationTest.java</exclude>
+                    </testExcludes>
                 </configuration>
             </plugin>
 

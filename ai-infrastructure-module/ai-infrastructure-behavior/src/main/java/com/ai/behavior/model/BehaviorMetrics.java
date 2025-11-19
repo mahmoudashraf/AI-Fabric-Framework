@@ -79,4 +79,11 @@ public class BehaviorMetrics {
     public double metricValue(String key) {
         return safeMetrics().getOrDefault(key, 0.0d);
     }
+
+    public Map<String, Object> safeAttributes() {
+        if (attributes == null) {
+            attributes = new HashMap<>();
+        }
+        return attributes;
+    }
 }

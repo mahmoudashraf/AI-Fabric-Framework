@@ -31,4 +31,8 @@ public class BehaviorAnalysisService {
             throw new BehaviorAnalysisException("Failed to analyze behavior for user " + userId, ex);
         }
     }
+
+    public BehaviorInsights emptyInsights(UUID userId) {
+        return patternAnalyzer.emptyInsights(userId);
+    }
 }

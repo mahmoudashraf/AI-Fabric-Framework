@@ -1,6 +1,7 @@
 package com.ai.behavior.processing.analyzer;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
+import com.ai.behavior.metrics.KpiKeys;
 import com.ai.behavior.model.BehaviorInsights;
 import com.ai.behavior.model.BehaviorSignal;
 import lombok.RequiredArgsConstructor;
@@ -64,10 +65,12 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
             .userId(userId)
             .patterns(List.of("insufficient_data"))
             .scores(Map.of(
-                  "engagement_score", 0.0,
-                  "recency_score", 0.0,
-                  "diversity_score", 0.0,
-                  "velocity_score", 0.0
+                KpiKeys.ENGAGEMENT_SCORE, 0.0,
+                KpiKeys.ENGAGEMENT_INTERACTION_DENSITY, 0.0,
+                KpiKeys.ENGAGEMENT_VELOCITY, 0.0,
+                KpiKeys.RECENCY_SCORE, 0.0,
+                KpiKeys.RECENCY_HOURS_SINCE_LAST, 0.0,
+                KpiKeys.DIVERSITY_SCORE, 0.0
             ))
             .segment("new_user")
             .preferences(Map.of())
@@ -82,8 +85,13 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
         Map<String, Double> scores = new HashMap<>();
         long totalEvents = events.size();
         double engagementScore = Math.min(1.0, Math.log(totalEvents + 1) / 4.0);
+        long uniqueSchemas = events.stream()
+            .map(BehaviorSignal::getSchemaId)
+            .filter(id -> id != null && !id.isBlank())
+            .distinct()
+            .count();
         double diversityScore = totalEvents == 0 ? 0.0 :
-            (double) events.stream().map(BehaviorSignal::getSchemaId).distinct().count() / totalEvents;
+            Math.min(1.0, uniqueSchemas / Math.max(1.0d, totalEvents));
 
         LocalDateTime mostRecent = events.stream()
             .map(BehaviorSignal::getTimestamp)
@@ -95,22 +103,26 @@ public class PatternAnalyzer implements BehaviorAnalyzer {
 
         long lastHourCount = events.stream()
             .map(BehaviorSignal::getTimestamp)
-            .filter(t -> t != null && Duration.between(t, LocalDateTime.now()).toHours() <= 1)
+            .filter(t -> t != null && Duration.between(t, LocalDateTime.now()).toMinutes() <= 60)
             .count();
         double velocityScore = Math.min(1.0, lastHourCount / 20.0);
+        double interactionDensity = Math.min(1.0, totalEvents / 100.0);
 
-        scores.put("engagement_score", engagementScore);
-        scores.put("diversity_score", diversityScore);
-        scores.put("recency_score", recencyScore);
-        scores.put("velocity_score", velocityScore);
+        scores.put(KpiKeys.ENGAGEMENT_SCORE, engagementScore);
+        scores.put(KpiKeys.ENGAGEMENT_INTERACTION_DENSITY, interactionDensity);
+        scores.put(KpiKeys.ENGAGEMENT_VELOCITY, velocityScore);
+        scores.put(KpiKeys.DIVERSITY_SCORE, diversityScore);
+        scores.put(KpiKeys.DIVERSITY_UNIQUE_SCHEMA_COUNT, (double) uniqueSchemas);
+        scores.put(KpiKeys.RECENCY_SCORE, recencyScore);
+        scores.put(KpiKeys.RECENCY_HOURS_SINCE_LAST, recencyHours);
         return scores;
     }
 
     private List<String> detectPatterns(List<BehaviorSignal> events, Map<String, Double> scores) {
         Set<String> patterns = new HashSet<>();
-        double engagement = scores.getOrDefault("engagement_score", 0.0);
-        double recency = scores.getOrDefault("recency_score", 0.0);
-        double velocity = scores.getOrDefault("velocity_score", 0.0);
+        double engagement = scores.getOrDefault(KpiKeys.ENGAGEMENT_SCORE, 0.0);
+        double recency = scores.getOrDefault(KpiKeys.RECENCY_SCORE, 0.0);
+        double velocity = scores.getOrDefault(KpiKeys.ENGAGEMENT_VELOCITY, 0.0);
 
         if (engagement >= 0.8) {
             patterns.add("power_user");

@@ -30,6 +30,8 @@ public interface BehaviorSignalRepository extends JpaRepository<BehaviorSignal, 
 
     long countByUserId(UUID userId);
 
+    long countByUserIdAndTimestampAfter(UUID userId, LocalDateTime timestamp);
+
     void deleteByUserId(UUID userId);
 
     long deleteByTimestampBefore(LocalDateTime cutoff);

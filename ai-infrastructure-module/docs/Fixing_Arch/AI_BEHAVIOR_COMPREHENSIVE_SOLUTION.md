@@ -386,9 +386,27 @@ PY
 - SPI: `BehaviorMetricProjector`.
   - `boolean supports(String schemaId, BehaviorSignalDefinition definition)`
   - `void project(BehaviorSignal signal, MetricAccumulator accumulator)`
-- `MetricProjectionWorker` listens to ingestion events, finds applicable projectors (configured via `ai.behavior.metrics.projectors`), and writes aggregates to `behavior_signal_metrics`.
-- Default projector (`EngagementProjector`) tracks engagement_score inputs (views, interactions, recency, dwell time) using schema hints rather than hard-coded event types.
+- `MetricProjectionWorker` listens to ingestion events, finds applicable projectors (configured via `ai.behavior.processing.metrics.enabledProjectors`), and writes aggregates to `behavior_signal_metrics`.
+- Default projectors that now ship with the starter:
+  - `engagementMetricProjector` – tracks counts, monetary value, and `kpi.engagement.*` signals (score, interaction density, velocity).
+  - `recencyMetricProjector` – records `kpi.recency.score` plus `kpi.recency.hours_since_last` derived from signal timestamps.
+  - `diversityMetricProjector` – records per-schema touches and updates `kpi.diversity.score`/`kpi.diversity.unique_schema_ratio`.
+  - `domainAffinityMetricProjector` – optional but enabled via configuration to surface `domain.{name}.count/share` derived from schema domains.
 - Additional projectors can be packaged as Spring starters (e.g., `behavior-metrics-commerce`).
+- Configuration example:
+
+```yaml
+ai:
+  behavior:
+    processing:
+      metrics:
+        enabledProjectors:
+          - engagementMetricProjector
+          - recencyMetricProjector
+          - diversityMetricProjector
+          # Uncomment for domain-specific rollups
+          # - domainAffinityMetricProjector
+```
 
 ### 6. Insight & Segmentation Strategies
 
@@ -397,6 +415,22 @@ PY
   - Output: `BehaviorInsightResult` with neutral KPIs (`engagement_score`, `interaction_density`, `recency_index`, `preferred_schemas`).
 - `SegmentationStrategy` assigns segments such as `new`, `active`, `dormant`, `super_engaged` using configurable thresholds.
 - Commerce-specific heuristics (cart abandoner, VIP) move to optional add-on modules so the base package remains domain-agnostic.
+- Strategies now emit a `BehaviorKpiSnapshot` that is persisted alongside the raw `scores` map to guarantee neutral KPIs (`engagementScore`, `recencyScore`, `diversityScore`, `interactionVelocity`, `uniqueSchemaRatio`). These values are reused by the REST DTOs, the RAG context helper, and segmentation worker to keep parity between metrics-driven and on-demand insights.
+- Example KPI payload:
+
+```json
+{
+  "kpis": {
+    "engagementScore": 0.82,
+    "recencyScore": 0.67,
+    "diversityScore": 0.44,
+    "interactionVelocity": 0.58,
+    "uniqueSchemaRatio": 0.32,
+    "uniqueSchemaCount": 12,
+    "hoursSinceLastSignal": 6.5
+  }
+}
+```
 
 ### 7. API Contract Updates
 
@@ -406,18 +440,73 @@ PY
 | `POST /api/ai-behavior/signals/batch` | Array of request objects respecting `maxBatchSize`. | Count of stored signals. |
 | `GET /api/ai-behavior/schemas` | Optional filters (`domain`, `version`). | List of definitions + JSON Schema refs. |
 | `GET /api/ai-behavior/users/{id}/signals` | Query params: `schemaId`, `start`, `end`, attribute filter expressions. | Paginated `BehaviorSignal` records. |
-| `GET /api/ai-behavior/users/{id}/metrics` | `metricKey`, `startDate`, `endDate`. | Aggregated metric values. |
-| `GET /api/ai-behavior/users/{id}/insights` | `insightType` optional. | Latest `BehaviorInsightResult` objects. |
+| `GET /api/ai-behavior/users/{id}/metrics` | `metricKey`, `startDate`, `endDate`. | Aggregated metric values + `kpis` bundle (engagement/recency/diversity). |
+| `GET /api/ai-behavior/users/{id}/insights` | `insightType` optional. | Latest `BehaviorInsightResult` objects with embedded `kpis`. |
 
 OpenAPI definitions must be regenerated to reflect `schemaId` + `attributes` payloads and the new discovery endpoint.
+
+Sample payloads now emitted by the controllers:
+
+```json
+{
+  "metricDate": "2025-11-18",
+  "userId": "7f61f0cf-e6f1-41c0-8c41-4aa54f739e9b",
+  "kpis": {
+    "engagementScore": 0.81,
+    "recencyScore": 0.63,
+    "diversityScore": 0.42,
+    "interactionVelocity": 0.55,
+    "uniqueSchemaRatio": 0.37,
+    "uniqueSchemaCount": 9,
+    "hoursSinceLastSignal": 4.0
+  },
+  "metrics": {
+    "count.total": 58,
+    "schema.engagement.view": 24,
+    "value.transaction_count": 2
+  }
+}
+```
+
+```json
+{
+  "id": "d1f4312d-a0b2-487f-9d79-051832587c2d",
+  "userId": "7f61f0cf-e6f1-41c0-8c41-4aa54f739e9b",
+  "segment": "super_engaged",
+  "patterns": ["recent_engagement", "power_user"],
+  "kpis": {
+    "engagementScore": 0.82,
+    "recencyScore": 0.67,
+    "diversityScore": 0.44,
+    "interactionVelocity": 0.61,
+    "uniqueSchemaRatio": 0.33,
+    "uniqueSchemaCount": 12,
+    "hoursSinceLastSignal": 2.0
+  },
+  "recommendations": ["offer_advocacy_program"],
+  "preferences": {
+    "kpis": {
+      "engagement": 0.82,
+      "recency": 0.67,
+      "diversity": 0.44,
+      "uniqueSchemas": 12
+    },
+    "top_schemas": ["engagement.view", "intent.search"]
+  },
+  "analysisVersion": "2.0.0",
+  "analyzedAt": "2025-11-18T10:20:00Z",
+  "validUntil": "2025-11-18T10:30:00Z"
+}
+```
 
 ### 8. Configuration & Extensibility
 
 ```
 ai:
-  behavior:
-    schemas:
-      path: classpath:/behavior/schemas/*.yml
+    behavior:
+      schemas:
+        path: classpath:/behavior/schemas/*.yml
+        cacheTtl: 5m
     ingestion:
       maxBatchSize: 500
       publishApplicationEvents: true
@@ -438,6 +527,7 @@ ai:
 
 - Additional sinks (Kafka, S3, Redis) are enabled via existing auto-configuration but now consume `BehaviorSignal`.
 - Teams can package domain-specific schemas/projectors as separate starters to keep the base module slim.
+- The `/api/ai-behavior/schemas` endpoint returns `ETag`/`Cache-Control: max-age=<cacheTtl>` headers so clients can cache schema documents for 5 minutes (configurable via `ai.behavior.schemas.cacheTtl`).
 
 ### 9. Observability & Tooling
 
@@ -448,8 +538,8 @@ ai:
   - `behavior.insights.strategy.duration{strategy}`
 - Structured logs include `schemaId`, `signalKey`, and `tenantId`.
 - Utility scripts (optional):
-  - `schema-doctor` – validates YAML descriptors and generates JSON Schema.
-  - `signal-replay` – replays stored signals through projectors for backfill/testing.
+    - `scripts/schema-doctor.py` – validates YAML descriptors and can emit a consolidated JSON manifest.
+    - `scripts/signal-replay.py` – replays stored signals through the `/api/ai-behavior/signals` (or `/batch`) endpoints for backfill/testing.
 
 ### 10. Verification Plan
 

@@ -1,6 +1,7 @@
 package com.ai.behavior.processing.analyzer;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
+import com.ai.behavior.metrics.KpiKeys;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorMetrics;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,15 @@ public class SegmentationAnalyzer {
         double transactionCount = metrics.stream().mapToDouble(m -> m.metricValue("value.transaction_count")).sum();
         double amountTotal = metrics.stream().mapToDouble(m -> m.metricValue("value.amount_total")).sum();
 
+        double avgEngagement = averageMetric(metrics, KpiKeys.ENGAGEMENT_SCORE);
+        double avgRecency = averageMetric(metrics, KpiKeys.RECENCY_SCORE);
+        double avgDiversity = averageMetric(metrics, KpiKeys.DIVERSITY_SCORE);
+        long uniqueSchemas = metrics.stream()
+            .flatMap(m -> m.safeMetrics().keySet().stream())
+            .filter(key -> key.startsWith("diversity.schema."))
+            .distinct()
+            .count();
+
         Map<String, Object> preferences = new HashMap<>();
         preferences.put("recent_days", metrics.stream()
             .map(BehaviorMetrics::getMetricDate)
@@ -50,25 +60,38 @@ public class SegmentationAnalyzer {
         preferences.put("total_signals", totalSignals);
         preferences.put("transaction_count", transactionCount);
         preferences.put("amount_total", amountTotal);
+        preferences.put("kpis", Map.of(
+            "engagement", round(avgEngagement),
+            "recency", round(avgRecency),
+            "diversity", round(avgDiversity),
+            "uniqueSchemas", uniqueSchemas
+        ));
 
         String segment;
+        if (totalSignals == 0) {
+            segment = "new";
+        } else if (avgEngagement >= 0.85 && avgRecency >= 0.7) {
+            segment = "super_engaged";
+        } else if (avgEngagement >= 0.5 && avgRecency >= 0.4) {
+            segment = "active";
+        } else if (avgRecency < 0.2) {
+            segment = "dormant";
+        } else {
+            segment = "emerging";
+        }
+
         if (transactionCount > 0 && amountTotal >= config.getVipPurchaseThreshold()) {
             segment = "high_value";
-        } else if (totalSignals >= config.getMinEvents()) {
-            segment = "active";
-        } else if (totalSignals == 0) {
-            segment = "new";
-        } else {
-            segment = "dormant";
         }
 
         List<String> recommendations = new ArrayList<>();
-        recommendations.add(switch (segment) {
-            case "high_value" -> "invite_loyalty_program";
-            case "active" -> "offer_referral_program";
-            case "dormant" -> "trigger_reengagement_sequence";
-            default -> "collect_additional_signals";
-        });
+        switch (segment) {
+            case "high_value" -> recommendations.add("invite_loyalty_program");
+            case "super_engaged" -> recommendations.add("offer_advocacy_program");
+            case "active" -> recommendations.add("offer_referral_program");
+            case "dormant" -> recommendations.add("trigger_reengagement_sequence");
+            default -> recommendations.add("monitor_behavior");
+        }
 
         return new SegmentationSnapshot(segment, preferences, recommendations);
     }
@@ -109,10 +132,10 @@ public class SegmentationAnalyzer {
     private List<String> buildRecommendations(List<String> patterns,
                                               Map<String, Double> scores) {
         List<String> recommendations = new ArrayList<>();
-        if (patterns.contains("dormant") || scores.getOrDefault("recency_score", 0.0) < 0.3) {
+        if (patterns.contains("dormant") || scores.getOrDefault(KpiKeys.RECENCY_SCORE, 0.0) < 0.3) {
             recommendations.add("trigger_reengagement_sequence");
         }
-        if (scores.getOrDefault("engagement_score", 0.0) > 0.7) {
+        if (scores.getOrDefault(KpiKeys.ENGAGEMENT_SCORE, 0.0) > 0.7) {
             recommendations.add("offer_advocacy_program");
         }
         if (recommendations.isEmpty()) {
@@ -122,8 +145,8 @@ public class SegmentationAnalyzer {
     }
 
     private String determineSegment(Map<String, Double> scores) {
-        double engagement = scores.getOrDefault("engagement_score", 0.0);
-        double recency = scores.getOrDefault("recency_score", 0.0);
+        double engagement = scores.getOrDefault(KpiKeys.ENGAGEMENT_SCORE, 0.0);
+        double recency = scores.getOrDefault(KpiKeys.RECENCY_SCORE, 0.0);
         if (engagement >= 0.75 && recency >= 0.6) {
             return "active";
         }
@@ -134,5 +157,16 @@ public class SegmentationAnalyzer {
             return "dormant";
         }
         return "emerging";
+    }
+
+    private double averageMetric(List<BehaviorMetrics> metrics, String key) {
+        return metrics.stream()
+            .mapToDouble(m -> m.metricValue(key))
+            .average()
+            .orElse(0.0d);
+    }
+
+    private double round(double value) {
+        return Math.round(value * 100.0d) / 100.0d;
     }
 }

@@ -1,6 +1,7 @@
 package com.ai.behavior.metrics.projector;
 
 import com.ai.behavior.metrics.BehaviorMetricProjector;
+import com.ai.behavior.metrics.KpiKeys;
 import com.ai.behavior.metrics.MetricAccumulator;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.schema.BehaviorSignalDefinition;
@@ -56,12 +57,11 @@ public class EngagementMetricProjector implements BehaviorMetricProjector {
             .map(this::safeDouble)
             .ifPresent(duration -> accumulator.increment("duration.total_seconds", duration));
 
-        // recency — seconds since event
-        if (signal.getTimestamp() != null) {
-            double hoursAgo = Duration.between(signal.getTimestamp(), LocalDateTime.now()).toHours();
-            double recencyScore = Math.max(0.0, 1.0 - (hoursAgo / 168.0));
-            accumulator.set("recency.last_score", recencyScore);
-        }
+        double totalSignals = accumulator.value("count.total");
+        accumulator.set(KpiKeys.ENGAGEMENT_SCORE, clamp(Math.log(totalSignals + 1) / 4.0));
+        accumulator.set(KpiKeys.ENGAGEMENT_INTERACTION_DENSITY, clamp(totalSignals / 100.0));
+        double velocityScore = computeVelocityScore(signal.getTimestamp());
+        accumulator.max(KpiKeys.ENGAGEMENT_VELOCITY, velocityScore);
     }
 
     @Override
@@ -86,5 +86,32 @@ public class EngagementMetricProjector implements BehaviorMetricProjector {
 
     private String key(String prefix, String suffix) {
         return prefix + "." + suffix;
+    }
+
+    private double computeVelocityScore(LocalDateTime timestamp) {
+        if (timestamp == null) {
+            return 0.0d;
+        }
+        double minutesAgo = Duration.between(timestamp, LocalDateTime.now()).toMinutes();
+        if (minutesAgo <= 1) {
+            return 1.0d;
+        }
+        if (minutesAgo >= 60) {
+            return 0.0d;
+        }
+        return clamp(1.0d - (minutesAgo / 60.0d));
+    }
+
+    private double clamp(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return 0.0d;
+        }
+        if (value < 0) {
+            return 0.0d;
+        }
+        if (value > 1.0d) {
+            return 1.0d;
+        }
+        return value;
     }
 }

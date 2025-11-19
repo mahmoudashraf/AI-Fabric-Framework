@@ -8,6 +8,16 @@
 
 ---
 
+## ⚠️ Breaking Changes – AI Behavior Module (2025-11-18)
+
+- **Neutral KPIs everywhere:** `/api/ai-behavior/users/{id}/metrics` and `/insights` responses now emit a `kpis` object (engagement, recency, diversity, velocity). Any consumers parsing the old `scores.engagement_score` keys must switch to the new structure.
+- **Liquibase replaces Flyway:** set `spring.liquibase.change-log=classpath:/db/changelog/db.changelog-master.yaml` and remove behavior-related Flyway migrations. Schema YAMLs are now mandatory at startup.
+- **Projector configuration:** `ai.behavior.processing.metrics.enabledProjectors` controls which `BehaviorMetricProjector` beans run. Defaults include engagement, recency, diversity (domain affinity is opt-in).
+- **Schema discovery caching:** `/api/ai-behavior/schemas` now requires clients to honor `ETag` + `Cache-Control` headers; stale caches should be invalidated when schema YAMLs change.
+- **Tooling:** new helper scripts (`scripts/schema-doctor.py`, `scripts/signal-replay.py`) are the supported workflow for schema validation and replay/backfill.
+
+---
+
 ## 🚀 **New Features**
 
 ### **Enhanced Configuration Management**

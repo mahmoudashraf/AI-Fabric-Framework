@@ -1,7 +1,8 @@
 package com.ai.behavior.service;
 
-import com.ai.behavior.model.BehaviorSignal;
+import com.ai.behavior.api.dto.BehaviorKpiSnapshot;
 import com.ai.behavior.model.BehaviorInsights;
+import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
@@ -39,7 +40,8 @@ public class BehaviorRAGService {
         StringBuilder builder = new StringBuilder();
         builder.append("Segment: ").append(insights.getSegment()).append("\n");
         builder.append("Patterns: ").append(String.join(", ", insights.getPatterns())).append("\n");
-        builder.append("Scores: ").append(insights.getScores()).append("\n");
+        BehaviorKpiSnapshot snapshot = BehaviorKpiSnapshot.from(insights.safeScores());
+        builder.append("KPIs: ").append(snapshot.asMap()).append("\n");
         builder.append("Preferences: ").append(insights.getPreferences()).append("\n\n");
         builder.append("Recent activity:\n");
         var grouped = events.stream()

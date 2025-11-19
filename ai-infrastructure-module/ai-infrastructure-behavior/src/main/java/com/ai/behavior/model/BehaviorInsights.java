@@ -16,6 +16,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -74,5 +75,12 @@ public class BehaviorInsights {
 
     public boolean isValid() {
         return validUntil != null && validUntil.isAfter(LocalDateTime.now());
+    }
+
+    public Map<String, Double> safeScores() {
+        if (scores == null) {
+            scores = new HashMap<>();
+        }
+        return scores;
     }
 }

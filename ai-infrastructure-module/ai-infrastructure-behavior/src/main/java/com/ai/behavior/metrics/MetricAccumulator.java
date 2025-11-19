@@ -24,6 +24,22 @@ public class MetricAccumulator {
         metrics.setMetric(key, value);
     }
 
+    public void max(String key, double candidate) {
+        Map<String, Double> store = metrics.safeMetrics();
+        Double existing = store.get(key);
+        if (existing == null || candidate > existing) {
+            store.put(key, candidate);
+        }
+    }
+
+    public void min(String key, double candidate) {
+        Map<String, Double> store = metrics.safeMetrics();
+        Double existing = store.get(key);
+        if (existing == null || candidate < existing) {
+            store.put(key, candidate);
+        }
+    }
+
     public double value(String key) {
         return metrics.metricValue(key);
     }

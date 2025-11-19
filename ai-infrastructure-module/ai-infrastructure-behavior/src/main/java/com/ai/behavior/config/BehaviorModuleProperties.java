@@ -120,7 +120,11 @@ public class BehaviorModuleProperties {
 
         @Data
         public static class Metrics {
-            private List<String> enabledProjectors = new ArrayList<>(List.of("engagementMetricProjector"));
+            private List<String> enabledProjectors = new ArrayList<>(List.of(
+                "engagementMetricProjector",
+                "recencyMetricProjector",
+                "diversityMetricProjector"
+            ));
         }
     }
 
@@ -129,6 +133,7 @@ public class BehaviorModuleProperties {
         private int cacheTtlMinutes = 5;
         private int minEventsForInsights = 10;
         private Duration validity = Duration.ofMinutes(10);
+        private int minEventsLookbackDays = 30;
     }
 
     @Data
@@ -179,5 +184,6 @@ public class BehaviorModuleProperties {
         private String path = "classpath:/behavior/schemas/*.yml";
         private boolean failOnStartupIfMissing = true;
         private int maxAttributeCount = 128;
+        private Duration cacheTtl = Duration.ofMinutes(5);
     }
 }

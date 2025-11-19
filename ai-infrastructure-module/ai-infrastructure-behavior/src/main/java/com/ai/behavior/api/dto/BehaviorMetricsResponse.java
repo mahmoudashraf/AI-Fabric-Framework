@@ -14,12 +14,15 @@ public class BehaviorMetricsResponse {
     UUID userId;
     LocalDate metricDate;
     Map<String, Double> metrics;
+    BehaviorKpiSnapshot kpis;
 
     public static BehaviorMetricsResponse from(BehaviorMetrics metrics) {
+        Map<String, Double> safeMetrics = metrics.safeMetrics();
         return BehaviorMetricsResponse.builder()
             .userId(metrics.getUserId())
             .metricDate(metrics.getMetricDate())
-            .metrics(metrics.safeMetrics())
+            .metrics(safeMetrics)
+            .kpis(BehaviorKpiSnapshot.from(safeMetrics))
             .build();
     }
 }

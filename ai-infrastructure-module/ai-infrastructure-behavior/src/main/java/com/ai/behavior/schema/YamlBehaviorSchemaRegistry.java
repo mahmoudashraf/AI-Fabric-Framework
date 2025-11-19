@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -27,6 +28,7 @@ public class YamlBehaviorSchemaRegistry implements BehaviorSchemaRegistry {
     private final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
     private final ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
     private final Map<String, BehaviorSignalDefinition> definitions = new ConcurrentHashMap<>();
+    private volatile Instant lastLoadedAt = Instant.EPOCH;
 
     public YamlBehaviorSchemaRegistry(BehaviorModuleProperties properties) {
         this.properties = properties;
@@ -49,6 +51,7 @@ public class YamlBehaviorSchemaRegistry implements BehaviorSchemaRegistry {
                 }
             }
             log.info("Loaded {} behavior schema definitions", definitions.size());
+            lastLoadedAt = Instant.now();
         } catch (IOException ex) {
             throw new SchemaValidationException("Failed to load behavior schema definitions", ex);
         }
@@ -88,5 +91,10 @@ public class YamlBehaviorSchemaRegistry implements BehaviorSchemaRegistry {
     @Override
     public Collection<BehaviorSignalDefinition> getAll() {
         return Collections.unmodifiableCollection(definitions.values());
+    }
+
+    @Override
+    public Instant getLastLoadedAt() {
+        return lastLoadedAt;
     }
 }
