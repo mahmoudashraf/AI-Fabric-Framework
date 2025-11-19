@@ -1,11 +1,12 @@
 package com.ai.infrastructure.it.BehaviouralTests;
 
+import com.ai.behavior.api.dto.BehaviorHealthResponse;
 import com.ai.behavior.ingestion.BehaviorIngestionMetrics;
+import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.service.BehaviorMonitoringService;
-import com.ai.behavior.ingestion.BehaviorIngestionService;
-import com.ai.behavior.api.dto.BehaviorHealthResponse;
 import com.ai.infrastructure.it.TestApplication;
+import com.ai.infrastructure.it.behaviour.BehaviorPostgresIntegrationTest;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -44,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestPropertySource(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-public class KafkaEventSinkIntegrationTest {
+public class KafkaEventSinkIntegrationTest extends BehaviorPostgresIntegrationTest {
 
     static final String TOPIC = "behavior-events-test";
 

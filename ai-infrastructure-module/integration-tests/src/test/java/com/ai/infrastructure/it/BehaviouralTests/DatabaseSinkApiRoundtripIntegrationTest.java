@@ -5,9 +5,7 @@ import com.ai.behavior.api.dto.BehaviorSignalRequest;
 import com.ai.behavior.api.dto.BehaviorSignalResponse;
 import com.ai.behavior.storage.BehaviorSignalRepository;
 import com.ai.infrastructure.it.TestApplication;
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import com.ai.infrastructure.it.behaviour.BehaviorPostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,10 +15,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -32,39 +27,12 @@ import static org.assertj.core.api.Assertions.assertThat;
     classes = TestApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
-        "ai.behavior.sink.type=database",
-        "spring.sql.init.mode=never",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"
+        "ai.behavior.sink.type=database"
     }
 )
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-public class DatabaseSinkApiRoundtripIntegrationTest {
-
-    private static EmbeddedPostgres POSTGRES;
-
-    @BeforeAll
-    static void startPostgres() throws IOException {
-        POSTGRES = EmbeddedPostgres.builder()
-            .setPort(0)
-            .start();
-    }
-
-    @AfterAll
-    static void stopPostgres() throws IOException {
-        if (POSTGRES != null) {
-            POSTGRES.close();
-        }
-    }
-
-    @DynamicPropertySource
-    static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl("postgres", "postgres"));
-        registry.add("spring.datasource.username", () -> "postgres");
-        registry.add("spring.datasource.password", () -> "postgres");
-        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-    }
+public class DatabaseSinkApiRoundtripIntegrationTest extends BehaviorPostgresIntegrationTest {
 
     @Autowired
     private TestRestTemplate restTemplate;

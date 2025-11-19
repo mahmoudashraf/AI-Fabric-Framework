@@ -3,6 +3,7 @@ package com.ai.infrastructure.it.BehaviouralTests;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.infrastructure.it.TestApplication;
+import com.ai.infrastructure.it.behaviour.BehaviorPostgresIntegrationTest;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-public class RedisEventSinkIntegrationTest {
+public class RedisEventSinkIntegrationTest extends BehaviorPostgresIntegrationTest {
 
     private static RedisServer redisServer;
     private static int redisPort;

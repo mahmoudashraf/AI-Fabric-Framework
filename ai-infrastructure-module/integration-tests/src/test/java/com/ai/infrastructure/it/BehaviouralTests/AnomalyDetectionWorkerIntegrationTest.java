@@ -7,6 +7,7 @@ import com.ai.behavior.processing.worker.AnomalyDetectionWorker;
 import com.ai.behavior.storage.BehaviorAlertRepository;
 import com.ai.behavior.storage.BehaviorDataProvider;
 import com.ai.infrastructure.it.TestApplication;
+import com.ai.infrastructure.it.behaviour.BehaviorPostgresIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     }
 )
 @ActiveProfiles("dev")
-public class AnomalyDetectionWorkerIntegrationTest {
+public class AnomalyDetectionWorkerIntegrationTest extends BehaviorPostgresIntegrationTest {
 
     @Autowired
     private AnomalyDetectionWorker anomalyDetectionWorker;

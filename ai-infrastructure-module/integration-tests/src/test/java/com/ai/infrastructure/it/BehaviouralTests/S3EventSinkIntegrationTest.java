@@ -3,6 +3,7 @@ package com.ai.infrastructure.it.BehaviouralTests;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.infrastructure.it.TestApplication;
+import com.ai.infrastructure.it.behaviour.BehaviorPostgresIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -54,7 +55,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @ActiveProfiles("dev")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-public class S3EventSinkIntegrationTest {
+public class S3EventSinkIntegrationTest extends BehaviorPostgresIntegrationTest {
 
     static final String BUCKET = "behavior-it-bucket";
     static final String PREFIX = "ai-behavior-tests";
