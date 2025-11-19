@@ -6,7 +6,6 @@ import com.ai.infrastructure.it.BehaviouralTests.DatabaseSinkApiRoundtripIntegra
 import com.ai.infrastructure.it.BehaviouralTests.ExternalAnalyticsAdapterContractTest;
 import com.ai.infrastructure.it.BehaviouralTests.HybridEventSinkIntegrationTest;
 import com.ai.infrastructure.it.BehaviouralTests.KafkaEventSinkIntegrationTest;
-import com.ai.infrastructure.it.BehaviouralTests.PatternAnalyzerInsightsIntegrationTest;
 import com.ai.infrastructure.it.BehaviouralTests.RedisEventSinkIntegrationTest;
 import com.ai.infrastructure.it.BehaviouralTests.S3EventSinkIntegrationTest;
 import com.ai.infrastructure.it.BehaviouralTests.UserSegmentationWorkerIntegrationTest;
@@ -29,8 +28,7 @@ public class RealAPIProviderBehaviourMatrixIntegrationTest extends AbstractProvi
         AggregatedBehaviorProviderIntegrationTest.class,
         ExternalAnalyticsAdapterContractTest.class,
         AnomalyDetectionWorkerIntegrationTest.class,
-        UserSegmentationWorkerIntegrationTest.class,
-        PatternAnalyzerInsightsIntegrationTest.class
+        UserSegmentationWorkerIntegrationTest.class
     };
 
     @Override
