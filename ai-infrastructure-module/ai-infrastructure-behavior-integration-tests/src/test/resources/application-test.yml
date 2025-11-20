@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        ddl-auto: none
+        format_sql: false
+  liquibase:
+    enabled: true
+logging:
+  level:
+    root: INFO
+    com.ai.behavior: DEBUG
+    com.ai.infrastructure: DEBUG
+    org.springframework: WARN
