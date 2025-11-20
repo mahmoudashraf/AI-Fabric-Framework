@@ -48,6 +48,7 @@ public abstract class BehaviorAnalyticsIntegrationTest {
         registry.add("ai.behavior.retention.temp-events-ttl-days", () -> "3");
         registry.add("ai.behavior.processing.worker.delay-seconds", () -> "1");
         registry.add("ai.behavior.processing.worker.max-retries", () -> "3");
+        registry.add("ai.behavior.security.rate-limiting.enabled", () -> "false");
     }
 
     @SpringBootConfiguration

@@ -13,3 +13,6 @@ ai:
         max-retries: 1
     retention:
       temp-events-ttl-days: 7
+    security:
+      rate-limiting:
+        enabled: false

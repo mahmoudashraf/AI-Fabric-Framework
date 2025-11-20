@@ -24,12 +24,16 @@ public class BehaviorEventIngestionService {
 
     private final BehaviorEventRepository behaviorEventRepository;
     private final BehaviorModuleProperties properties;
+    private final BehaviorAuditService auditService;
+    private final BehaviorMetricsService metricsService;
 
     @Transactional
     public BehaviorEventEntity ingestSingleEvent(BehaviorEventEntity event) {
         Objects.requireNonNull(event, "event must not be null");
         BehaviorEventEntity prepared = applyDefaults(event);
         BehaviorEventEntity saved = behaviorEventRepository.save(prepared);
+        metricsService.incrementEventIngested(1);
+        auditService.logEventIngested(saved);
         log.debug("Stored behavior event {} for user {}", saved.getId(), saved.getUserId());
         return saved;
     }
@@ -48,6 +52,8 @@ public class BehaviorEventIngestionService {
             .map(this::applyDefaults)
             .toList();
         List<BehaviorEventEntity> saved = behaviorEventRepository.saveAll(prepared);
+        metricsService.incrementEventIngested(saved.size());
+        auditService.logBatchIngested(saved);
         log.info("Stored {} behavior events", saved.size());
         return saved;
     }

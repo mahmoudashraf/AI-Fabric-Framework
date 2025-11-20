@@ -1,5 +1,6 @@
 package com.ai.behavior.controller;
 
+import com.ai.behavior.config.RateLimitCheck;
 import com.ai.behavior.dto.BehaviorEventBatchRequest;
 import com.ai.behavior.dto.BehaviorEventRequest;
 import com.ai.behavior.model.BehaviorEventEntity;
@@ -27,6 +28,7 @@ public class BehaviorEventController {
     private final BehaviorEventIngestionService ingestionService;
 
     @PostMapping
+    @RateLimitCheck
     public ResponseEntity<Map<String, Object>> ingestSingle(@Valid @RequestBody BehaviorEventRequest request) {
         BehaviorEventEntity entity = toEntity(request);
         BehaviorEventEntity saved = ingestionService.ingestSingleEvent(entity);
@@ -34,6 +36,7 @@ public class BehaviorEventController {
     }
 
     @PostMapping("/batch")
+    @RateLimitCheck
     public ResponseEntity<Map<String, Object>> ingestBatch(@Valid @RequestBody BehaviorEventBatchRequest request) {
         List<BehaviorEventEntity> entities = request.getEvents().stream()
             .map(this::toEntity)

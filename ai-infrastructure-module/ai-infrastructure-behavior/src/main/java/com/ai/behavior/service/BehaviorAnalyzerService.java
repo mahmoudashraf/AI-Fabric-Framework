@@ -31,10 +31,16 @@ public class BehaviorAnalyzerService {
     private final BehaviorAnalysisPolicy analysisPolicy;
     private final BehaviorInsightsRepository insightsRepository;
     private final BehaviorModuleProperties properties;
+    private final BehaviorAuditService auditService;
+    private final BehaviorMetricsService metricsService;
     private final Clock clock = Clock.systemUTC();
 
     @Transactional
     public BehaviorInsights analyzeUserBehavior(UUID userId, List<BehaviorEventEntity> events) {
+        return metricsService.recordAnalysis(() -> executeAnalysis(userId, events));
+    }
+
+    private BehaviorInsights executeAnalysis(UUID userId, List<BehaviorEventEntity> events) {
         if (userId == null) {
             throw new IllegalArgumentException("userId must not be null");
         }
@@ -66,6 +72,7 @@ public class BehaviorAnalyzerService {
 
         BehaviorInsights saved = insightsRepository.save(insights);
         saved.notifyInsightsReady();
+        auditService.logAnalysisCompleted(userId, saved);
         log.debug("Generated insights for user {} with segment {}", userId, segment);
         return saved;
     }

@@ -1,5 +1,6 @@
 package com.ai.behavior.controller;
 
+import com.ai.behavior.config.RateLimitCheck;
 import com.ai.behavior.dto.OrchestratedQueryRequest;
 import com.ai.behavior.dto.OrchestratedSearchResponse;
 import com.ai.behavior.service.BehaviorQueryOrchestrator;
@@ -21,6 +22,7 @@ public class BehaviorSearchController {
     private final BehaviorQueryOrchestrator queryOrchestrator;
 
     @PostMapping("/orchestrated")
+    @RateLimitCheck
     public ResponseEntity<OrchestratedSearchResponse> orchestratedSearch(
         @Valid @RequestBody OrchestratedQueryRequest request
     ) {

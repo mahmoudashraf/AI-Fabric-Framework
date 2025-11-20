@@ -3,6 +3,33 @@ spring:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
     liquibase-schema: public
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+  cache:
+    type: simple
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 1500
+    lettuce:
+      shutdown-timeout: 100ms
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: behavior-module
 
 ai:
   behavior:
@@ -33,3 +60,8 @@ ai:
         rate-limit:
           per-user: "100/hour"
           per-endpoint: "1000/hour"
+      security:
+        rate-limiting:
+          enabled: true
+          requests: 100
+          refresh-period: PT1H

@@ -22,6 +22,7 @@ public class BehaviorModuleProperties {
     private Providers providers = new Providers();
     private Schemas schemas = new Schemas();
     private Search search = new Search();
+    private Security security = new Security();
 
     @Data
     public static class Sink {
@@ -232,6 +233,18 @@ public class BehaviorModuleProperties {
                 private String perUser = "100/hour";
                 private String perEndpoint = "1000/hour";
             }
+        }
+    }
+
+    @Data
+    public static class Security {
+        private RateLimiting rateLimiting = new RateLimiting();
+
+        @Data
+        public static class RateLimiting {
+            private boolean enabled = true;
+            private long requests = 100;
+            private Duration refreshPeriod = Duration.ofHours(1);
         }
     }
 }

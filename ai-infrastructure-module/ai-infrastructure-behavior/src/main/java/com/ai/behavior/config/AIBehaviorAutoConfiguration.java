@@ -12,7 +12,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @AutoConfiguration
 @AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @EnableConfigurationProperties(BehaviorModuleProperties.class)
-@Import(BehaviorModuleConfiguration.class)
+@Import({BehaviorModuleConfiguration.class, RateLimitingConfiguration.class})
 public class AIBehaviorAutoConfiguration {
 
     @Bean(name = "behaviorAsyncExecutor")

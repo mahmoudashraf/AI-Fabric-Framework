@@ -35,10 +35,14 @@ public class BehaviorQueryOrchestrator {
     private final RAGOrchestrator ragOrchestrator;
     private final PIIDetectionService piiDetectionService;
     private final BehaviorSearchService searchService;
+    private final BehaviorAuditService auditService;
+    private final BehaviorMetricsService metricsService;
 
     public OrchestratedSearchResponse executeQuery(OrchestratedQueryRequest request) {
         PIIDetectionResult piiResult = piiDetectionService.detectAndProcess(request.getQuery());
         if (piiResult.isPiiDetected()) {
+            auditService.logPiiDetection(request.getQuery());
+            metricsService.incrementPiiDetections();
             return OrchestratedSearchResponse.builder()
                 .query(request.getQuery())
                 .executedAt(Instant.now())
@@ -53,6 +57,7 @@ public class BehaviorQueryOrchestrator {
 
         OrchestrationResult orchestrationResult = ragOrchestrator.orchestrate(orchestratedQuery, request.getUserId());
         if (orchestrationResult == null || !orchestrationResult.isSuccess()) {
+            auditService.logQueryExecuted(orchestratedQuery, false, 0);
             return OrchestratedSearchResponse.builder()
                 .query(orchestratedQuery)
                 .executedAt(Instant.now())
@@ -62,7 +67,8 @@ public class BehaviorQueryOrchestrator {
         }
 
         SearchParameters parameters = buildSearchParameters(orchestratedQuery, orchestrationResult, request);
-        List<BehaviorInsights> insights = searchService.search(parameters);
+        List<BehaviorInsights> insights = metricsService.recordSearch(() -> searchService.search(parameters));
+        auditService.logQueryExecuted(orchestratedQuery, true, insights.size());
 
         return OrchestratedSearchResponse.builder()
             .query(orchestratedQuery)
