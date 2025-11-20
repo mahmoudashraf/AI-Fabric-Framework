@@ -65,7 +65,7 @@ public class AISearchableEntity {
     @Column(name = "vector_updated_at")
     private LocalDateTime vectorUpdatedAt;
     
-    @Column(name = "metadata", columnDefinition = "JSON")
+    @Column(name = "metadata", columnDefinition = "TEXT")
     private String metadata;
     
     @Column(name = "ai_analysis", columnDefinition = "TEXT")
