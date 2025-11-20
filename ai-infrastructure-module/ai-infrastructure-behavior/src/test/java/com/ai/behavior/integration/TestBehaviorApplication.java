@@ -13,6 +13,7 @@ import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.RAGService;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
@@ -34,7 +35,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 @EnableJpaRepositories(basePackages = {"com.ai.behavior.repository", "com.ai.behavior.storage"})
 @EntityScan(basePackages = "com.ai.behavior")
 @EnableConfigurationProperties(BehaviorModuleProperties.class)
-@Import({BehaviorModuleConfiguration.class, TestBehaviorApplication.TestBehaviorMocks.class})
+@Import({
+    BehaviorModuleConfiguration.class,
+    TestBehaviorApplication.TestBehaviorMocks.class,
+    TestBehaviorApplication.TestBehaviorPolicyMock.class
+})
 public class TestBehaviorApplication {
 
     @Configuration
@@ -52,31 +57,6 @@ public class TestBehaviorApplication {
                     .build()
             );
             return mockService;
-        }
-
-        @Bean
-        BehaviorAnalysisPolicy behaviorAnalysisPolicy() {
-            return new BehaviorAnalysisPolicy() {
-                @Override
-                public List<String> detectPatterns(UUID userId, List<BehaviorEventEntity> events, Map<String, Double> scores) {
-                    return List.of("test_pattern");
-                }
-
-                @Override
-                public String determineSegment(UUID userId, List<BehaviorEventEntity> events, Map<String, Double> scores) {
-                    return "test_segment";
-                }
-
-                @Override
-                public List<String> generateRecommendations(UUID userId, List<BehaviorEventEntity> events, Map<String, Double> scores) {
-                    return List.of("recommendation");
-                }
-
-                @Override
-                public double calculateConfidence(UUID userId, List<BehaviorEventEntity> events, Map<String, Double> scores) {
-                    return 0.9;
-                }
-            };
         }
 
         @Bean
@@ -109,6 +89,35 @@ public class TestBehaviorApplication {
                     .build()
             );
             return service;
+        }
+    }
+
+    @Configuration
+    @ConditionalOnProperty(name = "ai.behavior.test.mock-policy", havingValue = "true", matchIfMissing = true)
+    static class TestBehaviorPolicyMock {
+        @Bean
+        BehaviorAnalysisPolicy behaviorAnalysisPolicy() {
+            return new BehaviorAnalysisPolicy() {
+                @Override
+                public List<String> detectPatterns(UUID userId, List<BehaviorEventEntity> events, Map<String, Double> scores) {
+                    return List.of("test_pattern");
+                }
+
+                @Override
+                public String determineSegment(UUID userId, List<BehaviorEventEntity> events, Map<String, Double> scores) {
+                    return "test_segment";
+                }
+
+                @Override
+                public List<String> generateRecommendations(UUID userId, List<BehaviorEventEntity> events, Map<String, Double> scores) {
+                    return List.of("recommendation");
+                }
+
+                @Override
+                public double calculateConfidence(UUID userId, List<BehaviorEventEntity> events, Map<String, Double> scores) {
+                    return 0.9;
+                }
+            };
         }
     }
 }
