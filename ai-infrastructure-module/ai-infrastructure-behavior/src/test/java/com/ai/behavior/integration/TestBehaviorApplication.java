@@ -43,6 +43,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 public class TestBehaviorApplication {
 
     @Configuration
+    @ConditionalOnProperty(name = "ai.behavior.test.use-real-ai", havingValue = "false", matchIfMissing = true)
     static class TestBehaviorMocks {
         @Bean
         AICoreService aiCoreService() {

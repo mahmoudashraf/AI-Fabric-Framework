@@ -149,5 +149,23 @@
             <version>4.2.0</version>
             <scope>test</scope>
         </dependency>
+          <dependency>
+              <groupId>com.ai.infrastructure</groupId>
+              <artifactId>ai-infrastructure-provider-openai</artifactId>
+              <version>${project.version}</version>
+              <scope>test</scope>
+          </dependency>
+          <dependency>
+              <groupId>com.ai.infrastructure</groupId>
+              <artifactId>ai-infrastructure-onnx-starter</artifactId>
+              <version>${project.version}</version>
+              <scope>test</scope>
+          </dependency>
+          <dependency>
+              <groupId>com.ai.infrastructure</groupId>
+              <artifactId>ai-infrastructure-vector-lucene</artifactId>
+              <version>${project.version}</version>
+              <scope>test</scope>
+          </dependency>
     </dependencies>
 </project>

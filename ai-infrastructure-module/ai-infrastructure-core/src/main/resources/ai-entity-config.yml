@@ -12,6 +12,12 @@ ai:
       enableRecommendations: false
       autoEmbedding: true
       indexable: true
+    - name: "behavior-insight"
+      features: ["embedding", "search", "analysis", "behavioral"]
+      enableSearch: true
+      enableRecommendations: true
+      autoEmbedding: true
+      indexable: true
     - name: "product"
       features: ["embedding", "search", "analysis", "recommendations"]
       enableSearch: true
