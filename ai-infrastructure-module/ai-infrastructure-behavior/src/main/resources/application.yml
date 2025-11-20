@@ -1,0 +1,35 @@
+spring:
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    liquibase-schema: public
+
+ai:
+  behavior:
+    enabled: true
+    events:
+      batch-size: 100
+      processing-timeout-seconds: 30
+      storage-type: postgresql
+    processing:
+      analyzer:
+        engagement-threshold: 0.75
+        recency-threshold: 0.6
+        enable-ai-enrichment: true
+      worker:
+        pool-size: 5
+        delay-seconds: 300
+        max-retries: 3
+    retention:
+      temp-events-ttl-days: 30
+      insight-retention-days: 90
+      cleanup-schedule: "0 3 * * *"
+    search:
+      orchestrated:
+        enabled: true
+        pii-detection-enabled: true
+        max-results: 100
+        timeout-seconds: 30
+        rate-limit:
+          per-user: "100/hour"
+          per-endpoint: "1000/hour"

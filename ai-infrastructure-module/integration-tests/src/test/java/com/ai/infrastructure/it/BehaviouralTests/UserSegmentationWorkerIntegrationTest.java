@@ -4,7 +4,7 @@ import com.ai.behavior.metrics.KpiKeys;
 import com.ai.behavior.model.BehaviorInsights;
 import com.ai.behavior.model.BehaviorMetrics;
 import com.ai.behavior.processing.worker.UserSegmentationWorker;
-import com.ai.behavior.storage.BehaviorInsightsRepository;
+import com.ai.behavior.repository.BehaviorInsightsRepository;
 import com.ai.behavior.storage.BehaviorMetricsRepository;
 import com.ai.infrastructure.it.TestApplication;
 import com.ai.infrastructure.it.config.PostgresTestContainerConfig;

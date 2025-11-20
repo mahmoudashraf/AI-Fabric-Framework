@@ -1,5 +1,8 @@
 package com.ai.behavior.model;
 
+import com.ai.infrastructure.annotation.AICapable;
+import com.ai.infrastructure.annotation.AIProcess;
+import com.ai.infrastructure.indexing.IndexingStrategy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -31,6 +34,7 @@ import java.util.UUID;
         @Index(name = "idx_behavior_insights_valid_until", columnList = "valid_until")
     }
 )
+@AICapable(entityType = "behavior-insight", indexingStrategy = IndexingStrategy.ASYNC)
 @Getter
 @Setter
 @Builder
@@ -82,5 +86,24 @@ public class BehaviorInsights {
             scores = new HashMap<>();
         }
         return scores;
+    }
+
+    public String getSearchableContent() {
+        return String.format(
+            "Segment: %s Patterns: %s Recommendations: %s Scores: %s",
+            segment != null ? segment : "unknown",
+            patterns != null ? String.join(", ", patterns) : "",
+            recommendations != null ? String.join(", ", recommendations) : "",
+            scores != null ? scores.toString() : "{}"
+        );
+    }
+
+    @AIProcess(
+        entityType = "behavior-insight",
+        processType = "analyze",
+        indexingStrategy = IndexingStrategy.ASYNC
+    )
+    public void notifyInsightsReady() {
+        // Intentionally no-op. AI Core intercepts this hook to trigger indexing.
     }
 }

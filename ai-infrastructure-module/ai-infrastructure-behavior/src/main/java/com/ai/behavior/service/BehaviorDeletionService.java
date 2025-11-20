@@ -4,7 +4,7 @@ import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.storage.BehaviorAlertRepository;
 import com.ai.behavior.storage.BehaviorEmbeddingRepository;
 import com.ai.behavior.storage.BehaviorSignalRepository;
-import com.ai.behavior.storage.BehaviorInsightsRepository;
+import com.ai.behavior.repository.BehaviorInsightsRepository;
 import com.ai.behavior.storage.BehaviorMetricsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

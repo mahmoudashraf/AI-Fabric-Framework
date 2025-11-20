@@ -1,4 +1,7 @@
 databaseChangeLog:
+  - include:
+      file: V001__create_behavior_tables.sql
+      relativeToChangelogFile: true
   - changeSet:
       id: behavior-signals-1
       author: ai-infra

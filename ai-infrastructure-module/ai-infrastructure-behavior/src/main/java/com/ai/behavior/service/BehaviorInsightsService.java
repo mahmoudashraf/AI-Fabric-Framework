@@ -2,7 +2,7 @@ package com.ai.behavior.service;
 
 import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.model.BehaviorInsights;
-import com.ai.behavior.storage.BehaviorInsightsRepository;
+import com.ai.behavior.repository.BehaviorInsightsRepository;
 import com.ai.behavior.storage.BehaviorSignalRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

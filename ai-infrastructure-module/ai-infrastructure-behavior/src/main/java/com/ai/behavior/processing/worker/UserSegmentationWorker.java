@@ -4,7 +4,7 @@ import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.model.BehaviorMetrics;
 import com.ai.behavior.processing.analyzer.SegmentationAnalyzer;
 import com.ai.behavior.processing.analyzer.SegmentationAnalyzer.SegmentationSnapshot;
-import com.ai.behavior.storage.BehaviorInsightsRepository;
+import com.ai.behavior.repository.BehaviorInsightsRepository;
 import com.ai.behavior.storage.BehaviorMetricsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

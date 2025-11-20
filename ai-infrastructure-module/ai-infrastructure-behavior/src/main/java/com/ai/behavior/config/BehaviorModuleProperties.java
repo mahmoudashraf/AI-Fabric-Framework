@@ -13,6 +13,7 @@ public class BehaviorModuleProperties {
 
     private boolean enabled = true;
     private Sink sink = new Sink();
+    private Events events = new Events();
     private Ingestion ingestion = new Ingestion();
     private Processing processing = new Processing();
     private Insights insights = new Insights();
@@ -20,6 +21,7 @@ public class BehaviorModuleProperties {
     private Performance performance = new Performance();
     private Providers providers = new Providers();
     private Schemas schemas = new Schemas();
+    private Search search = new Search();
 
     @Data
     public static class Sink {
@@ -65,6 +67,13 @@ public class BehaviorModuleProperties {
     }
 
     @Data
+    public static class Events {
+        private int batchSize = 100;
+        private int processingTimeoutSeconds = 30;
+        private String storageType = "postgresql";
+    }
+
+    @Data
     public static class Ingestion {
         private int maxBatchSize = 500;
         private boolean publishApplicationEvents = true;
@@ -78,6 +87,8 @@ public class BehaviorModuleProperties {
         private Anomaly anomaly = new Anomaly();
         private Segmentation segmentation = new Segmentation();
         private Metrics metrics = new Metrics();
+        private Analyzer analyzer = new Analyzer();
+        private Worker worker = new Worker();
 
         @Data
         public static class Aggregation {
@@ -126,6 +137,20 @@ public class BehaviorModuleProperties {
                 "diversityMetricProjector"
             ));
         }
+
+        @Data
+        public static class Analyzer {
+            private double engagementThreshold = 0.75;
+            private double recencyThreshold = 0.6;
+            private boolean enableAiEnrichment = true;
+        }
+
+        @Data
+        public static class Worker {
+            private int poolSize = 5;
+            private int delaySeconds = 300;
+            private int maxRetries = 3;
+        }
     }
 
     @Data
@@ -143,6 +168,9 @@ public class BehaviorModuleProperties {
         private int metricsDays = 365;
         private int embeddingsDays = 90;
         private int alertsDays = 30;
+        private int tempEventsTtlDays = 30;
+        private int insightRetentionDays = 90;
+        private String cleanupSchedule = "0 3 * * *";
     }
 
     @Data
@@ -185,5 +213,25 @@ public class BehaviorModuleProperties {
         private boolean failOnStartupIfMissing = true;
         private int maxAttributeCount = 128;
         private Duration cacheTtl = Duration.ofMinutes(5);
+    }
+
+    @Data
+    public static class Search {
+        private Orchestrated orchestrated = new Orchestrated();
+
+        @Data
+        public static class Orchestrated {
+            private boolean enabled = true;
+            private boolean piiDetectionEnabled = true;
+            private int maxResults = 100;
+            private int timeoutSeconds = 30;
+            private RateLimit rateLimit = new RateLimit();
+
+            @Data
+            public static class RateLimit {
+                private String perUser = "100/hour";
+                private String perEndpoint = "1000/hour";
+            }
+        }
     }
 }
