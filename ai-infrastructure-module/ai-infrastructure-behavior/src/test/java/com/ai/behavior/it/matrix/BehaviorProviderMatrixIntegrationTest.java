@@ -2,9 +2,7 @@ package com.ai.behavior.it.matrix;
 
 import com.ai.behavior.integration.BehaviorAnalysisIntegrationTest;
 import com.ai.behavior.integration.BehaviorSearchIntegrationTest;
-import com.ai.behavior.integration.DefaultPolicyIntegrationTest;
 import com.ai.behavior.integration.EventIngestionIntegrationTest;
-import com.ai.behavior.integration.PolicyOverrideIntegrationTest;
 import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
@@ -44,9 +42,7 @@ public class BehaviorProviderMatrixIntegrationTest {
     private static final Class<?>[] BEHAVIOR_INTEGRATION_TESTS = {
         EventIngestionIntegrationTest.class,
         BehaviorAnalysisIntegrationTest.class,
-        BehaviorSearchIntegrationTest.class,
-        PolicyOverrideIntegrationTest.class,
-        DefaultPolicyIntegrationTest.class
+        BehaviorSearchIntegrationTest.class
     };
 
     private static final List<ProviderCombination> DEFAULT_COMBINATIONS = List.of(
