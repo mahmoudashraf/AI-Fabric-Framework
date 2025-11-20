@@ -1,0 +1,144 @@
+================================================================================
+HOW PATTERNS, RECOMMENDATIONS & PREFERENCES ARE GENERATED
+================================================================================
+
+QUESTION: "how this happens - Analyzer detects patterns, Recommendations are 
+          generated, Preferences are extracted"
+
+ANSWER:
+================================================================================
+
+1. PATTERNS DETECTION ✅
+───────────────────────
+HOW: Using 5 KPI scores computed from the 9 signals, apply RULE-BASED logic:
+
+  Input: 9 behavior signals → Calculate 5 KPI scores
+  
+  ENGAGEMENT = log(9+1) / 4.0 = 0.575
+  RECENCY    = 1 - (0.5 hours / 168) = 0.997  
+  VELOCITY   = 9 events in 1 hour / 20 = 0.45
+  DIVERSITY  = 3 unique types / 9 events = 0.33
+  DURATION   = average duration = 45 seconds
+  
+  Apply Rules:
+  ├─ IF engagement >= 0.8  → "power_user"       ✗ (0.575 < 0.8)
+  ├─ IF engagement < 0.2   → "low_activity"     ✗ (0.575 > 0.2)  
+  └─ ELSE                  → "steady_state"     ✅ MATCHED
+  
+  ├─ IF recency > 0.7      → "recent_engagement" ✅ (0.997 > 0.7)
+  ├─ IF recency < 0.3      → "dormant"           ✗ (0.997 > 0.3)
+  
+  ├─ IF velocity > 0.6     → "burst_activity"    ✗ (0.45 < 0.6)
+  └─ ... more rules for time-of-day, weekends, etc.
+  
+  RESULT: ["steady_state", "recent_engagement"]
+
+
+2. PREFERENCES EXTRACTION ✅
+─────────────────────────────
+HOW: Analyze the ACTUAL SIGNAL CONTENT (not just scores):
+
+  For each signal, extract and analyze:
+  
+  Signal Type Analysis:
+  ├─ "engagement.view" appears 6 times (60% of signals)
+  ├─ "engagement.add_to_cart" appears 2 times (22%)
+  └─ "conversion.purchase" appears 1 time (11%)
+  
+  Sort by frequency and EXTRACT TOP 3:
+  → ["engagement.view", "engagement.add_to_cart", "conversion.purchase"]
+  
+  Attribute Analysis:
+  ├─ Extract "durationSeconds" from each signal
+  ├─ Average them: (45 + 50 + 48 + ...) / 9 = 45 seconds
+  
+  Unique Schemas:
+  └─ Count distinct types: 3
+  
+  RESULT: {
+    top_schemas: ["engagement.view", "engagement.add_to_cart", "conversion.purchase"],
+    avg_duration_seconds: 45.0,
+    unique_schemas: 3
+  }
+
+
+3. RECOMMENDATIONS GENERATION ✅
+─────────────────────────────────
+HOW: Apply DECISION LOGIC using patterns + scores:
+
+  Input: patterns = ["steady_state", "recent_engagement"]
+         scores = {engagement: 0.575, recency: 0.997, ...}
+  
+  Apply Decision Rules:
+  ├─ IF "dormant" in patterns OR recency < 0.3
+  │  → "trigger_reengagement_sequence"  ✗ (dormant not present, 0.997 > 0.3)
+  │
+  ├─ IF engagement > 0.7
+  │  → "offer_advocacy_program"         ✗ (0.575 < 0.7)
+  │
+  └─ IF no recommendations yet
+     → "monitor_behavior"               ✅ DEFAULT APPLIED
+  
+  RESULT: ["monitor_behavior"]
+
+
+4. BONUS: SEGMENTATION ✅
+──────────────────────────
+HOW: Use engagement + recency to classify user type:
+
+  IF engagement >= 0.75 AND recency >= 0.6  → "active"
+  IF engagement >= 0.4 AND recency >= 0.4   → "steady"  ✅ MATCHED
+  IF recency < 0.2                           → "dormant"
+  ELSE                                       → "emerging"
+  
+  RESULT: "steady"
+
+
+================================================================================
+THE COMPLETE FLOW IN ONE PICTURE
+================================================================================
+
+9 SIGNALS (view, add_to_cart, purchase events)
+       ↓
+COMPUTE SCORES (5 KPIs: engagement, recency, velocity, etc.)
+       ↓
+    ┌──────┴──────────────┬─────────────────┬──────────────┐
+    ↓                     ↓                 ↓              ↓
+DETECT           EXTRACT             BUILD              DETERMINE
+PATTERNS         PREFERENCES         RECOMMENDATIONS    SEGMENT
+    ↓                ↓                    ↓                ↓
+Rules-based      Content           Decision logic    Scoring
+matching on      analysis of       on patterns &     thresholds on
+KPI scores       actual signal     scores            engagement &
+                 attributes                          recency
+    ↓                ↓                    ↓                ↓
+["steady"        {top_schemas:     ["monitor"       "steady"
+ "recent"]       [view, cart],     behavior"]
+                  duration: 45,
+                  schemas: 3}
+    ↓                ↓                    ↓                ↓
+    └──────────────┴──────────────┬──────────────┘
+                                  ↓
+                      BUILD BehaviorInsights
+                      (patterns + preferences +
+                       recommendations + segment
+                       + scores + timestamps)
+                                  ↓
+                          DATABASE SAVE
+                                  ↓
+                         ✅ TEST ASSERTIONS PASS
+
+
+================================================================================
+KEY POINTS
+================================================================================
+
+✅ NO External Calls     - Everything in-memory
+✅ NO Machine Learning   - Pure algorithmic rules  
+✅ Deterministic         - Same input → Same output
+✅ Fast                  - ~100ms per user
+✅ Extensible            - Rules in code/config
+✅ Rule-Based            - Clear IF/THEN logic
+✅ Threshold-Based       - Easy to adjust sensitivity
+
+================================================================================

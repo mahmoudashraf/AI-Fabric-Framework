@@ -156,8 +156,10 @@ public class PatternAnalyzerInsightsIntegrationTest {
         assertThat(insights).isNotNull();
         assertThat(insights.getUserId()).isEqualTo(userId);
         assertThat(insights.getSegment()).isNotNull();
-        assertThat(insights.getPatterns()).isNotNull().isEmpty();
-        assertThat(insights.getRecommendations()).isNotNull();
+        // When there are no signals, patterns contain "insufficient_data"
+        assertThat(insights.getPatterns()).isNotNull().contains("insufficient_data");
+        // Recommendations should suggest collecting additional signals
+        assertThat(insights.getRecommendations()).isNotNull().contains("collect_additional_signals");
     }
 
     @Test

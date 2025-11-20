@@ -95,3 +95,41 @@
       maxLength: 64
   embedding:
     enabled: false
+
+- id: engagement.add_to_cart
+  domain: engagement
+  summary: Product added to shopping cart.
+  version: "1.0"
+  tags: [cart, engagement, ecommerce]
+  attributes:
+    - name: quantity
+      type: NUMBER
+      required: false
+      minimum: 0
+    - name: category
+      type: STRING
+      required: false
+      maxLength: 100
+  embedding:
+    enabled: false
+
+- id: conversion.purchase
+  domain: conversion
+  summary: Completed purchase transaction.
+  version: "1.0"
+  tags: [purchase, conversion, transaction, ecommerce]
+  attributes:
+    - name: amount
+      type: NUMBER
+      required: true
+      minimum: 0
+    - name: currency
+      type: STRING
+      required: false
+      maxLength: 8
+    - name: paymentMethod
+      type: STRING
+      required: false
+      maxLength: 64
+  embedding:
+    enabled: false
