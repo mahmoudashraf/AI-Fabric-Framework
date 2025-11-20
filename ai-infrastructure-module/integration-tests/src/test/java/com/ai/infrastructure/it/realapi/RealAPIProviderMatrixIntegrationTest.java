@@ -14,6 +14,8 @@ import com.ai.infrastructure.it.RealAPIVectorLifecycleIntegrationTest;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.it.RealAPIMultiProviderFailoverIntegrationTest;
 
+import java.util.Map;
+
 /**
  * Executes the Real API provider matrix suite, iterating over every
  * discovered LLM/Embedding(/Vector DB) combination.
@@ -43,5 +45,12 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     @Override
     protected Class<?>[] suiteTestClasses() {
         return REAL_API_TEST_CLASSES;
+    }
+
+    @Override
+    protected Map<String, Object> additionalDiscoveryProperties() {
+        return Map.of(
+            "spring.liquibase.enabled", "false"
+        );
     }
 }

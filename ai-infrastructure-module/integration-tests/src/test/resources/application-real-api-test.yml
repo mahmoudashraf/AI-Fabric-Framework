@@ -29,6 +29,8 @@ spring:
   h2:
     console:
       enabled: false
+  liquibase:
+    enabled: false
 
 # Test Configuration
 test:

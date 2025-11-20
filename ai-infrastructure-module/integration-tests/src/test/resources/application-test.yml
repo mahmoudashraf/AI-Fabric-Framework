@@ -56,3 +56,6 @@ logging:
     com.ai.infrastructure: DEBUG
     com.ai.infrastructure.embedding: DEBUG
     org.springframework: WARN
+spring:
+  liquibase:
+    enabled: false

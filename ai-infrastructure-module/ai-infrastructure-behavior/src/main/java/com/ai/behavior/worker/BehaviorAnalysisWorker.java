@@ -53,7 +53,7 @@ public class BehaviorAnalysisWorker {
     }
 
     @Transactional
-    @Scheduled(cron = "${ai.behavior.retention.cleanup-schedule:0 3 * * *}")
+    @Scheduled(cron = "${ai.behavior.retention.cleanup-schedule:0 0 3 * * *}")
     public void cleanupExpiredEvents() {
         OffsetDateTime cutoff = OffsetDateTime.now();
         long deleted = behaviorEventRepository.deleteByExpiresAtBefore(cutoff);

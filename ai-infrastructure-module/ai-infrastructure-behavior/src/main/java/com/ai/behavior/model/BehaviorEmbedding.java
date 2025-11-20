@@ -24,12 +24,12 @@ import java.util.UUID;
  * Selective text embeddings for feedback, reviews, and search queries.
  */
 @Entity
-@Table(name = "behavior_embeddings",
-    indexes = {
-        @Index(name = "idx_behavior_embedding_event", columnList = "behavior_event_id"),
-        @Index(name = "idx_behavior_embedding_type", columnList = "embedding_type")
-    }
-)
+    @Table(name = "behavior_embeddings",
+        indexes = {
+            @Index(name = "idx_behavior_embedding_signal", columnList = "behavior_signal_id"),
+            @Index(name = "idx_behavior_embedding_type", columnList = "embedding_type")
+        }
+    )
 @Getter
 @Setter
 @Builder

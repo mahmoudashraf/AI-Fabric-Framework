@@ -1,5 +1,9 @@
 package com.ai.infrastructure.it;
 
+import com.ai.behavior.config.AIBehaviorAutoConfiguration;
+import com.ai.behavior.policy.BehaviorAnalysisPolicy;
+import com.ai.behavior.policy.DefaultBehaviorAnalysisPolicy;
+import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
@@ -22,7 +26,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * @version 1.0.0
  */
 @SpringBootApplication(scanBasePackages = {"com.ai.infrastructure", "com.ai.behavior", "com.ai.infrastructure.it"})
-@Import(AIInfrastructureAutoConfiguration.class)
+@Import({AIInfrastructureAutoConfiguration.class, AIBehaviorAutoConfiguration.class})
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
     "com.ai.behavior.model",
@@ -31,12 +35,18 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EnableJpaRepositories(basePackages = {
     "com.ai.infrastructure.repository",
     "com.ai.behavior.storage",
+    "com.ai.behavior.repository",
     "com.ai.infrastructure.it.repository"
 })
 public class TestApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(TestApplication.class, args);
+    }
+
+    @Bean
+    public BehaviorAnalysisPolicy behaviorAnalysisPolicy(BehaviorModuleProperties properties) {
+        return new DefaultBehaviorAnalysisPolicy(properties);
     }
 
     @Bean
