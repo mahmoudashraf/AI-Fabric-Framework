@@ -18,6 +18,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.OffsetDateTime;
@@ -26,11 +28,15 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @TestPropertySource(properties = {
-    "ai.behavior.test.mock-policy=false",
     "ai.behavior.events.batch-size=10"
 })
 @Import(DefaultPolicyIntegrationTest.DefaultPolicyConfig.class)
 public class DefaultPolicyIntegrationTest extends BehaviorAnalyticsIntegrationTest {
+    @DynamicPropertySource
+    static void disableTestPolicy(DynamicPropertyRegistry registry) {
+        registry.add("ai.behavior.test.mock-policy", () -> "false");
+    }
+
 
     @Autowired
     private BehaviorEventIngestionService ingestionService;
