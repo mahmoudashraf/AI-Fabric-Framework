@@ -65,6 +65,7 @@ public abstract class BehaviorRealApiIntegrationTest {
         registry.add("spring.liquibase.change-log", () -> "classpath:db/changelog/db.changelog-master.yaml");
         registry.add("spring.liquibase.enabled", () -> "true");
         registry.add("spring.task.scheduling.enabled", () -> "true");
+        registry.add("ai.config.default-file", () -> "behavior-ai-entity-config.yml");
 
         registry.add("ai.behavior.test.use-real-ai", () -> "true");
         registry.add("ai.behavior.test.mock-policy", () -> "false");
