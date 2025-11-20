@@ -20,13 +20,15 @@ import java.nio.file.Path;
 public abstract class BehaviorRealApiIntegrationTest {
 
     private static EmbeddedPostgres embeddedPostgres;
-    private static final Path LUCENE_INDEX = Path.of(
-        System.getProperty("java.io.tmpdir"),
-        "behavior-realapi-lucene-index"
-    );
+    private static final Path LUCENE_INDEX;
 
     static {
         BehaviorRealApiTestSupport.ensureProvidersConfigured();
+        try {
+            LUCENE_INDEX = Files.createTempDirectory("behavior-realapi-lucene-index-").toAbsolutePath();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create temp directory for Lucene index", e);
+        }
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             if (embeddedPostgres != null) {
                 try {
@@ -42,7 +44,6 @@ public abstract class BehaviorRealApiIntegrationTest {
         if (embeddedPostgres == null) {
             embeddedPostgres = EmbeddedPostgres.builder().start();
         }
-        Files.createDirectories(LUCENE_INDEX);
     }
 
     @DynamicPropertySource
@@ -63,7 +64,7 @@ public abstract class BehaviorRealApiIntegrationTest {
         registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
         registry.add("spring.liquibase.change-log", () -> "classpath:db/changelog/db.changelog-master.yaml");
         registry.add("spring.liquibase.enabled", () -> "true");
-        registry.add("spring.task.scheduling.enabled", () -> "false");
+        registry.add("spring.task.scheduling.enabled", () -> "true");
 
         registry.add("ai.behavior.test.use-real-ai", () -> "true");
         registry.add("ai.behavior.test.mock-policy", () -> "false");

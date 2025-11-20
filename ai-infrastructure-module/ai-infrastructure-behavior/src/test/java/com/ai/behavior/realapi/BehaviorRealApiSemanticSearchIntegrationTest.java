@@ -11,6 +11,9 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.dto.AIEntityConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +57,12 @@ public class BehaviorRealApiSemanticSearchIntegrationTest extends BehaviorRealAp
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private AICapabilityService aiCapabilityService;
+
+    @Autowired
+    private AIEntityConfigurationLoader entityConfigurationLoader;
+
     @BeforeEach
     void cleanState() {
         searchableEntityRepository.deleteAll();
@@ -74,6 +83,11 @@ public class BehaviorRealApiSemanticSearchIntegrationTest extends BehaviorRealAp
             .atMost(Duration.ofSeconds(30))
             .until(() -> insightsRepository.findTopByUserIdOrderByAnalyzedAtDesc(userId).orElse(null),
                 Objects::nonNull);
+
+        AIEntityConfig config = entityConfigurationLoader.getEntityConfig("behavior-insight");
+        assertThat(config).as("behavior-insight configuration should be registered").isNotNull();
+        aiCapabilityService.generateEmbeddings(insights, config);
+        aiCapabilityService.indexForSearch(insights, config);
 
         Awaitility.await()
             .atMost(Duration.ofMinutes(2))

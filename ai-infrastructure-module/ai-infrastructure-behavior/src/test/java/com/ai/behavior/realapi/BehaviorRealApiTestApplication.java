@@ -5,6 +5,9 @@ import com.ai.behavior.config.BehaviorModuleProperties;
 import com.ai.behavior.policy.BehaviorAnalysisPolicy;
 import com.ai.behavior.policy.DefaultBehaviorAnalysisPolicy;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
+import com.ai.infrastructure.access.policy.EntityAccessPolicy;
+import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
+import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -34,6 +37,19 @@ public class BehaviorRealApiTestApplication {
         @Primary
         BehaviorAnalysisPolicy behaviorAnalysisPolicy(BehaviorModuleProperties properties) {
             return new DefaultBehaviorAnalysisPolicy(properties);
+        }
+
+        @Bean
+        EntityAccessPolicy testEntityAccessPolicy() {
+            return (userId, entity) -> true;
+        }
+
+        @Bean
+        ComplianceCheckProvider testComplianceCheckProvider() {
+            return request -> ComplianceCheckResult.builder()
+                .compliant(true)
+                .details("real-api-test-policy")
+                .build();
         }
     }
 }
