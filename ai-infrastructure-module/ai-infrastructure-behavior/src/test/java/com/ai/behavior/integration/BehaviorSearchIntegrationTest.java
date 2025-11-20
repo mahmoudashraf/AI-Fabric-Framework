@@ -2,6 +2,7 @@ package com.ai.behavior.integration;
 
 import com.ai.behavior.dto.OrchestratedQueryRequest;
 import com.ai.behavior.model.BehaviorInsights;
+import com.ai.behavior.repository.BehaviorEventRepository;
 import com.ai.behavior.repository.BehaviorInsightsRepository;
 import com.ai.infrastructure.dto.PIIDetectionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -9,6 +10,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -26,10 +28,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class BehaviorSearchIntegrationTest extends BehaviorAnalyticsIntegrationTest {
+public class BehaviorSearchIntegrationTest extends BehaviorAnalyticsIntegrationTest {
 
     @Autowired
     private BehaviorInsightsRepository insightsRepository;
+
+    @Autowired
+    private BehaviorEventRepository eventRepository;
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,6 +47,12 @@ class BehaviorSearchIntegrationTest extends BehaviorAnalyticsIntegrationTest {
 
     @MockBean
     private RAGOrchestrator ragOrchestrator;
+
+    @BeforeEach
+    void cleanDatabase() {
+        insightsRepository.deleteAll();
+        eventRepository.deleteAll();
+    }
 
     @Test
     void orchestratedSearchShouldReturnInsights() throws Exception {
@@ -87,6 +98,17 @@ class BehaviorSearchIntegrationTest extends BehaviorAnalyticsIntegrationTest {
 
     @Test
     void orchestratedSearchShouldBlockPiiQueries() throws Exception {
+        insightsRepository.save(BehaviorInsights.builder()
+            .userId(UUID.randomUUID())
+            .segment("power_user")
+            .patterns(java.util.List.of("high_engagement"))
+            .recommendations(java.util.List.of("offer_loyalty_reward"))
+            .scores(Map.of("confidenceScore", 0.9))
+            .analyzedAt(LocalDateTime.now())
+            .validUntil(LocalDateTime.now().plusDays(1))
+            .analysisVersion("test")
+            .build());
+
         when(piiDetectionService.detectAndProcess(any()))
             .thenReturn(PIIDetectionResult.builder()
                 .originalQuery("user ssn 111-11-1111")

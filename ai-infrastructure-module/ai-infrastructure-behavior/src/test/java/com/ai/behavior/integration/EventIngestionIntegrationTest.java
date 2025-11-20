@@ -5,6 +5,7 @@ import com.ai.behavior.repository.BehaviorEventRepository;
 import com.ai.behavior.service.BehaviorEventIngestionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -15,7 +16,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class EventIngestionIntegrationTest extends BehaviorAnalyticsIntegrationTest {
+public class EventIngestionIntegrationTest extends BehaviorAnalyticsIntegrationTest {
 
     @Autowired
     private BehaviorEventIngestionService ingestionService;
@@ -25,6 +26,11 @@ class EventIngestionIntegrationTest extends BehaviorAnalyticsIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void cleanEvents() {
+        eventRepository.deleteAll();
+    }
 
     @Test
     void shouldPersistSingleEventWithTtl() throws Exception {

@@ -8,6 +8,7 @@ import com.ai.behavior.service.BehaviorEventIngestionService;
 import com.ai.behavior.worker.BehaviorAnalysisWorker;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -18,7 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class BehaviorAnalysisIntegrationTest extends BehaviorAnalyticsIntegrationTest {
+public class BehaviorAnalysisIntegrationTest extends BehaviorAnalyticsIntegrationTest {
 
     @Autowired
     private BehaviorEventIngestionService ingestionService;
@@ -34,6 +35,12 @@ class BehaviorAnalysisIntegrationTest extends BehaviorAnalyticsIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void cleanState() {
+        insightsRepository.deleteAll();
+        eventRepository.deleteAll();
+    }
 
     @Test
     void workerShouldCreateInsightsForUserEvents() throws Exception {
