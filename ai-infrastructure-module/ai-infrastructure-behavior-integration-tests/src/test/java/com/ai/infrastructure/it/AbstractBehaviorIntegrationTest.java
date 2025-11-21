@@ -46,7 +46,6 @@ public abstract class AbstractBehaviorIntegrationTest {
         registry.add("spring.liquibase.change-log", () -> "classpath:/db/changelog/db.changelog-master.yaml");
 
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "none");
-        registry.add("spring.sql.init.mode", () -> "never");
     }
 
     protected static EmbeddedPostgres getEmbeddedPostgres() {
