@@ -27,9 +27,9 @@ management:
     health:
       probes:
         enabled: true
-  metrics:
-    tags:
-      application: behavior-module
+    metrics:
+      tags:
+        application: behavior-module
 
 ai:
   behavior:
@@ -50,7 +50,7 @@ ai:
     retention:
       temp-events-ttl-days: 30
       insight-retention-days: 90
-      cleanup-schedule: "0 3 * * *"
+      cleanup-schedule: "0 0 3 * * *"
     search:
       orchestrated:
         enabled: true

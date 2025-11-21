@@ -5,8 +5,8 @@ import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.model.BehaviorQuery;
 import com.ai.behavior.service.BehaviorQueryService;
 import com.ai.behavior.storage.BehaviorSignalRepository;
+import com.ai.infrastructure.it.AbstractBehaviorIntegrationTest;
 import com.ai.infrastructure.it.TestApplication;
-import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,7 +15,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.context.annotation.Import;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -35,8 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "ai.behavior.providers.aggregated.max-providers=2"
     }
 )
-@Import(PostgresTestContainerConfig.class)
-public class AggregatedBehaviorProviderIntegrationTest {
+public class AggregatedBehaviorProviderIntegrationTest extends AbstractBehaviorIntegrationTest {
 
     @Autowired
     private BehaviorSignalRepository eventRepository;

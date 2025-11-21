@@ -6,6 +6,7 @@ import com.ai.infrastructure.entity.Behavior;
 import com.ai.infrastructure.repository.BehaviorRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.BehaviorService;
+import com.ai.infrastructure.it.AbstractBehaviorIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,8 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
-import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
-import org.springframework.context.annotation.Import;
 import java.sql.Timestamp;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -33,8 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 
 @SpringBootTest(classes = TestApplication.class)
-@Import(PostgresTestContainerConfig.class)
-class BehaviorPatternDetectionIntegrationTest {
+class BehaviorPatternDetectionIntegrationTest extends AbstractBehaviorIntegrationTest {
 
     @Autowired
     private BehaviorService behaviorService;

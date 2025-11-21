@@ -5,8 +5,8 @@ import com.ai.behavior.ingestion.BehaviorSignalSink;
 import com.ai.behavior.ingestion.impl.HybridEventSink;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.storage.BehaviorSignalRepository;
+import com.ai.infrastructure.it.AbstractBehaviorIntegrationTest;
 import com.ai.infrastructure.it.TestApplication;
-import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,7 +17,6 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.slf4j.Logger;
@@ -44,8 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     }
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@Import(PostgresTestContainerConfig.class)
-public class HybridEventSinkIntegrationTest {
+public class HybridEventSinkIntegrationTest extends AbstractBehaviorIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(HybridEventSinkIntegrationTest.class);
 

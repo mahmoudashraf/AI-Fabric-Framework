@@ -5,8 +5,8 @@ import com.ai.behavior.ingestion.BehaviorIngestionMetrics;
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.model.BehaviorSignal;
 import com.ai.behavior.service.BehaviorMonitoringService;
+import com.ai.infrastructure.it.AbstractBehaviorIntegrationTest;
 import com.ai.infrastructure.it.TestApplication;
-import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -20,7 +20,6 @@ import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.Duration;
@@ -44,8 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @TestPropertySource(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@Import(PostgresTestContainerConfig.class)
-public class KafkaEventSinkIntegrationTest {
+public class KafkaEventSinkIntegrationTest extends AbstractBehaviorIntegrationTest {
 
     static final String TOPIC = "behavior-events-test";
 

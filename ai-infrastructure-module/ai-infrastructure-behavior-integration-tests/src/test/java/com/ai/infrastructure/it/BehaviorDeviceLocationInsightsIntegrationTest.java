@@ -6,6 +6,7 @@ import com.ai.infrastructure.entity.Behavior;
 import com.ai.infrastructure.repository.BehaviorRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.BehaviorService;
+import com.ai.infrastructure.it.AbstractBehaviorIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,8 +14,6 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
-import org.springframework.context.annotation.Import;
 
 import java.util.List;
 import java.util.Map;
@@ -34,8 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </p>
  */
 @SpringBootTest(classes = TestApplication.class)
-@Import(PostgresTestContainerConfig.class)
-class BehaviorDeviceLocationInsightsIntegrationTest {
+class BehaviorDeviceLocationInsightsIntegrationTest extends AbstractBehaviorIntegrationTest {
 
     @Autowired
     private BehaviorService behaviorService;

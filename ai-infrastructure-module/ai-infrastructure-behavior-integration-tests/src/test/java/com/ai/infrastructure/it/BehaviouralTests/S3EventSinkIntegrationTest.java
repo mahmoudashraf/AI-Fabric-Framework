@@ -2,8 +2,8 @@ package com.ai.infrastructure.it.BehaviouralTests;
 
 import com.ai.behavior.ingestion.BehaviorIngestionService;
 import com.ai.behavior.model.BehaviorSignal;
+import com.ai.infrastructure.it.AbstractBehaviorIntegrationTest;
 import com.ai.infrastructure.it.TestApplication;
-import com.ai.infrastructure.it.config.PostgresTestContainerConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -15,7 +15,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.context.annotation.Import;
 import io.findify.s3mock.S3Mock;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -54,8 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     }
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@Import(PostgresTestContainerConfig.class)
-public class S3EventSinkIntegrationTest {
+public class S3EventSinkIntegrationTest extends AbstractBehaviorIntegrationTest {
 
     static final String BUCKET = "behavior-it-bucket";
     static final String PREFIX = "ai-behavior-tests";
