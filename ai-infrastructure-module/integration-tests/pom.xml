@@ -28,6 +28,10 @@
             <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-behavior</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
@@ -97,18 +101,28 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
-
         <!-- Test Database -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- Testing Utilities -->
         <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.findify</groupId>
+            <artifactId>s3mock_2.13</artifactId>
+            <version>0.2.6</version>
             <scope>test</scope>
         </dependency>
 
@@ -156,12 +170,29 @@
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- JUnit Platform launcher for programmatic execution -->
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-launcher</artifactId>
             <version>1.10.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.tomakehurst</groupId>
+            <artifactId>wiremock-jre8-standalone</artifactId>
+            <version>2.35.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -176,6 +207,28 @@
                 <configuration>
                     <source>21</source>
                     <target>21</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>1.5.5.Final</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-parameters</arg>
+                    </compilerArgs>
+                    <fork>true</fork>
+                    <meminitial>128m</meminitial>
+                    <maxmem>512m</maxmem>
+                    <testExcludes>
+                        <exclude>**/com/ai/infrastructure/it/Behavior*/**</exclude>
+                        <exclude>**/com/ai/infrastructure/it/BehaviouralTests/**</exclude>
+                    </testExcludes>
                 </configuration>
             </plugin>
 

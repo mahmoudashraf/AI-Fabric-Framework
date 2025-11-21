@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: AI Behavior Module API
+  version: 1.0.0-beta
+  description: >
+    Schema-driven behavior ingestion, metrics, insights, and schema discovery APIs.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/ai-behavior/signals:
+    post:
+      summary: Ingest a single behavior signal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BehaviorSignalRequest'
+            example:
+              schemaId: engagement.view
+              userId: 11111111-1111-1111-1111-111111111111
+              timestamp: 2025-11-18T10:15:00Z
+              attributes:
+                durationSeconds: 42
+                device: ios
+      responses:
+        '202':
+          description: Accepted for processing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  id:
+                    format: uuid
+  /api/ai-behavior/signals/batch:
+    post:
+      summary: Ingest a batch of behavior signals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                events:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BehaviorSignalRequest'
+      responses:
+        '202':
+          description: Accepted
+  /api/ai-behavior/schemas:
+    get:
+      summary: List registered schema definitions
+      parameters:
+        - in: query
+          name: domain
+          schema:
+            type: string
+          description: Optional domain filter
+      responses:
+        '200':
+          description: Schema definitions (cacheable)
+          headers:
+            ETag:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BehaviorSignalDefinition'
+  /api/ai-behavior/users/{userId}/metrics:
+    get:
+      summary: Retrieve daily KPI metrics for a user
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            format: uuid
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Metric slices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BehaviorMetricsResponse'
+              example:
+                - userId: 11111111-1111-1111-1111-111111111111
+                  metricDate: 2025-11-18
+                  kpis:
+                    engagementScore: 0.82
+                    recencyScore: 0.66
+                    diversityScore: 0.41
+                    interactionVelocity: 0.57
+                    uniqueSchemaRatio: 0.33
+                    uniqueSchemaCount: 9
+                    hoursSinceLastSignal: 4
+                  metrics:
+                    count.total: 58
+                    schema.engagement.view: 24
+                    value.transaction_count: 2
+  /api/ai-behavior/users/{userId}/insights:
+    get:
+      summary: Retrieve the latest insight bundle for a user
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            format: uuid
+      responses:
+        '200':
+          description: Insight payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BehaviorInsightsResponse'
+              example:
+                id: d1f4312d-a0b2-487f-9d79-051832587c2d
+                userId: 11111111-1111-1111-1111-111111111111
+                segment: super_engaged
+                patterns: [power_user, recent_engagement]
+                kpis:
+                  engagementScore: 0.84
+                  recencyScore: 0.72
+                  diversityScore: 0.47
+                  interactionVelocity: 0.63
+                  uniqueSchemaRatio: 0.35
+                  uniqueSchemaCount: 11
+                  hoursSinceLastSignal: 2
+                recommendations: [offer_advocacy_program]
+                preferences:
+                  kpis:
+                    engagement: 0.84
+                    recency: 0.72
+                    diversity: 0.47
+                    uniqueSchemas: 11
+components:
+  schemas:
+    BehaviorSignalRequest:
+      type: object
+      required: [schemaId]
+      properties:
+        id:
+          format: uuid
+        userId:
+          format: uuid
+        sessionId:
+          type: string
+        schemaId:
+          type: string
+        signalKey:
+          type: string
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        attributes:
+          type: object
+          additionalProperties: true
+    BehaviorKpiSnapshot:
+      type: object
+      properties:
+        engagementScore:
+          type: number
+        recencyScore:
+          type: number
+        diversityScore:
+          type: number
+        interactionVelocity:
+          type: number
+        uniqueSchemaRatio:
+          type: number
+        uniqueSchemaCount:
+          type: integer
+        hoursSinceLastSignal:
+          type: number
+    BehaviorMetricsResponse:
+      type: object
+      properties:
+        userId:
+          format: uuid
+        metricDate:
+          type: string
+          format: date
+        kpis:
+          $ref: '#/components/schemas/BehaviorKpiSnapshot'
+        metrics:
+          type: object
+          additionalProperties:
+            type: number
+    BehaviorInsightsResponse:
+      type: object
+      properties:
+        id:
+          format: uuid
+        userId:
+          format: uuid
+        segment:
+          type: string
+        patterns:
+          type: array
+          items:
+            type: string
+        kpis:
+          $ref: '#/components/schemas/BehaviorKpiSnapshot'
+        preferences:
+          type: object
+        recommendations:
+          type: array
+          items:
+            type: string
+        analyzedAt:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        analysisVersion:
+          type: string
+    BehaviorSignalDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+        domain:
+          type: string
+        version:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        attributes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+              required:
+                type: boolean
+              enumValues:
+                type: array
+                items:
+                  type: string

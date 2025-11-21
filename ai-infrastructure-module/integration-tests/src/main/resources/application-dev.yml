@@ -3,9 +3,9 @@
 
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=RUNSCRIPT FROM 'classpath:schema-h2.sql'
     username: sa
-    password: 
+    password:
     driver-class-name: org.h2.Driver
     hikari:
       maximum-pool-size: 5
@@ -13,6 +13,11 @@ spring:
       connection-timeout: 20000
       auto-commit: true
       pool-name: HikariCP-Test
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
 
   jpa:
     hibernate:
@@ -24,7 +29,8 @@ spring:
         format_sql: false
         jdbc:
           batch_size: 20
-    open-in-view: false
+      open-in-view: false
+      defer-datasource-initialization: true
 
 ai:
   enabled: true

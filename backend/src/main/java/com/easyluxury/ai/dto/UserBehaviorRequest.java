@@ -11,36 +11,31 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * UserBehaviorRequest
- * 
  * Request DTO for user behavior tracking operations.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserBehaviorRequest {
-    
+
     @NotNull(message = "User ID is required")
     private UUID userId;
-    
+
     @NotNull(message = "Behavior type is required")
     private UserBehavior.BehaviorType behaviorType;
-    
+
     private String entityType;
-    
+
     private String entityId;
-    
+
     private String action;
-    
+
     private String context;
-    
+
     private Map<String, Object> metadata;
-    
+
     private Long durationSeconds;
-    
+
     private String value;
 }

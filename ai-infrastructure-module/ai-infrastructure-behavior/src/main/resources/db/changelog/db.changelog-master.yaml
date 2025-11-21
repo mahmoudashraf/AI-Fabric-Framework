@@ -1,0 +1,315 @@
+databaseChangeLog:
+  - include:
+      file: V001__create_behavior_tables.sql
+      relativeToChangelogFile: true
+  - changeSet:
+      id: behavior-signals-1
+      author: ai-infra
+      changes:
+        - createTable:
+            tableName: behavior_signals
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: tenant_id
+                  type: varchar(64)
+              - column:
+                  name: user_id
+                  type: uuid
+              - column:
+                  name: session_id
+                  type: varchar(128)
+              - column:
+                  name: schema_id
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: signal_key
+                  type: varchar(128)
+              - column:
+                  name: source
+                  type: varchar(50)
+              - column:
+                  name: channel
+                  type: varchar(50)
+              - column:
+                  name: entity_type
+                  type: varchar(64)
+              - column:
+                  name: entity_id
+                  type: varchar(255)
+              - column:
+                  name: version
+                  type: varchar(16)
+              - column:
+                  name: timestamp
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ingested_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: attributes
+                  type: jsonb
+        - createIndex:
+            tableName: behavior_signals
+            indexName: idx_behavior_signals_user_time
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: timestamp
+                  descending: true
+        - createIndex:
+            tableName: behavior_signals
+            indexName: idx_behavior_signals_schema_time
+            columns:
+              - column:
+                  name: schema_id
+              - column:
+                  name: timestamp
+                  descending: true
+        - createIndex:
+            tableName: behavior_signals
+            indexName: idx_behavior_signals_session_time
+            columns:
+              - column:
+                  name: session_id
+              - column:
+                  name: timestamp
+                  descending: true
+        - createIndex:
+            tableName: behavior_signals
+            indexName: idx_behavior_signals_entity
+            columns:
+              - column:
+                  name: entity_type
+              - column:
+                  name: entity_id
+  - changeSet:
+      id: behavior-signal-metrics-1
+      author: ai-infra
+      changes:
+        - createTable:
+            tableName: behavior_signal_metrics
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tenant_id
+                  type: varchar(64)
+              - column:
+                  name: metric_date
+                  type: date
+                  constraints:
+                    nullable: false
+              - column:
+                  name: metrics
+                  type: jsonb
+                  constraints:
+                    nullable: false
+              - column:
+                  name: attributes
+                  type: jsonb
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: behavior_signal_metrics
+            columnNames: user_id, metric_date
+            constraintName: uq_behavior_signal_metrics_user_date
+        - createIndex:
+            tableName: behavior_signal_metrics
+            indexName: idx_behavior_signal_metrics_user_date
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: metric_date
+  - changeSet:
+      id: behavior-insights-1
+      author: ai-infra
+      changes:
+        - createTable:
+            tableName: behavior_insights
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: patterns
+                  type: jsonb
+              - column:
+                  name: scores
+                  type: jsonb
+              - column:
+                  name: segment
+                  type: varchar(50)
+              - column:
+                  name: preferences
+                  type: jsonb
+              - column:
+                  name: recommendations
+                  type: jsonb
+              - column:
+                  name: analyzed_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: valid_until
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: analysis_version
+                  type: varchar(32)
+        - createIndex:
+            tableName: behavior_insights
+            indexName: idx_behavior_insights_user
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            tableName: behavior_insights
+            indexName: idx_behavior_insights_valid_until
+            columns:
+              - column:
+                  name: valid_until
+  - changeSet:
+      id: behavior-embeddings-1
+      author: ai-infra
+      changes:
+        - createTable:
+            tableName: behavior_embeddings
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: behavior_signal_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: embedding_type
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: original_text
+                  type: text
+              - column:
+                  name: embedding
+                  type: jsonb
+              - column:
+                  name: model
+                  type: varchar(100)
+              - column:
+                  name: detected_category
+                  type: varchar(100)
+              - column:
+                  name: sentiment_score
+                  type: numeric(10,4)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: behavior_embeddings
+            indexName: idx_behavior_embedding_signal
+            columns:
+              - column:
+                  name: behavior_signal_id
+        - createIndex:
+            tableName: behavior_embeddings
+            indexName: idx_behavior_embedding_type
+            columns:
+              - column:
+                  name: embedding_type
+  - changeSet:
+      id: behavior-alerts-1
+      author: ai-infra
+      changes:
+        - createTable:
+            tableName: behavior_alerts
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+              - column:
+                  name: behavior_signal_id
+                  type: uuid
+              - column:
+                  name: alert_type
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: severity
+                  type: varchar(16)
+              - column:
+                  name: message
+                  type: text
+              - column:
+                  name: context
+                  type: jsonb
+              - column:
+                  name: detected_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: behavior_alerts
+            indexName: idx_behavior_alert_user
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            tableName: behavior_alerts
+            indexName: idx_behavior_alert_type
+            columns:
+              - column:
+                  name: alert_type

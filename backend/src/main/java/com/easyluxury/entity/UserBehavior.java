@@ -1,152 +1,44 @@
 package com.easyluxury.entity;
 
-import com.ai.infrastructure.annotation.AICapable;
-import com.ai.infrastructure.annotation.AIEmbedding;
-import com.ai.infrastructure.annotation.AIKnowledge;
-import jakarta.persistence.*;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * UserBehavior Entity
- * 
- * Tracks user behavioral data for AI analysis and insights.
- * This entity captures user interactions, preferences, and patterns
- * to enable AI-powered behavioral analysis and recommendations.
- * 
- * @author Easy Luxury Team
- * @version 1.0.0
+ * Lightweight behavior model used by backend services.
+ * Delegates persistence to the ai-behavior module.
  */
-@Entity
-@Table(name = "user_behaviors")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@AICapable(
-    entityType = "user_behavior",
-    features = {"embedding", "search", "analysis", "pattern_recognition"},
-    enableSearch = true,
-    enableRecommendations = false,
-    autoEmbedding = true,
-    indexable = true
-)
 public class UserBehavior {
-    
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+
     private UUID id;
-    
-    @NotNull(message = "User ID is required")
-    @Column(name = "user_id", nullable = false)
     private UUID userId;
-    
-    @Enumerated(EnumType.STRING)
-    @Column(name = "behavior_type", nullable = false)
     private BehaviorType behaviorType;
-    
-    @Column(name = "entity_type")
-    private String entityType; // product, order, page, etc.
-    
-    @Column(name = "entity_id")
+    private String entityType;
     private String entityId;
-    
-    @Column(name = "action")
-    @AIKnowledge(
-        fieldName = "action",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String action;
-    
-    @Column(name = "context")
-    @AIKnowledge(
-        fieldName = "context",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String context;
-    
-    @Column(name = "metadata")
-    @AIKnowledge(
-        fieldName = "metadata",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String metadata;
-    
-    @Column(name = "session_id")
     private String sessionId;
-    
-    @Column(name = "device_info")
     private String deviceInfo;
-    
-    @Column(name = "location_info")
     private String locationInfo;
-    
-    @Column(name = "duration_seconds")
     private Long durationSeconds;
-    
-    @Column(name = "behavior_value")
     private String value;
-    
-    @Column(name = "search_vector")
-    @AIEmbedding(
-        fieldName = "search_vector",
-        model = "text-embedding-3-small",
-        autoGenerate = true,
-        includeInSimilarity = true
-    )
-    private String searchVector;
-    
-    // AI Analysis fields
-    @Column(name = "ai_analysis")
-    @AIKnowledge(
-        fieldName = "ai_analysis",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiAnalysis;
-    
-    @Column(name = "ai_insights")
-    @AIKnowledge(
-        fieldName = "ai_insights",
-        searchable = true,
-        includeInRAG = true,
-        indexable = true,
-        enableSemanticSearch = true
-    )
     private String aiInsights;
-    
-    @Column(name = "behavior_score")
     private Double behaviorScore;
-    
-    @Column(name = "significance_score")
     private Double significanceScore;
-    
-    @Column(name = "pattern_flags")
     private String patternFlags;
-    
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-    
+
     public enum BehaviorType {
         VIEW,
         CLICK,
@@ -264,15 +156,12 @@ public class UserBehavior {
         CUSTOM_ALERT,
         UNKNOWN
     }
-    
-    // Helper methods for AI operations
-    
-    /**
-     * Get the primary searchable text for AI operations
-     */
+
     public String getSearchableText() {
         StringBuilder text = new StringBuilder();
-        text.append(behaviorType.toString()).append(" ");
+        if (behaviorType != null) {
+            text.append(behaviorType).append(" ");
+        }
         if (entityType != null) {
             text.append(entityType).append(" ");
         }
@@ -299,23 +188,24 @@ public class UserBehavior {
         }
         return text.toString().trim();
     }
-    
-    /**
-     * Get metadata for AI operations
-     */
+
     public Map<String, Object> getAIMetadata() {
-        Map<String, Object> metadata = new java.util.HashMap<>();
-        metadata.put("id", id.toString());
-        metadata.put("userId", userId.toString());
-        metadata.put("behaviorType", behaviorType.toString());
-        metadata.put("entityType", entityType != null ? entityType : "");
-        metadata.put("entityId", entityId != null ? entityId : "");
-        metadata.put("action", action != null ? action : "");
-        metadata.put("durationSeconds", durationSeconds != null ? durationSeconds : 0L);
-        metadata.put("behaviorScore", behaviorScore != null ? behaviorScore : 0.0);
-        metadata.put("significanceScore", significanceScore != null ? significanceScore : 0.0);
-        metadata.put("patternFlags", patternFlags != null ? patternFlags : "");
-        metadata.put("createdAt", createdAt.toString());
-        return metadata;
+        Map<String, Object> metadataMap = new java.util.HashMap<>();
+        if (id != null) {
+            metadataMap.put("id", id.toString());
+        }
+        if (userId != null) {
+            metadataMap.put("userId", userId.toString());
+        }
+        metadataMap.put("behaviorType", behaviorType != null ? behaviorType.toString() : "");
+        metadataMap.put("entityType", entityType != null ? entityType : "");
+        metadataMap.put("entityId", entityId != null ? entityId : "");
+        metadataMap.put("action", action != null ? action : "");
+        metadataMap.put("durationSeconds", durationSeconds != null ? durationSeconds : 0L);
+        metadataMap.put("behaviorScore", behaviorScore != null ? behaviorScore : 0.0);
+        metadataMap.put("significanceScore", significanceScore != null ? significanceScore : 0.0);
+        metadataMap.put("patternFlags", patternFlags != null ? patternFlags : "");
+        metadataMap.put("createdAt", createdAt != null ? createdAt.toString() : "");
+        return metadataMap;
     }
 }

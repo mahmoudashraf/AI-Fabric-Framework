@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import jakarta.persistence.*;
-import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -66,7 +65,7 @@ public class AISearchableEntity {
     @Column(name = "vector_updated_at")
     private LocalDateTime vectorUpdatedAt;
     
-    @Column(name = "metadata", columnDefinition = "JSON")
+    @Column(name = "metadata", columnDefinition = "TEXT")
     private String metadata;
     
     @Column(name = "ai_analysis", columnDefinition = "TEXT")

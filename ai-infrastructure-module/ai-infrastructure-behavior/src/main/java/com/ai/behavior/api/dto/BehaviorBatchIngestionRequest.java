@@ -1,0 +1,15 @@
+package com.ai.behavior.api.dto;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class BehaviorBatchIngestionRequest {
+
+    @NotEmpty
+    @Valid
+    private List<BehaviorSignalRequest> events;
+}

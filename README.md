@@ -57,6 +57,15 @@ npm install
 ./stop.sh
 ```
 
+## 🧠 AI Behavior Module Quick Start
+
+- **Schema-first:** drop neutral YAML descriptors under `ai-infrastructure-module/ai-infrastructure-behavior/src/main/resources/behavior/schemas` or point `ai.behavior.schemas.path` at your own directory. Validate with `python ai-infrastructure-module/scripts/schema-doctor.py --schemas <path>`.
+- **Database migrations:** Liquibase drives the behavior tables. Configure Spring with `spring.liquibase.change-log=classpath:/db/changelog/db.changelog-master.yaml` (Flyway is no longer used for this module).
+- **Metrics/insights config:** enable or disable projectors via `ai.behavior.processing.metrics.enabledProjectors` (defaults: engagement, recency, diversity). Register custom ones by exposing additional `BehaviorMetricProjector` beans.
+- **Runtime replay/testing:** capture JSON/NDJSON signals and replay them against `/api/ai-behavior/signals` using `python ai-infrastructure-module/scripts/signal-replay.py --source ./exports/signals.jsonl`.
+- **Endpoints:** `/api/ai-behavior/users/{id}/metrics` and `/insights` now emit `kpis` blocks (engagement/recency/diversity) that map 1:1 with the persisted `BehaviorKpiSnapshot`.
+- **Migrating an older clone?** Follow the step-by-step checklist in `AI_BEHAVIOR_SCHEMA_MIGRATION.md` to drop Flyway tables, enable Liquibase, and reload schemas.
+
 ---
 
 ## 🏗️ Project Overview

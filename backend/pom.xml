@@ -111,6 +111,11 @@
             <artifactId>ai-infrastructure-core</artifactId>
             <version>1.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-behavior</artifactId>
+            <version>1.0.0</version>
+        </dependency>
 
         <dependency>
             <groupId>com.ai.infrastructure</groupId>

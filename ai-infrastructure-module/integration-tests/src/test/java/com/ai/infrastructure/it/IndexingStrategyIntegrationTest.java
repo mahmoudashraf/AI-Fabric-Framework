@@ -37,7 +37,7 @@ import static org.mockito.Mockito.verify;
     "ai.indexing.batch-worker.enabled=false",
     "ai.indexing.cleanup.enabled=false"
 })
-class IndexingStrategyIntegrationTest {
+public class IndexingStrategyIntegrationTest {
 
     @Autowired
     private TestProductService productService;
