@@ -1034,7 +1034,7 @@ Test Coverage Target: 80%+
   ├─ EntityRelationshipMapper (90% target) ✅
   ├─ RelationshipTraversalService (75% target) ✅ metadata + JPA fallbacks
   ├─ JPARelationshipTraversalService (75% target) ✅ lenient-free mocks
-  └─ LLMDrivenJPAQueryService (70% target) ⬜
+  └─ LLMDrivenJPAQueryService (70% target) ✅ vector + cache orchestration
 
 Status: 🟡 IN PROGRESS — planner/validator complete (2025-11-23)
 PR Size: 🟡 MEDIUM (Per component)
