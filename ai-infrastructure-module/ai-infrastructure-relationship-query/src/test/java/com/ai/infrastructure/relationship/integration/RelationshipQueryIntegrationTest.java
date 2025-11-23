@@ -18,10 +18,14 @@ import com.ai.infrastructure.relationship.integration.entity.BrandEntity;
 import com.ai.infrastructure.relationship.integration.entity.DocumentEntity;
 import com.ai.infrastructure.relationship.integration.entity.ProductEntity;
 import com.ai.infrastructure.relationship.integration.entity.UserEntity;
+import com.ai.infrastructure.relationship.integration.entity.PatientEntity;
+import com.ai.infrastructure.relationship.integration.entity.MedicalCaseEntity;
 import com.ai.infrastructure.relationship.integration.repository.DocumentRepository;
 import com.ai.infrastructure.relationship.integration.repository.BrandRepository;
 import com.ai.infrastructure.relationship.integration.repository.ProductRepository;
 import com.ai.infrastructure.relationship.integration.repository.UserRepository;
+import com.ai.infrastructure.relationship.integration.repository.PatientRepository;
+import com.ai.infrastructure.relationship.integration.repository.MedicalCaseRepository;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
@@ -278,14 +282,18 @@ public class RelationshipQueryIntegrationTest {
         DocumentEntity.class,
         UserEntity.class,
         ProductEntity.class,
-        BrandEntity.class
+        BrandEntity.class,
+        PatientEntity.class,
+        MedicalCaseEntity.class
     })
     @EnableJpaRepositories(basePackageClasses = {
         AISearchableEntityRepository.class,
         DocumentRepository.class,
         UserRepository.class,
         ProductRepository.class,
-        BrandRepository.class
+        BrandRepository.class,
+        PatientRepository.class,
+        MedicalCaseRepository.class
     })
     @EnableConfigurationProperties(AIProviderConfig.class)
     @Import({

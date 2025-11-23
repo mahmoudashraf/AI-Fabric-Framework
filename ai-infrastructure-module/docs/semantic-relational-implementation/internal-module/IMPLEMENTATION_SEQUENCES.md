@@ -1225,11 +1225,11 @@ src/test/java/com/ai/infrastructure/relationship/integration/
 Use Cases to Test:
 ├─ Law firm document search ✅ (LawFirmDocumentSearchTest)
 ├─ E-commerce product discovery ✅ (ECommerceProductDiscoveryTest)
-├─ Medical case finding
+├─ Medical case finding ✅ (MedicalCaseFinderTest)
 ├─ HR candidate search
 └─ Financial fraud detection
  
-Status: 🟡 IN PROGRESS — Law + e-commerce flows green; medical case finder up next (2025-11-23)
+Status: 🟡 IN PROGRESS — Law + e-commerce + medical flows green; HR candidate search up next (2025-11-23)
 PR Size: 🟡 MEDIUM (Per use case)
 Testing: 🟢 INTEGRATION TESTS
 ```
@@ -1239,7 +1239,7 @@ Testing: 🟢 INTEGRATION TESTS
 src/test/java/com/ai/infrastructure/relationship/usecases/
 ├── LawFirmDocumentSearchTest.java            ✅
 ├── ECommerceProductDiscoveryTest.java        ✅
-├── MedicalCaseFinderTest.java
+├── MedicalCaseFinderTest.java              ✅
 ├── HRCandidateSearchTest.java
 └── FinancialFraudDetectionTest.java
 ```
