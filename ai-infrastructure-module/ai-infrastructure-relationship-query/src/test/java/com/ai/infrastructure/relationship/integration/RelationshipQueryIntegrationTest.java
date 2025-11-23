@@ -14,9 +14,13 @@ import com.ai.infrastructure.relationship.dto.RelationshipDirection;
 import com.ai.infrastructure.relationship.dto.RelationshipPath;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.dto.QueryStrategy;
+import com.ai.infrastructure.relationship.integration.entity.BrandEntity;
 import com.ai.infrastructure.relationship.integration.entity.DocumentEntity;
+import com.ai.infrastructure.relationship.integration.entity.ProductEntity;
 import com.ai.infrastructure.relationship.integration.entity.UserEntity;
 import com.ai.infrastructure.relationship.integration.repository.DocumentRepository;
+import com.ai.infrastructure.relationship.integration.repository.BrandRepository;
+import com.ai.infrastructure.relationship.integration.repository.ProductRepository;
 import com.ai.infrastructure.relationship.integration.repository.UserRepository;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
@@ -272,12 +276,16 @@ public class RelationshipQueryIntegrationTest {
     @EntityScan(basePackageClasses = {
         AISearchableEntity.class,
         DocumentEntity.class,
-        UserEntity.class
+        UserEntity.class,
+        ProductEntity.class,
+        BrandEntity.class
     })
     @EnableJpaRepositories(basePackageClasses = {
         AISearchableEntityRepository.class,
         DocumentRepository.class,
-        UserRepository.class
+        UserRepository.class,
+        ProductRepository.class,
+        BrandRepository.class
     })
     @EnableConfigurationProperties(AIProviderConfig.class)
     @Import({
