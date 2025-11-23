@@ -20,12 +20,16 @@ import com.ai.infrastructure.relationship.integration.entity.ProductEntity;
 import com.ai.infrastructure.relationship.integration.entity.UserEntity;
 import com.ai.infrastructure.relationship.integration.entity.PatientEntity;
 import com.ai.infrastructure.relationship.integration.entity.MedicalCaseEntity;
+import com.ai.infrastructure.relationship.integration.entity.CandidateEntity;
+import com.ai.infrastructure.relationship.integration.entity.RecruiterEntity;
 import com.ai.infrastructure.relationship.integration.repository.DocumentRepository;
 import com.ai.infrastructure.relationship.integration.repository.BrandRepository;
 import com.ai.infrastructure.relationship.integration.repository.ProductRepository;
 import com.ai.infrastructure.relationship.integration.repository.UserRepository;
 import com.ai.infrastructure.relationship.integration.repository.PatientRepository;
 import com.ai.infrastructure.relationship.integration.repository.MedicalCaseRepository;
+import com.ai.infrastructure.relationship.integration.repository.CandidateRepository;
+import com.ai.infrastructure.relationship.integration.repository.RecruiterRepository;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
@@ -284,7 +288,9 @@ public class RelationshipQueryIntegrationTest {
         ProductEntity.class,
         BrandEntity.class,
         PatientEntity.class,
-        MedicalCaseEntity.class
+        MedicalCaseEntity.class,
+        CandidateEntity.class,
+        RecruiterEntity.class
     })
     @EnableJpaRepositories(basePackageClasses = {
         AISearchableEntityRepository.class,
@@ -293,7 +299,9 @@ public class RelationshipQueryIntegrationTest {
         ProductRepository.class,
         BrandRepository.class,
         PatientRepository.class,
-        MedicalCaseRepository.class
+        MedicalCaseRepository.class,
+        CandidateRepository.class,
+        RecruiterRepository.class
     })
     @EnableConfigurationProperties(AIProviderConfig.class)
     @Import({
