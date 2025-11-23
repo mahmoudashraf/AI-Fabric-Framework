@@ -49,6 +49,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.cache.CacheManager;
@@ -73,7 +74,7 @@ import static org.mockito.Mockito.when;
 )
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("integration")
-class RelationshipQueryIntegrationTest {
+public class RelationshipQueryIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(RelationshipQueryIntegrationTest.class);
 
@@ -283,7 +284,7 @@ class RelationshipQueryIntegrationTest {
         IntegrationTestBeans.class,
         RelationshipQueryAutoConfiguration.class
     })
-    static class IntegrationTestApplication {
+    public static class IntegrationTestApplication {
     }
 
     @TestConfiguration
@@ -307,6 +308,7 @@ class RelationshipQueryIntegrationTest {
         }
 
         @Bean
+        @ConditionalOnMissingBean(VectorDatabaseService.class)
         VectorDatabaseService vectorDatabaseService(AIProviderConfig config) {
             return new LuceneVectorDatabaseService(config);
         }

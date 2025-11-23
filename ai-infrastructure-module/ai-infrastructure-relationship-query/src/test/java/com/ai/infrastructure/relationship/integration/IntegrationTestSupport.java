@@ -11,14 +11,14 @@ import java.util.Optional;
 /**
  * Shared utilities for integration tests to keep DynamicPropertySource wiring consistent.
  */
-final class IntegrationTestSupport {
+public final class IntegrationTestSupport {
 
     private static final Path LUCENE_INDEX_PATH = createIndexPath();
 
     private IntegrationTestSupport() {
     }
 
-    static void registerCommonProperties(DynamicPropertyRegistry registry) {
+    public static void registerCommonProperties(DynamicPropertyRegistry registry) {
         ensureLuceneDirectory();
         registry.add("spring.datasource.url", () ->
             "jdbc:h2:mem:relationship_query;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE");
@@ -41,9 +41,10 @@ final class IntegrationTestSupport {
         registry.add("ai.vector-db.lucene.index-path", () -> LUCENE_INDEX_PATH.toString());
         registry.add("ai.vector-db.lucene.vector-dimension", () -> "384");
         registry.add("ai.vector-db.lucene.similarity-threshold", () -> "0.6");
+        registry.add("spring.main.allow-bean-definition-overriding", () -> "true");
     }
 
-    static void cleanUpLuceneIndex() throws IOException {
+    public static void cleanUpLuceneIndex() throws IOException {
         if (!Files.exists(LUCENE_INDEX_PATH)) {
             return;
         }
