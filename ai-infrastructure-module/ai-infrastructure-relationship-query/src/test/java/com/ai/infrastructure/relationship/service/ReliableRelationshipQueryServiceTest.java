@@ -10,6 +10,7 @@ import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.exception.FallbackExhaustedException;
+import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.rag.VectorDatabaseService;
@@ -57,6 +58,8 @@ class ReliableRelationshipQueryServiceTest {
     private RelationshipQueryValidator validator;
     @Mock
     private QueryCache queryCache;
+    @Mock
+    private QueryMetrics queryMetrics;
 
     private RelationshipQueryProperties properties;
     private RelationshipModuleMetadata metadata;
@@ -68,6 +71,7 @@ class ReliableRelationshipQueryServiceTest {
         properties = new RelationshipQueryProperties();
         metadata = RelationshipModuleMetadata.from(properties);
         when(queryCache.isEnabled()).thenReturn(false);
+        when(queryMetrics.isEnabled()).thenReturn(true);
         service = new ReliableRelationshipQueryService(
             llmService,
             planner,
@@ -78,7 +82,8 @@ class ReliableRelationshipQueryServiceTest {
             validator,
             properties,
             metadata,
-            queryCache
+            queryCache,
+            queryMetrics
         );
     }
 
@@ -117,6 +122,7 @@ class ReliableRelationshipQueryServiceTest {
 
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getMetadata()).containsEntry("executionStage", "FALLBACK_METADATA");
+        org.mockito.Mockito.verify(queryMetrics).recordFallbackStage("FALLBACK_METADATA", true, 1);
     }
 
     @Test
@@ -142,6 +148,7 @@ class ReliableRelationshipQueryServiceTest {
 
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getMetadata()).containsEntry("executionStage", "FALLBACK_VECTOR");
+        org.mockito.Mockito.verify(queryMetrics).recordFallbackStage("FALLBACK_VECTOR", true, 1);
     }
 
     @Test
@@ -166,6 +173,7 @@ class ReliableRelationshipQueryServiceTest {
 
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getMetadata()).containsEntry("executionStage", "FALLBACK_SIMPLE");
+        org.mockito.Mockito.verify(queryMetrics).recordFallbackStage("FALLBACK_SIMPLE", true, 1);
     }
 
     @Test

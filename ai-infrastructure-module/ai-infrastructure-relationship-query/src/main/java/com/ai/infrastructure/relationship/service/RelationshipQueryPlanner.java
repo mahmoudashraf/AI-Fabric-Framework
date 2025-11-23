@@ -8,6 +8,7 @@ import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.dto.QueryStrategy;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
+import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
@@ -29,6 +30,7 @@ public class RelationshipQueryPlanner {
     private final RelationshipQueryProperties properties;
     private final RelationshipQueryValidator validator;
     private final QueryCache queryCache;
+    private final QueryMetrics queryMetrics;
     private final ObjectMapper objectMapper;
 
     public RelationshipQueryPlanner(AICoreService aiCoreService,
@@ -36,20 +38,24 @@ public class RelationshipQueryPlanner {
                                     RelationshipQueryProperties properties,
                                     RelationshipQueryValidator validator,
                                     QueryCache queryCache,
+                                    QueryMetrics queryMetrics,
                                     ObjectMapper objectMapper) {
         this.aiCoreService = aiCoreService;
         this.schemaProvider = schemaProvider;
         this.properties = properties;
         this.validator = validator;
         this.queryCache = queryCache;
+        this.queryMetrics = queryMetrics;
         this.objectMapper = objectMapper;
     }
 
     public RelationshipQueryPlan planQuery(String query, List<String> entityTypes) {
+        long start = System.nanoTime();
         String cacheKey = QueryCache.hash(query);
         if (queryCache.isEnabled()) {
             Optional<RelationshipQueryPlan> cachedPlan = queryCache.getPlan(cacheKey);
             if (cachedPlan.isPresent()) {
+                recordPlanMetrics(start, true, true);
                 return cachedPlan.get();
             }
         }
@@ -61,8 +67,10 @@ public class RelationshipQueryPlanner {
             applyDefaults(plan, fallback);
             validator.validate(plan);
             cachePlan(cacheKey, plan);
+            recordPlanMetrics(start, false, true);
             return plan;
         } catch (Exception ex) {
+            recordPlanMetrics(start, false, false);
             log.warn("Failed to obtain structured plan from LLM: {}", ex.getMessage());
             return fallback;
         }
@@ -187,6 +195,13 @@ public class RelationshipQueryPlanner {
     private void cachePlan(String cacheKey, RelationshipQueryPlan plan) {
         if (queryCache.isEnabled() && cacheKey != null && plan != null) {
             queryCache.putPlan(cacheKey, plan);
+        }
+    }
+
+    private void recordPlanMetrics(long startNano, boolean fromCache, boolean success) {
+        if (queryMetrics != null && queryMetrics.isEnabled()) {
+            long latencyMs = Math.max(0, (System.nanoTime() - startNano) / 1_000_000);
+            queryMetrics.recordPlan(latencyMs, fromCache, success);
         }
     }
 }

@@ -15,6 +15,7 @@ import com.ai.infrastructure.relationship.model.QueryMode;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
+import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,6 +53,7 @@ public class LLMDrivenJPAQueryService {
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEmbeddingService embeddingService;
     private final QueryCache queryCache;
+    private final QueryMetrics queryMetrics;
 
     public LLMDrivenJPAQueryService(RelationshipQueryPlanner planner,
                                     DynamicJPAQueryBuilder queryBuilder,
@@ -63,7 +65,8 @@ public class LLMDrivenJPAQueryService {
                                     AISearchableEntityRepository entityRepository,
                                     VectorDatabaseService vectorDatabaseService,
                                       AIEmbeddingService embeddingService,
-                                      QueryCache queryCache) {
+                                      QueryCache queryCache,
+                                      QueryMetrics queryMetrics) {
         this.planner = planner;
         this.queryBuilder = queryBuilder;
         this.validator = validator;
@@ -75,6 +78,7 @@ public class LLMDrivenJPAQueryService {
         this.vectorDatabaseService = vectorDatabaseService;
         this.embeddingService = embeddingService;
         this.queryCache = queryCache;
+        this.queryMetrics = queryMetrics;
     }
 
     public RAGResponse executeRelationshipQuery(String query, List<String> entityTypes) {
@@ -84,38 +88,49 @@ public class LLMDrivenJPAQueryService {
     public RAGResponse executeRelationshipQuery(String query,
                                                 List<String> entityTypes,
                                                 QueryOptions options) {
-        long start = System.currentTimeMillis();
-        RelationshipQueryPlan plan = planner.planQuery(query, entityTypes);
-        validator.validate(plan);
+        long startNano = System.nanoTime();
+        try {
+            RelationshipQueryPlan plan = planner.planQuery(query, entityTypes);
+            validator.validate(plan);
 
-        JpqlQuery jpqlQuery = queryBuilder.buildQuery(plan);
-        List<String> entityIds = executeTraversal(plan, jpqlQuery);
-        QueryMode mode = resolveMode(plan, options);
-        if (mode == QueryMode.ENHANCED) {
-            entityIds = rerankWithVectors(plan, entityIds, options);
+            JpqlQuery jpqlQuery = queryBuilder.buildQuery(plan);
+            List<String> entityIds = executeTraversal(plan, jpqlQuery);
+            QueryMode mode = resolveMode(plan, options);
+            if (mode == QueryMode.ENHANCED) {
+                entityIds = rerankWithVectors(plan, entityIds, options);
+            }
+
+            ReturnMode returnMode = resolveReturnMode(options);
+            List<RAGResponse.RAGDocument> documents = materializeDocuments(plan, entityIds, returnMode, options);
+            long duration = Math.max(0, (System.nanoTime() - startNano) / 1_000_000);
+
+            recordExecutionMetrics(mode, duration, documents.size(), plan.isNeedsSemanticSearch() || mode == QueryMode.ENHANCED);
+            updateCacheMetrics();
+
+            return RAGResponse.builder()
+                .originalQuery(query)
+                .entityType(plan.getPrimaryEntityType())
+                .documents(documents)
+                .totalResults(entityIds.size())
+                .returnedResults(documents.size())
+                .hybridSearchUsed(mode == QueryMode.ENHANCED)
+                .success(!documents.isEmpty())
+                .processingTimeMs(duration)
+                .confidenceScore(plan.getConfidenceScore())
+                .warnings(Collections.emptyList())
+                .metadata(Map.of(
+                    "plan", plan,
+                    "mode", mode,
+                    "timestamp", Instant.now().toString()
+                ))
+                .build();
+        } catch (RuntimeException ex) {
+            long duration = Math.max(0, (System.nanoTime() - startNano) / 1_000_000);
+            if (queryMetrics != null && queryMetrics.isEnabled()) {
+                queryMetrics.recordExecutionFailure(duration);
+            }
+            throw ex;
         }
-
-        ReturnMode returnMode = resolveReturnMode(options);
-        List<RAGResponse.RAGDocument> documents = materializeDocuments(plan, entityIds, returnMode, options);
-        long duration = System.currentTimeMillis() - start;
-
-        return RAGResponse.builder()
-            .originalQuery(query)
-            .entityType(plan.getPrimaryEntityType())
-            .documents(documents)
-            .totalResults(entityIds.size())
-            .returnedResults(documents.size())
-            .hybridSearchUsed(mode == QueryMode.ENHANCED)
-            .success(!documents.isEmpty())
-            .processingTimeMs(duration)
-            .confidenceScore(plan.getConfidenceScore())
-            .warnings(Collections.emptyList())
-            .metadata(Map.of(
-                "plan", plan,
-                "mode", mode,
-                "timestamp", Instant.now().toString()
-            ))
-            .build();
     }
 
     private List<String> executeTraversal(RelationshipQueryPlan plan, JpqlQuery query) {
@@ -262,5 +277,21 @@ public class LLMDrivenJPAQueryService {
             queryCache.putQueryResult(cacheKey, entityIds);
         }
         return entityIds;
+    }
+
+    private void recordExecutionMetrics(QueryMode mode, long latencyMs, int resultCount, boolean fallbackUsed) {
+        if (queryMetrics != null && queryMetrics.isEnabled()) {
+            queryMetrics.recordExecution(mode != null ? mode : QueryMode.STANDALONE, latencyMs, resultCount, fallbackUsed);
+        }
+    }
+
+    private void updateCacheMetrics() {
+        if (queryMetrics != null && queryMetrics.isEnabled()) {
+            queryMetrics.updateCacheStats(
+                queryCache.getPlanStats(),
+                queryCache.getEmbeddingStats(),
+                queryCache.getResultStats()
+            );
+        }
     }
 }

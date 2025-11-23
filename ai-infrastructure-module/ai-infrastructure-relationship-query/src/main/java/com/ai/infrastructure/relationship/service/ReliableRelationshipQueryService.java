@@ -16,6 +16,7 @@ import com.ai.infrastructure.relationship.exception.QueryPlanningException;
 import com.ai.infrastructure.relationship.exception.RelationshipQueryErrorContext;
 import com.ai.infrastructure.relationship.exception.RelationshipTraversalException;
 import com.ai.infrastructure.relationship.exception.VectorSearchException;
+import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
@@ -51,6 +52,7 @@ public class ReliableRelationshipQueryService {
     private final RelationshipQueryProperties properties;
     private final RelationshipModuleMetadata moduleMetadata;
     private final QueryCache queryCache;
+    private final QueryMetrics queryMetrics;
 
     public ReliableRelationshipQueryService(LLMDrivenJPAQueryService primaryService,
                                             RelationshipQueryPlanner planner,
@@ -61,7 +63,8 @@ public class ReliableRelationshipQueryService {
                                             RelationshipQueryValidator validator,
                                             RelationshipQueryProperties properties,
                                             RelationshipModuleMetadata moduleMetadata,
-                                            QueryCache queryCache) {
+                                            QueryCache queryCache,
+                                            QueryMetrics queryMetrics) {
         this.primaryService = Objects.requireNonNull(primaryService);
         this.planner = Objects.requireNonNull(planner);
         this.metadataTraversalService = metadataTraversalService;
@@ -72,6 +75,7 @@ public class ReliableRelationshipQueryService {
         this.properties = properties;
         this.moduleMetadata = moduleMetadata;
         this.queryCache = queryCache;
+        this.queryMetrics = queryMetrics;
     }
 
     public RAGResponse execute(String query, List<String> entityTypes, @Nullable QueryOptions options) {
@@ -134,6 +138,7 @@ public class ReliableRelationshipQueryService {
                 ex
             );
             log.debug("Metadata traversal exception detail", rte);
+            recordFallbackStage("FALLBACK_METADATA", false, 0);
             return emptyResponse(query, plan, "METADATA_ERROR");
         }
     }
@@ -144,7 +149,10 @@ public class ReliableRelationshipQueryService {
         }
         try {
             List<RAGResponse.RAGDocument> documents = vectorSearch(plan, options);
-            return buildResponse(query, plan, documents, "FALLBACK_VECTOR");
+            recordFallbackStage("FALLBACK_VECTOR", !documents.isEmpty(), documents.size());
+            return documents.isEmpty()
+                ? emptyResponse(query, plan, "FALLBACK_VECTOR_EMPTY")
+                : buildResponse(query, plan, documents, "FALLBACK_VECTOR");
         } catch (Exception ex) {
             log.warn("Vector fallback failed", ex);
             VectorSearchException vse = new VectorSearchException(
@@ -153,6 +161,7 @@ public class ReliableRelationshipQueryService {
                 ex
             );
             log.debug("Vector search exception detail", vse);
+            recordFallbackStage("FALLBACK_VECTOR", false, 0);
             return emptyResponse(query, plan, "VECTOR_ERROR");
         }
     }
@@ -170,9 +179,13 @@ public class ReliableRelationshipQueryService {
                     .metadata(Map.of("source", "simple-fallback"))
                     .build());
             }
-            return buildResponse(query, plan, documents, "FALLBACK_SIMPLE");
+            recordFallbackStage("FALLBACK_SIMPLE", !documents.isEmpty(), documents.size());
+            return documents.isEmpty()
+                ? emptyResponse(query, plan, "FALLBACK_SIMPLE_EMPTY")
+                : buildResponse(query, plan, documents, "FALLBACK_SIMPLE");
         } catch (Exception ex) {
             log.error("Simple repository fallback failed", ex);
+            recordFallbackStage("FALLBACK_SIMPLE", false, 0);
             return emptyResponse(query, plan, "SIMPLE_ERROR");
         }
     }
@@ -255,6 +268,7 @@ public class ReliableRelationshipQueryService {
                                              QueryOptions options,
                                              String stage) {
         List<String> limited = limitIds(plan, entityIds, options);
+        recordFallbackStage(stage, !limited.isEmpty(), limited.size());
         if (limited.isEmpty()) {
             return emptyResponse(query, plan, stage + "_EMPTY");
         }
@@ -358,5 +372,11 @@ public class ReliableRelationshipQueryService {
             .fallbackUsed(fallbackUsed)
             .attributes(Map.of("timestamp", Instant.now().toString()))
             .build();
+    }
+
+    private void recordFallbackStage(String stage, boolean success, int producedResults) {
+        if (queryMetrics != null && queryMetrics.isEnabled()) {
+            queryMetrics.recordFallbackStage(stage, success, producedResults);
+        }
     }
 }
