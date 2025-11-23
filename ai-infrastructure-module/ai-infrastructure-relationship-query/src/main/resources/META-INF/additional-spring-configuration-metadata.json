@@ -47,6 +47,48 @@
       "type": "java.lang.Boolean",
       "description": "Automatically discover @AICapable entities and relationships at startup.",
       "defaultValue": true
+    },
+    {
+      "name": "ai.infrastructure.relationship.cache.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable in-memory caching for query plans, embeddings, and results.",
+      "defaultValue": true
+    },
+    {
+      "name": "ai.infrastructure.relationship.cache.plan.ttl-seconds",
+      "type": "java.lang.Long",
+      "description": "Time-to-live (seconds) for cached RelationshipQueryPlan instances.",
+      "defaultValue": 3600
+    },
+    {
+      "name": "ai.infrastructure.relationship.cache.plan.max-entries",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of cached RelationshipQueryPlan entries.",
+      "defaultValue": 10000
+    },
+    {
+      "name": "ai.infrastructure.relationship.cache.embedding.ttl-seconds",
+      "type": "java.lang.Long",
+      "description": "Time-to-live (seconds) for cached semantic embeddings.",
+      "defaultValue": 86400
+    },
+    {
+      "name": "ai.infrastructure.relationship.cache.embedding.max-entries",
+      "type": "java.lang.Integer",
+      "description": "Maximum embedding cache size.",
+      "defaultValue": 50000
+    },
+    {
+      "name": "ai.infrastructure.relationship.cache.result.ttl-seconds",
+      "type": "java.lang.Long",
+      "description": "Time-to-live (seconds) for cached JPQL result sets.",
+      "defaultValue": 1800
+    },
+    {
+      "name": "ai.infrastructure.relationship.cache.result.max-entries",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of cached JPQL result sets.",
+      "defaultValue": 5000
     }
   ]
 }

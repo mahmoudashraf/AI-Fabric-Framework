@@ -81,6 +81,8 @@ public class RelationshipQueryProperties {
 
     @NestedConfigurationProperty
     private final PlannerProperties planner = new PlannerProperties();
+    @NestedConfigurationProperty
+    private final CacheProperties cache = new CacheProperties();
 
     @Getter
     public static class PlannerProperties {
@@ -154,6 +156,48 @@ public class RelationshipQueryProperties {
                 return 1;
             }
             return value;
+        }
+    }
+
+    @Getter
+    public static class CacheProperties {
+        private boolean enabled = true;
+        @NestedConfigurationProperty
+        private final RegionProperties plan = new RegionProperties(3600, 10_000);
+        @NestedConfigurationProperty
+        private final RegionProperties embedding = new RegionProperties(86_400, 50_000);
+        @NestedConfigurationProperty
+        private final RegionProperties result = new RegionProperties(1_800, 5_000);
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+    }
+
+    @Getter
+    public static class RegionProperties {
+        private long ttlSeconds;
+        private int maxEntries;
+
+        public RegionProperties() {
+            this(3_600, 10_000);
+        }
+
+        public RegionProperties(long ttlSeconds, int maxEntries) {
+            this.ttlSeconds = ttlSeconds;
+            this.maxEntries = maxEntries;
+        }
+
+        public void setTtlSeconds(long ttlSeconds) {
+            this.ttlSeconds = Math.max(1, ttlSeconds);
+        }
+
+        public void setMaxEntries(int maxEntries) {
+            this.maxEntries = Math.max(1, maxEntries);
+        }
+
+        public long ttlMillis() {
+            return ttlSeconds * 1000;
         }
     }
 
