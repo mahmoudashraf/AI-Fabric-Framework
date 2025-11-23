@@ -65,6 +65,53 @@ class RelationshipQueryValidatorTest {
             .hasMessageContaining("does not define a relationshipType");
     }
 
+    @Test
+    void shouldRejectNullPlan() {
+        assertThatThrownBy(() -> validator.validate(null))
+            .isInstanceOf(RelationshipQueryValidationException.class)
+            .hasMessageContaining("cannot be null");
+    }
+
+    @Test
+    void shouldRejectWhenPrimaryEntityNotRegistered() {
+        RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
+            .originalQuery("Find vendors")
+            .primaryEntityType("vendor")
+            .build();
+
+        assertThatThrownBy(() -> validator.validate(plan))
+            .isInstanceOf(RelationshipQueryValidationException.class)
+            .hasMessageContaining("not registered");
+    }
+
+    @Test
+    void shouldRejectCandidateListThatOmitsPrimary() {
+        RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
+            .originalQuery("Find docs")
+            .primaryEntityType("document")
+            .candidateEntityTypes(List.of("user"))
+            .build();
+
+        assertThatThrownBy(() -> validator.validate(plan))
+            .isInstanceOf(RelationshipQueryValidationException.class)
+            .hasMessageContaining("must contain the primary entity type");
+    }
+
+    @Test
+    void shouldAllowMissingRelationshipTypeInLaxMode() {
+        RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
+            .originalQuery("Find docs")
+            .primaryEntityType("document")
+            .relationshipPaths(List.of(RelationshipPath.builder()
+                .fromEntityType("document")
+                .toEntityType("user")
+                .build()))
+            .build();
+
+        assertThatCode(() -> validator.validate(plan, RelationshipQueryValidator.ValidateMode.LAX))
+            .doesNotThrowAnyException();
+    }
+
     @AICapable(entityType = "document")
     private static class DocumentEntity { }
 }
