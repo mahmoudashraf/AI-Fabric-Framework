@@ -7,6 +7,7 @@ import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.FilterCondition;
 import com.ai.infrastructure.relationship.dto.FilterOperator;
+import com.ai.infrastructure.relationship.dto.JpqlQuery;
 import com.ai.infrastructure.relationship.dto.RelationshipDirection;
 import com.ai.infrastructure.relationship.dto.RelationshipPath;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
@@ -216,6 +217,11 @@ class MedicalCaseFinderTest {
 
         when(planner.planQuery(eq(query), eq(List.of("medical-case")))).thenReturn(plan);
 
+        JpqlQuery jpqlQuery = dynamicJPAQueryBuilder.buildQuery(plan);
+        log.info("[Medical] User query: {}", query);
+        log.info("[Medical] Planner plan: {}", plan);
+        log.info("[Medical] JPQL: {}", jpqlQuery.getJpql());
+
         QueryOptions options = QueryOptions.builder()
             .returnMode(ReturnMode.FULL)
             .limit(5)
@@ -226,6 +232,7 @@ class MedicalCaseFinderTest {
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getDocuments().get(0).getId()).isEqualTo(oncologyCaseId);
         assertThat(response.getDocuments().get(0).getContent()).contains("Alice Carter");
+        log.info("[Medical] Result documents: {}", response.getDocuments());
     }
 
     private void seedMedicalData() {

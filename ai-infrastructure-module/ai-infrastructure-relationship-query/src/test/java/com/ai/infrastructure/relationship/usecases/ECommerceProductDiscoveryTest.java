@@ -7,6 +7,7 @@ import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.FilterCondition;
 import com.ai.infrastructure.relationship.dto.FilterOperator;
+import com.ai.infrastructure.relationship.dto.JpqlQuery;
 import com.ai.infrastructure.relationship.dto.RelationshipDirection;
 import com.ai.infrastructure.relationship.dto.RelationshipPath;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
@@ -210,6 +211,11 @@ class ECommerceProductDiscoveryTest {
 
         when(planner.planQuery(eq(query), eq(List.of("product")))).thenReturn(plan);
 
+        JpqlQuery jpqlQuery = dynamicJPAQueryBuilder.buildQuery(plan);
+        log.info("[ECommerce] User query: {}", query);
+        log.info("[ECommerce] Planner plan: {}", plan);
+        log.info("[ECommerce] JPQL: {}", jpqlQuery.getJpql());
+
         QueryOptions options = QueryOptions.builder()
             .returnMode(ReturnMode.FULL)
             .limit(5)
@@ -220,6 +226,7 @@ class ECommerceProductDiscoveryTest {
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getDocuments().get(0).getId()).isEqualTo(nikeBlueRunnerId);
         assertThat(response.getDocuments().get(0).getContent()).contains("Blue Runner");
+        log.info("[ECommerce] Result documents: {}", response.getDocuments());
     }
 
     private void seedCatalog() {
