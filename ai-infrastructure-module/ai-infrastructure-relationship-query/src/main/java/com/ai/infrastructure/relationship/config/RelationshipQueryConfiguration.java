@@ -1,5 +1,6 @@
 package com.ai.infrastructure.relationship.config;
 
+import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,12 @@ class RelationshipQueryConfiguration {
     @ConditionalOnMissingBean
     RelationshipModuleMetadata relationshipModuleMetadata(RelationshipQueryProperties properties) {
         return RelationshipModuleMetadata.from(properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    EntityRelationshipMapper entityRelationshipMapper() {
+        return new EntityRelationshipMapper();
     }
 
     @Bean

@@ -26,7 +26,7 @@ class RelationshipQueryPropertiesTest {
 
         RelationshipQueryProperties bound = new Binder(new MapConfigurationPropertySource(properties))
             .bind("ai.infrastructure.relationship", Bindable.of(RelationshipQueryProperties.class))
-            .orElseThrow();
+            .orElseThrow(() -> new IllegalStateException("Failed to bind relationship properties"));
 
         assertThat(bound.isEnabled()).isFalse();
         assertThat(bound.getDefaultReturnMode()).isEqualTo(ReturnMode.FULL);
