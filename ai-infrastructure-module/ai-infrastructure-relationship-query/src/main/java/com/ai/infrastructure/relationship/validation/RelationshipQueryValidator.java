@@ -21,6 +21,10 @@ public class RelationshipQueryValidator {
     }
 
     public void validate(RelationshipQueryPlan plan) {
+        validate(plan, ValidateMode.STRICT);
+    }
+
+    public void validate(RelationshipQueryPlan plan, ValidateMode mode) {
         if (plan == null) {
             throw new RelationshipQueryValidationException("Relationship query plan cannot be null");
         }
@@ -52,10 +56,10 @@ public class RelationshipQueryValidator {
             }
         }
 
-        validateRelationshipPaths(plan);
+        validateRelationshipPaths(plan, mode);
     }
 
-    private void validateRelationshipPaths(RelationshipQueryPlan plan) {
+    private void validateRelationshipPaths(RelationshipQueryPlan plan, ValidateMode mode) {
         if (CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
             return;
         }
@@ -67,12 +71,17 @@ public class RelationshipQueryValidator {
             if (!StringUtils.hasText(path.getFromEntityType()) || !StringUtils.hasText(path.getToEntityType())) {
                 throw new RelationshipQueryValidationException("Relationship paths must define from/to entity types");
             }
-            if (!StringUtils.hasText(path.getRelationshipType())) {
+            if (!StringUtils.hasText(path.getRelationshipType()) && mode != ValidateMode.LAX) {
                 throw new RelationshipQueryValidationException(
                     "Relationship path %s -> %s does not define a relationshipType"
                         .formatted(path.getFromEntityType(), path.getToEntityType())
                 );
             }
         }
+    }
+
+    public enum ValidateMode {
+        STRICT,
+        LAX
     }
 }
