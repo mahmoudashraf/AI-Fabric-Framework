@@ -23,7 +23,6 @@ import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
-import com.ai.infrastructure.relationship.service.RelationshipTraversalService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
@@ -36,10 +35,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -52,6 +51,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -61,6 +61,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.EntityManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -140,14 +143,6 @@ class RelationshipQueryIntegrationTest {
     private RelationshipModuleMetadata relationshipModuleMetadata;
 
     @Autowired
-    @Qualifier("jpaRelationshipTraversalService")
-    private RelationshipTraversalService jpaTraversalService;
-
-    @Autowired
-    @Qualifier("metadataRelationshipTraversalService")
-    private RelationshipTraversalService metadataTraversalService;
-
-    @Autowired
     private AIEmbeddingService aiEmbeddingService;
 
     @Autowired
@@ -158,6 +153,12 @@ class RelationshipQueryIntegrationTest {
 
     @Autowired
     private com.ai.infrastructure.relationship.service.EntityRelationshipMapper entityRelationshipMapper;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     private String activeDocumentId;
 
@@ -196,6 +197,24 @@ class RelationshipQueryIntegrationTest {
         entityRelationshipMapper.registerEntityType(DocumentEntity.class);
         entityRelationshipMapper.registerEntityType(UserEntity.class);
         entityRelationshipMapper.registerRelationship("document", "user", "author", RelationshipDirection.FORWARD, false);
+
+        com.ai.infrastructure.relationship.service.RelationshipSchemaProvider schemaProvider =
+            new com.ai.infrastructure.relationship.service.RelationshipSchemaProvider(
+                entityManager,
+                null,
+                relationshipQueryProperties,
+                entityRelationshipMapper
+            );
+        schemaProvider.refreshSchema();
+
+        com.ai.infrastructure.relationship.service.RelationshipTraversalService jpaTraversalService =
+            new com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService(entityManager);
+
+        com.ai.infrastructure.relationship.service.RelationshipTraversalService metadataTraversalService =
+            new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
+                searchableEntityRepository,
+                objectMapper
+            );
 
         llmDrivenJPAQueryService = new LLMDrivenJPAQueryService(
             planner,
