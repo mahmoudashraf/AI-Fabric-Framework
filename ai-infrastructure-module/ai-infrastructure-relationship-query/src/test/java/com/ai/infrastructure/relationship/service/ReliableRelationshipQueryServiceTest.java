@@ -9,6 +9,7 @@ import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
+import com.ai.infrastructure.relationship.exception.FallbackExhaustedException;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.rag.VectorDatabaseService;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -164,5 +166,25 @@ class ReliableRelationshipQueryServiceTest {
 
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getMetadata()).containsEntry("executionStage", "FALLBACK_SIMPLE");
+    }
+
+    @Test
+    void shouldSurfaceErrorContextWhenAllFallbacksFail() {
+        properties.setFallbackToMetadata(false);
+        properties.setFallbackToVectorSearch(false);
+        RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
+            .originalQuery("q")
+            .primaryEntityType("document")
+            .candidateEntityTypes(List.of("document"))
+            .build();
+        when(llmService.executeRelationshipQuery(anyString(), anyList(), any()))
+            .thenReturn(RAGResponse.builder().documents(List.of()).build());
+        when(planner.planQuery(anyString(), anyList())).thenReturn(plan);
+        when(entityRepository.findByEntityType("document")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.execute("exhausted", List.of("document"), QueryOptions.defaults()))
+            .isInstanceOf(FallbackExhaustedException.class)
+            .extracting(ex -> ((FallbackExhaustedException) ex).getContext().orElseThrow().getExecutionStage())
+            .isEqualTo("FALLBACK_CHAIN_EXHAUSTED");
     }
 }

@@ -13,6 +13,7 @@ import com.ai.infrastructure.relationship.dto.JpqlQuery;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.exception.FallbackExhaustedException;
 import com.ai.infrastructure.relationship.exception.QueryPlanningException;
+import com.ai.infrastructure.relationship.exception.RelationshipQueryErrorContext;
 import com.ai.infrastructure.relationship.exception.RelationshipTraversalException;
 import com.ai.infrastructure.relationship.exception.VectorSearchException;
 import com.ai.infrastructure.relationship.model.QueryOptions;
@@ -82,9 +83,6 @@ public class ReliableRelationshipQueryService {
         }
 
         RelationshipQueryPlan plan = safePlan(query, entityTypes);
-        if (plan == null) {
-            throw new QueryPlanningException("Unable to derive relationship plan for fallback", null);
-        }
 
         RAGResponse metadataResponse = tryMetadataFallback(query, plan, effectiveOptions);
         if (hasDocuments(metadataResponse)) {
@@ -101,7 +99,10 @@ public class ReliableRelationshipQueryService {
             return simpleResponse;
         }
 
-        throw new FallbackExhaustedException("All fallback strategies failed for query: " + query);
+        throw new FallbackExhaustedException(
+            "All fallback strategies failed for query: " + query,
+            errorContext(query, plan, "FALLBACK_CHAIN_EXHAUSTED", true)
+        );
     }
 
     private RAGResponse tryPrimary(String query, List<String> entityTypes, QueryOptions options) {
@@ -127,7 +128,11 @@ public class ReliableRelationshipQueryService {
             return buildResponseFromIds(query, plan, entityIds, options, "FALLBACK_METADATA");
         } catch (Exception ex) {
             log.warn("Metadata fallback traversal failed", ex);
-            RelationshipTraversalException rte = new RelationshipTraversalException("Metadata traversal failed", ex);
+            RelationshipTraversalException rte = new RelationshipTraversalException(
+                "Metadata traversal failed",
+                errorContext(query, plan, "FALLBACK_METADATA", true),
+                ex
+            );
             log.debug("Metadata traversal exception detail", rte);
             return emptyResponse(query, plan, "METADATA_ERROR");
         }
@@ -142,7 +147,11 @@ public class ReliableRelationshipQueryService {
             return buildResponse(query, plan, documents, "FALLBACK_VECTOR");
         } catch (Exception ex) {
             log.warn("Vector fallback failed", ex);
-            VectorSearchException vse = new VectorSearchException("Vector fallback failed", ex);
+            VectorSearchException vse = new VectorSearchException(
+                "Vector fallback failed",
+                errorContext(query, plan, "FALLBACK_VECTOR", true),
+                ex
+            );
             log.debug("Vector search exception detail", vse);
             return emptyResponse(query, plan, "VECTOR_ERROR");
         }
@@ -174,8 +183,21 @@ public class ReliableRelationshipQueryService {
             validator.validate(plan);
             return plan;
         } catch (Exception ex) {
-            log.warn("Planner failed during fallback preparation; synthesizing plan", ex);
             String entityType = (entityTypes != null && !entityTypes.isEmpty()) ? entityTypes.get(0) : "document";
+            RelationshipQueryErrorContext context = RelationshipQueryErrorContext.builder()
+                .originalQuery(query)
+                .executionStage("PLAN_FALLBACK")
+                .primaryEntityType(entityType)
+                .candidateEntityTypes(entityTypes != null ? entityTypes : List.of(entityType))
+                .fallbackUsed(true)
+                .attributes(Map.of("reason", ex.getMessage()))
+                .build();
+            QueryPlanningException qpe = new QueryPlanningException(
+                "Planner failed during fallback preparation; synthesizing plan",
+                context,
+                ex
+            );
+            log.warn("Planner failure captured with context {}", context.getExecutionStage(), qpe);
             return RelationshipQueryPlan.builder()
                 .originalQuery(query)
                 .semanticQuery(query)
@@ -322,5 +344,19 @@ public class ReliableRelationshipQueryService {
 
     private boolean vectorDependenciesPresent() {
         return vectorDatabaseService != null && embeddingService != null;
+    }
+
+    private RelationshipQueryErrorContext errorContext(String query,
+                                                       RelationshipQueryPlan plan,
+                                                       String stage,
+                                                       boolean fallbackUsed) {
+        return RelationshipQueryErrorContext.builder()
+            .originalQuery(query)
+            .executionStage(stage)
+            .primaryEntityType(plan != null ? plan.getPrimaryEntityType() : null)
+            .candidateEntityTypes(plan != null ? plan.getCandidateEntityTypes() : null)
+            .fallbackUsed(fallbackUsed)
+            .attributes(Map.of("timestamp", Instant.now().toString()))
+            .build();
     }
 }
