@@ -1028,13 +1028,13 @@ Aggregate Metrics:
 ```
 Test Coverage Target: 80%+
 
-Files to Test:
-├─ RelationshipQueryPlanner (80% target)
-├─ DynamicJPAQueryBuilder (85% target)
-├─ EntityRelationshipMapper (90% target)
-├─ RelationshipTraversalService (75% target)
-├─ JPARelationshipTraversalService (75% target)
-└─ LLMDrivenJPAQueryService (70% target)
+  Files to Test:
+  ├─ RelationshipQueryPlanner (80% target) ✅
+  ├─ DynamicJPAQueryBuilder (85% target) ✅ basic coverage; add multi-hop edge tests
+  ├─ EntityRelationshipMapper (90% target) ✅
+  ├─ RelationshipTraversalService (75% target) ✅ metadata + JPA fallbacks
+  ├─ JPARelationshipTraversalService (75% target) ✅ lenient-free mocks
+  └─ LLMDrivenJPAQueryService (70% target) ⬜
 
 Status: 🟡 IN PROGRESS — planner/validator complete (2025-11-23)
 PR Size: 🟡 MEDIUM (Per component)
