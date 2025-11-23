@@ -7,6 +7,7 @@ import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.FilterCondition;
 import com.ai.infrastructure.relationship.dto.FilterOperator;
+import com.ai.infrastructure.relationship.dto.JpqlQuery;
 import com.ai.infrastructure.relationship.dto.RelationshipDirection;
 import com.ai.infrastructure.relationship.dto.RelationshipPath;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
@@ -210,6 +211,11 @@ class LawFirmDocumentSearchTest {
 
         when(planner.planQuery(eq(query), eq(List.of("document")))).thenReturn(plan);
 
+        JpqlQuery jpqlQuery = dynamicJPAQueryBuilder.buildQuery(plan);
+        log.info("[LawFirm] User query: {}", query);
+        log.info("[LawFirm] Planner plan: {}", plan);
+        log.info("[LawFirm] JPQL: {}", jpqlQuery.getJpql());
+
         QueryOptions options = QueryOptions.builder()
             .returnMode(ReturnMode.FULL)
             .limit(5)
@@ -220,6 +226,7 @@ class LawFirmDocumentSearchTest {
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getDocuments().get(0).getId()).isEqualTo(q4ContractId);
         assertThat(response.getDocuments().get(0).getContent()).contains("Contract - John Smith - Q4 2023");
+        log.info("[LawFirm] Result documents: {}", response.getDocuments());
     }
 
     private void seedLawFirmData() {
