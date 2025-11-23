@@ -2,7 +2,12 @@ package com.ai.infrastructure.relationship.integration;
 
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.relationship.config.RelationshipQueryAutoConfiguration;
+import com.ai.infrastructure.relationship.cache.QueryCache;
+import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
+import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.FilterCondition;
 import com.ai.infrastructure.relationship.dto.FilterOperator;
 import com.ai.infrastructure.relationship.dto.RelationshipDirection;
@@ -15,28 +20,44 @@ import com.ai.infrastructure.relationship.integration.repository.DocumentReposit
 import com.ai.infrastructure.relationship.integration.repository.UserRepository;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
-import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
-import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
+import com.ai.infrastructure.relationship.metrics.QueryMetrics;
+import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
+import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
+import com.ai.infrastructure.relationship.service.RelationshipTraversalService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.provider.onnx.ONNXAutoConfiguration;
+import com.ai.infrastructure.provider.onnx.ONNXEmbeddingProvider;
+import com.ai.infrastructure.vector.lucene.LuceneVectorAutoConfiguration;
+import com.ai.infrastructure.vector.lucene.LuceneVectorDatabaseService;
+import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,7 +67,6 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(
     classes = RelationshipQueryIntegrationTest.IntegrationTestApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.NONE
@@ -55,27 +75,42 @@ import static org.mockito.Mockito.when;
 @ActiveProfiles("integration")
 class RelationshipQueryIntegrationTest {
 
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("relationship_query")
-        .withUsername("tester")
-        .withPassword("tester");
+    private static final Path LUCENE_INDEX_PATH;
+
+    static {
+        try {
+            LUCENE_INDEX_PATH = Files.createTempDirectory("relationship-query-lucene");
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        registry.add("spring.datasource.url", () ->
+            "jdbc:h2:mem:relationship_query;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE");
+        registry.add("spring.datasource.username", () -> "sa");
+        registry.add("spring.datasource.password", () -> "");
+        registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
+        registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("spring.jpa.show-sql", () -> "false");
+        registry.add("ai.providers.llm-provider", () -> "openai");
+        registry.add("ai.providers.embedding-provider", () -> "onnx");
+        registry.add("ai.providers.enable-fallback", () -> "false");
         registry.add("OPENAI_API_KEY", () ->
             Optional.ofNullable(System.getenv("OPENAI_API_KEY"))
                 .orElse("sk-test-integration"));
+        registry.add("ai.providers.openai.api-key", () ->
+            Optional.ofNullable(System.getenv("OPENAI_API_KEY"))
+                .orElse("sk-test-integration"));
+        registry.add("ai.vector-db.type", () -> "lucene");
+        registry.add("ai.vector-db.lucene.index-path", () -> LUCENE_INDEX_PATH.toString());
+        registry.add("ai.vector-db.lucene.vector-dimension", () -> "384");
+        registry.add("ai.vector-db.lucene.similarity-threshold", () -> "0.6");
     }
 
-    @Autowired
-    private ReliableRelationshipQueryService reliableRelationshipQueryService;
+    private LLMDrivenJPAQueryService llmDrivenJPAQueryService;
 
     @Autowired
     private DocumentRepository documentRepository;
@@ -87,10 +122,42 @@ class RelationshipQueryIntegrationTest {
     private AISearchableEntityRepository searchableEntityRepository;
 
     @Autowired
-    private RelationshipSchemaProvider schemaProvider;
+    private VectorDatabaseService vectorDatabaseService;
 
-    @MockBean
+    @Autowired
     private RelationshipQueryPlanner planner;
+
+    @Autowired
+    private DynamicJPAQueryBuilder dynamicJPAQueryBuilder;
+
+    @Autowired
+    private RelationshipQueryValidator relationshipQueryValidator;
+
+    @Autowired
+    private RelationshipQueryProperties relationshipQueryProperties;
+
+    @Autowired
+    private RelationshipModuleMetadata relationshipModuleMetadata;
+
+    @Autowired
+    @Qualifier("jpaRelationshipTraversalService")
+    private RelationshipTraversalService jpaTraversalService;
+
+    @Autowired
+    @Qualifier("metadataRelationshipTraversalService")
+    private RelationshipTraversalService metadataTraversalService;
+
+    @Autowired
+    private AIEmbeddingService aiEmbeddingService;
+
+    @Autowired
+    private QueryCache queryCache;
+
+    @Autowired
+    private QueryMetrics queryMetrics;
+
+    @Autowired
+    private com.ai.infrastructure.relationship.service.EntityRelationshipMapper entityRelationshipMapper;
 
     private String activeDocumentId;
 
@@ -99,6 +166,9 @@ class RelationshipQueryIntegrationTest {
         searchableEntityRepository.deleteAll();
         documentRepository.deleteAll();
         userRepository.deleteAll();
+        if (vectorDatabaseService != null) {
+            vectorDatabaseService.clearVectors();
+        }
 
         UserEntity author = new UserEntity();
         author.setFullName("Ada Lovelace");
@@ -123,7 +193,24 @@ class RelationshipQueryIntegrationTest {
             .build();
         searchableEntityRepository.save(indexedDocument);
 
-        schemaProvider.refreshSchema();
+        entityRelationshipMapper.registerEntityType(DocumentEntity.class);
+        entityRelationshipMapper.registerEntityType(UserEntity.class);
+        entityRelationshipMapper.registerRelationship("document", "user", "author", RelationshipDirection.FORWARD, false);
+
+        llmDrivenJPAQueryService = new LLMDrivenJPAQueryService(
+            planner,
+            dynamicJPAQueryBuilder,
+            relationshipQueryValidator,
+            relationshipQueryProperties,
+            relationshipModuleMetadata,
+            jpaTraversalService,
+            metadataTraversalService,
+            searchableEntityRepository,
+            vectorDatabaseService,
+            aiEmbeddingService,
+            queryCache,
+            queryMetrics
+        );
     }
 
     @Test
@@ -131,7 +218,7 @@ class RelationshipQueryIntegrationTest {
         RelationshipQueryPlan plan = buildPlan();
         when(planner.planQuery(anyString(), anyList())).thenReturn(plan);
 
-        RAGResponse response = reliableRelationshipQueryService.execute(
+        RAGResponse response = llmDrivenJPAQueryService.executeRelationshipQuery(
             "active docs by ada",
             List.of("document"),
             QueryOptions.builder()
@@ -174,10 +261,31 @@ class RelationshipQueryIntegrationTest {
             .build();
     }
 
-    @SpringBootApplication(scanBasePackages = {
-        "com.ai.infrastructure.relationship",
-        "com.ai.infrastructure.repository"
-    })
+    @AfterAll
+    static void cleanUpLuceneIndex() throws IOException {
+        if (!Files.exists(LUCENE_INDEX_PATH)) {
+            return;
+        }
+        Files.walk(LUCENE_INDEX_PATH)
+            .sorted(Comparator.reverseOrder())
+            .forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                }
+            });
+    }
+
+    @SpringBootApplication(
+        scanBasePackages = {
+            "com.ai.infrastructure.relationship",
+            "com.ai.infrastructure.repository"
+        },
+        exclude = {
+            ONNXAutoConfiguration.class,
+            LuceneVectorAutoConfiguration.class
+        }
+    )
     @EntityScan(basePackageClasses = {
         AISearchableEntity.class,
         DocumentEntity.class,
@@ -188,7 +296,43 @@ class RelationshipQueryIntegrationTest {
         DocumentRepository.class,
         UserRepository.class
     })
-    @Import(RelationshipQueryAutoConfiguration.class)
+    @EnableConfigurationProperties(AIProviderConfig.class)
+    @Import({
+        IntegrationTestBeans.class,
+        RelationshipQueryAutoConfiguration.class
+    })
     static class IntegrationTestApplication {
+    }
+
+    @TestConfiguration
+    static class IntegrationTestBeans {
+
+        @Bean
+        CacheManager integrationTestCacheManager() {
+            return new ConcurrentMapCacheManager();
+        }
+
+        @Bean
+        ONNXEmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
+            return new ONNXEmbeddingProvider(config);
+        }
+
+        @Bean
+        AIEmbeddingService aiEmbeddingService(AIProviderConfig config,
+                                              ONNXEmbeddingProvider onnxEmbeddingProvider,
+                                              CacheManager integrationTestCacheManager) {
+            return new AIEmbeddingService(config, onnxEmbeddingProvider, integrationTestCacheManager, null);
+        }
+
+        @Bean
+        VectorDatabaseService vectorDatabaseService(AIProviderConfig config) {
+            return new LuceneVectorDatabaseService(config);
+        }
+
+        @Bean
+        RelationshipQueryPlanner relationshipQueryPlanner() {
+            return Mockito.mock(RelationshipQueryPlanner.class);
+        }
+
     }
 }
