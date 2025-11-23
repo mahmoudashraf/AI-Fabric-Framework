@@ -3,6 +3,7 @@ package com.ai.infrastructure.relationship.service;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.dto.QueryStrategy;
@@ -14,6 +15,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -26,21 +28,31 @@ public class RelationshipQueryPlanner {
     private final RelationshipSchemaProvider schemaProvider;
     private final RelationshipQueryProperties properties;
     private final RelationshipQueryValidator validator;
+    private final QueryCache queryCache;
     private final ObjectMapper objectMapper;
 
     public RelationshipQueryPlanner(AICoreService aiCoreService,
                                     RelationshipSchemaProvider schemaProvider,
                                     RelationshipQueryProperties properties,
                                     RelationshipQueryValidator validator,
+                                    QueryCache queryCache,
                                     ObjectMapper objectMapper) {
         this.aiCoreService = aiCoreService;
         this.schemaProvider = schemaProvider;
         this.properties = properties;
         this.validator = validator;
+        this.queryCache = queryCache;
         this.objectMapper = objectMapper;
     }
 
     public RelationshipQueryPlan planQuery(String query, List<String> entityTypes) {
+        String cacheKey = QueryCache.hash(query);
+        if (queryCache.isEnabled()) {
+            Optional<RelationshipQueryPlan> cachedPlan = queryCache.getPlan(cacheKey);
+            if (cachedPlan.isPresent()) {
+                return cachedPlan.get();
+            }
+        }
         RelationshipQueryPlan fallback = createFallbackPlan(query, entityTypes);
         try {
             String prompt = buildPrompt(query, entityTypes);
@@ -48,6 +60,7 @@ public class RelationshipQueryPlanner {
             RelationshipQueryPlan plan = parsePlan(response.getContent());
             applyDefaults(plan, fallback);
             validator.validate(plan);
+            cachePlan(cacheKey, plan);
             return plan;
         } catch (Exception ex) {
             log.warn("Failed to obtain structured plan from LLM: {}", ex.getMessage());
@@ -169,5 +182,11 @@ public class RelationshipQueryPlanner {
             return null;
         }
         return response.substring(start, end + 1);
+    }
+
+    private void cachePlan(String cacheKey, RelationshipQueryPlan plan) {
+        if (queryCache.isEnabled() && cacheKey != null && plan != null) {
+            queryCache.putPlan(cacheKey, plan);
+        }
     }
 }

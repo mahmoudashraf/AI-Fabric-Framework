@@ -3,6 +3,7 @@ package com.ai.infrastructure.relationship.config;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
+import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService;
@@ -27,6 +28,12 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration(proxyBeanMethods = false)
 class RelationshipQueryConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    QueryCache relationshipQueryCache(RelationshipQueryProperties properties) {
+        return new QueryCache(properties);
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -63,8 +70,9 @@ class RelationshipQueryConfiguration {
                                                       RelationshipSchemaProvider schemaProvider,
                                                       RelationshipQueryProperties properties,
                                                       RelationshipQueryValidator validator,
+                                                      QueryCache queryCache,
                                                       ObjectMapper objectMapper) {
-        return new RelationshipQueryPlanner(aiCoreService, schemaProvider, properties, validator, objectMapper);
+        return new RelationshipQueryPlanner(aiCoreService, schemaProvider, properties, validator, queryCache, objectMapper);
     }
 
     @Bean
@@ -104,7 +112,8 @@ class RelationshipQueryConfiguration {
                                                       RelationshipTraversalService metadataRelationshipTraversalService,
                                                       AISearchableEntityRepository repository,
                                                       @Nullable VectorDatabaseService vectorDatabaseService,
-                                                      @Nullable AIEmbeddingService embeddingService) {
+                                                      @Nullable AIEmbeddingService embeddingService,
+                                                      QueryCache queryCache) {
         return new LLMDrivenJPAQueryService(
             planner,
             queryBuilder,
@@ -115,7 +124,8 @@ class RelationshipQueryConfiguration {
             metadataRelationshipTraversalService,
             repository,
             vectorDatabaseService,
-            embeddingService
+            embeddingService,
+            queryCache
         );
     }
 

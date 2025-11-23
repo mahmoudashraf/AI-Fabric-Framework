@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.JpqlQuery;
@@ -50,6 +51,7 @@ public class LLMDrivenJPAQueryService {
     private final AISearchableEntityRepository entityRepository;
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEmbeddingService embeddingService;
+    private final QueryCache queryCache;
 
     public LLMDrivenJPAQueryService(RelationshipQueryPlanner planner,
                                     DynamicJPAQueryBuilder queryBuilder,
@@ -57,10 +59,11 @@ public class LLMDrivenJPAQueryService {
                                     RelationshipQueryProperties properties,
                                     RelationshipModuleMetadata moduleMetadata,
                                     RelationshipTraversalService jpaTraversalService,
-                                    RelationshipTraversalService metadataTraversalService,
+                                      RelationshipTraversalService metadataTraversalService,
                                     AISearchableEntityRepository entityRepository,
                                     VectorDatabaseService vectorDatabaseService,
-                                    AIEmbeddingService embeddingService) {
+                                      AIEmbeddingService embeddingService,
+                                      QueryCache queryCache) {
         this.planner = planner;
         this.queryBuilder = queryBuilder;
         this.validator = validator;
@@ -71,6 +74,7 @@ public class LLMDrivenJPAQueryService {
         this.entityRepository = entityRepository;
         this.vectorDatabaseService = vectorDatabaseService;
         this.embeddingService = embeddingService;
+        this.queryCache = queryCache;
     }
 
     public RAGResponse executeRelationshipQuery(String query, List<String> entityTypes) {
@@ -115,7 +119,7 @@ public class LLMDrivenJPAQueryService {
     }
 
     private List<String> executeTraversal(RelationshipQueryPlan plan, JpqlQuery query) {
-        List<String> entityIds = jpaTraversalService.traverse(plan, query);
+        List<String> entityIds = executeJpaTraversal(plan, query);
         if (!entityIds.isEmpty() || !properties.isFallbackToMetadata()) {
             return entityIds;
         }
@@ -194,12 +198,22 @@ public class LLMDrivenJPAQueryService {
             return entityIds;
         }
         try {
-            AIEmbeddingResponse embedding = embeddingService.generateEmbedding(
-                AIEmbeddingRequest.builder()
-                    .text(plan.getSemanticQuery())
-                    .entityType(plan.getPrimaryEntityType())
-                    .build()
-            );
+            String embeddingKey = QueryCache.hash(plan.getSemanticQuery());
+            AIEmbeddingResponse embedding = null;
+            if (queryCache.isEnabled()) {
+                embedding = queryCache.getEmbedding(embeddingKey).orElse(null);
+            }
+            if (embedding == null) {
+                embedding = embeddingService.generateEmbedding(
+                    AIEmbeddingRequest.builder()
+                        .text(plan.getSemanticQuery())
+                        .entityType(plan.getPrimaryEntityType())
+                        .build()
+                );
+                if (queryCache.isEnabled()) {
+                    queryCache.putEmbedding(embeddingKey, embedding);
+                }
+            }
             AISearchResponse response = vectorDatabaseService.searchByEntityType(
                 embedding.getEmbedding(),
                 plan.getPrimaryEntityType(),
@@ -230,5 +244,23 @@ public class LLMDrivenJPAQueryService {
             log.warn("Vector reranking failed: {}", ex.getMessage());
             return entityIds;
         }
+    }
+
+    private List<String> executeJpaTraversal(RelationshipQueryPlan plan, JpqlQuery query) {
+        if (query == null || !StringUtils.hasText(query.getJpql())) {
+            return Collections.emptyList();
+        }
+        String cacheKey = QueryCache.hash(query);
+        if (queryCache.isEnabled()) {
+            Optional<List<String>> cached = queryCache.getQueryResult(cacheKey);
+            if (cached.isPresent()) {
+                return cached.get();
+            }
+        }
+        List<String> entityIds = jpaTraversalService.traverse(plan, query);
+        if (queryCache.isEnabled()) {
+            queryCache.putQueryResult(cacheKey, entityIds);
+        }
+        return entityIds;
     }
 }
