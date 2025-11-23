@@ -1109,12 +1109,12 @@ Overall: 80%+
 Test Coverage Target: 85%+
 
 Files to Test:
-├─ QueryValidator (90% target)
-├─ QueryCache (85% target)
-├─ ReliableQueryService (80% target)
-└─ QueryMetrics (80% target)
+  ├─ QueryValidator (90% target)
+  ├─ QueryCache (85% target)
+  ├─ ReliableQueryService (80% target)
+  └─ QueryMetrics (80% target)
 
-  Status: 🟡 IN PROGRESS — validator guard suite expanded (2025-11-23)
+    Status: 🟢 COMPLETED — validator + cache/metrics suites hardened (2025-11-23)
 PR Size: 🟢 SMALL
 Testing: 🟢 MAVEN TEST
 ```
@@ -1165,7 +1165,7 @@ Test Scenarios:
 ├─ Performance under load
 └─ Real database queries
 
-Status: 🟡 IN PROGRESS — Testcontainers harness + first full-flow scenario scaffolded (2025-11-23)
+  Status: 🟡 IN PROGRESS — H2 + ONNX/Lucene flow green; add fallback/perf suites next (2025-11-23)
 PR Size: 🟡 MEDIUM
 Testing: 🟢 INTEGRATION TESTS (Testcontainers)
 ```
