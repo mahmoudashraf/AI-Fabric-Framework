@@ -877,7 +877,7 @@ Task Flow:
 ├─ 3.3.6: Fallback to simple query
 └─ 3.3.7: Add fallback logging
 
-Status: ⬜ PENDING
+Status: ✅ COMPLETED (2025-11-23)
 PR Size: 🟢 SMALL (< 250 lines)
 Testing: 🟡 INTEGRATION TESTS (65% coverage)
 ```
@@ -926,7 +926,7 @@ Task Flow:
 ├─ 3.4.5: Add user-friendly error messages
 └─ 3.4.6: Add logging with context
 
-Status: ⬜ PENDING
+Status: 🟡 IN PROGRESS — exception scaffolding started (2025-11-23)
 PR Size: 🟢 SMALL (< 200 lines)
 Testing: 🟡 UNIT TESTS (70% coverage)
 ```

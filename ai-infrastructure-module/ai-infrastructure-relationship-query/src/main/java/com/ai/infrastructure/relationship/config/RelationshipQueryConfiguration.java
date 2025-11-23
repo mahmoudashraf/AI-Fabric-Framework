@@ -12,12 +12,14 @@ import com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalS
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
 import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
 import com.ai.infrastructure.relationship.service.RelationshipTraversalService;
+import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -133,6 +135,33 @@ class RelationshipQueryConfiguration {
     @ConditionalOnMissingBean
     RelationshipModuleMarker relationshipModuleMarker() {
         return new RelationshipModuleMarker();
+    }
+
+    @Bean
+    @ConditionalOnBean({LLMDrivenJPAQueryService.class, RelationshipQueryPlanner.class})
+    @ConditionalOnMissingBean
+    ReliableRelationshipQueryService reliableRelationshipQueryService(LLMDrivenJPAQueryService llmDrivenJPAQueryService,
+                                                                      RelationshipQueryPlanner relationshipQueryPlanner,
+                                                                      @Qualifier("metadataRelationshipTraversalService") RelationshipTraversalService metadataTraversalService,
+                                                                      @Nullable VectorDatabaseService vectorDatabaseService,
+                                                                      @Nullable AIEmbeddingService embeddingService,
+                                                                      AISearchableEntityRepository repository,
+                                                                      RelationshipQueryValidator validator,
+                                                                      RelationshipQueryProperties properties,
+                                                                      RelationshipModuleMetadata metadata,
+                                                                      QueryCache queryCache) {
+        return new ReliableRelationshipQueryService(
+            llmDrivenJPAQueryService,
+            relationshipQueryPlanner,
+            metadataTraversalService,
+            vectorDatabaseService,
+            embeddingService,
+            repository,
+            validator,
+            properties,
+            metadata,
+            queryCache
+        );
     }
 
     /**
