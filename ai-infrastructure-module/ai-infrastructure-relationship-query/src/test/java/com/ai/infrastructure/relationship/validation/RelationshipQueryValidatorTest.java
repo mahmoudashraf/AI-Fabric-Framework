@@ -1,6 +1,7 @@
 package com.ai.infrastructure.relationship.validation;
 
 import com.ai.infrastructure.annotation.AICapable;
+import com.ai.infrastructure.relationship.dto.RelationshipPath;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.dto.QueryStrategy;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
@@ -45,6 +46,23 @@ class RelationshipQueryValidatorTest {
             .build();
 
         assertThatCode(() -> validator.validate(plan)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldRejectRelationshipPathWithoutRelationshipType() {
+        RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
+            .originalQuery("Find docs")
+            .primaryEntityType("document")
+            .candidateEntityTypes(List.of("document"))
+            .relationshipPaths(List.of(RelationshipPath.builder()
+                .fromEntityType("document")
+                .toEntityType("user")
+                .build()))
+            .build();
+
+        assertThatThrownBy(() -> validator.validate(plan))
+            .isInstanceOf(RelationshipQueryValidationException.class)
+            .hasMessageContaining("does not define a relationshipType");
     }
 
     @AICapable(entityType = "document")
