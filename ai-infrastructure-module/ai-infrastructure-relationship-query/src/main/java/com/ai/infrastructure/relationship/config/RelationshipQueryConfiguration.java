@@ -4,6 +4,7 @@ import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.relationship.cache.QueryCache;
+import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService;
@@ -35,6 +36,12 @@ class RelationshipQueryConfiguration {
     @ConditionalOnMissingBean
     QueryCache relationshipQueryCache(RelationshipQueryProperties properties) {
         return new QueryCache(properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    QueryMetrics relationshipQueryMetrics(RelationshipQueryProperties properties) {
+        return new QueryMetrics(properties);
     }
 
     @Bean
@@ -73,8 +80,9 @@ class RelationshipQueryConfiguration {
                                                       RelationshipQueryProperties properties,
                                                       RelationshipQueryValidator validator,
                                                       QueryCache queryCache,
+                                                      QueryMetrics queryMetrics,
                                                       ObjectMapper objectMapper) {
-        return new RelationshipQueryPlanner(aiCoreService, schemaProvider, properties, validator, queryCache, objectMapper);
+        return new RelationshipQueryPlanner(aiCoreService, schemaProvider, properties, validator, queryCache, queryMetrics, objectMapper);
     }
 
     @Bean
@@ -115,7 +123,8 @@ class RelationshipQueryConfiguration {
                                                       AISearchableEntityRepository repository,
                                                       @Nullable VectorDatabaseService vectorDatabaseService,
                                                       @Nullable AIEmbeddingService embeddingService,
-                                                      QueryCache queryCache) {
+                                                      QueryCache queryCache,
+                                                      QueryMetrics queryMetrics) {
         return new LLMDrivenJPAQueryService(
             planner,
             queryBuilder,
@@ -127,7 +136,8 @@ class RelationshipQueryConfiguration {
             repository,
             vectorDatabaseService,
             embeddingService,
-            queryCache
+            queryCache,
+            queryMetrics
         );
     }
 
@@ -149,7 +159,8 @@ class RelationshipQueryConfiguration {
                                                                       RelationshipQueryValidator validator,
                                                                       RelationshipQueryProperties properties,
                                                                       RelationshipModuleMetadata metadata,
-                                                                      QueryCache queryCache) {
+                                                                      QueryCache queryCache,
+                                                                      QueryMetrics queryMetrics) {
         return new ReliableRelationshipQueryService(
             llmDrivenJPAQueryService,
             relationshipQueryPlanner,
@@ -160,7 +171,8 @@ class RelationshipQueryConfiguration {
             validator,
             properties,
             metadata,
-            queryCache
+            queryCache,
+            queryMetrics
         );
     }
 

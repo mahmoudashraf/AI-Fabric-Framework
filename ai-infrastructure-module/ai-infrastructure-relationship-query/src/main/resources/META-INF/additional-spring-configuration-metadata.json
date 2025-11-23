@@ -89,6 +89,24 @@
       "type": "java.lang.Integer",
       "description": "Maximum number of cached JPQL result sets.",
       "defaultValue": 5000
+    },
+    {
+      "name": "ai.infrastructure.relationship.metrics.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable collection of relationship query performance metrics.",
+      "defaultValue": true
+    },
+    {
+      "name": "ai.infrastructure.relationship.metrics.latency-alert-ms",
+      "type": "java.lang.Long",
+      "description": "Latency threshold (ms) that triggers warning logs for slow plan/execution phases.",
+      "defaultValue": 1500
+    },
+    {
+      "name": "ai.infrastructure.relationship.metrics.fallback-alert-threshold",
+      "type": "java.lang.Integer",
+      "description": "Number of fallback invocations that triggers warning logs.",
+      "defaultValue": 5
     }
   ]
 }

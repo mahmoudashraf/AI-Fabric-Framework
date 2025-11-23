@@ -83,6 +83,8 @@ public class RelationshipQueryProperties {
     private final PlannerProperties planner = new PlannerProperties();
     @NestedConfigurationProperty
     private final CacheProperties cache = new CacheProperties();
+    @NestedConfigurationProperty
+    private final MetricsProperties metrics = new MetricsProperties();
 
     @Getter
     public static class PlannerProperties {
@@ -198,6 +200,27 @@ public class RelationshipQueryProperties {
 
         public long ttlMillis() {
             return ttlSeconds * 1000;
+        }
+    }
+
+    @Getter
+    public static class MetricsProperties {
+        private boolean enabled = true;
+        @Positive
+        private long latencyAlertMs = 1500;
+        @Positive
+        private int fallbackAlertThreshold = 5;
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public void setLatencyAlertMs(long latencyAlertMs) {
+            this.latencyAlertMs = Math.max(1, latencyAlertMs);
+        }
+
+        public void setFallbackAlertThreshold(int fallbackAlertThreshold) {
+            this.fallbackAlertThreshold = Math.max(1, fallbackAlertThreshold);
         }
     }
 
