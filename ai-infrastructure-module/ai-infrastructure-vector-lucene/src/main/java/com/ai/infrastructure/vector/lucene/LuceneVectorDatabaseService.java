@@ -767,15 +767,11 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             // Check if index exists before trying to open it
             if (DirectoryReader.indexExists(directory)) {
                 indexReader = DirectoryReader.open(directory);
+            } else if (indexWriter != null) {
+                indexWriter.commit();
+                indexReader = DirectoryReader.open(indexWriter);
             } else {
-                // Index doesn't exist yet - commit writer to create empty index, then open reader
-                if (indexWriter != null) {
-                    indexWriter.commit();
-                    indexReader = DirectoryReader.open(directory);
-                } else {
-                    // Create empty reader - open will fail for empty index, so we commit first
-                    indexReader = DirectoryReader.open(directory);
-                }
+                indexReader = DirectoryReader.open(directory);
             }
             indexSearcher = new IndexSearcher(indexReader);
             

@@ -36,6 +36,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -54,14 +56,9 @@ import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.EntityManager;
 
@@ -78,39 +75,11 @@ import static org.mockito.Mockito.when;
 @ActiveProfiles("integration")
 class RelationshipQueryIntegrationTest {
 
-    private static final Path LUCENE_INDEX_PATH;
-
-    static {
-        try {
-            LUCENE_INDEX_PATH = Files.createTempDirectory("relationship-query-lucene");
-        } catch (IOException e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
+    private static final Logger log = LoggerFactory.getLogger(RelationshipQueryIntegrationTest.class);
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () ->
-            "jdbc:h2:mem:relationship_query;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE");
-        registry.add("spring.datasource.username", () -> "sa");
-        registry.add("spring.datasource.password", () -> "");
-        registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
-        registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-        registry.add("spring.jpa.show-sql", () -> "false");
-        registry.add("ai.providers.llm-provider", () -> "openai");
-        registry.add("ai.providers.embedding-provider", () -> "onnx");
-        registry.add("ai.providers.enable-fallback", () -> "false");
-        registry.add("OPENAI_API_KEY", () ->
-            Optional.ofNullable(System.getenv("OPENAI_API_KEY"))
-                .orElse("sk-test-integration"));
-        registry.add("ai.providers.openai.api-key", () ->
-            Optional.ofNullable(System.getenv("OPENAI_API_KEY"))
-                .orElse("sk-test-integration"));
-        registry.add("ai.vector-db.type", () -> "lucene");
-        registry.add("ai.vector-db.lucene.index-path", () -> LUCENE_INDEX_PATH.toString());
-        registry.add("ai.vector-db.lucene.vector-dimension", () -> "384");
-        registry.add("ai.vector-db.lucene.similarity-threshold", () -> "0.6");
+        IntegrationTestSupport.registerCommonProperties(registry);
     }
 
     private LLMDrivenJPAQueryService llmDrivenJPAQueryService;
@@ -168,7 +137,11 @@ class RelationshipQueryIntegrationTest {
         documentRepository.deleteAll();
         userRepository.deleteAll();
         if (vectorDatabaseService != null) {
-            vectorDatabaseService.clearVectors();
+            try {
+                vectorDatabaseService.clearVectors();
+            } catch (Exception ex) {
+                log.warn("Unable to clear vectors from Lucene test index; continuing with fresh context", ex);
+            }
         }
 
         UserEntity author = new UserEntity();
@@ -282,17 +255,7 @@ class RelationshipQueryIntegrationTest {
 
     @AfterAll
     static void cleanUpLuceneIndex() throws IOException {
-        if (!Files.exists(LUCENE_INDEX_PATH)) {
-            return;
-        }
-        Files.walk(LUCENE_INDEX_PATH)
-            .sorted(Comparator.reverseOrder())
-            .forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException ignored) {
-                }
-            });
+        IntegrationTestSupport.cleanUpLuceneIndex();
     }
 
     @SpringBootApplication(

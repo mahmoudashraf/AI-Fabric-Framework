@@ -1165,7 +1165,7 @@ Test Scenarios:
 ├─ Performance under load
 └─ Real database queries
 
-  Status: 🟡 IN PROGRESS — H2 + ONNX/Lucene flow green; add fallback/perf suites next (2025-11-23)
+  Status: 🟡 IN PROGRESS — H2 + ONNX/Lucene flow + fallback chain green; perf harness pending (2025-11-23)
 PR Size: 🟡 MEDIUM
 Testing: 🟢 INTEGRATION TESTS (Testcontainers)
 ```
@@ -1173,10 +1173,10 @@ Testing: 🟢 INTEGRATION TESTS (Testcontainers)
 **Integration Test Files:**
 ```
 src/test/java/com/ai/infrastructure/relationship/integration/
-├── RelationshipQueryIntegrationTest.java     (300 lines)
-├── FallbackIntegrationTest.java              (200 lines)
-├── PerformanceTest.java                      (150 lines)
-└── RealWorldUseCaseTest.java                 (250 lines)
+├── RelationshipQueryIntegrationTest.java                 (single-hop JPA happy path)
+├── ReliableRelationshipQueryFallbackIntegrationTest.java (metadata/vector/simple fallbacks)
+├── PerformanceTest.java                                  (150 lines)
+└── RealWorldUseCaseTest.java                             (250 lines)
 ```
 
 **Test Scenarios:**
@@ -1191,7 +1191,7 @@ src/test/java/com/ai/infrastructure/relationship/integration/
 ✓ Large result sets handled
 ```
 
-**FallbackIntegrationTest:**
+**ReliableRelationshipQueryFallbackIntegrationTest:**
 ```java
 ✓ LLM failure → Metadata fallback
 ✓ Metadata failure → Vector fallback
