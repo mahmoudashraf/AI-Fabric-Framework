@@ -1165,7 +1165,7 @@ Test Scenarios:
 ├─ Performance under load
 └─ Real database queries
 
-Status: ⬜ PENDING
+Status: 🟡 IN PROGRESS — Testcontainers harness + first full-flow scenario scaffolded (2025-11-23)
 PR Size: 🟡 MEDIUM
 Testing: 🟢 INTEGRATION TESTS (Testcontainers)
 ```
