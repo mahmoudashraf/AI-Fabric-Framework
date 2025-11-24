@@ -1,5 +1,6 @@
 package com.ai.infrastructure.config;
 
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
@@ -11,6 +12,8 @@ import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -23,13 +26,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 /**
  * Test configuration supplying deterministic provider and vector service doubles
  * so core module tests can run without external modules.
  */
-@SpringBootApplication(scanBasePackages = "com.ai.infrastructure")
+@SpringBootApplication
+@ComponentScan(
+    basePackages = "com.ai.infrastructure",
+    excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = AIEntityConfigurationLoader.class)
+)
 @Import(AIInfrastructureAutoConfiguration.class)
 @EntityScan(basePackages = "com.ai.infrastructure.entity")
 @EnableJpaRepositories(basePackages = "com.ai.infrastructure.repository")
@@ -51,6 +58,17 @@ public class TestConfiguration {
     @Primary
     public VectorDatabaseService testVectorDatabaseService() {
         return new InMemoryVectorDatabaseService();
+    }
+
+    @Bean
+    @Primary
+    public AIEntityConfigurationLoader testAIEntityConfigurationLoader() {
+        AIEntityConfigurationLoader loader = mock(AIEntityConfigurationLoader.class, RETURNS_DEEP_STUBS);
+        when(loader.getSupportedEntityTypes()).thenReturn(Collections.emptySet());
+        when(loader.getDefaultEmbeddingModel()).thenReturn("text-embedding-3-small");
+        when(loader.getDefaultSearchLimit()).thenReturn(10);
+        when(loader.hasEntityConfig(anyString())).thenReturn(false);
+        return loader;
     }
 
     private static final class TestEmbeddingProvider implements EmbeddingProvider {
