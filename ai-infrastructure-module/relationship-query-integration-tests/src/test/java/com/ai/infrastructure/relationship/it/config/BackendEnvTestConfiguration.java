@@ -28,14 +28,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
+import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Stream;
@@ -170,6 +173,16 @@ public class BackendEnvTestConfiguration {
             JavaTimeModule module = new JavaTimeModule();
             module.addDeserializer(LocalDateTime.class, new LocalDateTimeDeserializer(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
             builder.modulesToInstall(module);
+        };
+    }
+
+    @Bean
+    RestTemplateCustomizer relationshipTestRestTemplateCustomizer() {
+        return restTemplate -> {
+            SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+            requestFactory.setConnectTimeout((int) Duration.ofSeconds(30).toMillis());
+            requestFactory.setReadTimeout((int) Duration.ofSeconds(120).toMillis());
+            restTemplate.setRequestFactory(requestFactory);
         };
     }
 }
