@@ -103,6 +103,21 @@ public class RelationshipQueryProperties {
          * When true, planner errors surface immediately instead of returning a degraded fallback plan.
          */
         private boolean failOnParseError = false;
+        /**
+         * Number of additional attempts when the LLM returns an invalid plan.
+         */
+        @Min(0)
+        private int maxRetries = 0;
+
+        /**
+         * Enables post-processing heuristics that coerce LLM output (disabled by default).
+         */
+        private boolean normalizationEnabled = false;
+
+        /**
+         * Optional static few-shot examples appended to the planner prompt.
+         */
+        private java.util.List<String> planExamples = java.util.List.of();
 
         public void setLogPlans(boolean logPlans) {
             this.logPlans = logPlans;
@@ -124,6 +139,30 @@ public class RelationshipQueryProperties {
 
         public void setFailOnParseError(boolean failOnParseError) {
             this.failOnParseError = failOnParseError;
+        }
+
+        public int getMaxRetries() {
+            return maxRetries;
+        }
+
+        public void setMaxRetries(int maxRetries) {
+            this.maxRetries = Math.max(0, maxRetries);
+        }
+
+        public boolean isNormalizationEnabled() {
+            return normalizationEnabled;
+        }
+
+        public void setNormalizationEnabled(boolean normalizationEnabled) {
+            this.normalizationEnabled = normalizationEnabled;
+        }
+
+        public java.util.List<String> getPlanExamples() {
+            return planExamples;
+        }
+
+        public void setPlanExamples(java.util.List<String> planExamples) {
+            this.planExamples = planExamples == null ? java.util.List.of() : planExamples;
         }
     }
 
