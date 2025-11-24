@@ -33,8 +33,14 @@ ai:
         auto-discover: false
         refresh-on-startup: true
         include-fields: true
+      fallback-to-metadata: false
+      fallback-to-vector-search: false
+      fallback-to-simple-search: false
       max-traversal-depth: 3
       enable-query-validation: true
+      planner:
+        log-plans: true
+        fail-on-parse-error: true
 
 logging:
   level:

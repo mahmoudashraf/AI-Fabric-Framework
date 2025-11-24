@@ -167,6 +167,9 @@ public class ReliableRelationshipQueryService {
     }
 
     private RAGResponse trySimpleFallback(String query, RelationshipQueryPlan plan, QueryOptions options) {
+        if (!properties.isFallbackToSimpleSearch()) {
+            return emptyResponse(query, plan, "SIMPLE_DISABLED");
+        }
         try {
             List<AISearchableEntity> entities = entityRepository.findByEntityType(plan.getPrimaryEntityType());
             int limit = options.getLimit() != null ? options.getLimit() : 20;
