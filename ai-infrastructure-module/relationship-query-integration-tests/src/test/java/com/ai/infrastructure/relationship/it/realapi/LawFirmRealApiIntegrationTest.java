@@ -1,6 +1,7 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
 import com.ai.infrastructure.relationship.it.api.RelationshipQueryRequest;
 import com.ai.infrastructure.relationship.it.entity.DocumentEntity;
@@ -21,15 +22,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
+import com.ai.infrastructure.relationship.it.config.RealApiTestConfiguration;
+import org.springframework.context.annotation.Import;
 
 @SpringBootTest(
     classes = RelationshipQueryIntegrationTestApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
 @ActiveProfiles("realapi")
+@Import(RealApiTestConfiguration.class)
 class LawFirmRealApiIntegrationTest {
 
     private static final String QUERY = "Find all contracts related to John Smith in Q4 2023";
@@ -57,9 +63,9 @@ class LawFirmRealApiIntegrationTest {
     @BeforeEach
     void setUp() {
         queryCache.putPlan(QueryCache.hash(QUERY), RelationshipQueryPlanFixtures.planFor(QUERY));
-        searchableEntityRepository.deleteAll();
-        documentRepository.deleteAll();
-        userRepository.deleteAll();
+        searchableEntityRepository.deleteAllInBatch();
+        documentRepository.deleteAllInBatch();
+        userRepository.deleteAllInBatch();
         if (vectorDatabaseService != null) {
             try {
                 vectorDatabaseService.clearVectors();
@@ -110,6 +116,10 @@ class LawFirmRealApiIntegrationTest {
         DocumentEntity janeContract = createDocument("Contract - Jane Doe - Q4 2023", "ACTIVE", janeDoe);
 
         documentRepository.saveAll(List.of(q4Contract, q3Contract, archived, janeContract));
+        indexDocument(q4Contract);
+        indexDocument(q3Contract);
+        indexDocument(archived);
+        indexDocument(janeContract);
         q4ContractId = q4Contract.getId();
     }
 
@@ -120,5 +130,20 @@ class LawFirmRealApiIntegrationTest {
         document.setAuthor(author);
         author.getDocuments().add(document);
         return document;
+    }
+
+    private void indexDocument(DocumentEntity document) {
+        searchableEntityRepository.save(
+            AISearchableEntity.builder()
+                .entityType("document")
+                .entityId(document.getId())
+                .searchableContent(document.getTitle())
+                .metadata("""
+                    {"status":"%s","authorId":"%s"}
+                    """.formatted(document.getStatus(), document.getAuthor().getId()))
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build()
+        );
     }
 }

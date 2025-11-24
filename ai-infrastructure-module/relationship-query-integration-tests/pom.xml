@@ -17,13 +17,30 @@
     <dependencies>
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-relationship-query</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.ai.infrastructure</groupId>
+            <artifactId>ai-infrastructure-provider-openai</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
         <dependency>
@@ -42,14 +59,12 @@
             <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-onnx-starter</artifactId>
             <version>${project.version}</version>
-            <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-vector-lucene</artifactId>
             <version>${project.version}</version>
-            <scope>test</scope>
         </dependency>
 
         <dependency>
