@@ -31,6 +31,7 @@
         <module>ai-infrastructure-vector-milvus</module>
         <module>ai-infrastructure-behavior-integration-tests</module>
         <module>integration-tests</module>
+        <module>relationship-query-integration-tests</module>
     </modules>
 
     <properties>

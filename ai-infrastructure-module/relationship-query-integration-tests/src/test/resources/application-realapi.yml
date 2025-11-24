@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:relationship_query_realapi;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: false
+    show-sql: false
+  main:
+    allow-bean-definition-overriding: true
+
+ai:
+  providers:
+    llm-provider: openai
+    embedding-provider: onnx
+    enable-fallback: false
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-real-api-test}
+  vector-db:
+    type: lucene
+    lucene:
+      index-path: ${java.io.tmpdir}/relationship-query-realapi-lucene
+      vector-dimension: 384
+      similarity-threshold: 0.6
+  infrastructure:
+    relationship:
+      schema:
+        auto-discover: true
+        refresh-on-startup: true
+        include-fields: true
+      max-traversal-depth: 3
+      enable-query-validation: true
+
+logging:
+  level:
+    com.ai.infrastructure.relationship: INFO
