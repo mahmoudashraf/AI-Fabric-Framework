@@ -4,7 +4,7 @@ import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
 import com.ai.infrastructure.relationship.it.api.RelationshipQueryRequest;
-import com.ai.infrastructure.relationship.it.config.RealApiTestConfiguration;
+import com.ai.infrastructure.relationship.it.config.BackendEnvTestConfiguration;
 import com.ai.infrastructure.relationship.it.entity.AccountEntity;
 import com.ai.infrastructure.relationship.it.entity.TransactionEntity;
 import com.ai.infrastructure.relationship.it.repository.AccountRepository;
@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
 @ActiveProfiles("realapi")
-@Import(RealApiTestConfiguration.class)
+@Import(BackendEnvTestConfiguration.class)
 class FinancialFraudRealApiIntegrationTest {
 
     private static final String QUERY = "List suspicious transactions over $25k from high-risk regions routed through the same counterparty";

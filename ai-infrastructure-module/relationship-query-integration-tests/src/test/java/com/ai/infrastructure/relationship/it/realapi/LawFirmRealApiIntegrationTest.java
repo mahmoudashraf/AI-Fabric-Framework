@@ -27,7 +27,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.ai.infrastructure.relationship.it.config.RealApiTestConfiguration;
+import com.ai.infrastructure.relationship.it.config.BackendEnvTestConfiguration;
 import org.springframework.context.annotation.Import;
 
 @SpringBootTest(
@@ -35,7 +35,7 @@ import org.springframework.context.annotation.Import;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
 @ActiveProfiles("realapi")
-@Import(RealApiTestConfiguration.class)
+@Import(BackendEnvTestConfiguration.class)
 class LawFirmRealApiIntegrationTest {
 
     private static final String QUERY = "Find all contracts related to John Smith in Q4 2023";
