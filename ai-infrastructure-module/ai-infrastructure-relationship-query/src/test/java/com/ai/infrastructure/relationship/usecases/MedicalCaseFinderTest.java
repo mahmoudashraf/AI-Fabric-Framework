@@ -277,7 +277,9 @@ class MedicalCaseFinderTest {
 
         entityRelationshipMapper.registerEntityType(MedicalCaseEntity.class);
         entityRelationshipMapper.registerEntityType(PatientEntity.class);
-        entityRelationshipMapper.registerRelationship("medical-case", "patient", "patient", RelationshipDirection.FORWARD, false);
+        try {
+            entityRelationshipMapper.registerRelationship("medical-case", "patient", "patient", RelationshipDirection.FORWARD, false);
+        } catch (IllegalStateException ignored) { }
     }
 
     private MedicalCaseEntity medicalCase(String title, String specialty, String therapy, String status, PatientEntity patient) {

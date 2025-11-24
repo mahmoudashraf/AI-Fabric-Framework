@@ -22,6 +22,8 @@ import com.ai.infrastructure.relationship.integration.entity.PatientEntity;
 import com.ai.infrastructure.relationship.integration.entity.MedicalCaseEntity;
 import com.ai.infrastructure.relationship.integration.entity.CandidateEntity;
 import com.ai.infrastructure.relationship.integration.entity.RecruiterEntity;
+import com.ai.infrastructure.relationship.integration.entity.AccountEntity;
+import com.ai.infrastructure.relationship.integration.entity.TransactionEntity;
 import com.ai.infrastructure.relationship.integration.repository.DocumentRepository;
 import com.ai.infrastructure.relationship.integration.repository.BrandRepository;
 import com.ai.infrastructure.relationship.integration.repository.ProductRepository;
@@ -30,6 +32,8 @@ import com.ai.infrastructure.relationship.integration.repository.PatientReposito
 import com.ai.infrastructure.relationship.integration.repository.MedicalCaseRepository;
 import com.ai.infrastructure.relationship.integration.repository.CandidateRepository;
 import com.ai.infrastructure.relationship.integration.repository.RecruiterRepository;
+import com.ai.infrastructure.relationship.integration.repository.AccountRepository;
+import com.ai.infrastructure.relationship.integration.repository.TransactionRepository;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
@@ -290,7 +294,9 @@ public class RelationshipQueryIntegrationTest {
         PatientEntity.class,
         MedicalCaseEntity.class,
         CandidateEntity.class,
-        RecruiterEntity.class
+        RecruiterEntity.class,
+        AccountEntity.class,
+        TransactionEntity.class
     })
     @EnableJpaRepositories(basePackageClasses = {
         AISearchableEntityRepository.class,
@@ -301,7 +307,9 @@ public class RelationshipQueryIntegrationTest {
         PatientRepository.class,
         MedicalCaseRepository.class,
         CandidateRepository.class,
-        RecruiterRepository.class
+        RecruiterRepository.class,
+        AccountRepository.class,
+        TransactionRepository.class
     })
     @EnableConfigurationProperties(AIProviderConfig.class)
     @Import({

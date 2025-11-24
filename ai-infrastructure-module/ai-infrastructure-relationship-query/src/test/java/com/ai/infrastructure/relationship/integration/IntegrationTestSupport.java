@@ -42,6 +42,8 @@ public final class IntegrationTestSupport {
         registry.add("ai.vector-db.lucene.vector-dimension", () -> "384");
         registry.add("ai.vector-db.lucene.similarity-threshold", () -> "0.6");
         registry.add("spring.main.allow-bean-definition-overriding", () -> "true");
+        registry.add("ai.infrastructure.relationship.schema.auto-discover", () -> "false");
+        registry.add("ai.infrastructure.relationship.schema.refresh-on-startup", () -> "false");
     }
 
     public static void cleanUpLuceneIndex() throws IOException {

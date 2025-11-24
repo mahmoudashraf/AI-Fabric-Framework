@@ -278,7 +278,9 @@ class HRCandidateSearchTest {
 
         entityRelationshipMapper.registerEntityType(CandidateEntity.class);
         entityRelationshipMapper.registerEntityType(RecruiterEntity.class);
-        entityRelationshipMapper.registerRelationship("candidate", "recruiter", "recruiter", RelationshipDirection.FORWARD, false);
+        try {
+            entityRelationshipMapper.registerRelationship("candidate", "recruiter", "recruiter", RelationshipDirection.FORWARD, false);
+        } catch (IllegalStateException ignored) { }
     }
 
     private CandidateEntity candidate(String name, String location, String seniority, String skill, RecruiterEntity recruiter) {
