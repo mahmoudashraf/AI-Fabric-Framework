@@ -10,6 +10,9 @@ import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -83,8 +86,11 @@ public class DynamicJPAQueryBuilder {
             String joinKeyword = path.isOptional() ? " LEFT JOIN " : " JOIN ";
             joins.add(joinKeyword + fromAlias + "." + path.getRelationshipType() + " " + toAlias);
             if (!CollectionUtils.isEmpty(path.getConditions())) {
+                String targetAlias = StringUtils.hasText(path.getAlias())
+                    ? aliases.register(path.getToEntityType(), path.getAlias())
+                    : toAlias;
                 path.getConditions().forEach(condition ->
-                    predicates.add(buildPredicate(condition, toAlias, parameters, paramSequence)));
+                    predicates.add(buildPredicate(condition, targetAlias, aliases, parameters, paramSequence)));
             }
         }
     }
@@ -118,12 +124,13 @@ public class DynamicJPAQueryBuilder {
             alias = aliases.register(entity);
         }
         for (FilterCondition condition : filters) {
-            predicates.add(buildPredicate(condition, alias, parameters, paramSequence));
+            predicates.add(buildPredicate(condition, alias, aliases, parameters, paramSequence));
         }
     }
 
     private String buildPredicate(FilterCondition condition,
                                   String alias,
+                                  AliasRegistry aliases,
                                   Map<String, Object> parameters,
                                   AtomicInteger paramSequence) {
         String fieldName = resolveFieldName(condition, alias);
@@ -132,13 +139,23 @@ public class DynamicJPAQueryBuilder {
         FilterOperator operator = condition.getOperator() != null
             ? condition.getOperator()
             : FilterOperator.EQUALS;
+        String referencedField = resolveFieldReference(value, aliases);
+        if (referencedField == null) {
+            value = coerceParameterValue(value);
+        }
 
         return switch (operator) {
             case EQUALS -> {
+                if (referencedField != null) {
+                    yield "%s = %s".formatted(fieldName, referencedField);
+                }
                 parameters.put(parameterName, value);
                 yield "%s = :%s".formatted(fieldName, parameterName);
             }
             case NOT_EQUALS -> {
+                if (referencedField != null) {
+                    yield "%s <> %s".formatted(fieldName, referencedField);
+                }
                 parameters.put(parameterName, value);
                 yield "%s <> :%s".formatted(fieldName, parameterName);
             }
@@ -180,12 +197,17 @@ public class DynamicJPAQueryBuilder {
                                             Map<String, Object> parameters) {
         if (value instanceof Iterable<?> iterable) {
             List<Object> values = new ArrayList<>();
-            iterable.forEach(values::add);
+            iterable.forEach(item -> values.add(coerceParameterValue(item)));
             parameters.put(parameterName, values);
         } else if (value != null && value.getClass().isArray()) {
-            parameters.put(parameterName, Arrays.asList((Object[]) value));
+            Object[] array = (Object[]) value;
+            List<Object> values = new ArrayList<>(array.length);
+            for (Object element : array) {
+                values.add(coerceParameterValue(element));
+            }
+            parameters.put(parameterName, values);
         } else {
-            parameters.put(parameterName, List.of(value));
+            parameters.put(parameterName, List.of(coerceParameterValue(value)));
         }
         String clause = "%s %s :%s".formatted(field, operator == FilterOperator.IN ? "IN" : "NOT IN", parameterName);
         return clause;
@@ -197,8 +219,8 @@ public class DynamicJPAQueryBuilder {
                                          Map<String, Object> parameters,
                                          AtomicInteger paramSequence) {
         String secondParameter = "p" + paramSequence.incrementAndGet();
-        parameters.put(parameterName, condition.getValue());
-        parameters.put(secondParameter, condition.getSecondaryValue());
+        parameters.put(parameterName, coerceParameterValue(condition.getValue()));
+        parameters.put(secondParameter, coerceParameterValue(condition.getSecondaryValue()));
         return "%s BETWEEN :%s AND :%s".formatted(field, parameterName, secondParameter);
     }
 
@@ -210,6 +232,44 @@ public class DynamicJPAQueryBuilder {
             return condition.getField();
         }
         return defaultAlias + "." + condition.getField();
+    }
+
+    private String resolveFieldReference(Object value, AliasRegistry aliases) {
+        if (!(value instanceof String str)) {
+            return null;
+        }
+        String trimmed = str.trim();
+        if (!trimmed.contains(".")) {
+            return null;
+        }
+        String[] parts = trimmed.split("\\.", 2);
+        if (parts.length != 2) {
+            return null;
+        }
+        String refAlias = aliases.aliasFor(parts[0]);
+        if (!StringUtils.hasText(refAlias)) {
+            return null;
+        }
+        return refAlias + "." + parts[1];
+    }
+
+    private Object coerceParameterValue(Object value) {
+        if (!(value instanceof String str)) {
+            return value;
+        }
+        String trimmed = str.trim();
+        if (trimmed.isEmpty()) {
+            return value;
+        }
+        try {
+            return LocalDateTime.parse(trimmed);
+        } catch (DateTimeParseException ignored) {
+        }
+        try {
+            return LocalDate.parse(trimmed).atStartOfDay();
+        } catch (DateTimeParseException ignored) {
+        }
+        return value;
     }
 
     private static class AliasRegistry {

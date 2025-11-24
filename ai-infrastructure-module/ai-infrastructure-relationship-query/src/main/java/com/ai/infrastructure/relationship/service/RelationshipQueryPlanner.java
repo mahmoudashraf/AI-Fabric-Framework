@@ -88,13 +88,40 @@ public class RelationshipQueryPlanner {
               "direction": "FORWARD",
               "optional": false,
               "conditions": [
-                {"field": "riskScore", "operator": "GREATER_THAN_OR_EQUAL", "value": 0.7, "entityType": "origin-account"}
+                {"field": "riskScore", "operator": "GREATER_THAN_OR_EQUAL", "value": 0.7, "entityType": "origin-account"},
+                {"field": "ownerName", "operator": "EQUALS", "value": "destination-account.ownerName", "entityType": "origin-account"}
               ]
             }
           ],
           "directFilters": {
             "transaction": [
               {"field": "amount", "operator": "GREATER_THAN", "value": 25000, "entityType": "transaction"}
+            ]
+          },
+          "relationshipFilters": {}
+        }
+        """,
+        """
+        Example plan for query "Find all contracts related to John Smith in Q4 2023":
+        {
+          "primaryEntityType": "document",
+          "candidateEntityTypes": ["document"],
+          "relationshipPaths": [
+            {
+              "fromEntityType": "document",
+              "relationshipType": "author",
+              "toEntityType": "user",
+              "direction": "FORWARD",
+              "optional": false,
+              "conditions": [
+                {"field": "fullName", "operator": "EQUALS", "value": "John Smith", "entityType": "user"}
+              ]
+            }
+          ],
+          "directFilters": {
+            "document": [
+              {"field": "creationDate", "operator": "GREATER_THAN_OR_EQUAL", "value": "2023-10-01T00:00:00", "entityType": "document"},
+              {"field": "creationDate", "operator": "LESS_THAN_OR_EQUAL", "value": "2023-12-31T23:59:59", "entityType": "document"}
             ]
           },
           "relationshipFilters": {}
@@ -232,6 +259,8 @@ public class RelationshipQueryPlanner {
             - Each element inside directFilters/relationshipFilters MUST be an array of objects shaped like {"field":"entity.field","operator":"GREATER_THAN","value":123}. Valid operators: EQUALS, NOT_EQUALS, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, BETWEEN, IN, LIKE.
             - relationshipPaths[].conditions follows the exact same object structure (arrays of filter objects).
             - Use fully-qualified field names such as "transaction.amount" or "destinationAccount.region".
+            - When a predicate needs to compare two entities (e.g., "same counterparty"), set the filter value to "<entity-slug>.<field>" (example: {"field":"ownerName","operator":"EQUALS","value":"destination-account.ownerName"}).
+            - Use the exact field names shown in the schema (e.g., "creationDate", "author.fullName"); do not invent shorthand names like "date" or "author".
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
 
             Schema:

@@ -94,7 +94,7 @@ class FinancialFraudRealApiIntegrationTest {
 
     private void seedTransactions() {
         AccountEntity highRiskOrigin = account("Helios Imports", "high-risk region", BigDecimal.valueOf(0.83));
-        AccountEntity counterpart = account("Nordic Clearing", "high-risk corridor", BigDecimal.valueOf(0.22));
+        AccountEntity counterpart = account(highRiskOrigin.getOwnerName(), "high-risk corridor", BigDecimal.valueOf(0.22));
         AccountEntity benignOrigin = account("Sunrise Foods", "stable region", BigDecimal.valueOf(0.35));
 
         highRiskOrigin = accountRepository.save(highRiskOrigin);
