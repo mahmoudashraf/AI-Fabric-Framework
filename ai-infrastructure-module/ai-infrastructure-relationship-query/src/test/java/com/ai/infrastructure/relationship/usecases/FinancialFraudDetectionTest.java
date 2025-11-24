@@ -14,10 +14,10 @@ import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.dto.QueryStrategy;
 import com.ai.infrastructure.relationship.integration.IntegrationTestSupport;
 import com.ai.infrastructure.relationship.integration.RelationshipQueryIntegrationTest;
-import com.ai.infrastructure.relationship.integration.entity.BrandEntity;
-import com.ai.infrastructure.relationship.integration.entity.ProductEntity;
-import com.ai.infrastructure.relationship.integration.repository.BrandRepository;
-import com.ai.infrastructure.relationship.integration.repository.ProductRepository;
+import com.ai.infrastructure.relationship.integration.entity.AccountEntity;
+import com.ai.infrastructure.relationship.integration.entity.TransactionEntity;
+import com.ai.infrastructure.relationship.integration.repository.AccountRepository;
+import com.ai.infrastructure.relationship.integration.repository.TransactionRepository;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
@@ -64,10 +64,10 @@ import static org.mockito.Mockito.when;
 )
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("integration")
-@Import(ECommerceProductDiscoveryTest.VectorOverrides.class)
-class ECommerceProductDiscoveryTest {
+@Import(FinancialFraudDetectionTest.VectorOverrides.class)
+class FinancialFraudDetectionTest {
 
-    private static final Logger log = LoggerFactory.getLogger(ECommerceProductDiscoveryTest.class);
+    private static final Logger log = LoggerFactory.getLogger(FinancialFraudDetectionTest.class);
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
@@ -75,10 +75,10 @@ class ECommerceProductDiscoveryTest {
     }
 
     @Autowired
-    private ProductRepository productRepository;
+    private AccountRepository accountRepository;
 
     @Autowired
-    private BrandRepository brandRepository;
+    private TransactionRepository transactionRepository;
 
     @Autowired
     private AISearchableEntityRepository searchableEntityRepository;
@@ -120,14 +120,14 @@ class ECommerceProductDiscoveryTest {
     private ObjectMapper objectMapper;
 
     private LLMDrivenJPAQueryService llmDrivenJPAQueryService;
-    private String nikeBlueRunnerId;
+    private String flaggedTransactionId;
 
     @BeforeEach
     void setUp() {
         Mockito.reset(planner);
         searchableEntityRepository.deleteAll();
-        productRepository.deleteAll();
-        brandRepository.deleteAll();
+        transactionRepository.deleteAll();
+        accountRepository.deleteAll();
         if (vectorDatabaseService != null) {
             try {
                 vectorDatabaseService.clearVectors();
@@ -136,7 +136,7 @@ class ECommerceProductDiscoveryTest {
             }
         }
 
-        seedCatalog();
+        seedFinancialData();
 
         var schemaProvider = new com.ai.infrastructure.relationship.service.RelationshipSchemaProvider(
             entityManager,
@@ -169,112 +169,174 @@ class ECommerceProductDiscoveryTest {
     }
 
     @Test
-    void shouldFindBlueNikeShoesUnderHundred() {
-        String query = "Show me blue shoes under $100 from Nike";
+    void shouldFindHighRiskCrossBorderTransactionsBetweenLinkedAccounts() {
+        String query = "List suspicious transactions over $25k from high-risk regions routed through the same counterparty";
 
-        FilterCondition colorFilter = FilterCondition.builder()
-            .field("color")
+        FilterCondition amountFilter = FilterCondition.builder()
+            .field("amount")
+            .operator(FilterOperator.GREATER_THAN)
+            .value(BigDecimal.valueOf(25000))
+            .build();
+
+        FilterCondition statusFilter = FilterCondition.builder()
+            .field("status")
+            .operator(FilterOperator.EQUALS)
+            .value("PENDING_REVIEW")
+            .build();
+
+        FilterCondition channelFilter = FilterCondition.builder()
+            .field("channel")
             .operator(FilterOperator.ILIKE)
-            .value("blue")
+            .value("%wire%")
             .build();
 
-        FilterCondition priceFilter = FilterCondition.builder()
-            .field("price")
-            .operator(FilterOperator.LESS_THAN_OR_EQUAL)
-            .value(BigDecimal.valueOf(100))
-            .build();
-
-        RelationshipPath brandPath = RelationshipPath.builder()
-            .fromEntityType("product")
-            .relationshipType("brand")
-            .toEntityType("brand")
+        RelationshipPath counterpartyPath = RelationshipPath.builder()
+            .fromEntityType("transaction")
+            .relationshipType("destinationAccount")
+            .toEntityType("destination-account")
             .direction(RelationshipDirection.FORWARD)
             .optional(false)
             .conditions(List.of(FilterCondition.builder()
-                .field("name")
+                .field("region")
                 .operator(FilterOperator.ILIKE)
-                .value("%Nike%")
+                .value("%high-risk%")
+                .build()))
+            .build();
+
+        RelationshipPath originPath = RelationshipPath.builder()
+            .fromEntityType("transaction")
+            .relationshipType("sourceAccount")
+            .toEntityType("origin-account")
+            .direction(RelationshipDirection.FORWARD)
+            .optional(false)
+            .conditions(List.of(FilterCondition.builder()
+                .field("riskScore")
+                .operator(FilterOperator.GREATER_THAN_OR_EQUAL)
+                .value(BigDecimal.valueOf(0.7))
                 .build()))
             .build();
 
         RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
             .originalQuery(query)
-            .primaryEntityType("product")
-            .candidateEntityTypes(List.of("product", "brand"))
-            .relationshipPaths(List.of(brandPath))
-            .directFilters(Map.of("product", List.of(colorFilter, priceFilter)))
+            .primaryEntityType("transaction")
+            .candidateEntityTypes(List.of("transaction", "account"))
+            .relationshipPaths(List.of(counterpartyPath, originPath))
+            .directFilters(Map.of("transaction", List.of(amountFilter, statusFilter, channelFilter)))
             .queryStrategy(QueryStrategy.RELATIONSHIP)
             .returnMode(ReturnMode.FULL)
             .needsSemanticSearch(false)
             .limit(5)
             .build();
 
-        when(planner.planQuery(eq(query), eq(List.of("product")))).thenReturn(plan);
+        when(planner.planQuery(eq(query), eq(List.of("transaction")))).thenReturn(plan);
 
         JpqlQuery jpqlQuery = dynamicJPAQueryBuilder.buildQuery(plan);
-        log.info("[ECommerce] User query: {}", query);
-        log.info("[ECommerce] Planner plan: {}", plan);
-        log.info("[ECommerce] JPQL: {}", jpqlQuery.getJpql());
+        log.info("[Fraud] User query: {}", query);
+        log.info("[Fraud] Planner plan: {}", plan);
+        log.info("[Fraud] JPQL: {}", jpqlQuery.getJpql());
 
         QueryOptions options = QueryOptions.builder()
             .returnMode(ReturnMode.FULL)
             .limit(5)
             .build();
 
-        RAGResponse response = llmDrivenJPAQueryService.executeRelationshipQuery(query, List.of("product"), options);
+        RAGResponse response = llmDrivenJPAQueryService.executeRelationshipQuery(query, List.of("transaction"), options);
 
         assertThat(response.getDocuments()).hasSize(1);
-        assertThat(response.getDocuments().get(0).getId()).isEqualTo(nikeBlueRunnerId);
-        assertThat(response.getDocuments().get(0).getContent()).contains("Blue Runner");
-        log.info("[ECommerce] Result documents: {}", response.getDocuments());
+        assertThat(response.getDocuments().get(0).getId()).isEqualTo(flaggedTransactionId);
+        assertThat(response.getDocuments().get(0).getMetadata()).containsEntry("channel", "wire");
+        log.info("[Fraud] Result documents: {}", response.getDocuments());
     }
 
-    private void seedCatalog() {
-        BrandEntity nike = new BrandEntity();
-        nike.setName("Nike");
+    private void seedFinancialData() {
+        AccountEntity highRiskOrigin = account("Helios Imports", "high-risk region", BigDecimal.valueOf(0.83));
+        AccountEntity counterpart = account("Nordic Clearing", "high-risk corridor", BigDecimal.valueOf(0.22));
+        AccountEntity benignOrigin = account("Sunrise Foods", "stable region", BigDecimal.valueOf(0.35));
 
-        BrandEntity adidas = new BrandEntity();
-        adidas.setName("Adidas");
+        transactionRepository.save(transaction(
+            "Pending Wire 40k",
+            BigDecimal.valueOf(40000),
+            "USD",
+            "Wire",
+            "PENDING_REVIEW",
+            LocalDateTime.now().minusHours(5),
+            highRiskOrigin,
+            counterpart,
+            true
+        ));
 
-        brandRepository.save(nike);
-        brandRepository.save(adidas);
+        transactionRepository.save(transaction(
+            "Cleared Wire 32k",
+            BigDecimal.valueOf(32000),
+            "USD",
+            "Wire",
+            "CLEARED",
+            LocalDateTime.now().minusHours(30),
+            highRiskOrigin,
+            counterpart,
+            false
+        ));
 
-        ProductEntity blueRunner = product("Blue Runner 2", "blue", BigDecimal.valueOf(85), "ACTIVE", nike);
-        ProductEntity premiumBoot = product("Blue Trail Boot", "blue", BigDecimal.valueOf(180), "ACTIVE", nike);
-        ProductEntity redRunner = product("Red Runner", "red", BigDecimal.valueOf(90), "ACTIVE", nike);
-        ProductEntity adidasBlue = product("City Flex", "blue", BigDecimal.valueOf(95), "ACTIVE", adidas);
+        transactionRepository.save(transaction(
+            "ACH 50k Stable",
+            BigDecimal.valueOf(50000),
+            "USD",
+            "ACH",
+            "PENDING_REVIEW",
+            LocalDateTime.now().minusHours(2),
+            benignOrigin,
+            counterpart,
+            false
+        ));
 
-        nikeBlueRunnerId = blueRunner.getId();
-
-        indexProduct(blueRunner, "nike", "blue", 85);
-        indexProduct(premiumBoot, "nike", "blue", 180);
-        indexProduct(redRunner, "nike", "red", 90);
-        indexProduct(adidasBlue, "adidas", "blue", 95);
-
-        entityRelationshipMapper.registerEntityType(ProductEntity.class);
-        entityRelationshipMapper.registerEntityType(BrandEntity.class);
+        entityRelationshipMapper.registerEntityType(TransactionEntity.class);
+        entityRelationshipMapper.registerEntityType(AccountEntity.class);
+        entityRelationshipMapper.registerEntityType("destination-account", AccountEntity.class);
+        entityRelationshipMapper.registerEntityType("origin-account", AccountEntity.class);
         try {
-            entityRelationshipMapper.registerRelationship("product", "brand", "brand", RelationshipDirection.FORWARD, false);
+            entityRelationshipMapper.registerRelationship("transaction", "account", "destinationAccount", RelationshipDirection.FORWARD, false);
         } catch (IllegalStateException ignored) { }
     }
 
-    private ProductEntity product(String name, String color, BigDecimal price, String status, BrandEntity brand) {
-        ProductEntity product = new ProductEntity();
-        product.setName(name);
-        product.setColor(color);
-        product.setPrice(price);
-        product.setStatus(status);
-        product.setBrand(brand);
-        brand.getProducts().add(product);
-        return productRepository.save(product);
+    private AccountEntity account(String owner, String region, BigDecimal risk) {
+        AccountEntity account = new AccountEntity();
+        account.setOwnerName(owner);
+        account.setRegion(region);
+        account.setRiskScore(risk);
+        return accountRepository.save(account);
     }
 
-    private void indexProduct(ProductEntity product, String brand, String color, double price) {
+    private TransactionEntity transaction(String title,
+                                          BigDecimal amount,
+                                          String currency,
+                                          String channel,
+                                          String status,
+                                          LocalDateTime occurred,
+                                          AccountEntity source,
+                                          AccountEntity destination,
+                                          boolean flagged) {
+        TransactionEntity tx = new TransactionEntity();
+        tx.setTitle(title);
+        tx.setAmount(amount);
+        tx.setCurrency(currency);
+        tx.setChannel(channel);
+        tx.setStatus(status);
+        tx.setOccurredAt(occurred);
+        tx.setSourceAccount(source);
+        tx.setDestinationAccount(destination);
+        tx = transactionRepository.save(tx);
+        flaggedTransactionId = flagged ? tx.getId() : flaggedTransactionId;
+        indexTransaction(tx, source, destination);
+        return tx;
+    }
+
+    private void indexTransaction(TransactionEntity tx, AccountEntity source, AccountEntity destination) {
         AISearchableEntity entity = AISearchableEntity.builder()
-            .entityType("product")
-            .entityId(product.getId())
-            .searchableContent(product.getName())
-            .metadata("{\"brand\":\"%s\",\"color\":\"%s\",\"price\":%s}".formatted(brand, color, price))
+            .entityType("transaction")
+            .entityId(tx.getId())
+            .searchableContent(tx.getTitle())
+            .metadata("{\"channel\":\"%s\",\"status\":\"%s\",\"amount\":%s,\"source\":\"%s\",\"destination\":\"%s\"}"
+                .formatted(tx.getChannel().toLowerCase(), tx.getStatus(), tx.getAmount(), source.getOwnerName().toLowerCase(), destination.getOwnerName().toLowerCase()))
             .createdAt(LocalDateTime.now())
             .updatedAt(LocalDateTime.now())
             .build();
