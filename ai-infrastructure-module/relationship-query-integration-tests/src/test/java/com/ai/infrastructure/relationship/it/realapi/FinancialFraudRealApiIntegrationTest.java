@@ -9,8 +9,6 @@ import com.ai.infrastructure.relationship.it.entity.AccountEntity;
 import com.ai.infrastructure.relationship.it.entity.TransactionEntity;
 import com.ai.infrastructure.relationship.it.repository.AccountRepository;
 import com.ai.infrastructure.relationship.it.repository.TransactionRepository;
-import com.ai.infrastructure.relationship.cache.QueryCache;
-import com.ai.infrastructure.relationship.it.support.RelationshipQueryPlanFixtures;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
@@ -55,14 +53,10 @@ class FinancialFraudRealApiIntegrationTest {
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
 
-    @Autowired
-    private QueryCache queryCache;
-
     private String flaggedTransactionId;
 
     @BeforeEach
     void setUp() {
-        queryCache.putPlan(QueryCache.hash(QUERY), RelationshipQueryPlanFixtures.planFor(QUERY));
         searchableEntityRepository.deleteAllInBatch();
         transactionRepository.deleteAllInBatch();
         accountRepository.deleteAllInBatch();
