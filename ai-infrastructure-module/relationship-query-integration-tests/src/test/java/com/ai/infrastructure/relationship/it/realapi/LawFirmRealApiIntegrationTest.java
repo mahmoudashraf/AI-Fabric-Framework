@@ -104,10 +104,30 @@ class LawFirmRealApiIntegrationTest {
         johnSmith = userRepository.save(johnSmith);
         janeDoe = userRepository.save(janeDoe);
 
-        DocumentEntity q4Contract = createDocument("Contract - John Smith - Q4 2023", "ACTIVE", johnSmith);
-        DocumentEntity q3Contract = createDocument("Contract - John Smith - Q3 2023", "ACTIVE", johnSmith);
-        DocumentEntity archived = createDocument("Contract - John Smith - Q4 2023 (Archive)", "ARCHIVED", johnSmith);
-        DocumentEntity janeContract = createDocument("Contract - Jane Doe - Q4 2023", "ACTIVE", janeDoe);
+        DocumentEntity q4Contract = createDocument(
+            "Contract - John Smith - Q4 2023",
+            "ACTIVE",
+            johnSmith,
+            LocalDateTime.of(2023, 11, 15, 10, 0)
+        );
+        DocumentEntity q3Contract = createDocument(
+            "Contract - John Smith - Q3 2023",
+            "ACTIVE",
+            johnSmith,
+            LocalDateTime.of(2023, 9, 20, 10, 0)
+        );
+        DocumentEntity archived = createDocument(
+            "Contract - John Smith - Q4 2023 (Archive)",
+            "ARCHIVED",
+            johnSmith,
+            LocalDateTime.of(2023, 10, 5, 10, 0)
+        );
+        DocumentEntity janeContract = createDocument(
+            "Contract - Jane Doe - Q4 2023",
+            "ACTIVE",
+            janeDoe,
+            LocalDateTime.of(2023, 11, 8, 10, 0)
+        );
 
         documentRepository.saveAll(List.of(q4Contract, q3Contract, archived, janeContract));
         indexDocument(q4Contract);
@@ -117,11 +137,15 @@ class LawFirmRealApiIntegrationTest {
         q4ContractId = q4Contract.getId();
     }
 
-    private DocumentEntity createDocument(String title, String status, UserEntity author) {
+    private DocumentEntity createDocument(String title,
+                                          String status,
+                                          UserEntity author,
+                                          LocalDateTime creationDate) {
         DocumentEntity document = new DocumentEntity();
         document.setTitle(title);
         document.setStatus(status);
         document.setAuthor(author);
+        document.setCreationDate(creationDate);
         author.getDocuments().add(document);
         return document;
     }
