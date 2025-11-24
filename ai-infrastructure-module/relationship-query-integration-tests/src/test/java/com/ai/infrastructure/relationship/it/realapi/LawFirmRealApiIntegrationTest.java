@@ -37,6 +37,7 @@ import org.springframework.context.annotation.Import;
 class LawFirmRealApiIntegrationTest {
 
     private static final String QUERY = "Find all contracts related to John Smith in Q4 2023";
+    private static final String ARCHIVE_QUERY = "List archived John Smith contracts from October 2023 that mention Archive in the title";
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -54,6 +55,7 @@ class LawFirmRealApiIntegrationTest {
     private VectorDatabaseService vectorDatabaseService;
 
     private String q4ContractId;
+    private String archivedContractId;
 
     @BeforeEach
     void setUp() {
@@ -90,6 +92,29 @@ class LawFirmRealApiIntegrationTest {
         assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(q4ContractId));
         assertThat(rag.getDocuments()).anySatisfy(doc ->
             assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023"));
+    }
+
+    @Test
+    void shouldReturnArchivedContractsForSpecificMonth() {
+        RelationshipQueryRequest request = new RelationshipQueryRequest();
+        request.setQuery(ARCHIVE_QUERY);
+        request.setEntityTypes(List.of("document"));
+        request.setReturnMode(ReturnMode.FULL);
+        request.setLimit(5);
+
+        ResponseEntity<RAGResponse> response = restTemplate.postForEntity(
+            "/api/relationship-query/execute",
+            request,
+            RAGResponse.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        RAGResponse rag = response.getBody();
+        assertThat(rag.getDocuments()).isNotEmpty();
+        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(archivedContractId));
+        assertThat(rag.getDocuments()).anySatisfy(doc ->
+            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023 (Archive)"));
     }
 
     private void seedLawFirmData() {
@@ -135,6 +160,7 @@ class LawFirmRealApiIntegrationTest {
         indexDocument(archived);
         indexDocument(janeContract);
         q4ContractId = q4Contract.getId();
+        archivedContractId = archived.getId();
     }
 
     private DocumentEntity createDocument(String title,

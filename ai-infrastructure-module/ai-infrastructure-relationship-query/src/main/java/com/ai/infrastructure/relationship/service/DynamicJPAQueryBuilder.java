@@ -73,24 +73,44 @@ public class DynamicJPAQueryBuilder {
         if (CollectionUtils.isEmpty(paths)) {
             return;
         }
-
+        preRegisterAliases(paths, aliases);
         for (RelationshipPath path : paths) {
             if (path == null || !StringUtils.hasText(path.getRelationshipType())) {
                 continue;
             }
             String fromAlias = aliases.aliasFor(path.getFromEntityType());
-            if (fromAlias == null) {
+            if (!StringUtils.hasText(fromAlias)) {
                 fromAlias = aliases.register(path.getFromEntityType());
             }
-            String toAlias = aliases.register(path.getToEntityType());
+            String toAlias = aliases.aliasFor(path.getToEntityType());
+            if (!StringUtils.hasText(toAlias)) {
+                toAlias = aliases.register(path.getToEntityType());
+            }
             String joinKeyword = path.isOptional() ? " LEFT JOIN " : " JOIN ";
             joins.add(joinKeyword + fromAlias + "." + path.getRelationshipType() + " " + toAlias);
             if (!CollectionUtils.isEmpty(path.getConditions())) {
-                String targetAlias = StringUtils.hasText(path.getAlias())
-                    ? aliases.register(path.getToEntityType(), path.getAlias())
-                    : toAlias;
+                String targetAlias = toAlias;
                 path.getConditions().forEach(condition ->
                     predicates.add(buildPredicate(condition, targetAlias, aliases, parameters, paramSequence)));
+            }
+        }
+    }
+
+    private void preRegisterAliases(List<RelationshipPath> paths, AliasRegistry aliases) {
+        for (RelationshipPath path : paths) {
+            if (path == null) {
+                continue;
+            }
+            if (StringUtils.hasText(path.getFromEntityType()) && aliases.aliasFor(path.getFromEntityType()) == null) {
+                aliases.register(path.getFromEntityType());
+            }
+            if (!StringUtils.hasText(path.getToEntityType())) {
+                continue;
+            }
+            if (StringUtils.hasText(path.getAlias())) {
+                aliases.register(path.getToEntityType(), path.getAlias());
+            } else if (aliases.aliasFor(path.getToEntityType()) == null) {
+                aliases.register(path.getToEntityType());
             }
         }
     }

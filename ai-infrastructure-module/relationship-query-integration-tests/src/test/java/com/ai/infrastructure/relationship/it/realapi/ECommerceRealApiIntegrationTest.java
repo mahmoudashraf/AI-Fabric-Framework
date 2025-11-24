@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ECommerceRealApiIntegrationTest {
 
     private static final String QUERY = "Show me blue shoes under $100 from Nike";
+    private static final String CROSS_BRAND_QUERY = "Show active Nike or Adidas runner shoes priced between $80 and $120 available in red or blue";
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -54,6 +55,7 @@ class ECommerceRealApiIntegrationTest {
     private VectorDatabaseService vectorDatabaseService;
 
     private String nikeProductId;
+    private String adidasRunnerId;
 
     @BeforeEach
     void setUp() {
@@ -91,6 +93,28 @@ class ECommerceRealApiIntegrationTest {
         assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getContent()).contains("Blue Runner"));
     }
 
+    @Test
+    void shouldFindCrossBrandRunnerShoesWithinRange() {
+        RelationshipQueryRequest request = new RelationshipQueryRequest();
+        request.setQuery(CROSS_BRAND_QUERY);
+        request.setEntityTypes(List.of("product"));
+        request.setReturnMode(ReturnMode.FULL);
+        request.setLimit(10);
+
+        ResponseEntity<RAGResponse> response = restTemplate.postForEntity(
+            "/api/relationship-query/execute",
+            request,
+            RAGResponse.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        RAGResponse rag = response.getBody();
+        assertThat(rag.getDocuments()).isNotEmpty();
+        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(nikeProductId));
+        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(adidasRunnerId));
+    }
+
     private void seedCatalog() {
         BrandEntity nike = new BrandEntity();
         nike.setName("Nike");
@@ -105,13 +129,16 @@ class ECommerceRealApiIntegrationTest {
         ProductEntity nikePremiumBoot = product("Premium Trail Boot", "blue", BigDecimal.valueOf(180), "ACTIVE", nike);
         ProductEntity nikeRedRunner = product("Red Runner", "red", BigDecimal.valueOf(90), "ACTIVE", nike);
         ProductEntity adidasBlue = product("Adidas Flex", "blue", BigDecimal.valueOf(95), "ACTIVE", adidas);
+        ProductEntity adidasRunner = product("Adidas Runner Elite", "red", BigDecimal.valueOf(110), "ACTIVE", adidas);
 
-        productRepository.saveAll(List.of(nikeBlueRunner, nikePremiumBoot, nikeRedRunner, adidasBlue));
+        productRepository.saveAll(List.of(nikeBlueRunner, nikePremiumBoot, nikeRedRunner, adidasBlue, adidasRunner));
         indexProduct(nikeBlueRunner);
         indexProduct(nikePremiumBoot);
         indexProduct(nikeRedRunner);
         indexProduct(adidasBlue);
+        indexProduct(adidasRunner);
         nikeProductId = nikeBlueRunner.getId();
+        adidasRunnerId = adidasRunner.getId();
     }
 
     private ProductEntity product(String name, String color, BigDecimal price, String status, BrandEntity brand) {
