@@ -7,6 +7,7 @@ import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.dto.QueryStrategy;
+import com.ai.infrastructure.relationship.validation.RelationshipQueryValidationException;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.dto.FilterCondition;
 import com.ai.infrastructure.relationship.dto.FilterOperator;
@@ -26,6 +27,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -84,28 +86,65 @@ public class RelationshipQueryPlanner {
                 return cachedPlan.get();
             }
         }
+
         RelationshipQueryPlan fallback = createFallbackPlan(query, entityTypes);
-        try {
-            String prompt = buildPrompt(query, entityTypes);
-            AIGenerationResponse response = aiCoreService.generateContent(buildRequest(query, prompt));
-            RelationshipQueryPlan plan = parsePlan(response.getContent());
-            applyDefaults(plan, fallback);
-            validator.validate(plan);
-            cachePlan(cacheKey, plan);
-            recordPlanMetrics(start, false, true);
-            return plan;
-        } catch (Exception ex) {
-            recordPlanMetrics(start, false, false);
-            log.warn("Failed to obtain structured plan from LLM: {}", ex.getMessage());
-            if (properties.getPlanner().isFailOnParseError()) {
-                throw new QueryPlanningException(
-                    "Planner failed to produce a structured plan",
-                    buildPlannerErrorContext(query, entityTypes, fallback, ex),
-                    ex
-                );
+        int maxRetries = Math.max(0, properties.getPlanner().getMaxRetries());
+        List<String> feedback = new ArrayList<>();
+        Exception lastFailure = null;
+
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                RelationshipQueryPlan plan = requestPlan(query, entityTypes, fallback, feedback);
+                cachePlan(cacheKey, plan);
+                recordPlanMetrics(start, false, true);
+                return plan;
+            } catch (RelationshipQueryValidationException ex) {
+                lastFailure = ex;
+                if (attempt < maxRetries) {
+                    feedback = List.of(safeMessage(ex));
+                    continue;
+                }
+                recordPlanMetrics(start, false, false);
+                if (properties.getPlanner().isFailOnParseError()) {
+                    throw new QueryPlanningException(
+                        "Planner failed to produce a structured plan",
+                        buildPlannerErrorContext(query, entityTypes, fallback, ex),
+                        ex
+                    );
+                }
+                return fallback;
+            } catch (Exception ex) {
+                lastFailure = ex;
+                if (attempt < maxRetries) {
+                    feedback = List.of(safeMessage(ex));
+                    continue;
+                }
+                break;
             }
-            return fallback;
         }
+
+        recordPlanMetrics(start, false, false);
+        log.warn("Failed to obtain structured plan from LLM: {}", lastFailure != null ? lastFailure.getMessage() : "unknown error");
+        if (properties.getPlanner().isFailOnParseError()) {
+            throw new QueryPlanningException(
+                "Planner failed to produce a structured plan",
+                buildPlannerErrorContext(query, entityTypes, fallback, lastFailure),
+                lastFailure
+            );
+        }
+        return fallback;
+    }
+
+    private RelationshipQueryPlan requestPlan(String query,
+                                              List<String> entityTypes,
+                                              RelationshipQueryPlan fallback,
+                                              List<String> feedback) throws Exception {
+        String prompt = buildPrompt(query, entityTypes, feedback);
+        AIGenerationResponse response = aiCoreService.generateContent(buildRequest(query, prompt));
+        RelationshipQueryPlan plan = parsePlan(response.getContent());
+        applyDefaults(plan, fallback);
+        validator.validate(plan);
+        return plan;
     }
 
     private AIGenerationRequest buildRequest(String query, String prompt) {
@@ -129,8 +168,12 @@ public class RelationshipQueryPlanner {
     }
 
     private String buildPrompt(String query, List<String> entityTypes) {
+        return buildPrompt(query, entityTypes, Collections.emptyList());
+    }
+
+    private String buildPrompt(String query, List<String> entityTypes, List<String> feedback) {
         String schemaDescription = schemaProvider.getSchemaDescription(entityTypes);
-        return """
+        StringBuilder builder = new StringBuilder("""
             Analyze the user's request using the provided entity schema. Produce a JSON payload with:
             - primaryEntityType (snake-case)
             - candidateEntityTypes (array)
@@ -150,12 +193,23 @@ public class RelationshipQueryPlanner {
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
 
             Schema:
-            %s
+            """);
+        builder.append(schemaDescription)
+            .append("\n\nUser Query: \"").append(query).append("\"\n");
 
-            User Query: "%s"
-
-            Respond with valid JSON only.
-            """.formatted(schemaDescription, query);
+        List<String> examples = properties.getPlanner().getPlanExamples();
+        if (!CollectionUtils.isEmpty(examples)) {
+            builder.append("\nExample plans:\n");
+            examples.forEach(example -> builder.append(example).append("\n"));
+        }
+        if (!CollectionUtils.isEmpty(feedback)) {
+            builder.append("\nPrevious attempt issues:\n");
+            feedback.forEach(issue -> builder.append("- ").append(issue).append("\n"));
+            builder.append("Correct the issues above and return JSON only.\n");
+        } else {
+            builder.append("\nRespond with valid JSON only.\n");
+        }
+        return builder.toString();
     }
 
     private RelationshipQueryPlan parsePlan(String rawResponse) throws Exception {
@@ -267,6 +321,9 @@ public class RelationshipQueryPlanner {
     }
 
     private String sanitizePayload(String jsonPayload) throws Exception {
+        if (!properties.getPlanner().isNormalizationEnabled()) {
+            return jsonPayload;
+        }
         JsonNode node = objectMapper.readTree(jsonPayload);
         if (!(node instanceof ObjectNode object)) {
             return jsonPayload;
@@ -707,6 +764,9 @@ public class RelationshipQueryPlanner {
     }
 
     private void harmonizeFilterValues(RelationshipQueryPlan plan) {
+        if (!properties.getPlanner().isNormalizationEnabled()) {
+            return;
+        }
         if (plan == null) {
             return;
         }
@@ -815,6 +875,14 @@ public class RelationshipQueryPlanner {
             return new BigDecimal("0.2");
         }
         return null;
+    }
+
+    private String safeMessage(Exception ex) {
+        if (ex == null) {
+            return "Unknown planner failure";
+        }
+        String message = ex.getMessage();
+        return StringUtils.hasText(message) ? message : ex.getClass().getSimpleName();
     }
 
     private Object convertLiteral(String raw) {
