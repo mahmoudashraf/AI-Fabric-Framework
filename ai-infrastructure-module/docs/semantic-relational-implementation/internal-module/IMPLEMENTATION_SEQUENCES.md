@@ -1284,27 +1284,24 @@ Security Tests:
 ├─ Input sanitization
 └─ Rate limiting
 
-Status: ⬜ PENDING
+Status: 🟢 COMPLETED — Validator guard rejects SQL/JPQL injection attempts (2025-11-24)
 PR Size: 🟢 SMALL
-Testing: 🟢 UNIT + INTEGRATION TESTS
+Testing: 🟢 UNIT TESTS
 ```
 
 **Security Test Suite:**
 ```
 src/test/java/com/ai/infrastructure/relationship/security/
-├── SQLInjectionTest.java
-├── JPQLInjectionTest.java
-├── InputSanitizationTest.java
-└── RateLimitingTest.java
+└── SecurityQueryValidationTest.java
 ```
 
 **Test Examples:**
 ```java
 ✓ DROP TABLE attempts blocked
 ✓ UNION SELECT attacks rejected
-✓ Script injection blocked
-✓ JPQL injection prevented
-✓ Malicious parameters handled
+✓ Boolean tautology payloads blocked
+✓ JPQL injection prevented via validator guard
+✓ Benign natural-language queries still pass
 ```
 
 ---

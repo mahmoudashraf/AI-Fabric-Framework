@@ -8,11 +8,25 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Performs guardrail validation on {@link RelationshipQueryPlan} instances before execution.
  */
 public class RelationshipQueryValidator {
+
+    private static final List<Pattern> INJECTION_PATTERNS = List.of(
+        Pattern.compile("(?i)\\bdrop\\s+table\\b"),
+        Pattern.compile("(?i)\\bdelete\\s+from\\b"),
+        Pattern.compile("(?i)\\btruncate\\s+table\\b"),
+        Pattern.compile("(?i)\\balter\\s+table\\b"),
+        Pattern.compile("(?i)\\binsert\\s+into\\b"),
+        Pattern.compile("(?i)\\bupdate\\s+\\w+\\s+set\\b"),
+        Pattern.compile("(?i)\\bunion\\s+select\\b"),
+        Pattern.compile("(?i)(?:'|\\b)\\s*or\\s*1=1"),
+        Pattern.compile("(?i);\\s*--"),
+        Pattern.compile("(?i)information_schema")
+    );
 
     private final EntityRelationshipMapper relationshipMapper;
 
@@ -32,6 +46,8 @@ public class RelationshipQueryValidator {
         if (!StringUtils.hasText(plan.getOriginalQuery())) {
             throw new RelationshipQueryValidationException("Original query text is required");
         }
+
+        guardAgainstInjection(plan.getOriginalQuery());
 
         if (!StringUtils.hasText(plan.getPrimaryEntityType())) {
             throw new RelationshipQueryValidationException("Primary entity type is required");
@@ -57,6 +73,18 @@ public class RelationshipQueryValidator {
         }
 
         validateRelationshipPaths(plan, mode);
+    }
+
+    private void guardAgainstInjection(String queryText) {
+        String probe = queryText == null ? "" : queryText.trim();
+        if (!StringUtils.hasText(probe)) {
+            return;
+        }
+        for (Pattern pattern : INJECTION_PATTERNS) {
+            if (pattern.matcher(probe).find()) {
+                throw new RelationshipQueryValidationException("Potential injection attempt detected in query text");
+            }
+        }
     }
 
     private void validateRelationshipPaths(RelationshipQueryPlan plan, ValidateMode mode) {
