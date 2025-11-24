@@ -30,7 +30,7 @@ ai:
   infrastructure:
     relationship:
       schema:
-        auto-discover: true
+        auto-discover: false
         refresh-on-startup: true
         include-fields: true
       max-traversal-depth: 3

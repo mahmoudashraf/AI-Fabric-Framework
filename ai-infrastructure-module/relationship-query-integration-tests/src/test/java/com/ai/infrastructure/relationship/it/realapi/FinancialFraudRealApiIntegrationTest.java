@@ -1,8 +1,10 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
 import com.ai.infrastructure.relationship.it.api.RelationshipQueryRequest;
+import com.ai.infrastructure.relationship.it.config.RealApiTestConfiguration;
 import com.ai.infrastructure.relationship.it.entity.AccountEntity;
 import com.ai.infrastructure.relationship.it.entity.TransactionEntity;
 import com.ai.infrastructure.relationship.it.repository.AccountRepository;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
@@ -32,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
 @ActiveProfiles("realapi")
+@Import(RealApiTestConfiguration.class)
 class FinancialFraudRealApiIntegrationTest {
 
     private static final String QUERY = "List suspicious transactions over $25k from high-risk regions routed through the same counterparty";
@@ -59,9 +63,9 @@ class FinancialFraudRealApiIntegrationTest {
     @BeforeEach
     void setUp() {
         queryCache.putPlan(QueryCache.hash(QUERY), RelationshipQueryPlanFixtures.planFor(QUERY));
-        searchableEntityRepository.deleteAll();
-        transactionRepository.deleteAll();
-        accountRepository.deleteAll();
+        searchableEntityRepository.deleteAllInBatch();
+        transactionRepository.deleteAllInBatch();
+        accountRepository.deleteAllInBatch();
         if (vectorDatabaseService != null) {
             try {
                 vectorDatabaseService.clearVectors();
@@ -134,6 +138,9 @@ class FinancialFraudRealApiIntegrationTest {
         );
 
         transactionRepository.saveAll(List.of(suspiciousWire, clearedWire, benignAch));
+        indexTransaction(suspiciousWire);
+        indexTransaction(clearedWire);
+        indexTransaction(benignAch);
     }
 
     private AccountEntity account(String owner, String region, BigDecimal risk) {
@@ -165,5 +172,25 @@ class FinancialFraudRealApiIntegrationTest {
             flaggedTransactionId = tx.getId();
         }
         return tx;
+    }
+
+    private void indexTransaction(TransactionEntity transaction) {
+        searchableEntityRepository.save(
+            AISearchableEntity.builder()
+                .entityType("transaction")
+                .entityId(transaction.getId())
+                .searchableContent("%s - %s %s"
+                    .formatted(transaction.getTitle(), transaction.getChannel(), transaction.getAmount()))
+                .metadata("""
+                    {"status":"%s","destinationRegion":"%s","sourceRegion":"%s"}
+                    """.formatted(
+                        transaction.getStatus(),
+                        transaction.getDestinationAccount().getRegion(),
+                        transaction.getSourceAccount().getRegion()
+                    ))
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build()
+        );
     }
 }

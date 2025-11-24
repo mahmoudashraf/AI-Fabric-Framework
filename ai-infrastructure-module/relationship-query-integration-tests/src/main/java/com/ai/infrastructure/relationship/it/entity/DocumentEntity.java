@@ -1,7 +1,6 @@
 package com.ai.infrastructure.relationship.it.entity;
 
 import com.ai.infrastructure.annotation.AICapable;
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -31,7 +30,7 @@ public class DocumentEntity {
     @Column(nullable = false)
     private String status;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id")
     private UserEntity author;
 
