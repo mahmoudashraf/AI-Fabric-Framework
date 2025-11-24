@@ -51,7 +51,7 @@ class UserDataDeletionServiceTest {
     @BeforeEach
     void setUp() {
         clock = Clock.fixed(Instant.parse("2025-01-01T00:00:00Z"), ZoneOffset.UTC);
-        when(behaviorDeletionPortProvider.getIfAvailable()).thenReturn(behaviorDeletionPort);
+        lenient().when(behaviorDeletionPortProvider.getIfAvailable()).thenReturn(behaviorDeletionPort);
         service = new UserDataDeletionService(
             searchableEntityRepository,
             vectorDatabaseService,
