@@ -42,7 +42,6 @@ ai:
         log-plans: true
         fail-on-parse-error: true
         max-retries: 1
-        normalization-enabled: false
 
 logging:
   level:

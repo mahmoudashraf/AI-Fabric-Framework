@@ -109,11 +109,6 @@ public class RelationshipQueryProperties {
         @Min(0)
         private int maxRetries = 0;
 
-        /**
-         * Enables post-processing heuristics that coerce LLM output (disabled by default).
-         */
-        private boolean normalizationEnabled = false;
-
         public void setLogPlans(boolean logPlans) {
             this.logPlans = logPlans;
         }
@@ -144,13 +139,6 @@ public class RelationshipQueryProperties {
             this.maxRetries = Math.max(0, maxRetries);
         }
 
-        public boolean isNormalizationEnabled() {
-            return normalizationEnabled;
-        }
-
-        public void setNormalizationEnabled(boolean normalizationEnabled) {
-            this.normalizationEnabled = normalizationEnabled;
-        }
     }
 
     @Getter
