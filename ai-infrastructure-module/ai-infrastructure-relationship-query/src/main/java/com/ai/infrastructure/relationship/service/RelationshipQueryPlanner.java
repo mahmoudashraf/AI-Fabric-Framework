@@ -59,6 +59,69 @@ public class RelationshipQueryPlanner {
     private static final Pattern IN_PATTERN = Pattern.compile("(?i)^([\\w\\-.]+)\\s+IN\\s*\\((.+)\\)$");
     private static final Pattern IN_NO_FIELD_PATTERN = Pattern.compile("(?i)^IN\\s*\\((.+)\\)$");
     private static final Pattern QUARTER_PATTERN = Pattern.compile("(?i)q([1-4])\\s*(20\\d{2})");
+    private static final List<String> PLAN_EXAMPLES = List.of(
+        """
+        Example plan for query "Show me blue shoes under $100 from Nike":
+        {
+          "primaryEntityType": "product",
+          "candidateEntityTypes": ["product"],
+          "relationshipPaths": [
+            {
+              "fromEntityType": "product",
+              "relationshipType": "brand",
+              "toEntityType": "brand",
+              "direction": "FORWARD",
+              "optional": false,
+              "conditions": [
+                {"field": "name", "operator": "EQUALS", "value": "Nike", "entityType": "brand"}
+              ]
+            }
+          ],
+          "directFilters": {
+            "product": [
+              {"field": "color", "operator": "LIKE", "value": "%blue%", "entityType": "product"},
+              {"field": "price", "operator": "LESS_THAN", "value": 100, "entityType": "product"}
+            ]
+          },
+          "relationshipFilters": {}
+        }
+        """,
+        """
+        Example plan for query "Find suspicious wires over $25k routed through the same counterparty":
+        {
+          "primaryEntityType": "transaction",
+          "candidateEntityTypes": ["transaction"],
+          "relationshipPaths": [
+            {
+              "fromEntityType": "transaction",
+              "relationshipType": "destinationAccount",
+              "toEntityType": "destination-account",
+              "direction": "FORWARD",
+              "optional": false,
+              "conditions": [
+                {"field": "region", "operator": "ILIKE", "value": "%high-risk%", "entityType": "destination-account"}
+              ]
+            },
+            {
+              "fromEntityType": "transaction",
+              "relationshipType": "sourceAccount",
+              "toEntityType": "origin-account",
+              "direction": "FORWARD",
+              "optional": false,
+              "conditions": [
+                {"field": "riskScore", "operator": "GREATER_THAN_OR_EQUAL", "value": 0.7, "entityType": "origin-account"}
+              ]
+            }
+          ],
+          "directFilters": {
+            "transaction": [
+              {"field": "amount", "operator": "GREATER_THAN", "value": 25000, "entityType": "transaction"}
+            ]
+          },
+          "relationshipFilters": {}
+        }
+        """
+    );
 
     public RelationshipQueryPlanner(AICoreService aiCoreService,
                                     RelationshipSchemaProvider schemaProvider,
@@ -197,11 +260,8 @@ public class RelationshipQueryPlanner {
         builder.append(schemaDescription)
             .append("\n\nUser Query: \"").append(query).append("\"\n");
 
-        List<String> examples = properties.getPlanner().getPlanExamples();
-        if (!CollectionUtils.isEmpty(examples)) {
-            builder.append("\nExample plans:\n");
-            examples.forEach(example -> builder.append(example).append("\n"));
-        }
+        builder.append("\nExample plans:\n");
+        PLAN_EXAMPLES.forEach(example -> builder.append(example).append("\n"));
         if (!CollectionUtils.isEmpty(feedback)) {
             builder.append("\nPrevious attempt issues:\n");
             feedback.forEach(issue -> builder.append("- ").append(issue).append("\n"));

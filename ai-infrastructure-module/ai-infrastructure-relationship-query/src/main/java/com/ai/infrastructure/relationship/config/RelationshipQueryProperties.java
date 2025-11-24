@@ -114,11 +114,6 @@ public class RelationshipQueryProperties {
          */
         private boolean normalizationEnabled = false;
 
-        /**
-         * Optional static few-shot examples appended to the planner prompt.
-         */
-        private java.util.List<String> planExamples = java.util.List.of();
-
         public void setLogPlans(boolean logPlans) {
             this.logPlans = logPlans;
         }
@@ -155,14 +150,6 @@ public class RelationshipQueryProperties {
 
         public void setNormalizationEnabled(boolean normalizationEnabled) {
             this.normalizationEnabled = normalizationEnabled;
-        }
-
-        public java.util.List<String> getPlanExamples() {
-            return planExamples;
-        }
-
-        public void setPlanExamples(java.util.List<String> planExamples) {
-            this.planExamples = planExamples == null ? java.util.List.of() : planExamples;
         }
     }
 
