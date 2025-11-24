@@ -8,8 +8,6 @@ import com.ai.infrastructure.relationship.it.entity.DocumentEntity;
 import com.ai.infrastructure.relationship.it.entity.UserEntity;
 import com.ai.infrastructure.relationship.it.repository.DocumentRepository;
 import com.ai.infrastructure.relationship.it.repository.UserRepository;
-import com.ai.infrastructure.relationship.cache.QueryCache;
-import com.ai.infrastructure.relationship.it.support.RelationshipQueryPlanFixtures;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
@@ -55,14 +53,10 @@ class LawFirmRealApiIntegrationTest {
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
 
-    @Autowired
-    private QueryCache queryCache;
-
     private String q4ContractId;
 
     @BeforeEach
     void setUp() {
-        queryCache.putPlan(QueryCache.hash(QUERY), RelationshipQueryPlanFixtures.planFor(QUERY));
         searchableEntityRepository.deleteAllInBatch();
         documentRepository.deleteAllInBatch();
         userRepository.deleteAllInBatch();

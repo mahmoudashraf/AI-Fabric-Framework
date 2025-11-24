@@ -9,8 +9,6 @@ import com.ai.infrastructure.relationship.it.entity.BrandEntity;
 import com.ai.infrastructure.relationship.it.entity.ProductEntity;
 import com.ai.infrastructure.relationship.it.repository.BrandRepository;
 import com.ai.infrastructure.relationship.it.repository.ProductRepository;
-import com.ai.infrastructure.relationship.cache.QueryCache;
-import com.ai.infrastructure.relationship.it.support.RelationshipQueryPlanFixtures;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
@@ -55,14 +53,10 @@ class ECommerceRealApiIntegrationTest {
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
 
-    @Autowired
-    private QueryCache queryCache;
-
     private String nikeProductId;
 
     @BeforeEach
     void setUp() {
-        queryCache.putPlan(QueryCache.hash(QUERY), RelationshipQueryPlanFixtures.planFor(QUERY));
         searchableEntityRepository.deleteAllInBatch();
         productRepository.deleteAllInBatch();
         brandRepository.deleteAllInBatch();
