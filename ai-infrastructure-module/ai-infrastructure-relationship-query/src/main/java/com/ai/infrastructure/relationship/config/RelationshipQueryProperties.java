@@ -41,6 +41,11 @@ public class RelationshipQueryProperties {
     private boolean fallbackToVectorSearch = true;
 
     /**
+     * Last-resort fallback that replays cached AISearchableEntity rows when everything else fails.
+     */
+    private boolean fallbackToSimpleSearch = true;
+
+    /**
      * Enables basic validation (entity/relationship guards) before executing JPQL.
      */
     private boolean enableQueryValidation = true;
@@ -94,6 +99,11 @@ public class RelationshipQueryProperties {
         @Max(1)
         private double minConfidenceToExecute = 0.55;
 
+        /**
+         * When true, planner errors surface immediately instead of returning a degraded fallback plan.
+         */
+        private boolean failOnParseError = false;
+
         public void setLogPlans(boolean logPlans) {
             this.logPlans = logPlans;
         }
@@ -106,6 +116,14 @@ public class RelationshipQueryProperties {
             } else {
                 this.minConfidenceToExecute = minConfidenceToExecute;
             }
+        }
+
+        public boolean isFailOnParseError() {
+            return failOnParseError;
+        }
+
+        public void setFailOnParseError(boolean failOnParseError) {
+            this.failOnParseError = failOnParseError;
         }
     }
 

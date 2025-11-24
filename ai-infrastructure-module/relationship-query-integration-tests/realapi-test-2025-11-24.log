@@ -34,77 +34,77 @@
  =========|_|==============|___/=/_/_/_/
  :: Spring Boot ::                (v3.2.0)
 
-2025-11-24T11:53:11.094Z  INFO 66038 --- [           main] i.r.FinancialFraudRealApiIntegrationTest : Starting FinancialFraudRealApiIntegrationTest using Java 21.0.8 with PID 66038 (started by ubuntu in /workspace/ai-infrastructure-module/relationship-query-integration-tests)
-2025-11-24T11:53:11.096Z  INFO 66038 --- [           main] i.r.FinancialFraudRealApiIntegrationTest : The following 1 profile is active: "realapi"
-2025-11-24T11:53:11.661Z  INFO 66038 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
-2025-11-24T11:53:11.708Z  INFO 66038 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 35 ms. Found 10 JPA repository interfaces.
-2025-11-24T11:53:12.012Z  INFO 66038 --- [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=c8f8f7af-0bee-363f-bc14-0a0b8346c1b9
-2025-11-24T11:53:12.437Z  INFO 66038 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 0 (http)
-2025-11-24T11:53:12.442Z  INFO 66038 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2025-11-24T11:53:12.442Z  INFO 66038 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.16]
-2025-11-24T11:53:12.466Z  INFO 66038 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-2025-11-24T11:53:12.467Z  INFO 66038 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1360 ms
-2025-11-24T11:53:12.657Z  INFO 66038 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
-2025-11-24T11:53:12.679Z  INFO 66038 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.3.1.Final
-2025-11-24T11:53:12.694Z  INFO 66038 --- [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
-2025-11-24T11:53:12.787Z  INFO 66038 --- [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
-2025-11-24T11:53:12.799Z  INFO 66038 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2025-11-24T11:53:12.893Z  INFO 66038 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:relationship_query_realapi user=SA
-2025-11-24T11:53:12.894Z  INFO 66038 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-2025-11-24T11:53:13.462Z  INFO 66038 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
-2025-11-24T11:53:13.501Z  INFO 66038 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
-2025-11-24T11:53:13.549Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXAutoConfiguration       : Creating ONNX Embedding Provider (primary/default)
-2025-11-24T11:53:13.550Z  WARN 66038 --- [           main] c.a.i.p.onnx.ONNXAutoConfiguration       : WARNING: ONNX Embedding Provider is not available. Model file may be missing.
-2025-11-24T11:53:13.550Z  WARN 66038 --- [           main] c.a.i.p.onnx.ONNXAutoConfiguration       : Please ensure the ONNX model file exists at: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
-2025-11-24T11:53:13.553Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : ========================================
-2025-11-24T11:53:13.554Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Initializing ONNX Embedding Provider
-2025-11-24T11:53:13.554Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Model path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
-2025-11-24T11:53:13.554Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Tokenizer path: classpath:/models/embeddings/tokenizer.json
-2025-11-24T11:53:13.554Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Current working directory: /workspace/ai-infrastructure-module/relationship-query-integration-tests
-2025-11-24T11:53:13.554Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : ========================================
-2025-11-24T11:53:14.037Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Model file resolved to: /tmp/onnx-model-7389455598324851130.onnx
-2025-11-24T11:53:14.135Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Using CPU for ONNX inference
-2025-11-24T11:53:14.304Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Model input names: [input_ids, attention_mask, token_type_ids]
-2025-11-24T11:53:14.305Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       :   Input: input_ids - TensorInfo(javaType=INT64,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,shape=[-1, -1])
-2025-11-24T11:53:14.305Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       :   Input: attention_mask - TensorInfo(javaType=INT64,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,shape=[-1, -1])
-2025-11-24T11:53:14.305Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       :   Input: token_type_ids - TensorInfo(javaType=INT64,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,shape=[-1, -1])
-2025-11-24T11:53:14.305Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Detected embedding dimension: 384
-2025-11-24T11:53:14.308Z  WARN 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Hugging Face tokenizers library not found on classpath. Falling back to legacy tokenization.
-2025-11-24T11:53:14.308Z  INFO 66038 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : ONNX Embedding Provider initialized successfully with model: /tmp/onnx-model-7389455598324851130.onnx
-2025-11-24T11:53:14.312Z  INFO 66038 --- [           main] .a.i.c.AIInfrastructureAutoConfiguration : Creating AIEmbeddingService with embedding provider 'onnx' (requested 'onnx')
-2025-11-24T11:53:14.333Z  INFO 66038 --- [           main] c.ai.infrastructure.cache.AICacheConfig  : AI Cache Manager configured with max size 100 and TTL PT1H
-2025-11-24T11:53:14.350Z  INFO 66038 --- [           main] c.a.i.v.l.LuceneVectorDatabaseService    : Initializing Lucene Vector Database at: /tmp/relationship-query-realapi-lucene
-2025-11-24T11:53:14.358Z  INFO 66038 --- [           main] o.a.l.s.MemorySegmentIndexInputProvider  : Using MemorySegmentIndexInput with Java 21 or later; to disable start with -Dorg.apache.lucene.store.MMapDirectory.enableMemorySegments=false
-2025-11-24T11:53:14.421Z  INFO 66038 --- [           main] c.a.i.v.l.LuceneVectorDatabaseService    : Lucene Vector Database initialized successfully
-2025-11-24T11:53:14.459Z  INFO 66038 --- [           main] c.a.i.provider.AIProviderManager         : Initializing AI Provider Manager with 1 providers
-2025-11-24T11:53:14.460Z  INFO 66038 --- [           main] c.a.i.provider.AIProviderManager         : AI Provider Manager initialized successfully
-2025-11-24T11:53:14.468Z  INFO 66038 --- [           main] c.RelationshipEntityMappingConfiguration : Registered relationship-test entity schema: 8 entities, 4 relationships
-2025-11-24T11:53:14.478Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Loading AI entity configuration from: ai-entity-config.yml
-2025-11-24T11:53:14.481Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Found 3 entities in configuration
-2025-11-24T11:53:14.481Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Processing entity type: document with config keys: [features, searchable-fields]
-2025-11-24T11:53:14.482Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : No metadata-fields found for entity document
-2025-11-24T11:53:14.482Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Processing entity type: product with config keys: [features, searchable-fields]
-2025-11-24T11:53:14.482Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : No metadata-fields found for entity product
-2025-11-24T11:53:14.482Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Processing entity type: transaction with config keys: [features, searchable-fields]
-2025-11-24T11:53:14.482Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : No metadata-fields found for entity transaction
-2025-11-24T11:53:14.482Z  INFO 66038 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Successfully loaded configuration for 3 entities
-2025-11-24T11:53:14.783Z  INFO 66038 --- [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
-2025-11-24T11:53:15.045Z  INFO 66038 --- [           main] c.a.i.config.AIConfigurationService      : Initializing AI Configuration Service
-2025-11-24T11:53:15.046Z  INFO 66038 --- [           main] c.a.i.config.AIConfigurationService      : Hot-reload enabled with 300 second interval
-2025-11-24T11:53:15.046Z  INFO 66038 --- [           main] c.a.i.config.AIConfigurationService      : AI Configuration Service initialized successfully
-2025-11-24T11:53:15.057Z  INFO 66038 --- [           main] c.a.i.service.AICapabilityService        : AICapabilityService initialized with configurationLoader: present
-2025-11-24T11:53:15.057Z  INFO 66038 --- [           main] c.a.i.service.AICapabilityService        : Configuration loader supports entity types: [product, document, transaction]
-2025-11-24T11:53:15.159Z  INFO 66038 --- [           main] c.a.i.privacy.pii.PIIDetectionService    : PII detection initialized: enabled=false, mode=PASS_THROUGH, patterns=4
-2025-11-24T11:53:15.282Z  INFO 66038 --- [           main] c.a.i.i.action.ActionHandlerRegistry     : ActionHandlerRegistry initialized with 2 action handler(s)
-2025-11-24T11:53:15.406Z  INFO 66038 --- [           main] i.r.c.RelationshipQueryAutoConfiguration : Relationship query module enabled (maxTraversalDepth=3, defaultReturnMode=IDS, vectorSearchEnabled=true)
-2025-11-24T11:53:15.532Z  WARN 66038 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
-2025-11-24T11:53:15.958Z  INFO 66038 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
-2025-11-24T11:53:16.106Z  INFO 66038 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 35239 (http) with context path ''
-2025-11-24T11:53:16.116Z  INFO 66038 --- [           main] i.r.FinancialFraudRealApiIntegrationTest : Started FinancialFraudRealApiIntegrationTest in 5.216 seconds (process running for 5.724)
-2025-11-24T11:53:16.759Z  INFO 66038 --- [o-auto-1-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
-2025-11-24T11:53:16.759Z  INFO 66038 --- [o-auto-1-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
-2025-11-24T11:53:16.761Z  INFO 66038 --- [o-auto-1-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 2 ms
-2025-11-24T11:53:16.790Z  INFO 66038 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Executing query='List suspicious transactions over $25k from high-risk regions routed through the same counterparty' entityTypes=[transaction]
+2025-11-24T12:22:55.699Z  INFO 67878 --- [           main] i.r.FinancialFraudRealApiIntegrationTest : Starting FinancialFraudRealApiIntegrationTest using Java 21.0.8 with PID 67878 (started by ubuntu in /workspace/ai-infrastructure-module/relationship-query-integration-tests)
+2025-11-24T12:22:55.701Z  INFO 67878 --- [           main] i.r.FinancialFraudRealApiIntegrationTest : The following 1 profile is active: "realapi"
+2025-11-24T12:22:56.270Z  INFO 67878 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-11-24T12:22:56.303Z  INFO 67878 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 28 ms. Found 10 JPA repository interfaces.
+2025-11-24T12:22:56.596Z  INFO 67878 --- [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=c8f8f7af-0bee-363f-bc14-0a0b8346c1b9
+2025-11-24T12:22:57.035Z  INFO 67878 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 0 (http)
+2025-11-24T12:22:57.040Z  INFO 67878 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-11-24T12:22:57.041Z  INFO 67878 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.16]
+2025-11-24T12:22:57.068Z  INFO 67878 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2025-11-24T12:22:57.068Z  INFO 67878 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1358 ms
+2025-11-24T12:22:57.281Z  INFO 67878 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-11-24T12:22:57.306Z  INFO 67878 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.3.1.Final
+2025-11-24T12:22:57.322Z  INFO 67878 --- [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2025-11-24T12:22:57.423Z  INFO 67878 --- [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-11-24T12:22:57.435Z  INFO 67878 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2025-11-24T12:22:57.550Z  INFO 67878 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:relationship_query_realapi user=SA
+2025-11-24T12:22:57.551Z  INFO 67878 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2025-11-24T12:22:58.146Z  INFO 67878 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-11-24T12:22:58.183Z  INFO 67878 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-11-24T12:22:58.231Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXAutoConfiguration       : Creating ONNX Embedding Provider (primary/default)
+2025-11-24T12:22:58.231Z  WARN 67878 --- [           main] c.a.i.p.onnx.ONNXAutoConfiguration       : WARNING: ONNX Embedding Provider is not available. Model file may be missing.
+2025-11-24T12:22:58.231Z  WARN 67878 --- [           main] c.a.i.p.onnx.ONNXAutoConfiguration       : Please ensure the ONNX model file exists at: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
+2025-11-24T12:22:58.235Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : ========================================
+2025-11-24T12:22:58.235Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Initializing ONNX Embedding Provider
+2025-11-24T12:22:58.235Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Model path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
+2025-11-24T12:22:58.235Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Tokenizer path: classpath:/models/embeddings/tokenizer.json
+2025-11-24T12:22:58.235Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Current working directory: /workspace/ai-infrastructure-module/relationship-query-integration-tests
+2025-11-24T12:22:58.235Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : ========================================
+2025-11-24T12:22:58.729Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Model file resolved to: /tmp/onnx-model-10681543681417907186.onnx
+2025-11-24T12:22:58.832Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Using CPU for ONNX inference
+2025-11-24T12:22:59.047Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Model input names: [input_ids, attention_mask, token_type_ids]
+2025-11-24T12:22:59.048Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       :   Input: input_ids - TensorInfo(javaType=INT64,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,shape=[-1, -1])
+2025-11-24T12:22:59.048Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       :   Input: attention_mask - TensorInfo(javaType=INT64,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,shape=[-1, -1])
+2025-11-24T12:22:59.048Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       :   Input: token_type_ids - TensorInfo(javaType=INT64,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,shape=[-1, -1])
+2025-11-24T12:22:59.048Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Detected embedding dimension: 384
+2025-11-24T12:22:59.052Z  WARN 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : Hugging Face tokenizers library not found on classpath. Falling back to legacy tokenization.
+2025-11-24T12:22:59.052Z  INFO 67878 --- [           main] c.a.i.p.onnx.ONNXEmbeddingProvider       : ONNX Embedding Provider initialized successfully with model: /tmp/onnx-model-10681543681417907186.onnx
+2025-11-24T12:22:59.059Z  INFO 67878 --- [           main] .a.i.c.AIInfrastructureAutoConfiguration : Creating AIEmbeddingService with embedding provider 'onnx' (requested 'onnx')
+2025-11-24T12:22:59.095Z  INFO 67878 --- [           main] c.ai.infrastructure.cache.AICacheConfig  : AI Cache Manager configured with max size 100 and TTL PT1H
+2025-11-24T12:22:59.122Z  INFO 67878 --- [           main] c.a.i.v.l.LuceneVectorDatabaseService    : Initializing Lucene Vector Database at: /tmp/relationship-query-realapi-lucene
+2025-11-24T12:22:59.135Z  INFO 67878 --- [           main] o.a.l.s.MemorySegmentIndexInputProvider  : Using MemorySegmentIndexInput with Java 21 or later; to disable start with -Dorg.apache.lucene.store.MMapDirectory.enableMemorySegments=false
+2025-11-24T12:22:59.215Z  INFO 67878 --- [           main] c.a.i.v.l.LuceneVectorDatabaseService    : Lucene Vector Database initialized successfully
+2025-11-24T12:22:59.276Z  INFO 67878 --- [           main] c.a.i.provider.AIProviderManager         : Initializing AI Provider Manager with 1 providers
+2025-11-24T12:22:59.277Z  INFO 67878 --- [           main] c.a.i.provider.AIProviderManager         : AI Provider Manager initialized successfully
+2025-11-24T12:22:59.293Z  INFO 67878 --- [           main] c.RelationshipEntityMappingConfiguration : Registered relationship-test entity schema: 8 entities, 4 relationships
+2025-11-24T12:22:59.308Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Loading AI entity configuration from: ai-entity-config.yml
+2025-11-24T12:22:59.314Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Found 3 entities in configuration
+2025-11-24T12:22:59.314Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Processing entity type: document with config keys: [features, searchable-fields]
+2025-11-24T12:22:59.315Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : No metadata-fields found for entity document
+2025-11-24T12:22:59.315Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Processing entity type: product with config keys: [features, searchable-fields]
+2025-11-24T12:22:59.315Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : No metadata-fields found for entity product
+2025-11-24T12:22:59.315Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Processing entity type: transaction with config keys: [features, searchable-fields]
+2025-11-24T12:22:59.315Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : No metadata-fields found for entity transaction
+2025-11-24T12:22:59.315Z  INFO 67878 --- [           main] c.a.i.c.AIEntityConfigurationLoader      : Successfully loaded configuration for 3 entities
+2025-11-24T12:22:59.650Z  INFO 67878 --- [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2025-11-24T12:22:59.971Z  INFO 67878 --- [           main] c.a.i.config.AIConfigurationService      : Initializing AI Configuration Service
+2025-11-24T12:22:59.973Z  INFO 67878 --- [           main] c.a.i.config.AIConfigurationService      : Hot-reload enabled with 300 second interval
+2025-11-24T12:22:59.973Z  INFO 67878 --- [           main] c.a.i.config.AIConfigurationService      : AI Configuration Service initialized successfully
+2025-11-24T12:22:59.986Z  INFO 67878 --- [           main] c.a.i.service.AICapabilityService        : AICapabilityService initialized with configurationLoader: present
+2025-11-24T12:22:59.986Z  INFO 67878 --- [           main] c.a.i.service.AICapabilityService        : Configuration loader supports entity types: [product, document, transaction]
+2025-11-24T12:23:00.078Z  INFO 67878 --- [           main] c.a.i.privacy.pii.PIIDetectionService    : PII detection initialized: enabled=false, mode=PASS_THROUGH, patterns=4
+2025-11-24T12:23:00.203Z  INFO 67878 --- [           main] c.a.i.i.action.ActionHandlerRegistry     : ActionHandlerRegistry initialized with 2 action handler(s)
+2025-11-24T12:23:00.320Z  INFO 67878 --- [           main] i.r.c.RelationshipQueryAutoConfiguration : Relationship query module enabled (maxTraversalDepth=3, defaultReturnMode=IDS, vectorSearchEnabled=true)
+2025-11-24T12:23:00.436Z  WARN 67878 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2025-11-24T12:23:00.940Z  INFO 67878 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint(s) beneath base path '/actuator'
+2025-11-24T12:23:01.097Z  INFO 67878 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 45843 (http) with context path ''
+2025-11-24T12:23:01.109Z  INFO 67878 --- [           main] i.r.FinancialFraudRealApiIntegrationTest : Started FinancialFraudRealApiIntegrationTest in 5.645 seconds (process running for 6.179)
+2025-11-24T12:23:01.747Z  INFO 67878 --- [o-auto-1-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2025-11-24T12:23:01.747Z  INFO 67878 --- [o-auto-1-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2025-11-24T12:23:01.750Z  INFO 67878 --- [o-auto-1-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 2 ms
+2025-11-24T12:23:01.799Z  INFO 67878 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Executing query='List suspicious transactions over $25k from high-risk regions routed through the same counterparty' entityTypes=[transaction]
 
 === OPENAI API REQUEST ===
 URL: https://api.openai.com/v1/chat/completions
@@ -118,7 +118,7 @@ Message 0: role=system
   content: You are an expert database planner. Return ONLY a JSON object.
 
 Message 1: role=user
-  content: Analyze the user's request using the provided entity schema. Produce a JSON payload with:
+  content (first 1000 chars): Analyze the user's request using the provided entity schema. Produce a JSON payload with:
 - primaryEntityType (snake-case)
 - candidateEntityTypes (array)
 - relationshipPaths (array of {fromEntityType, relationshipType, toEntityType, direction, optional, conditions})
@@ -129,33 +129,26 @@ Message 1: role=user
 - confidence (0.0 - 1.0 decimal)
 - semanticQuery (string)
 
-Schema:
-Available AI-Capable Entities:
-
-Entity: transaction (Class: TransactionEntity)
-  Fields:
-  Relationships:
-    - destinationAccount -> destination-account (FORWARD)
-    - sourceAccount -> origin-account (FORWARD)
-
-
-
-User Query: "List suspicious transactions over $25k from high-risk regions routed through the same counterparty"
-
-Respond with valid JSON only.
-
+Guidelines:
+- candidateEntityTypes MUST always include the primaryEntityType.
+- Each element inside directFilters/relationshipFilters MUST be an array of objects shaped like {"field":"entity.field","operator":"GREATER_THAN","value":123}. Valid operators: EQUALS, NOT_EQUALS, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, BETWEEN, IN, LIKE.
+- relationshipPaths[].conditions follows the exact same object structure (arrays of filter objects).
+- Use fully-qualified field names such as
+  content (total length): 1513 chars
 === END REQUEST ===
 
 === OPENAI API RESPONSE ===
-Response Time: 3695ms
+Response Time: 6939ms
 Model: gpt-4o-mini-2024-07-18
 Finish Reason: stop
-Response Content Length: 803 chars
+Response Content Length: 1165 chars
 Content (first 500 chars):
 ```json
 {
   "primaryEntityType": "transaction",
-  "candidateEntityTypes": [],
+  "candidateEntityTypes": [
+    "transaction"
+  ],
   "relationshipPaths": [
     {
       "fromEntityType": "transaction",
@@ -169,496 +162,43 @@ Content (first 500 chars):
       "fromEntityType": "transaction",
       "relationshipType": "sourceAccount",
       "toEntityType": "origin-account",
-      "direction": "FORWARD",
-      "optional"
+      "direction": "FORWA
 === END RESPONSE ===
 
-2025-11-24T11:53:20.498Z  WARN 66038 --- [o-auto-1-exec-1] c.a.i.relationship.metrics.QueryMetrics  : Plan latency 3707ms exceeded alert threshold 1500
-2025-11-24T11:53:20.498Z  WARN 66038 --- [o-auto-1-exec-1] c.a.i.r.s.RelationshipQueryPlanner       : Failed to obtain structured plan from LLM: Cannot construct instance of `com.ai.infrastructure.relationship.dto.FilterCondition` (although at least one Creator exists): no String-argument constructor/factory method to deserialize from String value ('amount > 25000')
- at [Source: (String)"{
-  "primaryEntityType": "transaction",
-  "candidateEntityTypes": [],
-  "relationshipPaths": [
-    {
-      "fromEntityType": "transaction",
-      "relationshipType": "destinationAccount",
-      "toEntityType": "destination-account",
-      "direction": "FORWARD",
-      "optional": false,
-      "conditions": []
-    },
-    {
-      "fromEntityType": "transaction",
-      "relationshipType": "sourceAccount",
-      "toEntityType": "origin-account",
-      "direction": "FORWARD",
-      "optional": false,"[truncated 291 chars]; line: 24, column: 7] (through reference chain: com.ai.infrastructure.relationship.dto.RelationshipQueryPlan["directFilters"]->java.util.LinkedHashMap["transaction"]->java.util.ArrayList[0])
-2025-11-24T11:53:20.503Z  INFO 66038 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Planner output:
+2025-11-24T12:23:08.759Z  WARN 67878 --- [o-auto-1-exec-1] c.a.i.relationship.metrics.QueryMetrics  : Plan latency 6959ms exceeded alert threshold 1500
+2025-11-24T12:23:08.763Z  INFO 67878 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Planner output:
 {
   "originalQuery" : "List suspicious transactions over $25k from high-risk regions routed through the same counterparty",
   "semanticQuery" : "List suspicious transactions over $25k from high-risk regions routed through the same counterparty",
   "primaryEntityType" : "transaction",
   "candidateEntityTypes" : [ "transaction" ],
-  "relationshipPaths" : [ ],
-  "directFilters" : { },
-  "relationshipFilters" : { },
-  "metadataFilters" : { },
-  "queryStrategy" : "RELATIONSHIP",
-  "needsSemanticSearch" : false,
-  "confidence" : 0.25,
-  "context" : { }
-}
-2025-11-24T11:53:20.503Z  INFO 66038 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] JPQL statement: SELECT DISTINCT root FROM TransactionEntity root
-Parameters: {}
-2025-11-24T11:53:20.518Z  WARN 66038 --- [o-auto-1-exec-1] c.a.i.relationship.metrics.QueryMetrics  : Execution latency 3727ms exceeded alert threshold 1500
-2025-11-24T11:53:20.518Z  INFO 66038 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Result summary -> query='List suspicious transactions over $25k from high-risk regions routed through the same counterparty', entityTypes=[transaction], totalCandidates=3, returned=3, hybridMode=false
-2025-11-24T11:53:20.519Z  INFO 66038 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Document IDs: [8ac2f8df-b728-47ba-a13e-2d37b96a15c3, cf8f0908-f457-43d9-922e-89d6c6a51aad, e3b4d23e-c611-42a4-a8ea-a77c4058878e]
-2025-11-24T11:53:20.519Z  INFO 66038 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] JPQL (repeated for reference): SELECT DISTINCT root FROM TransactionEntity root
-Parameters: {}
-2025-11-24T11:53:20.522Z  INFO 66038 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Serialized response:
-{
-  "documents" : [ {
-    "id" : "8ac2f8df-b728-47ba-a13e-2d37b96a15c3",
-    "content" : "Cleared Wire 32k - Wire 32000",
-    "title" : null,
-    "type" : null,
-    "score" : null,
-    "similarity" : null,
-    "metadata" : {
-      "status" : "CLEARED",
-      "destinationRegion" : "high-risk corridor",
-      "sourceRegion" : "high-risk region"
-    },
-    "embeddings" : null,
-    "highlightedContent" : null,
-    "source" : null,
-    "url" : null,
-    "createdAt" : null,
-    "modifiedAt" : null,
-    "author" : null,
-    "tags" : null,
-    "language" : null,
-    "size" : null,
-    "wordCount" : null,
-    "readingTimeMinutes" : null,
-    "qualityScore" : null,
-    "freshnessScore" : null,
-    "authorityScore" : null
-  }, {
-    "id" : "cf8f0908-f457-43d9-922e-89d6c6a51aad",
-    "content" : "ACH 50k Stable - ACH 50000",
-    "title" : null,
-    "type" : null,
-    "score" : null,
-    "similarity" : null,
-    "metadata" : {
-      "status" : "PENDING_REVIEW",
-      "destinationRegion" : "high-risk corridor",
-      "sourceRegion" : "stable region"
-    },
-    "embeddings" : null,
-    "highlightedContent" : null,
-    "source" : null,
-    "url" : null,
-    "createdAt" : null,
-    "modifiedAt" : null,
-    "author" : null,
-    "tags" : null,
-    "language" : null,
-    "size" : null,
-    "wordCount" : null,
-    "readingTimeMinutes" : null,
-    "qualityScore" : null,
-    "freshnessScore" : null,
-    "authorityScore" : null
-  }, {
-    "id" : "e3b4d23e-c611-42a4-a8ea-a77c4058878e",
-    "content" : "Pending Wire 40k - Wire 40000",
-    "title" : null,
-    "type" : null,
-    "score" : null,
-    "similarity" : null,
-    "metadata" : {
-      "status" : "PENDING_REVIEW",
-      "destinationRegion" : "high-risk corridor",
-      "sourceRegion" : "high-risk region"
-    },
-    "embeddings" : null,
-    "highlightedContent" : null,
-    "source" : null,
-    "url" : null,
-    "createdAt" : null,
-    "modifiedAt" : null,
-    "author" : null,
-    "tags" : null,
-    "language" : null,
-    "size" : null,
-    "wordCount" : null,
-    "readingTimeMinutes" : null,
-    "qualityScore" : null,
-    "freshnessScore" : null,
-    "authorityScore" : null
-  } ],
-  "response" : null,
-  "context" : null,
-  "totalDocuments" : null,
-  "usedDocuments" : null,
-  "relevanceScores" : null,
-  "success" : true,
-  "hybridSearchUsed" : false,
-  "contextualSearchUsed" : null,
-  "searchedCategories" : null,
-  "totalResults" : 3,
-  "returnedResults" : 3,
-  "maxScore" : null,
-  "averageScore" : null,
-  "processingTimeMs" : 3727,
-  "requestId" : null,
-  "originalQuery" : "List suspicious transactions over $25k from high-risk regions routed through the same counterparty",
-  "entityType" : "transaction",
-  "model" : null,
-  "timestamp" : null,
-  "metadata" : {
-    "plan" : {
-      "originalQuery" : "List suspicious transactions over $25k from high-risk regions routed through the same counterparty",
-      "semanticQuery" : "List suspicious transactions over $25k from high-risk regions routed through the same counterparty",
-      "primaryEntityType" : "transaction",
-      "candidateEntityTypes" : [ "transaction" ],
-      "relationshipPaths" : [ ],
-      "directFilters" : { },
-      "relationshipFilters" : { },
-      "metadataFilters" : { },
-      "queryStrategy" : "RELATIONSHIP",
-      "needsSemanticSearch" : false,
-      "confidence" : 0.25,
-      "context" : { }
-    },
-    "timestamp" : "2025-11-24T11:53:20.518773818Z",
-    "mode" : "STANDALONE"
-  },
-  "fromCache" : null,
-  "piiDetectionResult" : null,
-  "cacheHitRate" : null,
-  "errorMessage" : null,
-  "warnings" : [ ],
-  "suggestions" : null,
-  "relatedQueries" : null,
-  "facets" : null,
-  "aggregations" : null,
-  "confidenceScore" : 0.25,
-  "qualityThresholdMet" : null,
-  "query" : "List suspicious transactions over $25k from high-risk regions routed through the same counterparty"
-}
-[[1;34mINFO[m] [1;32mTests run: [0;1;32m1[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.874 s - in com.ai.infrastructure.relationship.it.realapi.[1mFinancialFraudRealApiIntegrationTest[m
-[[1;34mINFO[m] Running com.ai.infrastructure.relationship.it.realapi.[1mECommerceRealApiIntegrationTest[m
-2025-11-24T11:53:20.633Z  INFO 66038 --- [o-auto-1-exec-2] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Executing query='Show me blue shoes under $100 from Nike' entityTypes=[product]
-
-=== OPENAI API REQUEST ===
-URL: https://api.openai.com/v1/chat/completions
-Model: gpt-4o-mini
-Temperature: 0.1
-Top-P: 0.1
-Max Tokens: 1200
-Messages count: 2
-
-Message 0: role=system
-  content: You are an expert database planner. Return ONLY a JSON object.
-
-Message 1: role=user
-  content: Analyze the user's request using the provided entity schema. Produce a JSON payload with:
-- primaryEntityType (snake-case)
-- candidateEntityTypes (array)
-- relationshipPaths (array of {fromEntityType, relationshipType, toEntityType, direction, optional, conditions})
-- directFilters (map of entity -> array of filters)
-- relationshipFilters (map)
-- needsSemanticSearch (boolean)
-- queryStrategy ("RELATIONSHIP", "SEMANTIC", or "HYBRID")
-- confidence (0.0 - 1.0 decimal)
-- semanticQuery (string)
-
-Schema:
-Available AI-Capable Entities:
-
-Entity: product (Class: ProductEntity)
-  Fields:
-  Relationships:
-    - brand -> brand (FORWARD)
-
-
-
-User Query: "Show me blue shoes under $100 from Nike"
-
-Respond with valid JSON only.
-
-=== END REQUEST ===
-
-=== OPENAI API RESPONSE ===
-Response Time: 4141ms
-Model: gpt-4o-mini-2024-07-18
-Finish Reason: stop
-Response Content Length: 714 chars
-Content (first 500 chars):
-{
-  "primaryEntityType": "product",
-  "candidateEntityTypes": ["product", "brand"],
-  "relationshipPaths": [
-    {
-      "fromEntityType": "product",
-      "relationshipType": "brand",
-      "toEntityType": "brand",
-      "direction": "FORWARD",
-      "optional": false,
-      "conditions": []
-    }
-  ],
-  "directFilters": {
-    "product": [
-      {
-        "field": "color",
-        "value": "blue"
-      },
-      {
-        "field": "price",
-        "value": "<100"
-      }
-    ],
-    "brand": [
-  
-=== END RESPONSE ===
-
-2025-11-24T11:53:24.775Z  WARN 66038 --- [o-auto-1-exec-2] c.a.i.relationship.metrics.QueryMetrics  : Plan latency 4141ms exceeded alert threshold 1500
-2025-11-24T11:53:24.776Z  INFO 66038 --- [o-auto-1-exec-2] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Planner output:
-{
-  "originalQuery" : "Show me blue shoes under $100 from Nike",
-  "semanticQuery" : "Show me blue shoes under $100 from Nike",
-  "primaryEntityType" : "product",
-  "candidateEntityTypes" : [ "product", "brand" ],
   "relationshipPaths" : [ {
-    "fromEntityType" : "product",
-    "relationshipType" : "brand",
-    "toEntityType" : "brand",
+    "fromEntityType" : "transaction",
+    "relationshipType" : "destinationAccount",
+    "toEntityType" : "destination-account",
     "direction" : "FORWARD",
     "optional" : false,
     "conditions" : [ ]
-  } ],
-  "directFilters" : {
-    "product" : [ {
-      "rangeComparison" : false,
-      "field" : "color",
-      "operator" : "EQUALS",
-      "value" : "blue",
-      "caseSensitive" : true
-    }, {
-      "rangeComparison" : false,
-      "field" : "price",
-      "operator" : "EQUALS",
-      "value" : "<100",
-      "caseSensitive" : true
-    } ],
-    "brand" : [ {
-      "rangeComparison" : false,
-      "field" : "name",
-      "operator" : "EQUALS",
-      "value" : "Nike",
-      "caseSensitive" : true
-    } ]
-  },
-  "relationshipFilters" : { },
-  "metadataFilters" : { },
-  "queryStrategy" : "RELATIONSHIP",
-  "needsSemanticSearch" : false,
-  "confidence" : 0.9,
-  "context" : { }
-}
-2025-11-24T11:53:24.778Z  INFO 66038 --- [o-auto-1-exec-2] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] JPQL statement: SELECT DISTINCT root FROM ProductEntity root JOIN root.brand br1 WHERE root.color = :p1 AND root.price = :p2 AND br1.name = :p3
-Parameters: {p1=blue, p2=<100, p3=Nike}
-2025-11-24T11:53:24.786Z  WARN 66038 --- [o-auto-1-exec-2] a.i.r.s.ReliableRelationshipQueryService : Primary LLM relationship query failed, attempting fallback chain
-
-java.lang.IllegalArgumentException: Parameter value [<100] did not match expected type [SqmBasicValuedSimplePath(com.ai.infrastructure.relationship.it.entity.ProductEntity(root).price)]
-	at org.hibernate.query.internal.QueryParameterBindingImpl.setBindValue(QueryParameterBindingImpl.java:124) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.spi.AbstractCommonQueryContract.setParameter(AbstractCommonQueryContract.java:835) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.spi.AbstractSelectionQuery.setParameter(AbstractSelectionQuery.java:895) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.sqm.internal.QuerySqmImpl.setParameter(QuerySqmImpl.java:1255) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.sqm.internal.QuerySqmImpl.setParameter(QuerySqmImpl.java:140) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService.traverse(JpaRelationshipTraversalService.java:46) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
-	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeJpaTraversal(LLMDrivenJPAQueryService.java:286) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
-	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeTraversal(LLMDrivenJPAQueryService.java:148) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
-	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeRelationshipQuery(LLMDrivenJPAQueryService.java:106) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
-	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.tryPrimary(ReliableRelationshipQueryService.java:114) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
-	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.execute(ReliableRelationshipQueryService.java:83) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
-	at com.ai.infrastructure.relationship.it.api.RelationshipQueryController.execute(RelationshipQueryController.java:42) ~[classes/:na]
-	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
-	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:254) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:182) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:917) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:829) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.16.jar:6.0]
-	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.1.1.jar:6.1.1]
-	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.16.jar:6.0]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:340) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:391) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:896) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1744) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
-	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
-Caused by: org.hibernate.type.descriptor.java.CoercionException: Error coercing value
-	at org.hibernate.type.descriptor.java.CoercionHelper.coerceWrappingError(CoercionHelper.java:396) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.type.descriptor.java.BigDecimalJavaType.coerce(BigDecimalJavaType.java:144) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.type.descriptor.java.BigDecimalJavaType.coerce(BigDecimalJavaType.java:22) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.internal.QueryParameterBindingImpl.coerce(QueryParameterBindingImpl.java:164) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.internal.QueryParameterBindingImpl.setBindValue(QueryParameterBindingImpl.java:113) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	... 63 common frames omitted
-Caused by: java.lang.NumberFormatException: For input string: "<100"
-	at java.base/jdk.internal.math.FloatingDecimal.readJavaFormatString(FloatingDecimal.java:2054) ~[na:na]
-	at java.base/jdk.internal.math.FloatingDecimal.parseDouble(FloatingDecimal.java:110) ~[na:na]
-	at java.base/java.lang.Double.parseDouble(Double.java:792) ~[na:na]
-	at org.hibernate.type.descriptor.java.BigDecimalJavaType.lambda$coerce$0(BigDecimalJavaType.java:145) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.type.descriptor.java.CoercionHelper.coerceWrappingError(CoercionHelper.java:393) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	... 67 common frames omitted
-
-2025-11-24T11:53:24.959Z  WARN 66038 --- [o-auto-1-exec-2] o.a.l.i.v.VectorizationProvider          : Java vector incubator module is not readable. For optimal vector performance, pass '--add-modules jdk.incubator.vector' to enable Vector API.
-[[1;34mINFO[m] [1;32mTests run: [0;1;32m1[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.386 s - in com.ai.infrastructure.relationship.it.realapi.[1mECommerceRealApiIntegrationTest[m
-[[1;34mINFO[m] Running com.ai.infrastructure.relationship.it.realapi.[1mLawFirmRealApiIntegrationTest[m
-2025-11-24T11:53:25.038Z  INFO 66038 --- [o-auto-1-exec-4] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Executing query='Find all contracts related to John Smith in Q4 2023' entityTypes=[document]
-
-=== OPENAI API REQUEST ===
-URL: https://api.openai.com/v1/chat/completions
-Model: gpt-4o-mini
-Temperature: 0.1
-Top-P: 0.1
-Max Tokens: 1200
-Messages count: 2
-
-Message 0: role=system
-  content: You are an expert database planner. Return ONLY a JSON object.
-
-Message 1: role=user
-  content: Analyze the user's request using the provided entity schema. Produce a JSON payload with:
-- primaryEntityType (snake-case)
-- candidateEntityTypes (array)
-- relationshipPaths (array of {fromEntityType, relationshipType, toEntityType, direction, optional, conditions})
-- directFilters (map of entity -> array of filters)
-- relationshipFilters (map)
-- needsSemanticSearch (boolean)
-- queryStrategy ("RELATIONSHIP", "SEMANTIC", or "HYBRID")
-- confidence (0.0 - 1.0 decimal)
-- semanticQuery (string)
-
-Schema:
-Available AI-Capable Entities:
-
-Entity: document (Class: DocumentEntity)
-  Fields:
-  Relationships:
-    - author -> user (FORWARD)
-
-
-
-User Query: "Find all contracts related to John Smith in Q4 2023"
-
-Respond with valid JSON only.
-
-=== END REQUEST ===
-
-=== OPENAI API RESPONSE ===
-Response Time: 4314ms
-Model: gpt-4o-mini-2024-07-18
-Finish Reason: stop
-Response Content Length: 826 chars
-Content (first 500 chars):
-{
-  "primaryEntityType": "document",
-  "candidateEntityTypes": [],
-  "relationshipPaths": [
-    {
-      "fromEntityType": "document",
-      "relationshipType": "author",
-      "toEntityType": "user",
-      "direction": "FORWARD",
-      "optional": false,
-      "conditions": [
-        {
-          "field": "name",
-          "operator": "EQUALS",
-          "value": "John Smith"
-        },
-        {
-          "field": "date",
-          "operator": "BETWEEN",
-          "value": ["2023-10-01", "2023-1
-=== END RESPONSE ===
-
-2025-11-24T11:53:29.353Z  WARN 66038 --- [o-auto-1-exec-4] c.a.i.relationship.metrics.QueryMetrics  : Plan latency 4315ms exceeded alert threshold 1500
-2025-11-24T11:53:29.354Z  INFO 66038 --- [o-auto-1-exec-4] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Planner output:
-{
-  "originalQuery" : "Find all contracts related to John Smith in Q4 2023",
-  "semanticQuery" : "Find all contracts related to John Smith in Q4 2023",
-  "primaryEntityType" : "document",
-  "candidateEntityTypes" : [ "document" ],
-  "relationshipPaths" : [ {
-    "fromEntityType" : "document",
-    "relationshipType" : "author",
-    "toEntityType" : "user",
+  }, {
+    "fromEntityType" : "transaction",
+    "relationshipType" : "sourceAccount",
+    "toEntityType" : "origin-account",
     "direction" : "FORWARD",
     "optional" : false,
     "conditions" : [ {
       "rangeComparison" : false,
-      "field" : "name",
+      "field" : "origin-account.riskLevel",
       "operator" : "EQUALS",
-      "value" : "John Smith",
-      "caseSensitive" : true
-    }, {
-      "rangeComparison" : true,
-      "field" : "date",
-      "operator" : "BETWEEN",
-      "value" : [ "2023-10-01", "2023-12-31" ],
+      "value" : "HIGH",
       "caseSensitive" : true
     } ]
   } ],
   "directFilters" : {
-    "document" : [ {
+    "transaction" : [ {
       "rangeComparison" : false,
-      "field" : "type",
-      "operator" : "EQUALS",
-      "value" : "contract",
+      "field" : "transaction.amount",
+      "operator" : "GREATER_THAN",
+      "value" : 25000,
       "caseSensitive" : true
     } ]
   },
@@ -669,11 +209,11 @@ Content (first 500 chars):
   "confidence" : 0.85,
   "context" : { }
 }
-2025-11-24T11:53:29.355Z  INFO 66038 --- [o-auto-1-exec-4] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] JPQL statement: SELECT DISTINCT root FROM DocumentEntity root JOIN root.author us1 WHERE us1.name = :p1 AND us1.date BETWEEN :p2 AND :p3 AND root.type = :p4
-Parameters: {p1=John Smith, p2=[2023-10-01, 2023-12-31], p3=null, p4=contract}
-2025-11-24T11:53:29.361Z  WARN 66038 --- [o-auto-1-exec-4] a.i.r.s.ReliableRelationshipQueryService : Primary LLM relationship query failed, attempting fallback chain
+2025-11-24T12:23:08.765Z  INFO 67878 --- [o-auto-1-exec-1] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] JPQL statement: SELECT DISTINCT root FROM TransactionEntity root JOIN root.destinationAccount de1 JOIN root.sourceAccount or1 WHERE origin-account.riskLevel = :p1 AND transaction.amount > :p2
+Parameters: {p1=HIGH, p2=25000}
+2025-11-24T12:23:08.787Z  WARN 67878 --- [o-auto-1-exec-1] a.i.r.s.ReliableRelationshipQueryService : Primary LLM relationship query failed, attempting fallback chain
 
-java.lang.IllegalArgumentException: org.hibernate.query.sqm.UnknownPathException: Could not resolve attribute 'name' of 'com.ai.infrastructure.relationship.it.entity.UserEntity' [SELECT DISTINCT root FROM DocumentEntity root JOIN root.author us1 WHERE us1.name = :p1 AND us1.date BETWEEN :p2 AND :p3 AND root.type = :p4]
+java.lang.IllegalArgumentException: org.hibernate.query.SemanticException: Could not interpret path expression 'origin'
 	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:143) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:167) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:173) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
@@ -743,18 +283,598 @@ java.lang.IllegalArgumentException: org.hibernate.query.sqm.UnknownPathException
 	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
 	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
 	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
-Caused by: org.hibernate.query.sqm.UnknownPathException: Could not resolve attribute 'name' of 'com.ai.infrastructure.relationship.it.entity.UserEntity' [SELECT DISTINCT root FROM DocumentEntity root JOIN root.author us1 WHERE us1.name = :p1 AND us1.date BETWEEN :p2 AND :p3 AND root.type = :p4]
-	at org.hibernate.query.hql.internal.StandardHqlTranslator.translate(StandardHqlTranslator.java:87) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+Caused by: org.hibernate.query.SemanticException: Could not interpret path expression 'origin'
+	at org.hibernate.query.hql.internal.BasicDotIdentifierConsumer$BaseLocalSequencePart.resolvePathPart(BasicDotIdentifierConsumer.java:255) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.BasicDotIdentifierConsumer.consumeIdentifier(BasicDotIdentifierConsumer.java:91) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSimplePath(SemanticQueryBuilder.java:5000) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitIndexedPathAccessFragment(SemanticQueryBuilder.java:4959) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitGeneralPathFragment(SemanticQueryBuilder.java:4934) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitGeneralPathExpression(SemanticQueryBuilder.java:1775) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$GeneralPathExpressionContext.accept(HqlParser.java:7571) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visitChildren(AbstractParseTreeVisitor.java:46) ~[antlr4-runtime-4.10.1.jar:4.10.1]
+	at org.hibernate.grammars.hql.HqlParserBaseVisitor.visitBarePrimaryExpression(HqlParserBaseVisitor.java:755) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$BarePrimaryExpressionContext.accept(HqlParser.java:7045) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitAdditionExpression(SemanticQueryBuilder.java:2915) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$AdditionExpressionContext.accept(HqlParser.java:7003) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.createComparisonPredicate(SemanticQueryBuilder.java:2428) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitComparisonPredicate(SemanticQueryBuilder.java:2391) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitComparisonPredicate(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$ComparisonPredicateContext.accept(HqlParser.java:6071) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitAndPredicate(SemanticQueryBuilder.java:2260) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitAndPredicate(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$AndPredicateContext.accept(HqlParser.java:5951) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitWhereClause(SemanticQueryBuilder.java:2243) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitWhereClause(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$WhereClauseContext.accept(HqlParser.java:5822) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitQuery(SemanticQueryBuilder.java:1158) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitQuerySpecExpression(SemanticQueryBuilder.java:940) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitQuerySpecExpression(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$QuerySpecExpressionContext.accept(HqlParser.java:1844) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSimpleQueryGroup(SemanticQueryBuilder.java:925) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSimpleQueryGroup(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$SimpleQueryGroupContext.accept(HqlParser.java:1718) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSelectStatement(SemanticQueryBuilder.java:442) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitStatement(SemanticQueryBuilder.java:401) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.buildSemanticModel(SemanticQueryBuilder.java:310) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.StandardHqlTranslator.translate(StandardHqlTranslator.java:71) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.query.internal.QueryInterpretationCacheStandardImpl.createHqlInterpretation(QueryInterpretationCacheStandardImpl.java:165) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.query.internal.QueryInterpretationCacheStandardImpl.resolveHqlInterpretation(QueryInterpretationCacheStandardImpl.java:147) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.internal.AbstractSharedSessionContract.interpretHql(AbstractSharedSessionContract.java:744) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:794) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	... 65 common frames omitted
-Caused by: org.hibernate.query.sqm.PathElementException: Could not resolve attribute 'name' of 'com.ai.infrastructure.relationship.it.entity.UserEntity'
-	at org.hibernate.query.sqm.SqmPathSource.getSubPathSource(SqmPathSource.java:95) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.sqm.tree.domain.AbstractSqmPath.get(AbstractSqmPath.java:195) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.sqm.tree.domain.AbstractSqmFrom.resolvePathPart(AbstractSqmFrom.java:196) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	at org.hibernate.query.hql.internal.DomainPathPart.resolvePathPart(DomainPathPart.java:42) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+
+2025-11-24T12:23:08.795Z ERROR 67878 --- [o-auto-1-exec-1] o.a.c.c.C.[.[.[/].[dispatcherServlet]    : Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed: com.ai.infrastructure.relationship.exception.FallbackExhaustedException: All fallback strategies failed for query: List suspicious transactions over $25k from high-risk regions routed through the same counterparty] with root cause
+
+com.ai.infrastructure.relationship.exception.FallbackExhaustedException: All fallback strategies failed for query: List suspicious transactions over $25k from high-risk regions routed through the same counterparty
+	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.execute(ReliableRelationshipQueryService.java:108) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.it.api.RelationshipQueryController.execute(RelationshipQueryController.java:42) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:254) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:182) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:917) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:829) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:340) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:391) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:896) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1744) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+[[1;31mERROR[m] [1;31mTests [0;1mrun: [0;1m1[m, [1;31mFailures: [0;1;31m1[m, Errors: 0, Skipped: 0, Time elapsed: 13.608 s[1;31m <<< FAILURE![m - in com.ai.infrastructure.relationship.it.realapi.[1mFinancialFraudRealApiIntegrationTest[m
+[[1;31mERROR[m] com.ai.infrastructure.relationship.it.realapi.FinancialFraudRealApiIntegrationTest.shouldDetectHighRiskWire  Time elapsed: 7.679 s  <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 200 OK
+ but was: 500 INTERNAL_SERVER_ERROR
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502)
+	at com.ai.infrastructure.relationship.it.realapi.FinancialFraudRealApiIntegrationTest.shouldDetectHighRiskWire(FinancialFraudRealApiIntegrationTest.java:86)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[[1;34mINFO[m] Running com.ai.infrastructure.relationship.it.realapi.[1mECommerceRealApiIntegrationTest[m
+2025-11-24T12:23:08.908Z  INFO 67878 --- [o-auto-1-exec-2] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Executing query='Show me blue shoes under $100 from Nike' entityTypes=[product]
+
+=== OPENAI API REQUEST ===
+URL: https://api.openai.com/v1/chat/completions
+Model: gpt-4o-mini
+Temperature: 0.1
+Top-P: 0.1
+Max Tokens: 1200
+Messages count: 2
+
+Message 0: role=system
+  content: You are an expert database planner. Return ONLY a JSON object.
+
+Message 1: role=user
+  content (first 1000 chars): Analyze the user's request using the provided entity schema. Produce a JSON payload with:
+- primaryEntityType (snake-case)
+- candidateEntityTypes (array)
+- relationshipPaths (array of {fromEntityType, relationshipType, toEntityType, direction, optional, conditions})
+- directFilters (map of entity -> array of filters)
+- relationshipFilters (map)
+- needsSemanticSearch (boolean)
+- queryStrategy ("RELATIONSHIP", "SEMANTIC", or "HYBRID")
+- confidence (0.0 - 1.0 decimal)
+- semanticQuery (string)
+
+Guidelines:
+- candidateEntityTypes MUST always include the primaryEntityType.
+- Each element inside directFilters/relationshipFilters MUST be an array of objects shaped like {"field":"entity.field","operator":"GREATER_THAN","value":123}. Valid operators: EQUALS, NOT_EQUALS, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, BETWEEN, IN, LIKE.
+- relationshipPaths[].conditions follows the exact same object structure (arrays of filter objects).
+- Use fully-qualified field names such as
+  content (total length): 1371 chars
+=== END REQUEST ===
+
+=== OPENAI API RESPONSE ===
+Response Time: 4372ms
+Model: gpt-4o-mini-2024-07-18
+Finish Reason: stop
+Response Content Length: 832 chars
+Content (first 500 chars):
+```json
+{
+  "primaryEntityType": "product",
+  "candidateEntityTypes": ["product"],
+  "relationshipPaths": [
+    {
+      "fromEntityType": "product",
+      "relationshipType": "brand",
+      "toEntityType": "brand",
+      "direction": "FORWARD",
+      "optional": false,
+      "conditions": []
+    }
+  ],
+  "directFilters": {
+    "product": [
+      {
+        "field": "product.color",
+        "operator": "LIKE",
+        "value": "%blue%"
+      },
+      {
+        "field": "product.price",
+        "op
+=== END RESPONSE ===
+
+2025-11-24T12:23:13.282Z  WARN 67878 --- [o-auto-1-exec-2] c.a.i.relationship.metrics.QueryMetrics  : Plan latency 4373ms exceeded alert threshold 1500
+2025-11-24T12:23:13.283Z  INFO 67878 --- [o-auto-1-exec-2] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Planner output:
+{
+  "originalQuery" : "Show me blue shoes under $100 from Nike",
+  "semanticQuery" : "Show me blue shoes under $100 from Nike",
+  "primaryEntityType" : "product",
+  "candidateEntityTypes" : [ "product" ],
+  "relationshipPaths" : [ {
+    "fromEntityType" : "product",
+    "relationshipType" : "brand",
+    "toEntityType" : "brand",
+    "direction" : "FORWARD",
+    "optional" : false,
+    "conditions" : [ ]
+  } ],
+  "directFilters" : {
+    "product" : [ {
+      "rangeComparison" : false,
+      "field" : "product.color",
+      "operator" : "LIKE",
+      "value" : "%blue%",
+      "caseSensitive" : true
+    }, {
+      "rangeComparison" : false,
+      "field" : "product.price",
+      "operator" : "LESS_THAN",
+      "value" : 100,
+      "caseSensitive" : true
+    } ]
+  },
+  "relationshipFilters" : {
+    "brand" : [ {
+      "rangeComparison" : false,
+      "field" : "brand.name",
+      "operator" : "EQUALS",
+      "value" : "Nike",
+      "caseSensitive" : true
+    } ]
+  },
+  "metadataFilters" : { },
+  "queryStrategy" : "RELATIONSHIP",
+  "needsSemanticSearch" : false,
+  "confidence" : 0.95,
+  "context" : { }
+}
+2025-11-24T12:23:13.283Z  INFO 67878 --- [o-auto-1-exec-2] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] JPQL statement: SELECT DISTINCT root FROM ProductEntity root JOIN root.brand br1 WHERE product.color LIKE :p1 AND product.price < :p2 AND brand.name = :p3
+Parameters: {p1=%blue%, p2=100, p3=Nike}
+2025-11-24T12:23:13.288Z  WARN 67878 --- [o-auto-1-exec-2] a.i.r.s.ReliableRelationshipQueryService : Primary LLM relationship query failed, attempting fallback chain
+
+java.lang.IllegalArgumentException: org.hibernate.query.SemanticException: Could not interpret path expression 'product.color'
+	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:143) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:167) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:173) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:802) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:707) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:132) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.orm.jpa.ExtendedEntityManagerCreator$ExtendedEntityManagerInvocationHandler.invoke(ExtendedEntityManagerCreator.java:360) ~[spring-orm-6.1.1.jar:6.1.1]
+	at jdk.proxy2/jdk.proxy2.$Proxy174.createQuery(Unknown Source) ~[na:na]
+	at com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService.traverse(JpaRelationshipTraversalService.java:44) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeJpaTraversal(LLMDrivenJPAQueryService.java:286) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeTraversal(LLMDrivenJPAQueryService.java:148) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeRelationshipQuery(LLMDrivenJPAQueryService.java:106) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.tryPrimary(ReliableRelationshipQueryService.java:114) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.execute(ReliableRelationshipQueryService.java:83) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.it.api.RelationshipQueryController.execute(RelationshipQueryController.java:42) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:254) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:182) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:917) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:829) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:340) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:391) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:896) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1744) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+Caused by: org.hibernate.query.SemanticException: Could not interpret path expression 'product.color'
+	at org.hibernate.query.hql.internal.BasicDotIdentifierConsumer$BaseLocalSequencePart.resolvePathPart(BasicDotIdentifierConsumer.java:255) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.BasicDotIdentifierConsumer.consumeIdentifier(BasicDotIdentifierConsumer.java:91) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSimplePath(SemanticQueryBuilder.java:5010) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitIndexedPathAccessFragment(SemanticQueryBuilder.java:4959) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitGeneralPathFragment(SemanticQueryBuilder.java:4934) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitGeneralPathExpression(SemanticQueryBuilder.java:1775) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$GeneralPathExpressionContext.accept(HqlParser.java:7571) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.antlr.v4.runtime.tree.AbstractParseTreeVisitor.visitChildren(AbstractParseTreeVisitor.java:46) ~[antlr4-runtime-4.10.1.jar:4.10.1]
+	at org.hibernate.grammars.hql.HqlParserBaseVisitor.visitBarePrimaryExpression(HqlParserBaseVisitor.java:755) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$BarePrimaryExpressionContext.accept(HqlParser.java:7045) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitLikePredicate(SemanticQueryBuilder.java:2503) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitLikePredicate(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$LikePredicateContext.accept(HqlParser.java:6022) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitAndPredicate(SemanticQueryBuilder.java:2260) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitAndPredicate(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$AndPredicateContext.accept(HqlParser.java:5951) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitAndPredicate(SemanticQueryBuilder.java:2260) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitAndPredicate(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$AndPredicateContext.accept(HqlParser.java:5951) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitWhereClause(SemanticQueryBuilder.java:2243) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitWhereClause(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$WhereClauseContext.accept(HqlParser.java:5822) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitQuery(SemanticQueryBuilder.java:1158) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitQuerySpecExpression(SemanticQueryBuilder.java:940) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitQuerySpecExpression(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$QuerySpecExpressionContext.accept(HqlParser.java:1844) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSimpleQueryGroup(SemanticQueryBuilder.java:925) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSimpleQueryGroup(SemanticQueryBuilder.java:268) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.grammars.hql.HqlParser$SimpleQueryGroupContext.accept(HqlParser.java:1718) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSelectStatement(SemanticQueryBuilder.java:442) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitStatement(SemanticQueryBuilder.java:401) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.SemanticQueryBuilder.buildSemanticModel(SemanticQueryBuilder.java:310) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.hql.internal.StandardHqlTranslator.translate(StandardHqlTranslator.java:71) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.internal.QueryInterpretationCacheStandardImpl.createHqlInterpretation(QueryInterpretationCacheStandardImpl.java:165) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.internal.QueryInterpretationCacheStandardImpl.resolveHqlInterpretation(QueryInterpretationCacheStandardImpl.java:147) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.interpretHql(AbstractSharedSessionContract.java:744) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:794) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	... 65 common frames omitted
+
+2025-11-24T12:23:13.290Z ERROR 67878 --- [o-auto-1-exec-2] o.a.c.c.C.[.[.[/].[dispatcherServlet]    : Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed: com.ai.infrastructure.relationship.exception.FallbackExhaustedException: All fallback strategies failed for query: Show me blue shoes under $100 from Nike] with root cause
+
+com.ai.infrastructure.relationship.exception.FallbackExhaustedException: All fallback strategies failed for query: Show me blue shoes under $100 from Nike
+	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.execute(ReliableRelationshipQueryService.java:108) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.it.api.RelationshipQueryController.execute(RelationshipQueryController.java:42) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:254) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:182) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:917) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:829) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:340) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:391) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:896) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1744) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+[[1;31mERROR[m] [1;31mTests [0;1mrun: [0;1m1[m, [1;31mFailures: [0;1;31m1[m, Errors: 0, Skipped: 0, Time elapsed: 4.424 s[1;31m <<< FAILURE![m - in com.ai.infrastructure.relationship.it.realapi.[1mECommerceRealApiIntegrationTest[m
+[[1;31mERROR[m] com.ai.infrastructure.relationship.it.realapi.ECommerceRealApiIntegrationTest.shouldFindBlueNikeShoesUnderHundred  Time elapsed: 4.415 s  <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 200 OK
+ but was: 500 INTERNAL_SERVER_ERROR
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502)
+	at com.ai.infrastructure.relationship.it.realapi.ECommerceRealApiIntegrationTest.shouldFindBlueNikeShoesUnderHundred(ECommerceRealApiIntegrationTest.java:86)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+[[1;34mINFO[m] Running com.ai.infrastructure.relationship.it.realapi.[1mLawFirmRealApiIntegrationTest[m
+2025-11-24T12:23:13.336Z  INFO 67878 --- [o-auto-1-exec-4] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Executing query='Find all contracts related to John Smith in Q4 2023' entityTypes=[document]
+
+=== OPENAI API REQUEST ===
+URL: https://api.openai.com/v1/chat/completions
+Model: gpt-4o-mini
+Temperature: 0.1
+Top-P: 0.1
+Max Tokens: 1200
+Messages count: 2
+
+Message 0: role=system
+  content: You are an expert database planner. Return ONLY a JSON object.
+
+Message 1: role=user
+  content (first 1000 chars): Analyze the user's request using the provided entity schema. Produce a JSON payload with:
+- primaryEntityType (snake-case)
+- candidateEntityTypes (array)
+- relationshipPaths (array of {fromEntityType, relationshipType, toEntityType, direction, optional, conditions})
+- directFilters (map of entity -> array of filters)
+- relationshipFilters (map)
+- needsSemanticSearch (boolean)
+- queryStrategy ("RELATIONSHIP", "SEMANTIC", or "HYBRID")
+- confidence (0.0 - 1.0 decimal)
+- semanticQuery (string)
+
+Guidelines:
+- candidateEntityTypes MUST always include the primaryEntityType.
+- Each element inside directFilters/relationshipFilters MUST be an array of objects shaped like {"field":"entity.field","operator":"GREATER_THAN","value":123}. Valid operators: EQUALS, NOT_EQUALS, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, BETWEEN, IN, LIKE.
+- relationshipPaths[].conditions follows the exact same object structure (arrays of filter objects).
+- Use fully-qualified field names such as
+  content (total length): 1385 chars
+=== END REQUEST ===
+
+=== OPENAI API RESPONSE ===
+Response Time: 5867ms
+Model: gpt-4o-mini-2024-07-18
+Finish Reason: stop
+Response Content Length: 888 chars
+Content (first 500 chars):
+```json
+{
+  "primaryEntityType": "document",
+  "candidateEntityTypes": ["document"],
+  "relationshipPaths": [
+    {
+      "fromEntityType": "document",
+      "relationshipType": "author",
+      "toEntityType": "user",
+      "direction": "FORWARD",
+      "optional": false,
+      "conditions": [
+        {
+          "field": "user.name",
+          "operator": "EQUALS",
+          "value": "John Smith"
+        }
+      ]
+    }
+  ],
+  "directFilters": {
+    "document": [
+      {
+        "field": "docum
+=== END RESPONSE ===
+
+2025-11-24T12:23:19.204Z  WARN 67878 --- [o-auto-1-exec-4] c.a.i.relationship.metrics.QueryMetrics  : Plan latency 5867ms exceeded alert threshold 1500
+2025-11-24T12:23:19.204Z  INFO 67878 --- [o-auto-1-exec-4] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] Planner output:
+{
+  "originalQuery" : "Find all contracts related to John Smith in Q4 2023",
+  "semanticQuery" : "Find all contracts related to John Smith in Q4 2023",
+  "primaryEntityType" : "document",
+  "candidateEntityTypes" : [ "document" ],
+  "relationshipPaths" : [ {
+    "fromEntityType" : "document",
+    "relationshipType" : "author",
+    "toEntityType" : "user",
+    "direction" : "FORWARD",
+    "optional" : false,
+    "conditions" : [ {
+      "rangeComparison" : false,
+      "field" : "user.name",
+      "operator" : "EQUALS",
+      "value" : "John Smith",
+      "caseSensitive" : true
+    } ]
+  } ],
+  "directFilters" : {
+    "document" : [ {
+      "rangeComparison" : false,
+      "field" : "document.creationDate",
+      "operator" : "GREATER_THAN_OR_EQUAL",
+      "value" : "2023-10-01",
+      "caseSensitive" : true
+    }, {
+      "rangeComparison" : false,
+      "field" : "document.creationDate",
+      "operator" : "LESS_THAN_OR_EQUAL",
+      "value" : "2023-12-31",
+      "caseSensitive" : true
+    } ]
+  },
+  "relationshipFilters" : { },
+  "metadataFilters" : { },
+  "queryStrategy" : "RELATIONSHIP",
+  "needsSemanticSearch" : false,
+  "confidence" : 0.9,
+  "context" : { }
+}
+2025-11-24T12:23:19.204Z  INFO 67878 --- [o-auto-1-exec-4] c.a.i.r.s.LLMDrivenJPAQueryService       : [RelationshipQuery] JPQL statement: SELECT DISTINCT root FROM DocumentEntity root JOIN root.author us1 WHERE user.name = :p1 AND document.creationDate >= :p2 AND document.creationDate <= :p3
+Parameters: {p1=John Smith, p2=2023-10-01, p3=2023-12-31}
+2025-11-24T12:23:19.207Z  WARN 67878 --- [o-auto-1-exec-4] a.i.r.s.ReliableRelationshipQueryService : Primary LLM relationship query failed, attempting fallback chain
+
+java.lang.IllegalArgumentException: org.hibernate.query.SemanticException: Could not interpret path expression 'user.name'
+	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:143) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:167) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.ExceptionConverterImpl.convert(ExceptionConverterImpl.java:173) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:802) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:707) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:132) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.orm.jpa.ExtendedEntityManagerCreator$ExtendedEntityManagerInvocationHandler.invoke(ExtendedEntityManagerCreator.java:360) ~[spring-orm-6.1.1.jar:6.1.1]
+	at jdk.proxy2/jdk.proxy2.$Proxy174.createQuery(Unknown Source) ~[na:na]
+	at com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService.traverse(JpaRelationshipTraversalService.java:44) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeJpaTraversal(LLMDrivenJPAQueryService.java:286) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeTraversal(LLMDrivenJPAQueryService.java:148) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService.executeRelationshipQuery(LLMDrivenJPAQueryService.java:106) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.tryPrimary(ReliableRelationshipQueryService.java:114) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.execute(ReliableRelationshipQueryService.java:83) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.it.api.RelationshipQueryController.execute(RelationshipQueryController.java:42) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:254) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:182) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:917) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:829) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:340) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:391) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:896) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1744) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+Caused by: org.hibernate.query.SemanticException: Could not interpret path expression 'user.name'
+	at org.hibernate.query.hql.internal.BasicDotIdentifierConsumer$BaseLocalSequencePart.resolvePathPart(BasicDotIdentifierConsumer.java:255) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.query.hql.internal.BasicDotIdentifierConsumer.consumeIdentifier(BasicDotIdentifierConsumer.java:91) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitSimplePath(SemanticQueryBuilder.java:5010) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitIndexedPathAccessFragment(SemanticQueryBuilder.java:4959) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
@@ -788,18 +908,113 @@ Caused by: org.hibernate.query.sqm.PathElementException: Could not resolve attri
 	at org.hibernate.query.hql.internal.SemanticQueryBuilder.visitStatement(SemanticQueryBuilder.java:401) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.query.hql.internal.SemanticQueryBuilder.buildSemanticModel(SemanticQueryBuilder.java:310) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
 	at org.hibernate.query.hql.internal.StandardHqlTranslator.translate(StandardHqlTranslator.java:71) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
-	... 69 common frames omitted
+	at org.hibernate.query.internal.QueryInterpretationCacheStandardImpl.createHqlInterpretation(QueryInterpretationCacheStandardImpl.java:165) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.query.internal.QueryInterpretationCacheStandardImpl.resolveHqlInterpretation(QueryInterpretationCacheStandardImpl.java:147) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.interpretHql(AbstractSharedSessionContract.java:744) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	at org.hibernate.internal.AbstractSharedSessionContract.createQuery(AbstractSharedSessionContract.java:794) ~[hibernate-core-6.3.1.Final.jar:6.3.1.Final]
+	... 65 common frames omitted
 
-2025-11-24T11:53:29.525Z  WARN 66038 --- [o-auto-1-exec-4] c.a.i.relationship.metrics.QueryMetrics  : Fallback stage FALLBACK_VECTOR has failed 5 times
-[[1;34mINFO[m] [1;32mTests run: [0;1;32m1[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.541 s - in com.ai.infrastructure.relationship.it.realapi.[1mLawFirmRealApiIntegrationTest[m
+2025-11-24T12:23:19.209Z ERROR 67878 --- [o-auto-1-exec-4] o.a.c.c.C.[.[.[/].[dispatcherServlet]    : Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed: com.ai.infrastructure.relationship.exception.FallbackExhaustedException: All fallback strategies failed for query: Find all contracts related to John Smith in Q4 2023] with root cause
+
+com.ai.infrastructure.relationship.exception.FallbackExhaustedException: All fallback strategies failed for query: Find all contracts related to John Smith in Q4 2023
+	at com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService.execute(ReliableRelationshipQueryService.java:108) ~[ai-infrastructure-relationship-query-1.0.0.jar:na]
+	at com.ai.infrastructure.relationship.it.api.RelationshipQueryController.execute(RelationshipQueryController.java:42) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:254) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:182) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:917) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:829) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.1.1.jar:6.1.1]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.16.jar:6.0]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.1.jar:6.1.1]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:340) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:391) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:896) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1744) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.16.jar:10.1.16]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+
+[[1;31mERROR[m] [1;31mTests [0;1mrun: [0;1m1[m, [1;31mFailures: [0;1;31m1[m, Errors: 0, Skipped: 0, Time elapsed: 5.916 s[1;31m <<< FAILURE![m - in com.ai.infrastructure.relationship.it.realapi.[1mLawFirmRealApiIntegrationTest[m
+[[1;31mERROR[m] com.ai.infrastructure.relationship.it.realapi.LawFirmRealApiIntegrationTest.shouldReturnContractsForJohnSmithQ4  Time elapsed: 5.911 s  <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 200 OK
+ but was: 500 INTERNAL_SERVER_ERROR
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502)
+	at com.ai.infrastructure.relationship.it.realapi.LawFirmRealApiIntegrationTest.shouldReturnContractsForJohnSmithQ4(LawFirmRealApiIntegrationTest.java:86)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
 [[1;34mINFO[m] 
 [[1;34mINFO[m] Results:
 [[1;34mINFO[m] 
-[[1;34mINFO[m] [1;32mTests run: 3, Failures: 0, Errors: 0, Skipped: 0[m
+[[1;31mERROR[m] [1;31mFailures: [m
+[[1;31mERROR[m] [1;31m  ECommerceRealApiIntegrationTest.shouldFindBlueNikeShoesUnderHundred:86 
+expected: 200 OK
+ but was: 500 INTERNAL_SERVER_ERROR[m
+[[1;31mERROR[m] [1;31m  FinancialFraudRealApiIntegrationTest.shouldDetectHighRiskWire:86 
+expected: 200 OK
+ but was: 500 INTERNAL_SERVER_ERROR[m
+[[1;31mERROR[m] [1;31m  LawFirmRealApiIntegrationTest.shouldReturnContractsForJohnSmithQ4:86 
+expected: 200 OK
+ but was: 500 INTERNAL_SERVER_ERROR[m
+[[1;34mINFO[m] 
+[[1;31mERROR[m] [1;31mTests run: 3, Failures: 3, Errors: 0, Skipped: 0[m
 [[1;34mINFO[m] 
 [[1;34mINFO[m] [1m------------------------------------------------------------------------[m
-[[1;34mINFO[m] [1;32mBUILD SUCCESS[m
+[[1;34mINFO[m] [1;31mBUILD FAILURE[m
 [[1;34mINFO[m] [1m------------------------------------------------------------------------[m
-[[1;34mINFO[m] Total time:  19.947 s
-[[1;34mINFO[m] Finished at: 2025-11-24T11:53:29Z
+[[1;34mINFO[m] Total time:  25.121 s
+[[1;34mINFO[m] Finished at: 2025-11-24T12:23:19Z
 [[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;31mERROR[m] Failed to execute goal [32morg.apache.maven.plugins:maven-surefire-plugin:3.0.0:test[m [1m(default-test)[m on project [36mrelationship-query-integration-tests[m: [1;31mThere are test failures.[m
+[[1;31mERROR[m] [1;31m[m
+[[1;31mERROR[m] [1;31mPlease refer to /workspace/ai-infrastructure-module/relationship-query-integration-tests/target/surefire-reports for the individual test results.[m
+[[1;31mERROR[m] [1;31mPlease refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.[m
+[[1;31mERROR[m] -> [1m[Help 1][m
+[[1;31mERROR[m] 
+[[1;31mERROR[m] To see the full stack trace of the errors, re-run Maven with the [1m-e[m switch.
+[[1;31mERROR[m] Re-run Maven using the [1m-X[m switch to enable full debug logging.
+[[1;31mERROR[m] 
+[[1;31mERROR[m] For more information about the errors and possible solutions, please read the following articles:
+[[1;31mERROR[m] [1m[Help 1][m http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
