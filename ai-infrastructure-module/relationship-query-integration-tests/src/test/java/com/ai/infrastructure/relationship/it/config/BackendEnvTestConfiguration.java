@@ -31,6 +31,7 @@ import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilde
 import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
@@ -91,6 +92,7 @@ public class BackendEnvTestConfiguration {
     }
 
     @Bean
+    @DependsOn("relationshipEntityInitializer")
     RelationshipSchemaProvider testRelationshipSchemaProvider(EntityManagerFactory entityManagerFactory,
                                                               @Nullable AIEntityConfigurationLoader configurationLoader,
                                                               RelationshipQueryProperties properties,
