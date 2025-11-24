@@ -126,6 +126,33 @@ public class RelationshipQueryPlanner {
           },
           "relationshipFilters": {}
         }
+        """,
+        """
+        Example plan for query "Show active runner shoes from Nike or Adidas priced between $80 and $120 available in red or blue":
+        {
+          "primaryEntityType": "product",
+          "candidateEntityTypes": ["product"],
+          "relationshipPaths": [
+            {
+              "fromEntityType": "product",
+              "relationshipType": "brand",
+              "toEntityType": "brand",
+              "direction": "FORWARD",
+              "optional": false,
+              "conditions": [
+                {"field": "name", "operator": "IN", "value": ["Nike", "Adidas"], "entityType": "brand"}
+              ]
+            }
+          ],
+          "directFilters": {
+            "product": [
+              {"field": "status", "operator": "EQUALS", "value": "ACTIVE", "entityType": "product"},
+              {"field": "price", "operator": "BETWEEN", "value": 80, "secondaryValue": 120, "entityType": "product"},
+              {"field": "color", "operator": "IN", "value": ["red", "blue"], "entityType": "product"}
+            ]
+          },
+          "relationshipFilters": {}
+        }
         """
     );
 
@@ -260,6 +287,7 @@ public class RelationshipQueryPlanner {
             - relationshipPaths[].conditions follows the exact same object structure (arrays of filter objects).
             - Use fully-qualified field names such as "transaction.amount" or "destinationAccount.region".
             - When a predicate needs to compare two entities (e.g., "same counterparty"), set the filter value to "<entity-slug>.<field>" (example: {"field":"ownerName","operator":"EQUALS","value":"destination-account.ownerName"}).
+            - When the request lists multiple acceptable values for the same field (e.g., "Nike or Adidas"), prefer the IN operator with an array of values.
             - Use the exact field names shown in the schema (e.g., "creationDate", "author.fullName"); do not invent shorthand names like "date" or "author".
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
 

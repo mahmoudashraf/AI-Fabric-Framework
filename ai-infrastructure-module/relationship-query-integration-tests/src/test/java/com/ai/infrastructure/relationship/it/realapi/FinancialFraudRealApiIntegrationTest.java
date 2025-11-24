@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FinancialFraudRealApiIntegrationTest {
 
     private static final String QUERY = "List suspicious transactions over $25k from high-risk regions routed through the same counterparty";
+    private static final String MIRROR_QUERY = "Find high-risk wire transfers above $30k where the destination account owner matches the source account owner";
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -90,6 +91,27 @@ class FinancialFraudRealApiIntegrationTest {
         assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(flaggedTransactionId));
         assertThat(rag.getDocuments()).anySatisfy(doc ->
             assertThat(doc.getContent()).contains("Pending Wire 40k"));
+    }
+
+    @Test
+    void shouldDetectMirrorCounterpartyWires() {
+        RelationshipQueryRequest request = new RelationshipQueryRequest();
+        request.setQuery(MIRROR_QUERY);
+        request.setEntityTypes(List.of("transaction"));
+        request.setReturnMode(ReturnMode.FULL);
+        request.setLimit(5);
+
+        ResponseEntity<RAGResponse> response = restTemplate.postForEntity(
+            "/api/relationship-query/execute",
+            request,
+            RAGResponse.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        RAGResponse rag = response.getBody();
+        assertThat(rag.getDocuments()).isNotEmpty();
+        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(flaggedTransactionId));
     }
 
     private void seedTransactions() {
