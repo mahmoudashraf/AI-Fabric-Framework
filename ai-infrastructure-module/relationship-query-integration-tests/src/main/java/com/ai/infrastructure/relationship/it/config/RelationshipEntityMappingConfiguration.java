@@ -8,7 +8,8 @@ import com.ai.infrastructure.relationship.it.entity.TransactionEntity;
 import com.ai.infrastructure.relationship.it.entity.UserEntity;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import com.ai.infrastructure.relationship.dto.RelationshipDirection;
-import org.springframework.boot.CommandLineRunner;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,12 +17,13 @@ import org.springframework.context.annotation.Configuration;
  * Registers the test entities and relationships with the mapper so that the schema
  * exposed to the planner is deterministic.
  */
+@Slf4j
 @Configuration
 public class RelationshipEntityMappingConfiguration {
 
     @Bean
-    public CommandLineRunner relationshipEntityInitializer(EntityRelationshipMapper mapper) {
-        return args -> {
+    public InitializingBean relationshipEntityInitializer(EntityRelationshipMapper mapper) {
+        return () -> {
             mapper.registerEntityType(DocumentEntity.class);
             mapper.registerEntityType(UserEntity.class);
             mapper.registerRelationship("document", "user", "author", RelationshipDirection.FORWARD, false);
@@ -32,10 +34,15 @@ public class RelationshipEntityMappingConfiguration {
 
             mapper.registerEntityType(TransactionEntity.class);
             mapper.registerEntityType(AccountEntity.class);
+
             mapper.registerEntityType("destination-account", AccountEntity.class);
             mapper.registerEntityType("origin-account", AccountEntity.class);
             mapper.registerRelationship("transaction", "destination-account", "destinationAccount", RelationshipDirection.FORWARD, false);
             mapper.registerRelationship("transaction", "origin-account", "sourceAccount", RelationshipDirection.FORWARD, false);
+
+            log.info("Registered relationship-test entity schema: {} entities, {} relationships",
+                mapper.getAllEntityMappings().size(),
+                mapper.getAllRelationshipMappings().size());
         };
     }
 

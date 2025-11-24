@@ -3,6 +3,8 @@ package com.ai.infrastructure.relationship.service;
 import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.relationship.dto.RelationshipDirection;
+import com.ai.infrastructure.relationship.model.EntityMapping;
+import com.ai.infrastructure.relationship.model.RelationshipMapping;
 import com.ai.infrastructure.relationship.model.schema.EntityRelationshipSchema;
 import com.ai.infrastructure.relationship.model.schema.EntitySchema;
 import com.ai.infrastructure.relationship.model.schema.FieldInfo;
@@ -54,18 +56,15 @@ public class RelationshipSchemaProvider {
 
     @PostConstruct
     public void initialize() {
-        if (properties.getSchema().isAutoDiscover() && initialized.compareAndSet(false, true)) {
+        if (initialized.compareAndSet(false, true)) {
             refreshSchema();
         }
     }
 
     public synchronized void refreshSchema() {
-        if (!properties.getSchema().isAutoDiscover()) {
-            cachedSchema = EntityRelationshipSchema.empty();
-            return;
-        }
-
-        Map<String, EntitySchema> discovered = discoverSchemas();
+        Map<String, EntitySchema> discovered = properties.getSchema().isAutoDiscover()
+            ? discoverSchemas()
+            : buildSchemasFromMapper();
         cachedSchema = EntityRelationshipSchema.builder()
             .entities(discovered)
             .refreshedAt(Instant.now())
@@ -77,7 +76,7 @@ public class RelationshipSchemaProvider {
     }
 
     public EntityRelationshipSchema getSchema() {
-        if (!initialized.get() && properties.getSchema().isAutoDiscover()) {
+        if (!initialized.get()) {
             refreshSchema();
             initialized.set(true);
         }
@@ -90,6 +89,10 @@ public class RelationshipSchemaProvider {
 
     public String getSchemaDescription(List<String> entityTypes) {
         EntityRelationshipSchema schema = getSchema();
+        if (schema.entityCount() == 0 && !properties.getSchema().isAutoDiscover()) {
+            refreshSchema();
+            schema = cachedSchema;
+        }
         if (schema.entityCount() == 0) {
             return "No AI-capable entities are registered.";
         }
@@ -159,6 +162,50 @@ public class RelationshipSchemaProvider {
             .build();
     }
 
+    private Map<String, EntitySchema> buildSchemasFromMapper() {
+        Map<String, EntitySchema> schemas = new LinkedHashMap<>();
+        Map<String, EntityMapping> entityMappings = relationshipMapper.getAllEntityMappings();
+        List<RelationshipMapping> relationshipMappings = relationshipMapper.getAllRelationshipMappings();
+
+        for (EntityMapping mapping : entityMappings.values()) {
+            List<RelationshipInfo> relationships = buildRelationshipsFromMapper(mapping.entityType(), relationshipMappings);
+            EntitySchema schema = EntitySchema.builder()
+                .entityType(mapping.entityType())
+                .className(extractSimpleName(mapping.className()))
+                .fullClassName(mapping.className())
+                .fields(List.of())
+                .relationships(relationships)
+                .build();
+            schemas.put(mapping.entityType(), schema);
+        }
+        return schemas;
+    }
+
+    private List<RelationshipInfo> buildRelationshipsFromMapper(String entityType,
+                                                                List<RelationshipMapping> mappings) {
+        if (CollectionUtils.isEmpty(mappings)) {
+            return List.of();
+        }
+        List<RelationshipInfo> relationships = new ArrayList<>();
+        for (RelationshipMapping mapping : mappings) {
+            if (!mapping.fromEntityType().equals(entityType)) {
+                continue;
+            }
+            String targetClassName = relationshipMapper.hasEntityType(mapping.toEntityType())
+                ? relationshipMapper.getEntityClassName(mapping.toEntityType())
+                : mapping.toEntityType();
+            relationships.add(RelationshipInfo.builder()
+                .fieldName(mapping.fieldName())
+                .targetEntityType(mapping.toEntityType())
+                .targetClassName(targetClassName)
+                .relationshipType(mapping.direction().name())
+                .direction(mapping.direction())
+                .optional(mapping.optional())
+                .build());
+        }
+        return relationships;
+    }
+
     private FieldInfo buildFieldInfo(Attribute<?, ?> attribute) {
         boolean nullable = attribute instanceof SingularAttribute<?, ?> singular && singular.isOptional();
         return FieldInfo.builder()
@@ -201,6 +248,14 @@ public class RelationshipSchemaProvider {
             return true;
         }
         return false;
+    }
+
+    private String extractSimpleName(String className) {
+        if (className == null) {
+            return "Unknown";
+        }
+        int idx = className.lastIndexOf('.');
+        return idx >= 0 ? className.substring(idx + 1) : className;
     }
 
     private void appendEntity(StringBuilder description, EntitySchema schema) {

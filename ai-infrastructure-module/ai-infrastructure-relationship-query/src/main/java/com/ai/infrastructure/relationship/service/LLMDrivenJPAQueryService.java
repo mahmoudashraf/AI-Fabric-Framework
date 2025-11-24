@@ -90,10 +90,19 @@ public class LLMDrivenJPAQueryService {
                                                 QueryOptions options) {
         long startNano = System.nanoTime();
         try {
+            if (log.isInfoEnabled()) {
+                log.info("[RelationshipQuery] Executing query='{}' entityTypes={}", query, entityTypes);
+            }
             RelationshipQueryPlan plan = planner.planQuery(query, entityTypes);
             validator.validate(plan);
+            if (log.isInfoEnabled()) {
+                log.info("[RelationshipQuery] Planner output:\n{}", toJson(plan));
+            }
 
             JpqlQuery jpqlQuery = queryBuilder.buildQuery(plan);
+            if (jpqlQuery != null && log.isInfoEnabled()) {
+                log.info("[RelationshipQuery] JPQL statement: {}\nParameters: {}", jpqlQuery.getJpql(), jpqlQuery.getParameters());
+            }
             List<String> entityIds = executeTraversal(plan, jpqlQuery);
             QueryMode mode = resolveMode(plan, options);
             if (mode == QueryMode.ENHANCED) {
@@ -107,7 +116,7 @@ public class LLMDrivenJPAQueryService {
             recordExecutionMetrics(mode, duration, documents.size(), plan.isNeedsSemanticSearch() || mode == QueryMode.ENHANCED);
             updateCacheMetrics();
 
-            return RAGResponse.builder()
+            RAGResponse response = RAGResponse.builder()
                 .originalQuery(query)
                 .entityType(plan.getPrimaryEntityType())
                 .documents(documents)
@@ -124,6 +133,8 @@ public class LLMDrivenJPAQueryService {
                     "timestamp", Instant.now().toString()
                 ))
                 .build();
+            logResultArtifacts(query, entityTypes, plan, jpqlQuery, response);
+            return response;
         } catch (RuntimeException ex) {
             long duration = Math.max(0, (System.nanoTime() - startNano) / 1_000_000);
             if (queryMetrics != null && queryMetrics.isEnabled()) {
@@ -292,6 +303,49 @@ public class LLMDrivenJPAQueryService {
                 queryCache.getEmbeddingStats(),
                 queryCache.getResultStats()
             );
+        }
+    }
+
+    private void logResultArtifacts(String query,
+                                    List<String> entityTypes,
+                                    RelationshipQueryPlan plan,
+                                    JpqlQuery jpqlQuery,
+                                    RAGResponse response) {
+        if (!log.isInfoEnabled() || response == null) {
+            return;
+        }
+        log.info("[RelationshipQuery] Result summary -> query='{}', entityTypes={}, totalCandidates={}, returned={}, hybridMode={}",
+            query,
+            entityTypes,
+            response.getTotalResults(),
+            response.getReturnedResults(),
+            Boolean.TRUE.equals(response.getHybridSearchUsed()));
+        log.info("[RelationshipQuery] Document IDs: {}", response.getDocuments() == null ? List.of() : previewDocumentIds(response.getDocuments()));
+        if (jpqlQuery != null) {
+            log.info("[RelationshipQuery] JPQL (repeated for reference): {}\nParameters: {}", jpqlQuery.getJpql(), jpqlQuery.getParameters());
+        }
+        log.info("[RelationshipQuery] Serialized response:\n{}", toJson(response));
+    }
+
+    private List<String> previewDocumentIds(List<RAGResponse.RAGDocument> documents) {
+        if (CollectionUtils.isEmpty(documents)) {
+            return List.of();
+        }
+        return documents.stream()
+            .map(RAGResponse.RAGDocument::getId)
+            .filter(Objects::nonNull)
+            .limit(5)
+            .collect(Collectors.toList());
+    }
+
+    private String toJson(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        try {
+            return METADATA_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(value);
+        } catch (Exception ex) {
+            return value.toString();
         }
     }
 }
