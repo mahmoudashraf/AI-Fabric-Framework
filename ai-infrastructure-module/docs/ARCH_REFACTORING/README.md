@@ -15,7 +15,7 @@ This directory contains comprehensive analysis and refactoring documentation for
 - **Decision tracking** - Log of all architectural decisions made
 - **Deep dives** - Focused analysis of specific components
 
-**Total**: 16 documents + 1 script, ~200 pages, 3,056+ lines of code analyzed
+**Total**: 22 documents + 1 script, ~250 pages, 3,842+ lines of code analyzed
 
 ---
 
@@ -24,6 +24,11 @@ This directory contains comprehensive analysis and refactoring documentation for
 ### I want to extract the web module:
 → Go to [`WEB_EXTRACTION/`](./WEB_EXTRACTION/) subdirectory  
 → Run: [`WEB_EXTRACTION/extract_web_module.sh`](./WEB_EXTRACTION/extract_web_module.sh)
+
+### I want to handle validation service: ⭐ NEW
+→ Go to [`VALIDATION_SERVICE_EXTRACTION/`](./VALIDATION_SERVICE_EXTRACTION/) subdirectory  
+→ Read: [`VALIDATION_SERVICE_EXTRACTION/README.md`](./VALIDATION_SERVICE_EXTRACTION/README.md)  
+→ Decision: Delete (8 min) or Extract (2-3h)
 
 ### I want to understand what's in core:
 → Read: [`AI_CORE_MODULE_ANALYSIS.md`](./AI_CORE_MODULE_ANALYSIS.md)
@@ -71,6 +76,16 @@ This directory contains comprehensive analysis and refactoring documentation for
 | [CHANGE_REQUESTS_LOG.md](./CHANGE_REQUESTS_LOG.md) | Decision trail |
 | [ALL_ANALYSIS_DOCUMENTS_INDEX.md](./ALL_ANALYSIS_DOCUMENTS_INDEX.md) | Master index (this file's parent) |
 
+### Validation Service Extraction (6 documents) ⭐ NEW
+| Document | Purpose | Time |
+|----------|---------|------|
+| [VALIDATION_SERVICE_EXTRACTION/README.md](./VALIDATION_SERVICE_EXTRACTION/README.md) | ⭐ Start here | 2 min |
+| [VALIDATION_SERVICE_EXTRACTION/VALIDATION_SERVICE_ANALYSIS.md](./VALIDATION_SERVICE_EXTRACTION/VALIDATION_SERVICE_ANALYSIS.md) | Deep analysis | 10 min |
+| [VALIDATION_SERVICE_EXTRACTION/USAGE_ANALYSIS.md](./VALIDATION_SERVICE_EXTRACTION/USAGE_ANALYSIS.md) | Usage verification | 5 min |
+| [VALIDATION_SERVICE_EXTRACTION/DECISION_COMPARISON.md](./VALIDATION_SERVICE_EXTRACTION/DECISION_COMPARISON.md) | Delete vs Extract | 5 min |
+| [VALIDATION_SERVICE_EXTRACTION/EXECUTION_PLAN_OPTION1_DELETE.md](./VALIDATION_SERVICE_EXTRACTION/EXECUTION_PLAN_OPTION1_DELETE.md) | Delete plan (8 min) ⭐ | - |
+| [VALIDATION_SERVICE_EXTRACTION/EXECUTION_PLAN_OPTION2_EXTRACT.md](./VALIDATION_SERVICE_EXTRACTION/EXECUTION_PLAN_OPTION2_EXTRACT.md) | Extract plan (2-3h) | - |
+
 ---
 
 ## 🗂️ Directory Structure
@@ -96,14 +111,22 @@ ARCH_REFACTORING/
 ├── Tracking:
 │   └── CHANGE_REQUESTS_LOG.md
 │
-└── WEB_EXTRACTION/                                    ← Subdirectory
-    ├── extract_web_module.sh                         ← ⭐ THE SCRIPT
-    ├── WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md
-    ├── WEB_MODULE_EXTRACTION_QUICK_START.md
-    ├── WEB_EXTRACTION_COMPLETE_PACKAGE.md
-    ├── WEB_EXTRACTION_FILES_CHECKLIST.md
-    ├── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md
-    └── NEW_CHAT_PROMPT.md                            ← Copy-paste prompt ⭐
+├── WEB_EXTRACTION/                                    ← Subdirectory
+│   ├── extract_web_module.sh                         ← ⭐ THE SCRIPT
+│   ├── WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md
+│   ├── WEB_MODULE_EXTRACTION_QUICK_START.md
+│   ├── WEB_EXTRACTION_COMPLETE_PACKAGE.md
+│   ├── WEB_EXTRACTION_FILES_CHECKLIST.md
+│   ├── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md
+│   └── NEW_CHAT_PROMPT.md                            ← Copy-paste prompt ⭐
+│
+└── VALIDATION_SERVICE_EXTRACTION/                    ⭐ NEW Subdirectory
+    ├── README.md                                     ← Start here
+    ├── VALIDATION_SERVICE_ANALYSIS.md
+    ├── USAGE_ANALYSIS.md
+    ├── DECISION_COMPARISON.md
+    ├── EXECUTION_PLAN_OPTION1_DELETE.md              ← Delete (8 min) ⭐
+    └── EXECUTION_PLAN_OPTION2_EXTRACT.md             ← Extract (2-3h)
 ```
 
 ---
