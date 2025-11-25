@@ -15,3 +15,20 @@
 
 ---
 
+### Change #2: Use OpenAI Key from Backend Env Files
+- **Change:** Extract OPENAI_API_KEY from backend environment files (e.g., `.env.dev`) and use it across all integration tests
+- **Implementation:** 
+  - Read from `backend/.env.dev` or `backend/.env.example`
+  - Set as environment variable for all test modules
+  - Remove dependency on GitHub Secrets for OPENAI_API_KEY
+- **Impact:** 
+  - No need to manually configure OPENAI_API_KEY as GitHub Secret
+  - Consistent API key usage across all modules
+  - Simplifies configuration
+- **Files to modify:**
+  - `.github/workflows/integration-tests-manual.yml` - Add step to extract and export key
+  - All test job steps need to use the extracted key
+- **Status:** Pending implementation
+
+---
+
