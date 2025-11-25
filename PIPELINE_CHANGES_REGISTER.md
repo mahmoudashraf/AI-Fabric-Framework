@@ -32,3 +32,22 @@
 
 ---
 
+### Change #3: Manual Trigger Only - No Scheduled or Push Triggers
+- **Change:** Integration tests will ONLY run manually via GitHub Actions UI
+- **Implementation:**
+  - Remove any scheduled triggers (cron)
+  - Remove any push/pull_request triggers
+  - Keep only `workflow_dispatch` trigger
+  - Tests can be triggered from GitHub Actions UI
+- **Impact:**
+  - Tests run on-demand only
+  - No automatic execution on push or PR
+  - No scheduled runs
+  - Full control over when tests run
+  - Saves CI/CD resources and costs
+- **Files to modify:**
+  - `.github/workflows/integration-tests-manual.yml` - Ensure only `workflow_dispatch` is in `on:` section
+- **Status:** Already implemented ✅ (workflow_dispatch is already the only trigger)
+
+---
+
