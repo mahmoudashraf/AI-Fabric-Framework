@@ -28,7 +28,7 @@ This is a complete index of all analysis and implementation documents created du
 ### Essential for Implementation:
 
 #### 1. **Automated Extraction Script** ⭐ MOST IMPORTANT
-- **File**: `/workspace/ai-infrastructure-module/extract_web_module.sh`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh`
 - **Lines**: 380
 - **Purpose**: Fully automated web module extraction
 - **Usage**: `./extract_web_module.sh`
@@ -36,7 +36,7 @@ This is a complete index of all analysis and implementation documents created du
 - **Status**: ✅ Ready to run
 
 #### 2. **Implementation Plan** (Manual Backup)
-- **File**: `/workspace/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
 - **Pages**: ~40 pages
 - **Purpose**: Complete step-by-step manual instructions
 - **Sections**: 7 phases with code templates
@@ -44,27 +44,27 @@ This is a complete index of all analysis and implementation documents created du
 - **Time**: 2-3 days manual
 
 #### 3. **Quick Start Guide**
-- **File**: `/workspace/WEB_MODULE_EXTRACTION_QUICK_START.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_MODULE_EXTRACTION_QUICK_START.md`
 - **Pages**: ~8 pages
 - **Purpose**: Fast-track commands and steps
 - **Usage**: Middle ground between script and full manual
 - **Time**: 30-60 minutes
 
 #### 4. **Complete Package Overview**
-- **File**: `/workspace/WEB_EXTRACTION_COMPLETE_PACKAGE.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_EXTRACTION_COMPLETE_PACKAGE.md`
 - **Pages**: ~12 pages
 - **Purpose**: Overview of all extraction resources
 - **Contents**: Options, success criteria, troubleshooting
 
 #### 5. **Files Checklist for New Chat** ⭐ WHAT YOU NEED
-- **File**: `/workspace/WEB_EXTRACTION_FILES_CHECKLIST.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_EXTRACTION_FILES_CHECKLIST.md`
 - **Pages**: ~10 pages
 - **Purpose**: Exactly what files to copy to new chat session
 - **Contents**: Minimal package, recommended package, complete package
 - **Usage**: Reference when starting new chat
 
 #### 6. **New Chat Quick Guide**
-- **File**: `/workspace/WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md`
 - **Pages**: ~3 pages
 - **Purpose**: Ultra-short version for new chat
 - **Contents**: Prompt template, quick commands
@@ -76,7 +76,7 @@ This is a complete index of all analysis and implementation documents created du
 ### Initial Analysis:
 
 #### 7. **Core Module Analysis** (Main Analysis)
-- **File**: `/workspace/AI_CORE_MODULE_ANALYSIS.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/AI_CORE_MODULE_ANALYSIS.md`
 - **Pages**: ~45 pages
 - **Purpose**: Complete analysis of ai-infrastructure-core
 - **Contents**:
@@ -87,7 +87,7 @@ This is a complete index of all analysis and implementation documents created du
   - Extraction recommendations
 
 #### 8. **Core Module Extraction Map**
-- **File**: `/workspace/AI_CORE_MODULE_EXTRACTION_MAP.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/AI_CORE_MODULE_EXTRACTION_MAP.md`
 - **Pages**: ~20 pages
 - **Purpose**: Visual file-by-file mapping
 - **Contents**:
@@ -96,7 +96,7 @@ This is a complete index of all analysis and implementation documents created du
   - File distribution by module
 
 #### 9. **Core Refactoring Action Plan**
-- **File**: `/workspace/AI_CORE_REFACTORING_ACTION_PLAN.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/AI_CORE_REFACTORING_ACTION_PLAN.md`
 - **Pages**: ~18 pages
 - **Purpose**: Overall refactoring strategy
 - **Contents**:
@@ -105,7 +105,7 @@ This is a complete index of all analysis and implementation documents created du
   - Success metrics
 
 #### 10. **Parts That Don't Make Sense** (Focused Analysis)
-- **File**: `/workspace/AI_CORE_PARTS_THAT_DONT_MAKE_SENSE.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/AI_CORE_PARTS_THAT_DONT_MAKE_SENSE.md`
 - **Pages**: ~12 pages
 - **Purpose**: Answer "hunch" question about what doesn't belong
 - **Contents**:
@@ -115,7 +115,7 @@ This is a complete index of all analysis and implementation documents created du
   - Mock services (wrong scope)
 
 #### 11. **Executive Summary**
-- **File**: `/workspace/AI_CORE_ANALYSIS_EXECUTIVE_SUMMARY.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/AI_CORE_ANALYSIS_EXECUTIVE_SUMMARY.md`
 - **Pages**: ~15 pages
 - **Purpose**: High-level overview for managers
 - **Contents**:
@@ -125,7 +125,7 @@ This is a complete index of all analysis and implementation documents created du
   - Benefits
 
 #### 12. **Analysis README** (Navigation Guide)
-- **File**: `/workspace/AI_CORE_ANALYSIS_README.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/AI_CORE_ANALYSIS_README.md`
 - **Pages**: ~8 pages
 - **Purpose**: How to use all analysis documents
 - **Contents**: Document index, reading order, FAQ
@@ -135,7 +135,7 @@ This is a complete index of all analysis and implementation documents created du
 ## 3️⃣ Specific Deep Dives
 
 #### 13. **Controller Real Job Analysis**
-- **File**: `/workspace/CONTROLLER_REAL_JOB_ANALYSIS.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/CONTROLLER_REAL_JOB_ANALYSIS.md`
 - **Pages**: ~10 pages
 - **Code Analyzed**: 1,171 lines (6 controllers)
 - **Purpose**: Prove controllers are real (not stubs)
@@ -146,7 +146,7 @@ This is a complete index of all analysis and implementation documents created du
   - Functional assessment
 
 #### 14. **Monitoring Services Deep Analysis** ⭐ NEW
-- **File**: `/workspace/MONITORING_SERVICES_DEEP_ANALYSIS.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/MONITORING_SERVICES_DEEP_ANALYSIS.md`
 - **Pages**: ~18 pages
 - **Code Analyzed**: 1,885 lines (4 services)
 - **Purpose**: Analyze audit/health/metrics/analytics services
@@ -162,7 +162,7 @@ This is a complete index of all analysis and implementation documents created du
 ## 4️⃣ Decision & Tracking Documents
 
 #### 15. **Change Requests Log**
-- **File**: `/workspace/CHANGE_REQUESTS_LOG.md`
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/CHANGE_REQUESTS_LOG.md`
 - **Pages**: ~4 pages
 - **Purpose**: Track all decisions and change requests
 - **Contents**:
@@ -170,6 +170,12 @@ This is a complete index of all analysis and implementation documents created du
   - Request #2: Extract ALL controllers ✅
   - Request #3: Monitoring services analysis ✅
   - Decision summary
+
+#### 16. **All Analysis Documents Index** ⭐ THIS FILE
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/ALL_ANALYSIS_DOCUMENTS_INDEX.md`
+- **Pages**: ~10 pages
+- **Purpose**: Master index of all analysis documents
+- **Contents**: Complete navigation and organization guide
 
 ---
 
@@ -226,16 +232,7 @@ This is a complete index of all analysis and implementation documents created du
 ## 📁 File Organization
 
 ```
-/workspace/
-├── ai-infrastructure-module/
-│   └── extract_web_module.sh                          ← The script
-│
-├── Web Extraction (6 files):
-│   ├── WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md   ← Manual guide
-│   ├── WEB_MODULE_EXTRACTION_QUICK_START.md
-│   ├── WEB_EXTRACTION_COMPLETE_PACKAGE.md
-│   ├── WEB_EXTRACTION_FILES_CHECKLIST.md              ← For new chat
-│   └── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md
+/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/
 │
 ├── Core Analysis (6 files):
 │   ├── AI_CORE_MODULE_ANALYSIS.md                     ← Main analysis
@@ -249,9 +246,17 @@ This is a complete index of all analysis and implementation documents created du
 │   ├── CONTROLLER_REAL_JOB_ANALYSIS.md
 │   └── MONITORING_SERVICES_DEEP_ANALYSIS.md
 │
-└── Tracking (2 files):
-    ├── CHANGE_REQUESTS_LOG.md
-    └── ALL_ANALYSIS_DOCUMENTS_INDEX.md                ← This file
+├── Tracking (2 files):
+│   ├── CHANGE_REQUESTS_LOG.md
+│   └── ALL_ANALYSIS_DOCUMENTS_INDEX.md                ← This file
+│
+└── WEB_EXTRACTION/ (6 files):
+    ├── extract_web_module.sh                          ← The script
+    ├── WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md   ← Manual guide
+    ├── WEB_MODULE_EXTRACTION_QUICK_START.md
+    ├── WEB_EXTRACTION_COMPLETE_PACKAGE.md
+    ├── WEB_EXTRACTION_FILES_CHECKLIST.md              ← For new chat
+    └── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md
 ```
 
 ---
@@ -259,10 +264,10 @@ This is a complete index of all analysis and implementation documents created du
 ## 🎁 Quick Access by Question
 
 ### "What files do I need for a new chat session?"
-→ `WEB_EXTRACTION_FILES_CHECKLIST.md`
+→ `WEB_EXTRACTION/WEB_EXTRACTION_FILES_CHECKLIST.md`
 
 ### "How do I extract the web module?"
-→ `extract_web_module.sh` + `WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
+→ `WEB_EXTRACTION/extract_web_module.sh` + `WEB_EXTRACTION/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
 
 ### "What's in the ai-infrastructure-core module?"
 → `AI_CORE_MODULE_ANALYSIS.md`
@@ -372,18 +377,18 @@ Question: [Your specific question]
 ### For Web Extraction in New Chat:
 
 **Minimum**:
-- Copy: `extract_web_module.sh`
+- Copy: `WEB_EXTRACTION/extract_web_module.sh`
 - Run: `./extract_web_module.sh`
 - Done!
 
 **Recommended**:
-- Copy: `extract_web_module.sh` + `WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md` + `WEB_EXTRACTION_FILES_CHECKLIST.md`
+- Copy: `WEB_EXTRACTION/extract_web_module.sh` + `WEB_EXTRACTION/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md` + `WEB_EXTRACTION/WEB_EXTRACTION_FILES_CHECKLIST.md`
 - Upload to new chat
 - Run script
 - Have backup plan
 
 **Complete**:
-- Copy all 15 documents
+- Copy all 16 documents from `ARCH_REFACTORING/` directory
 - Have full context
 - Can answer any question
 

@@ -12,6 +12,16 @@
 
 set -e  # Exit on error
 
+# Check if we need to change to the correct directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="/workspace/ai-infrastructure-module"
+
+# If not in project root, change to it
+if [ "$PWD" != "$PROJECT_ROOT" ]; then
+    echo "⚠️  Changing directory to: $PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || exit 1
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

@@ -3,13 +3,17 @@
 ## 🎯 What You Need
 
 ### Minimum (Just Execute):
-**1 file**: `/workspace/ai-infrastructure-module/extract_web_module.sh`
+**1 file**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh`
 
 ### Recommended (Execute + Backup):
-**3 files**:
-1. `/workspace/ai-infrastructure-module/extract_web_module.sh` ⭐
-2. `/workspace/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
-3. `/workspace/WEB_EXTRACTION_COMPLETE_PACKAGE.md`
+**Copy entire WEB_EXTRACTION directory**:
+`/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/`
+
+Contains:
+1. `extract_web_module.sh` ⭐
+2. `WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
+3. `WEB_EXTRACTION_COMPLETE_PACKAGE.md`
+4. All other supporting docs
 
 ---
 
@@ -26,10 +30,12 @@ Summary:
 - Automated script available
 - Decision: Extract ALL controllers
 
-Files attached:
-- extract_web_module.sh (automated extraction)
-- WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md (manual backup)
-- WEB_EXTRACTION_COMPLETE_PACKAGE.md (overview)
+Directory attached:
+- WEB_EXTRACTION/ (entire directory from ARCH_REFACTORING/)
+  - extract_web_module.sh (automated extraction)
+  - WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md (manual backup)
+  - WEB_EXTRACTION_COMPLETE_PACKAGE.md (overview)
+  - All supporting docs
 
 Please:
 1. Review the extraction script
@@ -37,7 +43,8 @@ Please:
 3. Run the extraction
 4. Report results
 
-Location: /workspace/ai-infrastructure-module/
+Script location: /workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/
+Run from: /workspace/ai-infrastructure-module/
 ```
 
 Then attach the 3 files listed above.
@@ -67,8 +74,8 @@ In new chat, after uploading files:
 
 ```bash
 cd /workspace/ai-infrastructure-module
-chmod +x extract_web_module.sh
-./extract_web_module.sh
+chmod +x docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh
+./docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh
 ```
 
 ---
@@ -100,10 +107,12 @@ BUILD SUCCESS
 
 | File | Location | Purpose |
 |------|----------|---------|
-| Script | `/workspace/ai-infrastructure-module/extract_web_module.sh` | Automated extraction |
-| Plan | `/workspace/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md` | Manual steps |
-| Overview | `/workspace/WEB_EXTRACTION_COMPLETE_PACKAGE.md` | All options |
-| Checklist | `/workspace/WEB_EXTRACTION_FILES_CHECKLIST.md` | Full file list |
+| Script | `docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh` | Automated extraction |
+| Plan | `docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md` | Manual steps |
+| Overview | `docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_EXTRACTION_COMPLETE_PACKAGE.md` | All options |
+| Checklist | `docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_EXTRACTION_FILES_CHECKLIST.md` | Full file list |
+
+**Base directory**: `/workspace/ai-infrastructure-module/`
 
 ---
 

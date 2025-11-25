@@ -5,19 +5,19 @@
 ### 🎯 Essential Files (Must Have)
 
 #### 1. **Automated Extraction Script** ⭐ MOST IMPORTANT
-**File**: `/workspace/ai-infrastructure-module/extract_web_module.sh`
+**File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh`
 **Purpose**: Fully automated extraction - runs everything for you
 **Usage**:
 ```bash
 cd /workspace/ai-infrastructure-module
-./extract_web_module.sh
+./docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh
 ```
 **Why you need it**: Does all the work automatically in ~5 minutes
 
 ---
 
 #### 2. **Implementation Plan** (Reference)
-**File**: `/workspace/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
+**File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
 **Purpose**: Complete step-by-step manual instructions (40+ pages)
 **Sections**:
 - 7 detailed phases
@@ -31,7 +31,7 @@ cd /workspace/ai-infrastructure-module
 ---
 
 #### 3. **Quick Start Guide** (Fast Track)
-**File**: `/workspace/WEB_MODULE_EXTRACTION_QUICK_START.md`
+**File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_MODULE_EXTRACTION_QUICK_START.md`
 **Purpose**: TL;DR version with essential commands
 **When to use**: If you want middle ground between script and full manual
 
@@ -40,14 +40,14 @@ cd /workspace/ai-infrastructure-module
 ### 📚 Supporting Documents (Good to Have)
 
 #### 4. **Complete Package Overview**
-**File**: `/workspace/WEB_EXTRACTION_COMPLETE_PACKAGE.md`
+**File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_EXTRACTION_COMPLETE_PACKAGE.md`
 **Purpose**: Overview of all resources and options
 **When to use**: To understand what you have available
 
 ---
 
 #### 5. **Controller Analysis** (Background Info)
-**File**: `/workspace/CONTROLLER_REAL_JOB_ANALYSIS.md`
+**File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/CONTROLLER_REAL_JOB_ANALYSIS.md`
 **Purpose**: Detailed analysis of what each controller does
 **Why it matters**: Proves controllers are real/functional (not stubs)
 **Content**:
@@ -59,7 +59,7 @@ cd /workspace/ai-infrastructure-module
 ---
 
 #### 6. **Change Requests Log** (Decision Trail)
-**File**: `/workspace/CHANGE_REQUESTS_LOG.md`
+**File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/CHANGE_REQUESTS_LOG.md`
 **Purpose**: Record of all decisions made
 **Decisions documented**:
 - Keep orchestration in core ✅
@@ -69,7 +69,7 @@ cd /workspace/ai-infrastructure-module
 ---
 
 #### 7. **Monitoring Services Analysis** (Context)
-**File**: `/workspace/MONITORING_SERVICES_DEEP_ANALYSIS.md`
+**File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/MONITORING_SERVICES_DEEP_ANALYSIS.md`
 **Purpose**: Analysis of audit/health/metrics/analytics services
 **Why it matters**: Explains what services do and why they're kept in core
 
@@ -82,7 +82,7 @@ cd /workspace/ai-infrastructure-module
 ### Option A: Automated (Recommended) ⚡
 **Copy this 1 file**:
 ```
-/workspace/ai-infrastructure-module/extract_web_module.sh
+/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh
 ```
 
 **That's it!** The script contains everything needed.
@@ -90,16 +90,16 @@ cd /workspace/ai-infrastructure-module
 **Execute**:
 ```bash
 cd /workspace/ai-infrastructure-module
-chmod +x extract_web_module.sh
-./extract_web_module.sh
+chmod +x docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh
+./docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh
 ```
 
 ---
 
 ### Option B: Manual (If script fails)
 **Copy these 2 files**:
-1. `/workspace/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
-2. `/workspace/WEB_MODULE_EXTRACTION_QUICK_START.md`
+1. `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md`
+2. `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_MODULE_EXTRACTION_QUICK_START.md`
 
 **Follow**: Step-by-step instructions in implementation plan
 
@@ -107,19 +107,22 @@ chmod +x extract_web_module.sh
 
 ## 🗂️ Complete Package (For Full Context)
 
-**If you want ALL context and documentation, copy these 7 files**:
+**If you want ALL context and documentation, copy the entire directory**:
 
 ```
+Copy entire: /workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/
+
+This includes:
 Essential:
-1. /workspace/ai-infrastructure-module/extract_web_module.sh
-2. /workspace/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md
-3. /workspace/WEB_MODULE_EXTRACTION_QUICK_START.md
+1. WEB_EXTRACTION/extract_web_module.sh
+2. WEB_EXTRACTION/WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md
+3. WEB_EXTRACTION/WEB_MODULE_EXTRACTION_QUICK_START.md
 
 Supporting:
-4. /workspace/WEB_EXTRACTION_COMPLETE_PACKAGE.md
-5. /workspace/CONTROLLER_REAL_JOB_ANALYSIS.md
-6. /workspace/CHANGE_REQUESTS_LOG.md
-7. /workspace/MONITORING_SERVICES_DEEP_ANALYSIS.md
+4. WEB_EXTRACTION/WEB_EXTRACTION_COMPLETE_PACKAGE.md
+5. CONTROLLER_REAL_JOB_ANALYSIS.md
+6. CHANGE_REQUESTS_LOG.md
+7. MONITORING_SERVICES_DEEP_ANALYSIS.md
 ```
 
 **Total Size**: ~150KB of documentation
@@ -296,19 +299,35 @@ mvn clean install
 
 ## 📁 File Locations
 
-All files are in `/workspace/`:
+All files are in `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/`:
 
 ```
-/workspace/
-├── ai-infrastructure-module/
-│   └── extract_web_module.sh                          # ⭐ THE SCRIPT
-├── WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md       # Manual guide
-├── WEB_MODULE_EXTRACTION_QUICK_START.md              # Fast track
-├── WEB_EXTRACTION_COMPLETE_PACKAGE.md                # Overview
-├── CONTROLLER_REAL_JOB_ANALYSIS.md                   # Controller details
-├── CHANGE_REQUESTS_LOG.md                            # Decisions
-├── MONITORING_SERVICES_DEEP_ANALYSIS.md              # Services analysis
-└── WEB_EXTRACTION_FILES_CHECKLIST.md                 # This file
+/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/
+├── README.md                                         # Directory overview
+├── ALL_ANALYSIS_DOCUMENTS_INDEX.md                  # Master index
+│
+├── Core Analysis:
+│   ├── AI_CORE_MODULE_ANALYSIS.md
+│   ├── AI_CORE_MODULE_EXTRACTION_MAP.md
+│   ├── AI_CORE_REFACTORING_ACTION_PLAN.md
+│   ├── AI_CORE_PARTS_THAT_DONT_MAKE_SENSE.md
+│   ├── AI_CORE_ANALYSIS_EXECUTIVE_SUMMARY.md
+│   └── AI_CORE_ANALYSIS_README.md
+│
+├── Deep Dives:
+│   ├── CONTROLLER_REAL_JOB_ANALYSIS.md              # Controller details
+│   └── MONITORING_SERVICES_DEEP_ANALYSIS.md         # Services analysis
+│
+├── Tracking:
+│   └── CHANGE_REQUESTS_LOG.md                       # Decisions
+│
+└── WEB_EXTRACTION/                                   # ⭐ SUBDIRECTORY
+    ├── extract_web_module.sh                        # ⭐ THE SCRIPT
+    ├── WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md # Manual guide
+    ├── WEB_MODULE_EXTRACTION_QUICK_START.md         # Fast track
+    ├── WEB_EXTRACTION_COMPLETE_PACKAGE.md           # Overview
+    ├── WEB_EXTRACTION_FILES_CHECKLIST.md            # This file
+    └── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md       # Quick reference
 ```
 
 ---
@@ -418,10 +437,19 @@ git pull
 
 ```bash
 # Copy this file to new chat:
-/workspace/ai-infrastructure-module/extract_web_module.sh
+/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh
 
 # Run it:
-cd /workspace/ai-infrastructure-module && ./extract_web_module.sh
+cd /workspace/ai-infrastructure-module
+./docs/ARCH_REFACTORING/WEB_EXTRACTION/extract_web_module.sh
 ```
 
 **That's it!** Everything else is backup/documentation. 🚀
+
+---
+
+## 📍 Current Location
+
+**This file**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/WEB_EXTRACTION_FILES_CHECKLIST.md`  
+**Parent directory**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/`  
+**See also**: `README.md` and `ALL_ANALYSIS_DOCUMENTS_INDEX.md` in parent directory
