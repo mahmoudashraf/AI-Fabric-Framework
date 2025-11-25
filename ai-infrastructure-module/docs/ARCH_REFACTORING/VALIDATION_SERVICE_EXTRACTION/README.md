@@ -18,7 +18,9 @@
 4. Decide: Delete or Extract?
 
 ### For Execution:
-- **Option 1 (Recommended)**: [`EXECUTION_PLAN_OPTION1_DELETE.md`](./EXECUTION_PLAN_OPTION1_DELETE.md) - 8 minutes ⭐
+- **Automated Script** ⭐⭐⭐: [`delete_validation_service.sh`](./delete_validation_service.sh) - 5 minutes (EASIEST!)
+- **Simple Plan**: [`DELETION_PLAN_SIMPLE.md`](./DELETION_PLAN_SIMPLE.md) - Quick reference
+- **Option 1 (Manual)**: [`EXECUTION_PLAN_OPTION1_DELETE.md`](./EXECUTION_PLAN_OPTION1_DELETE.md) - 8 minutes
 - **Option 2 (Alternative)**: [`EXECUTION_PLAN_OPTION2_EXTRACT.md`](./EXECUTION_PLAN_OPTION2_EXTRACT.md) - 2-3 hours
 
 ---
@@ -28,11 +30,14 @@
 | File | Purpose | Read Time |
 |------|---------|-----------|
 | **[README.md](./README.md)** | This file - start here | 2 min |
+| **[delete_validation_service.sh](./delete_validation_service.sh)** | ⭐ Automated deletion script | - |
+| **[DELETION_PLAN_SIMPLE.md](./DELETION_PLAN_SIMPLE.md)** | ⭐ Simple execution guide | 2 min |
+| [SUMMARY.md](./SUMMARY.md) | Executive summary | 3 min |
 | [VALIDATION_SERVICE_ANALYSIS.md](./VALIDATION_SERVICE_ANALYSIS.md) | Deep analysis of service | 10 min |
 | [USAGE_ANALYSIS.md](./USAGE_ANALYSIS.md) | Usage verification (spoiler: unused!) | 5 min |
 | [DECISION_COMPARISON.md](./DECISION_COMPARISON.md) | Delete vs Extract comparison | 5 min |
-| [EXECUTION_PLAN_OPTION1_DELETE.md](./EXECUTION_PLAN_OPTION1_DELETE.md) | Delete execution plan ⭐ | 10 min |
-| [EXECUTION_PLAN_OPTION2_EXTRACT.md](./EXECUTION_PLAN_OPTION2_EXTRACT.md) | Extract execution plan | 15 min |
+| [EXECUTION_PLAN_OPTION1_DELETE.md](./EXECUTION_PLAN_OPTION1_DELETE.md) | Manual delete plan | 10 min |
+| [EXECUTION_PLAN_OPTION2_EXTRACT.md](./EXECUTION_PLAN_OPTION2_EXTRACT.md) | Extract plan (alternative) | 15 min |
 
 ---
 
@@ -67,9 +72,27 @@
 
 ## 🚀 Quick Start
 
-### Option 1: Delete (Recommended) ⭐
+### **Automated Deletion** ⭐⭐⭐ EASIEST!
 
-**Why**: Service is unused, opinionated, and not suitable for infrastructure.
+**Time**: 5 minutes
+
+```bash
+cd /workspace/ai-infrastructure-module
+
+# Run the automated script
+./docs/ARCH_REFACTORING/VALIDATION_SERVICE_EXTRACTION/delete_validation_service.sh
+```
+
+**What it does**:
+- ✅ Verifies no usages
+- ✅ Creates backup
+- ✅ Deletes files
+- ✅ Verifies build & tests
+- ✅ Creates deletion record
+
+---
+
+### Option 1: Delete Manually
 
 **Time**: 8 minutes
 
@@ -78,8 +101,7 @@
 # Read execution plan
 cat EXECUTION_PLAN_OPTION1_DELETE.md
 
-# Execute (if agreed)
-# See plan for commands
+# Follow step-by-step
 ```
 
 ---

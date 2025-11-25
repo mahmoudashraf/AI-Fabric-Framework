@@ -84,10 +84,14 @@ cat docs/ARCH_REFACTORING/VALIDATION_SERVICE_EXTRACTION/DECISION_COMPARISON.md
 
 ### 3. **Execute**:
 ```bash
-# If DELETE chosen:
-# Follow: EXECUTION_PLAN_OPTION1_DELETE.md
+# EASIEST: Run automated script ⭐⭐⭐
+cd /workspace/ai-infrastructure-module
+./docs/ARCH_REFACTORING/VALIDATION_SERVICE_EXTRACTION/delete_validation_service.sh
 
-# If EXTRACT chosen:
+# OR manual:
+# Follow: EXECUTION_PLAN_OPTION1_DELETE.md (if you prefer step-by-step)
+
+# OR extract (alternative):
 # Follow: EXECUTION_PLAN_OPTION2_EXTRACT.md
 ```
 
