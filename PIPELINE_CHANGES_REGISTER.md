@@ -51,3 +51,26 @@
 
 ---
 
+### Change #4: Disable All Performance Related Tests
+- **Change:** Exclude all performance tests from the pipeline
+- **Implementation:**
+  - Remove `performance-tests` profile option from workflow inputs
+  - Remove `all-tests` profile option (which includes performance tests)
+  - Keep only `default` and `real-api-tests` profiles
+  - Ensure Maven excludes performance test classes (e.g., `**/*PerformanceTest.java`, `**/*LoadTest.java`)
+- **Impact:**
+  - Faster test execution
+  - Reduced resource usage
+  - Only functional and real API tests will run
+  - Performance benchmarks won't be available in pipeline
+- **Files to modify:**
+  - `.github/workflows/integration-tests-manual.yml` - Remove performance profile options and job steps
+  - Update `test_profile` input choices to only include: `default`, `real-api-tests`
+- **Affected test files:**
+  - `PerformanceIntegrationTest.java`
+  - `LuceneVectorPerformanceIntegrationTest.java`
+  - Any other `*PerformanceTest.java` or `*LoadTest.java` files
+- **Status:** Pending implementation
+
+---
+
