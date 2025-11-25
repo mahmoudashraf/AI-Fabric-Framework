@@ -74,3 +74,23 @@
 
 ---
 
+### Change #5: Single Profile Only - Real API Tests
+- **Change:** Remove all test profile options, keep only real-api tests
+- **Implementation:**
+  - Remove `test_profile` input parameter entirely from workflow
+  - Remove conditional steps for different profiles (default, performance, all-tests)
+  - All tests will run with real API calls using the real-api-tests profile
+  - Simplify workflow to single execution path
+- **Impact:**
+  - Simpler workflow configuration
+  - No profile selection needed
+  - All tests use real API providers
+  - Tests will consume API credits/costs
+  - Consistent test execution every time
+- **Files to modify:**
+  - `.github/workflows/integration-tests-manual.yml` - Remove `test_profile` input and all conditional test steps
+  - Keep only real-api test execution steps
+- **Status:** Pending implementation
+
+---
+
