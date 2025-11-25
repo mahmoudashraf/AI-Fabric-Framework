@@ -42,14 +42,14 @@
 - AdvancedRAGController: 95 lines, 3 endpoints (advanced search)
 - AIComplianceController: 72 lines, 2 endpoints (compliance checks)
 
-**Decision Pending**: 
-1. Extract ALL to ai-infrastructure-web (recommended)
-2. Keep ALL in core (not recommended - violates architecture)
-3. Keep some, extract others
-4. Make conditional (@ConditionalOnProperty)
+**Decision Made**: ✅ Extract ALL to ai-infrastructure-web (Option 1)
 
-**Status**: ⏳ Awaiting decision
-**Notes**: Full analysis in CONTROLLER_REAL_JOB_ANALYSIS.md
+**Status**: 📋 Implementation plan created
+**Notes**: 
+- Full analysis in CONTROLLER_REAL_JOB_ANALYSIS.md
+- Implementation plan in WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md
+- Timeline: 2-3 days
+- Risk: Low
 
 ---
 
@@ -69,10 +69,10 @@
 
 ## Summary
 - Total requests: 2
-- Completed: 0
-- In progress: 0
-- Registered: 1
-- Awaiting decision: 1
+- Completed: 1 (Orchestration kept in core)
+- In progress: 1 (Web module extraction - plan ready)
+- Registered: 0
+- Awaiting decision: 0
 
 ---
 
