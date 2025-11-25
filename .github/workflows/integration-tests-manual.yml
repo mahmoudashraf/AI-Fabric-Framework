@@ -14,8 +14,8 @@ on:
           - behavior-analytics
           - relationship-query
       openai_api_key:
-        description: 'OpenAI API Key (leave empty to use from backend env file)'
-        required: false
+        description: 'OpenAI API Key'
+        required: true
         type: string
       llm_provider:
         description: 'LLM Provider'
@@ -94,39 +94,6 @@ jobs:
             ${{ runner.os }}-maven-ai-infra-
             ${{ runner.os }}-maven-
 
-      - name: Extract OpenAI API Key from Backend Env File
-        id: extract-key
-        run: |
-          if [ -f "backend/.env.dev" ]; then
-            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.dev | cut -d '=' -f2- | tr -d '"' | tr -d "'")
-            echo "key_source=backend/.env.dev" >> $GITHUB_OUTPUT
-            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
-          elif [ -f "backend/.env.example" ]; then
-            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.example | cut -d '=' -f2- | tr -d '"' | tr -d "'")
-            echo "key_source=backend/.env.example" >> $GITHUB_OUTPUT
-            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
-          else
-            echo "key_source=not_found" >> $GITHUB_OUTPUT
-            echo "extracted_key=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Determine OpenAI API Key to Use
-        id: determine-key
-        run: |
-          if [ -n "${{ github.event.inputs.openai_api_key }}" ]; then
-            echo "Using OpenAI API Key from workflow input"
-            echo "final_key=${{ github.event.inputs.openai_api_key }}" >> $GITHUB_OUTPUT
-            echo "key_source=workflow_input" >> $GITHUB_OUTPUT
-          elif [ -n "${{ steps.extract-key.outputs.extracted_key }}" ]; then
-            echo "Using OpenAI API Key from ${{ steps.extract-key.outputs.key_source }}"
-            echo "final_key=${{ steps.extract-key.outputs.extracted_key }}" >> $GITHUB_OUTPUT
-            echo "key_source=${{ steps.extract-key.outputs.key_source }}" >> $GITHUB_OUTPUT
-          else
-            echo "⚠️ No OpenAI API Key found - tests may fail"
-            echo "final_key=" >> $GITHUB_OUTPUT
-            echo "key_source=none" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
@@ -140,7 +107,7 @@ jobs:
             -DexcludedGroups=performance
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
-          OPENAI_API_KEY: ${{ steps.determine-key.outputs.final_key }}
+          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           AI_INFRASTRUCTURE_LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
           AI_INFRASTRUCTURE_EMBEDDING_PROVIDER: ${{ github.event.inputs.embedding_provider }}
           AI_INFRASTRUCTURE_VECTOR_DATABASE: ${{ github.event.inputs.vector_database }}
@@ -196,28 +163,6 @@ jobs:
             ${{ runner.os }}-maven-behavior-
             ${{ runner.os }}-maven-
 
-      - name: Extract OpenAI API Key from Backend Env File
-        id: extract-key
-        run: |
-          if [ -f "backend/.env.dev" ]; then
-            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.dev | cut -d '=' -f2- | tr -d '"' | tr -d "'")
-            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
-          elif [ -f "backend/.env.example" ]; then
-            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.example | cut -d '=' -f2- | tr -d '"' | tr -d "'")
-            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
-          else
-            echo "extracted_key=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Determine OpenAI API Key to Use
-        id: determine-key
-        run: |
-          if [ -n "${{ github.event.inputs.openai_api_key }}" ]; then
-            echo "final_key=${{ github.event.inputs.openai_api_key }}" >> $GITHUB_OUTPUT
-          else
-            echo "final_key=${{ steps.extract-key.outputs.extracted_key }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
@@ -230,7 +175,7 @@ jobs:
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
           SPRING_PROFILES_ACTIVE: test
-          OPENAI_API_KEY: ${{ steps.determine-key.outputs.final_key }}
+          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           AI_INFRASTRUCTURE_LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
           AI_INFRASTRUCTURE_EMBEDDING_PROVIDER: ${{ github.event.inputs.embedding_provider }}
           AI_INFRASTRUCTURE_VECTOR_DATABASE: ${{ github.event.inputs.vector_database }}
@@ -285,28 +230,6 @@ jobs:
             ${{ runner.os }}-maven-relationship-
             ${{ runner.os }}-maven-
 
-      - name: Extract OpenAI API Key from Backend Env File
-        id: extract-key
-        run: |
-          if [ -f "backend/.env.dev" ]; then
-            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.dev | cut -d '=' -f2- | tr -d '"' | tr -d "'")
-            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
-          elif [ -f "backend/.env.example" ]; then
-            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.example | cut -d '=' -f2- | tr -d '"' | tr -d "'")
-            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
-          else
-            echo "extracted_key=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Determine OpenAI API Key to Use
-        id: determine-key
-        run: |
-          if [ -n "${{ github.event.inputs.openai_api_key }}" ]; then
-            echo "final_key=${{ github.event.inputs.openai_api_key }}" >> $GITHUB_OUTPUT
-          else
-            echo "final_key=${{ steps.extract-key.outputs.extracted_key }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
@@ -318,7 +241,7 @@ jobs:
           mvn test -pl relationship-query-integration-tests -B
         env:
           SPRING_PROFILES_ACTIVE: test
-          OPENAI_API_KEY: ${{ steps.determine-key.outputs.final_key }}
+          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           AI_INFRASTRUCTURE_LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
           AI_INFRASTRUCTURE_EMBEDDING_PROVIDER: ${{ github.event.inputs.embedding_provider }}
           AI_INFRASTRUCTURE_VECTOR_DATABASE: ${{ github.event.inputs.vector_database }}

@@ -178,3 +178,22 @@ All 7 changes have been successfully applied to the integration tests pipeline:
 
 ---
 
+### Change #8: Remove Automatic OpenAI Key Extraction from Backend Env
+- **Change:** Remove automatic extraction of OpenAI key from backend env files
+- **Implementation:**
+  - Remove "Extract OpenAI API Key from Backend Env File" steps from all jobs
+  - Remove "Determine OpenAI API Key to Use" steps from all jobs
+  - Make `openai_api_key` a required input parameter
+  - Use the input directly without fallback logic
+- **Impact:**
+  - User must provide OpenAI key when triggering workflow
+  - No dependency on backend env files
+  - Simpler workflow (fewer steps)
+  - More explicit - user knows exactly what key is being used
+- **Reverts:** Parts of Change #2 and Change #6
+- **Files to modify:**
+  - `.github/workflows/integration-tests-manual.yml` - Remove extraction steps
+- **Status:** ✅ Implemented
+
+---
+
