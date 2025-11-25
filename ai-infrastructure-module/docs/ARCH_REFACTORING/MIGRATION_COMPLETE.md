@@ -33,15 +33,16 @@ ARCH_REFACTORING/
 │   ├── CHANGE_REQUESTS_LOG.md                       (3.9K)
 │   └── MIGRATION_COMPLETE.md                        (This file)
 │
-└── WEB_EXTRACTION/ (Subdirectory - 6 files):
+└── WEB_EXTRACTION/ (Subdirectory - 7 files):
     ├── extract_web_module.sh                        (9.6K) ⭐
     ├── WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md (33K)
     ├── WEB_MODULE_EXTRACTION_QUICK_START.md         (5.2K)
     ├── WEB_EXTRACTION_COMPLETE_PACKAGE.md           (9.6K)
     ├── WEB_EXTRACTION_FILES_CHECKLIST.md            (12K)
-    └── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md       (3.7K)
+    ├── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md       (3.7K)
+    └── NEW_CHAT_PROMPT.md                           (8.0K) ⭐
 
-Total: 17 files (16 docs + 1 script)
+Total: 18 files (17 docs + 1 script)
 Total size: ~156KB
 ```
 

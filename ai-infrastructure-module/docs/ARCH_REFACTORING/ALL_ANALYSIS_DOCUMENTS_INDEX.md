@@ -4,8 +4,8 @@
 
 This is a complete index of all analysis and implementation documents created during the ai-core module review.
 
-**Total Documents**: 15  
-**Total Pages**: ~200 pages  
+**Total Documents**: 16 documents + 1 script  
+**Total Pages**: ~200+ pages  
 **Total Analysis**: 3,056+ lines of code analyzed  
 
 ---
@@ -68,6 +68,12 @@ This is a complete index of all analysis and implementation documents created du
 - **Pages**: ~3 pages
 - **Purpose**: Ultra-short version for new chat
 - **Contents**: Prompt template, quick commands
+
+#### 7. **New Chat Prompt** ⭐ COPY-PASTE READY
+- **File**: `/workspace/ai-infrastructure-module/docs/ARCH_REFACTORING/WEB_EXTRACTION/NEW_CHAT_PROMPT.md`
+- **Pages**: ~4 pages
+- **Purpose**: Ready-to-use prompts for new chat sessions
+- **Contents**: Copy-paste prompts, file attachment guide, troubleshooting prompts
 
 ---
 
@@ -250,13 +256,14 @@ This is a complete index of all analysis and implementation documents created du
 │   ├── CHANGE_REQUESTS_LOG.md
 │   └── ALL_ANALYSIS_DOCUMENTS_INDEX.md                ← This file
 │
-└── WEB_EXTRACTION/ (6 files):
+└── WEB_EXTRACTION/ (7 files):
     ├── extract_web_module.sh                          ← The script
     ├── WEB_MODULE_EXTRACTION_IMPLEMENTATION_PLAN.md   ← Manual guide
     ├── WEB_MODULE_EXTRACTION_QUICK_START.md
     ├── WEB_EXTRACTION_COMPLETE_PACKAGE.md
     ├── WEB_EXTRACTION_FILES_CHECKLIST.md              ← For new chat
-    └── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md
+    ├── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md
+    └── NEW_CHAT_PROMPT.md                             ← Copy-paste prompt ⭐
 ```
 
 ---

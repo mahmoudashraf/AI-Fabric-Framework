@@ -1,5 +1,7 @@
 # Web Extraction - Files Checklist for New Chat Session
 
+> **📋 Need a copy-paste prompt?** See [`NEW_CHAT_PROMPT.md`](./NEW_CHAT_PROMPT.md)!
+
 ## 📦 Complete Package: Files You Need
 
 ### 🎯 Essential Files (Must Have)

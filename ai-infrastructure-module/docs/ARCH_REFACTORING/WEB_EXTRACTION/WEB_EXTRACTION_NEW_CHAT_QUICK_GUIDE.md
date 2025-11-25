@@ -1,5 +1,7 @@
 # Web Extraction - New Chat Session Quick Guide
 
+> **📋 Need the full prompt?** See [`NEW_CHAT_PROMPT.md`](./NEW_CHAT_PROMPT.md) for copy-paste ready prompts!
+
 ## 🎯 What You Need
 
 ### Minimum (Just Execute):

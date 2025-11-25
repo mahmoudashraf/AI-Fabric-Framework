@@ -15,7 +15,7 @@ This directory contains comprehensive analysis and refactoring documentation for
 - **Decision tracking** - Log of all architectural decisions made
 - **Deep dives** - Focused analysis of specific components
 
-**Total**: 16 documents, ~200 pages, 3,056+ lines of code analyzed
+**Total**: 16 documents + 1 script, ~200 pages, 3,056+ lines of code analyzed
 
 ---
 
@@ -54,7 +54,7 @@ This directory contains comprehensive analysis and refactoring documentation for
 | [CONTROLLER_REAL_JOB_ANALYSIS.md](./CONTROLLER_REAL_JOB_ANALYSIS.md) | Analysis of 6 controllers | 1,171 lines |
 | [MONITORING_SERVICES_DEEP_ANALYSIS.md](./MONITORING_SERVICES_DEEP_ANALYSIS.md) | Analysis of 4 monitoring services | 1,885 lines |
 
-### Web Extraction (6 documents + script)
+### Web Extraction (7 documents + script)
 | Document | Purpose | Time |
 |----------|---------|------|
 | [WEB_EXTRACTION/extract_web_module.sh](./WEB_EXTRACTION/extract_web_module.sh) | ⭐ Automated script | ~5 min |
@@ -63,6 +63,7 @@ This directory contains comprehensive analysis and refactoring documentation for
 | [WEB_EXTRACTION/WEB_EXTRACTION_COMPLETE_PACKAGE.md](./WEB_EXTRACTION/WEB_EXTRACTION_COMPLETE_PACKAGE.md) | All options overview | - |
 | [WEB_EXTRACTION/WEB_EXTRACTION_FILES_CHECKLIST.md](./WEB_EXTRACTION/WEB_EXTRACTION_FILES_CHECKLIST.md) | What to copy to new chat | - |
 | [WEB_EXTRACTION/WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md](./WEB_EXTRACTION/WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md) | Quick reference | - |
+| [WEB_EXTRACTION/NEW_CHAT_PROMPT.md](./WEB_EXTRACTION/NEW_CHAT_PROMPT.md) | ⭐ Copy-paste prompts | - |
 
 ### Tracking (2 documents)
 | Document | Purpose |
@@ -101,7 +102,8 @@ ARCH_REFACTORING/
     ├── WEB_MODULE_EXTRACTION_QUICK_START.md
     ├── WEB_EXTRACTION_COMPLETE_PACKAGE.md
     ├── WEB_EXTRACTION_FILES_CHECKLIST.md
-    └── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md
+    ├── WEB_EXTRACTION_NEW_CHAT_QUICK_GUIDE.md
+    └── NEW_CHAT_PROMPT.md                            ← Copy-paste prompt ⭐
 ```
 
 ---
