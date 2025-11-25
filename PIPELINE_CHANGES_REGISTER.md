@@ -114,3 +114,33 @@
 
 ---
 
+### Change #7: Make Provider and Database Combinations Configurable in GitHub
+- **Change:** Allow users to select different provider and database combinations when triggering tests
+- **Implementation:**
+  - Add workflow input parameters for:
+    - **LLM Provider:** OpenAI, Azure OpenAI, Cohere, Anthropic, REST
+    - **Embedding Provider:** OpenAI, Azure OpenAI, ONNX (local)
+    - **Vector Database:** Lucene, Pinecone, Weaviate, Qdrant, Milvus, Memory (in-memory)
+    - **Persistence Database:** H2 (in-memory), PostgreSQL (Testcontainers)
+  - Each parameter should be a dropdown/choice in GitHub UI
+  - Pass selected combinations as environment variables to test jobs
+  - Tests should configure Spring profiles or properties based on selections
+- **Impact:**
+  - Test different provider combinations without code changes
+  - Validate compatibility between different providers
+  - Test cost-effective combinations (e.g., ONNX embeddings + Lucene)
+  - Test production-like combinations (e.g., OpenAI + Pinecone + PostgreSQL)
+  - Flexibility for integration testing scenarios
+- **Files to modify:**
+  - `.github/workflows/integration-tests-manual.yml` - Add input parameters for all combinations
+  - Test jobs need to configure Spring properties based on inputs
+  - May need to add application-test-*.yml profiles for different combinations
+- **Possible combinations to test:**
+  - Cost-effective: ONNX + Lucene + H2
+  - Production: OpenAI + Pinecone + PostgreSQL
+  - Hybrid: Azure OpenAI + Weaviate + PostgreSQL
+  - Testing: OpenAI + Memory + H2
+- **Status:** Pending implementation
+
+---
+
