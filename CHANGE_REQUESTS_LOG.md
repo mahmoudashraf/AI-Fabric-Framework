@@ -10,11 +10,17 @@
 ## Change Requests
 
 ### Request #1
-**Requested**: [Pending]
-**Description**: 
+**Requested**: November 25, 2025
+**Description**: Keep orchestration system in core module
 **Action Required**: 
-**Status**: 
+- Do NOT extract orchestration system (14 files) to separate module
+- Keep RAGOrchestrator, IntentQueryExtractor, ActionHandlerRegistry, etc. in core
+- Update analysis documents to reflect this decision
+**Status**: ✅ Registered
 **Notes**: 
+- This contradicts original recommendation to extract to `ai-infrastructure-orchestration`
+- Files affected: ~14 files in `com.ai.infrastructure.intent` package
+- Rationale: Orchestration is considered core functionality, not optional feature
 
 ---
 
@@ -42,10 +48,10 @@
 ---
 
 ## Summary
-- Total requests: 0
+- Total requests: 1
 - Completed: 0
 - In progress: 0
-- Pending: 0
+- Registered: 1
 
 ---
 
