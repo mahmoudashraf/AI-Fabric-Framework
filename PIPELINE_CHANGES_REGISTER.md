@@ -94,3 +94,23 @@
 
 ---
 
+### Change #6: Make OpenAI Key Injectable in GitHub
+- **Change:** Allow OpenAI API key to be provided as a workflow input parameter when triggering tests
+- **Implementation:**
+  - Add `openai_api_key` as a workflow input parameter (type: string, secret)
+  - User can provide the key when triggering the workflow via GitHub UI
+  - If not provided, fall back to extracting from backend env files (Change #2)
+  - Pass the key to all test job steps as environment variable
+- **Impact:**
+  - Flexibility: Users can use different API keys for different test runs
+  - Security: Key can be entered at runtime instead of stored
+  - Override capability: Can override the backend env file key if needed
+  - Better control over API usage and costs
+- **Files to modify:**
+  - `.github/workflows/integration-tests-manual.yml` - Add `openai_api_key` input parameter
+  - Add logic to use input key if provided, otherwise extract from backend env
+- **Status:** Pending implementation
+- **Note:** This modifies/enhances Change #2
+
+---
+
