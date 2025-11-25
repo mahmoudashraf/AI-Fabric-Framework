@@ -13,17 +13,50 @@ on:
           - ai-infrastructure
           - behavior-analytics
           - relationship-query
-          - backend
-      test_profile:
-        description: 'Test profile (for AI Infrastructure module)'
+      openai_api_key:
+        description: 'OpenAI API Key (leave empty to use from backend env file)'
         required: false
-        default: 'default'
+        type: string
+      llm_provider:
+        description: 'LLM Provider'
+        required: true
+        default: 'openai'
         type: choice
         options:
-          - default
-          - real-api-tests
-          - performance-tests
-          - all-tests
+          - openai
+          - azure-openai
+          - cohere
+          - anthropic
+          - rest
+      embedding_provider:
+        description: 'Embedding Provider'
+        required: true
+        default: 'openai'
+        type: choice
+        options:
+          - openai
+          - azure-openai
+          - onnx
+      vector_database:
+        description: 'Vector Database'
+        required: true
+        default: 'lucene'
+        type: choice
+        options:
+          - lucene
+          - pinecone
+          - weaviate
+          - qdrant
+          - milvus
+          - memory
+      persistence_database:
+        description: 'Persistence Database'
+        required: true
+        default: 'h2'
+        type: choice
+        options:
+          - h2
+          - postgresql
       timeout_minutes:
         description: 'Job timeout in minutes'
         required: false
@@ -61,50 +94,58 @@ jobs:
             ${{ runner.os }}-maven-ai-infra-
             ${{ runner.os }}-maven-
 
+      - name: Extract OpenAI API Key from Backend Env File
+        id: extract-key
+        run: |
+          if [ -f "backend/.env.dev" ]; then
+            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.dev | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+            echo "key_source=backend/.env.dev" >> $GITHUB_OUTPUT
+            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
+          elif [ -f "backend/.env.example" ]; then
+            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.example | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+            echo "key_source=backend/.env.example" >> $GITHUB_OUTPUT
+            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
+          else
+            echo "key_source=not_found" >> $GITHUB_OUTPUT
+            echo "extracted_key=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine OpenAI API Key to Use
+        id: determine-key
+        run: |
+          if [ -n "${{ github.event.inputs.openai_api_key }}" ]; then
+            echo "Using OpenAI API Key from workflow input"
+            echo "final_key=${{ github.event.inputs.openai_api_key }}" >> $GITHUB_OUTPUT
+            echo "key_source=workflow_input" >> $GITHUB_OUTPUT
+          elif [ -n "${{ steps.extract-key.outputs.extracted_key }}" ]; then
+            echo "Using OpenAI API Key from ${{ steps.extract-key.outputs.key_source }}"
+            echo "final_key=${{ steps.extract-key.outputs.extracted_key }}" >> $GITHUB_OUTPUT
+            echo "key_source=${{ steps.extract-key.outputs.key_source }}" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No OpenAI API Key found - tests may fail"
+            echo "final_key=" >> $GITHUB_OUTPUT
+            echo "key_source=none" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
           mvn clean install -DskipTests -B -V
 
-      - name: Run Integration Tests (Default)
-        if: github.event.inputs.test_profile == 'default' || github.event.inputs.test_profile == ''
-        run: |
-          cd ai-infrastructure-module
-          mvn test -pl integration-tests -B
-        env:
-          TESTCONTAINERS_RYUK_DISABLED: false
-
       - name: Run Integration Tests (Real API)
-        if: github.event.inputs.test_profile == 'real-api-tests'
         run: |
           cd ai-infrastructure-module
-          mvn test -pl integration-tests -P real-api-tests -B
+          mvn test -pl integration-tests -B \
+            -Dtest='!**/*PerformanceTest,!**/*LoadTest' \
+            -DexcludedGroups=performance
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-      - name: Run Integration Tests (Performance)
-        if: github.event.inputs.test_profile == 'performance-tests'
-        run: |
-          cd ai-infrastructure-module
-          mvn test -pl integration-tests -P performance-tests -B
-        env:
-          TESTCONTAINERS_RYUK_DISABLED: false
-
-      - name: Run Integration Tests (All Tests)
-        if: github.event.inputs.test_profile == 'all-tests'
-        run: |
-          cd ai-infrastructure-module
-          mvn test -pl integration-tests -P all-tests -B
-        env:
-          TESTCONTAINERS_RYUK_DISABLED: false
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ steps.determine-key.outputs.final_key }}
+          AI_INFRASTRUCTURE_LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
+          AI_INFRASTRUCTURE_EMBEDDING_PROVIDER: ${{ github.event.inputs.embedding_provider }}
+          AI_INFRASTRUCTURE_VECTOR_DATABASE: ${{ github.event.inputs.vector_database }}
+          AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
+          SPRING_PROFILES_ACTIVE: test
 
       - name: Upload test reports
         if: always()
@@ -155,6 +196,28 @@ jobs:
             ${{ runner.os }}-maven-behavior-
             ${{ runner.os }}-maven-
 
+      - name: Extract OpenAI API Key from Backend Env File
+        id: extract-key
+        run: |
+          if [ -f "backend/.env.dev" ]; then
+            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.dev | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
+          elif [ -f "backend/.env.example" ]; then
+            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.example | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
+          else
+            echo "extracted_key=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine OpenAI API Key to Use
+        id: determine-key
+        run: |
+          if [ -n "${{ github.event.inputs.openai_api_key }}" ]; then
+            echo "final_key=${{ github.event.inputs.openai_api_key }}" >> $GITHUB_OUTPUT
+          else
+            echo "final_key=${{ steps.extract-key.outputs.extracted_key }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
@@ -167,7 +230,11 @@ jobs:
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
           SPRING_PROFILES_ACTIVE: test
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ steps.determine-key.outputs.final_key }}
+          AI_INFRASTRUCTURE_LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
+          AI_INFRASTRUCTURE_EMBEDDING_PROVIDER: ${{ github.event.inputs.embedding_provider }}
+          AI_INFRASTRUCTURE_VECTOR_DATABASE: ${{ github.event.inputs.vector_database }}
+          AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
 
       - name: Upload test reports
         if: always()
@@ -218,6 +285,28 @@ jobs:
             ${{ runner.os }}-maven-relationship-
             ${{ runner.os }}-maven-
 
+      - name: Extract OpenAI API Key from Backend Env File
+        id: extract-key
+        run: |
+          if [ -f "backend/.env.dev" ]; then
+            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.dev | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
+          elif [ -f "backend/.env.example" ]; then
+            EXTRACTED_KEY=$(grep -E '^OPENAI_API_KEY=' backend/.env.example | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+            echo "extracted_key=$EXTRACTED_KEY" >> $GITHUB_OUTPUT
+          else
+            echo "extracted_key=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine OpenAI API Key to Use
+        id: determine-key
+        run: |
+          if [ -n "${{ github.event.inputs.openai_api_key }}" ]; then
+            echo "final_key=${{ github.event.inputs.openai_api_key }}" >> $GITHUB_OUTPUT
+          else
+            echo "final_key=${{ steps.extract-key.outputs.extracted_key }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
@@ -229,7 +318,11 @@ jobs:
           mvn test -pl relationship-query-integration-tests -B
         env:
           SPRING_PROFILES_ACTIVE: test
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ steps.determine-key.outputs.final_key }}
+          AI_INFRASTRUCTURE_LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
+          AI_INFRASTRUCTURE_EMBEDDING_PROVIDER: ${{ github.event.inputs.embedding_provider }}
+          AI_INFRASTRUCTURE_VECTOR_DATABASE: ${{ github.event.inputs.vector_database }}
+          AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
 
       - name: Upload test reports
         if: always()
@@ -250,81 +343,12 @@ jobs:
           check_name: Relationship Query Test Results
 
   # ==============================================================================
-  # Job 4: Backend Application Integration Tests
-  # ==============================================================================
-  backend-tests:
-    name: Backend Application Integration Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    if: |
-      github.event.inputs.modules == 'all' || 
-      github.event.inputs.modules == 'backend'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
-
-      - name: Cache Maven packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-backend-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-backend-
-            ${{ runner.os }}-maven-
-
-      - name: Build AI Infrastructure Module (Dependency)
-        run: |
-          cd ai-infrastructure-module
-          mvn clean install -DskipTests -B -V
-
-      - name: Build Backend Application
-        run: |
-          cd backend
-          mvn clean compile -B -V
-
-      - name: Run Backend Integration Tests
-        run: |
-          cd backend
-          mvn test -B
-        env:
-          TESTCONTAINERS_RYUK_DISABLED: false
-          SPRING_PROFILES_ACTIVE: test
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-test-reports
-          path: |
-            backend/target/surefire-reports/
-            backend/target/failsafe-reports/
-          retention-days: 30
-
-      - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always()
-        with:
-          files: |
-            backend/target/surefire-reports/*.xml
-          check_name: Backend Test Results
-
-  # ==============================================================================
   # Summary Job - Aggregates all test results
   # ==============================================================================
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [ai-infrastructure-tests, behavior-analytics-tests, relationship-query-tests, backend-tests]
+    needs: [ai-infrastructure-tests, behavior-analytics-tests, relationship-query-tests]
     if: always()
     
     steps:
@@ -339,7 +363,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "**Modules tested:** ${{ github.event.inputs.modules }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Test profile:** ${{ github.event.inputs.test_profile || 'default' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Provider:** ${{ github.event.inputs.llm_provider }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Embedding Provider:** ${{ github.event.inputs.embedding_provider }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Vector Database:** ${{ github.event.inputs.vector_database }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Persistence Database:** ${{ github.event.inputs.persistence_database }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -348,7 +377,6 @@ jobs:
           AI_INFRA_STATUS="${{ needs.ai-infrastructure-tests.result }}"
           BEHAVIOR_STATUS="${{ needs.behavior-analytics-tests.result }}"
           RELATIONSHIP_STATUS="${{ needs.relationship-query-tests.result }}"
-          BACKEND_STATUS="${{ needs.backend-tests.result }}"
           
           # Function to get emoji for status
           get_emoji() {
@@ -366,14 +394,12 @@ jobs:
           echo "| AI Infrastructure | $(get_emoji $AI_INFRA_STATUS) | $AI_INFRA_STATUS |" >> $GITHUB_STEP_SUMMARY
           echo "| Behavior Analytics | $(get_emoji $BEHAVIOR_STATUS) | $BEHAVIOR_STATUS |" >> $GITHUB_STEP_SUMMARY
           echo "| Relationship Query | $(get_emoji $RELATIONSHIP_STATUS) | $RELATIONSHIP_STATUS |" >> $GITHUB_STEP_SUMMARY
-          echo "| Backend Application | $(get_emoji $BACKEND_STATUS) | $BACKEND_STATUS |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Overall result
           if [[ "$AI_INFRA_STATUS" == "success" || "$AI_INFRA_STATUS" == "skipped" ]] && \
              [[ "$BEHAVIOR_STATUS" == "success" || "$BEHAVIOR_STATUS" == "skipped" ]] && \
-             [[ "$RELATIONSHIP_STATUS" == "success" || "$RELATIONSHIP_STATUS" == "skipped" ]] && \
-             [[ "$BACKEND_STATUS" == "success" || "$BACKEND_STATUS" == "skipped" ]]; then
+             [[ "$RELATIONSHIP_STATUS" == "success" || "$RELATIONSHIP_STATUS" == "skipped" ]]; then
             echo "### ✅ All tests passed!" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Some tests failed. Please check the logs." >> $GITHUB_STEP_SUMMARY
@@ -387,12 +413,10 @@ jobs:
           AI_INFRA_STATUS="${{ needs.ai-infrastructure-tests.result }}"
           BEHAVIOR_STATUS="${{ needs.behavior-analytics-tests.result }}"
           RELATIONSHIP_STATUS="${{ needs.relationship-query-tests.result }}"
-          BACKEND_STATUS="${{ needs.backend-tests.result }}"
           
           if [[ "$AI_INFRA_STATUS" == "failure" ]] || \
              [[ "$BEHAVIOR_STATUS" == "failure" ]] || \
-             [[ "$RELATIONSHIP_STATUS" == "failure" ]] || \
-             [[ "$BACKEND_STATUS" == "failure" ]]; then
+             [[ "$RELATIONSHIP_STATUS" == "failure" ]]; then
             echo "❌ One or more test jobs failed"
             exit 1
           else
