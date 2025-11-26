@@ -25,6 +25,9 @@ spring:
         jdbc:
           batch_size: 20
     open-in-view: false
+  
+  liquibase:
+    enabled: false
 
 ai:
   enabled: true
