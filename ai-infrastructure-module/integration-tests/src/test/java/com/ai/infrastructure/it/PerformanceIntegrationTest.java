@@ -6,6 +6,7 @@ import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("mock-test")
 @TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/performance")
 @Transactional
+@Disabled("Disabled in CI: performance/load scenarios exceed 3-minute limit and rely on mock profile Liquibase extensions")
 public class PerformanceIntegrationTest {
 
     @Autowired

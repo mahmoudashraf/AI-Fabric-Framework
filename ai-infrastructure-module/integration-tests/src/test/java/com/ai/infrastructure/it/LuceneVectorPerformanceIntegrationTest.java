@@ -7,6 +7,7 @@ import com.ai.infrastructure.service.VectorManagementService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Disabled("Disabled in CI: Lucene sizing/perf benchmark exceeds allowed ONNX/Lucene/H2 runtime budget")
 class LuceneVectorPerformanceIntegrationTest {
 
     private static final int VECTOR_DIMENSION = 32;

@@ -11,6 +11,7 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.repository.TestUserRepository;
 import com.ai.infrastructure.it.repository.TestArticleRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("real-api-test")
 @TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/creative")
 @Transactional
+@Disabled("Disabled in CI: exercises real OpenAI APIs and long-running creative workloads")
 public class CreativeAIScenariosTest {
 
     @Autowired
