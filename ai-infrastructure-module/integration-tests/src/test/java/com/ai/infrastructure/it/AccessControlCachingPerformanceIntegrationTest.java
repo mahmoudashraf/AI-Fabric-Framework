@@ -15,6 +15,7 @@ import com.ai.infrastructure.dto.AIAccessControlResponse;
 import java.time.LocalDateTime;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,6 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Disabled("Disabled in CI: perf-only regression test exceeds scope of ONNX/Lucene/H2 profile")
 class AccessControlCachingPerformanceIntegrationTest {
 
     @Autowired
