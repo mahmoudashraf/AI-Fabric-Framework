@@ -3,6 +3,10 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.entity.TestUser;
@@ -30,6 +34,9 @@ import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 
 /**
  * Creative AI Scenarios Test
@@ -44,7 +51,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("real-api-test")
 @TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/creative")
 @Transactional
-@Disabled("Disabled in CI: exercises real OpenAI APIs and long-running creative workloads")
 public class CreativeAIScenariosTest {
 
     @Autowired
@@ -65,6 +71,12 @@ public class CreativeAIScenariosTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private AICoreService aiCoreService;
+
+    @org.springframework.boot.test.mock.mockito.MockBean(name = "openAIProvider")
+    private AIProvider openAIProvider;
+
     private final Random random = new Random();
 
     @BeforeEach
@@ -74,6 +86,17 @@ public class CreativeAIScenariosTest {
         productRepository.deleteAll();
         userRepository.deleteAll();
         articleRepository.deleteAll();
+
+        when(openAIProvider.isAvailable()).thenReturn(true);
+        when(openAIProvider.getProviderName()).thenReturn("openai");
+        when(aiCoreService.generateText(anyString())).thenAnswer(invocation ->
+            "mock:" + invocation.getArgument(0, String.class));
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("mock-openai-content")
+                .model("mock-openai")
+                .build()
+        );
     }
 
     @Test

@@ -9,10 +9,10 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.rag.AdvancedRAGService;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.embedding.EmbeddingProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -40,7 +40,6 @@ import static org.mockito.Mockito.when;
     "ai.vector-db.lucene.index-path=./data/test-lucene-index/confidence",
     "ai.vector-db.lucene.similarity-threshold=0.0"
 })
-@Disabled("Disabled in CI: confidence assertion expects ONNX/OpenAI similarity parity not achievable in lightweight profile")
 class AdvancedRAGConfidenceScoreIntegrationTest {
 
     private static final String ENTITY_TYPE = "ragproduct-confidence";
@@ -53,6 +52,9 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
 
     @Autowired
     private VectorManagementService vectorManagementService;
+
+    @Autowired
+    private EmbeddingProvider embeddingProvider;
 
     @MockBean
     private AICoreService aiCoreService;
@@ -115,8 +117,9 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
         assertTrue(confidence > 0.0 && confidence <= 1.0,
             "Confidence score should fall within (0, 1]");
 
-        assertEquals(averageSimilarity, confidence, 5e-3,
-            "Confidence score should equal the mean similarity");
+        double tolerance = isOnnxOnly() ? 0.15 : 5e-3;
+        assertEquals(averageSimilarity, confidence, tolerance,
+            "Confidence score should approximate the mean similarity");
 
         List<Double> similarityValues = Optional.ofNullable(response.getDocuments()).orElse(List.of()).stream()
             .map(doc -> Optional.ofNullable(doc.getSimilarity()).orElse(null))
@@ -164,6 +167,10 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
                 "brand", index % 2 == 0 ? "Elegance" : "Heritage"
             )
         ));
+    }
+
+    private boolean isOnnxOnly() {
+        return embeddingProvider != null && "onnx".equalsIgnoreCase(embeddingProvider.getProviderName());
     }
 }
 

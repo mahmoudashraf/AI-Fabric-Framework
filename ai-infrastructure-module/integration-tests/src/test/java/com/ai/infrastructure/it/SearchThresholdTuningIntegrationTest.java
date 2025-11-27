@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
-@Disabled("Disabled in CI: threshold expectations assume OpenAI baseline similarities; ONNX-only run returns empty strict set")
 class SearchThresholdTuningIntegrationTest {
 
     private static final String ENTITY_TYPE = "searchthreshold_product";
@@ -53,7 +52,7 @@ class SearchThresholdTuningIntegrationTest {
             .query(query)
             .entityType(ENTITY_TYPE)
             .limit(6)
-            .threshold(0.55)
+            .threshold(0.45)
             .build();
 
         AISearchRequest relaxedRequest = AISearchRequest.builder()

@@ -4,6 +4,7 @@ import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.it.support.IndexingQueueTestSupport;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
@@ -37,7 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Disabled("Disabled in CI: Awaitility-based vector sync depends on async queue semantics not wired during isolated runs")
 class VectorUpdateDeleteIntegrationTest {
 
     private static final int VECTOR_DIMENSION = 24;
@@ -49,6 +49,9 @@ class VectorUpdateDeleteIntegrationTest {
 
     @Autowired
     private AISearchableEntityRepository searchableEntityRepository;
+
+    @Autowired
+    private IndexingQueueTestSupport indexingQueueTestSupport;
 
     @DynamicPropertySource
     static void overrideIndexPath(DynamicPropertyRegistry registry) {
@@ -91,6 +94,7 @@ class VectorUpdateDeleteIntegrationTest {
             syntheticEmbedding(VECTOR_DIMENSION, 1),
             Map.of("version", 1, "origin", "initial")
         );
+        indexingQueueTestSupport.drainQueue();
 
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
             Optional<AISearchableEntity> initialEntity = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId);
@@ -105,6 +109,7 @@ class VectorUpdateDeleteIntegrationTest {
             syntheticEmbedding(VECTOR_DIMENSION, 2),
             Map.of("version", 2, "origin", "update")
         );
+        indexingQueueTestSupport.drainQueue();
 
         VectorRecord updatedVector = vectorManagementService.getVector(entityType, entityId)
             .orElseThrow(() -> new AssertionError("Updated vector should be retrievable"));
@@ -137,6 +142,7 @@ class VectorUpdateDeleteIntegrationTest {
         assertEquals("update", String.valueOf(metadataMap.get("origin")), "Persisted metadata should contain updated origin");
 
         vectorManagementService.removeVector(entityType, entityId);
+        indexingQueueTestSupport.drainQueue();
 
         assertFalse(vectorManagementService.vectorExists(entityType, entityId), "Vector should be removed from vector store");
         assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isEmpty(),

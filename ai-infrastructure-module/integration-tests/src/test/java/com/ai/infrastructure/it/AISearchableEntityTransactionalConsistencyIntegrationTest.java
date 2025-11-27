@@ -33,7 +33,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
-@Disabled("Disabled in CI: transactional rollback/commit assertions depend on async index queue + scheduler not running in ONNX/Lucene/H2 profile")
 class AISearchableEntityTransactionalConsistencyIntegrationTest {
 
     @Autowired
