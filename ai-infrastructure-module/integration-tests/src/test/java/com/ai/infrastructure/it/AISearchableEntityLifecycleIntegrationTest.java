@@ -90,8 +90,11 @@ class AISearchableEntityLifecycleIntegrationTest {
         String entityId = saved.getId().toString();
 
         await().atMost(WAIT_TIMEOUT)
-            .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
-                .anyMatch(invocation -> invocation.getMethod().getName().equals("save")));
+            .until(() -> {
+                indexingQueueTestSupport.drainQueue();
+                return mockingDetails(searchableEntityRepository).getInvocations().stream()
+                    .anyMatch(invocation -> invocation.getMethod().getName().equals("save"));
+            });
 
         ArgumentCaptor<AISearchableEntity> entityCaptor = ArgumentCaptor.forClass(AISearchableEntity.class);
         verify(searchableEntityRepository, atLeastOnce()).save(entityCaptor.capture());
@@ -140,9 +143,14 @@ class AISearchableEntityLifecycleIntegrationTest {
 
         String entityId = saved.getId().toString();
 
+        indexingQueueTestSupport.drainQueue();
+
         await().atMost(WAIT_TIMEOUT)
-            .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
-                .anyMatch(invocation -> invocation.getMethod().getName().equals("save")));
+            .until(() -> {
+                indexingQueueTestSupport.drainQueue();
+                return mockingDetails(searchableEntityRepository).getInvocations().stream()
+                    .anyMatch(invocation -> invocation.getMethod().getName().equals("save"));
+            });
 
         ArgumentCaptor<AISearchableEntity> initialCaptor = ArgumentCaptor.forClass(AISearchableEntity.class);
         verify(searchableEntityRepository, atLeastOnce()).save(initialCaptor.capture());
@@ -156,8 +164,11 @@ class AISearchableEntityLifecycleIntegrationTest {
         indexingQueueTestSupport.drainQueue();
 
         await().atMost(WAIT_TIMEOUT)
-            .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
-                .anyMatch(invocation -> invocation.getMethod().getName().equals("save")));
+            .until(() -> {
+                indexingQueueTestSupport.drainQueue();
+                return mockingDetails(searchableEntityRepository).getInvocations().stream()
+                    .anyMatch(invocation -> invocation.getMethod().getName().equals("save"));
+            });
 
         ArgumentCaptor<AISearchableEntity> updatedCaptor = ArgumentCaptor.forClass(AISearchableEntity.class);
         verify(searchableEntityRepository, atLeastOnce()).save(updatedCaptor.capture());
@@ -183,8 +194,11 @@ class AISearchableEntityLifecycleIntegrationTest {
         String entityId = saved.getId().toString();
 
         await().atMost(WAIT_TIMEOUT)
-            .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
-                .anyMatch(invocation -> invocation.getMethod().getName().equals("save")));
+            .until(() -> {
+                indexingQueueTestSupport.drainQueue();
+                return mockingDetails(searchableEntityRepository).getInvocations().stream()
+                    .anyMatch(invocation -> invocation.getMethod().getName().equals("save"));
+            });
 
         reset(searchableEntityRepository);
 
@@ -192,11 +206,17 @@ class AISearchableEntityLifecycleIntegrationTest {
         indexingQueueTestSupport.drainQueue();
 
         await().atMost(WAIT_TIMEOUT)
-            .untilAsserted(() -> verify(searchableEntityRepository, atLeastOnce())
-                .deleteByEntityTypeAndEntityId("product", entityId));
+            .untilAsserted(() -> {
+                indexingQueueTestSupport.drainQueue();
+                verify(searchableEntityRepository, atLeastOnce())
+                    .deleteByEntityTypeAndEntityId("product", entityId);
+            });
 
         await().atMost(WAIT_TIMEOUT)
-            .untilAsserted(() -> assertFalse(vectorManagementService.vectorExists("product", entityId)));
+            .untilAsserted(() -> {
+                indexingQueueTestSupport.drainQueue();
+                assertFalse(vectorManagementService.vectorExists("product", entityId));
+            });
 
         assertFalse(productRepository.findById(saved.getId()).isPresent());
     }
@@ -225,8 +245,11 @@ class AISearchableEntityLifecycleIntegrationTest {
         String entityId = saved.getId().toString();
 
         await().atMost(WAIT_TIMEOUT)
-            .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
-                .anyMatch(invocation -> invocation.getMethod().getName().equals("save")));
+            .until(() -> {
+                indexingQueueTestSupport.drainQueue();
+                return mockingDetails(searchableEntityRepository).getInvocations().stream()
+                    .anyMatch(invocation -> invocation.getMethod().getName().equals("save"));
+            });
 
         ArgumentCaptor<AISearchableEntity> initialCaptor = ArgumentCaptor.forClass(AISearchableEntity.class);
         verify(searchableEntityRepository, atLeastOnce()).save(initialCaptor.capture());
@@ -245,8 +268,11 @@ class AISearchableEntityLifecycleIntegrationTest {
         indexingQueueTestSupport.drainQueue();
 
         await().atMost(WAIT_TIMEOUT)
-            .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
-                .anyMatch(invocation -> invocation.getMethod().getName().equals("save")));
+            .until(() -> {
+                indexingQueueTestSupport.drainQueue();
+                return mockingDetails(searchableEntityRepository).getInvocations().stream()
+                    .anyMatch(invocation -> invocation.getMethod().getName().equals("save"));
+            });
 
         ArgumentCaptor<AISearchableEntity> repairCaptor = ArgumentCaptor.forClass(AISearchableEntity.class);
         verify(searchableEntityRepository, atLeastOnce()).save(repairCaptor.capture());

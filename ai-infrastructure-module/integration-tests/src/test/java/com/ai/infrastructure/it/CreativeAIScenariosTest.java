@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.entity.TestUser;
 import com.ai.infrastructure.it.entity.TestArticle;
@@ -76,6 +77,9 @@ public class CreativeAIScenariosTest {
 
     @org.springframework.boot.test.mock.mockito.MockBean(name = "openAIProvider")
     private AIProvider openAIProvider;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private AIProviderManager aiProviderManager;
 
     private final Random random = new Random();
 
