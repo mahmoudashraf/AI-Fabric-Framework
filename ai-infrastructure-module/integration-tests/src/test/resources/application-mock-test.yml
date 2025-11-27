@@ -35,6 +35,8 @@ spring:
   h2:
     console:
       enabled: false
+  liquibase:
+    enabled: false
 
 # AI Infrastructure Configuration (Mock Mode)
 ai:

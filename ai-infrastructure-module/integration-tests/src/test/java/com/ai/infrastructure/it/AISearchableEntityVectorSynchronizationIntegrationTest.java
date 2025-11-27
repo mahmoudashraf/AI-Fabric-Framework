@@ -39,7 +39,6 @@ import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
-@Disabled("Disabled in CI: exercises RAG queue + decorated vector service not available in simplified ONNX/Lucene/H2 profile")
 class AISearchableEntityVectorSynchronizationIntegrationTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();

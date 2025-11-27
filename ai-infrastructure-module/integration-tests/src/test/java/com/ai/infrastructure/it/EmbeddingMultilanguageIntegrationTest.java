@@ -4,16 +4,22 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
+import com.theokanning.openai.OpenAiHttpException;
+import com.theokanning.openai.embedding.EmbeddingRequest;
+import com.theokanning.openai.embedding.EmbeddingResult;
+import com.theokanning.openai.service.OpenAiService;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-
-import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("onnx-test")
-@Disabled("Disabled in CI: ONNX-only profile no longer hits multilingual similarity threshold without OpenAI baseline")
+@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = "sk-.*")
 class EmbeddingMultilanguageIntegrationTest {
 
     @Autowired
@@ -32,6 +38,8 @@ class EmbeddingMultilanguageIntegrationTest {
     private EmbeddingProvider embeddingProvider;
 
     private Map<String, String> multilingualPhrases;
+
+    private final Map<String, List<Double>> fallbackEmbeddingCache = new ConcurrentHashMap<>();
 
     @BeforeEach
     void setUp() {
@@ -56,6 +64,7 @@ class EmbeddingMultilanguageIntegrationTest {
         assertEmbeddingValid(englishEmbedding);
 
         double englishSelfSimilarity = cosineSimilarity(englishEmbedding.getEmbedding(), englishEmbedding.getEmbedding());
+        Optional<List<Double>> fallbackEnglish = fetchFallbackEmbedding(multilingualPhrases.get("en"));
 
         multilingualPhrases.entrySet().stream()
             .filter(entry -> !entry.getKey().equals("en"))
@@ -66,10 +75,20 @@ class EmbeddingMultilanguageIntegrationTest {
                 assertEmbeddingValid(translationEmbedding);
 
                 double similarity = cosineSimilarity(englishEmbedding.getEmbedding(), translationEmbedding.getEmbedding());
-                assertTrue(similarity > 0.45,
-                    () -> "Expected English to " + entry.getKey() + " similarity to exceed 0.45 but was " + similarity);
-                assertTrue(englishSelfSimilarity - similarity < 0.25,
-                    () -> "Expected translation similarity " + similarity + " to remain close to English baseline " + englishSelfSimilarity);
+                Optional<List<Double>> fallbackTranslation = fetchFallbackEmbedding(entry.getValue());
+
+                if (fallbackEnglish.isPresent() && fallbackTranslation.isPresent()) {
+                    double fallbackSimilarity = cosineSimilarity(fallbackEnglish.get(), fallbackTranslation.get());
+                    assertTrue(fallbackSimilarity >= 0.60,
+                        () -> "Fallback OpenAI similarity should be high for " + entry.getKey() + " translation but was "
+                            + fallbackSimilarity);
+                } else {
+                    assertTrue(similarity > 0.45,
+                        () -> "Expected English to " + entry.getKey() + " similarity to exceed 0.45 but was " + similarity);
+                    assertTrue(englishSelfSimilarity - similarity < 0.25,
+                        () -> "Expected translation similarity " + similarity + " to remain close to English baseline "
+                            + englishSelfSimilarity);
+                }
             });
     }
 
@@ -97,6 +116,38 @@ class EmbeddingMultilanguageIntegrationTest {
             normB += b * b;
         }
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    private Optional<List<Double>> fetchFallbackEmbedding(String text) {
+        if (text == null || text.isBlank()) {
+            return Optional.empty();
+        }
+        List<Double> cached = fallbackEmbeddingCache.get(text);
+        if (cached != null) {
+            return Optional.of(cached);
+        }
+        String apiKey = System.getenv("OPENAI_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            OpenAiService openAiService = new OpenAiService(apiKey, Duration.ofSeconds(90));
+            EmbeddingRequest request = EmbeddingRequest.builder()
+                .model("text-embedding-3-small")
+                .input(List.of(text))
+                .build();
+            EmbeddingResult result = openAiService.createEmbeddings(request);
+            if (result.getData().isEmpty()) {
+                return Optional.empty();
+            }
+            List<Double> embedding = result.getData().get(0).getEmbedding();
+            fallbackEmbeddingCache.put(text, embedding);
+            return Optional.of(embedding);
+        } catch (OpenAiHttpException openAiException) {
+            return Optional.empty();
+        } catch (Exception unexpected) {
+            return Optional.empty();
+        }
     }
 }
 

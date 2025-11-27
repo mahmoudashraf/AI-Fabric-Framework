@@ -7,6 +7,7 @@ import com.ai.infrastructure.it.service.TestProductService;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.service.AICapabilityService;
+import com.ai.infrastructure.it.support.IndexingQueueTestSupport;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -34,7 +35,6 @@ import static org.mockito.Mockito.verify;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
-@Disabled("Disabled in CI: depends on async indexing queues & scheduled repair jobs unavailable in ONNX/Lucene/H2 profile")
 class AISearchableEntityLifecycleIntegrationTest {
 
     private static final Duration WAIT_TIMEOUT = Duration.ofSeconds(10);
@@ -53,6 +53,9 @@ class AISearchableEntityLifecycleIntegrationTest {
 
     @Autowired
     private AICapabilityService aiCapabilityService;
+
+    @Autowired
+    private IndexingQueueTestSupport indexingQueueTestSupport;
 
     @BeforeEach
     void setUp() {
@@ -83,6 +86,7 @@ class AISearchableEntityLifecycleIntegrationTest {
             .build();
 
         TestProduct saved = productService.createProduct(request);
+        indexingQueueTestSupport.drainQueue();
         String entityId = saved.getId().toString();
 
         await().atMost(WAIT_TIMEOUT)
@@ -149,6 +153,7 @@ class AISearchableEntityLifecycleIntegrationTest {
         productService.updateProduct(saved.getId(), "Helios Travel Pack 2.0",
             "Updated travel backpack with compression straps and RFID shielding",
             new BigDecimal("349.00"));
+        indexingQueueTestSupport.drainQueue();
 
         await().atMost(WAIT_TIMEOUT)
             .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()
@@ -184,6 +189,7 @@ class AISearchableEntityLifecycleIntegrationTest {
         reset(searchableEntityRepository);
 
         productService.deleteProduct(saved.getId());
+        indexingQueueTestSupport.drainQueue();
 
         await().atMost(WAIT_TIMEOUT)
             .untilAsserted(() -> verify(searchableEntityRepository, atLeastOnce())
@@ -236,6 +242,7 @@ class AISearchableEntityLifecycleIntegrationTest {
         reset(searchableEntityRepository);
 
         aiCapabilityService.processEntityForAI(persisted, "product");
+        indexingQueueTestSupport.drainQueue();
 
         await().atMost(WAIT_TIMEOUT)
             .until(() -> mockingDetails(searchableEntityRepository).getInvocations().stream()

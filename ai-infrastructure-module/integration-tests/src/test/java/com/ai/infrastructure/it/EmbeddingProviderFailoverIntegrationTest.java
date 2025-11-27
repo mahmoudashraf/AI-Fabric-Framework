@@ -38,7 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
     })
 @ActiveProfiles("dev")
 @Import(AICacheConfig.class)
-@Disabled("Disabled in CI: Mockito-based fallback expectations no longer align with live embedding service wiring")
 class EmbeddingProviderFailoverIntegrationTest {
 
     @Autowired
@@ -109,7 +108,12 @@ class EmbeddingProviderFailoverIntegrationTest {
             .build();
 
         AIEmbeddingResponse firstResponse = embeddingService.generateEmbedding(request);
-        assertSame(fallbackResponse, firstResponse, "Fallback provider should supply embedding during outage");
+        assertEquals(fallbackResponse.getEmbedding(), firstResponse.getEmbedding(),
+            "Fallback provider should supply embedding vector during outage");
+        assertEquals(fallbackResponse.getModel(), firstResponse.getModel(),
+            "Fallback response model should propagate to caller");
+        assertEquals(fallbackResponse.getDimensions(), firstResponse.getDimensions(),
+            "Fallback response metadata should propagate to caller");
 
         assertEquals(1, Mockito.mockingDetails(primaryEmbeddingProvider).getInvocations().stream()
             .filter(invocation -> invocation.getMethod().getName().equals("generateEmbedding"))
@@ -135,7 +139,10 @@ class EmbeddingProviderFailoverIntegrationTest {
         primarySuccessResponse.set(recoveryResponse);
 
         AIEmbeddingResponse secondResponse = embeddingService.generateEmbedding(request);
-        assertSame(recoveryResponse, secondResponse, "Service should resume using primary provider once available");
+        assertEquals(recoveryResponse.getEmbedding(), secondResponse.getEmbedding(),
+            "Service should resume using primary provider once available");
+        assertEquals(recoveryResponse.getModel(), secondResponse.getModel(),
+            "Primary provider metadata should be reflected after recovery");
 
         assertEquals(2, Mockito.mockingDetails(primaryEmbeddingProvider).getInvocations().stream()
             .filter(invocation -> invocation.getMethod().getName().equals("generateEmbedding"))

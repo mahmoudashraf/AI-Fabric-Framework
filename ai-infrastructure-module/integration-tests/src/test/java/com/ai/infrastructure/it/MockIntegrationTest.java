@@ -40,7 +40,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("mock-test")
 @TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/mock")
 @Transactional
-@Disabled("Disabled in CI: Liquibase for mock profile still executes PostgreSQL extensions unsupported by H2 ONNX setup")
 public class MockIntegrationTest {
 
     @Autowired
