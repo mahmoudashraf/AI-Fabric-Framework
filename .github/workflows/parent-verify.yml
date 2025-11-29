@@ -1,4 +1,4 @@
-name: Parent Module Verify
+name: AI Infrastructure Module Verify
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
 
 jobs:
   verify:
-    name: Verify Parent Module
+    name: Verify AI Infrastructure Module
     runs-on: ubuntu-latest
     timeout-minutes: 30
     
@@ -37,8 +37,9 @@ jobs:
             ${{ runner.os }}-maven-verify-
             ${{ runner.os }}-maven-
 
-      - name: Run Maven Verify on Parent Module
+      - name: Run Maven Verify on AI Infrastructure Module
         run: |
+          cd ai-infrastructure-module
           mvn clean verify -B -V
         env:
           MAVEN_OPTS: "-Xmx2g"
@@ -47,10 +48,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: parent-unit-test-reports
+          name: ai-infrastructure-unit-test-reports
           path: |
-            **/target/surefire-reports/
-            **/target/failsafe-reports/
+            ai-infrastructure-module/**/target/surefire-reports/
+            ai-infrastructure-module/**/target/failsafe-reports/
           retention-days: 30
 
       - name: Publish Unit Test Results
@@ -58,9 +59,9 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           files: |
-            **/target/surefire-reports/*.xml
-            **/target/failsafe-reports/*.xml
-          check_name: Parent Module Test Results
+            ai-infrastructure-module/**/target/surefire-reports/*.xml
+            ai-infrastructure-module/**/target/failsafe-reports/*.xml
+          check_name: AI Infrastructure Module Test Results
 
       - name: Comment PR with Test Results
         if: always() && github.event_name == 'pull_request'
