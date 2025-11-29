@@ -101,16 +101,12 @@ jobs:
 
       - name: Run Integration Tests (Real API)
         run: |
-          cd ai-infrastructure-module
-          # Explicitly run the RealAPIProviderMatrixIntegrationTest
-          mvn test -pl integration-tests -B \
-            -Dtest=RealAPIProviderMatrixIntegrationTest \
-            -Dai.providers.real-api.matrix="${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
+          cd ai-infrastructure-module/integration-tests
+          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
-          SPRING_PROFILES_ACTIVE: real-api-test
 
       - name: Upload test reports
         if: always()
