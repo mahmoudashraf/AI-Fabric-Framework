@@ -229,12 +229,11 @@ jobs:
           cd ai-infrastructure-module
           mvn clean install -DskipTests -B -V
 
-      - name: Run Relationship Query Integration Tests
+      - name: Run Relationship Query Integration Tests (Real API)
         run: |
-          cd ai-infrastructure-module
-          mvn test -pl relationship-query-integration-tests -B
+          cd ai-infrastructure-module/relationship-query-integration-tests
+          bash run-relationship-query-realapi-tests.sh
         env:
-          SPRING_PROFILES_ACTIVE: test
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           AI_INFRASTRUCTURE_LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
           AI_INFRASTRUCTURE_EMBEDDING_PROVIDER: ${{ github.event.inputs.embedding_provider }}
