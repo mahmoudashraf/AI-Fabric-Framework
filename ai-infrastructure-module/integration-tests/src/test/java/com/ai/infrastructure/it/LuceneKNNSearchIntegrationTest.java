@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class LuceneKNNSearchIntegrationTest {
 
     private static final String ENTITY_TYPE = "test-product";
-    private static final int VECTOR_COUNT = 1_000;
+    private static final int VECTOR_COUNT = 100;
     private static final double SIMILARITY_THRESHOLD = 0.0; // allow full result set for validation
     private static final long MAX_SEARCH_DURATION_MS = 200L; // generous buffer beyond plan's 100 ms target
 

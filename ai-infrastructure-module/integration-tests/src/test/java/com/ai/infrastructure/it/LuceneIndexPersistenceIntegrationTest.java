@@ -45,8 +45,8 @@ class LuceneIndexPersistenceIntegrationTest {
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
 
-    @Autowired
-    private LuceneVectorDatabaseService luceneVectorDatabaseService;
+    // Removed direct injection of LuceneVectorDatabaseService to avoid UnsatisfiedDependency exception
+    // because the bean is wrapped by SearchableEntityVectorDatabaseService.
 
     @BeforeEach
     void setUp() {
@@ -100,8 +100,8 @@ class LuceneIndexPersistenceIntegrationTest {
         assertNotNull(preRestartSearch, "Pre-restart search response should not be null");
         assertFalse(preRestartSearch.getResults().isEmpty(), "Pre-restart search should return results");
 
-        luceneVectorDatabaseService.cleanup();
-        luceneVectorDatabaseService.initialize();
+        // Restart the Lucene service
+        restartLuceneService();
 
         List<VectorRecord> afterRestart = vectorManagementService.getVectorsByEntityType(ENTITY_TYPE);
         assertEquals(VECTOR_COUNT, afterRestart.size(), "All vectors should be recovered after restart");
@@ -129,6 +129,27 @@ class LuceneIndexPersistenceIntegrationTest {
         Set<String> beforeSearchIds = extractEntityIds(preRestartSearch);
         Set<String> afterSearchIds = extractEntityIds(postRestartSearch);
         assertEquals(beforeSearchIds, afterSearchIds, "Search results should be identical after restart");
+    }
+
+    private void restartLuceneService() {
+        VectorDatabaseService current = vectorDatabaseService;
+        // Unwrap SearchableEntityVectorDatabaseService if present
+        while (current.getClass().getName().contains("SearchableEntityVectorDatabaseService")) {
+            try {
+                java.lang.reflect.Field delegateField = current.getClass().getDeclaredField("delegate");
+                delegateField.setAccessible(true);
+                current = (VectorDatabaseService) delegateField.get(current);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to unwrap vector service to access Lucene delegate", e);
+            }
+        }
+
+        if (current instanceof LuceneVectorDatabaseService luceneService) {
+            luceneService.cleanup();
+            luceneService.initialize();
+        } else {
+            throw new IllegalStateException("Underlying vector service is not Lucene: " + current.getClass().getName());
+        }
     }
 
     private Set<String> extractEntityIds(AISearchResponse response) {

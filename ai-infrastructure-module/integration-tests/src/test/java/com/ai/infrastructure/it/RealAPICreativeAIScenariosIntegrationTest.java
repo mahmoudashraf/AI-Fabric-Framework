@@ -52,7 +52,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 @ActiveProfiles("real-api-test")
 @TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/creative")
 @Transactional
-public class CreativeAIScenariosTest {
+public class RealAPICreativeAIScenariosIntegrationTest {
 
     @Autowired
     private AICapabilityService capabilityService;
