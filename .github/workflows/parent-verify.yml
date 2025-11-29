@@ -1,0 +1,114 @@
+name: Parent Module Verify
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  verify:
+    name: Verify Parent Module
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-verify-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-verify-
+            ${{ runner.os }}-maven-
+
+      - name: Run Maven Verify on Parent Module
+        run: |
+          mvn clean verify -B -V
+        env:
+          MAVEN_OPTS: "-Xmx2g"
+
+      - name: Upload test reports (Unit Tests)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parent-unit-test-reports
+          path: |
+            **/target/surefire-reports/
+            **/target/failsafe-reports/
+          retention-days: 30
+
+      - name: Publish Unit Test Results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: |
+            **/target/surefire-reports/*.xml
+            **/target/failsafe-reports/*.xml
+          check_name: Parent Module Test Results
+
+      - name: Comment PR with Test Results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            let testResults = '## 🧪 Test Results\n\n';
+            let totalTests = 0;
+            let totalFailures = 0;
+            let totalErrors = 0;
+            
+            function parseTestReports(dir) {
+              if (!fs.existsSync(dir)) return;
+              
+              fs.readdirSync(dir).forEach(file => {
+                if (file.endsWith('.xml')) {
+                  const content = fs.readFileSync(path.join(dir, file), 'utf8');
+                  const testsMatch = content.match(/tests="(\d+)"/);
+                  const failuresMatch = content.match(/failures="(\d+)"/);
+                  const errorsMatch = content.match(/errors="(\d+)"/);
+                  
+                  if (testsMatch) totalTests += parseInt(testsMatch[1]);
+                  if (failuresMatch) totalFailures += parseInt(failuresMatch[1]);
+                  if (errorsMatch) totalErrors += parseInt(errorsMatch[1]);
+                }
+              });
+            }
+            
+            parseTestReports('./target/surefire-reports');
+            parseTestReports('./target/failsafe-reports');
+            
+            testResults += `- **Total Tests:** ${totalTests}\n`;
+            testResults += `- **Failures:** ${totalFailures}\n`;
+            testResults += `- **Errors:** ${totalErrors}\n`;
+            
+            if (totalFailures === 0 && totalErrors === 0) {
+              testResults += '\n✅ All tests passed!';
+            } else {
+              testResults += `\n❌ ${totalFailures + totalErrors} issues found`;
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: testResults
+            });
+
