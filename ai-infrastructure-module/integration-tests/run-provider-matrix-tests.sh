@@ -133,10 +133,16 @@ print_info "Total Combinations: $COMBO_COUNT"
 # Build Maven command
 print_header "Building Maven Command"
 
-MAVEN_COMMAND="mvn -pl integration-tests -am test"
+# Change to integration-tests directory for simpler Maven execution
+TEST_DIR="$SCRIPT_DIR"
+cd "$TEST_DIR"
+
+MAVEN_COMMAND="mvn test"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dtest=$TEST_CLASS"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=$PROFILE"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.matrix='$MATRIX_SPEC'"
+MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
+MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 
 # Add optional flags
 if [ "$SKIP_TESTS" == "true" ]; then
@@ -146,9 +152,6 @@ fi
 if [ "${DEBUG:-false}" == "true" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -X"
 fi
-
-# Ensure we're in the project root
-cd "$PROJECT_ROOT"
 
 print_info "Working Directory: $(pwd)"
 print_info "Maven Profile: $PROFILE"

@@ -171,6 +171,7 @@
                         <include>**/*IntegrationTest.java</include>
                         <include>**/*IT.java</include>
                     </includes>
+                    <argLine>-Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
                 </configuration>
             </plugin>
         </plugins>
