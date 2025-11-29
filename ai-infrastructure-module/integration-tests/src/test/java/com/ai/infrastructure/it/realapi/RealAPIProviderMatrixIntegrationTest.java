@@ -13,6 +13,7 @@ import com.ai.infrastructure.it.RealAPISmartValidationIntegrationTest;
 import com.ai.infrastructure.it.RealAPIVectorLifecycleIntegrationTest;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.it.RealAPIMultiProviderFailoverIntegrationTest;
+import com.ai.infrastructure.it.RealAPICreativeAIScenariosIntegrationTest;
 
 import java.util.Map;
 
@@ -34,7 +35,8 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPIMultiProviderFailoverIntegrationTest.class,
         RealAPISmartSuggestionsIntegrationTest.class,
         RealAPIPIIEdgeSpectrumIntegrationTest.class,
-        IndexingStrategyIntegrationTest.class
+        IndexingStrategyIntegrationTest.class,
+        RealAPICreativeAIScenariosIntegrationTest.class
     };
 
     @Override

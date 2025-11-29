@@ -2,6 +2,76 @@
 # This file defines test entities and their AI processing configurations
 
 ai-entities:
+  # Test Product Entity (Legacy name)
+  product:
+    entity-type: "product"
+    features: ["embedding", "search", "rag", "recommendation"]
+    auto-process: true
+    enable-search: true
+    enable-recommendations: true
+    auto-embedding: true
+    indexable: true
+    
+    # Searchable Fields Configuration
+    searchable-fields:
+      - name: "name"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 1.0
+      - name: "description"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.8
+      - name: "category"
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 0.6
+      - name: "price"
+        include-in-rag: false
+        enable-semantic-search: false
+        weight: 0.4
+    
+    # Embeddable Fields Configuration
+    embeddable-fields:
+      - name: "name"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+      - name: "description"
+        model: "text-embedding-3-small"
+        auto-generate: true
+        include-in-similarity: true
+    
+    # Metadata Fields Configuration
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+        include-in-search: true
+      - name: "price"
+        type: "NUMERIC"
+        include-in-search: false
+      - name: "brand"
+        type: "TEXT"
+        include-in-search: true
+    
+    # CRUD Operations Configuration
+    crud-operations:
+      CREATE:
+        enabled: true
+        ai-processing: true
+        auto-embedding: true
+        auto-indexing: true
+      UPDATE:
+        enabled: true
+        ai-processing: true
+        auto-embedding: true
+        auto-indexing: true
+      DELETE:
+        enabled: true
+        ai-processing: false
+        auto-embedding: false
+        auto-indexing: false
+
   # Test Product Entity
   test-product:
     entity-type: "test-product"

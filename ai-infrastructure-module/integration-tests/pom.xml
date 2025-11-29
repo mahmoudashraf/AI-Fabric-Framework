@@ -238,6 +238,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.0.0</version>
                 <configuration>
+                    <argLine>-Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*Tests.java</include>
@@ -245,6 +246,9 @@
                     <excludes>
                         <exclude>**/*PerformanceTest.java</exclude>
                         <exclude>**/*LoadTest.java</exclude>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                        <exclude>**/*IT.java</exclude>
+                        <exclude>**/*RealAPITest.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
@@ -255,10 +259,18 @@
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>3.0.0</version>
                 <configuration>
+                    <argLine>-Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
                     <includes>
                         <include>**/*IT.java</include>
                         <include>**/*IntegrationTest.java</include>
                     </includes>
+                    <excludes>
+                        <!-- Exclude individual RealAPI tests as they are covered by RealAPIProviderMatrixIntegrationTest -->
+                        <!-- Note: This pattern excludes files in the 'it' package but NOT 'it.realapi' package -->
+                        <exclude>**/com/ai/infrastructure/it/RealAPI*IntegrationTest.java</exclude>
+                        <!-- Also exclude the Matrix runner from default builds - it must be triggered manually -->
+                        <exclude>**/com/ai/infrastructure/it/realapi/RealAPIProviderMatrixIntegrationTest.java</exclude>
+                    </excludes>
                 </configuration>
                 <executions>
                     <execution>

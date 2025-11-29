@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Configuration;
  * that integration tests exercise the same persistence behavior used in production.
  */
 @Configuration
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "test.searchable-vector-db.enabled", matchIfMissing = true)
 public class SearchableVectorDatabaseTestConfiguration {
 
     @Bean

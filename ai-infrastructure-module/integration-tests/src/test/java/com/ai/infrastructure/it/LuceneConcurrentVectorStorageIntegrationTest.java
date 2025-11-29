@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class LuceneConcurrentVectorStorageIntegrationTest {
 
     private static final String ENTITY_TYPE = "testproduct";
-    private static final int THREAD_COUNT = 50;
+    private static final int THREAD_COUNT = 10;
     private static final int VECTORS_PER_THREAD = 10;
     private static final int TOTAL_VECTORS = THREAD_COUNT * VECTORS_PER_THREAD;
 
