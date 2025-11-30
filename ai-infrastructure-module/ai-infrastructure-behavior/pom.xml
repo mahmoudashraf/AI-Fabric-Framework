@@ -180,6 +180,8 @@
                     <excludes>
                         <exclude>**/it/matrix/**</exclude>
                         <exclude>**/realapi/**</exclude>
+                        <exclude>**/*MatrixIntegrationTest.java</exclude>
+                        <exclude>**/*MatrixIntegrationTest.class</exclude>
                     </excludes>
                 </configuration>
             </plugin>
