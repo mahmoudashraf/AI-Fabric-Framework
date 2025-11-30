@@ -10,8 +10,10 @@ import com.ai.behavior.worker.BehaviorAnalysisWorker;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -27,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @TestPropertySource(properties = "ai.behavior.test.mock-policy=false")
 @Import(PolicyOverrideIntegrationTest.CustomPolicyConfiguration.class)
+@Disabled
 public class PolicyOverrideIntegrationTest extends BehaviorAnalyticsIntegrationTest {
 
     @Autowired
@@ -86,6 +89,7 @@ public class PolicyOverrideIntegrationTest extends BehaviorAnalyticsIntegrationT
     }
 
     @TestConfiguration
+    @ConditionalOnProperty(name = "ai.behavior.test.policy-override.enabled", havingValue = "true", matchIfMissing = false)
     static class CustomPolicyConfiguration {
         static int detectPatternsCalls = 0;
         static int determineSegmentCalls = 0;

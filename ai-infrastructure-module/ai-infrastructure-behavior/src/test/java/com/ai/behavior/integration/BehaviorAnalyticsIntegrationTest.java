@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.io.IOException;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @SpringJUnitConfig
+@TestPropertySource(properties = "spring.main.allow-bean-definition-overriding=true")
 public abstract class BehaviorAnalyticsIntegrationTest {
 
     private static EmbeddedPostgres embeddedPostgres;
@@ -62,5 +64,8 @@ public abstract class BehaviorAnalyticsIntegrationTest {
         registry.add("ai.behavior.processing.worker.max-retries", () -> "3");
         registry.add("ai.behavior.security.rate-limiting.enabled", () -> "false");
         registry.add("spring.task.scheduling.enabled", () -> "false");
+        registry.add("ai.indexing.async-worker.enabled", () -> "false");
+        registry.add("ai.indexing.batch-worker.enabled", () -> "false");
+        registry.add("ai.indexing.cleanup.enabled", () -> "false");
     }
 }

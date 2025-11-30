@@ -12,9 +12,12 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.config.AIProviderConfig;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +34,20 @@ import static org.mockito.Mockito.when;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
-@SpringBootApplication(scanBasePackages = "com.ai.behavior")
+@SpringBootApplication
+@ComponentScan(
+    basePackages = "com.ai.behavior",
+    excludeFilters = {
+        @ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = com.ai.behavior.realapi.BehaviorRealApiTestApplication.class
+        ),
+        @ComponentScan.Filter(
+            type = FilterType.REGEX,
+            pattern = ".*\\.realapi\\..*"
+        )
+    }
+)
 @EnableJpaRepositories(basePackages = {"com.ai.behavior.repository", "com.ai.behavior.storage"})
 @EntityScan(basePackages = "com.ai.behavior")
 @EnableConfigurationProperties(BehaviorModuleProperties.class)
@@ -90,6 +106,16 @@ public class TestBehaviorApplication {
                     .build()
             );
             return service;
+        }
+
+        @Bean
+        AIProviderConfig aiProviderConfig() {
+            AIProviderConfig config = new AIProviderConfig();
+            config.setEnabled(true);
+            config.setLlmProvider("openai");
+            config.setEmbeddingProvider("onnx");
+            config.setEnableFallback(true);
+            return config;
         }
     }
 
