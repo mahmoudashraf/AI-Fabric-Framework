@@ -29,6 +29,8 @@ spring:
         format_sql: false
         jdbc:
           batch_size: 20
+        # Use quoted identifiers to preserve table name case
+        globally_quoted_identifiers: true
       open-in-view: false
       defer-datasource-initialization: true
 

@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration test implementation for TEST-RAG-001: Basic RAG Query (End-to-End).
  */
+@Slf4j
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
 @TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/rag-basic")
@@ -36,7 +38,12 @@ class RAGBasicQueryIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
+        try {
+            vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
+        } catch (Exception e) {
+            // Vector database may not be initialized yet, that's okay
+            log.debug("Could not clear vectors (may not be initialized yet): {}", e.getMessage());
+        }
         indexLuxuryProducts();
     }
 

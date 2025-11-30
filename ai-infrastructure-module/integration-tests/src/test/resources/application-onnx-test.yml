@@ -2,6 +2,56 @@
 # This configuration ONLY uses ONNX embedding provider for debugging
 # NO FALLBACK TO OTHER PROVIDERS
 
+spring:
+  # Database Configuration (H2 in-memory for testing)
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      auto-commit: true
+      pool-name: HikariCP-Test
+
+  # JPA Configuration - Ensure tables are created
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+        jdbc:
+          batch_size: 20
+        # Ensure schema is created before tests run
+        hbm2ddl:
+          auto: create-drop
+        # Use quoted identifiers to preserve table name case
+        globally_quoted_identifiers: true
+    open-in-view: false
+    # Don't defer - let Hibernate create schema immediately
+    defer-datasource-initialization: false
+
+  # H2 Console for debugging (disabled by default)
+  h2:
+    console:
+      enabled: false
+      path: /h2-console
+
+  # SQL Initialization
+  sql:
+    init:
+      mode: never  # Let Hibernate handle schema creation
+      continue-on-error: true
+      platform: h2
+
+  liquibase:
+    enabled: false
+
 ai:
   enabled: true
   providers:
@@ -37,9 +87,5 @@ logging:
     org.springframework.boot.autoconfigure: DEBUG
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-
-spring:
-  liquibase:
-    enabled: false
 
 

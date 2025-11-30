@@ -37,6 +37,25 @@ jobs:
             ${{ runner.os }}-maven-verify-
             ${{ runner.os }}-maven-
 
+      - name: Clean temporary files
+        run: |
+          echo "Cleaning temporary files to prevent disk space issues..."
+          # Clean Maven Surefire temp files
+          if [ -d "$TMPDIR" ]; then
+            find "$TMPDIR" -name "surefire-*" -type d -mtime +1 -exec rm -rf {} + 2>/dev/null || true
+            find "$TMPDIR" -name "stdout-*" -type f -mtime +1 -delete 2>/dev/null || true
+            find "$TMPDIR" -name "stderr-*" -type f -mtime +1 -delete 2>/dev/null || true
+          fi
+          # Clean ONNX model temp files (keep recent ones for reuse)
+          if [ -d "$TMPDIR" ]; then
+            find "$TMPDIR" -name "onnx-*" -type f -mtime +1 -delete 2>/dev/null || true
+          fi
+          # Clean embedded-pg temp files
+          if [ -d "$TMPDIR" ]; then
+            find "$TMPDIR" -name "embedded-pg" -type d -mtime +1 -exec rm -rf {} + 2>/dev/null || true
+          fi
+          echo "Temporary file cleanup completed"
+
       - name: Run Maven Verify on AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
