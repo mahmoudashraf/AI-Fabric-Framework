@@ -321,8 +321,13 @@ class AISearchableEntityExtendedIntegrationTest {
             .isNotEmpty()
             .allMatch(entity -> entity.getEntityId().equals(tenantB.getId().toString()));
 
-        assertTrue(vectorManagementService.getVector("product", tenantA.getId().toString()).isPresent());
-        assertTrue(vectorManagementService.getVector("product", tenantB.getId().toString()).isPresent());
+        // Wait for vectors to be created
+        Awaitility.await().atMost(WAIT_TIMEOUT).untilAsserted(() ->
+            assertTrue(vectorManagementService.getVector("product", tenantA.getId().toString()).isPresent())
+        );
+        Awaitility.await().atMost(WAIT_TIMEOUT).untilAsserted(() ->
+            assertTrue(vectorManagementService.getVector("product", tenantB.getId().toString()).isPresent())
+        );
     }
 
     @Test
@@ -349,7 +354,8 @@ class AISearchableEntityExtendedIntegrationTest {
 
         assertTrue(entity.getSearchableContent().contains(tailPhrase));
 
-        Awaitility.await().atMost(WAIT_TIMEOUT).untilAsserted(() ->
+        // For large documents, embedding generation may take longer - use extended timeout
+        Awaitility.await().atMost(Duration.ofSeconds(60)).untilAsserted(() ->
             assertTrue(vectorManagementService.getVector("product", entityId).isPresent())
         );
 
