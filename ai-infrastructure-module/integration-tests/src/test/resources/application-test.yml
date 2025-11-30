@@ -1,3 +1,58 @@
+spring:
+  # Database Configuration (H2 in-memory for testing)
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      auto-commit: true
+      pool-name: HikariCP-Test
+
+  # JPA Configuration - Ensure tables are created
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+        jdbc:
+          batch_size: 20
+        # Ensure schema is created before tests run
+        hbm2ddl:
+          auto: create-drop
+        # Use quoted identifiers to preserve table name case
+        globally_quoted_identifiers: true
+        # Force schema creation on SessionFactory initialization
+        hbm2ddl:
+          auto: create-drop
+    open-in-view: false
+    # Don't defer - let Hibernate create schema immediately
+    defer-datasource-initialization: false
+    # Ensure Hibernate creates schema eagerly
+    generate-ddl: true
+
+  # H2 Console for debugging (disabled by default)
+  h2:
+    console:
+      enabled: false
+      path: /h2-console
+
+  # SQL Initialization
+  sql:
+    init:
+      mode: never  # Let Hibernate handle schema creation
+      continue-on-error: true
+      platform: h2
+
+  liquibase:
+    enabled: false
+
 ai:
   enabled: true
   pii-detection:
@@ -56,6 +111,3 @@ logging:
     com.ai.infrastructure: DEBUG
     com.ai.infrastructure.embedding: DEBUG
     org.springframework: WARN
-spring:
-  liquibase:
-    enabled: false

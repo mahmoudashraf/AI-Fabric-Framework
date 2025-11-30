@@ -78,13 +78,21 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
                 .build()
         );
 
-        vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
+        try {
+            vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
+        } catch (Exception e) {
+            // Vector database may not be initialized yet, that's okay
+        }
         seedCatalog();
     }
 
     @AfterEach
     void tearDown() {
-        vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
+        try {
+            vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
+        } catch (Exception e) {
+            // Ignore cleanup errors
+        }
     }
 
     @Test
