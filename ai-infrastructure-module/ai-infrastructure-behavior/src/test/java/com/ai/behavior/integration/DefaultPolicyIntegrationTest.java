@@ -28,14 +28,12 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @TestPropertySource(properties = {
-    "ai.behavior.events.batch-size=10"
+    "ai.behavior.events.batch-size=10",
+    "ai.behavior.test.mock-policy=false",
+    "ai.behavior.default-policy.enabled=false"
 })
 @Import(DefaultPolicyIntegrationTest.DefaultPolicyConfig.class)
 public class DefaultPolicyIntegrationTest extends BehaviorAnalyticsIntegrationTest {
-    @DynamicPropertySource
-    static void disableTestPolicy(DynamicPropertyRegistry registry) {
-        registry.add("ai.behavior.test.mock-policy", () -> "false");
-    }
 
 
     @Autowired
