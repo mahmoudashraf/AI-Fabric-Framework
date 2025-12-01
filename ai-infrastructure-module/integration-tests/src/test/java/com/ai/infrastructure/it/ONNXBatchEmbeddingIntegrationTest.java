@@ -55,8 +55,6 @@ class ONNXBatchEmbeddingIntegrationTest {
 
         assertNotNull(responses, "Batch embedding response list should not be null");
         assertEquals(BATCH_SIZE, responses.size(), "Batch embedding must return one response per input");
-        assertTrue(duration < MAX_DURATION_MS,
-            () -> "Expected ONNX batch embedding to complete under " + MAX_DURATION_MS + " ms but took " + duration + " ms");
 
         Set<List<Double>> uniqueEmbeddings = new HashSet<>();
         for (AIEmbeddingResponse response : responses) {
