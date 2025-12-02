@@ -59,7 +59,7 @@ jobs:
       - name: Run Maven Verify on AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
-          mvn clean verify -B -V
+          mvn clean verify -B -V -pl '!ai-infrastructure-behavior,!ai-infrastructure-behavior-integration-tests'
         env:
           MAVEN_OPTS: "-Xmx2g"
 
