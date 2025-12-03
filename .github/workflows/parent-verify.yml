@@ -16,6 +16,10 @@ jobs:
     name: Verify AI Infrastructure Module
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
     
     steps:
       - name: Checkout code
@@ -78,8 +82,8 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           files: |
-            ai-infrastructure-module/**/target/surefire-reports/*.xml
-            ai-infrastructure-module/**/target/failsafe-reports/*.xml
+            ai-infrastructure-module/**/target/surefire-reports/TEST-*.xml
+            ai-infrastructure-module/**/target/failsafe-reports/TEST-*.xml
           check_name: AI Infrastructure Module Test Results
 
       - name: Comment PR with Test Results
