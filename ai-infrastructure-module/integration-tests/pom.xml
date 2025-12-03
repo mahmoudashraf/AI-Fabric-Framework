@@ -30,11 +30,6 @@
         </dependency>
         <dependency>
             <groupId>com.ai.infrastructure</groupId>
-            <artifactId>ai-infrastructure-behavior</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.ai.infrastructure</groupId>
             <artifactId>ai-infrastructure-provider-openai</artifactId>
         </dependency>
         <dependency>
