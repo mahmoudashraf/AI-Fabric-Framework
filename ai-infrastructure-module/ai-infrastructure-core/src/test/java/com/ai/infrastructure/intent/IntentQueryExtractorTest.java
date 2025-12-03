@@ -177,13 +177,54 @@ class IntentQueryExtractorTest {
     @Test
     void shouldRaiseExceptionWhenJsonInvalid() {
         when(enrichedPromptBuilder.buildSystemPrompt("user-123")).thenReturn("system-prompt");
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+        // Mock initial call returning invalid JSON
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
+            req != null && req.getGenerationType().equals("intent_extraction"))))
             .thenReturn(AIGenerationResponse.builder().content("not-json").build());
+        // Mock repair attempt also returning invalid JSON (repair fails)
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
+            req != null && req.getGenerationType().equals("intent_extraction_repair"))))
+            .thenReturn(AIGenerationResponse.builder().content("still-not-json").build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
         assertThatThrownBy(() -> extractor.extract("Cancel my subscription", "user-123"))
             .isInstanceOf(AIServiceException.class)
             .hasMessageContaining("Unable to parse intent extraction response");
+    }
+
+    @Test
+    void shouldRepairInvalidJsonAndReturnValidResponse() {
+        when(enrichedPromptBuilder.buildSystemPrompt("user-123")).thenReturn("system-prompt");
+        // Mock initial call returning invalid JSON
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
+            req != null && req.getGenerationType().equals("intent_extraction"))))
+            .thenReturn(AIGenerationResponse.builder().content("not-json").build());
+        // Mock repair attempt returning valid JSON (repair succeeds)
+        String repairedJson = """
+            {
+              "intents": [
+                {
+                  "type": "ACTION",
+                  "intent": "cancel_subscription",
+                  "confidence": 0.85,
+                  "action": "cancel_subscription",
+                  "requiresRetrieval": false
+                }
+              ],
+              "isCompound": false
+            }
+            """;
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
+            req != null && req.getGenerationType().equals("intent_extraction_repair"))))
+            .thenReturn(AIGenerationResponse.builder().content(repairedJson).build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+
+        MultiIntentResponse response = extractor.extract("Cancel my subscription", "user-123");
+
+        assertThat(response.getIntents()).hasSize(1);
+        assertThat(response.getIntents().getFirst().getIntent()).isEqualTo("cancel_subscription");
+        assertThat(response.getOrchestrationStrategy()).isEqualTo("DIRECT_ACTION");
     }
 }
