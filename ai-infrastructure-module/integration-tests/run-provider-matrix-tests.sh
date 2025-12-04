@@ -134,17 +134,22 @@ print_header "Test Configuration"
 
 print_info "Matrix Specification: $MATRIX_SPEC"
 
-if [ -n "$VECTOR_DB" ]; then
+# Parse matrix spec - it might be in format llm:embedding:vectordb
+# If vectordb is included, extract it and set as environment variable
+# The matrix spec should only contain llm:embedding for validation
+if [[ "$MATRIX_SPEC" =~ ^([^:]+):([^:]+):(.+)$ ]]; then
+    # Format: llm:embedding:vectordb - extract vector DB
+    LLM_PROVIDER="${BASH_REMATCH[1]}"
+    EMBEDDING_PROVIDER="${BASH_REMATCH[2]}"
+    VECTOR_DB_FROM_SPEC="${BASH_REMATCH[3]}"
+    MATRIX_SPEC="${LLM_PROVIDER}:${EMBEDDING_PROVIDER}"
+    export AI_INFRASTRUCTURE_VECTOR_DATABASE="$VECTOR_DB_FROM_SPEC"
+    print_info "Extracted Vector Database from matrix spec: $VECTOR_DB_FROM_SPEC"
+    print_info "Updated Matrix (without vector DB): $MATRIX_SPEC"
+elif [ -n "$VECTOR_DB" ]; then
+    # Vector DB passed as separate parameter
+    export AI_INFRASTRUCTURE_VECTOR_DATABASE="$VECTOR_DB"
     print_info "Vector Database: $VECTOR_DB"
-    # Append vector DB to matrix if not already included
-    if [[ ! "$MATRIX_SPEC" =~ : ]]; then
-        # Format: llm:embedding
-        MATRIX_SPEC="${MATRIX_SPEC}:${VECTOR_DB}"
-    elif [[ "$MATRIX_SPEC" =~ ^[^:]*:[^:]*:?$ ]]; then
-        # Format: llm:embedding (no vector db yet)
-        MATRIX_SPEC="${MATRIX_SPEC}:${VECTOR_DB}"
-    fi
-    print_info "Updated Matrix: $MATRIX_SPEC"
 fi
 
 # Count combinations
@@ -166,6 +171,11 @@ MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=$PROFILE"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.matrix='$MATRIX_SPEC'"
 MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
 MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
+
+# Add vector database as system property if specified
+if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.vector-db.type=$AI_INFRASTRUCTURE_VECTOR_DATABASE"
+fi
 
 # Add optional flags
 if [ "$SKIP_TESTS" == "true" ]; then
