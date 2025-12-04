@@ -60,6 +60,16 @@ on:
         description: 'Job timeout in minutes'
         required: false
         default: '30'
+      logging_level:
+        description: 'Maven logging level'
+        required: false
+        default: 'quiet'
+        type: choice
+        options:
+          - quiet
+          - normal
+          - verbose
+          - debug
 
 jobs:
   # ==============================================================================
@@ -127,6 +137,7 @@ jobs:
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
+          MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
 
       - name: Upload test reports
         if: always()

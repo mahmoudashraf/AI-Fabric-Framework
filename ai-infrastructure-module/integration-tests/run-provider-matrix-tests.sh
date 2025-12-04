@@ -41,7 +41,7 @@
 #   AZURE_OPENAI_API_KEY     - Azure OpenAI API key (optional)
 #   AZURE_OPENAI_ENDPOINT    - Azure OpenAI endpoint (optional)
 #   SKIP_TESTS               - Set to skip tests (default: false)
-#   DEBUG                    - Set to enable debug logging (default: false)
+#   MAVEN_LOGGING_LEVEL      - Maven logging level: quiet, normal, verbose, debug (default: quiet)
 #
 ###############################################################################
 
@@ -61,6 +61,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 # Configuration
 MATRIX_SPEC="${1:-openai:onnx}"
 VECTOR_DB="${2:-}"
+LOGGING_LEVEL="${MAVEN_LOGGING_LEVEL:-quiet}"
 PROFILE="real-api-test"
 TEST_CLASS="RealAPIProviderMatrixIntegrationTest"
 SKIP_TESTS="${SKIP_TESTS:-false}"
@@ -119,7 +120,12 @@ CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
 if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
     print_warning "Dependencies may not be built. Attempting to build..."
     cd "$PARENT_DIR" || exit 1
-    if ! mvn clean install -DskipTests -B -q; then
+    # Use quiet logging for dependency build unless debug is requested
+    BUILD_LOG_FLAG="-q"
+    if [ "$LOGGING_LEVEL" == "verbose" ] || [ "$LOGGING_LEVEL" == "debug" ]; then
+        BUILD_LOG_FLAG=""
+    fi
+    if ! mvn clean install -DskipTests -B $BUILD_LOG_FLAG; then
         print_error "Failed to build dependencies. Please run 'mvn clean install -DskipTests' from the parent module first."
         exit 1
     fi
@@ -155,6 +161,7 @@ fi
 # Count combinations
 COMBO_COUNT=$(echo "$MATRIX_SPEC" | awk -F',' '{print NF}')
 print_info "Total Combinations: $COMBO_COUNT"
+print_info "Logging Level: $LOGGING_LEVEL"
 
 # Build Maven command
 print_header "Building Maven Command"
