@@ -7,10 +7,10 @@
 # combinations (LLM provider, embedding provider, and optionally vector database).
 #
 # Usage:
-#   ./run-provider-matrix-tests.sh [COMBINATION] [VECTOR_DB]
+#   ./run-provider-matrix-tests.sh [COMBINATION] [VECTOR_DB] [TEST_CHUNK]
 #
 # Examples:
-#   # Run with default (OpenAI + ONNX)
+#   # Run with default (OpenAI + ONNX, all tests)
 #   ./run-provider-matrix-tests.sh
 #
 #   # Run with specific combination
@@ -24,6 +24,13 @@
 #   # Run with vector database specification
 #   ./run-provider-matrix-tests.sh "openai:onnx" "pinecone"
 #   ./run-provider-matrix-tests.sh "openai:onnx:memory"
+#
+#   # Run specific test chunk (faster execution)
+#   ./run-provider-matrix-tests.sh "openai:onnx" "" "core"
+#   ./run-provider-matrix-tests.sh "openai:onnx" "" "vector"
+#   ./run-provider-matrix-tests.sh "openai:onnx" "" "intent-actions"
+#   ./run-provider-matrix-tests.sh "openai:onnx" "" "advanced"
+#   ./run-provider-matrix-tests.sh "openai:onnx" "" "core,vector"
 #
 # Prerequisites:
 #   - Java 21+
@@ -42,6 +49,14 @@
 #   AZURE_OPENAI_ENDPOINT    - Azure OpenAI endpoint (optional)
 #   SKIP_TESTS               - Set to skip tests (default: false)
 #   MAVEN_LOGGING_LEVEL      - Maven logging level: quiet, normal, verbose, debug (default: quiet)
+#   AI_PROVIDERS_REAL_API_TEST_CHUNK - Test chunk: core, vector, intent-actions, advanced, all (default: all)
+#
+# Test Chunks:
+#   core            - Core functionality (3 test classes)
+#   vector          - Vector operations (3 test classes)
+#   intent-actions  - Intent & Actions (3 test classes)
+#   advanced        - Advanced features (4 test classes)
+#   all             - All tests (13 test classes, default)
 #
 ###############################################################################
 
@@ -61,6 +76,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 # Configuration
 MATRIX_SPEC="${1:-openai:onnx}"
 VECTOR_DB="${2:-}"
+TEST_CHUNK="${3:-all}"
 LOGGING_LEVEL="${MAVEN_LOGGING_LEVEL:-quiet}"
 PROFILE="real-api-test"
 TEST_CLASS="RealAPIProviderMatrixIntegrationTest"
@@ -161,6 +177,7 @@ fi
 # Count combinations
 COMBO_COUNT=$(echo "$MATRIX_SPEC" | awk -F',' '{print NF}')
 print_info "Total Combinations: $COMBO_COUNT"
+print_info "Test Chunk: $TEST_CHUNK"
 print_info "Logging Level: $LOGGING_LEVEL"
 
 # Build Maven command
@@ -182,6 +199,11 @@ MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 # Add vector database as system property if specified
 if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.vector-db.type=$AI_INFRASTRUCTURE_VECTOR_DATABASE"
+fi
+
+# Add test chunk as system property if specified
+if [ -n "$TEST_CHUNK" ] && [ "$TEST_CHUNK" != "all" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.test-chunk=$TEST_CHUNK"
 fi
 
 # Add optional flags

@@ -70,6 +70,17 @@ on:
           - normal
           - verbose
           - debug
+      test_chunk:
+        description: 'Test chunk to run (faster execution)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - core
+          - vector
+          - intent-actions
+          - advanced
 
 jobs:
   # ==============================================================================
@@ -132,7 +143,7 @@ jobs:
       - name: Run Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-tests
-          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
+          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}

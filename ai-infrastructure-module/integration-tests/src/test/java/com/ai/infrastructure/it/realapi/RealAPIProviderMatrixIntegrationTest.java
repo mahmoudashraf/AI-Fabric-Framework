@@ -14,14 +14,46 @@ import com.ai.infrastructure.it.RealAPIVectorLifecycleIntegrationTest;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.it.RealAPIMultiProviderFailoverIntegrationTest;
 import com.ai.infrastructure.it.RealAPICreativeAIScenariosIntegrationTest;
+import org.springframework.util.StringUtils;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Executes the Real API provider matrix suite, iterating over every
  * discovered LLM/Embedding(/Vector DB) combination.
+ * 
+ * Supports test chunking via system property: ai.providers.real-api.test-chunk
+ * Available chunks: core, vector, intent-actions, advanced, all (default)
  */
 public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrixIntegrationTest {
+
+    // Test chunks for parallel execution
+    private static final Class<?>[] CHUNK_CORE = {
+        RealAPIIntegrationTest.class,
+        RealAPIONNXFallbackIntegrationTest.class,
+        RealAPISmartValidationIntegrationTest.class
+    };
+
+    private static final Class<?>[] CHUNK_VECTOR = {
+        RealAPIVectorLifecycleIntegrationTest.class,
+        RealAPIHybridRetrievalToggleIntegrationTest.class,
+        IndexingStrategyIntegrationTest.class
+    };
+
+    private static final Class<?>[] CHUNK_INTENT_ACTIONS = {
+        RealAPIIntentHistoryAggregationIntegrationTest.class,
+        RealAPIActionErrorRecoveryIntegrationTest.class,
+        RealAPIActionFlowIntegrationTest.class
+    };
+
+    private static final Class<?>[] CHUNK_ADVANCED = {
+        RealAPIMultiProviderFailoverIntegrationTest.class,
+        RealAPISmartSuggestionsIntegrationTest.class,
+        RealAPIPIIEdgeSpectrumIntegrationTest.class,
+        RealAPICreativeAIScenariosIntegrationTest.class
+    };
 
     private static final Class<?>[] REAL_API_TEST_CLASSES = {
         RealAPIIntegrationTest.class,
@@ -46,7 +78,38 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     protected Class<?>[] suiteTestClasses() {
-        return REAL_API_TEST_CLASSES;
+        String chunk = System.getProperty("ai.providers.real-api.test-chunk");
+        if (!StringUtils.hasText(chunk)) {
+            chunk = System.getenv("AI_PROVIDERS_REAL_API_TEST_CHUNK");
+        }
+        
+        if (!StringUtils.hasText(chunk) || "all".equalsIgnoreCase(chunk)) {
+            return REAL_API_TEST_CLASSES;
+        }
+
+        return switch (chunk.toLowerCase()) {
+            case "core" -> CHUNK_CORE;
+            case "vector" -> CHUNK_VECTOR;
+            case "intent-actions", "intent_actions" -> CHUNK_INTENT_ACTIONS;
+            case "advanced" -> CHUNK_ADVANCED;
+            default -> {
+                // Support comma-separated chunk names
+                String[] chunks = chunk.split(",");
+                Class<?>[] selected = Arrays.stream(chunks)
+                    .map(String::trim)
+                    .flatMap(c -> switch (c.toLowerCase()) {
+                        case "core" -> Arrays.stream(CHUNK_CORE);
+                        case "vector" -> Arrays.stream(CHUNK_VECTOR);
+                        case "intent-actions", "intent_actions" -> Arrays.stream(CHUNK_INTENT_ACTIONS);
+                        case "advanced" -> Arrays.stream(CHUNK_ADVANCED);
+                        default -> Arrays.stream(new Class<?>[0]);
+                    })
+                    .distinct()
+                    .collect(Collectors.toList())
+                    .toArray(new Class<?>[0]);
+                yield selected.length > 0 ? selected : REAL_API_TEST_CLASSES;
+            }
+        };
     }
 
     @Override
