@@ -206,6 +206,33 @@ if [ -n "$TEST_CHUNK" ] && [ "$TEST_CHUNK" != "all" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.test-chunk=$TEST_CHUNK"
 fi
 
+# Configure application logging level based on Maven logging level
+# Map Maven logging levels to Spring Boot logging levels
+# These override the DEBUG settings in application-test.yml
+case "$LOGGING_LEVEL" in
+    quiet)
+        # Quiet mode: Only WARN and ERROR (suppress all DEBUG/INFO)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.root=WARN"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure=WARN"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.provider=WARN"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.core=WARN"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.embedding=WARN"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.springframework=WARN"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.hibernate=WARN"
+        ;;
+    normal)
+        # Normal mode: INFO level (suppress DEBUG)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.root=INFO"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure=INFO"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.embedding=INFO"
+        ;;
+    verbose|debug)
+        # Verbose/Debug mode: DEBUG level (keep all logs)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.root=DEBUG"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure=DEBUG"
+        ;;
+esac
+
 # Add optional flags
 if [ "$SKIP_TESTS" == "true" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -DskipTests"
