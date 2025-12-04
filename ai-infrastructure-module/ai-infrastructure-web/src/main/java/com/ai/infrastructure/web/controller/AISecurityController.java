@@ -1,4 +1,4 @@
-package com.ai.infrastructure.controller;
+package com.ai.infrastructure.web.controller;
 
 import com.ai.infrastructure.dto.AISecurityEvent;
 import com.ai.infrastructure.dto.AISecurityRequest;
@@ -14,13 +14,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * REST Controller for AI Security operations.
- *
- * @deprecated Security endpoints reside in the {@code ai-infrastructure-web}
- *             module. Switch to {@code com.ai.infrastructure.web.controller.AISecurityController}.
+ * REST Controller for AI Security operations
  */
 @Slf4j
-@Deprecated(since = "2.0", forRemoval = true)
 @RestController
 @RequestMapping("/api/ai/security")
 @RequiredArgsConstructor

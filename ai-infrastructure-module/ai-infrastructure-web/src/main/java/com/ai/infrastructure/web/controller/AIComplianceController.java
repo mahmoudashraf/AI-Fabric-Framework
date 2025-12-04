@@ -1,4 +1,4 @@
-package com.ai.infrastructure.controller;
+package com.ai.infrastructure.web.controller;
 
 import com.ai.infrastructure.dto.AIComplianceRequest;
 import com.ai.infrastructure.dto.AIComplianceResponse;
@@ -11,13 +11,9 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.Map;
 /**
- * REST Controller for AI Compliance operations.
- *
- * @deprecated Use {@code com.ai.infrastructure.web.controller.AIComplianceController}
- *             from the {@code ai-infrastructure-web} module.
+ * REST Controller for AI Compliance operations
  */
 @Slf4j
-@Deprecated(since = "2.0", forRemoval = true)
 @RestController
 @RequestMapping("/api/ai/compliance")
 @RequiredArgsConstructor

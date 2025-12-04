@@ -1,4 +1,4 @@
-package com.ai.infrastructure.controller;
+package com.ai.infrastructure.web.controller;
 
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
@@ -12,14 +12,9 @@ import jakarta.validation.Valid;
 import java.util.Map;
 
 /**
- * REST Controller for Advanced RAG operations.
- *
- * @deprecated Controllers now live in the {@code ai-infrastructure-web} module.
- *             Use {@code com.ai.infrastructure.web.controller.AdvancedRAGController}
- *             instead.
+ * REST Controller for Advanced RAG operations
  */
 @Slf4j
-@Deprecated(since = "2.0", forRemoval = true)
 @RestController
 @RequestMapping("/api/ai/advanced-rag")
 @RequiredArgsConstructor

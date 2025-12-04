@@ -1,4 +1,4 @@
-package com.ai.infrastructure.controller;
+package com.ai.infrastructure.web.controller;
 
 import com.ai.infrastructure.dto.AIHealthDto;
 import com.ai.infrastructure.monitoring.AIAnalyticsService;
@@ -17,13 +17,10 @@ import java.util.Map;
  * REST API endpoints for AI infrastructure monitoring and analytics.
  * Provides health checks, metrics, and analytics data for observability.
  * 
- * @deprecated The monitoring endpoints now ship with the {@code ai-infrastructure-web}
- *             module. Prefer {@code com.ai.infrastructure.web.controller.AIMonitoringController}.
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
 @Slf4j
-@Deprecated(since = "2.0", forRemoval = true)
 @RestController
 @RequestMapping("/api/ai/monitoring")
 @RequiredArgsConstructor
