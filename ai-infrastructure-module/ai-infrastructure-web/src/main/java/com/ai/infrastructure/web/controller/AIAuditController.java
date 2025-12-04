@@ -1,4 +1,4 @@
-package com.ai.infrastructure.controller;
+package com.ai.infrastructure.web.controller;
 
 import com.ai.infrastructure.dto.AIAuditLog;
 import com.ai.infrastructure.dto.AIAuditRequest;
@@ -14,14 +14,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * REST Controller for AI Audit operations.
- *
- * @deprecated Controllers have been extracted to the {@code ai-infrastructure-web}
- *             module. Use {@code com.ai.infrastructure.web.controller.AIAuditController}
- *             going forward.
+ * REST Controller for AI Audit operations
  */
 @Slf4j
-@Deprecated(since = "2.0", forRemoval = true)
 @RestController
 @RequestMapping("/api/ai/audit")
 @RequiredArgsConstructor

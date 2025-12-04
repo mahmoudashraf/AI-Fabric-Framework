@@ -1,4 +1,4 @@
-package com.ai.infrastructure.controller;
+package com.ai.infrastructure.web.controller;
 
 import com.ai.infrastructure.dto.AIProfileRequest;
 import com.ai.infrastructure.dto.AIProfileResponse;
@@ -22,16 +22,13 @@ import java.util.UUID;
  * REST controller for AI profile operations.
  * This controller is domain-agnostic and can be used across different applications.
  * 
- * @deprecated Use {@code com.ai.infrastructure.web.controller.AIProfileController}
- *             provided by the {@code ai-infrastructure-web} module.
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@Slf4j
-@Deprecated(since = "2.0", forRemoval = true)
 @RestController
 @RequestMapping("/api/ai/profiles")
 @RequiredArgsConstructor
+@Slf4j
 public class AIProfileController {
     
     private final AIInfrastructureProfileService aiProfileService;
