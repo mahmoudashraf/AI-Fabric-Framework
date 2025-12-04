@@ -28,8 +28,12 @@
 # Prerequisites:
 #   - Java 21+
 #   - Maven 3.8+
+#   - Dependencies must be built and installed (run 'mvn clean install -DskipTests' from parent)
 #   - OPENAI_API_KEY environment variable set (minimum)
 #   - Optional: ANTHROPIC_API_KEY, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT
+#
+# Note: This script assumes dependencies are already built. In CI/CD workflows,
+#       the build step should run 'mvn clean install -DskipTests' first.
 #
 # Environment Variables:
 #   OPENAI_API_KEY           - OpenAI API key (required)
@@ -108,6 +112,22 @@ if [ -z "$OPENAI_API_KEY" ]; then
 fi
 print_success "OpenAI API key is configured"
 
+# Check if dependencies are built (check for core module in local repo or target)
+PARENT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
+if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
+    print_warning "Dependencies may not be built. Attempting to build..."
+    cd "$PARENT_DIR"
+    if ! mvn clean install -DskipTests -B -q; then
+        print_error "Failed to build dependencies. Please run 'mvn clean install -DskipTests' from the parent module first."
+        exit 1
+    fi
+    cd "$SCRIPT_DIR"
+    print_success "Dependencies built successfully"
+else
+    print_success "Dependencies appear to be built"
+fi
+
 # Build matrix specification
 print_header "Test Configuration"
 
@@ -137,6 +157,8 @@ print_header "Building Maven Command"
 TEST_DIR="$SCRIPT_DIR"
 cd "$TEST_DIR"
 
+# Note: This assumes dependencies are already built and installed.
+# The workflow should run 'mvn clean install -DskipTests' from the parent module first.
 MAVEN_COMMAND="mvn test"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dtest=$TEST_CLASS"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=$PROFILE"

@@ -115,7 +115,9 @@ jobs:
       - name: Build AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
-          mvn clean verify -B -V
+          # Skip tests during build - parent-verify workflow already runs all unit tests
+          # This workflow focuses on integration tests with real APIs
+          mvn clean install -DskipTests -B -V
 
       - name: Run Integration Tests (Real API)
         run: |

@@ -176,14 +176,6 @@ The automatic workflow runs standard verify (excludes RealAPI tests):
         │   ├─ Integration Tests: ✅
         │   └─ RealAPI Tests: ❌ (excluded)
         │
-        ├─→ ai-infrastructure-behavior
-        │   ├─ Unit Tests: ✅
-        │   └─ RealAPI Tests: ❌ (excluded)
-        │
-        ├─→ ai-infrastructure-behavior-integration-tests
-        │   ├─ Integration Tests: ✅
-        │   └─ RealAPI Tests: ❌ (excluded, needs PostgreSQL)
-        │
         ├─→ integration-tests
         │   ├─ Integration Tests: ✅
         │   └─ RealAPI Tests: ❌ (excluded)

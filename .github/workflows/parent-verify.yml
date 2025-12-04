@@ -63,10 +63,10 @@ jobs:
       - name: Run Maven Verify on AI Infrastructure Module
         run: |
           cd ai-infrastructure-module
-          # First install all dependencies (excluding test modules and behavior modules) to local repository
-          mvn clean install -B -V -pl '!ai-infrastructure-behavior,!ai-infrastructure-behavior-integration-tests,!integration-tests,!relationship-query-integration-tests' -DskipTests
+          # First install all dependencies (excluding test modules) to local repository
+          mvn clean install -B -V -pl '!integration-tests,!relationship-query-integration-tests' -DskipTests
           # Then verify all modules including integration tests (dependencies are now in local repo)
-          mvn verify -B -V -pl '!ai-infrastructure-behavior,!ai-infrastructure-behavior-integration-tests'
+          mvn verify -B -V
        
         env:
           MAVEN_OPTS: "-Xmx2g"

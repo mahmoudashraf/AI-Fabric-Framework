@@ -15,7 +15,6 @@
 
     <modules>
         <module>ai-infrastructure-core</module>
-        <module>ai-infrastructure-behavior</module>
         <module>ai-infrastructure-provider-openai</module>
         <module>ai-infrastructure-provider-azure</module>
         <module>ai-infrastructure-provider-cohere</module>
@@ -29,7 +28,6 @@
         <module>ai-infrastructure-vector-weaviate</module>
         <module>ai-infrastructure-vector-qdrant</module>
         <module>ai-infrastructure-vector-milvus</module>
-        <module>ai-infrastructure-behavior-integration-tests</module>
         <module>integration-tests</module>
         <module>relationship-query-integration-tests</module>
     </modules>
@@ -66,11 +64,6 @@
             <dependency>
                 <groupId>com.ai.infrastructure</groupId>
                 <artifactId>ai-infrastructure-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-behavior</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
