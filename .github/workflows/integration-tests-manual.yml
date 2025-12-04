@@ -30,12 +30,12 @@ on:
       embedding_provider:
         description: 'Embedding Provider'
         required: true
-        default: 'openai'
+        default: 'onnx'
         type: choice
         options:
+          - onnx
           - openai
           - azure-openai
-          - onnx
       vector_database:
         description: 'Vector Database'
         required: true
