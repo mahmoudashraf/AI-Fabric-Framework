@@ -80,16 +80,17 @@ fi
 print_success "OpenAI API key is configured"
 
 # Check if dependencies are built (check for core module in local repo or target)
-PARENT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# SCRIPT_DIR is ai-infrastructure-module/relationship-query-integration-tests, so parent is ai-infrastructure-module
+PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
 if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
     print_warning "Dependencies may not be built. Attempting to build..."
-    cd "$PARENT_DIR"
+    cd "$PARENT_DIR" || exit 1
     if ! mvn clean install -DskipTests -B -q; then
         print_error "Failed to build dependencies. Please run 'mvn clean install -DskipTests' from the parent module first."
         exit 1
     fi
-    cd "$SCRIPT_DIR"
+    cd "$SCRIPT_DIR" || exit 1
     print_success "Dependencies built successfully"
 else
     print_success "Dependencies appear to be built"
