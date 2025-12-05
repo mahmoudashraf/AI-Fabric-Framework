@@ -189,7 +189,7 @@ The automatic workflow runs standard verify (excludes RealAPI tests):
 ```
 bash run-relationship-query-realapi-tests.sh (with OPENAI_API_KEY)
         ↓
-mvn test -Preal-api-test
+mvn test -P realapi-tests
         ↓
     Runs:
     ├─ LawFirmRealApiIntegrationTest

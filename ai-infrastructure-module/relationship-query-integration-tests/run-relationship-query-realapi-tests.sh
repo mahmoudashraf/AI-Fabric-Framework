@@ -33,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # Configuration
-PROFILE="realapi"
+MAVEN_PROFILE="realapi-tests"
 TEST_MODULE="relationship-query-integration-tests"
 
 # Functions
@@ -104,7 +104,7 @@ fi
 print_header "Test Configuration"
 
 print_info "Test Module: $TEST_MODULE"
-print_info "Profile: $TEST_MODULE"
+print_info "Maven Profile: $MAVEN_PROFILE"
 print_info "Test Classes: All *RealApiIntegrationTest.java in realapi/ directory"
 
 # Build Maven command
@@ -115,7 +115,7 @@ cd "$SCRIPT_DIR"
 # Note: This assumes dependencies are already built and installed.
 # The workflow should run 'mvn clean install -DskipTests' from the parent module first.
 MAVEN_COMMAND="mvn test"
-MAVEN_COMMAND="$MAVEN_COMMAND -Preal-api-test"
+MAVEN_COMMAND="$MAVEN_COMMAND -P${MAVEN_PROFILE}"
 MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
 MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 
