@@ -1,4 +1,4 @@
-package com.ai.infrastructure.controller;
+package com.ai.infrastructure.web.controller;
 
 import com.ai.infrastructure.dto.AIAuditLog;
 import com.ai.infrastructure.dto.AIAuditRequest;
