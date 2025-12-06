@@ -1,7 +1,6 @@
 package com.ai.infrastructure.access;
 
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import java.time.Clock;
@@ -18,13 +17,12 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Minimal infrastructure access control service: validate request, delegate to customer hook,
- * record audit trail, and fail closed when hooks are unavailable.
+ * and fail closed when hooks are unavailable.
  */
 @Slf4j
 @RequiredArgsConstructor
 public class AIAccessControlService {
 
-    private final AuditService auditService;
     private final Clock clock;
     private final EntityAccessPolicy entityAccessPolicy;
 
@@ -40,8 +38,6 @@ public class AIAccessControlService {
         Map<String, Object> entityContext = buildEntityContext(request, evaluationTimestamp);
 
         Decision decision = evaluateAccess(policy, userId, entityContext);
-        auditDecision(request, userId, entityContext, evaluationTimestamp, decision.granted());
-
         if (!decision.granted()) {
             logDenied(policy, userId, entityContext);
         }
@@ -107,23 +103,6 @@ public class AIAccessControlService {
             log.warn("EntityAccessPolicy threw an exception for user {}: {}", userId, ex.getMessage());
             return new Decision(false, true, ex.getMessage());
         }
-    }
-
-    private void auditDecision(AIAccessControlRequest request,
-                               String userId,
-                               Map<String, Object> entityContext,
-                               LocalDateTime timestamp,
-                               boolean granted) {
-        auditService.logOperation(
-            request.getRequestId(),
-            userId,
-            granted ? "ACCESS_GRANTED" : "ACCESS_DENIED",
-            List.of(
-                Objects.toString(entityContext.get("resourceId"), "UNKNOWN"),
-                Objects.toString(entityContext.get("operationType"), "READ")
-            ),
-            timestamp
-        );
     }
 
     private void logDenied(EntityAccessPolicy policy, String userId, Map<String, Object> entityContext) {

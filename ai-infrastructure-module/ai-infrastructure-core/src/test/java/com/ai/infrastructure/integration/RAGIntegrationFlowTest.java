@@ -10,7 +10,6 @@ import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.access.AIAccessControlService;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -27,7 +26,10 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -70,10 +72,12 @@ class RAGIntegrationFlowTest {
     private AIComplianceService complianceService;
 
     @MockBean
-    private AuditService auditService;
+    private Clock clock;
 
     @BeforeEach
     void resetState() {
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+        when(clock.instant()).thenReturn(Instant.parse("2025-01-01T00:00:00Z"));
         vectorDatabaseService.clearVectors();
         historyRepository.deleteAll();
         when(securityService.analyzeRequest(any())).thenReturn(

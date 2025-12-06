@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import java.time.Clock;
@@ -43,9 +42,6 @@ class EntityAccessPolicyIntegrationTest {
 
     @Autowired
     private AIAccessControlService accessControlService;
-
-    @Autowired
-    private AuditService auditService;
 
     @Autowired
     private Clock clock;
@@ -120,7 +116,7 @@ class EntityAccessPolicyIntegrationTest {
     @Test
     void serviceFailsWhenNoPolicyConfigured() {
         AIAccessControlService serviceWithoutPolicy =
-            new AIAccessControlService(auditService, clock, null);
+            new AIAccessControlService(clock, null);
 
         assertThatThrownBy(() ->
                 serviceWithoutPolicy.checkAccess(baseRequestBuilder("req-no-hook").build()))

@@ -1,7 +1,5 @@
 package com.ai.infrastructure.deletion;
 
-import com.ai.infrastructure.audit.AIAuditService;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider.UserEntityReference;
 import com.ai.infrastructure.entity.AISearchableEntity;
@@ -35,8 +33,6 @@ public class UserDataDeletionService {
 
     private final AISearchableEntityRepository searchableEntityRepository;
     private final VectorDatabaseService vectorDatabaseService;
-    private final AIAuditService aiAuditService;
-    private final AuditService auditLogger;
     private final Clock clock;
     private final UserDataDeletionProvider userDataDeletionProvider;
     private final ObjectProvider<BehaviorDeletionPort> behaviorDeletionPort;
@@ -65,10 +61,8 @@ public class UserDataDeletionService {
         int behaviorsDeleted = deleteBehaviors(userId);
         IndexedDeletionStats indexedDeletionStats = deleteIndexedEntities(userId, provider);
         int domainRecordsDeleted = safelyDeleteDomainData(provider, userId);
-        int auditEntriesDeleted = deleteAuditTrail(userId);
-
         notifyProvider(provider, userId);
-        logDeletionEvent(userId, behaviorsDeleted, indexedDeletionStats, domainRecordsDeleted, auditEntriesDeleted, timestamp);
+        logDeletionEvent(userId, behaviorsDeleted, indexedDeletionStats, domainRecordsDeleted, timestamp);
 
         return UserDataDeletionResult.builder()
             .userId(userId)
@@ -77,7 +71,7 @@ public class UserDataDeletionService {
             .indexedEntitiesDeleted(indexedDeletionStats.entitiesDeleted())
             .vectorsDeleted(indexedDeletionStats.vectorsDeleted())
             .domainRecordsDeleted(domainRecordsDeleted)
-            .auditEntriesDeleted(auditEntriesDeleted)
+            .auditEntriesDeleted(0)
             .timestamp(timestamp)
             .build();
     }
@@ -173,18 +167,6 @@ public class UserDataDeletionService {
         }
     }
 
-    private int deleteAuditTrail(String userId) {
-        try {
-            List<?> existing = aiAuditService.getAuditLogs(userId);
-            int count = existing != null ? existing.size() : 0;
-            aiAuditService.clearAuditLogs(userId);
-            return count;
-        } catch (Exception ex) {
-            log.warn("Failed to clear audit logs for user {}: {}", userId, ex.getMessage());
-            return 0;
-        }
-    }
-
     private void notifyProvider(UserDataDeletionProvider provider, String userId) {
         try {
             provider.notifyAfterDeletion(userId);
@@ -197,21 +179,13 @@ public class UserDataDeletionService {
                                   int behaviorsDeleted,
                                   IndexedDeletionStats indexedDeletionStats,
                                   int domainRecordsDeleted,
-                                  int auditEntriesDeleted,
                                   LocalDateTime timestamp) {
-        auditLogger.logOperation(
-            "delete-" + userId,
+        log.info("User {} deletion completed: behaviors={}, indexedEntities={}, vectors={}, domainRecords={}",
             userId,
-            "USER_DATA_DELETION",
-            List.of(
-                "behaviors=" + behaviorsDeleted,
-                "indexedEntities=" + indexedDeletionStats.entitiesDeleted(),
-                "vectors=" + indexedDeletionStats.vectorsDeleted(),
-                "domainRecords=" + domainRecordsDeleted,
-                "auditEntries=" + auditEntriesDeleted
-            ),
-            timestamp
-        );
+            behaviorsDeleted,
+            indexedDeletionStats.entitiesDeleted(),
+            indexedDeletionStats.vectorsDeleted(),
+            domainRecordsDeleted);
     }
 
     private record IndexedDeletionStats(int entitiesDeleted, int vectorsDeleted) { }

@@ -1,6 +1,5 @@
 package com.ai.infrastructure.compliance;
 
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
 import com.ai.infrastructure.dto.AIComplianceReport;
@@ -23,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class AIComplianceService {
 
-    private final AuditService auditService;
     private final Clock clock;
 
     private final ComplianceCheckProvider complianceProvider;
@@ -37,13 +35,6 @@ public class AIComplianceService {
         ComplianceCheckProvider provider = requireProvider();
 
         Decision decision = evaluateCompliance(provider, request);
-
-        auditService.logOperation(
-            request.getRequestId(),
-            request.getUserId(),
-            decision.compliant() ? "COMPLIANCE_PASS" : "COMPLIANCE_FAIL",
-            decision.violations(),
-            timestamp);
 
         AIComplianceReport report = buildReport(request, decision, timestamp);
         long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();

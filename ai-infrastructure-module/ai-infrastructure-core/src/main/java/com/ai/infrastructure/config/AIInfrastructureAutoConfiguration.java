@@ -25,8 +25,6 @@ import com.ai.infrastructure.indexing.worker.IndexingWorkProcessor;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
-import com.ai.infrastructure.audit.AIAuditService;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.privacy.AIDataPrivacyService;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.filter.AIContentFilterService;
@@ -37,22 +35,13 @@ import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
 import com.ai.infrastructure.deletion.port.BehaviorDeletionPort;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
-import com.ai.infrastructure.cache.AICacheConfig;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.VectorDatabaseServiceAdapter;
 import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.config.IntentHistoryProperties;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.health.AIHealthIndicator;
-import com.ai.infrastructure.monitoring.AIHealthService;
-import com.ai.infrastructure.api.AIAutoGeneratorService;
-import com.ai.infrastructure.api.DefaultAIAutoGeneratorService;
-import com.ai.infrastructure.cache.AIIntelligentCacheService;
-import com.ai.infrastructure.cache.CacheConfig;
-import com.ai.infrastructure.cache.DefaultAIIntelligentCacheService;
-import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.repository.IndexingQueueRepository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -71,7 +60,6 @@ import org.springframework.core.io.ResourceLoader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -161,41 +149,30 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     public AISecurityService aiSecurityService(PIIDetectionService piiDetectionService,
-                                               AuditService auditService,
                                                Clock clock,
                                                SecurityProperties securityProperties) {
-        return new AISecurityService(piiDetectionService, auditService, clock, securityProperties);
+        return new AISecurityService(piiDetectionService, clock, securityProperties);
     }
     
     @Bean
-    public AIComplianceService aiComplianceService(AuditService auditService,
-                                                   Clock clock,
+    public AIComplianceService aiComplianceService(Clock clock,
                                                    ObjectProvider<ComplianceCheckProvider> complianceProvider) {
-        return new AIComplianceService(auditService, clock, complianceProvider.getIfAvailable());
+        return new AIComplianceService(clock, complianceProvider.getIfAvailable());
     }
     
     @Bean
     public UserDataDeletionService userDataDeletionService(AISearchableEntityRepository searchableEntityRepository,
                                                            VectorDatabaseService vectorDatabaseService,
-                                                           AIAuditService aiAuditService,
-                                                           AuditService auditService,
                                                            Clock clock,
                                                            ObjectProvider<UserDataDeletionProvider> deletionProvider,
                                                            ObjectProvider<BehaviorDeletionPort> behaviorDeletionPort) {
         return new UserDataDeletionService(
             searchableEntityRepository,
             vectorDatabaseService,
-            aiAuditService,
-            auditService,
             clock,
             deletionProvider.getIfAvailable(),
             behaviorDeletionPort
         );
-    }
-    
-    @Bean
-    public AIAuditService aiAuditService(AICoreService aiCoreService) {
-        return new AIAuditService(aiCoreService);
     }
     
     @Bean
@@ -215,11 +192,9 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIAccessControlService aiAccessControlService(AuditService auditService,
-                                                         Clock clock,
+    public AIAccessControlService aiAccessControlService(Clock clock,
                                                          ObjectProvider<EntityAccessPolicy> entityAccessPolicyProvider) {
         return new AIAccessControlService(
-            auditService,
             clock,
             entityAccessPolicyProvider.getIfAvailable()
         );
@@ -397,55 +372,10 @@ public class AIInfrastructureAutoConfiguration {
     public AIHealthIndicator aiHealthIndicator(AIConfigurationService configurationService, AIServiceConfig serviceConfig) {
         return new AIHealthIndicator(configurationService, serviceConfig);
     }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.service.auto-generator.enabled", havingValue = "true", matchIfMissing = false)
-    public AIAutoGeneratorService aiAutoGeneratorService(AICoreService aiCoreService, AIServiceConfig serviceConfig) {
-        return new DefaultAIAutoGeneratorService(aiCoreService, serviceConfig);
-    }
-    
-    @Bean
-    @ConditionalOnProperty(name = "ai.service.intelligent-cache.enabled", havingValue = "true", matchIfMissing = false)
-    public AIIntelligentCacheService aiIntelligentCacheService(AIServiceConfig serviceConfig) {
-        return new DefaultAIIntelligentCacheService(resolveCacheConfig(serviceConfig));
-    }
-    
+
     @Bean
     @ConditionalOnMissingBean
     public com.ai.infrastructure.service.AIInfrastructureProfileService aiInfrastructureProfileService(com.ai.infrastructure.repository.AIInfrastructureProfileRepository aiInfrastructureProfileRepository, AICapabilityService aiCapabilityService) {
         return new com.ai.infrastructure.service.AIInfrastructureProfileService(aiInfrastructureProfileRepository, aiCapabilityService);
-    }
-
-    private CacheConfig resolveCacheConfig(AIServiceConfig serviceConfig) {
-        AIServiceConfig.CacheConfig original = serviceConfig != null ? serviceConfig.getCache() : null;
-
-        boolean enabled = serviceConfig == null || serviceConfig.isCachingEnabled();
-        if (original != null && original.getEnabled() != null) {
-            enabled = enabled && original.getEnabled();
-        }
-
-        Duration defaultTtl = original != null && original.getDefaultTtl() != null
-            ? original.getDefaultTtl()
-            : Duration.ofMinutes(10);
-
-        Long maxSize = original != null && original.getMaxSize() != null
-            ? original.getMaxSize()
-            : 10_000L;
-
-        String evictionPolicy = original != null && original.getEvictionPolicy() != null
-            ? original.getEvictionPolicy()
-            : "LRU";
-
-        boolean metricsEnabled = original == null || Boolean.TRUE.equals(original.getEnableMetrics());
-
-        return CacheConfig.builder()
-            .enabled(enabled)
-            .type("memory")
-            .defaultTtl(defaultTtl)
-            .maxSize(maxSize)
-            .evictionPolicy(evictionPolicy)
-            .enableMetrics(metricsEnabled)
-            .enableStatistics(metricsEnabled)
-            .build();
     }
 }
