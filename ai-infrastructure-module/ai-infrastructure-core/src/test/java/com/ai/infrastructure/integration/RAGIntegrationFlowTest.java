@@ -26,6 +26,10 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -72,6 +76,8 @@ class RAGIntegrationFlowTest {
 
     @BeforeEach
     void resetState() {
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+        when(clock.instant()).thenReturn(Instant.parse("2025-01-01T00:00:00Z"));
         vectorDatabaseService.clearVectors();
         historyRepository.deleteAll();
         when(securityService.analyzeRequest(any())).thenReturn(

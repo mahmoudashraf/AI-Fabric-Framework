@@ -121,7 +121,6 @@ class RAGOrchestratorTest {
             securityService,
             accessControlService,
             complianceService,
-            auditService,
             clock
         );
     }
