@@ -1,3 +1,28 @@
+# Real API Test Configuration - Relationship Query Integration Tests
+#
+# This configuration supports flexible provider combinations via environment variables:
+#
+# LLM Provider:
+#   AI_INFRASTRUCTURE_LLM_PROVIDER or LLM_PROVIDER (default: openai)
+#   Options: openai, anthropic, azure, ollama
+#
+# Embedding Provider:
+#   AI_INFRASTRUCTURE_EMBEDDING_PROVIDER or EMBEDDING_PROVIDER (default: onnx)
+#   Options: openai, onnx, azure
+#
+# Vector Database:
+#   AI_INFRASTRUCTURE_VECTOR_DATABASE or VECTOR_DB (default: lucene)
+#   Options: lucene, memory, pinecone, qdrant
+#
+# Usage Examples:
+#   ./run-relationship-query-realapi-tests.sh "openai:onnx:lucene"
+#   ./run-relationship-query-realapi-tests.sh "openai:onnx:memory"
+#   ./run-relationship-query-realapi-tests.sh "anthropic:openai:pinecone"
+#
+# The script automatically sets AI_INFRASTRUCTURE_* environment variables based on
+# the provider matrix specification, and BackendEnvTestConfiguration loads the
+# OPENAI_API_KEY from ../../backend/.env file.
+#
 spring:
   datasource:
     url: jdbc:h2:mem:relationship_query_realapi;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
@@ -16,17 +41,46 @@ spring:
 
 ai:
   providers:
-    llm-provider: openai
-    embedding-provider: onnx
-    enable-fallback: false
+    llm-provider: ${AI_INFRASTRUCTURE_LLM_PROVIDER:${LLM_PROVIDER:openai}}
+    embedding-provider: ${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:${EMBEDDING_PROVIDER:onnx}}
+    enable-fallback: ${AI_INFRASTRUCTURE_ENABLE_FALLBACK:false}
+    
+    onnx:
+      enabled: true
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      tokenizer-path: ${ONNX_TOKENIZER_PATH:classpath:/models/embeddings/tokenizer.json}
+      max-sequence-length: 512
+      use-gpu: false
+      model-alias: all-MiniLM-L6-v2
+    
     openai:
+      enabled: true
       api-key: ${OPENAI_API_KEY:sk-real-api-test}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+      max-tokens: 2000
+      temperature: 0.0
+      timeout: 30
+      priority: 100
+      
   vector-db:
-    type: lucene
+    type: ${AI_INFRASTRUCTURE_VECTOR_DATABASE:${VECTOR_DB:lucene}}
     lucene:
-      index-path: ${java.io.tmpdir}/relationship-query-realapi-lucene
+      index-path: ${AI_LUCENE_INDEX_PATH:${java.io.tmpdir}/relationship-query-realapi-lucene}
       vector-dimension: 384
       similarity-threshold: 0.6
+      max-results: 100
+      create-index-if-not-exists: true
+    memory:
+      enabled: true
+      similarity-threshold: 0.6
+      max-results: 100
+    pinecone:
+      api-key: ${PINECONE_API_KEY:}
+      environment: ${PINECONE_ENVIRONMENT:}
+      index-name: ${PINECONE_INDEX_NAME:relationship-query-test}
+      dimensions: ${PINECONE_DIMENSIONS:384}
+      metric: cosine
   infrastructure:
     relationship:
       schema:
