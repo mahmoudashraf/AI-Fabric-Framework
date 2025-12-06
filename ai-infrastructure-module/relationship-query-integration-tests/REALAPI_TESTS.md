@@ -114,11 +114,65 @@ mvn clean verify
 ❌ Skips: RealAPI tests
 
 ### 2. Run RealAPI Tests (Requires API Key)
+
+#### Basic Usage (Default: openai:onnx)
 ```bash
 cd ai-infrastructure-module/relationship-query-integration-tests
 export OPENAI_API_KEY='sk-proj-...'
 bash run-relationship-query-realapi-tests.sh
 ```
+
+#### Flexible Provider Matrix Configuration
+
+The tests now support flexible provider combinations similar to `integration-tests`:
+
+**LLM Providers:** `openai`, `anthropic`, `azure`, `ollama`  
+**Embedding Providers:** `openai`, `onnx`, `azure`  
+**Vector Databases:** `lucene`, `memory`, `pinecone`, `qdrant`
+
+**Examples:**
+
+```bash
+# OpenAI LLM + ONNX Embeddings + Lucene Vector DB (default)
+./run-relationship-query-realapi-tests.sh "openai:onnx:lucene"
+
+# OpenAI LLM + ONNX Embeddings + In-Memory Vector DB
+./run-relationship-query-realapi-tests.sh "openai:onnx:memory"
+
+# Anthropic LLM + OpenAI Embeddings + Pinecone Vector DB
+./run-relationship-query-realapi-tests.sh "anthropic:openai:pinecone"
+
+# OpenAI LLM + ONNX Embeddings with separate Vector DB argument
+./run-relationship-query-realapi-tests.sh "openai:onnx" "qdrant"
+```
+
+**Environment Variable Support:**
+
+You can also set providers via environment variables:
+
+```bash
+export AI_INFRASTRUCTURE_LLM_PROVIDER=openai
+export AI_INFRASTRUCTURE_EMBEDDING_PROVIDER=onnx
+export AI_INFRASTRUCTURE_VECTOR_DATABASE=lucene
+./run-relationship-query-realapi-tests.sh
+```
+
+Or using the shorter form:
+
+```bash
+export LLM_PROVIDER=openai
+export EMBEDDING_PROVIDER=onnx
+export VECTOR_DB=memory
+./run-relationship-query-realapi-tests.sh
+```
+
+**Configuration Resolution Order:**
+
+1. Script arguments (`./run-relationship-query-realapi-tests.sh "openai:onnx:lucene"`)
+2. `AI_INFRASTRUCTURE_*` environment variables
+3. Short-form environment variables (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `VECTOR_DB`)
+4. Defaults from `application-realapi.yml` (openai:onnx:lucene)
+
 ✅ Runs: All `*RealApiIntegrationTest.java` tests
 - LawFirmRealApiIntegrationTest
 - FinancialFraudRealApiIntegrationTest
@@ -130,6 +184,82 @@ cd ai-infrastructure-module
 mvn clean verify
 ```
 ✅ Runs: All modules including relationship-query integration tests (non-RealAPI only)
+
+---
+
+## Configuration Files
+
+### application-realapi.yml
+
+The RealAPI profile configuration supports flexible provider selection via environment variables:
+
+```yaml
+ai:
+  providers:
+    # LLM Provider (AI_INFRASTRUCTURE_LLM_PROVIDER or LLM_PROVIDER)
+    llm-provider: ${AI_INFRASTRUCTURE_LLM_PROVIDER:${LLM_PROVIDER:openai}}
+    
+    # Embedding Provider (AI_INFRASTRUCTURE_EMBEDDING_PROVIDER or EMBEDDING_PROVIDER)
+    embedding-provider: ${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:${EMBEDDING_PROVIDER:onnx}}
+    
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-real-api-test}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    
+    onnx:
+      enabled: true
+      model-path: ${ONNX_MODEL_PATH:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}
+      
+  vector-db:
+    # Vector Database (AI_INFRASTRUCTURE_VECTOR_DATABASE or VECTOR_DB)
+    type: ${AI_INFRASTRUCTURE_VECTOR_DATABASE:${VECTOR_DB:lucene}}
+    
+    lucene:
+      index-path: ${AI_LUCENE_INDEX_PATH:${java.io.tmpdir}/relationship-query-realapi-lucene}
+    
+    memory:
+      enabled: true
+    
+    pinecone:
+      api-key: ${PINECONE_API_KEY:}
+      index-name: ${PINECONE_INDEX_NAME:relationship-query-test}
+```
+
+### BackendEnvTestConfiguration (Local Development Only)
+
+The `BackendEnvTestConfiguration` class is designed for **local development convenience**:
+
+```java
+@Value("${relationship-test.backend-env-path:../../backend/.env}")
+private String backendEnvPath;
+
+@PostConstruct
+void loadBackendEnv() {
+    // Only loads if environment variable not already set
+    if (System.getenv(key) == null && System.getProperty(key) == null) {
+        System.setProperty(key, value);
+    }
+}
+```
+
+**When It's Used:**
+- ✅ **Local Development**: Auto-loads `OPENAI_API_KEY` from `../../backend/.env`
+- ✅ **Smart Loading**: Won't override existing environment variables
+- ❌ **GitHub Actions**: Not needed - API key provided via workflow inputs
+
+**Local Development:**
+```bash
+# No need to export OPENAI_API_KEY - auto-loaded from backend/.env
+./run-relationship-query-realapi-tests.sh "openai:onnx:lucene"
+```
+
+**GitHub Actions:**
+```yaml
+# API key provided via github.event.inputs.openai_api_key
+env:
+  OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+```
 
 ---
 
@@ -206,8 +336,12 @@ mvn test -P realapi-tests
 | **Standard Verify** | `mvn clean verify` |
 | **Runs in Verify** | RelationshipQueryBasicIntegrationTest |
 | **Excluded from Verify** | All *RealApiIntegrationTest.java |
-| **RealAPI Script** | `run-relationship-query-realapi-tests.sh` |
-| **Required for RealAPI** | OPENAI_API_KEY environment variable |
+| **RealAPI Script** | `run-relationship-query-realapi-tests.sh [LLM:EMBEDDING[:VECTOR_DB]]` |
+| **API Key (Local)** | Auto-loaded from backend/.env |
+| **API Key (CI/CD)** | Provided via GitHub Actions workflow input |
+| **Provider Flexibility** | ✅ Supports multiple LLM, embedding, and vector DB providers |
+| **Default Providers** | openai:onnx:lucene |
+| **Configuration** | Environment variables or script arguments |
 | **CI/CD Workflows** | Both manual and automatic configured |
 
 ---
@@ -217,6 +351,8 @@ mvn test -P realapi-tests
 ✅ **Fast standard builds** - No API keys needed  
 ✅ **Comprehensive testing** - All functionality covered  
 ✅ **Clear separation** - RealAPI tests explicitly excluded  
+✅ **Flexible providers** - Test with different LLM, embedding, and vector DB combinations  
+✅ **Auto-configuration** - API key loaded automatically from backend/.env  
 ✅ **Easy maintenance** - Scripts and profiles handle everything  
 ✅ **CI/CD ready** - Automated and manual workflows included  
 ✅ **Cost efficient** - API calls only when intentionally triggered  

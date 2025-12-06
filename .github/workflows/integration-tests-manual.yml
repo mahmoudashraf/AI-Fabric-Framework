@@ -321,12 +321,9 @@ jobs:
       - name: Run Relationship Query Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/relationship-query-integration-tests
-          bash run-relationship-query-realapi-tests.sh
+          bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
-          AI_INFRASTRUCTURE_LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
-          AI_INFRASTRUCTURE_EMBEDDING_PROVIDER: ${{ github.event.inputs.embedding_provider }}
-          AI_INFRASTRUCTURE_VECTOR_DATABASE: ${{ github.event.inputs.vector_database }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
 
       - name: Upload test reports
