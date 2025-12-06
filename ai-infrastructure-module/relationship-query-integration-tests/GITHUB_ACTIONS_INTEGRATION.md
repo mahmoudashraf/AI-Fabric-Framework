@@ -165,10 +165,12 @@ The workflow will:
 2. ✅ Set up Java 21
 3. ✅ Cache Maven dependencies
 4. ✅ Clean temporary files
-5. ✅ Build AI Infrastructure Module
-6. ✅ Run relationship query tests with: `openai:onnx:memory`
+5. ✅ Build AI Infrastructure Module (once - in workflow)
+6. ✅ Run relationship query tests with: `openai:onnx:memory` (skips duplicate build)
 7. ✅ Upload test reports
 8. ✅ Publish test results
+
+**Note:** The script detects `CI=true` or `GITHUB_ACTIONS=true` environment variables and skips its internal dependency build check, avoiding duplicate builds.
 
 ## Environment Variable Resolution
 
@@ -214,6 +216,27 @@ ai:
 **Legend:**
 - ✅ = Works out of the box
 - ⚠️ = Requires additional configuration/credentials
+
+## Build Optimization
+
+The script intelligently avoids duplicate builds in CI/CD:
+
+**Local Development:**
+```bash
+# Script checks if dependencies are built
+# If not found, auto-builds with: mvn clean install -DskipTests
+./run-relationship-query-realapi-tests.sh "openai:onnx:lucene"
+```
+
+**GitHub Actions:**
+```bash
+# Workflow pre-builds dependencies in "Build AI Infrastructure Module" step
+# Script detects CI environment and skips build check
+# Environment variables: CI=true or GITHUB_ACTIONS=true
+./run-relationship-query-realapi-tests.sh "openai:onnx:lucene"
+```
+
+This prevents duplicate builds and speeds up CI/CD execution time significantly.
 
 ## CI/CD Best Practices
 

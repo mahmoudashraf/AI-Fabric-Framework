@@ -16,14 +16,16 @@
 # Prerequisites:
 #   - Java 21+
 #   - Maven 3.8+
-#   - Dependencies built (run 'mvn clean install -DskipTests' from parent)
 #   - OPENAI_API_KEY (and other provider keys as needed) set in the environment
+#   - Local: Dependencies built (script auto-builds if missing)
+#   - CI/CD: Dependencies must be pre-built by workflow (script skips build check)
 #
 # CI/CD:
-#   The GitHub workflow already exports OPENAI_API_KEY, AI_INFRASTRUCTURE_LLM_PROVIDER,
-#   AI_INFRASTRUCTURE_EMBEDDING_PROVIDER, AI_INFRASTRUCTURE_VECTOR_DATABASE, and
-#   AI_INFRASTRUCTURE_PERSISTENCE_DATABASE into the job environment. Local usage
-#   can override via the matrix spec arguments below.
+#   The GitHub workflow builds dependencies once in "Build AI Infrastructure Module" step.
+#   Script detects CI environment (CI=true or GITHUB_ACTIONS=true) and skips dependency
+#   build check to avoid duplicate builds. The workflow exports OPENAI_API_KEY,
+#   AI_INFRASTRUCTURE_LLM_PROVIDER, AI_INFRASTRUCTURE_EMBEDDING_PROVIDER,
+#   AI_INFRASTRUCTURE_VECTOR_DATABASE, and AI_INFRASTRUCTURE_PERSISTENCE_DATABASE.
 ###############################################################################
 
 set -e
@@ -131,20 +133,24 @@ if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
 fi
 print_info "Test Classes: All *RealApiIntegrationTest.java in realapi/ directory"
 
-# Check if dependencies are built (check for core module in local repo or target)
-PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
-if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
-    print_warning "Dependencies may not be built. Attempting to build..."
-    cd "$PARENT_DIR" || exit 1
-    if ! mvn clean install -DskipTests -B -q; then
-        print_error "Failed to build dependencies. Please run 'mvn clean install -DskipTests' from the parent module first."
-        exit 1
-    fi
-    cd "$SCRIPT_DIR" || exit 1
-    print_success "Dependencies built successfully"
+# Check if dependencies are built (skip in CI/CD - already built by workflow)
+if [ "${CI:-false}" == "true" ] || [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
+    print_info "Running in CI/CD - skipping dependency build check (already built by workflow)"
 else
-    print_success "Dependencies appear to be built"
+    PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
+    if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
+        print_warning "Dependencies may not be built. Attempting to build..."
+        cd "$PARENT_DIR" || exit 1
+        if ! mvn clean install -DskipTests -B -q; then
+            print_error "Failed to build dependencies. Please run 'mvn clean install -DskipTests' from the parent module first."
+            exit 1
+        fi
+        cd "$SCRIPT_DIR" || exit 1
+        print_success "Dependencies built successfully"
+    else
+        print_success "Dependencies appear to be built"
+    fi
 fi
 
 # Build Maven command (Failsafe)

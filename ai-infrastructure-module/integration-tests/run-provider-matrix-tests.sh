@@ -129,26 +129,30 @@ if [ -z "$OPENAI_API_KEY" ]; then
 fi
 print_success "OpenAI API key is configured"
 
-# Check if dependencies are built (check for core module in local repo or target)
-# SCRIPT_DIR is ai-infrastructure-module/integration-tests, so parent is ai-infrastructure-module
-PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
-if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
-    print_warning "Dependencies may not be built. Attempting to build..."
-    cd "$PARENT_DIR" || exit 1
-    # Use quiet logging for dependency build unless debug is requested
-    BUILD_LOG_FLAG="-q"
-    if [ "$LOGGING_LEVEL" == "verbose" ] || [ "$LOGGING_LEVEL" == "debug" ]; then
-        BUILD_LOG_FLAG=""
-    fi
-    if ! mvn clean install -DskipTests -B $BUILD_LOG_FLAG; then
-        print_error "Failed to build dependencies. Please run 'mvn clean install -DskipTests' from the parent module first."
-        exit 1
-    fi
-    cd "$SCRIPT_DIR" || exit 1
-    print_success "Dependencies built successfully"
+# Check if dependencies are built (skip in CI/CD - already built by workflow)
+if [ "${CI:-false}" == "true" ] || [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
+    print_info "Running in CI/CD - skipping dependency build check (already built by workflow)"
 else
-    print_success "Dependencies appear to be built"
+    # SCRIPT_DIR is ai-infrastructure-module/integration-tests, so parent is ai-infrastructure-module
+    PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
+    if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
+        print_warning "Dependencies may not be built. Attempting to build..."
+        cd "$PARENT_DIR" || exit 1
+        # Use quiet logging for dependency build unless debug is requested
+        BUILD_LOG_FLAG="-q"
+        if [ "$LOGGING_LEVEL" == "verbose" ] || [ "$LOGGING_LEVEL" == "debug" ]; then
+            BUILD_LOG_FLAG=""
+        fi
+        if ! mvn clean install -DskipTests -B $BUILD_LOG_FLAG; then
+            print_error "Failed to build dependencies. Please run 'mvn clean install -DskipTests' from the parent module first."
+            exit 1
+        fi
+        cd "$SCRIPT_DIR" || exit 1
+        print_success "Dependencies built successfully"
+    else
+        print_success "Dependencies appear to be built"
+    fi
 fi
 
 # Build matrix specification
