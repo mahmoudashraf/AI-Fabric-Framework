@@ -286,12 +286,6 @@ public class AISecurityService {
             userEvents.remove(0);
         }
 
-        auditService.logOperation(
-            request.getRequestId(),
-            request.getUserId(),
-            blocked ? "SECURITY_THREAT" : "SECURITY_PASS",
-            List.copyOf(new HashSet<>(threats)));
-
         return event;
     }
 
