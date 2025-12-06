@@ -40,7 +40,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # Configuration
-MAVEN_PROFILE="realapi-tests"
+MAVEN_PROFILE="realapi"
 TEST_MODULE="relationship-query-integration-tests"
 MATRIX_SPEC="${1:-openai:onnx}"
 VECTOR_DB="${2:-}"

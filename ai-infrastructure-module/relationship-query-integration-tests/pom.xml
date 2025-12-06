@@ -134,7 +134,7 @@
     <!-- Profile for running RealAPI tests separately -->
     <profiles>
         <profile>
-            <id>realapi-tests</id>
+            <id>realapi</id>
             <build>
                 <plugins>
                     <plugin>
@@ -144,6 +144,10 @@
                             <includes>
                                 <include>**/realapi/*RealApiIntegrationTest.java</include>
                             </includes>
+                            <!-- Clear the default excludes to allow RealAPI tests to run -->
+                            <excludes combine.self="override">
+                                <!-- No excludes when running RealAPI tests -->
+                            </excludes>
                         </configuration>
                     </plugin>
                 </plugins>

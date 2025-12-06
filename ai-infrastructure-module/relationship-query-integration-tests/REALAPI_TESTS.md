@@ -87,7 +87,7 @@ relationship-query-integration-tests/
 #### 3. RealAPI Tests Profile
 ```xml
 <profile>
-    <id>realapi-tests</id>
+    <id>realapi</id>
     <build>
         <plugins>
             <plugin>
@@ -95,6 +95,9 @@ relationship-query-integration-tests/
                 <includes>
                     <include>**/realapi/*RealApiIntegrationTest.java</include>
                 </includes>
+                <excludes combine.self="override">
+                    <!-- No excludes when running RealAPI tests -->
+                </excludes>
             </plugin>
         </plugins>
     </build>
@@ -319,7 +322,7 @@ The automatic workflow runs standard verify (excludes RealAPI tests):
 ```
 bash run-relationship-query-realapi-tests.sh (with OPENAI_API_KEY)
         ↓
-mvn test -P realapi-tests
+mvn failsafe:integration-test failsafe:verify -P realapi
         ↓
     Runs:
     ├─ LawFirmRealApiIntegrationTest
