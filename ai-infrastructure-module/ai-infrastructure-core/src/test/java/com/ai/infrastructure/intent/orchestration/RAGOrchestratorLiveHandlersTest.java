@@ -1,7 +1,6 @@
 package com.ai.infrastructure.intent.orchestration;
 
 import com.ai.infrastructure.access.AIAccessControlService;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.config.TestConfiguration;
 import com.ai.infrastructure.dto.Intent;
@@ -49,9 +48,6 @@ class RAGOrchestratorLiveHandlersTest {
 
     @MockBean
     private AIComplianceService complianceService;
-
-    @MockBean
-    private AuditService auditService;
 
     @BeforeEach
     void cleanIndex() {

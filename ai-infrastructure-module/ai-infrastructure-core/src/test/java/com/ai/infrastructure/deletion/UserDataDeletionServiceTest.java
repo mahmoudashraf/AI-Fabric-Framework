@@ -1,11 +1,8 @@
 package com.ai.infrastructure.deletion;
 
-import com.ai.infrastructure.audit.AIAuditService;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider.UserEntityReference;
 import com.ai.infrastructure.deletion.port.BehaviorDeletionPort;
-import com.ai.infrastructure.dto.AIAuditLog;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import java.time.Clock;
@@ -35,10 +32,6 @@ class UserDataDeletionServiceTest {
     @Mock
     private VectorDatabaseService vectorDatabaseService;
     @Mock
-    private AIAuditService aiAuditService;
-    @Mock
-    private AuditService auditService;
-    @Mock
     private UserDataDeletionProvider provider;
     @Mock
     private org.springframework.beans.factory.ObjectProvider<BehaviorDeletionPort> behaviorDeletionPortProvider;
@@ -55,8 +48,6 @@ class UserDataDeletionServiceTest {
         service = new UserDataDeletionService(
             searchableEntityRepository,
             vectorDatabaseService,
-            aiAuditService,
-            auditService,
             clock,
             provider,
             behaviorDeletionPortProvider
@@ -70,8 +61,6 @@ class UserDataDeletionServiceTest {
             .thenReturn(List.of(new UserEntityReference("doc", "id-1")));
         when(vectorDatabaseService.removeVector("doc", "id-1")).thenReturn(true);
         when(behaviorDeletionPort.deleteUserBehaviors(UUID.fromString(USER_ID))).thenReturn(1);
-        when(aiAuditService.getAuditLogs(USER_ID))
-            .thenReturn(List.of(AIAuditLog.builder().logId("log-1").build()));
         when(provider.deleteUserDomainData(USER_ID)).thenReturn(3);
 
         UserDataDeletionResult result = service.deleteUser(USER_ID);
@@ -81,13 +70,11 @@ class UserDataDeletionServiceTest {
         assertThat(result.getIndexedEntitiesDeleted()).isEqualTo(1);
         assertThat(result.getVectorsDeleted()).isEqualTo(1);
         assertThat(result.getDomainRecordsDeleted()).isEqualTo(3);
-        assertThat(result.getAuditEntriesDeleted()).isEqualTo(1);
+        assertThat(result.getAuditEntriesDeleted()).isEqualTo(0);
 
         verify(behaviorDeletionPort).deleteUserBehaviors(UUID.fromString(USER_ID));
         verify(searchableEntityRepository).deleteByEntityTypeAndEntityId("doc", "id-1");
-        verify(aiAuditService).clearAuditLogs(USER_ID);
         verify(provider).notifyAfterDeletion(USER_ID);
-        verify(auditService).logOperation(any(), eq(USER_ID), eq("USER_DATA_DELETION"), any(), any(LocalDateTime.class));
     }
 
     @Test
@@ -97,7 +84,7 @@ class UserDataDeletionServiceTest {
         UserDataDeletionResult result = service.deleteUser(USER_ID);
 
         assertThat(result.getStatus()).isEqualTo(UserDataDeletionResult.Status.SKIPPED);
-        verifyNoInteractions(searchableEntityRepository, vectorDatabaseService, aiAuditService, behaviorDeletionPort);
+        verifyNoInteractions(searchableEntityRepository, vectorDatabaseService, behaviorDeletionPort);
     }
 
     @Test
@@ -105,8 +92,6 @@ class UserDataDeletionServiceTest {
         UserDataDeletionService noProviderService = new UserDataDeletionService(
             searchableEntityRepository,
             vectorDatabaseService,
-            aiAuditService,
-            auditService,
             clock,
             null,
             behaviorDeletionPortProvider

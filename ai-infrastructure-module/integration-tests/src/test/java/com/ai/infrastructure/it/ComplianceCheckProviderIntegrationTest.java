@@ -9,7 +9,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
@@ -40,9 +39,6 @@ class ComplianceCheckProviderIntegrationTest {
 
     @Autowired
     private AIComplianceService complianceService;
-
-    @Autowired
-    private AuditService auditService;
 
     @Autowired
     private Clock clock;
@@ -76,7 +72,7 @@ class ComplianceCheckProviderIntegrationTest {
 
     @Test
     void failsWhenProviderMissing() {
-        AIComplianceService serviceWithoutProvider = new AIComplianceService(auditService, clock, null);
+        AIComplianceService serviceWithoutProvider = new AIComplianceService(clock, null);
 
         assertThatThrownBy(() -> serviceWithoutProvider.checkCompliance(baseRequest("req-default")))
             .isInstanceOf(IllegalStateException.class)

@@ -1,13 +1,11 @@
 package com.ai.infrastructure.access;
 
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,16 +13,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 class AIAccessControlServiceTest {
 
-    private final AuditService auditService = mock(AuditService.class);
     private final Clock clock = Clock.systemUTC();
 
     @Test
     void throwsWhenPolicyMissing() {
-        AIAccessControlService service = new AIAccessControlService(auditService, clock, null);
+        AIAccessControlService service = new AIAccessControlService(clock, null);
 
         assertThatThrownBy(() -> service.checkAccess(buildRequest("user-1")))
             .isInstanceOf(IllegalStateException.class)
@@ -37,14 +33,13 @@ class AIAccessControlServiceTest {
         doThrow(new IllegalStateException("boom"))
             .when(policy).canUserAccessEntity(any(), any());
 
-        AIAccessControlService service = new AIAccessControlService(auditService, clock, policy);
+        AIAccessControlService service = new AIAccessControlService(clock, policy);
 
         AIAccessControlResponse response = service.checkAccess(buildRequest("user-2"));
 
         assertThat(response.getAccessGranted()).isFalse();
         assertThat(response.getSuccess()).isFalse();
         assertThat(response.getErrorMessage()).contains("boom");
-        verify(auditService).logOperation(any(), any(), any(), any(), any(LocalDateTime.class));
     }
 
     private AIAccessControlRequest buildRequest(String userId) {

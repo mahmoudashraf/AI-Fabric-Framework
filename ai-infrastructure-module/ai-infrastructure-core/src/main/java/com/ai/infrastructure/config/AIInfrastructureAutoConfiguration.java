@@ -25,8 +25,6 @@ import com.ai.infrastructure.indexing.worker.IndexingWorkProcessor;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
-import com.ai.infrastructure.audit.AIAuditService;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.privacy.AIDataPrivacyService;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.filter.AIContentFilterService;
@@ -151,41 +149,30 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     public AISecurityService aiSecurityService(PIIDetectionService piiDetectionService,
-                                               AuditService auditService,
                                                Clock clock,
                                                SecurityProperties securityProperties) {
-        return new AISecurityService(piiDetectionService, auditService, clock, securityProperties);
+        return new AISecurityService(piiDetectionService, clock, securityProperties);
     }
     
     @Bean
-    public AIComplianceService aiComplianceService(AuditService auditService,
-                                                   Clock clock,
+    public AIComplianceService aiComplianceService(Clock clock,
                                                    ObjectProvider<ComplianceCheckProvider> complianceProvider) {
-        return new AIComplianceService(auditService, clock, complianceProvider.getIfAvailable());
+        return new AIComplianceService(clock, complianceProvider.getIfAvailable());
     }
     
     @Bean
     public UserDataDeletionService userDataDeletionService(AISearchableEntityRepository searchableEntityRepository,
                                                            VectorDatabaseService vectorDatabaseService,
-                                                           AIAuditService aiAuditService,
-                                                           AuditService auditService,
                                                            Clock clock,
                                                            ObjectProvider<UserDataDeletionProvider> deletionProvider,
                                                            ObjectProvider<BehaviorDeletionPort> behaviorDeletionPort) {
         return new UserDataDeletionService(
             searchableEntityRepository,
             vectorDatabaseService,
-            aiAuditService,
-            auditService,
             clock,
             deletionProvider.getIfAvailable(),
             behaviorDeletionPort
         );
-    }
-    
-    @Bean
-    public AIAuditService aiAuditService(AICoreService aiCoreService) {
-        return new AIAuditService(aiCoreService);
     }
     
     @Bean
@@ -205,11 +192,9 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIAccessControlService aiAccessControlService(AuditService auditService,
-                                                         Clock clock,
+    public AIAccessControlService aiAccessControlService(Clock clock,
                                                          ObjectProvider<EntityAccessPolicy> entityAccessPolicyProvider) {
         return new AIAccessControlService(
-            auditService,
             clock,
             entityAccessPolicyProvider.getIfAvailable()
         );

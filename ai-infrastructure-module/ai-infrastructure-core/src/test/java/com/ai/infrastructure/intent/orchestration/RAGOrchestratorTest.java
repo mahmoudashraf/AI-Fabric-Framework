@@ -10,7 +10,6 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -72,9 +71,6 @@ class RAGOrchestratorTest {
 
     @Mock
     private AIComplianceService complianceService;
-
-    @Mock
-    private AuditService auditService;
 
     private ResponseSanitizer responseSanitizer;
     private SmartSuggestionsProperties smartSuggestionsProperties;

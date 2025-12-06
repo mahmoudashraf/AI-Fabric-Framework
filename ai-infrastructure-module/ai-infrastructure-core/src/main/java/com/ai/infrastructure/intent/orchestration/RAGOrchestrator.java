@@ -1,7 +1,6 @@
 package com.ai.infrastructure.intent.orchestration;
 
 import com.ai.infrastructure.access.AIAccessControlService;
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.Intent;
@@ -62,7 +61,6 @@ public class RAGOrchestrator {
     private final AISecurityService securityService;
     private final AIAccessControlService accessControlService;
     private final AIComplianceService complianceService;
-    private final AuditService auditService;
     private final Clock clock;
 
     public OrchestrationResult orchestrate(String query, String userId) {

@@ -1,6 +1,5 @@
 package com.ai.infrastructure.security;
 
-import com.ai.infrastructure.audit.AuditService;
 import com.ai.infrastructure.config.SecurityProperties;
 import com.ai.infrastructure.dto.AISecurityEvent;
 import com.ai.infrastructure.dto.AISecurityRequest;
@@ -39,7 +38,6 @@ public class AISecurityService {
     private static final long RATE_WINDOW_MS = Duration.ofMinutes(1).toMillis();
 
     private final PIIDetectionService piiDetectionService;
-    private final AuditService auditService;
     private final Clock clock;
     private final SecurityProperties securityProperties;
 
@@ -106,11 +104,6 @@ public class AISecurityService {
                 .build();
         } catch (Exception ex) {
             log.error("Security analysis failed", ex);
-            auditService.logOperation(
-                request != null ? request.getRequestId() : null,
-                request != null ? request.getUserId() : null,
-                "SECURITY_ERROR",
-                List.of(ex.getMessage()));
             return AISecurityResponse.builder()
                 .requestId(request != null ? request.getRequestId() : null)
                 .userId(request != null ? request.getUserId() : null)
