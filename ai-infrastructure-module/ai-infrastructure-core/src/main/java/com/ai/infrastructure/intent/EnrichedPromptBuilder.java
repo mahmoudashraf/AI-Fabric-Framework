@@ -88,7 +88,15 @@ public class EnrichedPromptBuilder {
         prompt.append("2. If the user is searching for information -> intent.type = INFORMATION.\n");
         prompt.append("3. If the request is unsupported -> intent.type = OUT_OF_SCOPE and explain briefly in actionParams.reason.\n");
         prompt.append("4. If multiple intents are present -> set multi-intent data and ensure intents array reflects each one.\n");
-        prompt.append("5. Confidence must be between 0.0 and 1.0.\n\n");
+        prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
+        prompt.append("6. For INFORMATION intents, determine if the user wants:\n");
+        prompt.append("   - Just search results -> requiresGeneration: false (user asking for data, lists, or information)\n");
+        prompt.append("   - Analysis or recommendation -> requiresGeneration: true (user asking for opinion, advice, comparison, or analysis)\n");
+        prompt.append("   Examples:\n");
+        prompt.append("     * \"Show me products under $60\" -> requiresGeneration: false\n");
+        prompt.append("     * \"Should I buy this?\" -> requiresGeneration: true\n");
+        prompt.append("     * \"Find transactions from last week\" -> requiresGeneration: false\n");
+        prompt.append("     * \"Recommend the best option\" -> requiresGeneration: true\n\n");
     }
 
     private void appendNextStepGuidance(StringBuilder prompt) {
@@ -112,6 +120,7 @@ public class EnrichedPromptBuilder {
                   "actionParams": {"key": "value"},
                   "vectorSpace": "policies | faq | ...",
                   "requiresRetrieval": true,
+                  "requiresGeneration": false,
                   "nextStepRecommended": {
                     "intent": "potential_follow_up_intent",
                     "query": "Helpful follow-up question to ask the user",

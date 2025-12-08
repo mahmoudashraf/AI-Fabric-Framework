@@ -58,6 +58,16 @@ public class Intent {
     private Boolean requiresRetrieval;
 
     /**
+     * Whether this intent requires LLM-based generation to respond.
+     * Set by LLM during intent extraction to indicate if response needs analysis/generation.
+     * When true: Search results are filtered by include-in-rag before sending to LLM.
+     * When false: Raw search results are returned without LLM processing.
+     * Default: false (search-only)
+     */
+    @JsonAlias({"requires_generation"})
+    private Boolean requiresGeneration;
+
+    /**
      * Optional recommendation that should be surfaced after handling this intent.
      */
     private NextStepRecommendation nextStepRecommended;
@@ -81,6 +91,14 @@ public class Intent {
         return requiresRetrieval != null ? requiresRetrieval : fallback;
     }
 
+    /**
+     * Returns whether this intent requires LLM generation.
+     * Defaults to false (search-only) if not explicitly set by LLM.
+     */
+    public boolean requiresGenerationOrDefault(boolean fallback) {
+        return requiresGeneration != null ? requiresGeneration : fallback;
+    }
+
     public String getIntentOrAction() {
         if (intent != null && !intent.isBlank()) {
             return intent;
@@ -94,6 +112,11 @@ public class Intent {
         }
         if (requiresRetrieval == null) {
             requiresRetrieval = type == IntentType.INFORMATION || type == IntentType.COMPOUND;
+        }
+        // requiresGeneration is set explicitly by LLM during intent extraction
+        // Default to false (search-only) if not set
+        if (requiresGeneration == null) {
+            requiresGeneration = false;
         }
         if (actionParams == null) {
             actionParams = Collections.emptyMap();
