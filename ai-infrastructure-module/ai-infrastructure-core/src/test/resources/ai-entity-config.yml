@@ -17,6 +17,15 @@ ai-entities:
     searchable-fields:
       - name: name
         include-in-rag: true
+      - name: description
+        include-in-rag: true
+      - name: costPrice
+        include-in-rag: false
+        enable-semantic-search: true
+      - name: retailPrice
+        include-in-rag: true
+      - name: internalMargin
+        include-in-rag: false
   transaction:
     features:
       - embedding

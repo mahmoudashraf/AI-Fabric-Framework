@@ -53,6 +53,27 @@ ai-entities:
     enable-recommendations: true
     auto-embedding: true
     indexable: true
+    searchable-fields:
+      - name: name
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 2.0
+      - name: description
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 1.5
+      - name: costPrice
+        include-in-rag: false
+        enable-semantic-search: true
+        weight: 1.0
+      - name: retailPrice
+        include-in-rag: true
+        enable-semantic-search: true
+        weight: 1.0
+      - name: internalMargin
+        include-in-rag: false
+        enable-semantic-search: false
+        weight: 0.0
   order:
     features: ["embedding", "search", "analysis", "behavioral"]
     enable-search: true

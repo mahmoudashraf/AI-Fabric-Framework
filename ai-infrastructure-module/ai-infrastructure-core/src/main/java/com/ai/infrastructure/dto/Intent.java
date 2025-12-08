@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 
 /**
  * Represents a single intent extracted from a user query.
@@ -113,10 +114,8 @@ public class Intent {
         if (requiresRetrieval == null) {
             requiresRetrieval = type == IntentType.INFORMATION || type == IntentType.COMPOUND;
         }
-        // requiresGeneration is set explicitly by LLM during intent extraction
-        // Default to false (search-only) if not set
         if (requiresGeneration == null) {
-            requiresGeneration = false;
+            requiresGeneration = detectIfGenerationNeeded();
         }
         if (actionParams == null) {
             actionParams = Collections.emptyMap();
@@ -135,5 +134,18 @@ public class Intent {
 
     public boolean hasMeaningfulName() {
         return Objects.nonNull(getIntentOrAction()) && !getIntentOrAction().isBlank();
+    }
+
+    /**
+     * Detect whether this intent requires LLM-based generation.
+     * Heuristic: opinion, recommendation, comparison, or analysis style queries.
+     */
+    private boolean detectIfGenerationNeeded() {
+        String name = getIntentOrAction();
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+        String normalized = name.toLowerCase(Locale.ROOT);
+        return normalized.matches(".*\\b(should|recommend|opinion|advise|compare|analyze|evaluate|assess)\\b.*");
     }
 }

@@ -1,10 +1,10 @@
 package com.ai.infrastructure.config;
 
 import com.ai.infrastructure.dto.AIEntityConfig;
-import com.ai.infrastructure.dto.AISearchableField;
 import com.ai.infrastructure.dto.AIEmbeddableField;
 import com.ai.infrastructure.dto.AIMetadataField;
 import com.ai.infrastructure.dto.AICrudOperation;
+import com.ai.infrastructure.dto.SearchableFieldConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -101,16 +101,21 @@ public class AIEntityConfigurationLoader {
         // Parse searchable fields
         if (config.containsKey("searchable-fields")) {
             List<Map<String, Object>> searchableFields = (List<Map<String, Object>>) config.get("searchable-fields");
-            List<AISearchableField> fields = new ArrayList<>();
+            Map<String, SearchableFieldConfig> fields = new LinkedHashMap<>();
             for (Map<String, Object> field : searchableFields) {
-                fields.add(AISearchableField.builder()
-                    .name((String) field.get("name"))
-                    .includeInRAG((Boolean) field.getOrDefault("include-in-rag", true))
+                String name = (String) field.get("name");
+                if (name == null) {
+                    continue;
+                }
+                SearchableFieldConfig fieldConfig = SearchableFieldConfig.builder()
+                    .name(name)
+                    .includeInRag((Boolean) field.getOrDefault("include-in-rag", true))
                     .enableSemanticSearch((Boolean) field.getOrDefault("enable-semantic-search", true))
                     .weight(((Number) field.getOrDefault("weight", 1.0)).doubleValue())
-                    .build());
+                    .build();
+                fields.put(name, fieldConfig);
             }
-            builder.searchableFields(fields);
+            builder.searchableFields(Collections.unmodifiableMap(fields));
         }
         
         // Parse embeddable fields

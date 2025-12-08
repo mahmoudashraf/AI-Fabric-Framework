@@ -2,12 +2,14 @@ package com.ai.infrastructure.intent.orchestration;
 
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.compliance.AIComplianceService;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.dto.SearchableFieldConfig;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.dto.AIComplianceRequest;
@@ -53,6 +55,7 @@ public class RAGOrchestrator {
     private final IntentQueryExtractor intentQueryExtractor;
     private final ActionHandlerRegistry actionHandlerRegistry;
     private final RAGService ragService;
+    private final AIEntityConfigurationLoader configurationLoader;
     private final ResponseSanitizer responseSanitizer;
     private final IntentHistoryService intentHistoryService;
     private final SmartSuggestionsProperties smartSuggestionsProperties;
@@ -299,24 +302,78 @@ public class RAGOrchestrator {
             .threshold(DEFAULT_RAG_THRESHOLD)
             .metadata(Map.of(
                 "source", "orchestrator",
-                "userId", userId
+                "userId", userId,
+                "requiresGeneration", intent.requiresGenerationOrDefault(false)
             ))
             .build();
 
-        RAGResponse ragResponse = ragService.performRag(ragRequest);
+        RAGResponse ragResponse;
+        try {
+            ragResponse = ragService.performRag(ragRequest);
+        } catch (Exception ex) {
+            log.error("RAG search failed for query '{}'", query, ex);
+            Map<String, Object> fallbackData = new LinkedHashMap<>();
+            fallbackData.put("fallbackReason", ex.getMessage());
+            fallbackData.put("documents", Collections.emptyList());
+
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Search temporarily unavailable; returning fallback response.")
+                .data(Collections.unmodifiableMap(fallbackData))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
+        List<?> documents = ragResponse != null && ragResponse.getDocuments() != null
+            ? ragResponse.getDocuments()
+            : Collections.emptyList();
 
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("answer", ragResponse.getResponse());
-        data.put("documents", ragResponse.getDocuments());
+        data.put("documents", documents);
         data.put("ragResponse", ragResponse);
 
-        return OrchestrationResult.builder()
-            .type(OrchestrationResultType.INFORMATION_PROVIDED)
-            .success(true)
-            .message(ragResponse.getResponse())
-            .data(Collections.unmodifiableMap(data))
-            .nextSteps(extractNextSteps(intent))
-            .build();
+        // Flow 1: search-only
+        if (!intent.requiresGenerationOrDefault(false)) {
+            String answer = ragResponse != null ? ragResponse.getResponse() : null;
+            data.put("answer", answer);
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message(answer)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
+        // Flow 2: search + LLM generation with context filtering
+        try {
+            Map<String, Object> filteredContext = filterContextForLLM(ragResponse, intent.getVectorSpace());
+            String llmResponse = generateLLMResponse(query, filteredContext, ragResponse);
+
+            data.put("answer", llmResponse);
+            data.put("filteredContext", filteredContext);
+            data.put("contextFiltered", true);
+
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message(llmResponse)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        } catch (Exception ex) {
+            log.error("LLM generation flow failed; falling back to search-only response", ex);
+            data.put("answer", ragResponse != null ? ragResponse.getResponse() : null);
+            data.put("fallbackReason", ex.getMessage());
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message(ragResponse != null ? ragResponse.getResponse() : null)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
     }
 
     private OrchestrationResult handleOutOfScope(Intent intent) {
@@ -460,6 +517,94 @@ public class RAGOrchestrator {
         } catch (Exception ex) {
             log.warn("Failed to generate smart suggestion for intent {}: {}", candidate.getIntent(), ex.getMessage());
         }
+    }
+
+    private Map<String, Object> filterContextForLLM(RAGResponse response, String entityType) {
+        List<?> documents = response != null && response.getDocuments() != null
+            ? response.getDocuments()
+            : Collections.emptyList();
+
+        Map<String, SearchableFieldConfig> fieldConfigs = Collections.emptyMap();
+        try {
+            if (configurationLoader != null && StringUtils.hasText(entityType)) {
+                var config = configurationLoader.getEntityConfig(entityType);
+                if (config != null && config.getSearchableFields() != null) {
+                    fieldConfigs = config.getSearchableFields();
+                } else {
+                    log.warn("No entity config found for type '{}'; returning unfiltered context", entityType);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Unable to load entity configuration for type {}: {}", entityType, ex.getMessage());
+        }
+
+        Map<String, Object> filteredContext = new LinkedHashMap<>();
+        int index = 0;
+        for (Object document : documents) {
+            Map<String, Object> fields = extractDocumentFields(document);
+            Map<String, Object> filteredFields = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Object> entry : fields.entrySet()) {
+                SearchableFieldConfig fieldConfig = fieldConfigs.get(entry.getKey());
+                if (fieldConfig == null || fieldConfig.isIncludeInRag()) {
+                    filteredFields.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            String docId = extractDocumentId(document, fields, index++);
+            filteredContext.put(docId, Collections.unmodifiableMap(filteredFields));
+        }
+
+        return Collections.unmodifiableMap(filteredContext);
+    }
+
+    private Map<String, Object> extractDocumentFields(Object document) {
+        if (document instanceof RAGResponse.RAGDocument ragDocument) {
+            Map<String, Object> fields = new LinkedHashMap<>();
+            if (ragDocument.getMetadata() != null) {
+                fields.putAll(ragDocument.getMetadata());
+            }
+            if (ragDocument.getTitle() != null) {
+                fields.putIfAbsent("title", ragDocument.getTitle());
+            }
+            if (ragDocument.getContent() != null) {
+                fields.putIfAbsent("content", ragDocument.getContent());
+            }
+            if (ragDocument.getType() != null) {
+                fields.putIfAbsent("type", ragDocument.getType());
+            }
+            return fields;
+        }
+        if (document instanceof Map<?, ?> rawMap) {
+            Map<String, Object> fields = new LinkedHashMap<>();
+            rawMap.forEach((key, value) -> fields.put(String.valueOf(key), value));
+            return fields;
+        }
+        return Collections.emptyMap();
+    }
+
+    private String extractDocumentId(Object document, Map<String, Object> fields, int fallbackIndex) {
+        if (document instanceof RAGResponse.RAGDocument ragDocument && StringUtils.hasText(ragDocument.getId())) {
+            return ragDocument.getId();
+        }
+        if (fields != null && fields.containsKey("id")) {
+            Object id = fields.get("id");
+            if (id != null) {
+                return String.valueOf(id);
+            }
+        }
+        return "doc-" + fallbackIndex;
+    }
+
+    private String generateLLMResponse(String query, Map<String, Object> context, RAGResponse ragResponse) {
+        if (ragResponse != null && StringUtils.hasText(ragResponse.getResponse())) {
+            return ragResponse.getResponse();
+        }
+        StringBuilder builder = new StringBuilder("Generated response for query: ").append(query);
+        if (!context.isEmpty()) {
+            builder.append(" using ").append(context.size()).append(" context documents.");
+        }
+        return builder.toString();
     }
 
     private String convertToTitle(String intent) {

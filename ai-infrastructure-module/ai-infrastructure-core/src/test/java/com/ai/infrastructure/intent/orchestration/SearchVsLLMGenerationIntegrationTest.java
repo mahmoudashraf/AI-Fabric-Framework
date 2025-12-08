@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent.orchestration;
 
 import com.ai.infrastructure.dto.*;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.rag.RAGService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,12 +40,16 @@ class SearchVsLLMGenerationIntegrationTest {
     @MockBean
     private AIEntityConfigurationLoader configurationLoader;
 
+    @MockBean
+    private IntentQueryExtractor intentQueryExtractor;
+
     private static final String TEST_USER_ID = "test-user-123";
     private static final String PRODUCT_ENTITY_TYPE = "product";
 
     @BeforeEach
     void setUp() {
         setupProductConfiguration();
+        mockIntentExtraction(createSearchOnlyIntent());
     }
 
     /**
@@ -101,18 +106,22 @@ class SearchVsLLMGenerationIntegrationTest {
      * Create mock RAG response with sample product data
      */
     private RAGResponse createMockRAGResponse() {
-        Map<String, Object> document = new LinkedHashMap<>();
-        document.put("id", "prod-123");
-        document.put("name", "Luxury Leather Wallet");
-        document.put("description", "Premium Italian leather, handcrafted");
-        document.put("costPrice", 50.00);
-        document.put("retailPrice", 199.99);
-        document.put("internalMargin", 0.75);
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("name", "Luxury Leather Wallet");
+        metadata.put("description", "Premium Italian leather, handcrafted");
+        metadata.put("costPrice", 50.00);
+        metadata.put("retailPrice", 199.99);
+        metadata.put("internalMargin", 0.75);
+
+        RAGResponse.RAGDocument document = RAGResponse.RAGDocument.builder()
+            .id("prod-123")
+            .metadata(metadata)
+            .build();
 
         return RAGResponse.builder()
             .response("Found 1 matching product")
             .documents(List.of(document))
-            .relevanceScore(0.92)
+            .confidenceScore(0.92)
             .build();
     }
 
@@ -148,6 +157,19 @@ class SearchVsLLMGenerationIntegrationTest {
         return intent;
     }
 
+    /**
+     * Stub intent extraction to return the provided intent.
+     */
+    private void mockIntentExtraction(Intent intent) {
+        MultiIntentResponse response = MultiIntentResponse.builder()
+            .intents(List.of(intent))
+            .compound(false)
+            .build();
+        response.normalize();
+        when(intentQueryExtractor.extract(anyString(), anyString()))
+            .thenReturn(response);
+    }
+
     @Nested
     @DisplayName("Search-Only Query Tests")
     class SearchOnlyQueryTests {
@@ -157,6 +179,7 @@ class SearchVsLLMGenerationIntegrationTest {
         void testSearchOnlyReturnsAllFields() {
             // Arrange
             Intent searchIntent = createSearchOnlyIntent();
+            mockIntentExtraction(searchIntent);
             RAGResponse mockResponse = createMockRAGResponse();
             
             when(ragService.performRag(any(RAGRequest.class)))
@@ -175,15 +198,16 @@ class SearchVsLLMGenerationIntegrationTest {
             @SuppressWarnings("unchecked")
             Map<String, Object> data = (Map<String, Object>) result.getData();
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> documents = (List<Map<String, Object>>) data.get("documents");
+            List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) data.get("documents");
             
             assertThat(documents).hasSize(1);
-            Map<String, Object> product = documents.get(0);
+            RAGResponse.RAGDocument product = documents.get(0);
+            Map<String, Object> metadata = product.getMetadata();
             
             // Verify all fields are present (no filtering for search-only)
-            assertThat(product).containsKeys("name", "description", "costPrice", "internalMargin");
-            assertThat(product.get("costPrice")).isEqualTo(50.00);
-            assertThat(product.get("internalMargin")).isEqualTo(0.75);
+            assertThat(metadata).containsKeys("name", "description", "costPrice", "internalMargin");
+            assertThat(metadata.get("costPrice")).isEqualTo(50.00);
+            assertThat(metadata.get("internalMargin")).isEqualTo(0.75);
         }
 
         @Test
@@ -191,6 +215,7 @@ class SearchVsLLMGenerationIntegrationTest {
         void testSearchOnlyNoContextFiltering() {
             // Arrange
             Intent searchIntent = createSearchOnlyIntent();
+            mockIntentExtraction(searchIntent);
             RAGResponse mockResponse = createMockRAGResponse();
             
             when(ragService.performRag(any(RAGRequest.class)))
@@ -215,6 +240,7 @@ class SearchVsLLMGenerationIntegrationTest {
         void testSearchOnlyPerformance() {
             // Arrange
             Intent searchIntent = createSearchOnlyIntent();
+            mockIntentExtraction(searchIntent);
             RAGResponse mockResponse = createMockRAGResponse();
             
             when(ragService.performRag(any(RAGRequest.class)))
@@ -239,6 +265,7 @@ class SearchVsLLMGenerationIntegrationTest {
         void testLLMGenerationFiltersContext() {
             // Arrange
             Intent genIntent = createLLMGenerationIntent();
+            mockIntentExtraction(genIntent);
             RAGResponse mockResponse = createMockRAGResponse();
             
             when(ragService.performRag(any(RAGRequest.class)))
@@ -284,6 +311,7 @@ class SearchVsLLMGenerationIntegrationTest {
         void testCostPriceHiddenFromLLM() {
             // Arrange
             Intent genIntent = createLLMGenerationIntent();
+            mockIntentExtraction(genIntent);
             RAGResponse mockResponse = createMockRAGResponse();
             
             when(ragService.performRag(any(RAGRequest.class)))
@@ -314,6 +342,7 @@ class SearchVsLLMGenerationIntegrationTest {
         void testRetailPriceIncludedInLLM() {
             // Arrange
             Intent genIntent = createLLMGenerationIntent();
+            mockIntentExtraction(genIntent);
             RAGResponse mockResponse = createMockRAGResponse();
             
             when(ragService.performRag(any(RAGRequest.class)))
@@ -344,6 +373,7 @@ class SearchVsLLMGenerationIntegrationTest {
         void testLLMGenerationErrorFallback() {
             // Arrange
             Intent genIntent = createLLMGenerationIntent();
+            mockIntentExtraction(genIntent);
             RAGResponse mockResponse = createMockRAGResponse();
             
             when(ragService.performRag(any(RAGRequest.class)))
@@ -503,15 +533,18 @@ class SearchVsLLMGenerationIntegrationTest {
         void testUnknownFieldsPreserved() {
             // Arrange
             Intent genIntent = createLLMGenerationIntent();
+            mockIntentExtraction(genIntent);
             
-            Map<String, Object> document = new LinkedHashMap<>();
-            document.put("id", "prod-123");
-            document.put("name", "Wallet");
-            document.put("unknownField", "some-value");
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("name", "Wallet");
+            metadata.put("unknownField", "some-value");
             
             RAGResponse mockResponse = RAGResponse.builder()
                 .response("Found product")
-                .documents(List.of(document))
+                .documents(List.of(RAGResponse.RAGDocument.builder()
+                    .id("prod-123")
+                    .metadata(metadata)
+                    .build()))
                 .build();
             
             when(ragService.performRag(any(RAGRequest.class)))

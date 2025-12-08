@@ -1,7 +1,6 @@
 package com.ai.infrastructure.service;
 
 import com.ai.infrastructure.dto.AIEntityConfig;
-import com.ai.infrastructure.dto.AISearchableField;
 import com.ai.infrastructure.dto.AIEmbeddableField;
 import com.ai.infrastructure.dto.AIMetadataField;
 import com.ai.infrastructure.entity.AISearchableEntity;
@@ -247,14 +246,12 @@ public class AICapabilityService {
         try {
             List<String> contentParts = new ArrayList<>();
             
-            if (config.getSearchableFields() != null) {
-                for (AISearchableField field : config.getSearchableFields()) {
-                    String value = getFieldValue(entity, field.getName());
-                    if (value != null && !value.trim().isEmpty()) {
-                        contentParts.add(value);
-                    }
+            config.getSearchableFieldList().forEach(field -> {
+                String value = getFieldValue(entity, field.getName());
+                if (value != null && !value.trim().isEmpty()) {
+                    contentParts.add(value);
                 }
-            }
+            });
             
             return String.join(" ", contentParts);
             
@@ -474,7 +471,7 @@ public class AICapabilityService {
             throw new IllegalArgumentException("AI configuration entity type cannot be null or empty");
         }
         
-        if (config.getSearchableFields() == null || config.getSearchableFields().isEmpty()) {
+        if (config.getSearchableFieldList().isEmpty()) {
             log.warn("No searchable fields configured for entity type: {}", entityType);
         }
         
@@ -529,7 +526,7 @@ public class AICapabilityService {
                 log.warn("Metadata fields are null for entity type: {}", entityType);
                 log.warn("Config details - entityType: {}, searchableFields: {}, embeddableFields: {}",
                     config.getEntityType(),
-                    config.getSearchableFields() != null ? config.getSearchableFields().size() : "null",
+                    config.getSearchableFieldList().size(),
                     config.getEmbeddableFields() != null ? config.getEmbeddableFields().size() : "null");
                 log.warn("Continuing with null metadata fields - this may cause issues in metadata extraction");
             }
@@ -540,7 +537,7 @@ public class AICapabilityService {
             log.debug("Config object details: entityType={}, metadataFields={}, searchableFields={}", 
                 config.getEntityType(),
                 config.getMetadataFields() != null ? config.getMetadataFields().size() : "null",
-                config.getSearchableFields() != null ? config.getSearchableFields().size() : "null");
+                config.getSearchableFieldList().size());
             generateEmbeddings(entity, config);
             
             // Index for search
