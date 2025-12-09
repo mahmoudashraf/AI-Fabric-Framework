@@ -291,29 +291,43 @@ public class RAGOrchestrator {
     }
 
     private OrchestrationResult handleInformation(Intent intent, String userId) {
-        String query = StringUtils.hasText(intent.getIntent()) ? intent.getIntent() : intent.getIntentOrAction();
+        boolean needsGeneration = intent.requiresGenerationOrDefault(false);
+        String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
+        String query = StringUtils.hasText(optimizedQuery) ? optimizedQuery : intent.getIntentOrAction();
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("source", "orchestrator");
+        metadata.put("userId", userId);
+        metadata.put("requiresGeneration", needsGeneration);
+        if (optimizedQuery != null) {
+            metadata.put("optimizedQuery", optimizedQuery);
+        }
+
         RAGRequest ragRequest = RAGRequest.builder()
             .query(query)
             .entityType(intent.getVectorSpace())
             .limit(DEFAULT_RAG_LIMIT)
             .threshold(DEFAULT_RAG_THRESHOLD)
-            .metadata(Map.of(
-                "source", "orchestrator",
-                "userId", userId
-            ))
+            .metadata(Collections.unmodifiableMap(metadata))
+            .userId(userId)
             .build();
 
-        RAGResponse ragResponse = ragService.performRag(ragRequest);
+        RAGResponse ragResponse = needsGeneration
+            ? ragService.performRAGQuery(ragRequest)
+            : ragService.performRag(ragRequest);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("answer", ragResponse.getResponse());
         data.put("documents", ragResponse.getDocuments());
         data.put("ragResponse", ragResponse);
+        data.put("requiresGeneration", needsGeneration);
+
+        String message = StringUtils.hasText(ragResponse.getResponse()) ? ragResponse.getResponse() : "Search completed.";
 
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
-            .success(true)
-            .message(ragResponse.getResponse())
+            .success(Boolean.TRUE.equals(ragResponse.getSuccess()) || ragResponse.getSuccess() == null)
+            .message(message)
             .data(Collections.unmodifiableMap(data))
             .nextSteps(extractNextSteps(intent))
             .build();

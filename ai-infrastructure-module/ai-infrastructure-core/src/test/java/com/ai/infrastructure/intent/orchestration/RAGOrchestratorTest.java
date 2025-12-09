@@ -233,6 +233,35 @@ class RAGOrchestratorTest {
     }
 
     @Test
+    void shouldRouteInformationIntentToGenerationWhenRequested() {
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("product_recommendations")
+            .optimizedQuery("Product entities where price_usd < 100 and stock_status = 'in_stock'")
+            .requiresGeneration(true)
+            .build();
+        when(intentQueryExtractor.extract(any(), any()))
+            .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
+
+        RAGResponse ragResponse = RAGResponse.builder()
+            .response("Here are top picks.")
+            .documents(List.of())
+            .success(true)
+            .build();
+        when(ragService.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
+
+        OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", "user");
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
+        assertThat(result.getMessage()).isEqualTo("Here are top picks.");
+
+        ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
+        verify(ragService).performRAGQuery(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
+        verify(ragService, never()).performRag(any(RAGRequest.class));
+    }
+
+    @Test
     void shouldHandleOutOfScopeIntent() {
         Intent intent = Intent.builder()
             .type(IntentType.OUT_OF_SCOPE)
