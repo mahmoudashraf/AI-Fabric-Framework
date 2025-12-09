@@ -1,4 +1,7 @@
 spring:
+  task:
+    scheduling:
+      enabled: false
   # Database Configuration (H2 in-memory for testing)
   datasource:
     url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
@@ -26,11 +29,8 @@ spring:
         # Ensure schema is created before tests run
         hbm2ddl:
           auto: create-drop
-        # Use quoted identifiers to preserve table name case
-        globally_quoted_identifiers: true
-        # Force schema creation on SessionFactory initialization
-        hbm2ddl:
-          auto: create-drop
+        # Avoid global quoting to prevent case-sensitive table mismatches
+        globally_quoted_identifiers: false
     open-in-view: false
     # Don't defer - let Hibernate create schema immediately
     defer-datasource-initialization: false
@@ -55,6 +55,8 @@ spring:
 
 ai:
   enabled: true
+  indexing:
+    enabled: false
   pii-detection:
     enabled: true
     mode: DETECT_ONLY

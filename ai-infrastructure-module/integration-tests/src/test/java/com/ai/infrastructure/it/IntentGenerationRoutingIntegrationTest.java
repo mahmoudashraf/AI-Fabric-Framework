@@ -39,7 +39,9 @@ import static org.mockito.Mockito.when;
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
     "ai.pii-detection.enabled=false",
-    "ai.smart-suggestions.enabled=false"
+    "ai.smart-suggestions.enabled=false",
+    // Disable scheduled tasks to avoid background indexing hitting missing tables in lightweight test context
+    "spring.task.scheduling.enabled=false"
 })
 class IntentGenerationRoutingIntegrationTest {
 
