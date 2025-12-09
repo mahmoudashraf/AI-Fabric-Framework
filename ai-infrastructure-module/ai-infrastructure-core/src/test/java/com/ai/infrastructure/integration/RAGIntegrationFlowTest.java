@@ -76,8 +76,9 @@ class RAGIntegrationFlowTest {
 
     @BeforeEach
     void resetState() {
-        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
-        when(clock.instant()).thenReturn(Instant.parse("2025-01-01T00:00:00Z"));
+        // Use doReturn to avoid Mockito type inference issues on Clock
+        doReturn(ZoneOffset.UTC).when(clock).getZone();
+        doReturn(Instant.parse("2025-01-01T00:00:00Z")).when(clock).instant();
         vectorDatabaseService.clearVectors();
         historyRepository.deleteAll();
         when(securityService.analyzeRequest(any())).thenReturn(
