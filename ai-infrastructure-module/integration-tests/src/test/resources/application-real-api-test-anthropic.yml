@@ -40,6 +40,8 @@ test:
 # AI Configuration for Anthropic + OpenAI Embeddings
 ai:
   enabled: true
+  indexing:
+    enabled: true
   pii-detection:
     enabled: true
     mode: DETECT_ONLY
