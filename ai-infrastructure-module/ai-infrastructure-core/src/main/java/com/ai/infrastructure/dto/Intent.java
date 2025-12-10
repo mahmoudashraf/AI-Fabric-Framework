@@ -58,6 +58,17 @@ public class Intent {
     private Boolean requiresRetrieval;
 
     /**
+     * Whether this informational intent needs LLM generation after retrieval.
+     */
+    @JsonAlias({"requires_generation"})
+    private Boolean requiresGeneration;
+
+    /**
+     * Optimized, system-terminology aligned query for embeddings.
+     */
+    private String optimizedQuery;
+
+    /**
      * Optional recommendation that should be surfaced after handling this intent.
      */
     private NextStepRecommendation nextStepRecommended;
@@ -81,6 +92,10 @@ public class Intent {
         return requiresRetrieval != null ? requiresRetrieval : fallback;
     }
 
+    public boolean requiresGenerationOrDefault(boolean fallback) {
+        return requiresGeneration != null ? requiresGeneration : fallback;
+    }
+
     public String getIntentOrAction() {
         if (intent != null && !intent.isBlank()) {
             return intent;
@@ -95,10 +110,16 @@ public class Intent {
         if (requiresRetrieval == null) {
             requiresRetrieval = type == IntentType.INFORMATION || type == IntentType.COMPOUND;
         }
+        if (requiresGeneration == null) {
+            requiresGeneration = Boolean.FALSE;
+        }
         if (actionParams == null) {
             actionParams = Collections.emptyMap();
         } else {
             actionParams = Map.copyOf(actionParams);
+        }
+        if (optimizedQuery != null && optimizedQuery.isBlank()) {
+            optimizedQuery = null;
         }
         if (nextStepRecommended != null && nextStepRecommended.getConfidence() != null) {
             double value = Math.max(0.0d, Math.min(1.0d, nextStepRecommended.getConfidence()));

@@ -23,7 +23,8 @@ public class EnrichedPromptBuilder {
 
         StringBuilder prompt = new StringBuilder(1024);
         prompt.append("You are the intent extraction engine powering our Retrieval-Augmented Generation (RAG) assistant.\n");
-        prompt.append("Analyse the user message and respond with a JSON payload that follows the schema provided below.\n\n");
+        prompt.append("Analyse the user message and respond with a JSON payload that follows the schema provided below.\n");
+        prompt.append("Use one call to capture intent, generation need, and optimized query (no extra services).\n\n");
 
         appendAvailableActions(prompt, context);
         appendKnowledgeBaseSummary(prompt, context);
@@ -88,7 +89,9 @@ public class EnrichedPromptBuilder {
         prompt.append("2. If the user is searching for information -> intent.type = INFORMATION.\n");
         prompt.append("3. If the request is unsupported -> intent.type = OUT_OF_SCOPE and explain briefly in actionParams.reason.\n");
         prompt.append("4. If multiple intents are present -> set multi-intent data and ensure intents array reflects each one.\n");
-        prompt.append("5. Confidence must be between 0.0 and 1.0.\n\n");
+        prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
+        prompt.append("6. For INFORMATION intents decide if LLM generation is needed (requiresGeneration = true for opinions/recommendations, false for data lookup).\n");
+        prompt.append("7. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n\n");
     }
 
     private void appendNextStepGuidance(StringBuilder prompt) {
@@ -112,6 +115,8 @@ public class EnrichedPromptBuilder {
                   "actionParams": {"key": "value"},
                   "vectorSpace": "policies | faq | ...",
                   "requiresRetrieval": true,
+                  "requiresGeneration": false,
+                  "optimizedQuery": "Product entities with price_usd < 60.00 AND stock_status = 'in_stock'",
                   "nextStepRecommended": {
                     "intent": "potential_follow_up_intent",
                     "query": "Helpful follow-up question to ask the user",

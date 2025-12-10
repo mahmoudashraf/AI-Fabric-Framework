@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -190,6 +191,7 @@ public class RAGService {
         try {
             PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(request.getQuery());
             String sanitizedQuery = piiDetectionResult.getProcessedQuery();
+            String embeddingQuery = resolveEmbeddingQuery(request, sanitizedQuery);
             log.debug("Performing RAG query (entityType={}, requestId={}, piiDetected={}, mode={})",
                 request.getEntityType(),
                 request.getRequestId(),
@@ -200,7 +202,7 @@ public class RAGService {
             
             // Generate query embedding
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(sanitizedQuery)
+                .text(embeddingQuery)
                 .model(config.resolveEmbeddingDefaults().model())
                 .build();
             
@@ -209,7 +211,7 @@ public class RAGService {
             
             // Create search request
             AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(sanitizedQuery)
+                .query(embeddingQuery)
                 .entityType(request.getEntityType())
                 .limit(request.getLimit())
                 .threshold(request.getThreshold())
@@ -243,6 +245,8 @@ public class RAGService {
                 "detectionsCount", piiDetectionResult.getDetections().size(),
                 "encryptedOriginalStored", piiDetectionResult.getEncryptedOriginalQuery() != null
             ));
+            aggregatedMetadata.put("optimizedQueryProvided", extractOptimizedQuery(request.getMetadata()) != null);
+            aggregatedMetadata.put("embeddingQuery", embeddingQuery);
             
             return RAGResponse.builder()
                 .response(response)
@@ -374,6 +378,7 @@ public class RAGService {
         try {
             PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(request.getQuery());
             String sanitizedQuery = piiDetectionResult.getProcessedQuery();
+            String embeddingQuery = resolveEmbeddingQuery(request, sanitizedQuery);
             log.debug("Performing RAG operation (entityType={}, requestId={}, piiDetected={}, mode={})",
                 request.getEntityType(),
                 request.getRequestId(),
@@ -383,7 +388,7 @@ public class RAGService {
             // Generate embedding for the query
 
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(sanitizedQuery)
+                .text(embeddingQuery)
                 .build();
             
             AIEmbeddingResponse embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
@@ -401,7 +406,7 @@ public class RAGService {
             }
             
             AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(sanitizedQuery)
+                .query(embeddingQuery)
                 .entityType(request.getEntityType())
                 .limit(request.getLimit())
                 .threshold(request.getThreshold())
@@ -445,6 +450,8 @@ public class RAGService {
                 "detectionsCount", piiDetectionResult.getDetections().size(),
                 "encryptedOriginalStored", piiDetectionResult.getEncryptedOriginalQuery() != null
             ));
+            aggregatedMetadata.put("optimizedQueryProvided", extractOptimizedQuery(request.getMetadata()) != null);
+            aggregatedMetadata.put("embeddingQuery", embeddingQuery);
             
             return RAGResponse.builder()
                 .documents(documents)
@@ -475,6 +482,30 @@ public class RAGService {
         }
     }
     
+    private String resolveEmbeddingQuery(RAGRequest request, String sanitizedQuery) {
+        String optimized = extractOptimizedQuery(request.getMetadata());
+        if (StringUtils.hasText(optimized)) {
+            try {
+                return piiDetectionService.detectAndProcess(optimized).getProcessedQuery();
+            } catch (Exception ex) {
+                log.debug("Unable to sanitize optimized query, using as provided: {}", ex.getMessage());
+                return optimized;
+            }
+        }
+        return sanitizedQuery;
+    }
+
+    private String extractOptimizedQuery(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        Object candidate = metadata.get("optimizedQuery");
+        if (candidate instanceof String str && StringUtils.hasText(str)) {
+            return str;
+        }
+        return null;
+    }
+
     private Map<String, Object> normalizeMetadata(Object metadata) {
         if (metadata instanceof Map<?, ?> rawMap) {
             return rawMap.entrySet().stream()

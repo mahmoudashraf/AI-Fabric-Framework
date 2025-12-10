@@ -74,6 +74,8 @@ class IntentQueryExtractorTest {
                   "intent": "refund_policy",
                   "confidence": 0.81,
                   "requiresRetrieval": true,
+                  "requiresGeneration": false,
+                  "optimizedQuery": "Policy documents where type = 'refund' and status = 'active'",
                   "vectorSpace": "policies"
                 }
               ],
@@ -92,6 +94,8 @@ class IntentQueryExtractorTest {
         Intent intent = response.getIntents().getFirst();
         assertThat(intent.getType()).isEqualTo(IntentType.INFORMATION);
         assertThat(intent.getRequiresRetrieval()).isTrue();
+        assertThat(intent.getRequiresGeneration()).isFalse();
+        assertThat(intent.getOptimizedQuery()).contains("Policy documents");
         assertThat(response.getOrchestrationStrategy()).isEqualTo("RETRIEVE_AND_GENERATE");
     }
 

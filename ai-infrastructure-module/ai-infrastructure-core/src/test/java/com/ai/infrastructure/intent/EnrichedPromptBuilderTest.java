@@ -54,6 +54,8 @@ class EnrichedPromptBuilderTest {
             .contains("KNOWLEDGE BASE OVERVIEW")
             .contains("Total documents: 123")
             .contains("NEXT-STEP RECOMMENDATIONS")
+            .contains("requiresGeneration")
+            .contains("optimizedQuery")
             .contains("OUTPUT JSON SCHEMA");
     }
 }

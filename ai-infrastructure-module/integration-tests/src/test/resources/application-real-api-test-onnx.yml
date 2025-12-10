@@ -41,6 +41,8 @@ test:
 # AI Configuration for ONNX Real API Testing
 ai:
   enabled: true
+  indexing:
+    enabled: true
   pii-detection:
     enabled: true
     mode: DETECT_ONLY
