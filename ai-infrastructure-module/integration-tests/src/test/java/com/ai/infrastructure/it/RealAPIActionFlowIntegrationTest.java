@@ -158,7 +158,18 @@ public class RealAPIActionFlowIntegrationTest {
 
         OrchestrationResult result = orchestrateOrSkip(query, userId);
         assertNotNull(result, "Orchestrator should return a result");
-        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.getType())
+            .as("Action should be executed; compound is acceptable if it contains the action")
+            .isIn(OrchestrationResultType.ACTION_EXECUTED, OrchestrationResultType.COMPOUND_HANDLED);
+
+        // If the LLM emitted a compound, ensure the action child succeeded
+        if (result.getType() == OrchestrationResultType.COMPOUND_HANDLED) {
+            OrchestrationResult actionChild = result.getChildren().stream()
+                .filter(child -> child.getType() == OrchestrationResultType.ACTION_EXECUTED)
+                .findFirst()
+                .orElse(null);
+            assertNotNull(actionChild, "Compound result should include executed action child");
+        }
 
         Map<String, Object> payload = result.getSanitizedPayload();
         assertThat(payload).isNotEmpty();
