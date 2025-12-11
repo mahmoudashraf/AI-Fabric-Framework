@@ -33,12 +33,12 @@ ai-infrastructure:
   storage:
     strategy: SINGLE_TABLE
 
-# For enterprise scale (10M+ records)
+# For enterprise scale (10M+ records) - TABLES AUTO-CREATED!
 ai-infrastructure:
   storage:
     strategy: PER_TYPE_TABLE
     per-type-tables:
-      entity-types: [product, user, order, document]
+      auto-create-tables: true  # ← Tables created automatically from ai-entity-config.yml
 
 # For custom needs
 ai-infrastructure:
@@ -46,6 +46,17 @@ ai-infrastructure:
     strategy: CUSTOM
     custom-class: "com.mycompany.MyStorageStrategy"
 ```
+
+### ✨ Special Feature: Auto-Table Creation for Per-Type Strategy
+
+When using **PER_TYPE_TABLE** strategy:
+- Tables are **automatically created** at application startup
+- Driven by entity types defined in `ai-entity-config.yml`
+- Users **never manually create tables**
+- Indices are auto-created for optimal performance
+- Full YAML-driven, zero manual database operations
+
+See **AUTO_TABLE_CREATION.md** for details.
 
 ---
 

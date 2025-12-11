@@ -13,7 +13,15 @@
    - 📊 Strategy selection matrix
    - 🏗️ Architecture diagram
 
-### 2. **STORAGE_STRATEGY_IMPLEMENTATIONS.md** - Complete Code
+### 2. **AUTO_TABLE_CREATION.md** - Zero Manual Table Setup
+   - ⚙️ Automatic table creation at startup
+   - 📋 Driven by ai-entity-config.yml
+   - 🎯 User experience (no manual SQL!)
+   - 💻 Auto-creation service code
+   - 🗄️ Dynamic repository factory
+   - ✅ Automatic index creation
+
+### 3. **STORAGE_STRATEGY_IMPLEMENTATIONS.md** - Complete Code
    - 🔧 Strategy interface definition
    - 💻 Single table implementation
    - 💻 Per-type table implementation
@@ -21,7 +29,7 @@
    - 🛠️ Service layer using strategy
    - ⚙️ Auto-configuration setup
 
-### 3. **STRATEGY_CONFIGURATION_GUIDE.md** - How to Configure
+### 4. **STRATEGY_CONFIGURATION_GUIDE.md** - How to Configure
    - 📋 Configuration hierarchy
    - 🎯 Property definitions
    - 🔧 YAML examples for each strategy
@@ -37,6 +45,7 @@
 |------|----------|---------|
 | Understanding the concept | README.md | Overview |
 | Choosing a strategy | README.md | Strategy Selection Matrix |
+| Auto-table setup | AUTO_TABLE_CREATION.md | Overview |
 | Implementing | STORAGE_STRATEGY_IMPLEMENTATIONS.md | Full Code |
 | Configuration | STRATEGY_CONFIGURATION_GUIDE.md | YAML Examples |
 | Production setup | STRATEGY_CONFIGURATION_GUIDE.md | Profile-Specific Config |
@@ -50,6 +59,12 @@
 - **Audience**: Architects, Tech Leads, Decision Makers
 - **Key Points**: Why pluggable? When to use each? How does it help?
 - **Read Time**: 15 minutes
+
+### AUTO_TABLE_CREATION.md
+- **Purpose**: Automatic table creation driven by ai-entity-config.yml
+- **Audience**: DevOps, Backend Developers
+- **Key Points**: Zero manual table creation, auto-indexing, fully YAML-driven
+- **Read Time**: 20 minutes
 
 ### STORAGE_STRATEGY_IMPLEMENTATIONS.md
 - **Purpose**: Provide complete, production-ready code implementations
@@ -77,17 +92,20 @@
 2. Copy strategy interface and implementation
 3. Update service layer
 4. Set up auto-configuration
+5. (For Per-Type): Copy AUTO_TABLE_CREATION.md code
 
 ### Phase 3: Configuration (30 min)
 1. Read STRATEGY_CONFIGURATION_GUIDE.md
 2. Create application-dev/staging/prod.yml
-3. Test strategy switching
+3. (For Per-Type): Define entities in ai-entity-config.yml
+4. Test strategy setup
 
 ### Phase 4: Deployment (1-2 hours)
 1. Deploy with new strategy
-2. Monitor health checks
-3. Validate performance
-4. Prepare rollback plan
+2. (For Per-Type): Tables auto-created at startup ✨
+3. Monitor health checks
+4. Validate performance
+5. Prepare rollback plan
 
 ---
 
