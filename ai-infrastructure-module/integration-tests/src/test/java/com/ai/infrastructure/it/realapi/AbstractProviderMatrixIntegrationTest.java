@@ -132,7 +132,7 @@ abstract class AbstractProviderMatrixIntegrationTest {
     }
 
     private List<ProviderCombination> discoverAvailableCombinations() {
-        ProviderCombination defaultCombo = new ProviderCombination(defaultLlmProvider(), defaultEmbeddingProvider(), null);
+        ProviderCombination defaultCombo = new ProviderCombination(defaultLlmProvider(), defaultEmbeddingProvider(), null, defaultStorageStrategy());
         configureProviderProperties(defaultCombo);
 
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(TestApplication.class)
@@ -154,10 +154,14 @@ abstract class AbstractProviderMatrixIntegrationTest {
                 .sorted()
                 .toList();
 
+            List<String> vectorDbProviders = vectorDbProviders();
+
             List<ProviderCombination> combinations = new ArrayList<>();
             for (String llm : llmProviders) {
                 for (String embedding : embeddingProviders) {
-                    combinations.add(new ProviderCombination(llm, embedding));
+                    for (String vector : vectorDbProviders) {
+                        combinations.add(new ProviderCombination(llm, embedding, vector, defaultStorageStrategy()));
+                    }
                 }
             }
             return combinations;
@@ -330,5 +334,9 @@ abstract class AbstractProviderMatrixIntegrationTest {
 
     protected static String defaultStorageStrategy() {
         return "SINGLE_TABLE";
+    }
+
+    protected List<String> vectorDbProviders() {
+        return java.util.Arrays.asList("lucene", null);
     }
 }
