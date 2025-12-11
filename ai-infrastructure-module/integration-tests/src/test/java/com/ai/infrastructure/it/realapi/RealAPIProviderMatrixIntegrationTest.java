@@ -118,7 +118,8 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     @Override
     protected Map<String, Object> additionalDiscoveryProperties() {
         return Map.of(
-            "spring.liquibase.enabled", "false"
+            "spring.liquibase.enabled", "false",
+            "ai.config.default-file", "ai-entity-config-realapi.yml"
         );
     }
 }
