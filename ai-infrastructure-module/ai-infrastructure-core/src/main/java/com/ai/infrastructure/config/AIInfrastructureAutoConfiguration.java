@@ -2,7 +2,6 @@ package com.ai.infrastructure.config;
 
 import com.ai.infrastructure.aspect.AICapableAspect;
 import com.ai.infrastructure.service.AICapabilityService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
@@ -37,11 +36,10 @@ import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.VectorDatabaseServiceAdapter;
-import com.ai.infrastructure.config.AIConfigurationService;
-import com.ai.infrastructure.config.IntentHistoryProperties;
-import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.repository.IndexingQueueRepository;
+import com.ai.infrastructure.storage.AIStorageProperties;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -84,9 +82,10 @@ import java.util.stream.Collectors;
         IntentHistoryProperties.class,
         SecurityProperties.class,
         AIIndexingProperties.class,
-        AICleanupProperties.class
+        AICleanupProperties.class,
+        AIStorageProperties.class
     })
-@Import(ProviderConfiguration.class)
+@Import({ProviderConfiguration.class, AISearchableStorageStrategyAutoConfiguration.class})
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy
 @EnableScheduling
@@ -161,13 +160,13 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public UserDataDeletionService userDataDeletionService(AISearchableEntityRepository searchableEntityRepository,
+    public UserDataDeletionService userDataDeletionService(AISearchableEntityStorageStrategy storageStrategy,
                                                            VectorDatabaseService vectorDatabaseService,
                                                            Clock clock,
                                                            ObjectProvider<UserDataDeletionProvider> deletionProvider,
                                                            ObjectProvider<BehaviorDeletionPort> behaviorDeletionPort) {
         return new UserDataDeletionService(
-            searchableEntityRepository,
+            storageStrategy,
             vectorDatabaseService,
             clock,
             deletionProvider.getIfAvailable(),
@@ -231,7 +230,7 @@ public class AIInfrastructureAutoConfiguration {
     public SearchableEntityCleanupScheduler searchableEntityCleanupScheduler(
         AICleanupProperties cleanupProperties,
         CleanupPolicyProvider cleanupPolicyProvider,
-        AISearchableEntityRepository repository,
+        AISearchableEntityStorageStrategy storageStrategy,
         VectorManagementService vectorManagementService,
         ObjectMapper objectMapper,
         Clock clock
@@ -239,7 +238,7 @@ public class AIInfrastructureAutoConfiguration {
         return new SearchableEntityCleanupScheduler(
             cleanupProperties,
             cleanupPolicyProvider,
-            repository,
+            storageStrategy,
             vectorManagementService,
             objectMapper,
             clock
@@ -324,10 +323,10 @@ public class AIInfrastructureAutoConfiguration {
     public AICapabilityService aiCapabilityService(
             AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
-            AISearchableEntityRepository searchableEntityRepository,
+            AISearchableEntityStorageStrategy storageStrategy,
             AIEntityConfigurationLoader entityConfigurationLoader,
             VectorManagementService vectorManagementService) {
-        return new AICapabilityService(embeddingService, aiCoreService, searchableEntityRepository, entityConfigurationLoader, vectorManagementService);
+        return new AICapabilityService(embeddingService, aiCoreService, storageStrategy, entityConfigurationLoader, vectorManagementService);
     }
     
     @Bean

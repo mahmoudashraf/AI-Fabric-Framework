@@ -2,7 +2,7 @@ package com.ai.infrastructure.cleanup;
 
 import com.ai.infrastructure.config.AICleanupProperties;
 import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,7 +30,7 @@ public class SearchableEntityCleanupScheduler {
 
     private final AICleanupProperties properties;
     private final CleanupPolicyProvider policyProvider;
-    private final AISearchableEntityRepository repository;
+    private final AISearchableEntityStorageStrategy storageStrategy;
     private final VectorManagementService vectorManagementService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -42,7 +42,7 @@ public class SearchableEntityCleanupScheduler {
             return;
         }
 
-        List<AISearchableEntity> entities = repository.findByVectorIdIsNotNull();
+        List<AISearchableEntity> entities = storageStrategy.findByVectorIdIsNotNull();
         if (CollectionUtils.isEmpty(entities)) {
             return;
         }
@@ -69,7 +69,7 @@ public class SearchableEntityCleanupScheduler {
         Duration retention = properties.getNoVectorEntities().getRetention();
         LocalDateTime cutoff = LocalDateTime.now(clock).minus(retention);
 
-        List<AISearchableEntity> entities = repository.findByVectorIdIsNull();
+        List<AISearchableEntity> entities = storageStrategy.findByVectorIdIsNull();
         if (CollectionUtils.isEmpty(entities)) {
             return;
         }
@@ -101,7 +101,7 @@ public class SearchableEntityCleanupScheduler {
             int retentionDays = entry.getValue();
             LocalDateTime cutoff = LocalDateTime.now(clock).minusDays(retentionDays);
 
-            List<AISearchableEntity> entities = repository.findByEntityType(entityType);
+            List<AISearchableEntity> entities = storageStrategy.findByEntityType(entityType);
             for (AISearchableEntity entity : entities) {
                 if (shouldCleanup(entity.getCreatedAt(), cutoff)) {
                     applyPolicy(entityType, entity);
@@ -129,19 +129,19 @@ public class SearchableEntityCleanupScheduler {
         entity.setVectorId(null);
         entity.setVectorUpdatedAt(null);
         entity.setUpdatedAt(LocalDateTime.now(clock));
-        repository.save(entity);
+        storageStrategy.save(entity);
         log.debug("Soft deleted searchable entity {}:{}", entity.getEntityType(), entity.getEntityId());
     }
 
     private void archiveEntity(AISearchableEntity entity) {
         evictVector(entity);
-        repository.delete(entity);
+        storageStrategy.delete(entity);
         log.debug("Archived searchable entity {}:{}", entity.getEntityType(), entity.getEntityId());
     }
 
     private void deleteEntity(AISearchableEntity entity) {
         evictVector(entity);
-        repository.delete(entity);
+        storageStrategy.delete(entity);
         log.debug("Deleted searchable entity {}:{}", entity.getEntityType(), entity.getEntityId());
     }
 

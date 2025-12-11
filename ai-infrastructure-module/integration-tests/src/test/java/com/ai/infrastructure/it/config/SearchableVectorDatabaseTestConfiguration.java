@@ -3,7 +3,7 @@ package com.ai.infrastructure.it.config;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +19,7 @@ public class SearchableVectorDatabaseTestConfiguration {
 
     @Bean
     public BeanPostProcessor vectorDatabaseDecorator(
-        AISearchableEntityRepository searchableEntityRepository,
+        AISearchableEntityStorageStrategy storageStrategy,
         AIEntityConfigurationLoader configurationLoader
     ) {
         return new BeanPostProcessor() {
@@ -29,7 +29,7 @@ public class SearchableVectorDatabaseTestConfiguration {
                     return bean;
                 }
                 if (bean instanceof VectorDatabaseService service) {
-                    return new SearchableEntityVectorDatabaseService(service, searchableEntityRepository, configurationLoader);
+                    return new SearchableEntityVectorDatabaseService(service, storageStrategy, configurationLoader);
                 }
                 return bean;
             }

@@ -2,7 +2,7 @@ package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -17,7 +17,7 @@ class KnowledgeBaseOverviewServiceTest {
     @Test
     void shouldBuildOverviewFromStatisticsAndRepositoryFallbacks() {
         VectorDatabaseService vectorDatabaseService = Mockito.mock(VectorDatabaseService.class);
-        AISearchableEntityRepository repository = Mockito.mock(AISearchableEntityRepository.class);
+        AISearchableEntityStorageStrategy storageStrategy = Mockito.mock(AISearchableEntityStorageStrategy.class);
 
         Mockito.when(vectorDatabaseService.getStatistics()).thenReturn(Map.of(
             "totalVectors", 12,
@@ -25,10 +25,10 @@ class KnowledgeBaseOverviewServiceTest {
         ));
 
         LocalDateTime updatedAt = LocalDateTime.now();
-        Mockito.when(repository.findFirstByVectorUpdatedAtIsNotNullOrderByVectorUpdatedAtDesc())
+        Mockito.when(storageStrategy.findFirstByVectorUpdatedAtIsNotNullOrderByVectorUpdatedAtDesc())
             .thenReturn(Optional.of(AISearchableEntity.builder().vectorUpdatedAt(updatedAt).build()));
 
-        KnowledgeBaseOverviewService service = new KnowledgeBaseOverviewService(vectorDatabaseService, repository);
+        KnowledgeBaseOverviewService service = new KnowledgeBaseOverviewService(vectorDatabaseService, storageStrategy);
 
         KnowledgeBaseOverview overview = service.getOverview();
 

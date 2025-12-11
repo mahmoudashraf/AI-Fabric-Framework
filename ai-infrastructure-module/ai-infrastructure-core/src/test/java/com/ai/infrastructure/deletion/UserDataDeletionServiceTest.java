@@ -3,8 +3,8 @@ package com.ai.infrastructure.deletion;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider.UserEntityReference;
 import com.ai.infrastructure.deletion.port.BehaviorDeletionPort;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -28,7 +28,7 @@ class UserDataDeletionServiceTest {
     private static final String USER_ID = "00000000-0000-0000-0000-000000000001";
 
     @Mock
-    private AISearchableEntityRepository searchableEntityRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
     @Mock
     private VectorDatabaseService vectorDatabaseService;
     @Mock
@@ -46,7 +46,7 @@ class UserDataDeletionServiceTest {
         clock = Clock.fixed(Instant.parse("2025-01-01T00:00:00Z"), ZoneOffset.UTC);
         lenient().when(behaviorDeletionPortProvider.getIfAvailable()).thenReturn(behaviorDeletionPort);
         service = new UserDataDeletionService(
-            searchableEntityRepository,
+            storageStrategy,
             vectorDatabaseService,
             clock,
             provider,
@@ -73,7 +73,7 @@ class UserDataDeletionServiceTest {
         assertThat(result.getAuditEntriesDeleted()).isEqualTo(0);
 
         verify(behaviorDeletionPort).deleteUserBehaviors(UUID.fromString(USER_ID));
-        verify(searchableEntityRepository).deleteByEntityTypeAndEntityId("doc", "id-1");
+        verify(storageStrategy).deleteByEntityTypeAndEntityId("doc", "id-1");
         verify(provider).notifyAfterDeletion(USER_ID);
     }
 
@@ -84,13 +84,13 @@ class UserDataDeletionServiceTest {
         UserDataDeletionResult result = service.deleteUser(USER_ID);
 
         assertThat(result.getStatus()).isEqualTo(UserDataDeletionResult.Status.SKIPPED);
-        verifyNoInteractions(searchableEntityRepository, vectorDatabaseService, behaviorDeletionPort);
+        verifyNoInteractions(storageStrategy, vectorDatabaseService, behaviorDeletionPort);
     }
 
     @Test
     void shouldThrowWhenProviderMissing() {
         UserDataDeletionService noProviderService = new UserDataDeletionService(
-            searchableEntityRepository,
+            storageStrategy,
             vectorDatabaseService,
             clock,
             null,

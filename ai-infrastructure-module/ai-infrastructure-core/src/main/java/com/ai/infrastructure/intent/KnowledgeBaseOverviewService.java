@@ -2,7 +2,7 @@ package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -23,12 +23,12 @@ import java.util.stream.Collectors;
 public class KnowledgeBaseOverviewService {
 
     private final VectorDatabaseService vectorDatabaseService;
-    private final AISearchableEntityRepository searchableEntityRepository;
+    private final AISearchableEntityStorageStrategy storageStrategy;
 
     public KnowledgeBaseOverviewService(VectorDatabaseService vectorDatabaseService,
-                                        AISearchableEntityRepository searchableEntityRepository) {
+                                        AISearchableEntityStorageStrategy storageStrategy) {
         this.vectorDatabaseService = vectorDatabaseService;
-        this.searchableEntityRepository = searchableEntityRepository;
+        this.storageStrategy = storageStrategy;
     }
 
     public KnowledgeBaseOverview getOverview() {
@@ -39,7 +39,7 @@ public class KnowledgeBaseOverviewService {
         }
 
         long totalDocuments = deriveTotalDocuments(stats, documentsByType);
-        LocalDateTime lastUpdated = searchableEntityRepository
+        LocalDateTime lastUpdated = storageStrategy
             .findFirstByVectorUpdatedAtIsNotNullOrderByVectorUpdatedAtDesc()
             .map(AISearchableEntity::getVectorUpdatedAt)
             .orElse(null);
@@ -83,7 +83,7 @@ public class KnowledgeBaseOverviewService {
     }
 
     private Map<String, Long> fallbackDocumentsByType() {
-        List<AISearchableEntity> entities = searchableEntityRepository.findByVectorIdIsNotNull();
+        List<AISearchableEntity> entities = storageStrategy.findByVectorIdIsNotNull();
         if (entities.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -110,7 +110,7 @@ public class KnowledgeBaseOverviewService {
             return documentsByType.values().stream().mapToLong(Long::longValue).sum();
         }
 
-        return searchableEntityRepository.countByVectorIdIsNotNull();
+        return storageStrategy.countByVectorIdIsNotNull();
     }
 
     private Optional<Long> extractLong(Object value) {

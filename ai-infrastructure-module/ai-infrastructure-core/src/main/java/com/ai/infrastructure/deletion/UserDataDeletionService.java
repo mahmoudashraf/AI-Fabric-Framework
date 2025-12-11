@@ -4,8 +4,8 @@ import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
 import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider.UserEntityReference;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.deletion.port.BehaviorDeletionPort;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.springframework.beans.factory.ObjectProvider;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -31,7 +31,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class UserDataDeletionService {
 
-    private final AISearchableEntityRepository searchableEntityRepository;
+    private final AISearchableEntityStorageStrategy storageStrategy;
     private final VectorDatabaseService vectorDatabaseService;
     private final Clock clock;
     private final UserDataDeletionProvider userDataDeletionProvider;
@@ -113,13 +113,13 @@ public class UserDataDeletionService {
 
         // Attempt a metadata fallback search
         String metadataSnippet = "\"" + userId + "\"";
-        List<AISearchableEntity> metadataMatches = searchableEntityRepository.findByMetadataContainingSnippet(metadataSnippet);
+        List<AISearchableEntity> metadataMatches = storageStrategy.findByMetadataContainingSnippet(metadataSnippet);
         if (!CollectionUtils.isEmpty(metadataMatches)) {
             metadataMatches.forEach(entity -> {
                 String key = entity.getEntityType() + "::" + entity.getEntityId();
                 if (processedKeys.add(key)) {
                     removeVector(entity.getEntityType(), entity.getEntityId(), vectorsDeleted);
-                    searchableEntityRepository.deleteByEntityTypeAndEntityId(entity.getEntityType(), entity.getEntityId());
+                    storageStrategy.deleteByEntityTypeAndEntityId(entity.getEntityType(), entity.getEntityId());
                     entitiesDeleted.incrementAndGet();
                 }
             });
@@ -141,7 +141,7 @@ public class UserDataDeletionService {
         }
         try {
             removeVector(reference.entityType(), reference.entityId(), vectorsDeleted);
-            searchableEntityRepository.deleteByEntityTypeAndEntityId(reference.entityType(), reference.entityId());
+            storageStrategy.deleteByEntityTypeAndEntityId(reference.entityType(), reference.entityId());
             entitiesDeleted.incrementAndGet();
         } catch (Exception ex) {
             log.warn("Failed to remove indexed entity {}:{} - {}", reference.entityType(), reference.entityId(), ex.getMessage());

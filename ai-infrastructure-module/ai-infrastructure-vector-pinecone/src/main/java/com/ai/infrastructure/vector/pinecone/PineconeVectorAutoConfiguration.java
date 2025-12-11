@@ -2,9 +2,9 @@ package com.ai.infrastructure.vector.pinecone;
 
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -34,8 +34,8 @@ public class PineconeVectorAutoConfiguration {
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
     @ConditionalOnMissingBean(VectorDatabaseService.class)
     public VectorDatabaseService pineconeVectorDatabaseService(PineconeVectorDatabaseService delegate,
-                                                               AISearchableEntityRepository searchableEntityRepository,
+                                                               AISearchableEntityStorageStrategy storageStrategy,
                                                                AIEntityConfigurationLoader configurationLoader) {
-        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
+        return new SearchableEntityVectorDatabaseService(delegate, storageStrategy, configurationLoader);
     }
 }

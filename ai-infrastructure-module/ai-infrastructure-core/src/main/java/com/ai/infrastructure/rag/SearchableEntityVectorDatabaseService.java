@@ -6,7 +6,7 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -25,14 +25,14 @@ import java.util.Optional;
 public class SearchableEntityVectorDatabaseService implements VectorDatabaseService {
 
     private final VectorDatabaseService delegate;
-    private final AISearchableEntityRepository repository;
+    private final AISearchableEntityStorageStrategy storageStrategy;
     private final AIEntityConfigurationLoader configurationLoader;
 
     public SearchableEntityVectorDatabaseService(VectorDatabaseService delegate,
-                                                 AISearchableEntityRepository repository,
+                                                 AISearchableEntityStorageStrategy storageStrategy,
                                                  AIEntityConfigurationLoader configurationLoader) {
         this.delegate = delegate;
-        this.repository = repository;
+        this.storageStrategy = storageStrategy;
         this.configurationLoader = configurationLoader;
     }
 
@@ -79,7 +79,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
     public boolean removeVector(String entityType, String entityId) {
         boolean removed = delegate.removeVector(entityType, entityId);
         if (removed) {
-            repository.deleteByEntityTypeAndEntityId(entityType, entityId);
+            storageStrategy.deleteByEntityTypeAndEntityId(entityType, entityId);
         }
         return removed;
     }
@@ -88,7 +88,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
     public boolean removeVectorById(String vectorId) {
         boolean removed = delegate.removeVectorById(vectorId);
         if (removed) {
-            repository.deleteByVectorId(vectorId);
+            storageStrategy.deleteByVectorId(vectorId);
         }
         return removed;
     }
@@ -122,7 +122,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
     @Override
     public int batchRemoveVectors(List<String> vectorIds) {
         int removed = delegate.batchRemoveVectors(vectorIds);
-        vectorIds.forEach(repository::deleteByVectorId);
+        vectorIds.forEach(storageStrategy::deleteByVectorId);
         return removed;
     }
 
@@ -149,20 +149,20 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
     @Override
     public long clearVectors() {
         long cleared = delegate.clearVectors();
-        repository.deleteAll();
+        storageStrategy.deleteAll();
         return cleared;
     }
 
     @Override
     public long clearVectorsByEntityType(String entityType) {
         long cleared = delegate.clearVectorsByEntityType(entityType);
-        repository.deleteByEntityType(entityType);
+        storageStrategy.deleteByEntityType(entityType);
         return cleared;
     }
 
     private void upsertSearchableEntity(String entityType, String entityId, String content,
                                         Map<String, Object> metadata, String vectorId) {
-        AISearchableEntity entity = repository.findByEntityTypeAndEntityId(entityType, entityId)
+        AISearchableEntity entity = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId)
             .orElseGet(() -> AISearchableEntity.builder()
                 .entityType(entityType)
                 .entityId(entityId)
@@ -177,7 +177,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
         AIEntityConfig config = configurationLoader != null ? configurationLoader.getEntityConfig(entityType) : null;
         entity.setMetadata(MetadataJsonSerializer.serialize(metadata, config));
 
-        repository.save(entity);
+        storageStrategy.save(entity);
     }
 
     private void registerRollbackCleanup(String entityType, String entityId, String vectorId) {
