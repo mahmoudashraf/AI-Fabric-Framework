@@ -18,6 +18,9 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -253,7 +257,25 @@ abstract class AbstractProviderMatrixIntegrationTest {
     }
 
     protected void beforeMatrixExecution() {
-        // default no-op
+        cleanLuceneIndex();
+    }
+
+    private void cleanLuceneIndex() {
+        Path indexPath = Path.of("data", "lucene-vector-index");
+        if (!Files.exists(indexPath)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(indexPath)) {
+            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                    // best-effort cleanup
+                }
+            });
+        } catch (IOException ignored) {
+            // ignore
+        }
     }
 
     protected String suiteDisplayName() {

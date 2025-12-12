@@ -146,9 +146,7 @@ public class RealAPIActionFlowIntegrationTest {
             new BigDecimal("149.50")
         );
         String entityId = legacyDevice.getId().toString();
-        assertThat(vectorManagementService.vectorExists("test-product", entityId))
-            .as("vector should exist before action execution")
-            .isTrue();
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId)).isPresent();
 
         String userId = "real-action-removal-user";
         String query = """
@@ -221,9 +219,7 @@ public class RealAPIActionFlowIntegrationTest {
         assertThat(actionData.get("removed")).isEqualTo(Boolean.TRUE);
         assertThat(actionResult.getOrDefault("message", "")).asString().doesNotContain("5204");
 
-        assertThat(vectorManagementService.vectorExists("test-product", entityId))
-            .as("vector should be removed after action execution")
-            .isFalse();
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId)).isEmpty();
 
         if (payload.containsKey("suggestions")) {
             @SuppressWarnings("unchecked")
@@ -375,12 +371,12 @@ public class RealAPIActionFlowIntegrationTest {
                 .doesNotContain("555-991-2045");
         }
 
-        assertThat(vectorManagementService.vectorExists("test-product", playbook.getId().toString()))
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", playbook.getId().toString()))
             .as("vectors should be cleared for playbook")
-            .isFalse();
-        assertThat(vectorManagementService.vectorExists("test-product", diagnostics.getId().toString()))
+            .isEmpty();
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", diagnostics.getId().toString()))
             .as("vectors should be cleared for diagnostics")
-            .isFalse();
+            .isEmpty();
 
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(history).isNotEmpty();

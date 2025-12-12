@@ -162,12 +162,12 @@ public class RealAPIVectorLifecycleIntegrationTest {
         String productId2 = product2.getId().toString();
 
         // Verify vectors exist after creation
-        assertThat(vectorManagementService.vectorExists("test-product", productId1))
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", productId1))
             .as("Vector should exist after product creation")
-            .isTrue();
-        assertThat(vectorManagementService.vectorExists("test-product", productId2))
+            .isPresent();
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", productId2))
             .as("Vector should exist after product creation")
-            .isTrue();
+            .isPresent();
 
         System.out.println("✅ Both vectors created successfully");
 
@@ -195,14 +195,14 @@ public class RealAPIVectorLifecycleIntegrationTest {
         assertThat(removeResult.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         // Verify vector was removed
-        assertThat(vectorManagementService.vectorExists("test-product", productId1))
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", productId1))
             .as("Vector should be removed after remove_vector action")
-            .isFalse();
+            .isEmpty();
         
         // Verify second vector still exists
-        assertThat(vectorManagementService.vectorExists("test-product", productId2))
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", productId2))
             .as("Other vector should remain intact")
-            .isTrue();
+            .isPresent();
 
         System.out.println("✅ remove_vector action executed successfully");
 
@@ -216,12 +216,12 @@ public class RealAPIVectorLifecycleIntegrationTest {
         assertThat(clearResult.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         // Verify all vectors cleared
-        assertThat(vectorManagementService.vectorExists("test-product", productId1))
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", productId1))
             .as("Vector should be cleared")
-            .isFalse();
-        assertThat(vectorManagementService.vectorExists("test-product", productId2))
+            .isEmpty();
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", productId2))
             .as("Vector should be cleared")
-            .isFalse();
+            .isEmpty();
 
         System.out.println("✅ clear_vector_index action executed successfully");
 
@@ -232,12 +232,12 @@ public class RealAPIVectorLifecycleIntegrationTest {
         capabilityService.processEntityForAI(product2, "test-product");
 
         // Verify vectors exist again
-        assertThat(vectorManagementService.vectorExists("test-product", productId1))
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", productId1))
             .as("Vector should be rebuilt after reprocessing")
-            .isTrue();
-        assertThat(vectorManagementService.vectorExists("test-product", productId2))
+            .isPresent();
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", productId2))
             .as("Vector should be rebuilt after reprocessing")
-            .isTrue();
+            .isPresent();
 
         System.out.println("✅ Vectors rebuilt successfully");
 

@@ -15,11 +15,15 @@ import com.ai.infrastructure.it.RealAPIVectorLifecycleIntegrationTest;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.it.RealAPIMultiProviderFailoverIntegrationTest;
 import com.ai.infrastructure.it.RealAPICreativeAIScenariosIntegrationTest;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.DynamicTest;
 import org.springframework.util.StringUtils;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Executes the Real API provider matrix suite, iterating over every
@@ -75,8 +79,17 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     };
 
     @Override
+    public Stream<DynamicTest> providerMatrix() {
+        Assumptions.assumeTrue(hasOpenAIKey(),
+            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
+        return super.providerMatrix();
+    }
+
+    @Override
     protected void beforeMatrixExecution() {
         RealAPITestSupport.ensureOpenAIConfigured();
+        Assumptions.assumeTrue(hasOpenAIKey(),
+            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
     }
 
     @Override
@@ -117,9 +130,35 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     protected Map<String, Object> additionalDiscoveryProperties() {
+        String indexPath = "data/test-lucene-index/realapi-" + System.nanoTime();
         return Map.of(
             "spring.liquibase.enabled", "false",
-            "ai.config.default-file", "ai-entity-config-realapi.yml"
+            "ai.config.default-file", "ai-entity-config-realapi.yml",
+            "ai.vector-db.lucene.index-path", indexPath
         );
+    }
+
+    @Override
+    protected List<String> storageStrategies() {
+        return List.of(defaultStorageStrategy());
+    }
+
+    @Override
+    protected void beforeMatrixExecution() {
+        super.beforeMatrixExecution();
+        String apiKey = System.getProperty("OPENAI_API_KEY");
+        if (!StringUtils.hasText(apiKey)) {
+            apiKey = System.getenv("OPENAI_API_KEY");
+        }
+        Assumptions.assumeTrue(StringUtils.hasText(apiKey),
+            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
+    }
+
+    private boolean hasOpenAIKey() {
+        String apiKey = System.getProperty("OPENAI_API_KEY");
+        if (!StringUtils.hasText(apiKey)) {
+            apiKey = System.getenv("OPENAI_API_KEY");
+        }
+        return StringUtils.hasText(apiKey);
     }
 }

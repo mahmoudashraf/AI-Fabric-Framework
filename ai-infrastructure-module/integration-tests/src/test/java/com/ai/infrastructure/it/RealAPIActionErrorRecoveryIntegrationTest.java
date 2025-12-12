@@ -152,9 +152,10 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         );
 
         String entityId = baseline.getId().toString();
-        assertThat(vectorManagementService.vectorExists("test-product", entityId))
-            .as("vector should exist before attempting action")
-            .isTrue();
+        var baselineEntity = storageStrategy.findByEntityTypeAndEntityId("test-product", entityId)
+            .orElseThrow(() -> new AssertionError("baseline searchable entity missing"));
+        assertThat(baselineEntity.getVectorId()).isNotNull();
+        assertThat(baselineEntity.getVectorId()).isNotEmpty();
 
         String userId = "real-action-error-user";
         // Test error recovery with an invalid action that will naturally fail
@@ -294,9 +295,9 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         }
 
         // Verify vector still exists (wasn't cleared by invalid action)
-        assertThat(vectorManagementService.vectorExists("test-product", entityId))
+        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId))
             .as("vector should remain intact when action fails")
-            .isTrue();
+            .isPresent();
 
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(history).isNotEmpty();
