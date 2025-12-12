@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "ai-infrastructure.storage")
 public class AIStorageProperties {
 
-    private Strategy strategy = Strategy.SINGLE_TABLE;
+    private Strategy strategy = Strategy.PER_TYPE_TABLE;
     private String customStrategyClass;
 
     public Strategy getStrategy() {
@@ -16,7 +16,7 @@ public class AIStorageProperties {
     }
 
     public void setStrategy(Strategy strategy) {
-        this.strategy = strategy != null ? strategy : Strategy.SINGLE_TABLE;
+        this.strategy = strategy != null ? strategy : Strategy.PER_TYPE_TABLE;
     }
 
     public String getCustomStrategyClass() {

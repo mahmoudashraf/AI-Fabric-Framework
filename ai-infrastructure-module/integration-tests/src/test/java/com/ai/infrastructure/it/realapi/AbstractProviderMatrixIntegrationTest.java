@@ -333,7 +333,7 @@ abstract class AbstractProviderMatrixIntegrationTest {
     }
 
     protected static String defaultStorageStrategy() {
-        return "SINGLE_TABLE";
+        return "PER_TYPE_TABLE";
     }
 
     protected List<String> vectorDbProviders() {

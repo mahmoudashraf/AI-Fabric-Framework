@@ -29,8 +29,7 @@ public class AISearchableStorageStrategyAutoConfiguration {
     @Bean
     @ConditionalOnProperty(
         name = "ai-infrastructure.storage.strategy",
-        havingValue = "SINGLE_TABLE",
-        matchIfMissing = true
+        havingValue = "SINGLE_TABLE"
     )
     @ConditionalOnMissingBean(AISearchableEntityStorageStrategy.class)
     public AISearchableEntityStorageStrategy singleTableStorageStrategy(
@@ -43,7 +42,8 @@ public class AISearchableStorageStrategyAutoConfiguration {
     @Bean
     @ConditionalOnProperty(
         name = "ai-infrastructure.storage.strategy",
-        havingValue = "PER_TYPE_TABLE"
+        havingValue = "PER_TYPE_TABLE",
+        matchIfMissing = true
     )
     public PerTypeRepositoryFactory perTypeRepositoryFactory(
         NamedParameterJdbcTemplate jdbcTemplate,
@@ -55,7 +55,8 @@ public class AISearchableStorageStrategyAutoConfiguration {
     @Bean
     @ConditionalOnProperty(
         name = "ai-infrastructure.storage.strategy",
-        havingValue = "PER_TYPE_TABLE"
+        havingValue = "PER_TYPE_TABLE",
+        matchIfMissing = true
     )
     @ConditionalOnMissingBean(AISearchableEntityStorageStrategy.class)
     public AISearchableEntityStorageStrategy perTypeTableStorageStrategy(
