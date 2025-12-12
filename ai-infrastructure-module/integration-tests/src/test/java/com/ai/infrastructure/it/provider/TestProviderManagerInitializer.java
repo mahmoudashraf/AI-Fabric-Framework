@@ -3,16 +3,18 @@ package com.ai.infrastructure.it.provider;
 import com.ai.infrastructure.provider.AIProviderManager;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
  * Ensures {@link AIProviderManager} has registered providers in integration tests.
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class TestProviderManagerInitializer {
+
+    private static final Logger log = LoggerFactory.getLogger(TestProviderManagerInitializer.class);
 
     private final AIProviderManager providerManager;
 

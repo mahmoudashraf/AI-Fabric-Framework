@@ -7,17 +7,19 @@ import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.indexing.worker.IndexingWorkProcessor;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
  * Test-only utility that allows integration tests to deterministically drain the indexing queue
  * instead of waiting for the scheduled workers to pick up work.
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class IndexingQueueTestSupport {
+
+    private static final Logger log = LoggerFactory.getLogger(IndexingQueueTestSupport.class);
 
     private final IndexingQueueService queueService;
     private final IndexingWorkProcessor workProcessor;

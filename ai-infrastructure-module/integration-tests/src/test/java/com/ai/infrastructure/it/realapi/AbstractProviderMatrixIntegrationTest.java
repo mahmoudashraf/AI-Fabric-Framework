@@ -4,7 +4,6 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.it.TestApplication;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.AIProviderManager;
-import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -14,6 +13,8 @@ import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.util.StringUtils;
@@ -24,12 +25,12 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.Comparator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -39,8 +40,9 @@ import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
  * Shared harness for running suites of integration tests across multiple
  * provider combinations (LLM / Embedding / optional Vector DB).
  */
-@Slf4j
 abstract class AbstractProviderMatrixIntegrationTest {
+
+    private static final Logger log = LoggerFactory.getLogger(AbstractProviderMatrixIntegrationTest.class);
 
     private static final String VECTORDB_PROPERTY = "ai.vector-db.type";
     private static final String STORAGE_STRATEGY_PROPERTY = "ai-infrastructure.storage.strategy";

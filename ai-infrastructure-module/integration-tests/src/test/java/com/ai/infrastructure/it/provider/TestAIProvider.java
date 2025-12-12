@@ -7,7 +7,8 @@ import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -26,11 +27,12 @@ import java.util.stream.IntStream;
  * {@link com.ai.infrastructure.provider.AIProviderManager} has at least
  * one available provider without requiring external credentials.
  */
-@Slf4j
 @Component
 @Order(0)
 @ConditionalOnProperty(name = "test.enable-mock-provider", havingValue = "true", matchIfMissing = true)
 public class TestAIProvider implements AIProvider {
+
+    private static final Logger log = LoggerFactory.getLogger(TestAIProvider.class);
 
     private static final String PROVIDER_NAME = "test-provider";
     private static final int EMBEDDING_DIMENSION = 8;

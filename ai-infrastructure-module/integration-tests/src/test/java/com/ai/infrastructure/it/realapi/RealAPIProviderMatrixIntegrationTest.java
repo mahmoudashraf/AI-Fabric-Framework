@@ -143,17 +143,6 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         return List.of(defaultStorageStrategy());
     }
 
-    @Override
-    protected void beforeMatrixExecution() {
-        super.beforeMatrixExecution();
-        String apiKey = System.getProperty("OPENAI_API_KEY");
-        if (!StringUtils.hasText(apiKey)) {
-            apiKey = System.getenv("OPENAI_API_KEY");
-        }
-        Assumptions.assumeTrue(StringUtils.hasText(apiKey),
-            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
-    }
-
     private boolean hasOpenAIKey() {
         String apiKey = System.getProperty("OPENAI_API_KEY");
         if (!StringUtils.hasText(apiKey)) {

@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
-import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -40,12 +39,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@Slf4j
 @Disabled("Disabled due to ApplicationContext loading failures - table creation issues")
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
 @Transactional
 public class ComprehensiveIntegrationTest {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ComprehensiveIntegrationTest.class);
 
     @Autowired
     private AICapabilityService capabilityService;
