@@ -38,7 +38,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("mock-test")
-@TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/mock")
+@TestPropertySource(properties = {
+    "ai.vector-db.lucene.index-path=./data/test-lucene-index/mock",
+    "ai-infrastructure.storage.strategy=SINGLE_TABLE"
+})
 @Transactional
 public class MockIntegrationTest {
 

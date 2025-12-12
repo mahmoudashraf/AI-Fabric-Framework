@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -39,6 +40,7 @@ import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
+@TestPropertySource(properties = "ai-infrastructure.storage.strategy=SINGLE_TABLE")
 class AISearchableEntityVectorSynchronizationIntegrationTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
