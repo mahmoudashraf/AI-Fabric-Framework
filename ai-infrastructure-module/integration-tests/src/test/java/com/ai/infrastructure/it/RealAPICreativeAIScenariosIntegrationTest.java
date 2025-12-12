@@ -1,13 +1,13 @@
 package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.entity.TestUser;
@@ -58,7 +58,7 @@ public class RealAPICreativeAIScenariosIntegrationTest {
     private AICapabilityService capabilityService;
 
     @Autowired
-    private AISearchableEntityRepository searchRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private TestProductRepository productRepository;
@@ -86,7 +86,7 @@ public class RealAPICreativeAIScenariosIntegrationTest {
     @BeforeEach
     public void setUp() {
         // Clean up before each test
-        searchRepository.deleteAll();
+        storageStrategy.deleteAll();
         productRepository.deleteAll();
         userRepository.deleteAll();
         articleRepository.deleteAll();
@@ -190,17 +190,17 @@ public class RealAPICreativeAIScenariosIntegrationTest {
         }
 
         // Test personalized recommendations
-        List<AISearchableEntity> allEntities = searchRepository.findAll();
+        List<AISearchableEntity> allEntities = allEntities();
         assertEquals(6, allEntities.size(), "Should process all customers and products");
 
         // Test semantic search for personalized recommendations
-        List<AISearchableEntity> fashionResults = searchRepository.findBySearchableContentContainingIgnoreCase("fashion");
+        List<AISearchableEntity> fashionResults = searchContent("fashion");
         assertFalse(fashionResults.isEmpty(), "Should find fashion-related content");
 
-        List<AISearchableEntity> techResults = searchRepository.findBySearchableContentContainingIgnoreCase("smart home");
+        List<AISearchableEntity> techResults = searchContent("smart home");
         assertFalse(techResults.isEmpty(), "Should find smart home content");
 
-        List<AISearchableEntity> wellnessResults = searchRepository.findBySearchableContentContainingIgnoreCase("wellness");
+        List<AISearchableEntity> wellnessResults = searchContent("wellness");
         assertFalse(wellnessResults.isEmpty(), "Should find wellness content");
 
         System.out.println("✅ E-Commerce Personalization Scenario Test Passed");
@@ -258,17 +258,17 @@ public class RealAPICreativeAIScenariosIntegrationTest {
         }
 
         // Test content analysis and moderation
-        List<AISearchableEntity> articleEntities = searchRepository.findByEntityType("test-article");
+        List<AISearchableEntity> articleEntities = entities("test-article");
         assertEquals(3, articleEntities.size(), "Should process all articles");
 
         // Test content categorization
-        List<AISearchableEntity> healthcareResults = searchRepository.findBySearchableContentContainingIgnoreCase("healthcare");
+        List<AISearchableEntity> healthcareResults = searchContent("healthcare");
         assertFalse(healthcareResults.isEmpty(), "Should find healthcare content");
 
-        List<AISearchableEntity> climateResults = searchRepository.findBySearchableContentContainingIgnoreCase("climate");
+        List<AISearchableEntity> climateResults = searchContent("climate");
         assertFalse(climateResults.isEmpty(), "Should find climate content");
 
-        List<AISearchableEntity> securityResults = searchRepository.findBySearchableContentContainingIgnoreCase("cybersecurity");
+        List<AISearchableEntity> securityResults = searchContent("cybersecurity");
         assertFalse(securityResults.isEmpty(), "Should find cybersecurity content");
 
         System.out.println("✅ Content Moderation Scenario Test Passed");
@@ -323,17 +323,17 @@ public class RealAPICreativeAIScenariosIntegrationTest {
         }
 
         // Test multi-language content processing
-        List<AISearchableEntity> productEntities = searchRepository.findByEntityType("test-product");
+        List<AISearchableEntity> productEntities = entities("test-product");
         assertEquals(3, productEntities.size(), "Should process all multi-language products");
 
         // Test language-specific searches
-        List<AISearchableEntity> japaneseResults = searchRepository.findBySearchableContentContainingIgnoreCase("スマートフォン");
+        List<AISearchableEntity> japaneseResults = searchContent("スマートフォン");
         assertFalse(japaneseResults.isEmpty(), "Should find Japanese content");
 
-        List<AISearchableEntity> frenchResults = searchRepository.findBySearchableContentContainingIgnoreCase("Collection");
+        List<AISearchableEntity> frenchResults = searchContent("Collection");
         assertFalse(frenchResults.isEmpty(), "Should find French content");
 
-        List<AISearchableEntity> spanishResults = searchRepository.findBySearchableContentContainingIgnoreCase("Sistema");
+        List<AISearchableEntity> spanishResults = searchContent("Sistema");
         assertFalse(spanishResults.isEmpty(), "Should find Spanish content");
 
         System.out.println("✅ Multi-Language Content Scenario Test Passed");
@@ -390,17 +390,17 @@ public class RealAPICreativeAIScenariosIntegrationTest {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
             // Verify real-time analytics processing
-            List<AISearchableEntity> allEntities = searchRepository.findAll();
+            List<AISearchableEntity> allEntities = allEntities();
             assertEquals(40, allEntities.size(), "Should process all analytics entities");
 
-            List<AISearchableEntity> userEntities = searchRepository.findByEntityType("test-user");
+            List<AISearchableEntity> userEntities = entities("test-user");
             assertEquals(20, userEntities.size(), "Should process all analytics users");
 
-            List<AISearchableEntity> productEntities = searchRepository.findByEntityType("test-product");
+            List<AISearchableEntity> productEntities = entities("test-product");
             assertEquals(20, productEntities.size(), "Should process all analytics products");
 
             // Test analytics-specific searches
-            List<AISearchableEntity> analyticsResults = searchRepository.findBySearchableContentContainingIgnoreCase("analytics");
+            List<AISearchableEntity> analyticsResults = searchContent("analytics");
             assertTrue(analyticsResults.size() >= 20, "Should find analytics-related content");
 
             System.out.println("✅ Real-Time Analytics Scenario Test Passed");
@@ -471,7 +471,7 @@ public class RealAPICreativeAIScenariosIntegrationTest {
         }
 
         // Verify edge case handling
-        List<AISearchableEntity> edgeCaseEntities = searchRepository.findByEntityType("test-product");
+        List<AISearchableEntity> edgeCaseEntities = entities("test-product");
         assertEquals(3, edgeCaseEntities.size(), "Should process all edge case products");
 
         // Test that the system handles edge cases gracefully
@@ -488,7 +488,7 @@ public class RealAPICreativeAIScenariosIntegrationTest {
         }
 
         // Test special character handling
-        List<AISearchableEntity> emojiResults = searchRepository.findBySearchableContentContainingIgnoreCase("🚀");
+        List<AISearchableEntity> emojiResults = searchContent("🚀");
         assertFalse(emojiResults.isEmpty(), "Should find emoji content");
 
         System.out.println("✅ Edge Case Handling Scenario Test Passed");
@@ -528,7 +528,7 @@ public class RealAPICreativeAIScenariosIntegrationTest {
         long totalTime = endTime - startTime;
 
         // Verify stress test processing
-        List<AISearchableEntity> stressEntities = searchRepository.findByEntityType("test-product");
+        List<AISearchableEntity> stressEntities = entities("test-product");
         assertEquals(100, stressEntities.size(), "Should process all stress test products");
 
         // Calculate performance metrics
@@ -544,5 +544,19 @@ public class RealAPICreativeAIScenariosIntegrationTest {
         // Performance assertions
         assertTrue(totalTime < 120000, "Stress test should complete within 2 minutes");
         assertTrue(avgTimePerEntity < 5000, "Average processing time per entity should be under 5 seconds");
+    }
+    private List<AISearchableEntity> entities(String entityType) {
+        return storageStrategy.findByEntityType(entityType);
+    }
+
+    private List<AISearchableEntity> allEntities() {
+        return storageStrategy.findByVectorIdIsNotNull();
+    }
+
+    private List<AISearchableEntity> searchContent(String term) {
+        String needle = term.toLowerCase();
+        return allEntities().stream()
+            .filter(e -> e.getSearchableContent() != null && e.getSearchableContent().toLowerCase().contains(needle))
+            .toList();
     }
 }

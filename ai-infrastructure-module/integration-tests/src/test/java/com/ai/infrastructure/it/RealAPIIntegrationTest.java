@@ -3,10 +3,10 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.entity.IntentHistory;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -119,7 +119,7 @@ public class RealAPIIntegrationTest {
     private AICapabilityService capabilityService;
 
     @Autowired
-    private AISearchableEntityRepository searchRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private TestProductRepository productRepository;
@@ -139,7 +139,7 @@ public class RealAPIIntegrationTest {
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        searchRepository.deleteAll();
+        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }
@@ -166,7 +166,7 @@ public class RealAPIIntegrationTest {
         capabilityService.processEntityForAI(product, "test-product");
 
         // Then - Verify real AI processing
-        List<AISearchableEntity> entities = searchRepository.findByEntityType("test-product");
+        List<AISearchableEntity> entities = storageStrategy.findByEntityType("test-product");
         assertEquals(1, entities.size(), "Should process one product");
 
         AISearchableEntity entity = entities.get(0);
@@ -238,19 +238,19 @@ public class RealAPIIntegrationTest {
         }
 
         // Then - Verify AI can distinguish between AI and non-AI content
-        List<AISearchableEntity> allEntities = searchRepository.findByEntityType("test-product");
+        List<AISearchableEntity> allEntities = storageStrategy.findByEntityType("test-product");
         assertEquals(3, allEntities.size(), "Should process all three products");
 
         // Search for AI-related content - should find 2 products
-        List<AISearchableEntity> aiResults = searchRepository.findBySearchableContentContainingIgnoreCase("artificial intelligence");
+        List<AISearchableEntity> aiResults = filterByContent(allEntities, "artificial intelligence");
         assertTrue(aiResults.size() >= 1, "Should find AI-related content");
 
         // Search for machine learning content
-        List<AISearchableEntity> mlResults = searchRepository.findBySearchableContentContainingIgnoreCase("machine learning");
+        List<AISearchableEntity> mlResults = filterByContent(allEntities, "machine learning");
         assertTrue(mlResults.size() >= 1, "Should find machine learning content");
 
         // Search for analytics content
-        List<AISearchableEntity> analyticsResults = searchRepository.findBySearchableContentContainingIgnoreCase("analytics");
+        List<AISearchableEntity> analyticsResults = filterByContent(allEntities, "analytics");
         assertTrue(analyticsResults.size() >= 1, "Should find analytics content");
 
         // Verify each entity has proper vector storage
@@ -312,19 +312,19 @@ public class RealAPIIntegrationTest {
         }
 
         // Then - Test semantic search capabilities
-        List<AISearchableEntity> allEntities = searchRepository.findByEntityType("test-product");
+        List<AISearchableEntity> allEntities = storageStrategy.findByEntityType("test-product");
         assertEquals(3, allEntities.size(), "Should process all three products");
 
         // Search for audio-related content (should find both headphones and earpieces)
-        List<AISearchableEntity> audioResults = searchRepository.findBySearchableContentContainingIgnoreCase("audio");
+        List<AISearchableEntity> audioResults = filterByContent(allEntities, "audio");
         assertTrue(audioResults.size() >= 2, "Should find audio-related products");
 
         // Search for wireless content (should find both wireless products)
-        List<AISearchableEntity> wirelessResults = searchRepository.findBySearchableContentContainingIgnoreCase("wireless");
+        List<AISearchableEntity> wirelessResults = filterByContent(allEntities, "wireless");
         assertTrue(wirelessResults.size() >= 1, "Should find wireless products");
 
         // Search for gaming content (should find only gaming keyboard)
-        List<AISearchableEntity> gamingResults = searchRepository.findBySearchableContentContainingIgnoreCase("gaming");
+        List<AISearchableEntity> gamingResults = filterByContent(allEntities, "gaming");
         assertTrue(gamingResults.size() >= 1, "Should find gaming products");
 
         System.out.println("✅ Real AI Semantic Search Test Passed");
@@ -374,7 +374,7 @@ public class RealAPIIntegrationTest {
         }
 
         // Then - Verify comprehensive AI processing
-        List<AISearchableEntity> allEntities = searchRepository.findByEntityType("test-product");
+        List<AISearchableEntity> allEntities = storageStrategy.findByEntityType("test-product");
         assertEquals(3, allEntities.size(), "Should process all catalog items");
 
         // Verify all entities have proper AI processing
@@ -392,13 +392,13 @@ public class RealAPIIntegrationTest {
         }
 
         // Test various search scenarios
-        List<AISearchableEntity> aiResults = searchRepository.findBySearchableContentContainingIgnoreCase("AI");
+        List<AISearchableEntity> aiResults = filterByContent(allEntities, "AI");
         assertTrue(aiResults.size() >= 2, "Should find AI-related products");
 
-        List<AISearchableEntity> smartResults = searchRepository.findBySearchableContentContainingIgnoreCase("smart");
+        List<AISearchableEntity> smartResults = filterByContent(allEntities, "smart");
         assertTrue(smartResults.size() >= 2, "Should find smart products");
 
-        List<AISearchableEntity> securityResults = searchRepository.findBySearchableContentContainingIgnoreCase("security");
+        List<AISearchableEntity> securityResults = filterByContent(allEntities, "security");
         assertTrue(securityResults.size() >= 1, "Should find security products");
 
         System.out.println("✅ Real AI End-to-End Workflow Test Passed");
@@ -557,5 +557,12 @@ public class RealAPIIntegrationTest {
             StringUtils.hasText(System.getProperty(OPENAI_KEY_PROPERTY)),
             "OPENAI_API_KEY not configured; skipping real API test."
         );
+    }
+
+    private List<AISearchableEntity> filterByContent(List<AISearchableEntity> source, String term) {
+        String needle = term.toLowerCase();
+        return source.stream()
+            .filter(e -> e.getSearchableContent() != null && e.getSearchableContent().toLowerCase().contains(needle))
+            .toList();
     }
 }

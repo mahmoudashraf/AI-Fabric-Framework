@@ -6,10 +6,10 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -116,7 +116,7 @@ public class RealAPIONNXFallbackIntegrationTest {
     private TestProductRepository productRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private ResponseSanitizationProperties sanitizationProperties;
@@ -124,7 +124,7 @@ public class RealAPIONNXFallbackIntegrationTest {
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        searchRepository.deleteAll();
+        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }
@@ -195,8 +195,8 @@ public class RealAPIONNXFallbackIntegrationTest {
         System.out.println("\n=== Phase 3: Vector Creation and Storage ===");
         
         // Verify vectors are created
-        long vectorCount = searchRepository.count();
-        System.out.println("✅ Vectors indexed in search repository: " + vectorCount);
+        long vectorCount = storageStrategy.findByEntityType("test-product").size();
+        System.out.println("✅ Vectors indexed in storage strategy: " + vectorCount);
         assertThat(vectorCount).isGreaterThanOrEqualTo(3L);
 
         System.out.println("\n=== Phase 4: Orchestration with Current Provider ===");

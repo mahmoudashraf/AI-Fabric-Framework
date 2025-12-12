@@ -9,10 +9,10 @@ import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -123,7 +123,7 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
     private TestProductRepository productRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private ResponseSanitizationProperties sanitizationProperties;
@@ -131,7 +131,7 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        searchRepository.deleteAll();
+        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }
