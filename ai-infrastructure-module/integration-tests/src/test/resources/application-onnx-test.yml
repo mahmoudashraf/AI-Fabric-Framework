@@ -31,7 +31,7 @@ spring:
         hbm2ddl:
           auto: create-drop
         # Use quoted identifiers to preserve table name case
-        globally_quoted_identifiers: true
+        globally_quoted_identifiers: false
     open-in-view: false
     # Don't defer - let Hibernate create schema immediately
     defer-datasource-initialization: false
@@ -75,6 +75,10 @@ ai:
     type: memory
     lucene:
       index-path: ./data/test-lucene-index
+
+ai-infrastructure:
+  storage:
+    strategy: SINGLE_TABLE
 
 # Logging for ONNX Test Profile
 logging:
