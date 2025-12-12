@@ -54,10 +54,12 @@ spring:
 
 ai:
   enabled: true
+  indexing:
+    enabled: true
   providers:
     llm-provider: ${LLM_PROVIDER:test-provider}
-    embedding-provider: onnx
-    enable-fallback: false
+    embedding-provider: test-provider
+    enable-fallback: true
 
     onnx:
       enabled: true
@@ -78,7 +80,7 @@ ai:
 
 ai-infrastructure:
   storage:
-    strategy: SINGLE_TABLE
+    strategy: PER_TYPE_TABLE
 
 # Logging for ONNX Test Profile
 logging:
