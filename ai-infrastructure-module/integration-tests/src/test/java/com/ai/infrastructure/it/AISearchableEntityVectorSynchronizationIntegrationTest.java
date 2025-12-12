@@ -4,8 +4,8 @@ import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -40,7 +40,6 @@ import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
-@TestPropertySource(properties = "ai-infrastructure.storage.strategy=SINGLE_TABLE")
 class AISearchableEntityVectorSynchronizationIntegrationTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -49,7 +48,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
     private VectorManagementService vectorManagementService;
 
     @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private RAGService ragService;
@@ -64,14 +63,14 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        searchableEntityRepository.deleteAll();
+        storageStrategy.deleteAll();
         vectorManagementService.clearAllVectors();
         transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @AfterEach
     void tearDown() {
-        searchableEntityRepository.deleteAll();
+        storageStrategy.deleteAll();
         vectorManagementService.clearAllVectors();
     }
 
@@ -91,7 +90,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
         String vectorId = vectorManagementService.storeVector(entityType, entityId, content, vector(32, 0.1), metadata);
 
-        Optional<AISearchableEntity> entityOptional = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId);
+        Optional<AISearchableEntity> entityOptional = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId);
         assertTrue(entityOptional.isPresent(), "AISearchableEntity should be created after storing vector");
 
         AISearchableEntity entity = entityOptional.get();
@@ -118,7 +117,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
         String vectorId = vectorManagementService.storeVector(entityType, entityId, content, vector(32, 0.2), Map.of("category", "watch"));
 
-        Optional<AISearchableEntity> entity = searchableEntityRepository.findByVectorId(vectorId);
+        Optional<AISearchableEntity> entity = storageStrategy.findByVectorId(vectorId);
         assertTrue(entity.isPresent());
         assertEquals(entityId, entity.get().getEntityId());
 
@@ -134,13 +133,13 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
         String entityId = "product-789";
 
         vectorManagementService.storeVector(entityType, entityId, "First description", vector(32, 0.3), Map.of("version", "1"));
-        AISearchableEntity initial = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).orElseThrow();
+        AISearchableEntity initial = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId).orElseThrow();
         LocalDateTime originalVectorUpdatedAt = initial.getVectorUpdatedAt();
 
         sleep(20);
 
         vectorManagementService.storeVector(entityType, entityId, "Second description with more details", vector(32, 0.4), Map.of("version", "2"));
-        AISearchableEntity updated = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).orElseThrow();
+        AISearchableEntity updated = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId).orElseThrow();
 
         assertTrue(updated.getVectorUpdatedAt().isAfter(originalVectorUpdatedAt));
         assertEquals("Second description with more details", updated.getSearchableContent());
@@ -157,7 +156,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
         vectorManagementService.storeVector(entityType, entityId, "Disposable description", vector(16, 0.5), Map.of());
         assertTrue(vectorManagementService.removeVector(entityType, entityId));
 
-        assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isEmpty());
+        assertTrue(storageStrategy.findByEntityTypeAndEntityId(entityType, entityId).isEmpty());
         assertFalse(vectorManagementService.vectorExists(entityType, entityId));
     }
 
@@ -173,7 +172,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
         ragService.indexContent(entityType, entityId, "Introduction to AI and Machine Learning", metadata);
 
-        Optional<AISearchableEntity> entity = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId);
+        Optional<AISearchableEntity> entity = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId);
         assertTrue(entity.isPresent());
         assertTrue(entity.get().getMetadata().contains("AI in Modern Software"));
         assertFalse(entity.get().getVectorId().isEmpty());
@@ -191,7 +190,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
         vectorManagementService.storeVector(entityType, entityId, "Studio monitor with reference response", vector(24, 0.6), metadata);
 
-        AISearchableEntity entity = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).orElseThrow();
+        AISearchableEntity entity = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId).orElseThrow();
         Map<String, String> parsed = parseMetadataJson(entity.getMetadata());
 
         assertEquals("audio", parsed.get("category"));
@@ -207,7 +206,9 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
         vectorManagementService.storeVector(entityType, "entity-2", "Compact travel adapter with dual USB ports", vector(18, 0.8), Map.of());
         vectorManagementService.storeVector(entityType, "entity-3", "Luxury wool travel blanket", vector(18, 0.9), Map.of());
 
-        List<AISearchableEntity> results = searchableEntityRepository.findBySearchableContentContainingIgnoreCase("travel");
+        List<AISearchableEntity> results = storageStrategy.findByEntityType(entityType).stream()
+            .filter(e -> e.getSearchableContent() != null && e.getSearchableContent().toLowerCase().contains("travel"))
+            .toList();
         Set<String> ids = results.stream().map(AISearchableEntity::getEntityId).collect(Collectors.toSet());
 
         assertThat(ids).containsExactlyInAnyOrder("entity-1", "entity-2", "entity-3");
@@ -222,9 +223,9 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
         vectorManagementService.clearVectorsByEntityType("plan-clear");
 
-        assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId("plan-clear", "entity-1").isEmpty());
-        assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId("plan-clear", "entity-2").isEmpty());
-        assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId("plan-other", "entity-3").isPresent());
+        assertTrue(storageStrategy.findByEntityTypeAndEntityId("plan-clear", "entity-1").isEmpty());
+        assertTrue(storageStrategy.findByEntityTypeAndEntityId("plan-clear", "entity-2").isEmpty());
+        assertTrue(storageStrategy.findByEntityTypeAndEntityId("plan-other", "entity-3").isPresent());
     }
 
     @Test
@@ -248,7 +249,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
             executor.awaitTermination(5, TimeUnit.SECONDS);
         }
 
-        List<AISearchableEntity> entities = searchableEntityRepository.findByEntityType(entityType);
+        List<AISearchableEntity> entities = storageStrategy.findByEntityType(entityType);
         assertEquals(1, entities.size());
         assertTrue(entities.get(0).getSearchableContent().startsWith("Content iteration"));
     }
@@ -275,10 +276,10 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
 
         List<String> vectorIds = vectorManagementService.batchStoreVectors(records);
         assertEquals(2, vectorIds.size());
-        assertEquals(2, searchableEntityRepository.findByEntityType("plan-batch").size());
+        assertEquals(2, storageStrategy.findByEntityType("plan-batch").size());
 
         vectorManagementService.batchRemoveVectors(vectorIds);
-        assertTrue(searchableEntityRepository.findByEntityType("plan-batch").isEmpty());
+        assertTrue(storageStrategy.findByEntityType("plan-batch").isEmpty());
     }
 
     @Test
@@ -294,7 +295,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
             throw new RuntimeException("Force rollback");
         }));
 
-        assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isEmpty(),
+        assertTrue(storageStrategy.findByEntityTypeAndEntityId(entityType, entityId).isEmpty(),
             "Searchable entity should not be persisted after rollback");
         assertFalse(vectorManagementService.vectorExists(entityType, entityId),
             "Vector should not exist after transaction rollback");
@@ -315,9 +316,9 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
         });
 
         await().atMost(Duration.ofSeconds(5)).until(() ->
-            searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isPresent());
+            storageStrategy.findByEntityTypeAndEntityId(entityType, entityId).isPresent());
 
-        AISearchableEntity entity = searchableEntityRepository
+        AISearchableEntity entity = storageStrategy
             .findByEntityTypeAndEntityId(entityType, entityId)
             .orElseThrow();
 

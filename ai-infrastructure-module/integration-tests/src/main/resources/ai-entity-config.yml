@@ -680,6 +680,142 @@ ai-entities:
       - name: "category"
         type: "TEXT"
 
+  plan-transaction:
+    entity-type: "plan-transaction"
+    features: ["embedding", "search", "rag"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "name"
+      - name: "description"
+    embeddable-fields:
+      - name: "name"
+        auto-generate: true
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+
+  rag-article:
+    entity-type: "rag-article"
+    features: ["embedding", "search", "rag"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "title"
+      - name: "content"
+    embeddable-fields:
+      - name: "title"
+        auto-generate: true
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+
+  plan-query:
+    entity-type: "plan-query"
+    features: ["embedding", "search", "rag"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "name"
+      - name: "description"
+    embeddable-fields:
+      - name: "name"
+        auto-generate: true
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+
+  plan-clear:
+    entity-type: "plan-clear"
+    features: ["embedding", "search", "rag"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "name"
+      - name: "description"
+    embeddable-fields:
+      - name: "name"
+        auto-generate: true
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+
+  plan-other:
+    entity-type: "plan-other"
+    features: ["embedding", "search", "rag"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "name"
+      - name: "description"
+    embeddable-fields:
+      - name: "name"
+        auto-generate: true
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+
+  plan-batch:
+    entity-type: "plan-batch"
+    features: ["embedding", "search", "rag"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "name"
+      - name: "description"
+    embeddable-fields:
+      - name: "name"
+        auto-generate: true
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+
+  plan-concurrent:
+    entity-type: "plan-concurrent"
+    features: ["embedding", "search", "rag"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "name"
+      - name: "description"
+    embeddable-fields:
+      - name: "name"
+        auto-generate: true
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+
+  vector-update:
+    entity-type: "vector-update"
+    features: ["embedding", "search", "rag"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "name"
+      - name: "description"
+    embeddable-fields:
+      - name: "name"
+        auto-generate: true
+    metadata-fields:
+      - name: "category"
+        type: "TEXT"
+
   ragcrossentityproduct:
     entity-type: "ragcrossentityproduct"
     features: ["embedding", "search", "rag"]
