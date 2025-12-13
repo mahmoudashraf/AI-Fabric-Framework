@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -354,10 +355,11 @@ public class RealAPICreativeAIScenariosIntegrationTest {
             List<CompletableFuture<Void>> futures = IntStream.range(0, 20)
                 .mapToObj(i -> CompletableFuture.runAsync(() -> {
                     // Create random users and products for analytics
+                    String uniqueSuffix = UUID.randomUUID().toString();
                     TestUser analyticsUser = TestUser.builder()
                         .firstName("Analytics" + i)
                         .lastName("User" + i)
-                        .email("analytics" + i + "@test.com")
+                        .email("analytics" + i + "-" + uniqueSuffix + "@test.com")
                         .bio("User " + i + " for real-time analytics testing with AI processing")
                         .age(20 + random.nextInt(40))
                         .location("Analytics City " + i)
