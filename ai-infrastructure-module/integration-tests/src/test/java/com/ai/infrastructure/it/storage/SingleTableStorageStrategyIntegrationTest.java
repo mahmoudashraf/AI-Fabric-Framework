@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,6 +23,7 @@ import org.springframework.test.context.TestPropertySource;
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
 @TestPropertySource(properties = "ai-infrastructure.storage.strategy=SINGLE_TABLE")
+@Disabled("Single table storage strategy deprecated/removed")
 class SingleTableStorageStrategyIntegrationTest {
 
     @Autowired
