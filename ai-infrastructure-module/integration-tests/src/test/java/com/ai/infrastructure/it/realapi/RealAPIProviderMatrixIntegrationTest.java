@@ -142,7 +142,7 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     protected List<String> storageStrategies() {
-        return List.of(defaultStorageStrategy());
+        return List.of("PER_TYPE_TABLE", "SINGLE_TABLE", "CUSTOM");
     }
 
     @Override

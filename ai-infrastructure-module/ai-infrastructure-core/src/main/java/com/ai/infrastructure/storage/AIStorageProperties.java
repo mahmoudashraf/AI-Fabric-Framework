@@ -28,7 +28,7 @@ public class AIStorageProperties {
     }
 
     public enum Strategy {
-        // SINGLE_TABLE,
+        SINGLE_TABLE,
         PER_TYPE_TABLE,
         CUSTOM;
     }

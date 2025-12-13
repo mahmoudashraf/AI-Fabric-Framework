@@ -210,6 +210,11 @@ if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.vector-db.type=$AI_INFRASTRUCTURE_VECTOR_DATABASE"
 fi
 
+# Add storage strategy as system property if specified
+if [ -n "$AI_INFRASTRUCTURE_STORAGE_STRATEGY" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai-infrastructure.storage.strategy=$AI_INFRASTRUCTURE_STORAGE_STRATEGY"
+fi
+
 # Add test chunk as system property if specified
 if [ -n "$TEST_CHUNK" ] && [ "$TEST_CHUNK" != "all" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.test-chunk=$TEST_CHUNK"
