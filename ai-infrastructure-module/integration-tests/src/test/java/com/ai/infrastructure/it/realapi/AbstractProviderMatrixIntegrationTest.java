@@ -116,7 +116,7 @@ abstract class AbstractProviderMatrixIntegrationTest {
         }
     }
 
-    private List<ProviderCombination> resolveProviderMatrix() {
+    protected List<ProviderCombination> resolveProviderMatrix() {
         List<ProviderCombination> availableCombinations = availableProviderCombinations();
 
         String matrixSpec = System.getProperty(matrixPropertyKey());
