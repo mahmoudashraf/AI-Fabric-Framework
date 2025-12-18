@@ -8,6 +8,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
+import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
@@ -25,18 +26,12 @@ import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -49,29 +44,9 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
     private static final Logger log = LoggerFactory.getLogger(RealAPIActionErrorRecoveryIntegrationTest.class);
 
     private static final String OPENAI_KEY_PROPERTY = "OPENAI_API_KEY";
-    private static final Path[] CANDIDATE_ENV_PATHS = new Path[] {
-        Paths.get("../env.dev"),
-        Paths.get("../../env.dev"),
-        Paths.get("../../../env.dev"),
-        Paths.get("../backend/env.dev"),
-        Paths.get("../../backend/env.dev"),
-        Paths.get("/workspace/env.dev")
-    };
 
     static {
-        initializeOpenAIConfiguration();
-    }
-
-    private static void initializeOpenAIConfiguration() {
-        String apiKey = System.getenv(OPENAI_KEY_PROPERTY);
-        if (!StringUtils.hasText(apiKey)) {
-            apiKey = locateKeyFromEnvFiles();
-        }
-
-        if (StringUtils.hasText(apiKey)) {
-            System.setProperty(OPENAI_KEY_PROPERTY, apiKey);
-            System.setProperty("ai.providers.openai.api-key", apiKey);
-        }
+        RealAPITestSupport.ensureOpenAIConfigured();
 
         System.setProperty("LLM_PROVIDER",
             System.getProperty("LLM_PROVIDER", "openai"));
@@ -81,34 +56,6 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
             System.getProperty("EMBEDDING_PROVIDER", "onnx"));
         System.setProperty("ai.providers.embedding-provider",
             System.getProperty("ai.providers.embedding-provider", "onnx"));
-    }
-
-    private static String locateKeyFromEnvFiles() {
-        for (Path path : CANDIDATE_ENV_PATHS) {
-            if (Files.exists(path) && Files.isRegularFile(path)) {
-                String key = readKeyFromEnvFile(path, OPENAI_KEY_PROPERTY);
-                if (StringUtils.hasText(key)) {
-                    return key;
-                }
-            }
-        }
-        return null;
-    }
-
-    private static String readKeyFromEnvFile(Path file, String keyName) {
-        try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
-            return lines
-                .map(String::trim)
-                .filter(line -> !line.isEmpty() && !line.startsWith("#") && line.contains("="))
-                .map(line -> line.split("=", 2))
-                .filter(parts -> parts.length == 2 && keyName.equals(parts[0].trim()))
-                .map(parts -> parts[1].trim())
-                .findFirst()
-                .orElse(null);
-        } catch (IOException ex) {
-            System.err.printf("Unable to read %s from %s: %s%n", keyName, file, ex.getMessage());
-            return null;
-        }
     }
 
     @Autowired

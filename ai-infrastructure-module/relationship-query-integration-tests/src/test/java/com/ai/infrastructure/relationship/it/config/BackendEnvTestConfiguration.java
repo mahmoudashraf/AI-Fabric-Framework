@@ -34,20 +34,20 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.stream.Stream;
 
 /**
  * Test configuration that mirrors real application behavior by loading the backend
- * {@code .env} file so the OpenAI credentials used in production are available during
- * the integration tests. It also ensures Jackson can deserialize offset timestamps that
+ * environment variables so provider credentials used in production are available during
+ * the integration tests.
+ *
+ * NOTE: This test configuration intentionally does not read backend {@code .env} files
+ * from disk. CI and local development should provide credentials via environment variables
+ * or JVM -D properties.
+ *
+ * It also ensures Jackson can deserialize offset timestamps that
  * appear in {@link com.ai.infrastructure.dto.RAGResponse}.
  */
 @Slf4j
@@ -59,35 +59,9 @@ public class BackendEnvTestConfiguration {
 
     @PostConstruct
     void loadBackendEnv() {
-        Path path = Paths.get(backendEnvPath).toAbsolutePath().normalize();
-        if (!Files.exists(path)) {
-            log.warn("Backend .env file not found at {}", path);
-            return;
-        }
-
-        try (Stream<String> lines = Files.lines(path)) {
-            lines.map(String::trim)
-                .filter(line -> !line.isEmpty() && !line.startsWith("#"))
-                .forEach(this::applyEnvEntry);
-        } catch (IOException ex) {
-            log.warn("Failed to read backend .env file at {}", path, ex);
-        }
-    }
-
-    private void applyEnvEntry(String entry) {
-        int idx = entry.indexOf('=');
-        if (idx <= 0) {
-            return;
-        }
-        String key = entry.substring(0, idx).trim();
-        String value = entry.substring(idx + 1).trim();
-        if (key.isEmpty() || value.isEmpty()) {
-            return;
-        }
-
-        if (System.getenv(key) == null && System.getProperty(key) == null) {
-            System.setProperty(key, value);
-            log.debug("Loaded backend env var {}", key);
+        // Intentionally no-op: rely on environment variables / JVM system properties.
+        if (backendEnvPath != null && !backendEnvPath.isBlank()) {
+            log.debug("Skipping backend .env loading from disk (configured path was '{}')", backendEnvPath);
         }
     }
 
