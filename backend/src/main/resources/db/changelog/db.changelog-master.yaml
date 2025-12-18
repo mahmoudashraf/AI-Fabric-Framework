@@ -1,7 +1,0 @@
-databaseChangeLog:
-  - include:
-      file: db/changelog/V001__users.yaml
-  - include:
-      file: db/changelog/V002__ai_profiles.yaml
-  - include:
-      file: db/changelog/V003__ai_indexing_queue.yaml

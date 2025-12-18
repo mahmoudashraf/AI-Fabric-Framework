@@ -20,8 +20,8 @@
 #   ./run-relationship-query-realapi-tests.sh "anthropic:openai:pinecone"
 #
 # The script automatically sets AI_INFRASTRUCTURE_* environment variables based on
-# the provider matrix specification, and BackendEnvTestConfiguration loads the
-# OPENAI_API_KEY from ../../backend/.env file.
+# the provider matrix specification. Provider credentials (e.g., OPENAI_API_KEY)
+# must be supplied via environment variables or JVM -D properties.
 #
 spring:
   datasource:
@@ -55,7 +55,7 @@ ai:
     
     openai:
       enabled: true
-      api-key: ${OPENAI_API_KEY:sk-real-api-test}
+      api-key: ${OPENAI_API_KEY}
       model: ${OPENAI_MODEL:gpt-4o-mini}
       embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
       max-tokens: 2000
