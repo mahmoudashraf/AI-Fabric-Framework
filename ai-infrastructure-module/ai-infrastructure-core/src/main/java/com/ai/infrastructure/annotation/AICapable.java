@@ -95,5 +95,5 @@ public @interface AICapable {
      * JPA repository used by the migration module to backfill data.
      * Optional for existing users but strongly recommended to enable migration.
      */
-    Class<? extends JpaRepository<?, ?>> migrationRepository() default JpaRepository.class;
+    Class<? extends JpaRepository<?, ?>> migrationRepository() default NoMigrationRepository.class;
 }

@@ -37,23 +37,29 @@ public class EntityRepositoryRegistry {
 
     @PostConstruct
     public void discoverEntities() {
-        repositories.forEach((domainType, repository) -> {
+        for (Class<?> domainType : repositories) {
+            Optional<Object> repositoryOptional = repositories.getRepositoryFor(domainType);
+            if (repositoryOptional.isEmpty()) {
+                continue;
+            }
+            Object repository = repositoryOptional.get();
+
             AICapable annotation = domainType.getAnnotation(AICapable.class);
             if (annotation == null) {
-                return;
+                continue;
             }
 
             String entityType = annotation.entityType();
             if (!configLoader.hasEntityConfig(entityType)) {
                 log.debug("Skipping entity {} because no ai-entity-config entry found", entityType);
-                return;
+                continue;
             }
 
             Class<? extends JpaRepository<?, ?>> repoClass = resolveRepositoryClass(annotation, repository);
             JpaRepository<?, ?> repoBean = resolveRepositoryBean(repoClass, repository);
             registry.put(entityType, new EntityRegistration(entityType, domainType, repoBean));
             log.info("Registered migration repository {} for entity type {}", repoClass.getSimpleName(), entityType);
-        });
+        }
 
         if (registry.isEmpty()) {
             log.warn("No @AICapable entities with repositories were registered for migration");
@@ -66,8 +72,9 @@ public class EntityRepositoryRegistry {
     }
 
     private Class<? extends JpaRepository<?, ?>> resolveRepositoryClass(AICapable annotation, Object discoveredRepository) {
-        if (annotation.migrationRepository() != null && annotation.migrationRepository() != JpaRepository.class) {
-            return annotation.migrationRepository();
+        Class<? extends JpaRepository<?, ?>> candidate = annotation.migrationRepository();
+        if (candidate != null && !JpaRepository.class.equals(candidate)) {
+            return candidate;
         }
         // Fallback to the discovered repository bean type when explicit binding is not provided.
         @SuppressWarnings("unchecked")
@@ -77,7 +84,7 @@ public class EntityRepositoryRegistry {
     }
 
     private JpaRepository<?, ?> resolveRepositoryBean(Class<? extends JpaRepository<?, ?>> repoClass, Object discoveredRepository) {
-        if (repoClass != null && repoClass != JpaRepository.class) {
+        if (repoClass != null && !JpaRepository.class.equals(repoClass)) {
             return applicationContext.getBean(repoClass);
         }
         return (JpaRepository<?, ?>) discoveredRepository;
