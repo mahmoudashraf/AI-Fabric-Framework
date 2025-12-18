@@ -4,7 +4,6 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.it.TestApplication;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.AIProviderManager;
-import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -14,13 +13,19 @@ import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,10 +40,12 @@ import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
  * Shared harness for running suites of integration tests across multiple
  * provider combinations (LLM / Embedding / optional Vector DB).
  */
-@Slf4j
 abstract class AbstractProviderMatrixIntegrationTest {
 
+    private static final Logger log = LoggerFactory.getLogger(AbstractProviderMatrixIntegrationTest.class);
+
     private static final String VECTORDB_PROPERTY = "ai.vector-db.type";
+    private static final String STORAGE_STRATEGY_PROPERTY = "ai-infrastructure.storage.strategy";
     private final AtomicInteger testCount = new AtomicInteger(0);
     private final AtomicInteger successCount = new AtomicInteger(0);
 
@@ -109,7 +116,7 @@ abstract class AbstractProviderMatrixIntegrationTest {
         }
     }
 
-    private List<ProviderCombination> resolveProviderMatrix() {
+    protected List<ProviderCombination> resolveProviderMatrix() {
         List<ProviderCombination> availableCombinations = availableProviderCombinations();
 
         String matrixSpec = System.getProperty(matrixPropertyKey());
@@ -127,11 +134,11 @@ abstract class AbstractProviderMatrixIntegrationTest {
     }
 
     protected List<ProviderCombination> availableProviderCombinations() {
-        return discoverAvailableCombinations();
+        return expandWithStorageStrategies(discoverAvailableCombinations());
     }
 
     private List<ProviderCombination> discoverAvailableCombinations() {
-        ProviderCombination defaultCombo = new ProviderCombination(defaultLlmProvider(), defaultEmbeddingProvider(), null);
+        ProviderCombination defaultCombo = new ProviderCombination(defaultLlmProvider(), defaultEmbeddingProvider(), null, defaultStorageStrategy());
         configureProviderProperties(defaultCombo);
 
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(TestApplication.class)
@@ -153,10 +160,14 @@ abstract class AbstractProviderMatrixIntegrationTest {
                 .sorted()
                 .toList();
 
+            List<String> vectorDbProviders = vectorDbProviders();
+
             List<ProviderCombination> combinations = new ArrayList<>();
             for (String llm : llmProviders) {
                 for (String embedding : embeddingProviders) {
-                    combinations.add(new ProviderCombination(llm, embedding));
+                    for (String vector : vectorDbProviders) {
+                        combinations.add(new ProviderCombination(llm, embedding, vector, defaultStorageStrategy()));
+                    }
                 }
             }
             return combinations;
@@ -168,7 +179,8 @@ abstract class AbstractProviderMatrixIntegrationTest {
     private Map<String, Object> defaultDiscoveryProperties() {
         return Map.of(
             "ai.providers.llm-provider", defaultLlmProvider(),
-            "ai.providers.embedding-provider", defaultEmbeddingProvider()
+            "ai.providers.embedding-provider", defaultEmbeddingProvider(),
+            STORAGE_STRATEGY_PROPERTY, defaultStorageStrategy()
         );
     }
 
@@ -178,21 +190,26 @@ abstract class AbstractProviderMatrixIntegrationTest {
             .filter(StringUtils::hasText)
             .map(entry -> {
                 String[] parts = entry.split(":");
-                if (parts.length < 2 || parts.length > 3) {
+                if (parts.length < 2 || parts.length > 4) {
                     throw new IllegalArgumentException(
-                        "Invalid provider matrix entry: '" + entry + "'. Expected llm:embedding or llm:embedding:vectordb");
+                        "Invalid provider matrix entry: '" + entry + "'. Expected llm:embedding[:vectordb][:storageStrategy]");
                 }
 
                 String llm = parts[0].trim();
                 String embedding = parts[1].trim();
-                String vectorDb = parts.length == 3 ? parts[2].trim() : null;
+                String vectorDb = parts.length >= 3 ? parts[2].trim() : null;
+                String storageStrategy = parts.length == 4 ? parts[3].trim() : defaultStorageStrategy();
 
                 if (!StringUtils.hasText(llm) || !StringUtils.hasText(embedding)) {
                     throw new IllegalArgumentException(
                         "Invalid provider matrix entry: '" + entry + "'. LLM and embedding providers cannot be empty.");
                 }
 
-                return new ProviderCombination(llm, embedding, vectorDb);
+                if (!StringUtils.hasText(storageStrategy)) {
+                    storageStrategy = defaultStorageStrategy();
+                }
+
+                return new ProviderCombination(llm, embedding, vectorDb, storageStrategy);
             })
             .collect(Collectors.toCollection(ArrayList::new));
     }
@@ -222,6 +239,7 @@ abstract class AbstractProviderMatrixIntegrationTest {
         System.setProperty("ai.providers.llm-provider", combination.llmProvider());
         System.setProperty("EMBEDDING_PROVIDER", combination.embeddingProvider());
         System.setProperty("ai.providers.embedding-provider", combination.embeddingProvider());
+        System.setProperty(STORAGE_STRATEGY_PROPERTY, combination.storageStrategy());
 
         if (StringUtils.hasText(combination.vectorDbProvider())) {
             System.setProperty(VECTORDB_PROPERTY, combination.vectorDbProvider());
@@ -236,11 +254,30 @@ abstract class AbstractProviderMatrixIntegrationTest {
         System.clearProperty("EMBEDDING_PROVIDER");
         System.clearProperty("ai.providers.embedding-provider");
         System.clearProperty(VECTORDB_PROPERTY);
+        System.clearProperty(STORAGE_STRATEGY_PROPERTY);
         log.debug("Cleared provider properties at {}", Instant.now());
     }
 
     protected void beforeMatrixExecution() {
-        // default no-op
+        cleanLuceneIndex();
+    }
+
+    private void cleanLuceneIndex() {
+        Path indexPath = Path.of("data", "lucene-vector-index");
+        if (!Files.exists(indexPath)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(indexPath)) {
+            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ignored) {
+                    // best-effort cleanup
+                }
+            });
+        } catch (IOException ignored) {
+            // ignore
+        }
     }
 
     protected String suiteDisplayName() {
@@ -276,25 +313,54 @@ abstract class AbstractProviderMatrixIntegrationTest {
     protected record ProviderCombination(
         String llmProvider,
         String embeddingProvider,
-        String vectorDbProvider
+        String vectorDbProvider,
+        String storageStrategy
     ) {
         public ProviderCombination(String llmProvider, String embeddingProvider) {
-            this(llmProvider, embeddingProvider, null);
+            this(llmProvider, embeddingProvider, null, defaultStorageStrategy());
+        }
+
+        public ProviderCombination(String llmProvider, String embeddingProvider, String vectorDbProvider) {
+            this(llmProvider, embeddingProvider, vectorDbProvider, defaultStorageStrategy());
         }
 
         public String displayName() {
             if (StringUtils.hasText(vectorDbProvider)) {
-                return "LLM=" + llmProvider + " | Embedding=" + embeddingProvider + " | VectorDB=" + vectorDbProvider;
+                return "LLM=" + llmProvider + " | Embedding=" + embeddingProvider + " | VectorDB=" + vectorDbProvider + " | Storage=" + storageStrategy;
             }
-            return "LLM=" + llmProvider + " | Embedding=" + embeddingProvider;
+            return "LLM=" + llmProvider + " | Embedding=" + embeddingProvider + " | Storage=" + storageStrategy;
         }
 
         @Override
         public String toString() {
             if (StringUtils.hasText(vectorDbProvider)) {
-                return llmProvider + "/" + embeddingProvider + "/" + vectorDbProvider;
+                return llmProvider + "/" + embeddingProvider + "/" + vectorDbProvider + "/" + storageStrategy;
             }
-            return llmProvider + "/" + embeddingProvider;
+            return llmProvider + "/" + embeddingProvider + "/" + storageStrategy;
         }
+    }
+
+    private List<ProviderCombination> expandWithStorageStrategies(List<ProviderCombination> base) {
+        List<String> storageStrategies = storageStrategies();
+        return base.stream()
+            .flatMap(combo -> storageStrategies.stream()
+                .map(storage -> new ProviderCombination(
+                    combo.llmProvider(),
+                    combo.embeddingProvider(),
+                    combo.vectorDbProvider(),
+                    storage)))
+            .toList();
+    }
+
+    protected List<String> storageStrategies() {
+        return List.of("SINGLE_TABLE", "PER_TYPE_TABLE");
+    }
+
+    protected static String defaultStorageStrategy() {
+        return "PER_TYPE_TABLE";
+    }
+
+    protected List<String> vectorDbProviders() {
+        return java.util.Arrays.asList("lucene", null);
     }
 }

@@ -1,9 +1,8 @@
 package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.dto.VectorRecord;
-import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.it.support.IndexingQueueTestSupport;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,7 +47,7 @@ class VectorUpdateDeleteIntegrationTest {
     private VectorManagementService vectorManagementService;
 
     @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private IndexingQueueTestSupport indexingQueueTestSupport;
@@ -62,7 +61,7 @@ class VectorUpdateDeleteIntegrationTest {
     void cleanupEntityState() {
         // Each test uses its own entity type, so removing everything is safe
         vectorManagementService.clearAllVectors();
-        searchableEntityRepository.deleteAll();
+        storageStrategy.deleteAll();
     }
 
     @AfterAll
@@ -84,7 +83,7 @@ class VectorUpdateDeleteIntegrationTest {
     @Test
     @DisplayName("Vector updates replace identifier while propagating metadata updates, and deletions remove all artifacts")
     void vectorUpdateAndDeleteStayConsistent() {
-        String entityType = "vector-update-" + UUID.randomUUID();
+        String entityType = "vector-update";
         String entityId = "entity-" + UUID.randomUUID();
 
         String initialVectorId = vectorManagementService.storeVector(
@@ -97,7 +96,7 @@ class VectorUpdateDeleteIntegrationTest {
         indexingQueueTestSupport.drainQueue();
 
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
-            Optional<AISearchableEntity> initialEntity = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId);
+            Optional<com.ai.infrastructure.entity.AISearchableEntity> initialEntity = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId);
             assertTrue(initialEntity.isPresent(), "Searchable entity should exist after initial storage");
             assertEquals(initialVectorId, initialEntity.get().getVectorId(), "Searchable entity should link to stored vector");
         });
@@ -119,7 +118,7 @@ class VectorUpdateDeleteIntegrationTest {
         assertEquals("2", String.valueOf(updatedVector.getMetadata().get("version")), "Metadata version should be updated");
         assertEquals("update", String.valueOf(updatedVector.getMetadata().get("origin")), "Metadata origin should reflect update");
 
-        AISearchableEntity searchableEntity = searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId)
+        com.ai.infrastructure.entity.AISearchableEntity searchableEntity = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId)
             .orElseThrow(() -> new AssertionError("Searchable entity should exist after update"));
 
         assertEquals(updatedVector.getVectorId(), searchableEntity.getVectorId(), "Searchable entity should point to latest vector ID");
@@ -145,7 +144,7 @@ class VectorUpdateDeleteIntegrationTest {
         indexingQueueTestSupport.drainQueue();
 
         assertFalse(vectorManagementService.vectorExists(entityType, entityId), "Vector should be removed from vector store");
-        assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isEmpty(),
+        assertTrue(storageStrategy.findByEntityTypeAndEntityId(entityType, entityId).isEmpty(),
             "Searchable entity should be removed after vector deletion");
     }
 

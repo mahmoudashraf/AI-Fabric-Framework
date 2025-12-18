@@ -24,6 +24,7 @@
 #   # Run with vector database specification
 #   ./run-provider-matrix-tests.sh "openai:onnx" "pinecone"
 #   ./run-provider-matrix-tests.sh "openai:onnx:memory"
+#   ./run-provider-matrix-tests.sh "openai:onnx:lucene:SINGLE_TABLE"
 #
 #   # Run specific test chunk (faster execution)
 #   ./run-provider-matrix-tests.sh "openai:onnx" "" "core"
@@ -160,18 +161,22 @@ print_header "Test Configuration"
 
 print_info "Matrix Specification: $MATRIX_SPEC"
 
-# Parse matrix spec - it might be in format llm:embedding:vectordb
-# If vectordb is included, extract it and set as environment variable
-# The matrix spec should only contain llm:embedding for validation
-if [[ "$MATRIX_SPEC" =~ ^([^:]+):([^:]+):(.+)$ ]]; then
-    # Format: llm:embedding:vectordb - extract vector DB
+# Parse matrix spec - supports llm:embedding[:vectordb[:storage]]
+if [[ "$MATRIX_SPEC" =~ ^([^:]+):([^:]+):([^:]+):([^:]+)$ ]]; then
     LLM_PROVIDER="${BASH_REMATCH[1]}"
     EMBEDDING_PROVIDER="${BASH_REMATCH[2]}"
     VECTOR_DB_FROM_SPEC="${BASH_REMATCH[3]}"
-    MATRIX_SPEC="${LLM_PROVIDER}:${EMBEDDING_PROVIDER}"
+    STORAGE_STRATEGY_FROM_SPEC="${BASH_REMATCH[4]}"
+    export AI_INFRASTRUCTURE_VECTOR_DATABASE="$VECTOR_DB_FROM_SPEC"
+    export AI_INFRASTRUCTURE_STORAGE_STRATEGY="$STORAGE_STRATEGY_FROM_SPEC"
+    print_info "Extracted Vector DB: $VECTOR_DB_FROM_SPEC"
+    print_info "Extracted Storage Strategy: $STORAGE_STRATEGY_FROM_SPEC"
+elif [[ "$MATRIX_SPEC" =~ ^([^:]+):([^:]+):([^:]+)$ ]]; then
+    LLM_PROVIDER="${BASH_REMATCH[1]}"
+    EMBEDDING_PROVIDER="${BASH_REMATCH[2]}"
+    VECTOR_DB_FROM_SPEC="${BASH_REMATCH[3]}"
     export AI_INFRASTRUCTURE_VECTOR_DATABASE="$VECTOR_DB_FROM_SPEC"
     print_info "Extracted Vector Database from matrix spec: $VECTOR_DB_FROM_SPEC"
-    print_info "Updated Matrix (without vector DB): $MATRIX_SPEC"
 elif [ -n "$VECTOR_DB" ]; then
     # Vector DB passed as separate parameter
     export AI_INFRASTRUCTURE_VECTOR_DATABASE="$VECTOR_DB"
@@ -203,6 +208,11 @@ MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 # Add vector database as system property if specified
 if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.vector-db.type=$AI_INFRASTRUCTURE_VECTOR_DATABASE"
+fi
+
+# Add storage strategy as system property if specified
+if [ -n "$AI_INFRASTRUCTURE_STORAGE_STRATEGY" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai-infrastructure.storage.strategy=$AI_INFRASTRUCTURE_STORAGE_STRATEGY"
 fi
 
 # Add test chunk as system property if specified

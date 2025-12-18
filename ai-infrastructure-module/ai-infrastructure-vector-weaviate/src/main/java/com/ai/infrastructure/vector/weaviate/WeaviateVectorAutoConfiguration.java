@@ -2,9 +2,9 @@ package com.ai.infrastructure.vector.weaviate;
 
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -30,8 +30,8 @@ public class WeaviateVectorAutoConfiguration {
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "weaviate")
     @ConditionalOnMissingBean(VectorDatabaseService.class)
     public VectorDatabaseService weaviateVectorDatabaseService(WeaviateVectorDatabaseService delegate,
-                                                               AISearchableEntityRepository searchableEntityRepository,
+                                                               AISearchableEntityStorageStrategy storageStrategy,
                                                                AIEntityConfigurationLoader configurationLoader) {
-        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
+        return new SearchableEntityVectorDatabaseService(delegate, storageStrategy, configurationLoader);
     }
 }

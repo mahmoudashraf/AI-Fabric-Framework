@@ -15,11 +15,17 @@ import com.ai.infrastructure.it.RealAPIVectorLifecycleIntegrationTest;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.it.RealAPIMultiProviderFailoverIntegrationTest;
 import com.ai.infrastructure.it.RealAPICreativeAIScenariosIntegrationTest;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.DynamicTest;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Executes the Real API provider matrix suite, iterating over every
@@ -75,8 +81,17 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     };
 
     @Override
+    public Stream<DynamicTest> providerMatrix() {
+        Assumptions.assumeTrue(hasOpenAIKey(),
+            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
+        return super.providerMatrix();
+    }
+
+    @Override
     protected void beforeMatrixExecution() {
         RealAPITestSupport.ensureOpenAIConfigured();
+        Assumptions.assumeTrue(hasOpenAIKey(),
+            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
     }
 
     @Override
@@ -117,8 +132,73 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     protected Map<String, Object> additionalDiscoveryProperties() {
+        String indexPath = "data/test-lucene-index/realapi-" + System.nanoTime();
         return Map.of(
-            "spring.liquibase.enabled", "false"
+            "spring.liquibase.enabled", "false",
+            "ai.config.default-file", "ai-entity-config-realapi.yml",
+            "ai.vector-db.lucene.index-path", indexPath
         );
+    }
+
+    @Override
+    protected List<String> storageStrategies() {
+        return List.of("PER_TYPE_TABLE", "SINGLE_TABLE", "CUSTOM");
+    }
+
+    @Override
+    protected List<ProviderCombination> resolveProviderMatrix() {
+        List<ProviderCombination> available = availableProviderCombinations();
+
+        String matrixSpec = System.getProperty(matrixPropertyKey());
+        if (!StringUtils.hasText(matrixSpec)) {
+            matrixSpec = System.getenv(matrixEnvVariable());
+        }
+        if (!StringUtils.hasText(matrixSpec)) {
+            return available;
+        }
+
+        List<ProviderCombination> requested = parseMatrixSpec(matrixSpec).stream()
+            .filter(combo -> storageStrategies().contains(combo.storageStrategy()))
+            .toList();
+
+        LinkedHashSet<ProviderCombination> availableSet = new LinkedHashSet<>(available);
+        List<ProviderCombination> accepted = requested.stream()
+            .filter(availableSet::contains)
+            .toList();
+
+        return accepted.isEmpty() ? available : accepted;
+    }
+
+    private List<ProviderCombination> parseMatrixSpec(String matrixSpec) {
+        return Arrays.stream(matrixSpec.split(","))
+            .map(String::trim)
+            .filter(StringUtils::hasText)
+            .map(entry -> {
+                String[] parts = entry.split(":");
+                if (parts.length < 2 || parts.length > 4) {
+                    throw new IllegalArgumentException(
+                        "Invalid provider matrix entry: '" + entry + "'. Expected llm:embedding[:vectordb][:storageStrategy]");
+                }
+
+                String llm = parts[0].trim();
+                String embedding = parts[1].trim();
+                String vectorDb = parts.length >= 3 ? parts[2].trim() : null;
+                String storageStrategy = parts.length == 4 ? parts[3].trim() : defaultStorageStrategy();
+
+                if (!StringUtils.hasText(storageStrategy)) {
+                    storageStrategy = defaultStorageStrategy();
+                }
+
+                return new ProviderCombination(llm, embedding, vectorDb, storageStrategy);
+            })
+            .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private boolean hasOpenAIKey() {
+        String apiKey = System.getProperty("OPENAI_API_KEY");
+        if (!StringUtils.hasText(apiKey)) {
+            apiKey = System.getenv("OPENAI_API_KEY");
+        }
+        return StringUtils.hasText(apiKey);
     }
 }

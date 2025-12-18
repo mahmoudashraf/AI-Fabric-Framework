@@ -12,17 +12,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@Slf4j
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
 @Disabled("Skipped due to Hibernate lazy table creation issue with @Transactional")
 public class MetadataFixTest {
+
+    private static final Logger log = LoggerFactory.getLogger(MetadataFixTest.class);
     
     @Autowired
     private AICapabilityService capabilityService;

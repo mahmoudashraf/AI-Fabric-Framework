@@ -2,9 +2,9 @@ package com.ai.infrastructure.vector.lucene;
 
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -31,8 +31,8 @@ public class LuceneVectorAutoConfiguration {
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "lucene", matchIfMissing = true)
     @ConditionalOnMissingBean(VectorDatabaseService.class)
     public VectorDatabaseService luceneVectorDatabaseService(LuceneVectorDatabaseService delegate,
-                                                             AISearchableEntityRepository searchableEntityRepository,
+                                                             AISearchableEntityStorageStrategy storageStrategy,
                                                              AIEntityConfigurationLoader configurationLoader) {
-        return new SearchableEntityVectorDatabaseService(delegate, searchableEntityRepository, configurationLoader);
+        return new SearchableEntityVectorDatabaseService(delegate, storageStrategy, configurationLoader);
     }
 }

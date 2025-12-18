@@ -5,10 +5,10 @@ import com.ai.infrastructure.dto.AISearchableField;
 import com.ai.infrastructure.dto.AIEmbeddableField;
 import com.ai.infrastructure.dto.AIMetadataField;
 import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,18 +35,18 @@ public class AICapabilityService {
     
     private final AIEmbeddingService embeddingService;
     private final AICoreService aiCoreService;
-    private final AISearchableEntityRepository searchableEntityRepository;
+    private final AISearchableEntityStorageStrategy storageStrategy;
     private final AIEntityConfigurationLoader configurationLoader;
     private final VectorManagementService vectorManagementService;
     
     public AICapabilityService(AIEmbeddingService embeddingService,
                               AICoreService aiCoreService,
-                              AISearchableEntityRepository searchableEntityRepository,
+                              AISearchableEntityStorageStrategy storageStrategy,
                               AIEntityConfigurationLoader configurationLoader,
                               VectorManagementService vectorManagementService) {
         this.embeddingService = embeddingService;
         this.aiCoreService = aiCoreService;
-        this.searchableEntityRepository = searchableEntityRepository;
+        this.storageStrategy = storageStrategy;
         this.configurationLoader = configurationLoader;
         this.vectorManagementService = Objects.requireNonNull(vectorManagementService,
             "VectorManagementService must be configured for AICapabilityService");
@@ -204,8 +204,8 @@ public class AICapabilityService {
                 return;
             }
             
-            // Remove from searchable entity repository
-            searchableEntityRepository.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
+            // Remove from searchable entity storage
+            storageStrategy.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
             
         } catch (Exception e) {
             log.error("Error removing entity from search index", e);
@@ -235,8 +235,8 @@ public class AICapabilityService {
                 log.warn("Vector not found in vector database for entity {} of type {}", entityId, config.getEntityType());
             }
             
-            // Remove from searchable entity repository
-            searchableEntityRepository.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
+            // Remove from searchable entity storage
+            storageStrategy.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
             
         } catch (Exception e) {
             log.error("Error cleaning up embeddings for entity", e);
@@ -336,28 +336,13 @@ public class AICapabilityService {
                 return;
             }
             
-            // Refresh current entity state after vector storage (decorators may have upserted records)
-            List<AISearchableEntity> matchingEntities = searchableEntityRepository
-                .findByEntityType(config.getEntityType())
-                .stream()
-                .filter(e -> entityId.equals(e.getEntityId()))
-                .toList();
-
-            AISearchableEntity searchableEntity;
-            if (!matchingEntities.isEmpty()) {
-                searchableEntity = matchingEntities.get(0);
-                if (matchingEntities.size() > 1) {
-                    for (int i = 1; i < matchingEntities.size(); i++) {
-                        searchableEntityRepository.delete(matchingEntities.get(i));
-                    }
-                }
-            } else {
-                searchableEntity = AISearchableEntity.builder()
+            AISearchableEntity searchableEntity = storageStrategy
+                .findByEntityTypeAndEntityId(config.getEntityType(), entityId)
+                .orElseGet(() -> AISearchableEntity.builder()
                     .entityType(config.getEntityType())
                     .entityId(entityId)
                     .createdAt(java.time.LocalDateTime.now())
-                    .build();
-            }
+                    .build());
 
             String metadataJson = MetadataJsonSerializer.serialize(metadata, config);
             searchableEntity.setSearchableContent(content);
@@ -366,7 +351,7 @@ public class AICapabilityService {
             searchableEntity.setMetadata(metadataJson);
             searchableEntity.setUpdatedAt(java.time.LocalDateTime.now());
 
-            searchableEntityRepository.save(searchableEntity);
+            storageStrategy.save(searchableEntity);
             
         } catch (Exception e) {
             log.error("Error storing searchable entity", e);
@@ -411,27 +396,13 @@ public class AICapabilityService {
                 return;
             }
             
-            // Find all matching entities and update the first one
-            List<AISearchableEntity> existing = searchableEntityRepository
-                .findByEntityType(config.getEntityType())
-                .stream()
-                .filter(e -> entityId.equals(e.getEntityId()))
-                .toList();
-            
-            if (!existing.isEmpty()) {
-                AISearchableEntity entityToUpdate = existing.get(0);
-                entityToUpdate.setAiAnalysis(analysis);
-                entityToUpdate.setUpdatedAt(java.time.LocalDateTime.now());
-                searchableEntityRepository.save(entityToUpdate);
-                
-                // If there are duplicates, remove them
-                if (existing.size() > 1) {
-                    for (int i = 1; i < existing.size(); i++) {
-                        searchableEntityRepository.delete(existing.get(i));
-                    }
-                }
-            }
-            
+            storageStrategy.findByEntityTypeAndEntityId(config.getEntityType(), entityId)
+                .ifPresent(entityToUpdate -> {
+                    entityToUpdate.setAiAnalysis(analysis);
+                    entityToUpdate.setUpdatedAt(java.time.LocalDateTime.now());
+                    storageStrategy.save(entityToUpdate);
+                });
+
         } catch (Exception e) {
             log.error("Error storing analysis result", e);
         }
@@ -446,16 +417,11 @@ public class AICapabilityService {
         try {
             log.debug("Removing entity from AI index: {} of type {}", entityId, entityType);
             
-            // Find and remove searchable entity
-            Optional<AISearchableEntity> searchableEntity = searchableEntityRepository
+            Optional<AISearchableEntity> searchableEntity = storageStrategy
                 .findByEntityTypeAndEntityId(entityType, entityId);
-            
-            if (searchableEntity.isPresent()) {
-                searchableEntityRepository.delete(searchableEntity.get());
-                log.debug("Removed entity from AI index");
-            } else {
-                log.warn("Entity not found in AI index: {} of type {}", entityId, entityType);
-            }
+
+            searchableEntity.ifPresentOrElse(storageStrategy::delete,
+                () -> log.warn("Entity not found in AI index: {} of type {}", entityId, entityType));
             
         } catch (Exception e) {
             log.error("Error removing entity from AI index", e);

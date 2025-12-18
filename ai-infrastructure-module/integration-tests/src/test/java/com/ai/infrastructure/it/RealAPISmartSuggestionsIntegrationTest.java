@@ -6,10 +6,10 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -118,7 +118,7 @@ public class RealAPISmartSuggestionsIntegrationTest {
     private TestProductRepository productRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private ResponseSanitizationProperties sanitizationProperties;
@@ -126,7 +126,7 @@ public class RealAPISmartSuggestionsIntegrationTest {
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        searchRepository.deleteAll();
+        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }
