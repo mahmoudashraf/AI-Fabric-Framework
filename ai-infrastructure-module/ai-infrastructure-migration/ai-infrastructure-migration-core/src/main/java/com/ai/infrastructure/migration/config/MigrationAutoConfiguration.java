@@ -15,8 +15,10 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.repository.support.Repositories;
 
 import java.time.Clock;
 import java.util.concurrent.ExecutorService;
@@ -30,6 +32,14 @@ import java.util.List;
 @EnableConfigurationProperties({MigrationProperties.class, AIIndexingProperties.class})
 @Import({EntityRepositoryRegistry.class, MigrationProgressTracker.class})
 public class MigrationAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(Repositories.class)
+    public Repositories migrationRepositories(ApplicationContext applicationContext) {
+        // Ensures migration components can resolve Spring Data repositories even when
+        // RepositoriesAutoConfiguration is not imported (e.g., in slim test contexts).
+        return new Repositories(applicationContext);
+    }
 
     @Bean
     @ConditionalOnMissingBean

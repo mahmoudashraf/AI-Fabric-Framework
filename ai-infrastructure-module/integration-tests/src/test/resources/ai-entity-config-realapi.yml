@@ -21,6 +21,9 @@ ai-entities:
       - name: description
     embeddable-fields:
       - name: description
+    metadata-fields:
+      - name: category
+        type: STRING
   test-article:
     features: ["embedding", "search"]
     enable-search: true

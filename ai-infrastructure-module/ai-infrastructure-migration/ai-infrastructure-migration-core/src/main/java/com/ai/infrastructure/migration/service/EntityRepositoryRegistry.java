@@ -1,6 +1,7 @@
 package com.ai.infrastructure.migration.service;
 
 import com.ai.infrastructure.annotation.AICapable;
+import com.ai.infrastructure.annotation.NoMigrationRepository;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
@@ -73,7 +74,9 @@ public class EntityRepositoryRegistry {
 
     private Class<? extends JpaRepository<?, ?>> resolveRepositoryClass(AICapable annotation, Object discoveredRepository) {
         Class<? extends JpaRepository<?, ?>> candidate = annotation.migrationRepository();
-        if (candidate != null && !JpaRepository.class.equals(candidate)) {
+        if (candidate != null
+            && !JpaRepository.class.equals(candidate)
+            && !NoMigrationRepository.class.equals(candidate)) {
             return candidate;
         }
         // Fallback to the discovered repository bean type when explicit binding is not provided.
@@ -84,7 +87,10 @@ public class EntityRepositoryRegistry {
     }
 
     private JpaRepository<?, ?> resolveRepositoryBean(Class<? extends JpaRepository<?, ?>> repoClass, Object discoveredRepository) {
-        if (repoClass != null && !JpaRepository.class.equals(repoClass)) {
+        if (repoClass != null
+            && !JpaRepository.class.equals(repoClass)
+            && !NoMigrationRepository.class.equals(repoClass)
+            && !repoClass.isInstance(discoveredRepository)) {
             return applicationContext.getBean(repoClass);
         }
         return (JpaRepository<?, ?>) discoveredRepository;
