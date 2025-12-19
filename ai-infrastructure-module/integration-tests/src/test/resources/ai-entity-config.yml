@@ -204,3 +204,80 @@ ai-entities:
     searchable-fields:
       - name: name
       - name: description
+  searchmulti_user:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: email
+  searchmulti_article:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: title
+      - name: body
+  plan-product:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+  plan-product-link:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+  plan-product-update:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+  plan-product-remove:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+  rag-article:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: title
+      - name: body
+  plan-product-metadata:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+  plan-query:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: query
+      - name: description
+  plan-concurrent:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+  plan-transaction:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
