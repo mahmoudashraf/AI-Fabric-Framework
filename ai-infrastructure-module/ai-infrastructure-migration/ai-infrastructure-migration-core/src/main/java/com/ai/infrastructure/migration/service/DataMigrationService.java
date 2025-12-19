@@ -9,6 +9,7 @@ import com.ai.infrastructure.indexing.IndexingRequest;
 import com.ai.infrastructure.indexing.IndexingStrategy;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.migration.config.MigrationProperties;
+import com.ai.infrastructure.migration.config.MigrationFieldConfig;
 import com.ai.infrastructure.migration.domain.MigrationFilters;
 import com.ai.infrastructure.migration.domain.MigrationJob;
 import com.ai.infrastructure.migration.domain.MigrationProgress;
@@ -30,8 +31,10 @@ import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -49,6 +52,7 @@ public class DataMigrationService {
     private final ExecutorService executorService;
     private final AICapabilityService capabilityService;
     private final Clock clock;
+    private final List<MigrationFilterPolicy> filterPolicies;
 
     public DataMigrationService(
         IndexingQueueService queueService,
@@ -62,7 +66,8 @@ public class DataMigrationService {
         ObjectMapper objectMapper,
         ExecutorService executorService,
         AICapabilityService capabilityService,
-        Clock clock
+        Clock clock,
+        List<MigrationFilterPolicy> filterPolicies
     ) {
         this.queueService = queueService;
         this.configLoader = configLoader;
@@ -76,6 +81,7 @@ public class DataMigrationService {
         this.executorService = executorService;
         this.capabilityService = capabilityService;
         this.clock = clock;
+        this.filterPolicies = filterPolicies != null ? filterPolicies : List.of();
     }
 
     /**
@@ -102,6 +108,8 @@ public class DataMigrationService {
 
         EntityRegistration registration = repositoryRegistry.getRegistration(request.getEntityType());
         JpaRepository<?, ?> repository = registration.repository();
+
+        enforceFilterSupport(request.getEntityType());
 
         long total = repository.count();
         MigrationJob job = createJob(request, total);
@@ -201,9 +209,12 @@ public class DataMigrationService {
                 int successes = 0;
                 int failures = 0;
 
+                MigrationFieldConfig fieldConfig = migrationProperties.getEntityFields().get(job.getEntityType());
+                MigrationFilterPolicy policy = resolvePolicy(job.getEntityType());
+
                 for (Object entity : page.getContent()) {
                     try {
-                        if (!matchesFilters(entity, request.getFilters())) {
+                        if (!matchesFilters(entity, request, config, fieldConfig, policy)) {
                             continue;
                         }
 
@@ -253,32 +264,52 @@ public class DataMigrationService {
         jobRepository.save(job);
     }
 
-    private boolean matchesFilters(Object entity, MigrationFilters filters) {
+    private boolean matchesFilters(Object entity,
+                                   MigrationRequest request,
+                                   AIEntityConfig config,
+                                   MigrationFieldConfig fieldConfig,
+                                   MigrationFilterPolicy policy) {
+        MigrationFilters filters = request.getFilters();
         if (filters == null || filters.isEmpty()) {
             return true;
         }
+
+        if (policy != null) {
+            return policy.shouldMigrate(entity, request, config);
+        }
+
+        requireFieldConfig(request.getEntityType(), fieldConfig);
 
         String entityId = capabilityService.resolveEntityId(entity);
         if (!filters.safeEntityIds().isEmpty() && !filters.safeEntityIds().contains(entityId)) {
             return false;
         }
 
-        LocalDate createdDate = resolveCreatedDate(entity);
-        if (filters.getCreatedBefore() != null && createdDate != null && !createdDate.isBefore(filters.getCreatedBefore())) {
-            return false;
+        LocalDate createdDate = resolveCreatedDate(entity, fieldConfig.getCreatedAtField());
+        if (filters.getCreatedBefore() != null) {
+            if (createdDate == null) {
+                throw new IllegalStateException("createdAt field '%s' missing or null for entity %s"
+                    .formatted(fieldConfig.getCreatedAtField(), entity.getClass().getName()));
+            }
+            if (!createdDate.isBefore(filters.getCreatedBefore())) {
+                return false;
+            }
         }
-        if (filters.getCreatedAfter() != null && createdDate != null && !createdDate.isAfter(filters.getCreatedAfter())) {
-            return false;
+        if (filters.getCreatedAfter() != null) {
+            if (createdDate == null) {
+                throw new IllegalStateException("createdAt field '%s' missing or null for entity %s"
+                    .formatted(fieldConfig.getCreatedAtField(), entity.getClass().getName()));
+            }
+            if (!createdDate.isAfter(filters.getCreatedAfter())) {
+                return false;
+            }
         }
         return true;
     }
 
-    private LocalDate resolveCreatedDate(Object entity) {
+    private LocalDate resolveCreatedDate(Object entity, String fieldName) {
         try {
-            Field field = findDateField(entity.getClass(), "createdAt", "createdDate");
-            if (field == null) {
-                return null;
-            }
+            Field field = entity.getClass().getDeclaredField(fieldName);
             field.setAccessible(true);
             Object value = field.get(entity);
             if (value instanceof LocalDateTime dateTime) {
@@ -287,20 +318,37 @@ public class DataMigrationService {
             if (value instanceof LocalDate date) {
                 return date;
             }
-        } catch (Exception e) {
-            log.debug("Unable to resolve created date for {}", entity.getClass().getSimpleName());
+            throw new IllegalStateException("Field '%s' on %s is not LocalDate/LocalDateTime"
+                .formatted(fieldName, entity.getClass().getName()));
+        } catch (NoSuchFieldException e) {
+            throw new IllegalStateException("Field '%s' not found on %s".formatted(fieldName, entity.getClass().getName()), e);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Cannot access field '%s' on %s".formatted(fieldName, entity.getClass().getName()), e);
         }
-        return null;
     }
 
-    private Field findDateField(Class<?> clazz, String... fieldNames) {
-        for (String name : fieldNames) {
-            try {
-                return clazz.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+    private void enforceFilterSupport(String entityType) {
+        boolean hasPolicy = resolvePolicy(entityType) != null;
+        boolean hasConfig = migrationProperties.getEntityFields().containsKey(entityType);
+        if (!hasPolicy && !hasConfig) {
+            throw new IllegalStateException("Migration requires a policy or entityFields config for entityType: " + entityType);
         }
-        return null;
+    }
+
+    private MigrationFilterPolicy resolvePolicy(String entityType) {
+        return filterPolicies.stream()
+            .filter(p -> p.supports(entityType))
+            .findFirst()
+            .orElse(null);
+    }
+
+    private void requireFieldConfig(String entityType, MigrationFieldConfig fieldConfig) {
+        if (fieldConfig == null) {
+            throw new IllegalStateException("Missing migration entityFields config for entityType: " + entityType);
+        }
+        if (fieldConfig.getCreatedAtField() == null || fieldConfig.getCreatedAtField().isBlank()) {
+            throw new IllegalStateException("createdAtField must be configured for entityType: " + entityType);
+        }
     }
 
     private boolean alreadyIndexed(String entityType, String entityId) {

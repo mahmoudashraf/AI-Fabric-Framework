@@ -6,6 +6,7 @@ import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.migration.repository.MigrationJobRepository;
 import com.ai.infrastructure.migration.service.DataMigrationService;
 import com.ai.infrastructure.migration.service.EntityRepositoryRegistry;
+import com.ai.infrastructure.migration.service.MigrationFilterPolicy;
 import com.ai.infrastructure.migration.service.MigrationProgressTracker;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.service.AICapabilityService;
@@ -22,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
 
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "ai.migration", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -63,7 +65,8 @@ public class MigrationAutoConfiguration {
         ObjectMapper objectMapper,
         ExecutorService migrationExecutorService,
         AICapabilityService capabilityService,
-        Clock migrationClock
+        Clock migrationClock,
+        List<MigrationFilterPolicy> migrationFilterPolicies
     ) {
         return new DataMigrationService(
             queueService,
@@ -77,7 +80,8 @@ public class MigrationAutoConfiguration {
             objectMapper,
             migrationExecutorService,
             capabilityService,
-            migrationClock
+            migrationClock,
+            migrationFilterPolicies
         );
     }
 }

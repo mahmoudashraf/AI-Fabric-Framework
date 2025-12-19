@@ -3,6 +3,9 @@ package com.ai.infrastructure.migration.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Data
 @ConfigurationProperties(prefix = "ai.migration")
 public class MigrationProperties {
@@ -31,4 +34,10 @@ public class MigrationProperties {
      * Days to retain completed job records.
      */
     private int cleanupCompletedAfterDays = 30;
+
+    /**
+     * Per-entity field mapping used by the default migration filter when no custom policy is provided.
+     * Key: entityType, Value: field configuration.
+     */
+    private Map<String, MigrationFieldConfig> entityFields = new HashMap<>();
 }

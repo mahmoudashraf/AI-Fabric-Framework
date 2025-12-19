@@ -9,6 +9,7 @@ import com.ai.infrastructure.migration.config.MigrationProperties;
 import com.ai.infrastructure.migration.domain.MigrationJob;
 import com.ai.infrastructure.migration.domain.MigrationRequest;
 import com.ai.infrastructure.migration.repository.MigrationJobRepository;
+import com.ai.infrastructure.migration.config.MigrationFieldConfig;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -77,6 +78,9 @@ class DataMigrationServiceTest {
         migrationProperties = new MigrationProperties();
         migrationProperties.setDefaultBatchSize(2);
         migrationProperties.setDefaultRateLimit(0); // avoid sleeps in tests
+        MigrationFieldConfig fieldConfig = new MigrationFieldConfig();
+        fieldConfig.setCreatedAtField("createdAt");
+        migrationProperties.getEntityFields().put("product", fieldConfig);
 
         indexingProperties = new AIIndexingProperties();
         objectMapper = new ObjectMapper();
@@ -100,7 +104,8 @@ class DataMigrationServiceTest {
             objectMapper,
             executorService,
             capabilityService,
-            clock
+            clock,
+            List.of()
         );
     }
 
