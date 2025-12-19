@@ -7,7 +7,7 @@ import com.ai.infrastructure.migration.repository.MigrationJobRepository;
 import com.ai.infrastructure.migration.service.DataMigrationService;
 import com.ai.infrastructure.migration.service.EntityRepositoryRegistry;
 import com.ai.infrastructure.migration.service.MigrationProgressTracker;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -56,7 +56,7 @@ public class MigrationAutoConfiguration {
         AIEntityConfigurationLoader configLoader,
         EntityRepositoryRegistry repositoryRegistry,
         MigrationJobRepository jobRepository,
-        AISearchableEntityRepository searchableEntityRepository,
+        AISearchableEntityStorageStrategy searchableEntityStorageStrategy,
         MigrationProgressTracker progressTracker,
         MigrationProperties migrationProperties,
         AIIndexingProperties indexingProperties,
@@ -70,7 +70,7 @@ public class MigrationAutoConfiguration {
             configLoader,
             repositoryRegistry,
             jobRepository,
-            searchableEntityRepository,
+            searchableEntityStorageStrategy,
             progressTracker,
             migrationProperties,
             indexingProperties,

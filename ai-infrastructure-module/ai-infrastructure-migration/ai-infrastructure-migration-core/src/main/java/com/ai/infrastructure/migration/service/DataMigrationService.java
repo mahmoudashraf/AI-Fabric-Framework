@@ -15,7 +15,7 @@ import com.ai.infrastructure.migration.domain.MigrationProgress;
 import com.ai.infrastructure.migration.domain.MigrationRequest;
 import com.ai.infrastructure.migration.domain.MigrationStatus;
 import com.ai.infrastructure.migration.repository.MigrationJobRepository;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -41,7 +41,7 @@ public class DataMigrationService {
     private final AIEntityConfigurationLoader configLoader;
     private final EntityRepositoryRegistry repositoryRegistry;
     private final MigrationJobRepository jobRepository;
-    private final AISearchableEntityRepository searchableEntityRepository;
+    private final AISearchableEntityStorageStrategy searchableEntityStorageStrategy;
     private final MigrationProgressTracker progressTracker;
     private final MigrationProperties migrationProperties;
     private final AIIndexingProperties indexingProperties;
@@ -55,7 +55,7 @@ public class DataMigrationService {
         AIEntityConfigurationLoader configLoader,
         EntityRepositoryRegistry repositoryRegistry,
         MigrationJobRepository jobRepository,
-        AISearchableEntityRepository searchableEntityRepository,
+        AISearchableEntityStorageStrategy searchableEntityStorageStrategy,
         MigrationProgressTracker progressTracker,
         MigrationProperties migrationProperties,
         AIIndexingProperties indexingProperties,
@@ -68,7 +68,7 @@ public class DataMigrationService {
         this.configLoader = configLoader;
         this.repositoryRegistry = repositoryRegistry;
         this.jobRepository = jobRepository;
-        this.searchableEntityRepository = searchableEntityRepository;
+        this.searchableEntityStorageStrategy = searchableEntityStorageStrategy;
         this.progressTracker = progressTracker;
         this.migrationProperties = migrationProperties;
         this.indexingProperties = indexingProperties;
@@ -304,7 +304,7 @@ public class DataMigrationService {
     }
 
     private boolean alreadyIndexed(String entityType, String entityId) {
-        return searchableEntityRepository
+        return searchableEntityStorageStrategy
             .findByEntityTypeAndEntityId(entityType, entityId)
             .isPresent();
     }

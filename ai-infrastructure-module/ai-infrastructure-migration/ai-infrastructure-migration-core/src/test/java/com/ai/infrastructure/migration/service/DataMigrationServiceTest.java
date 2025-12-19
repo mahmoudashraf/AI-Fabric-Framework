@@ -9,7 +9,7 @@ import com.ai.infrastructure.migration.config.MigrationProperties;
 import com.ai.infrastructure.migration.domain.MigrationJob;
 import com.ai.infrastructure.migration.domain.MigrationRequest;
 import com.ai.infrastructure.migration.repository.MigrationJobRepository;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -57,7 +57,7 @@ class DataMigrationServiceTest {
     @Mock
     private MigrationJobRepository jobRepository;
     @Mock
-    private AISearchableEntityRepository searchableEntityRepository;
+    private AISearchableEntityStorageStrategy searchableEntityStorageStrategy;
     @Mock
     private MigrationProgressTracker progressTracker;
     @Mock
@@ -93,7 +93,7 @@ class DataMigrationServiceTest {
             configLoader,
             repositoryRegistry,
             jobRepository,
-            searchableEntityRepository,
+            searchableEntityStorageStrategy,
             progressTracker,
             migrationProperties,
             indexingProperties,
@@ -129,7 +129,7 @@ class DataMigrationServiceTest {
             .thenReturn(new EntityRegistration("product", TestEntity.class, repo));
 
         when(capabilityService.resolveEntityId(any())).thenAnswer(inv -> ((TestEntity) inv.getArgument(0)).id());
-        when(searchableEntityRepository.findByEntityTypeAndEntityId(eq("product"), any()))
+        when(searchableEntityStorageStrategy.findByEntityTypeAndEntityId(eq("product"), any()))
             .thenReturn(Optional.empty());
 
         AtomicReference<MigrationJob> jobRef = new AtomicReference<>();
@@ -180,7 +180,7 @@ class DataMigrationServiceTest {
             .thenReturn(new EntityRegistration("product", TestEntity.class, repo));
 
         when(capabilityService.resolveEntityId(entity)).thenReturn("1");
-        when(searchableEntityRepository.findByEntityTypeAndEntityId("product", "1"))
+        when(searchableEntityStorageStrategy.findByEntityTypeAndEntityId("product", "1"))
             .thenReturn(Optional.of(new com.ai.infrastructure.entity.AISearchableEntity()));
 
         AtomicReference<MigrationJob> jobRef = new AtomicReference<>();
