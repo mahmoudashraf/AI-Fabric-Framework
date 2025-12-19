@@ -1,0 +1,7 @@
+ai-entities:
+  mig-test:
+    features: ["embedding", "search"]
+    auto-process: true
+    enable-search: true
+    embeddable-fields:
+      - name: createdAt
