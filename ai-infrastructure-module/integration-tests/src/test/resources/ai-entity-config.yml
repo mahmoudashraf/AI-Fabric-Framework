@@ -28,13 +28,21 @@ ai-entities:
     metadata-fields:
       - name: category
         type: STRING
+      - name: brand
+        type: STRING
+      - name: price
+        type: DOUBLE
   test-article:
     features: ["embedding", "search"]
     enable-search: true
     auto-process: true
     searchable-fields:
       - name: title
-      - name: body
+      - name: content
+      - name: summary
+    embeddable-fields:
+      - name: content
+      - name: summary
   test-user:
     features: ["embedding", "search"]
     enable-search: true
@@ -43,6 +51,9 @@ ai-entities:
       - name: firstName
       - name: lastName
       - name: email
+      - name: bio
+    embeddable-fields:
+      - name: bio
   search-concurrency-product:
     features: ["embedding", "search"]
     enable-search: true
@@ -58,6 +69,13 @@ ai-entities:
       - name: name
       - name: description
   plan-batch:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+  plan-clear:
     features: ["embedding", "search"]
     enable-search: true
     auto-process: true
@@ -240,6 +258,13 @@ ai-entities:
       - name: name
       - name: description
   plan-product-remove:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+  plan-other:
     features: ["embedding", "search"]
     enable-search: true
     auto-process: true

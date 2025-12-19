@@ -7,12 +7,14 @@ import com.ai.infrastructure.migration.repository.MigrationJobRepository;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.indexing.IndexingRequest;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import static org.awaitility.Awaitility.await;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -57,8 +59,11 @@ class MigrationIntegrationTest {
 
         MigrationJob job = migrationService.startMigration(request);
 
-        // small wait for async executor
-        Thread.sleep(300);
+        // Wait for the async executor to finish migration
+        await().atMost(Duration.ofSeconds(2)).untilAsserted(() -> {
+            MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.COMPLETED);
+        });
 
         ArgumentCaptor<IndexingRequest> captor = ArgumentCaptor.forClass(IndexingRequest.class);
         verify(queueService, times(2)).enqueue(captor.capture());
@@ -66,7 +71,5 @@ class MigrationIntegrationTest {
             .extracting(IndexingRequest::entityId)
             .containsExactlyInAnyOrder("id-1", "id-2");
 
-        MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
-        assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.COMPLETED);
     }
 }

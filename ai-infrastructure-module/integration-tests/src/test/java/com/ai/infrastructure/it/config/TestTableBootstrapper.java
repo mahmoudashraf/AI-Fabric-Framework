@@ -28,6 +28,8 @@ public class TestTableBootstrapper {
 
     @PostConstruct
     public void createPerTypeTablesIfMissing() {
+        createIndexingQueueIfAbsent();
+
         Set<String> entityTypes = configLoader.getSupportedEntityTypes();
         if (entityTypes.isEmpty()) {
             log.warn("No entity types found in AI entity config; skipping table bootstrap.");
@@ -59,7 +61,41 @@ public class TestTableBootstrapper {
             CREATE INDEX IF NOT EXISTS idx_%s_created_at ON %s(created_at);
             """.formatted(tableName, tableName, tableName, tableName, tableName, tableName, tableName);
 
-        jdbcTemplate.execute(ddl);
-        log.debug("Ensured AI searchable table exists: {}", tableName);
+        try {
+            jdbcTemplate.execute(ddl);
+            log.debug("Ensured AI searchable table exists: {}", tableName);
+        } catch (Exception ex) {
+            // If the table already exists with a slightly different schema, don't fail the context.
+            log.warn("Skipping bootstrap for table {} due to existing definition: {}", tableName, ex.getMessage());
+        }
+    }
+
+    private void createIndexingQueueIfAbsent() {
+        // Minimal schema to satisfy integration tests that enqueue/dequeue work items.
+        String ddl = """
+            CREATE TABLE IF NOT EXISTS ai_indexing_queue (
+                id IDENTITY PRIMARY KEY,
+                entity_type VARCHAR(128) NOT NULL,
+                entity_id VARCHAR(255) NOT NULL,
+                status VARCHAR(64) NOT NULL,
+                priority INTEGER DEFAULT 0,
+                requested_at TIMESTAMP,
+                scheduled_for TIMESTAMP,
+                processing_started_at TIMESTAMP,
+                processed_at TIMESTAMP,
+                updated_at TIMESTAMP,
+                payload CLOB,
+                error_message CLOB
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_idx_queue_entity ON ai_indexing_queue(entity_type, entity_id);
+            CREATE INDEX IF NOT EXISTS idx_ai_idx_queue_status ON ai_indexing_queue(status, priority, scheduled_for);
+            """;
+
+        try {
+            jdbcTemplate.execute(ddl);
+            log.debug("Ensured AI indexing queue table exists");
+        } catch (Exception ex) {
+            log.warn("Skipping bootstrap for ai_indexing_queue due to existing definition: {}", ex.getMessage());
+        }
     }
 }

@@ -43,7 +43,7 @@ ai:
   enabled: true
   
   providers:
-    llm-provider: ${LLM_PROVIDER:openai}
+    llm-provider: ${LLM_PROVIDER:test-provider}
     embedding-provider: ${EMBEDDING_PROVIDER:onnx}
     enable-fallback: true
 
@@ -56,7 +56,7 @@ ai:
       model-alias: all-MiniLM-L6-v2
     
     openai:
-      enabled: ${OPENAI_ENABLED:true}
+      enabled: ${OPENAI_ENABLED:false}
       api-key: ${OPENAI_API_KEY:mock-key}
       model: gpt-3.5-turbo
       embedding-model: text-embedding-3-small
@@ -75,7 +75,7 @@ ai:
   # Infrastructure Configuration
   infrastructure:
     config:
-      file: ai-entity-config-test.yml
+      file: ai-entity-config.yml
     embedding:
       model: text-embedding-3-small
       dimensions: 1536

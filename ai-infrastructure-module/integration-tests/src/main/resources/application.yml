@@ -70,7 +70,7 @@ ai:
       model: all-MiniLM-L6-v2
     
     openai:
-      enabled: ${OPENAI_ENABLED:true}
+      enabled: ${OPENAI_ENABLED:false}
       api-key: ${OPENAI_API_KEY:test-key}
       model: ${OPENAI_MODEL:gpt-3.5-turbo}
       embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-ada-002}
@@ -81,7 +81,7 @@ ai:
   
   # Infrastructure Configuration
   config:
-    default-file: ai-entity-config-test.yml
+    default-file: ai-entity-config.yml
     embedding:
       model: text-embedding-ada-002
       dimensions: 1536
