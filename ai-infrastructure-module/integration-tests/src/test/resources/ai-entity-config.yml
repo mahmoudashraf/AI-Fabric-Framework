@@ -5,3 +5,17 @@ ai-entities:
     enable-search: true
     embeddable-fields:
       - name: createdAt
+  test-product:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: name
+      - name: description
+    embeddable-fields:
+      - name: description
+    metadata-fields:
+      - name: category
+        type: STRING
