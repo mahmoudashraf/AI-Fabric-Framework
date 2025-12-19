@@ -306,3 +306,76 @@ ai-entities:
     searchable-fields:
       - name: name
       - name: description
+  vector-update:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: content
+    embeddable-fields:
+      - name: content
+    metadata-fields:
+      - name: version
+        type: STRING
+      - name: origin
+        type: STRING
+  ragcrossentityproduct:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+    embeddable-fields:
+      - name: description
+    metadata-fields:
+      - name: recordType
+        type: STRING
+      - name: category
+        type: STRING
+      - name: priceTier
+        type: STRING
+      - name: customerTier
+        type: STRING
+      - name: relationshipSummary
+        type: STRING
+  ragcrossentitycustomer:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+    embeddable-fields:
+      - name: description
+    metadata-fields:
+      - name: recordType
+        type: STRING
+      - name: customerTier
+        type: STRING
+      - name: segment
+        type: STRING
+      - name: month
+        type: STRING
+      - name: relationshipSummary
+        type: STRING
+  ragcrossentityorder:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-process: true
+    searchable-fields:
+      - name: name
+      - name: description
+    embeddable-fields:
+      - name: description
+    metadata-fields:
+      - name: recordType
+        type: STRING
+      - name: customerId
+        type: STRING
+      - name: customerTier
+        type: STRING
+      - name: month
+        type: STRING
+      - name: relationshipSummary
+        type: STRING
