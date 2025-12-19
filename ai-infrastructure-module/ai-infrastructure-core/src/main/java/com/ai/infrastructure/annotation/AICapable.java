@@ -1,6 +1,7 @@
 package com.ai.infrastructure.annotation;
 
 import com.ai.infrastructure.indexing.IndexingStrategy;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -89,4 +90,10 @@ public @interface AICapable {
      * Override for delete operations. Set to AUTO to inherit {@link #indexingStrategy()}.
      */
     IndexingStrategy onDeleteStrategy() default IndexingStrategy.AUTO;
+
+    /**
+     * JPA repository used by the migration module to backfill data.
+     * Optional for existing users but strongly recommended to enable migration.
+     */
+    Class<? extends JpaRepository<?, ?>> migrationRepository() default NoMigrationRepository.class;
 }
