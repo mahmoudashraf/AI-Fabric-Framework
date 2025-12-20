@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
  * We proactively create the tables for all configured entity types.
  */
 @Component
-@Profile({"dev", "test"})
+@Profile({"dev", "test", "real-api-test"})
 @RequiredArgsConstructor
 @Slf4j
 public class TestTableBootstrapper {

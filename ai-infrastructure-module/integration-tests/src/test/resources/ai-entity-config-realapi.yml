@@ -24,6 +24,10 @@ ai-entities:
     metadata-fields:
       - name: category
         type: STRING
+      - name: brand
+        type: STRING
+      - name: price
+        type: DOUBLE
   test-article:
     features: ["embedding", "search"]
     enable-search: true
