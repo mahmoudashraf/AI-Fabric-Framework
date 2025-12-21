@@ -44,32 +44,32 @@
    - delay computed from rateLimit; zero/negative/no value -> no sleep. ✅
    - interrupt path not yet asserted. ⚪
 
-#### Integration Tests (Spring + H2)
-9) Happy-path migration enqueues
+#### Integration Tests (Spring + H2) – status
+9) Happy-path migration enqueues. ✅
    - Seeds JPA repo; run migration; verify queueService.enqueue called per entity; job COMPLETED; processed count matches.
 
-10) Pause/Resume end-to-end
+10) Pause/Resume end-to-end. ✅
    - Start migration, pause after first batch (mock job status flip), ensure processing stops; resume continues.
 
-11) Cancel mid-run
+11) Cancel mid-run. ⚪ (temporarily @Disabled; flakier than H2 cadence)
    - Start migration, set status CANCELLED; ensure early exit and status persisted.
 
-12) ReindexExisting flag
+12) ReindexExisting flag. ✅
    - Seed searchable storage; run with reindexExisting=false (skips), then true (enqueues).
 
-13) Filters integration
+13) Filters integration. ⚪ (@Disabled pending stability)
    - createdBefore/After with actual entity dates; safeEntityIds only processed set.
 
-14) Failure path
+14) Failure path. ⚪
    - Force enqueue exception; job moves to FAILED with errorMessage; failedEntities incremented.
 
-15) Rate limiting observable
+15) Rate limiting observable. ⚪
    - Configure small rateLimit; assert sleep invoked via spy (or measure elapsed ≥ expected).
 
-16) Repository resolution guard
+16) Repository resolution guard. ⚪
    - Unknown entityType -> IllegalStateException.
 
-17) Concurrency sanity
+17) Concurrency sanity. ⚪
    - Two jobs on different entityTypes run; queues get distinct payloads; progress tracked separately.
 
 ### Implementation Steps
