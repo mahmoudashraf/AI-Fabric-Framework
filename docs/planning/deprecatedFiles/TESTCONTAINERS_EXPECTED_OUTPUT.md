@@ -291,7 +291,7 @@ Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.456 s
 
 1. **Check test reports:**
    ```bash
-   cat ai-infrastructure-module/integration-tests/target/surefire-reports/*.txt
+   cat ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/*.txt
    ```
 
 2. **Run full behavioral suite:**
@@ -301,12 +301,12 @@ Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.456 s
 
 3. **View detailed XML reports:**
    ```bash
-   cat ai-infrastructure-module/integration-tests/target/surefire-reports/*.xml
+   cat ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/*.xml
    ```
 
 4. **Check for any warnings:**
    ```bash
-   grep "WARN" ai-infrastructure-module/integration-tests/target/surefire-reports/*.txt
+   grep "WARN" ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/*.txt
    ```
 
 ---

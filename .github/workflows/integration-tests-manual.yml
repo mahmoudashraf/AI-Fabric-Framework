@@ -155,7 +155,7 @@ jobs:
 
       - name: Run Integration Tests (Real API)
         run: |
-          cd ai-infrastructure-module/integration-tests
+          cd ai-infrastructure-module/integration-Testing/integration-tests
           bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}:${{ github.event.inputs.storage_strategy }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
@@ -169,8 +169,8 @@ jobs:
         with:
           name: ai-infrastructure-test-reports
           path: |
-            ai-infrastructure-module/integration-tests/target/surefire-reports/
-            ai-infrastructure-module/integration-tests/target/failsafe-reports/
+            ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/
+            ai-infrastructure-module/integration-Testing/integration-tests/target/failsafe-reports/
           retention-days: 30
 
       - name: Publish Test Results
@@ -178,7 +178,7 @@ jobs:
         if: always()
         with:
           files: |
-            ai-infrastructure-module/integration-tests/target/surefire-reports/*.xml
+            ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/*.xml
           check_name: AI Infrastructure Test Results
 
   # ==============================================================================
@@ -240,7 +240,7 @@ jobs:
 
       - name: Run Relationship Query Integration Tests (Real API)
         run: |
-          cd ai-infrastructure-module/relationship-query-integration-tests
+          cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
           bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
@@ -252,8 +252,8 @@ jobs:
         with:
           name: relationship-query-test-reports
           path: |
-            ai-infrastructure-module/relationship-query-integration-tests/target/surefire-reports/
-            ai-infrastructure-module/relationship-query-integration-tests/target/failsafe-reports/
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports/
           retention-days: 30
 
       - name: Publish Test Results
@@ -261,7 +261,7 @@ jobs:
         if: always()
         with:
           files: |
-            ai-infrastructure-module/relationship-query-integration-tests/target/surefire-reports/*.xml
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/*.xml
           check_name: Relationship Query Test Results
 
   # ==============================================================================

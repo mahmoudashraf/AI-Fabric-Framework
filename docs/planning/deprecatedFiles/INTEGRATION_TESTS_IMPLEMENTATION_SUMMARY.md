@@ -44,9 +44,9 @@ Complete usage documentation including:
 
 | Module | Location | Tests | Duration | Dependencies |
 |--------|----------|-------|----------|--------------|
-| **AI Infrastructure** | `ai-infrastructure-module/integration-tests` | 75+ | 15-25 min | Testcontainers, PostgreSQL, WireMock |
+| **AI Infrastructure** | `ai-infrastructure-module/integration-Testing/integration-tests` | 75+ | 15-25 min | Testcontainers, PostgreSQL, WireMock |
 | **Behavior Analytics** | Removed (behavior integration test module deleted) | 0 | - | - |
-| **Relationship Query** | `ai-infrastructure-module/relationship-query-integration-tests` | 3 | 5-10 min | H2 Database |
+| **Relationship Query** | `ai-infrastructure-module/integration-Testing/relationship-query-integration-tests` | 3 | 5-10 min | H2 Database |
 | **Backend Application** | `backend/src/test` | 20+ | 10-20 min | Testcontainers, PostgreSQL |
 | **TOTAL** | - | **~104** | **38-67 min** | **25-30 min in parallel** |
 

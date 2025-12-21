@@ -30,8 +30,8 @@
         <module>victor-databases/ai-infrastructure-vector-weaviate</module>
         <module>victor-databases/ai-infrastructure-vector-qdrant</module>
         <module>victor-databases/ai-infrastructure-vector-milvus</module>
-        <module>integration-tests</module>
-        <module>relationship-query-integration-tests</module>
+        <module>integration-Testing/integration-tests</module>
+        <module>integration-Testing/relationship-query-integration-tests</module>
     </modules>
 
     <properties>

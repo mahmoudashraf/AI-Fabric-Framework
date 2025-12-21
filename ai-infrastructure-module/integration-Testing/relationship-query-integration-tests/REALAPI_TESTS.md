@@ -2,7 +2,7 @@
 
 ## Overview
 
-Similar to the **ai-infrastructure-module/integration-tests**, the **relationship-query-integration-tests** module now separates:
+Similar to the **ai-infrastructure-module/integration-Testing/integration-tests**, the **relationship-query-integration-tests** module now separates:
 
 - ✅ **Non-RealAPI Tests** - Run during standard `mvn verify` (no API keys needed)
 - 🔑 **RealAPI Tests** - Run separately with OpenAI API key via manual trigger
@@ -110,7 +110,7 @@ relationship-query-integration-tests/
 
 ### 1. Standard Verify (No API Key Needed)
 ```bash
-cd ai-infrastructure-module/relationship-query-integration-tests
+cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
 mvn clean verify
 ```
 ✅ Runs: `RelationshipQueryBasicIntegrationTest`
@@ -120,7 +120,7 @@ mvn clean verify
 
 #### Basic Usage (Default: openai:onnx)
 ```bash
-cd ai-infrastructure-module/relationship-query-integration-tests
+cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
 export OPENAI_API_KEY='sk-proj-...'
 bash run-relationship-query-realapi-tests.sh
 ```
@@ -275,7 +275,7 @@ The manual workflow includes a step to run RealAPI tests:
 ```yaml
 - name: Run Relationship Query Integration Tests
   run: |
-    cd ai-infrastructure-module/relationship-query-integration-tests
+    cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
     bash run-relationship-query-realapi-tests.sh
   env:
     OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}

@@ -5,7 +5,7 @@
 ### ✅ Testcontainers Already Configured
 The project is **already set up** to use Testcontainers following the official guide from https://testcontainers.com/getting-started/
 
-**Configuration Location:** `ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/config/PostgresTestContainerConfig.java`
+**Configuration Location:** `ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/config/PostgresTestContainerConfig.java`
 
 ### ✅ Dependencies Configured (pom.xml)
 ```xml

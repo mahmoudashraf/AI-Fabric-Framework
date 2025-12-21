@@ -181,7 +181,7 @@ mvn -pl integration-tests -am test \
 Simpler syntax with provided script:
 
 ```bash
-cd /workspace/ai-infrastructure-module/integration-tests
+cd /workspace/ai-infrastructure-module/integration-Testing/integration-tests
 
 # Run with default
 ./run-provider-matrix-tests.sh

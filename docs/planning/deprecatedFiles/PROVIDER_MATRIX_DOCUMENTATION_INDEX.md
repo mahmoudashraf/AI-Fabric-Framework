@@ -163,7 +163,7 @@ mvn -pl integration-tests -am test \
   -Dai.providers.real-api.matrix="openai:onnx,anthropic:openai,azure:azure"
 
 # Using shell script
-cd ai-infrastructure-module/integration-tests
+cd ai-infrastructure-module/integration-Testing/integration-tests
 ./run-provider-matrix-tests.sh "openai:onnx"
 ```
 

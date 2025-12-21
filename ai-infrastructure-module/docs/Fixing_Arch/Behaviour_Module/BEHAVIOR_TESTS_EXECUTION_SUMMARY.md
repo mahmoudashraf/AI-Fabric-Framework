@@ -76,7 +76,7 @@
 1. `/ai-infrastructure-module/ai-infrastructure-behavior/src/main/resources/behavior/schemas/default-schemas.yml`
    - Added 2 new behavior schema definitions (41 lines added)
 
-2. `/ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/BehaviouralTests/PatternAnalyzerInsightsIntegrationTest.java`
+2. `/ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/BehaviouralTests/PatternAnalyzerInsightsIntegrationTest.java`
    - Updated test assertion logic (2 lines modified)
 
 ### Performance Metrics

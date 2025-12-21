@@ -134,7 +134,7 @@ print_success "OpenAI API key is configured"
 if [ "${CI:-false}" == "true" ] || [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
     print_info "Running in CI/CD - skipping dependency build check (already built by workflow)"
 else
-    # SCRIPT_DIR is ai-infrastructure-module/integration-tests, so parent is ai-infrastructure-module
+    # SCRIPT_DIR is ai-infrastructure-module/integration-Testing/integration-tests, so parent is ai-infrastructure-module
     PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
     CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
     if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then

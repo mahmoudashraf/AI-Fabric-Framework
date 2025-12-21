@@ -14,7 +14,7 @@ Successfully implemented a comprehensive dynamic provider matrix system for inte
 ## What Was Implemented
 
 ### 1. Enhanced Test Infrastructure
-**File**: `ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java`
+**File**: `ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java`
 
 - ✅ Added support for extended matrix syntax: `llm:embedding:vectordb`
 - ✅ Implemented dynamic provider discovery and validation
@@ -37,7 +37,7 @@ Successfully implemented a comprehensive dynamic provider matrix system for inte
 ```
 
 ### 2. Test Execution Script
-**File**: `ai-infrastructure-module/integration-tests/run-provider-matrix-tests.sh`
+**File**: `ai-infrastructure-module/integration-Testing/integration-tests/run-provider-matrix-tests.sh`
 
 - ✅ User-friendly shell script for running tests
 - ✅ Pre-flight checks (Java, Maven, API keys)
@@ -114,7 +114,7 @@ mvn -pl integration-tests -am test \
 
 ### Using Shell Script
 ```bash
-cd ai-infrastructure-module/integration-tests
+cd ai-infrastructure-module/integration-Testing/integration-tests
 ./run-provider-matrix-tests.sh "openai:onnx,anthropic:openai"
 ```
 
@@ -213,7 +213,7 @@ Total combinations to test: 2
 ## Files Modified/Created
 
 ### Modified
-- `ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java`
+- `ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java`
   - Added comprehensive provider matrix support
   - Enhanced logging and reporting
   - Support for extended syntax
@@ -270,7 +270,7 @@ mvn -pl integration-tests -am test \
   -Dai.providers.real-api.matrix="openai:onnx,anthropic:openai"
 
 # Option B: Use shell script
-cd ai-infrastructure-module/integration-tests
+cd ai-infrastructure-module/integration-Testing/integration-tests
 ./run-provider-matrix-tests.sh "openai:onnx,anthropic:openai"
 ```
 

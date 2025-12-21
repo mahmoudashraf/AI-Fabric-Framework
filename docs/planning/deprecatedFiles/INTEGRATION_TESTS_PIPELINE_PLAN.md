@@ -8,7 +8,7 @@ This plan covers adding all integration test modules to the CI/CD pipeline with 
 ## 📋 Integration Test Modules Identified
 
 ### 1. **AI Infrastructure Integration Tests** 
-- **Location:** `ai-infrastructure-module/integration-tests`
+- **Location:** `ai-infrastructure-module/integration-Testing/integration-tests`
 - **Test Count:** 75+ test files
 - **Test Categories:**
   - Real API Provider Tests (OpenAI, Azure, Cohere, Anthropic)
@@ -23,7 +23,7 @@ This plan covers adding all integration test modules to the CI/CD pipeline with 
 - **Status:** Removed (behavior integration test module deleted)
 
 ### 3. **Relationship Query Integration Tests**
-- **Location:** `ai-infrastructure-module/relationship-query-integration-tests`
+- **Location:** `ai-infrastructure-module/integration-Testing/relationship-query-integration-tests`
 - **Test Count:** 3 test files
 - **Test Categories:**
   - Financial Fraud Detection

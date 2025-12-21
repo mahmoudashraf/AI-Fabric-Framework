@@ -93,7 +93,7 @@ backend/src/main/java/com/easyluxury/ai/
 ## 🚀 **Implementation Phases**
 
 ### 🔍 **Comprehensive Test Suites (ai-behavior)**
-To keep the new behavior module production-ready we are expanding the integration test suite housed in `ai-infrastructure-module/integration-tests`. The new document `BEHAVIOR_MODULE_INTEGRATION_TESTS.md` outlines ten high-signal scenarios:
+To keep the new behavior module production-ready we are expanding the integration test suite housed in `ai-infrastructure-module/integration-Testing/integration-tests`. The new document `BEHAVIOR_MODULE_INTEGRATION_TESTS.md` outlines ten high-signal scenarios:
 
 - **BEH-IT-001** Database sink + REST roundtrip validation  
 - **BEH-IT-002** Kafka sink fan-out using embedded Kafka  
