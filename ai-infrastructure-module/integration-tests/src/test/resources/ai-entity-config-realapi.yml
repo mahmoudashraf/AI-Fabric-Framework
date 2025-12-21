@@ -19,8 +19,19 @@ ai-entities:
     searchable-fields:
       - name: name
       - name: description
+      - name: category
+      - name: brand
     embeddable-fields:
       - name: description
+      - name: category
+      - name: brand
+    metadata-fields:
+      - name: category
+        type: STRING
+      - name: brand
+        type: STRING
+      - name: price
+        type: DOUBLE
   test-article:
     features: ["embedding", "search"]
     enable-search: true

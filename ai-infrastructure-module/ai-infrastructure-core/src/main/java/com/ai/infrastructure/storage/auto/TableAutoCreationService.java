@@ -36,6 +36,8 @@ public class TableAutoCreationService {
             String dbType = detectDatabaseType();
             log.info("Detected database type: {}", dbType);
 
+            createIndexingQueueTable(dbType);
+
             switch (strategy.toUpperCase()) {
                 case "SINGLE_TABLE" -> createSingleTable(dbType);
                 case "PER_TYPE_TABLE" -> createPerTypeTables(dbType);
@@ -84,6 +86,91 @@ public class TableAutoCreationService {
             case "DERBY" -> derbySql(tableName);
             case "SYBASE" -> sybaseSql(tableName);
             default -> throw new UnsupportedOperationException("Database " + dbType + " not supported for auto-create. Use CUSTOM strategy.");
+        };
+    }
+
+    private void createIndexingQueueTable(String dbType) throws SQLException {
+        String tableName = "ai_indexing_queue";
+        if (tableExists(tableName)) {
+            log.debug("Indexing queue table {} already exists", tableName);
+            return;
+        }
+        executeSql(generateCreateIndexingQueueSQL(dbType, tableName));
+        log.info("Created AI indexing queue table {}", tableName);
+    }
+
+    private String generateCreateIndexingQueueSQL(String dbType, String tableName) {
+        String normalized = dbType != null ? dbType.toUpperCase() : "UNKNOWN";
+        return switch (normalized) {
+            case "MYSQL" -> """
+                CREATE TABLE %s (
+                    id VARCHAR(36) PRIMARY KEY NOT NULL,
+                    entity_type VARCHAR(128) NOT NULL,
+                    entity_id VARCHAR(255),
+                    entity_class VARCHAR(256) NOT NULL,
+                    operation VARCHAR(32) NOT NULL,
+                    strategy VARCHAR(32) NOT NULL,
+                    status VARCHAR(32) NOT NULL,
+                    priority VARCHAR(32) NOT NULL,
+                    priority_weight INT NOT NULL,
+                    generate_embedding BOOLEAN NOT NULL,
+                    index_for_search BOOLEAN NOT NULL,
+                    enable_analysis BOOLEAN NOT NULL,
+                    remove_from_search BOOLEAN NOT NULL,
+                    cleanup_embeddings BOOLEAN NOT NULL,
+                    payload LONGTEXT NOT NULL,
+                    max_retries INT NOT NULL,
+                    retry_count INT NOT NULL,
+                    error_message LONGTEXT,
+                    dead_letter_reason LONGTEXT,
+                    processing_node VARCHAR(64),
+                    requested_at TIMESTAMP NOT NULL,
+                    scheduled_for TIMESTAMP NOT NULL,
+                    started_at TIMESTAMP NULL,
+                    completed_at TIMESTAMP NULL,
+                    visibility_timeout_until TIMESTAMP NULL,
+                    updated_at TIMESTAMP NULL,
+                    created_at TIMESTAMP NULL,
+                    INDEX idx_ai_queue_status_strategy (status, strategy),
+                    INDEX idx_ai_queue_scheduled (scheduled_for),
+                    INDEX idx_ai_queue_entity (entity_type, entity_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                """.formatted(tableName);
+            case "POSTGRESQL", "H2", "SQLITE" -> """
+                CREATE TABLE %s (
+                    id VARCHAR(36) PRIMARY KEY NOT NULL,
+                    entity_type VARCHAR(128) NOT NULL,
+                    entity_id VARCHAR(255),
+                    entity_class VARCHAR(256) NOT NULL,
+                    operation VARCHAR(32) NOT NULL,
+                    strategy VARCHAR(32) NOT NULL,
+                    status VARCHAR(32) NOT NULL,
+                    priority VARCHAR(32) NOT NULL,
+                    priority_weight INT NOT NULL,
+                    generate_embedding BOOLEAN NOT NULL,
+                    index_for_search BOOLEAN NOT NULL,
+                    enable_analysis BOOLEAN NOT NULL,
+                    remove_from_search BOOLEAN NOT NULL,
+                    cleanup_embeddings BOOLEAN NOT NULL,
+                    payload TEXT NOT NULL,
+                    max_retries INT NOT NULL,
+                    retry_count INT NOT NULL,
+                    error_message TEXT,
+                    dead_letter_reason TEXT,
+                    processing_node VARCHAR(64),
+                    requested_at TIMESTAMP NOT NULL,
+                    scheduled_for TIMESTAMP NOT NULL,
+                    started_at TIMESTAMP NULL,
+                    completed_at TIMESTAMP NULL,
+                    visibility_timeout_until TIMESTAMP NULL,
+                    updated_at TIMESTAMP NULL,
+                    created_at TIMESTAMP NULL
+                );
+                CREATE INDEX idx_ai_queue_status_strategy ON %s(status, strategy);
+                CREATE INDEX idx_ai_queue_scheduled ON %s(scheduled_for);
+                CREATE INDEX idx_ai_queue_entity ON %s(entity_type, entity_id);
+                """.formatted(tableName, tableName, tableName, tableName);
+            default -> throw new UnsupportedOperationException("Database " + dbType + " not supported for indexing queue auto-create. Use CUSTOM strategy.");
         };
     }
 

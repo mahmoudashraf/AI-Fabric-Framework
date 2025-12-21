@@ -25,11 +25,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @Import(AIInfrastructureAutoConfiguration.class)
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
-    "com.ai.infrastructure.it.entity"
+    "com.ai.infrastructure.it.entity",
+    "com.ai.infrastructure.migration.domain"
 })
 @EnableJpaRepositories(basePackages = {
     "com.ai.infrastructure.repository",
-    "com.ai.infrastructure.it.repository"
+    "com.ai.infrastructure.it.repository",
+    "com.ai.infrastructure.migration.repository"
 })
 public class TestApplication {
 

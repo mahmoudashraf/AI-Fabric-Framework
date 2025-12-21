@@ -40,6 +40,8 @@ test:
 # AI Configuration for Real API Testing
 ai:
   enabled: true
+  config:
+    default-file: ai-entity-config-realapi.yml
   indexing:
     enabled: true
   pii-detection:

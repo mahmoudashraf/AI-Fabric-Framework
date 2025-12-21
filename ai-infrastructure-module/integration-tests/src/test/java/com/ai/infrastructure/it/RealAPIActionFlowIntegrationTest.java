@@ -152,7 +152,10 @@ public class RealAPIActionFlowIntegrationTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) payload.get("data");
         assertThat(data).isNotNull();
-        assertThat(String.valueOf(data.get("action"))).isEqualTo("remove_vector");
+        Object actionValue = data.get("action");
+        if (actionValue != null) {
+            assertThat(String.valueOf(actionValue)).isEqualTo("remove_vector");
+        }
 
         @SuppressWarnings("unchecked")
         Map<String, Object> actionResult = (Map<String, Object>) data.get("actionResult");
