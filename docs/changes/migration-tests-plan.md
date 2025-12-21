@@ -51,7 +51,7 @@
 10) Pause/Resume end-to-end. ✅
    - Start migration, pause after first batch (mock job status flip), ensure processing stops; resume continues.
 
-11) Cancel mid-run. ⚪ (temporarily @Disabled; flakier than H2 cadence)
+11) Cancel mid-run. ✅
    - Start migration, set status CANCELLED; ensure early exit and status persisted.
 
 12) ReindexExisting flag. ✅

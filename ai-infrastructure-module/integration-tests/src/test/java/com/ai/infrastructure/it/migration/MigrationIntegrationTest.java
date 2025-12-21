@@ -22,9 +22,12 @@ import org.springframework.test.context.ActiveProfiles;
 import static org.awaitility.Awaitility.await;
 
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -160,14 +163,21 @@ class MigrationIntegrationTest {
             .contains("new-1");
     }
 
-    @Disabled("Flaky in H2 async path; cancellation covered in unit tests")
     @Test
-    void cancelMidRunStopsEnqueue() {
+    void cancelMidRunStopsEnqueue() throws Exception {
         repository.save(new TestMigrationEntity("c1", LocalDateTime.now().minusDays(1)));
         repository.save(new TestMigrationEntity("c2", LocalDateTime.now().minusDays(1)));
         when(storageStrategy.findByEntityTypeAndEntityId(Mockito.eq("mig-test"), Mockito.anyString()))
             .thenReturn(Optional.empty());
         stubQueueLeaseNoop();
+
+        CountDownLatch firstEnqueue = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Mockito.doAnswer(invocation -> {
+            firstEnqueue.countDown();
+            release.await(2, TimeUnit.SECONDS);
+            return null;
+        }).when(queueService).enqueue(Mockito.any(IndexingRequest.class));
 
         MigrationRequest req = MigrationRequest.builder()
             .entityType("mig-test")
@@ -175,15 +185,18 @@ class MigrationIntegrationTest {
             .build();
         MigrationJob job = migrationService.startMigration(req);
 
-        // cancel after job record exists
+        assertThat(firstEnqueue.await(3, TimeUnit.SECONDS)).isTrue();
+
+        // cancel after first enqueue observed
         job.setStatus(com.ai.infrastructure.migration.domain.MigrationStatus.CANCELLED);
         jobRepository.save(job);
+        release.countDown();
 
-        await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(4)).untilAsserted(() -> {
             MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
-            assertThat(refreshed.getProcessedEntities()).isZero();
+            assertThat(refreshed.getProcessedEntities()).isLessThanOrEqualTo(1);
         });
-        verify(queueService, Mockito.never()).enqueue(Mockito.any());
+        verify(queueService, atMost(1)).enqueue(Mockito.any(IndexingRequest.class));
     }
 
     @Test
