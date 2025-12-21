@@ -146,6 +146,32 @@ class DataMigrationServiceTest {
     }
 
     @Test
+    void resumeTransitionsBackToRunning() {
+        MigrationJob job = baseJob("demo");
+        job.setStatus(MigrationStatus.PAUSED);
+        persistedJob.set(job);
+        when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+        JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(); // empty repo, completes immediately
+        when(repositoryRegistry.getRegistration("demo"))
+            .thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+
+        DataMigrationService service = service();
+        MigrationRequest req = MigrationRequest.builder()
+            .entityType("demo")
+            .batchSize(1)
+            .build();
+
+        // simulate resume: set status to RUNNING before calling startMigration
+        job.setStatus(MigrationStatus.RUNNING);
+        service.startMigration(req);
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        assertThat(persistedJob.get().getStatus()).isEqualTo(MigrationStatus.COMPLETED);
+    }
+
+    @Test
     void skipsEntitiesWithBlankResolvedId() {
         DemoEntity entity = new DemoEntity("id-blank");
         JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
