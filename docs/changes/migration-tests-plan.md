@@ -6,41 +6,43 @@
 
 ### Proposed Test Cases
 
-#### Unit Tests (Junit + Mockito)
+#### Unit Tests (Junit + Mockito) – status
 1) Job lifecycle updates
-   - startMigration creates RUNNING job with totals, timestamps.
-   - pause sets PAUSED and does not alter totals.
-   - resume resets status to RUNNING and restarts processing (stub out executor).
-   - cancel sets CANCELLED, sets completedAt.
+   - startMigration creates RUNNING job with totals, timestamps. ✅
+   - pause sets PAUSED and does not alter totals. ⚪ pending (explicit resume/cancel to add)
+   - resume resets status to RUNNING and restarts processing (stub out executor). ⚪
+   - cancel sets CANCELLED, sets completedAt. ⚪
 
 2) Pause/Cancel honoring
-   - processJob exits when job.isPaused() or job.isCancelled() before fetching next page.
-   - applyRateLimit respects interrupts (thread interrupted -> flag set).
+   - processJob exits when job.isPaused() before fetching next page. ✅
+   - processJob exits when job.isCancelled() before fetching next page. ⚪
+   - applyRateLimit respects interrupts (thread interrupted -> flag set). ⚪
 
 3) Filtering
-   - matchesFilters honors safeEntityIds, createdBefore/After.
-   - throws when createdAt field missing/invalid type.
-   - uses MigrationFilterPolicy when present; falls back to field config otherwise.
+   - matchesFilters honors safeEntityIds, createdBefore/After. ✅
+   - throws when createdAt field missing/invalid type. ⚪
+   - uses MigrationFilterPolicy when present; falls back to field config otherwise. ✅ (policy skip)
 
 4) Reindex / idempotency
-   - alreadyIndexed short-circuits when reindexExisting=false.
-   - reindexExisting=true enqueues even when present.
-   - skips entities with missing/blank resolved ID.
+   - alreadyIndexed short-circuits when reindexExisting=false. ✅
+   - reindexExisting=true enqueues even when present. ✅
+   - skips entities with missing/blank resolved ID. ⚪
 
 5) Queue payload
-   - enqueueForIndexing builds IndexingRequest with correct entityType, entityId, class name, ASYNC strategy, action plan flags, payload JSON, and maxRetries from AIIndexingProperties.
+   - enqueueForIndexing builds IndexingRequest with correct entityType, entityId, class name, ASYNC strategy, action plan flags, payload JSON, and maxRetries from AIIndexingProperties. ✅
 
 6) Error handling
-   - Per-entity enqueue failure increments failed count; job persists progress.
-   - Unhandled exception marks job FAILED with errorMessage.
+   - Per-entity enqueue failure increments failed count; job persists progress. ✅
+   - Unhandled exception marks job FAILED with errorMessage. ✅
 
 7) Config validation
-   - Missing ai-entity-config for entityType throws.
-   - Missing entityFields config with no policy throws.
-   - Missing createdAtField throws.
+   - Missing ai-entity-config for entityType throws. ✅
+   - Missing entityFields config with no policy throws. ✅
+   - Missing createdAtField throws. ⚪
 
 8) Rate limit math
-   - delay computed from rateLimit; zero/negative/no value -> no sleep.
+   - delay computed from rateLimit; zero/negative/no value -> no sleep. ✅
+   - interrupt path not yet asserted. ⚪
 
 #### Integration Tests (Spring + H2)
 9) Happy-path migration enqueues
