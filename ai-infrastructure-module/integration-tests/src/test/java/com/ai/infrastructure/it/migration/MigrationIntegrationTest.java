@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -54,6 +55,10 @@ class MigrationIntegrationTest {
         Mockito.reset(queueService, storageStrategy);
     }
 
+    private void stubQueueLeaseNoop() {
+        Mockito.lenient().when(queueService.lease(Mockito.any(), Mockito.anyInt())).thenReturn(java.util.List.of());
+    }
+
     @Test
     void migration_enqueues_entities_and_completes() throws Exception {
         repository.save(new TestMigrationEntity("id-1", LocalDateTime.now().minusDays(1)));
@@ -61,6 +66,7 @@ class MigrationIntegrationTest {
 
         when(storageStrategy.findByEntityTypeAndEntityId("mig-test", "id-1")).thenReturn(Optional.empty());
         when(storageStrategy.findByEntityTypeAndEntityId("mig-test", "id-2")).thenReturn(Optional.empty());
+        stubQueueLeaseNoop();
 
         MigrationRequest request = MigrationRequest.builder()
             .entityType("mig-test")
@@ -108,6 +114,7 @@ class MigrationIntegrationTest {
 
         // allow reindex
         Mockito.reset(queueService);
+        stubQueueLeaseNoop();
         MigrationRequest allow = MigrationRequest.builder()
             .entityType("mig-test")
             .batchSize(10)
@@ -151,5 +158,66 @@ class MigrationIntegrationTest {
         assertThat(captor.getAllValues())
             .extracting(IndexingRequest::entityId)
             .contains("new-1");
+    }
+
+    @Test
+    void cancelMidRunStopsEnqueue() {
+        repository.save(new TestMigrationEntity("c1", LocalDateTime.now().minusDays(1)));
+        repository.save(new TestMigrationEntity("c2", LocalDateTime.now().minusDays(1)));
+        when(storageStrategy.findByEntityTypeAndEntityId(Mockito.eq("mig-test"), Mockito.anyString()))
+            .thenReturn(Optional.empty());
+        stubQueueLeaseNoop();
+
+        MigrationRequest req = MigrationRequest.builder()
+            .entityType("mig-test")
+            .batchSize(1)
+            .build();
+        MigrationJob job = migrationService.startMigration(req);
+
+        // cancel after job record exists
+        job.setStatus(com.ai.infrastructure.migration.domain.MigrationStatus.CANCELLED);
+        jobRepository.save(job);
+
+        await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.CANCELLED);
+        });
+        verify(queueService, Mockito.never()).enqueue(Mockito.any());
+    }
+
+    @Test
+    void pauseAndResumeProcessesRemaining() {
+        repository.save(new TestMigrationEntity("p1", LocalDateTime.now().minusDays(1)));
+        repository.save(new TestMigrationEntity("p2", LocalDateTime.now().minusDays(1)));
+        when(storageStrategy.findByEntityTypeAndEntityId(Mockito.eq("mig-test"), Mockito.anyString()))
+            .thenReturn(Optional.empty());
+        stubQueueLeaseNoop();
+
+        MigrationRequest req = MigrationRequest.builder()
+            .entityType("mig-test")
+            .batchSize(1)
+            .build();
+        MigrationJob job = migrationService.startMigration(req);
+
+        // pause after first page
+        job.setStatus(com.ai.infrastructure.migration.domain.MigrationStatus.PAUSED);
+        jobRepository.save(job);
+
+        await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.PAUSED);
+        });
+
+        // resume
+        job.setStatus(com.ai.infrastructure.migration.domain.MigrationStatus.RUNNING);
+        jobRepository.save(job);
+
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.COMPLETED);
+            assertThat(refreshed.getProcessedEntities()).isEqualTo(2);
+        });
+
+        verify(queueService, atLeast(2)).enqueue(Mockito.any(IndexingRequest.class));
     }
 }
