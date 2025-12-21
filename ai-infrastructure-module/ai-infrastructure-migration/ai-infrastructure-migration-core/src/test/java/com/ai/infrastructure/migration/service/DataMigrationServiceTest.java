@@ -476,6 +476,21 @@ class DataMigrationServiceTest {
         invokeRateLimit(service, job);
     }
 
+    @Test
+    void rateLimitInterruptRestoresFlag() {
+        MigrationJob job = baseJob("demo");
+        job.setRateLimit(60); // will sleep ~1000ms; interrupt to exit early
+        DataMigrationService service = service();
+
+        // set interrupt before call; applyRateLimit should re-set it on catch
+        Thread.currentThread().interrupt();
+        invokeRateLimit(service, job);
+        assertThat(Thread.currentThread().isInterrupted()).isTrue();
+
+        // clear for subsequent tests
+        Thread.interrupted();
+    }
+
     private DataMigrationService service() {
         return new DataMigrationService(
             queueService,

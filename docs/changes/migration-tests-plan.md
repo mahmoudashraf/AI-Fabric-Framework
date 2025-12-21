@@ -16,7 +16,7 @@
 2) Pause/Cancel honoring
    - processJob exits when job.isPaused() before fetching next page. ✅
    - processJob exits when job.isCancelled() before fetching next page. ✅ (early cancel test)
-   - applyRateLimit respects interrupts (thread interrupted -> flag set). ⚪
+   - applyRateLimit respects interrupts (thread interrupted -> flag set). ✅
 
 3) Filtering
    - matchesFilters honors safeEntityIds, createdBefore/After. ✅
