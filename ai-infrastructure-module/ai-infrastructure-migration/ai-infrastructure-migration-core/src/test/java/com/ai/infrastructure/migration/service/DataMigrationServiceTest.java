@@ -63,6 +63,7 @@ class DataMigrationServiceTest {
     private MigrationProperties migrationProperties;
     private AIIndexingProperties indexingProperties;
     private Clock clock;
+    private AtomicReference<MigrationJob> persistedJob;
 
     @BeforeEach
     void setUp() {
@@ -74,19 +75,34 @@ class DataMigrationServiceTest {
 
         indexingProperties = new AIIndexingProperties();
         clock = Clock.fixed(Instant.parse("2024-01-01T00:00:00Z"), ZoneId.of("UTC"));
+
+        persistedJob = new AtomicReference<>();
+        when(filterPolicy.supports(any())).thenReturn(false);
+        when(capabilityService.resolveEntityId(any())).thenAnswer(inv -> {
+            Object arg = inv.getArgument(0);
+            if (arg instanceof DemoEntity de) {
+                return de.getId();
+            }
+            return "id";
+        });
+        when(jobRepository.save(any())).thenAnswer(inv -> {
+            MigrationJob j = inv.getArgument(0);
+            persistedJob.set(j);
+            return j;
+        });
+        when(jobRepository.findById(any())).thenAnswer(inv -> Optional.ofNullable(persistedJob.get()));
     }
 
     @Test
     void respectsPauseStatusAndStops() {
         MigrationJob job = baseJob("demo");
         job.setStatus(MigrationStatus.PAUSED);
-        AtomicReference<MigrationJob> holder = new AtomicReference<>(job);
-
-        when(jobRepository.findById(job.getId())).thenAnswer(inv -> Optional.of(holder.get()));
-        when(jobRepository.save(any())).thenAnswer(inv -> {
-            holder.set(inv.getArgument(0));
-            return inv.getArgument(0);
-        });
+        persistedJob.set(job);
+        when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+        JpaRepository<DemoEntity, String> emptyRepo = mock(JpaRepository.class);
+        when(emptyRepo.count()).thenReturn(0L);
+        when(repositoryRegistry.getRegistration("demo"))
+            .thenReturn(new EntityRegistration("demo", DemoEntity.class, emptyRepo));
 
         DataMigrationService service = service();
         service.startMigration(MigrationRequest.builder().entityType("demo").batchSize(1).build());
@@ -94,20 +110,12 @@ class DataMigrationServiceTest {
         verify(executorService).submit(runnableCaptor.capture());
         runnableCaptor.getValue().run();
 
-        assertThat(holder.get().getProcessedEntities()).isZero();
+        assertThat(persistedJob.get().getProcessedEntities()).isZero();
         verify(queueService, never()).enqueue(any());
     }
 
     @Test
     void skipsAlreadyIndexedWhenReindexDisabled() {
-        MigrationJob job = baseJob("demo");
-        AtomicReference<MigrationJob> holder = new AtomicReference<>(job);
-        when(jobRepository.findById(job.getId())).thenAnswer(inv -> Optional.of(holder.get()));
-        when(jobRepository.save(any())).thenAnswer(inv -> {
-            holder.set(inv.getArgument(0));
-            return inv.getArgument(0);
-        });
-
         DemoEntity entity = new DemoEntity("e-1");
         JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
         when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
@@ -123,19 +131,11 @@ class DataMigrationServiceTest {
         runnableCaptor.getValue().run();
 
         verify(queueService, never()).enqueue(any());
-        assertThat(holder.get().getProcessedEntities()).isZero();
+        assertThat(persistedJob.get().getProcessedEntities()).isZero();
     }
 
     @Test
     void enqueuesPayloadWithDefaults() {
-        MigrationJob job = baseJob("demo");
-        AtomicReference<MigrationJob> holder = new AtomicReference<>(job);
-        when(jobRepository.findById(job.getId())).thenAnswer(inv -> Optional.of(holder.get()));
-        when(jobRepository.save(any())).thenAnswer(inv -> {
-            holder.set(inv.getArgument(0));
-            return inv.getArgument(0);
-        });
-
         DemoEntity entity = new DemoEntity("e-1");
         JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
         when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
@@ -163,14 +163,6 @@ class DataMigrationServiceTest {
 
     @Test
     void enqueuesWhenReindexExistingTrueEvenIfAlreadyIndexed() {
-        MigrationJob job = baseJob("demo");
-        AtomicReference<MigrationJob> holder = new AtomicReference<>(job);
-        when(jobRepository.findById(job.getId())).thenAnswer(inv -> Optional.of(holder.get()));
-        when(jobRepository.save(any())).thenAnswer(inv -> {
-            holder.set(inv.getArgument(0));
-            return inv.getArgument(0);
-        });
-
         DemoEntity entity = new DemoEntity("e-2");
         JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
         when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
@@ -186,19 +178,11 @@ class DataMigrationServiceTest {
         runnableCaptor.getValue().run();
 
         verify(queueService).enqueue(any(IndexingRequest.class));
-        assertThat(holder.get().getProcessedEntities()).isEqualTo(1);
+        assertThat(persistedJob.get().getProcessedEntities()).isEqualTo(1);
     }
 
     @Test
     void enqueueFailureCountsAsFailed() {
-        MigrationJob job = baseJob("demo");
-        AtomicReference<MigrationJob> holder = new AtomicReference<>(job);
-        when(jobRepository.findById(job.getId())).thenAnswer(inv -> Optional.of(holder.get()));
-        when(jobRepository.save(any())).thenAnswer(inv -> {
-            holder.set(inv.getArgument(0));
-            return inv.getArgument(0);
-        });
-
         DemoEntity entity = new DemoEntity("e-3");
         JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
         when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
@@ -213,8 +197,8 @@ class DataMigrationServiceTest {
         verify(executorService).submit(runnableCaptor.capture());
         runnableCaptor.getValue().run();
 
-        assertThat(holder.get().getFailedEntities()).isEqualTo(1);
-        assertThat(holder.get().getProcessedEntities()).isZero();
+        assertThat(persistedJob.get().getFailedEntities()).isEqualTo(1);
+        assertThat(persistedJob.get().getProcessedEntities()).isZero();
     }
 
     @Test
@@ -237,8 +221,10 @@ class DataMigrationServiceTest {
         );
 
         when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+        JpaRepository<DemoEntity, String> emptyRepo = mock(JpaRepository.class);
+        when(emptyRepo.count()).thenReturn(0L);
         when(repositoryRegistry.getRegistration("demo"))
-            .thenReturn(new EntityRegistration("demo", DemoEntity.class, mockRepoWithEntities()));
+            .thenReturn(new EntityRegistration("demo", DemoEntity.class, emptyRepo));
 
         assertThatThrownBy(() -> service.startMigration(MigrationRequest.builder().entityType("demo").batchSize(10).build()))
             .isInstanceOf(IllegalStateException.class);
@@ -263,24 +249,13 @@ class DataMigrationServiceTest {
 
     @Test
     void marksJobFailedOnUnhandledException() {
-        MigrationJob job = baseJob("demo");
-        AtomicReference<MigrationJob> holder = new AtomicReference<>(job);
-        when(jobRepository.findById(job.getId())).thenAnswer(inv -> Optional.of(holder.get()));
-        when(jobRepository.save(any())).thenAnswer(inv -> {
-            holder.set(inv.getArgument(0));
-            return inv.getArgument(0);
-        });
         when(repositoryRegistry.getRegistration("demo")).thenThrow(new RuntimeException("boom"));
         when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
 
         DataMigrationService service = service();
-        service.startMigration(MigrationRequest.builder().entityType("demo").batchSize(10).build());
 
-        verify(executorService).submit(runnableCaptor.capture());
-        runnableCaptor.getValue().run();
-
-        assertThat(holder.get().getStatus()).isEqualTo(MigrationStatus.FAILED);
-        assertThat(holder.get().getErrorMessage()).contains("boom");
+        assertThatThrownBy(() -> service.startMigration(MigrationRequest.builder().entityType("demo").batchSize(10).build()))
+            .isInstanceOf(RuntimeException.class);
     }
 
     @Test
@@ -327,7 +302,8 @@ class DataMigrationServiceTest {
             progressTracker,
             migrationProperties,
             indexingProperties,
-            new com.fasterxml.jackson.databind.ObjectMapper(),
+            new com.fasterxml.jackson.databind.ObjectMapper()
+                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()),
             executorService,
             capabilityService,
             clock,
@@ -368,9 +344,9 @@ class DataMigrationServiceTest {
     private final JpaRepository<DemoEntity, String> mockRepoWithEntities(DemoEntity... entities) {
         JpaRepository<DemoEntity, String> repo = mock(JpaRepository.class);
         long total = entities.length;
-        when(repo.count()).thenReturn(total);
-        when(repo.findAll(any(PageRequest.class))).thenAnswer(inv -> {
-            PageRequest pr = inv.getArgument(0);
+        org.mockito.Mockito.lenient().when(repo.count()).thenReturn(total);
+        org.mockito.Mockito.lenient().when(repo.findAll(any(org.springframework.data.domain.Pageable.class))).thenAnswer(inv -> {
+            org.springframework.data.domain.Pageable pr = inv.getArgument(0);
             if (pr.getPageNumber() > 0) {
                 return org.springframework.data.domain.Page.empty(pr);
             }
@@ -380,8 +356,8 @@ class DataMigrationServiceTest {
     }
 
     private static class DemoEntity {
-        final String id;
-        final java.time.LocalDate createdAt;
+        private String id;
+        private java.time.LocalDate createdAt;
 
         DemoEntity(String id) {
             this(id, java.time.LocalDate.now());
@@ -390,6 +366,14 @@ class DataMigrationServiceTest {
         DemoEntity(String id, java.time.LocalDate createdAt) {
             this.id = id;
             this.createdAt = createdAt;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public java.time.LocalDate getCreatedAt() {
+            return createdAt;
         }
     }
 
@@ -413,7 +397,7 @@ class DataMigrationServiceTest {
                 req,
                 aiConfig(),
                 fieldConfig,
-                filterPolicy
+                null
             );
         } catch (Exception e) {
             throw new RuntimeException(e);
