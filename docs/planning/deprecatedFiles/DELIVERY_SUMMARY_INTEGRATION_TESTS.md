@@ -68,7 +68,7 @@ One-page cheat sheet:
 | # | Module Name | Location | Tests | Duration |
 |---|-------------|----------|-------|----------|
 | 1 | **AI Infrastructure** | `ai-infrastructure-module/integration-tests` | 75+ | 15-25 min |
-| 2 | **Behavior Analytics** | `ai-infrastructure-module/ai-infrastructure-behavior-integration-tests` | 6 | 8-12 min |
+| 2 | **Behavior Analytics** | Removed (behavior integration test module deleted) | 0 | - |
 | 3 | **Relationship Query** | `ai-infrastructure-module/relationship-query-integration-tests` | 3 | 5-10 min |
 | 4 | **Backend Application** | `backend/src/test` | 20+ | 10-20 min |
 

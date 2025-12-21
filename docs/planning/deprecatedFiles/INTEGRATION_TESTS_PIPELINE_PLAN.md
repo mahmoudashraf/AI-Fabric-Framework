@@ -20,15 +20,7 @@ This plan covers adding all integration test modules to the CI/CD pipeline with 
   - ONNX Embedding Tests
 
 ### 2. **AI Behavior Analytics Integration Tests**
-- **Location:** `ai-infrastructure-module/ai-infrastructure-behavior-integration-tests`
-- **Test Count:** 6 test files
-- **Test Categories:**
-  - Behavior Pattern Detection
-  - Session Tracking
-  - Date Range Analysis
-  - Type Segmentation
-  - Recommendations
-  - Device/Location Insights
+- **Status:** Removed (behavior integration test module deleted)
 
 ### 3. **Relationship Query Integration Tests**
 - **Location:** `ai-infrastructure-module/relationship-query-integration-tests`
@@ -106,35 +98,7 @@ ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}  # Optional
 
 ### Module 2: AI Behavior Analytics Integration Tests
 
-**Maven Configuration:**
-- **Artifact:** `ai-infrastructure-behavior-integration-tests`
-- **Working Directory:** `ai-infrastructure-module`
-- **Test Command:** `mvn test -pl ai-infrastructure-behavior-integration-tests -B`
-
-**Dependencies Required:**
-- JDK 21
-- Maven 3.8+
-- Docker (for Testcontainers)
-- PostgreSQL container
-- Redis (embedded or container)
-
-**Environment Variables:**
-```yaml
-TESTCONTAINERS_RYUK_DISABLED: false
-SPRING_PROFILES_ACTIVE: test
-OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # For embedding generation
-```
-
-**Database Setup:**
-- PostgreSQL via Testcontainers
-- Schema initialized via `schema-postgres.sql`
-- Test data managed by test classes
-
-**Recommended Timeout:** 20 minutes
-
-**Resource Requirements:**
-- Memory: 3GB
-- Disk: 8GB
+This module has been removed (behavior integration tests deleted).
 
 ---
 
