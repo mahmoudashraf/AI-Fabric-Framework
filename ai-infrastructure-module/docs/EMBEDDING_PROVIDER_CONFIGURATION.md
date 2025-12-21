@@ -59,15 +59,15 @@ Or manually:
 
 ```bash
 # Create models directory within the ONNX starter module
-mkdir -p ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
+mkdir -p providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
 
 # Download model
 wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/model.onnx \
-  -O ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/all-MiniLM-L6-v2.onnx
+  -O providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/all-MiniLM-L6-v2.onnx
 
 # Download tokenizer
 wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json \
-  -O ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/tokenizer.json
+  -O providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/tokenizer.json
 ```
 
 **Supported Models**:

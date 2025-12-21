@@ -21,7 +21,7 @@
         <module>providers/ai-infrastructure-provider-cohere</module>
         <module>providers/ai-infrastructure-provider-anthropic</module>
         <module>providers/ai-infrastructure-provider-rest</module>
-        <module>ai-infrastructure-onnx-starter</module>
+        <module>providers/ai-infrastructure-onnx-starter</module>
         <module>ai-infrastructure-relationship-query</module>
         <module>victor-databases/ai-infrastructure-vector-lucene</module>
         <module>victor-databases/ai-infrastructure-vector-pinecone</module>

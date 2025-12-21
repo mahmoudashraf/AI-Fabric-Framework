@@ -281,8 +281,8 @@ if (value instanceof float[][][]) {
 - Quality: Good for most use cases
 
 **Model File Locations**:
-- ONNX starter: `ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/all-MiniLM-L6-v2.onnx`
-- Bundled tokenizer: `ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/tokenizer.json`
+- ONNX starter: `providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/all-MiniLM-L6-v2.onnx`
+- Bundled tokenizer: `providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/tokenizer.json`
 
 ---
 
@@ -634,5 +634,5 @@ The current ONNX implementation:
 - [ONNX Runtime Embeddings Guide](./ONNX_RUNTIME_EMBEDDINGS_GUIDE.md) - General ONNX concepts
 - [Embedding Provider Configuration](./EMBEDDING_PROVIDER_CONFIGURATION.md) - Configuration details
 - [User Guide](./USER_GUIDE.md) - General usage
-- [Model README](../ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/README.md) - Model download instructions
+- [Model README](../providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/README.md) - Model download instructions
 

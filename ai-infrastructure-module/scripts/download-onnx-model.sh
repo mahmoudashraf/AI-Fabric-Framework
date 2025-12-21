@@ -15,14 +15,14 @@
 #
 # Examples:
 #   ./download-onnx-model.sh
-#   ./download-onnx-model.sh all-MiniLM-L6-v2 ./ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
-#   ./download-onnx-model.sh all-mpnet-base-v2 ./ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
+#   ./download-onnx-model.sh all-MiniLM-L6-v2 ./providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
+#   ./download-onnx-model.sh all-mpnet-base-v2 ./providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
 
 set -e
 
 # Default values
 MODEL_NAME=${1:-"all-MiniLM-L6-v2"}
-OUTPUT_DIR=${2:-"./ai-infrastructure-onnx-starter/src/main/resources/models/embeddings"}
+OUTPUT_DIR=${2:-"./providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings"}
 
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
@@ -141,7 +141,7 @@ echo "Model file: ${MODEL_FILE}"
 echo "Tokenizer file: ${TOKENIZER_FILE}"
 echo ""
 echo "Assets are now bundled inside the ONNX starter module:"
-echo "  - ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/"
+echo "  - providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/"
 echo ""
 echo "Next steps:"
 echo "1. Configuration defaults resolve to classpath resources."
