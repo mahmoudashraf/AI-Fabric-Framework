@@ -42,7 +42,7 @@
 
 8) Rate limit math
    - delay computed from rateLimit; zero/negative/no value -> no sleep. ✅
-   - interrupt path not yet asserted. ⚪
+   - interrupt path asserted (restores flag). ✅
 
 #### Integration Tests (Spring + H2) – status
 9) Happy-path migration enqueues. ✅
@@ -57,16 +57,16 @@
 12) ReindexExisting flag. ✅
    - Seed searchable storage; run with reindexExisting=false (skips), then true (enqueues).
 
-13) Filters integration. ⚪ (@Disabled pending stability)
+13) Filters integration. ✅
    - createdBefore/After with actual entity dates; safeEntityIds only processed set.
 
-14) Failure path. ⚪
+14) Failure path. ✅ (job completes but failedEntities recorded)
    - Force enqueue exception; job moves to FAILED with errorMessage; failedEntities incremented.
 
 15) Rate limiting observable. ⚪
    - Configure small rateLimit; assert sleep invoked via spy (or measure elapsed ≥ expected).
 
-16) Repository resolution guard. ⚪
+16) Repository resolution guard. ✅
    - Unknown entityType -> IllegalStateException.
 
 17) Concurrency sanity. ⚪

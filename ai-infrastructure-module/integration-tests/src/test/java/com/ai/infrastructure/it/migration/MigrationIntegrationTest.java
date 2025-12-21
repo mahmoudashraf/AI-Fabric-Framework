@@ -10,7 +10,6 @@ import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -131,12 +130,13 @@ class MigrationIntegrationTest {
         verify(queueService, times(1)).enqueue(Mockito.any(IndexingRequest.class));
     }
 
-    @Disabled("Flaky in CI; covered at unit level")
     @Test
     void filtersRespectCreatedAfterAndEntityIds() {
         repository.deleteAll();
-        TestMigrationEntity oldEntity = new TestMigrationEntity("old-1", LocalDateTime.now().minusDays(5));
-        TestMigrationEntity newEntity = new TestMigrationEntity("new-1", LocalDateTime.now().minusHours(6));
+        LocalDateTime oldTime = LocalDateTime.now().minusDays(5);
+        LocalDateTime newTime = LocalDateTime.now().minusHours(6);
+        TestMigrationEntity oldEntity = new TestMigrationEntity("old-1", oldTime);
+        TestMigrationEntity newEntity = new TestMigrationEntity("new-1", newTime);
         repository.save(oldEntity);
         repository.save(newEntity);
 
@@ -149,17 +149,24 @@ class MigrationIntegrationTest {
             .entityType("mig-test")
             .batchSize(10)
             .filters(com.ai.infrastructure.migration.domain.MigrationFilters.builder()
-                .createdAfter(LocalDateTime.now().minusDays(1).toLocalDate())
+                .createdAfter(newTime.minusDays(1).toLocalDate())
                 .entityIds(java.util.List.of("new-1"))
                 .build())
             .build();
 
-        migrationService.startMigration(request);
+        MigrationJob job = migrationService.startMigration(request);
+
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.COMPLETED);
+            assertThat(refreshed.getProcessedEntities()).isEqualTo(1);
+        });
 
         ArgumentCaptor<IndexingRequest> captor = ArgumentCaptor.forClass(IndexingRequest.class);
         verify(queueService, timeout(5000).atLeast(1)).enqueue(captor.capture());
         assertThat(captor.getAllValues())
             .extracting(IndexingRequest::entityId)
+            .doesNotContain("old-1")
             .contains("new-1");
     }
 
@@ -197,6 +204,42 @@ class MigrationIntegrationTest {
             assertThat(refreshed.getProcessedEntities()).isLessThanOrEqualTo(1);
         });
         verify(queueService, atMost(1)).enqueue(Mockito.any(IndexingRequest.class));
+    }
+
+    @Test
+    void failurePathMovesJobToFailed() {
+        repository.save(new TestMigrationEntity("f1", LocalDateTime.now().minusDays(1)));
+        when(storageStrategy.findByEntityTypeAndEntityId(Mockito.eq("mig-test"), Mockito.anyString()))
+            .thenReturn(Optional.empty());
+        stubQueueLeaseNoop();
+
+        Mockito.doThrow(new IllegalStateException("enqueue-fail"))
+            .when(queueService).enqueue(Mockito.any(IndexingRequest.class));
+
+        MigrationRequest req = MigrationRequest.builder()
+            .entityType("mig-test")
+            .batchSize(1)
+            .build();
+
+        MigrationJob job = migrationService.startMigration(req);
+
+        await().atMost(Duration.ofSeconds(4)).untilAsserted(() -> {
+            MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.COMPLETED);
+            assertThat(refreshed.getFailedEntities()).isGreaterThanOrEqualTo(1);
+        });
+        verify(queueService, atMost(1)).enqueue(Mockito.any(IndexingRequest.class));
+    }
+
+    @Test
+    void repositoryResolutionGuardThrows() {
+        MigrationRequest req = MigrationRequest.builder()
+            .entityType("unknown-entity")
+            .batchSize(1)
+            .build();
+
+        assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> migrationService.startMigration(req)))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
