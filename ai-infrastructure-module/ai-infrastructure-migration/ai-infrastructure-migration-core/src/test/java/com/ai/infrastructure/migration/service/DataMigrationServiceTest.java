@@ -101,6 +101,8 @@ class DataMigrationServiceTest {
         when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
         JpaRepository<DemoEntity, String> emptyRepo = mock(JpaRepository.class);
         when(emptyRepo.count()).thenReturn(0L);
+        when(emptyRepo.findAll(any(org.springframework.data.domain.Pageable.class)))
+            .thenReturn(org.springframework.data.domain.Page.empty(PageRequest.of(0, 10)));
         when(repositoryRegistry.getRegistration("demo"))
             .thenReturn(new EntityRegistration("demo", DemoEntity.class, emptyRepo));
 
@@ -245,6 +247,49 @@ class DataMigrationServiceTest {
         assertThat(saved.getStatus()).isEqualTo(MigrationStatus.RUNNING);
         assertThat(saved.getTotalEntities()).isEqualTo(2);
         assertThat(saved.getBatchSize()).isEqualTo(7);
+    }
+
+    @Test
+    void completesWhenRepositoryEmpty() {
+        JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(); // no entities
+        when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+        when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder().entityType("demo").batchSize(5).build());
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        assertThat(persistedJob.get().getStatus()).isEqualTo(MigrationStatus.COMPLETED);
+        assertThat(persistedJob.get().getTotalEntities()).isEqualTo(0);
+        assertThat(persistedJob.get().getProcessedEntities()).isZero();
+    }
+
+    @Test
+    void policyCanSkipEntitiesAndPreventEnqueue() {
+        when(filterPolicy.supports("demo")).thenReturn(true);
+        when(filterPolicy.shouldMigrate(any(), any(), any())).thenReturn(false);
+
+        DemoEntity entity = new DemoEntity("skip-1");
+        JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
+        when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+        when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder()
+            .entityType("demo")
+            .batchSize(5)
+            .filters(com.ai.infrastructure.migration.domain.MigrationFilters.builder()
+                .entityIds(List.of("skip-1"))
+                .build())
+            .build());
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        verify(queueService, never()).enqueue(any(IndexingRequest.class));
+        assertThat(persistedJob.get().getProcessedEntities()).isZero();
     }
 
     @Test
