@@ -20,7 +20,7 @@
 
 3) Filtering
    - matchesFilters honors safeEntityIds, createdBefore/After. ✅
-   - throws when createdAt field missing/invalid type. ⚪
+   - throws when createdAt field missing/invalid type. ✅ (counts failure, job completes)
    - uses MigrationFilterPolicy when present; falls back to field config otherwise. ✅ (policy skip)
 
 4) Reindex / idempotency

@@ -192,6 +192,44 @@ class DataMigrationServiceTest {
     }
 
     @Test
+    void createdAtWrongTypeCountsFailure() {
+        MigrationFieldConfig fieldConfig = new MigrationFieldConfig();
+        fieldConfig.setCreatedAtField("createdAt");
+        migrationProperties.getEntityFields().put("demo", fieldConfig);
+
+        BadCreatedAtEntity bad = new BadCreatedAtEntity("bad-1");
+        JpaRepository<BadCreatedAtEntity, String> repo = mock(JpaRepository.class);
+        when(repo.count()).thenReturn(1L);
+        when(repo.findAll(any(org.springframework.data.domain.Pageable.class))).thenAnswer(inv -> {
+            org.springframework.data.domain.Pageable pr = inv.getArgument(0);
+            if (pr.getPageNumber() > 0) {
+                return org.springframework.data.domain.Page.empty(pr);
+            }
+            return new PageImpl<>(List.of(bad), PageRequest.of(0, 1), 1);
+        });
+        when(repositoryRegistry.getRegistration("demo"))
+            .thenReturn(new EntityRegistration("demo", BadCreatedAtEntity.class, repo));
+        when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+        when(capabilityService.resolveEntityId(bad)).thenReturn(bad.getId());
+
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder()
+            .entityType("demo")
+            .batchSize(1)
+            .filters(com.ai.infrastructure.migration.domain.MigrationFilters.builder()
+                .createdAfter(java.time.LocalDate.now(clock).minusDays(2))
+                .build())
+            .build());
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        assertThat(persistedJob.get().getFailedEntities()).isEqualTo(1);
+        assertThat(persistedJob.get().getProcessedEntities()).isZero();
+        assertThat(persistedJob.get().getStatus()).isEqualTo(MigrationStatus.COMPLETED);
+    }
+
+    @Test
     void skipsAlreadyIndexedWhenReindexDisabled() {
         DemoEntity entity = new DemoEntity("e-1");
         JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
@@ -494,6 +532,20 @@ class DataMigrationServiceTest {
 
         public java.time.LocalDate getCreatedAt() {
             return createdAt;
+        }
+    }
+
+    private static class BadCreatedAtEntity {
+        private String id;
+        @SuppressWarnings("unused")
+        private String createdAt = "not-a-date";
+
+        BadCreatedAtEntity(String id) {
+            this.id = id;
+        }
+
+        public String getId() {
+            return id;
         }
     }
 
