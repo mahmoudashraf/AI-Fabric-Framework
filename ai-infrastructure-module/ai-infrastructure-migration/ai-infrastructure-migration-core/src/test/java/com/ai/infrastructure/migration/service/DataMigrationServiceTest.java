@@ -117,6 +117,81 @@ class DataMigrationServiceTest {
     }
 
     @Test
+    void cancelsEarlyAndStopsProcessing() {
+        MigrationJob job = baseJob("demo");
+        job.setStatus(MigrationStatus.RUNNING);
+        persistedJob.set(job);
+        when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+        JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(new DemoEntity("id-1"));
+        when(repositoryRegistry.getRegistration("demo"))
+            .thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+
+        // flip to cancelled on first load
+        when(jobRepository.findById(any())).thenAnswer(inv -> {
+            if (persistedJob.get().getCurrentPage() == 0) {
+                persistedJob.get().setStatus(MigrationStatus.CANCELLED);
+            }
+            return Optional.of(persistedJob.get());
+        });
+
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder().entityType("demo").batchSize(10).build());
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        verify(queueService, never()).enqueue(any());
+        assertThat(persistedJob.get().getStatus()).isEqualTo(MigrationStatus.CANCELLED);
+        assertThat(persistedJob.get().getProcessedEntities()).isZero();
+    }
+
+    @Test
+    void skipsEntitiesWithBlankResolvedId() {
+        DemoEntity entity = new DemoEntity("id-blank");
+        JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
+        when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+        when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+        when(capabilityService.resolveEntityId(entity)).thenReturn("  "); // blank id
+
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder().entityType("demo").batchSize(5).build());
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        verify(queueService, never()).enqueue(any());
+        assertThat(persistedJob.get().getProcessedEntities()).isZero();
+    }
+
+    @Test
+    void missingCreatedAtFieldThrows() {
+        MigrationFieldConfig fieldConfig = new MigrationFieldConfig();
+        fieldConfig.setCreatedAtField("missingField");
+        migrationProperties.getEntityFields().put("demo", fieldConfig);
+
+        DemoEntity entity = new DemoEntity("id-ct");
+        JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
+        when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+        when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
+
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder()
+            .entityType("demo")
+            .batchSize(5)
+            .filters(com.ai.infrastructure.migration.domain.MigrationFilters.builder()
+                .createdAfter(java.time.LocalDate.now(clock).minusDays(1))
+                .build())
+            .build());
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        // job should move to FAILED due to createdAt resolution error
+        assertThat(persistedJob.get().getStatus()).isEqualTo(MigrationStatus.FAILED);
+        assertThat(persistedJob.get().getErrorMessage()).contains("missingField");
+    }
+
+    @Test
     void skipsAlreadyIndexedWhenReindexDisabled() {
         DemoEntity entity = new DemoEntity("e-1");
         JpaRepository<DemoEntity, String> repo = mockRepoWithEntities(entity);
