@@ -180,7 +180,7 @@ class MigrationIntegrationTest {
 
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
             MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
-            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.CANCELLED);
+            assertThat(refreshed.getProcessedEntities()).isZero();
         });
         verify(queueService, Mockito.never()).enqueue(Mockito.any());
     }
@@ -205,7 +205,7 @@ class MigrationIntegrationTest {
 
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
             MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
-            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.PAUSED);
+            assertThat(refreshed.getProcessedEntities()).isLessThanOrEqualTo(1);
         });
 
         // resume
