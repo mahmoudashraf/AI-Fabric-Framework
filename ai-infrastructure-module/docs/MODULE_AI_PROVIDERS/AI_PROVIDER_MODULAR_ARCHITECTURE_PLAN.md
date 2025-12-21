@@ -69,26 +69,28 @@ ai-infrastructure-module/
 │   │       └── AIInfrastructureAutoConfiguration.java
 │   └── pom.xml
 │
-├── ai-infrastructure-provider-openai/   # OpenAI provider module
-│   ├── src/main/java/com/ai/infrastructure/provider/openai/
-│   │   ├── OpenAIProvider.java              # Implements AIProvider
-│   │   ├── OpenAIEmbeddingProvider.java     # Implements EmbeddingProvider
-│   │   └── OpenAIAutoConfiguration.java     # Creates both beans
-│   └── pom.xml
-│
-├── ai-infrastructure-provider-azure/    # Azure OpenAI provider module
-│   ├── src/main/java/com/ai/infrastructure/provider/azure/
-│   │   ├── AzureOpenAIProvider.java          # Implements AIProvider
-│   │   ├── AzureOpenAIEmbeddingProvider.java # Implements EmbeddingProvider
-│   │   └── AzureOpenAIAutoConfiguration.java # Creates both beans
-│   └── pom.xml
-│
-├── ai-infrastructure-provider-anthropic/ # Anthropic Claude provider module
-│   ├── src/main/java/com/ai/infrastructure/provider/anthropic/
-│   │   ├── AnthropicProvider.java           # Implements AIProvider
-│   │   ├── AnthropicEmbeddingProvider.java  # Implements EmbeddingProvider (if supported)
-│   │   └── AnthropicAutoConfiguration.java  # Creates beans
-│   └── pom.xml
+├── providers/
+│   ├── ai-infrastructure-provider-openai/   # OpenAI provider module
+│   │   ├── src/main/java/com/ai/infrastructure/provider/openai/
+│   │   │   ├── OpenAIProvider.java              # Implements AIProvider
+│   │   │   ├── OpenAIEmbeddingProvider.java     # Implements EmbeddingProvider
+│   │   │   └── OpenAIAutoConfiguration.java     # Creates both beans
+│   │   └── pom.xml
+│   │
+│   ├── ai-infrastructure-provider-azure/    # Azure OpenAI provider module
+│   │   ├── src/main/java/com/ai/infrastructure/provider/azure/
+│   │   │   ├── AzureOpenAIProvider.java          # Implements AIProvider
+│   │   │   ├── AzureOpenAIEmbeddingProvider.java # Implements EmbeddingProvider
+│   │   │   └── AzureOpenAIAutoConfiguration.java # Creates both beans
+│   │   └── pom.xml
+│   │
+│   ├── ai-infrastructure-provider-anthropic/ # Anthropic Claude provider module
+│   │   ├── src/main/java/com/ai/infrastructure/provider/anthropic/
+│   │   │   ├── AnthropicProvider.java           # Implements AIProvider
+│   │   │   ├── AnthropicEmbeddingProvider.java  # Implements EmbeddingProvider (if supported)
+│   │   │   └── AnthropicAutoConfiguration.java  # Creates beans
+│   │   └── pom.xml
+│   └── ...
 │
 ├── ai-infrastructure-onnx-starter/       # ONNX module (embeddings only)
 │   ├── src/main/java/com/ai/infrastructure/embedding/onnx/
@@ -421,7 +423,7 @@ public AIEmbeddingService aiEmbeddingService(
 
 ### OpenAI Provider Module Example
 
-**File**: `ai-infrastructure-module/ai-infrastructure-provider-openai/src/main/java/com/ai/infrastructure/provider/openai/OpenAIAutoConfiguration.java`
+**File**: `ai-infrastructure-module/providers/ai-infrastructure-provider-openai/src/main/java/com/ai/infrastructure/provider/openai/OpenAIAutoConfiguration.java`
 
 ```java
 package com.ai.infrastructure.provider.openai;
@@ -588,7 +590,7 @@ public class ONNXAutoConfiguration {
 
 ### Anthropic Module Example (LLM Only, No Embeddings)
 
-**File**: `ai-infrastructure-module/ai-infrastructure-provider-anthropic/src/main/java/com/ai/infrastructure/provider/anthropic/AnthropicAutoConfiguration.java`
+**File**: `ai-infrastructure-module/providers/ai-infrastructure-provider-anthropic/src/main/java/com/ai/infrastructure/provider/anthropic/AnthropicAutoConfiguration.java`
 
 ```java
 package com.ai.infrastructure.provider.anthropic;

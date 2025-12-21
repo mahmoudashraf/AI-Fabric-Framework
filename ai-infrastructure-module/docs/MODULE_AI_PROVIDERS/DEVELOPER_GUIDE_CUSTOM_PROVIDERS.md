@@ -7,12 +7,14 @@ This guide explains how to create a custom AI provider module that integrates wi
 ## Module Structure
 
 ```
-ai-infrastructure-provider-{your-provider}/
-├── pom.xml
-└── src/main/java/com/ai/infrastructure/provider/{your-provider}/
-    ├── {YourProvider}Provider.java              # Implements AIProvider
-    ├── {YourProvider}EmbeddingProvider.java     # Implements EmbeddingProvider (optional)
-    └── {YourProvider}AutoConfiguration.java     # Spring Boot auto-configuration
+ai-infrastructure-module/
+└── providers/
+    └── ai-infrastructure-provider-{your-provider}/
+        ├── pom.xml
+        └── src/main/java/com/ai/infrastructure/provider/{your-provider}/
+            ├── {YourProvider}Provider.java              # Implements AIProvider
+            ├── {YourProvider}EmbeddingProvider.java     # Implements EmbeddingProvider (optional)
+            └── {YourProvider}AutoConfiguration.java     # Spring Boot auto-configuration
 ```
 
 ## Step 1: Create Module POM
@@ -28,6 +30,7 @@ ai-infrastructure-provider-{your-provider}/
         <groupId>com.ai.infrastructure</groupId>
         <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
         <version>1.0.0</version>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>ai-infrastructure-provider-{your-provider}</artifactId>
@@ -359,9 +362,9 @@ ai:
 <modules>
     <module>ai-infrastructure-core</module>
     <module>ai-infrastructure-onnx-starter</module>
-    <module>ai-infrastructure-provider-openai</module>
-    <module>ai-infrastructure-provider-azure</module>
-    <module>ai-infrastructure-provider-your-provider</module> <!-- Add your module -->
+    <module>providers/ai-infrastructure-provider-openai</module>
+    <module>providers/ai-infrastructure-provider-azure</module>
+    <module>providers/ai-infrastructure-provider-your-provider</module> <!-- Add your module -->
     <module>integration-tests</module>
 </modules>
 ```
