@@ -179,6 +179,120 @@ class DataMigrationServiceTest {
         assertThat(req.getPayload()).contains("e-1");
     }
 
+    @Test
+    void enqueuesWhenReindexExistingTrueEvenIfAlreadyIndexed() {
+        MigrationJob job = baseJob("demo");
+        AtomicReference<MigrationJob> holder = new AtomicReference<>(job);
+        when(jobRepository.findById(job.getId())).thenAnswer(inv -> Optional.of(holder.get()));
+        when(jobRepository.save(any())).thenAnswer(inv -> {
+            holder.set(inv.getArgument(0));
+            return inv.getArgument(0);
+        });
+
+        DemoEntity entity = new DemoEntity("e-2");
+        FakeRepository repo = new FakeRepository(List.of(entity));
+        when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+        when(configLoader.getEntityConfig("demo")).thenReturn(new AIEntityConfig("demo", Map.of(), Map.of()));
+        when(capabilityService.resolveEntityId(entity)).thenReturn(entity.id);
+        when(storageStrategy.findByEntityTypeAndEntityId("demo", entity.id)).thenReturn(Optional.of(entity)); // already indexed
+
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder()
+            .entityType("demo")
+            .reindexExisting(true)
+            .batchSize(10)
+            .build());
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        verify(queueService).enqueue(any(IndexingRequest.class));
+        assertThat(holder.get().getProcessedEntities()).isEqualTo(1);
+    }
+
+    @Test
+    void enqueueFailureCountsAsFailed() {
+        MigrationJob job = baseJob("demo");
+        AtomicReference<MigrationJob> holder = new AtomicReference<>(job);
+        when(jobRepository.findById(job.getId())).thenAnswer(inv -> Optional.of(holder.get()));
+        when(jobRepository.save(any())).thenAnswer(inv -> {
+            holder.set(inv.getArgument(0));
+            return inv.getArgument(0);
+        });
+
+        DemoEntity entity = new DemoEntity("e-3");
+        FakeRepository repo = new FakeRepository(List.of(entity));
+        when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+        when(configLoader.getEntityConfig("demo")).thenReturn(new AIEntityConfig("demo", Map.of(), Map.of()));
+        when(capabilityService.resolveEntityId(entity)).thenReturn(entity.id);
+        when(storageStrategy.findByEntityTypeAndEntityId("demo", entity.id)).thenReturn(Optional.empty());
+        // Force enqueue failure
+        when(queueService.enqueue(any(IndexingRequest.class))).thenThrow(new RuntimeException("queue down"));
+
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder()
+            .entityType("demo")
+            .batchSize(10)
+            .build());
+
+        verify(executorService).submit(runnableCaptor.capture());
+        runnableCaptor.getValue().run();
+
+        assertThat(holder.get().getFailedEntities()).isEqualTo(1);
+        assertThat(holder.get().getProcessedEntities()).isZero();
+    }
+
+    @Test
+    void missingFieldConfigWithoutPolicyThrows() {
+        // Clear entityFields and policies to trigger guard
+        migrationProperties.getEntityFields().clear();
+        DataMigrationService service = new DataMigrationService(
+            queueService,
+            configLoader,
+            repositoryRegistry,
+            jobRepository,
+            storageStrategy,
+            progressTracker,
+            migrationProperties,
+            indexingProperties,
+            new com.fasterxml.jackson.databind.ObjectMapper(),
+            executorService,
+            capabilityService,
+            clock,
+            List.of() // no policies
+        );
+
+        when(configLoader.getEntityConfig("demo")).thenReturn(new AIEntityConfig("demo", Map.of(), Map.of()));
+        when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, new FakeRepository(List.of())));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+            service.startMigration(MigrationRequest.builder()
+                .entityType("demo")
+                .batchSize(10)
+                .build())
+        ).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void startMigrationPersistsInitialJobWithTotals() {
+        FakeRepository repo = new FakeRepository(List.of(new DemoEntity("e-4"), new DemoEntity("e-5")));
+        when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
+        when(configLoader.getEntityConfig("demo")).thenReturn(new AIEntityConfig("demo", Map.of(), Map.of()));
+
+        ArgumentCaptor<MigrationJob> jobCaptor = ArgumentCaptor.forClass(MigrationJob.class);
+        DataMigrationService service = service();
+        service.startMigration(MigrationRequest.builder()
+            .entityType("demo")
+            .batchSize(7)
+            .build());
+
+        verify(jobRepository).save(jobCaptor.capture());
+        MigrationJob saved = jobCaptor.getValue();
+        assertThat(saved.getStatus()).isEqualTo(MigrationStatus.RUNNING);
+        assertThat(saved.getTotalEntities()).isEqualTo(2);
+        assertThat(saved.getBatchSize()).isEqualTo(7);
+    }
+
     private DataMigrationService service() {
         return new DataMigrationService(
             queueService,
@@ -224,6 +338,9 @@ class DataMigrationServiceTest {
             this.data = data;
         }
         @Override public org.springframework.data.domain.Page<DemoEntity> findAll(org.springframework.data.domain.Pageable pageable) {
+            if (pageable.getPageNumber() > 0) {
+                return PageImpl.empty(pageable);
+            }
             return new PageImpl<>(data, PageRequest.of(0, data.size()), data.size());
         }
         // Unused JpaRepository methods -> throw UnsupportedOperationException to keep surface small
