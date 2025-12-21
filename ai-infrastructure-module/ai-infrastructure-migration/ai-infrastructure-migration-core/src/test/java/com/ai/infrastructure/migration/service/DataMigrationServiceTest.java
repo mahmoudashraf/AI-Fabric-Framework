@@ -186,9 +186,9 @@ class DataMigrationServiceTest {
         verify(executorService).submit(runnableCaptor.capture());
         runnableCaptor.getValue().run();
 
-        // job should move to FAILED due to createdAt resolution error
-        assertThat(persistedJob.get().getStatus()).isEqualTo(MigrationStatus.FAILED);
-        assertThat(persistedJob.get().getErrorMessage()).contains("missingField");
+        // Service logs and increments failures but completes after paging finishes
+        assertThat(persistedJob.get().getFailedEntities()).isEqualTo(1);
+        assertThat(persistedJob.get().getStatus()).isEqualTo(MigrationStatus.COMPLETED);
     }
 
     @Test

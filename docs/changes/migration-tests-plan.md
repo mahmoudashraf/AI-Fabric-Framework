@@ -9,13 +9,13 @@
 #### Unit Tests (Junit + Mockito) – status
 1) Job lifecycle updates
    - startMigration creates RUNNING job with totals, timestamps. ✅
-   - pause sets PAUSED and does not alter totals. ⚪ pending (explicit resume/cancel to add)
+   - pause sets PAUSED and does not alter totals. ✅ (covered via pause exit test)
    - resume resets status to RUNNING and restarts processing (stub out executor). ⚪
-   - cancel sets CANCELLED, sets completedAt. ⚪
+   - cancel sets CANCELLED, sets completedAt. ⚪ (early cancel covered; completedAt still pending)
 
 2) Pause/Cancel honoring
    - processJob exits when job.isPaused() before fetching next page. ✅
-   - processJob exits when job.isCancelled() before fetching next page. ⚪
+   - processJob exits when job.isCancelled() before fetching next page. ✅ (early cancel test)
    - applyRateLimit respects interrupts (thread interrupted -> flag set). ⚪
 
 3) Filtering
