@@ -8,13 +8,14 @@
         <groupId>com.ai.infrastructure</groupId>
         <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
         <version>1.0.0</version>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ai-infrastructure-vector-pinecone</artifactId>
+    <artifactId>ai-infrastructure-vector-lucene</artifactId>
     <packaging>jar</packaging>
 
-    <name>AI Infrastructure Pinecone Vector Module</name>
-    <description>Pinecone vector database integration module</description>
+    <name>AI Infrastructure Lucene Vector Module</name>
+    <description>Lucene-based vector database module</description>
 
     <dependencies>
         <dependency>
@@ -27,18 +28,30 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
+
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-web</artifactId>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-queryparser</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-analysis-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-spatial3d</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-backward-codecs</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-misc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

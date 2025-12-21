@@ -8,12 +8,13 @@ Vector databases follow the same modular pattern as AI providers - each vector d
 
 ```
 ai-infrastructure-module/
-├── ai-infrastructure-vector-lucene/      # Lucene (default, dev/test)
-├── ai-infrastructure-vector-pinecone/    # Pinecone (production)
-├── ai-infrastructure-vector-weaviate/   # Weaviate (self-hosted)
-├── ai-infrastructure-vector-qdrant/      # Qdrant (self-hosted)
-├── ai-infrastructure-vector-milvus/      # Milvus (self-hosted)
-└── ai-infrastructure-vector-memory/     # InMemory (testing)
+└── victor-databases/
+    ├── ai-infrastructure-vector-lucene/      # Lucene (default, dev/test)
+    ├── ai-infrastructure-vector-pinecone/    # Pinecone (production)
+    ├── ai-infrastructure-vector-weaviate/    # Weaviate (self-hosted)
+    ├── ai-infrastructure-vector-qdrant/      # Qdrant (self-hosted)
+    ├── ai-infrastructure-vector-milvus/      # Milvus (self-hosted)
+    └── ai-infrastructure-vector-memory/      # InMemory (testing)
 ```
 
 ## Current State

@@ -16,20 +16,20 @@
     <modules>
         <module>ai-infrastructure-core</module>
         <module>ai-infrastructure-web</module>
-        <module>ai-infrastructure-provider-openai</module>
-        <module>ai-infrastructure-provider-azure</module>
-        <module>ai-infrastructure-provider-cohere</module>
-        <module>ai-infrastructure-provider-anthropic</module>
-        <module>ai-infrastructure-provider-rest</module>
+        <module>providers/ai-infrastructure-provider-openai</module>
+        <module>providers/ai-infrastructure-provider-azure</module>
+        <module>providers/ai-infrastructure-provider-cohere</module>
+        <module>providers/ai-infrastructure-provider-anthropic</module>
+        <module>providers/ai-infrastructure-provider-rest</module>
         <module>ai-infrastructure-onnx-starter</module>
         <module>ai-infrastructure-relationship-query</module>
-        <module>ai-infrastructure-vector-lucene</module>
-        <module>ai-infrastructure-vector-pinecone</module>
+        <module>victor-databases/ai-infrastructure-vector-lucene</module>
+        <module>victor-databases/ai-infrastructure-vector-pinecone</module>
         <module>ai-infrastructure-migration</module>
-        <module>ai-infrastructure-vector-memory</module>
-        <module>ai-infrastructure-vector-weaviate</module>
-        <module>ai-infrastructure-vector-qdrant</module>
-        <module>ai-infrastructure-vector-milvus</module>
+        <module>victor-databases/ai-infrastructure-vector-memory</module>
+        <module>victor-databases/ai-infrastructure-vector-weaviate</module>
+        <module>victor-databases/ai-infrastructure-vector-qdrant</module>
+        <module>victor-databases/ai-infrastructure-vector-milvus</module>
         <module>integration-tests</module>
         <module>relationship-query-integration-tests</module>
     </modules>

@@ -8,13 +8,14 @@
         <groupId>com.ai.infrastructure</groupId>
         <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
         <version>1.0.0</version>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ai-infrastructure-provider-rest</artifactId>
+    <artifactId>ai-infrastructure-provider-azure</artifactId>
     <packaging>jar</packaging>
 
-    <name>AI Infrastructure REST Embedding Provider</name>
-    <description>REST-based embedding provider module</description>
+    <name>AI Infrastructure Azure OpenAI Provider</name>
+    <description>Azure OpenAI provider module with LLM and embedding support</description>
 
     <dependencies>
         <dependency>

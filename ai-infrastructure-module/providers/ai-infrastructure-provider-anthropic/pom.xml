@@ -8,6 +8,7 @@
         <groupId>com.ai.infrastructure</groupId>
         <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
         <version>1.0.0</version>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>ai-infrastructure-provider-anthropic</artifactId>
