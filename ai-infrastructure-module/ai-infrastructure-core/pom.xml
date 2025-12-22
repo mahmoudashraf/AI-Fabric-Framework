@@ -6,16 +6,16 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.ai.infrastructure</groupId>
-        <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
+        <groupId>com.ai.fabric</groupId>
+        <artifactId>ai-fabric-spring-boot-starter</artifactId>
         <version>1.0.0</version>
     </parent>
 
-    <artifactId>ai-infrastructure-core</artifactId>
+    <artifactId>ai-fabric-core</artifactId>
     <packaging>jar</packaging>
 
-    <name>AI Infrastructure Core</name>
-    <description>Core AI Infrastructure functionality</description>
+    <name>AI Fabric Core</name>
+    <description>Core AI Fabric functionality</description>
 
     <dependencies>
         <!-- Spring Boot Starters -->

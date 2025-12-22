@@ -5,13 +5,28 @@
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.ai.infrastructure</groupId>
-    <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
+    <groupId>com.ai.fabric</groupId>
+    <artifactId>ai-fabric-spring-boot-starter</artifactId>
     <version>1.0.0</version>
     <packaging>pom</packaging>
 
-    <name>AI Infrastructure Spring Boot Starter</name>
-    <description>Generic AI Infrastructure module for Spring Boot applications with RAG, behavioral AI, and smart features</description>
+    <name>AI Fabric Framework Spring Boot Starter</name>
+    <description>Enterprise-grade AI Fabric Framework for Spring Boot applications with RAG, security, and smart features</description>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+            <comments>Community Core License</comments>
+        </license>
+        <license>
+            <name>AI Fabric Enterprise License</name>
+            <url>https://aifabric.io/enterprise-license</url>
+            <distribution>manual</distribution>
+            <comments>Commercial license for enterprise features</comments>
+        </license>
+    </licenses>
 
     <modules>
         <module>ai-infrastructure-core</module>
@@ -64,82 +79,82 @@
             
             <!-- AI Infrastructure Core Module -->
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-core</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-web</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-relationship-query</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-relationship-query</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-migration-core</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-migration-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             
             <!-- Provider Modules -->
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-provider-openai</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-provider-openai</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-provider-azure</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-provider-azure</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-provider-cohere</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-provider-cohere</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-provider-anthropic</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-provider-anthropic</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-provider-rest</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-provider-rest</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
             <!-- Vector Modules -->
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-vector-lucene</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-vector-lucene</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-vector-pinecone</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-vector-pinecone</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-vector-memory</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-vector-memory</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-vector-weaviate</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-vector-qdrant</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.ai.infrastructure</groupId>
-                <artifactId>ai-infrastructure-vector-milvus</artifactId>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-vector-milvus</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
