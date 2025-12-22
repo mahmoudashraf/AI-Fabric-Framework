@@ -176,7 +176,7 @@ ai-infrastructure-module/ai-infrastructure-core/src/test/java/
 
 **Real API Integration Tests**:
 ```
-ai-infrastructure-module/relationship-query-integration-tests/src/test/java/
+ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/src/test/java/
   com/ai/infrastructure/relationship/it/realapi/
     SearchVsLLMGenerationRealApiIntegrationTest.java
 ```

@@ -261,7 +261,7 @@ mvn -pl integration-tests -am test \
 Instead of typing the long Maven command:
 
 ```bash
-cd /workspace/ai-infrastructure-module/integration-tests
+cd /workspace/ai-infrastructure-module/integration-Testing/integration-tests
 
 # Run with default (openai:onnx)
 ./run-provider-matrix-tests.sh

@@ -92,7 +92,7 @@ ai-infrastructure-module/
 │   │   └── pom.xml
 │   └── ...
 │
-├── ai-infrastructure-onnx-starter/       # ONNX module (embeddings only)
+├── providers/ai-infrastructure-onnx-starter/       # ONNX module (embeddings only)
 │   ├── src/main/java/com/ai/infrastructure/embedding/onnx/
 │   │   ├── ONNXEmbeddingProvider.java       # Implements EmbeddingProvider
 │   │   └── ONNXAutoConfiguration.java      # Creates only embedding bean
@@ -531,7 +531,7 @@ public class OpenAIAutoConfiguration {
 
 ### ONNX Module Example (Embeddings Only)
 
-**File**: `ai-infrastructure-module/ai-infrastructure-onnx-starter/src/main/java/com/ai/infrastructure/embedding/onnx/ONNXAutoConfiguration.java`
+**File**: `ai-infrastructure-module/providers/ai-infrastructure-onnx-starter/src/main/java/com/ai/infrastructure/embedding/onnx/ONNXAutoConfiguration.java`
 
 ```java
 package com.ai.infrastructure.embedding.onnx;

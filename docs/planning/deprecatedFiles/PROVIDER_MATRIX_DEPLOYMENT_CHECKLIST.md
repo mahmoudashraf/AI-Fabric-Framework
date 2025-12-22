@@ -35,7 +35,7 @@
 
 ### 1. Code Review
 **Status**: Ready for review
-- File: `ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java`
+- File: `ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java`
 - Changes: 318 lines total (from 211)
 - Key additions:
   - Extended ProviderCombination record
@@ -52,14 +52,14 @@ export OPENAI_API_KEY="your-key-here"
 cd /workspace
 
 # Step 2: Verify file compiles (if Maven is available)
-# mvn clean compile -pl ai-infrastructure-module/integration-tests -q
+# mvn clean compile -pl ai-infrastructure-module/integration-Testing/integration-tests -q
 
 # Step 3: Verify basic command structure
 echo "✓ File exists:"
-ls -lh ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java
+ls -lh ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java
 
 # Step 4: Check for syntax errors (if IDE available)
-# mvn clean verify -pl ai-infrastructure-module/integration-tests -DskipTests
+# mvn clean verify -pl ai-infrastructure-module/integration-Testing/integration-tests -DskipTests
 
 # Step 5: Run a quick test (optional - requires valid API keys)
 # mvn -pl integration-tests -am test \
@@ -72,7 +72,7 @@ ls -lh ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastru
 **Ensure all configuration files are in place**:
 
 ```bash
-cd /workspace/ai-infrastructure-module/integration-tests/src/test/resources
+cd /workspace/ai-infrastructure-module/integration-Testing/integration-tests/src/test/resources
 
 echo "Configuration files:"
 ls -lh application-real-api-test*.yml
@@ -88,7 +88,7 @@ ls -lh application-real-api-test*.yml
 **Verify shell script is executable and correct**:
 
 ```bash
-cd /workspace/ai-infrastructure-module/integration-tests
+cd /workspace/ai-infrastructure-module/integration-Testing/integration-tests
 
 # Check script exists and is executable
 ls -lh run-provider-matrix-tests.sh
@@ -147,7 +147,7 @@ mvn -h | head -5
 
 # ✓ Should find test class
 grep -l "RealAPIProviderMatrixIntegrationTest" \
-  ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/*.java
+  ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/*.java
 ```
 
 **Expected**: Test class file found
@@ -156,7 +156,7 @@ grep -l "RealAPIProviderMatrixIntegrationTest" \
 ```bash
 # ✓ Verify parseMatrixSpec implementation
 grep -A 20 "private List<ProviderCombination> parseMatrixSpec" \
-  ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java
+  ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java
 ```
 
 **Expected**: Supports both "llm:embedding" and "llm:embedding:vectordb" formats
@@ -169,7 +169,7 @@ for config in \
   application-real-api-test-onnx.yml \
   application-real-api-test-anthropic.yml \
   application-real-api-test-azure.yml; do
-  if [ -f "ai-infrastructure-module/integration-tests/src/test/resources/$config" ]; then
+  if [ -f "ai-infrastructure-module/integration-Testing/integration-tests/src/test/resources/$config" ]; then
     echo "✓ $config found"
   else
     echo "✗ $config NOT found"
@@ -182,11 +182,11 @@ done
 ### Test 4: Script Validation
 ```bash
 # ✓ Script exists and is executable
-if [ -x "ai-infrastructure-module/integration-tests/run-provider-matrix-tests.sh" ]; then
+if [ -x "ai-infrastructure-module/integration-Testing/integration-tests/run-provider-matrix-tests.sh" ]; then
   echo "✓ Script is executable"
 else
   echo "✗ Script is NOT executable"
-  chmod +x ai-infrastructure-module/integration-tests/run-provider-matrix-tests.sh
+  chmod +x ai-infrastructure-module/integration-Testing/integration-tests/run-provider-matrix-tests.sh
 fi
 ```
 
@@ -227,18 +227,18 @@ done
 ### If Issues Found
 1. **Revert Test File**:
    ```bash
-   git checkout ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java
+   git checkout ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java
    ```
 
 2. **Remove New Configurations**:
    ```bash
-   rm ai-infrastructure-module/integration-tests/src/test/resources/application-real-api-test-anthropic.yml
-   rm ai-infrastructure-module/integration-tests/src/test/resources/application-real-api-test-azure.yml
+   rm ai-infrastructure-module/integration-Testing/integration-tests/src/test/resources/application-real-api-test-anthropic.yml
+   rm ai-infrastructure-module/integration-Testing/integration-tests/src/test/resources/application-real-api-test-azure.yml
    ```
 
 3. **Remove Shell Script**:
    ```bash
-   rm ai-infrastructure-module/integration-tests/run-provider-matrix-tests.sh
+   rm ai-infrastructure-module/integration-Testing/integration-tests/run-provider-matrix-tests.sh
    ```
 
 4. **Verify Tests Still Work**:

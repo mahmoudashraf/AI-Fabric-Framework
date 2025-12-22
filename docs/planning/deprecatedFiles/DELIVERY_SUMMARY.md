@@ -19,7 +19,7 @@
 ### 1. Core Implementation
 
 #### Enhanced Test Class
-- **File**: `ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java`
+- **File**: `ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/RealAPIProviderMatrixIntegrationTest.java`
 - **Changes**: 
   - ✅ Extended syntax support: `llm:embedding` and `llm:embedding:vectordb`
   - ✅ Multiple combinations support
@@ -39,7 +39,7 @@
 - **Features**: All profiles support dynamic provider selection
 
 #### Shell Script
-- **File**: `ai-infrastructure-module/integration-tests/run-provider-matrix-tests.sh`
+- **File**: `ai-infrastructure-module/integration-Testing/integration-tests/run-provider-matrix-tests.sh`
 - **Features**:
   - ✅ Pre-flight checks (Java, Maven, API keys)
   - ✅ Color-coded output
@@ -221,7 +221,7 @@ mvn -pl integration-tests -am test \
 
 ### Code Files (Modified/Created)
 ```
-✅ ai-infrastructure-module/integration-tests/
+✅ ai-infrastructure-module/integration-Testing/integration-tests/
    ├── run-provider-matrix-tests.sh (NEW)
    ├── src/test/java/com/ai/infrastructure/it/
    │   └── RealAPIProviderMatrixIntegrationTest.java (ENHANCED)

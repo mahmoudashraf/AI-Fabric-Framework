@@ -538,9 +538,7 @@ ai:
   - `behavior.metrics.projector.duration{projector}`
   - `behavior.insights.strategy.duration{strategy}`
 - Structured logs include `schemaId`, `signalKey`, and `tenantId`.
-- Utility scripts (optional):
-    - `scripts/schema-doctor.py` – validates YAML descriptors and can emit a consolidated JSON manifest.
-    - `scripts/signal-replay.py` – replays stored signals through the `/api/ai-behavior/signals` (or `/batch`) endpoints for backfill/testing.
+- Tooling note: repository helper scripts for schema validation/replay were removed; use your own validation (YAML lint + CI) and backfill tooling (client/CLI/curl) as needed.
 
 ### 10. Verification Plan
 
@@ -2824,7 +2822,7 @@ rm -f backend/src/main/java/com/easyluxury/ai/adapter/OrderAIAdapter.java    # I
 
 ```bash
 # Remove old behavior tests
-rm -rf ai-infrastructure-module/integration-tests/src/test/java/com/ai/infrastructure/it/Behavior*
+rm -rf ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/Behavior*
 rm -f ai-infrastructure-module/ai-infrastructure-core/src/test/java/com/ai/infrastructure/behavior/BehaviorRetentionServiceTest.java
 ```
 

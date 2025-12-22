@@ -135,13 +135,13 @@ echo $OPENAI_API_KEY  # Should print your key
 ## 🔗 Related Files
 
 ### Test File
-- **Path**: `ai-infrastructure-module/relationship-query-integration-tests/src/test/java/com/ai/infrastructure/relationship/it/realapi/FinancialFraudRealApiIntegrationTest.java`
+- **Path**: `ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/src/test/java/com/ai/infrastructure/relationship/it/realapi/FinancialFraudRealApiIntegrationTest.java`
 - **Line 35**: `@ActiveProfiles("realapi")`
 - **Line 97-115**: `shouldDetectMirrorCounterpartyWires()` test
 
 ### Configuration Files
-- **Config**: `ai-infrastructure-module/relationship-query-integration-tests/src/test/resources/application-realapi.yml`
-- **Loader**: `ai-infrastructure-module/relationship-query-integration-tests/src/test/java/com/ai/infrastructure/relationship/it/config/BackendEnvTestConfiguration.java`
+- **Config**: `ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/src/test/resources/application-realapi.yml`
+- **Loader**: `ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/src/test/java/com/ai/infrastructure/relationship/it/config/BackendEnvTestConfiguration.java`
 
 ### Key Configuration Lines
 
@@ -187,7 +187,7 @@ The configuration uses this precedence order (highest to lowest):
 
 - [ ] **Test Configuration Correct**
   ```bash
-  grep "@ActiveProfiles" ai-infrastructure-module/relationship-query-integration-tests/src/test/java/com/ai/infrastructure/relationship/it/realapi/FinancialFraudRealApiIntegrationTest.java
+  grep "@ActiveProfiles" ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/src/test/java/com/ai/infrastructure/relationship/it/realapi/FinancialFraudRealApiIntegrationTest.java
   # Should show: @ActiveProfiles("realapi")
   ```
 
@@ -246,12 +246,12 @@ export OPENAI_API_KEY="sk-your-key"
 **Solution**: The path is relative to the test class location. Verify:
 
 ```bash
-# From: ai-infrastructure-module/relationship-query-integration-tests/
+# From: ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/
 # Path: ../../backend/.env
 # Should resolve to: TheBaseRepo/backend/.env
 
 # Check path resolution:
-cd ai-infrastructure-module/relationship-query-integration-tests
+cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
 ls -la ../../backend/.env
 ```
 

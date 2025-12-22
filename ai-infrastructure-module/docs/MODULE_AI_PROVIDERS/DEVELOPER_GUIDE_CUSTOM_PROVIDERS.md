@@ -361,7 +361,7 @@ ai:
 ```xml
 <modules>
     <module>ai-infrastructure-core</module>
-    <module>ai-infrastructure-onnx-starter</module>
+    <module>providers/ai-infrastructure-onnx-starter</module>
     <module>providers/ai-infrastructure-provider-openai</module>
     <module>providers/ai-infrastructure-provider-azure</module>
     <module>providers/ai-infrastructure-provider-your-provider</module> <!-- Add your module -->

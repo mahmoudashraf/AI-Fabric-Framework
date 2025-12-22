@@ -143,7 +143,7 @@ You need two files:
 
 1. **Model file** (`.onnx`): The neural network
    - Size: 80-500MB depending on model
-   - Location: Bundled inside `ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/`
+   - Location: Bundled inside `providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/`
 
 2. **Tokenizer files**: For text preprocessing
    - `tokenizer.json` or `vocab.txt`
@@ -151,8 +151,8 @@ You need two files:
 
 **Download example**:
 ```bash
-mkdir -p ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
-cd ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
+mkdir -p providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
+cd providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings
 
 # Option 1: Download from Hugging Face
 wget https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/model.onnx -O all-MiniLM-L6-v2.onnx

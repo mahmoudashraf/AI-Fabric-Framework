@@ -65,7 +65,7 @@ jobs:
         run: |
           cd ai-infrastructure-module
           # First install all dependencies (excluding test modules) to local repository
-          mvn clean install -B -V -pl '!integration-tests,!relationship-query-integration-tests' -DskipTests
+          mvn clean install -B -V -pl '!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests' -DskipTests
           # Then verify all modules including integration tests (dependencies are now in local repo)
           mvn verify -B -V
        

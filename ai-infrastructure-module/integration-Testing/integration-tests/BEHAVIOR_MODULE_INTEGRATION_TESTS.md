@@ -1,6 +1,6 @@
 # AI Behavior Module – Integration Test Expansion
 
-> Location: `ai-infrastructure-module/integration-tests`
+> Location: `ai-infrastructure-module/integration-Testing/integration-tests`
 
 The new ai-behavior module introduces dedicated ingestion pipelines, pluggable sinks, analyzers, and segmentation workers. To keep the integration suite production-ready we need at least ten focused test cases that exercise the end-to-end paths across storage backends, async workers, and cross-module adapters.
 

@@ -24,7 +24,7 @@ The script is integrated into `.github/workflows/integration-tests-manual.yml`:
 ```yaml
 - name: Run Relationship Query Integration Tests (Real API)
   run: |
-    cd ai-infrastructure-module/relationship-query-integration-tests
+    cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
     bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
   env:
     OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
