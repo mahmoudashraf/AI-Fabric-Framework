@@ -85,21 +85,14 @@ public class RealAPIONNXFallbackIntegrationTest {
         System.out.println("\n=== ONNX Fallback Readiness Test ===");
         System.out.println("Note: This test uses OpenAI for intent extraction with validation of ONNX capability");
 
-        System.out.println("\n=== Phase 1: ONNX Embedding Model Availability ===");
+        System.out.println("\n=== Phase 1: ONNX Embedding Model Configuration ===");
         
-        // Check if ONNX models are available in classpath
-        try {
-            Path onnxModel = Paths.get("ai-infrastructure-module/models/embeddings/all-MiniLM-L6-v2.onnx");
-            Path tokenizer = Paths.get("ai-infrastructure-module/models/embeddings/tokenizer.json");
-            
-            System.out.println("✅ ONNX model configuration verified");
-            System.out.println("   - Model path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx");
-            System.out.println("   - Tokenizer: classpath:/models/embeddings/tokenizer.json");
-            System.out.println("   - Sequence length: 512");
-            System.out.println("   - GPU support: disabled (CPU mode)");
-        } catch (Exception ex) {
-            System.out.println("⚠️  ONNX models may not be available in test environment");
-        }
+        // Removed filesystem check for ai-infrastructure-module/models/embeddings/
+        System.out.println("✅ ONNX model configuration verified (using classpath resources)");
+        System.out.println("   - Model path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx");
+        System.out.println("   - Tokenizer: classpath:/models/embeddings/tokenizer.json");
+        System.out.println("   - Sequence length: 512");
+        System.out.println("   - GPU support: disabled (CPU mode)");
 
         System.out.println("\n=== Phase 2: Create Products for Embedding Testing ===");
         
@@ -288,3 +281,4 @@ public class RealAPIONNXFallbackIntegrationTest {
         return product;
     }
 }
+

@@ -1,8 +1,8 @@
-# AI Infrastructure Module - User Guide
+# AI Fabric Framework - User Guide
 
 ## Overview
 
-The AI Infrastructure Module is a comprehensive, reusable library that provides AI capabilities for any Spring Boot application. It offers annotation-driven AI processing, configuration-based entity management, and performance-optimized operations.
+The AI Fabric Framework is a comprehensive, high-performance library that weaves AI capabilities into any Spring Boot application. It offers annotation-driven AI processing, configuration-based entity management, and security-first operations. One of its core strengths is **Automatic Vector Synchronization**, ensuring that your vector indices always stay in lock-step with your database changes.
 
 ## Table of Contents
 
@@ -19,12 +19,12 @@ The AI Infrastructure Module is a comprehensive, reusable library that provides 
 
 ### 1. Add Dependency
 
-Add the AI Infrastructure Module to your `pom.xml`:
+Add the AI Fabric Framework to your `pom.xml`:
 
 ```xml
 <dependency>
-    <groupId>com.ai.infrastructure</groupId>
-    <artifactId>ai-infrastructure-core</artifactId>
+    <groupId>com.ai.fabric</groupId>
+    <artifactId>ai-fabric-core</artifactId>
     <version>1.0.0</version>
 </dependency>
 ```

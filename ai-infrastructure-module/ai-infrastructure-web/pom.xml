@@ -6,16 +6,16 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.ai.infrastructure</groupId>
-        <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
+        <groupId>com.ai.fabric</groupId>
+        <artifactId>ai-fabric-spring-boot-starter</artifactId>
         <version>1.0.0</version>
     </parent>
 
-    <artifactId>ai-infrastructure-web</artifactId>
+    <artifactId>ai-fabric-web</artifactId>
     <packaging>jar</packaging>
 
-    <name>AI Infrastructure Web</name>
-    <description>REST controllers for AI Infrastructure</description>
+    <name>AI Fabric Web</name>
+    <description>REST controllers for AI Fabric</description>
 
     <dependencies>
         <dependency>

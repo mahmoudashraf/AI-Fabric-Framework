@@ -1,9 +1,9 @@
-# AI Infrastructure for Spring Boot - Technical Overview
+# AI Fabric Framework - Technical Overview
 
-**Last Updated:** December 2024  
+**Last Updated:** December 2025  
 **Status:** Production-Ready Architecture
 
-This document contains the detailed technical architecture of the AI Infrastructure framework. For a marketing-focused overview, see the main README.
+This document contains the detailed technical architecture of the AI Fabric framework. For a creative overview, see the main README.
 
 ---
 
@@ -58,7 +58,7 @@ This document contains the detailed technical architecture of the AI Infrastruct
 
 ## Core design principles
 
-### 1. Annotation-driven, not imperative
+### 1. Annotation-driven, not imperative (Live-Sync)
 
 **Don't write:** `aiService.embed(product); vectorDb.store(product);`
 
@@ -68,7 +68,7 @@ This document contains the detailed technical architecture of the AI Infrastruct
 @AICapable(entityType = "product")
 public class Product { }
 ```
-→ Framework auto-embeds and indexes via AOP aspect (`AICapableAspect`)
+→ **Live Synchronization:** The framework auto-embeds and indexes via AOP aspect (`AICapableAspect`) on every database change. Your vector search always reflects the ground truth of your database.
 
 ### 2. Configuration over code
 
