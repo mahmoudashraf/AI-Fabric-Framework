@@ -41,7 +41,7 @@ ai:
 Validate your files (duplicates, missing attributes, etc.) with:
 
 ```bash
-python ai-infrastructure-module/scripts/schema-doctor.py --schemas ./config/behavior-schemas
+Validate schemas using your own YAML lint/validation step (the repo helper script was removed).
 ```
 
 ## 4. Configure metric projectors and insights
@@ -54,13 +54,13 @@ python ai-infrastructure-module/scripts/schema-doctor.py --schemas ./config/beha
 To reprocess historic events with the new projectors, export them to JSON/NDJSON and replay via:
 
 ```bash
-python ai-infrastructure-module/scripts/signal-replay.py --source ./exports/behavior.ndjson --batch-size 25
+Replay/backfill using your own client (POST to `/api/ai-behavior/signals` or the batch endpoint).
 ```
 
 ## 6. Verification checklist
 
 - [ ] Liquibase has successfully applied `db.changelog-master.yaml`.
-- [ ] Schema YAMLs load without errors (`schema-doctor.py`).
+- [ ] Schema YAMLs load without errors (validated via lint/CI or on startup).
 - [ ] `/api/ai-behavior/schemas` responds with cacheable payload (ETag + max-age).
 - [ ] `/api/ai-behavior/users/{id}/metrics` returns the `kpis` bundle.
 - [ ] `/api/ai-behavior/users/{id}/insights` returns newly computed KPIs/segments.

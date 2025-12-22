@@ -14,7 +14,7 @@
 - **Liquibase replaces Flyway:** set `spring.liquibase.change-log=classpath:/db/changelog/db.changelog-master.yaml` and remove behavior-related Flyway migrations. Schema YAMLs are now mandatory at startup.
 - **Projector configuration:** `ai.behavior.processing.metrics.enabledProjectors` controls which `BehaviorMetricProjector` beans run. Defaults include engagement, recency, diversity (domain affinity is opt-in).
 - **Schema discovery caching:** `/api/ai-behavior/schemas` now requires clients to honor `ETag` + `Cache-Control` headers; stale caches should be invalidated when schema YAMLs change.
-- **Tooling:** new helper scripts (`scripts/schema-doctor.py`, `scripts/signal-replay.py`) are the supported workflow for schema validation and replay/backfill.
+- **Tooling:** validate schemas and perform replay/backfill using project-specific tooling (repo helper scripts were removed).
 
 ---
 
