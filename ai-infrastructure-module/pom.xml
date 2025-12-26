@@ -48,6 +48,7 @@
         <module>victor-databases/ai-infrastructure-vector-milvus</module>
         <module>integration-Testing/integration-tests</module>
         <module>integration-Testing/relationship-query-integration-tests</module>
+        <module>integration-Testing/behavior-integration-tests</module>
     </modules>
 
     <properties>
