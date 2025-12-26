@@ -1,4 +1,10 @@
 spring:
+  main:
+    allow-bean-definition-overriding: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+      - com.ai.infrastructure.behavior.config.BehaviorAIAutoConfiguration
   datasource:
     url: jdbc:h2:mem:behavior_it;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
     driverClassName: org.h2.Driver
@@ -24,3 +30,9 @@ ai:
 logging:
   level:
     root: INFO
+    org.springframework: INFO
+    com.ai.infrastructure: INFO
+
+spring:
+  main:
+    allow-bean-definition-overriding: true

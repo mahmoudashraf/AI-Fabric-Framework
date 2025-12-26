@@ -25,7 +25,12 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-@SpringBootTest(classes = BehaviorIntegrationTestApp.class)
+@SpringBootTest(
+    classes = BehaviorIntegrationTestApp.class,
+    properties = {
+        "spring.main.allow-bean-definition-overriding=true"
+    }
+)
 @ActiveProfiles("integration")
 class BehaviorAnalysisIntegrationIT {
 
