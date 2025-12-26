@@ -31,7 +31,11 @@ public class JsonbMapConverter implements AttributeConverter<Map<String, Object>
             return Collections.emptyMap();
         }
         try {
-            return OBJECT_MAPPER.readValue(dbData, new TypeReference<Map<String, Object>>() {});
+            String payload = dbData.trim();
+            if (payload.startsWith("\"") && payload.endsWith("\"")) {
+                payload = payload.substring(1, payload.length() - 1).replace("\\\"", "\"");
+            }
+            return OBJECT_MAPPER.readValue(payload, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             throw new IllegalStateException("Failed to convert JSON to map", e);
         }

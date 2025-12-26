@@ -31,7 +31,12 @@ public class JsonbListConverter implements AttributeConverter<List<String>, Stri
             return Collections.emptyList();
         }
         try {
-            return OBJECT_MAPPER.readValue(dbData, new TypeReference<List<String>>() {});
+            String payload = dbData.trim();
+            // Defensive: handle double-encoded JSON coming back as a quoted string
+            if (payload.startsWith("\"") && payload.endsWith("\"")) {
+                payload = payload.substring(1, payload.length() - 1).replace("\\\"", "\"");
+            }
+            return OBJECT_MAPPER.readValue(payload, new TypeReference<List<String>>() {});
         } catch (Exception e) {
             throw new IllegalStateException("Failed to convert JSON to list", e);
         }

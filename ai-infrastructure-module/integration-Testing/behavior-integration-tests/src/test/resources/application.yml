@@ -28,7 +28,3 @@ logging:
     root: INFO
     org.springframework: INFO
     com.ai.infrastructure: INFO
-
-spring:
-  main:
-    allow-bean-definition-overriding: true
