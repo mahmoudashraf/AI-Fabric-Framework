@@ -53,16 +53,31 @@ public class AIEntityConfigurationLoader {
         }
     }
     
-    public void loadConfigurationFromFile(String configFile) {
+    /**
+     * Load configuration from file with override control.
+     *
+     * @param configFile file path (supports classpath: prefix)
+     * @param allowOverride when false, skip entities already defined
+     */
+    public void loadConfigurationFromFile(String configFile, boolean allowOverride) {
         try {
-            Resource resource = resourceLoader.getResource("classpath:" + configFile);
-            InputStream inputStream = resource.getInputStream();
+            Resource resource = resolveResource(configFile);
+            if (resource == null || !resource.exists()) {
+                log.warn("Configuration file not found: {}", configFile);
+                return;
+            }
             
+            InputStream inputStream = resource.getInputStream();
             Yaml yaml = new Yaml();
             Map<String, Object> config = yaml.load(inputStream);
             
+            if (config == null) {
+                log.warn("Configuration file {} is empty", configFile);
+                return;
+            }
+            
             // Load global configuration
-            if (config.containsKey("ai-config")) {
+            if (config.containsKey("ai-config") && allowOverride) {
                 globalConfig.putAll((Map<String, Object>) config.get("ai-config"));
             }
             
@@ -74,6 +89,12 @@ public class AIEntityConfigurationLoader {
                     String entityType = entry.getKey();
                     Map<String, Object> entityConfig = (Map<String, Object>) entry.getValue();
                     log.info("Processing entity type: {} with config keys: {}", entityType, entityConfig.keySet());
+                    
+                    if (!allowOverride && entityConfigs.containsKey(entityType)) {
+                        log.debug("Skipping {} - existing configuration preserved", entityType);
+                        continue;
+                    }
+                    
                     AIEntityConfig configObj = parseEntityConfig(entityType, entityConfig);
                     entityConfigs.put(entityType, configObj);
                 }
@@ -85,6 +106,20 @@ public class AIEntityConfigurationLoader {
             log.error("Failed to load configuration from file: {}", configFile, e);
             throw new RuntimeException("Failed to load configuration from file: " + configFile, e);
         }
+    }
+    
+    /**
+     * Backward-compatible loader (defaults to allowing overrides).
+     */
+    public void loadConfigurationFromFile(String configFile) {
+        loadConfigurationFromFile(configFile, true);
+    }
+
+    private Resource resolveResource(String configFile) {
+        if (configFile.startsWith("classpath:") || configFile.startsWith("file:")) {
+            return resourceLoader.getResource(configFile);
+        }
+        return resourceLoader.getResource("classpath:" + configFile);
     }
     
     private AIEntityConfig parseEntityConfig(String entityType, Map<String, Object> config) {

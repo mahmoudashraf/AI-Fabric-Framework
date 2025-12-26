@@ -38,6 +38,7 @@
         <module>providers/ai-infrastructure-provider-rest</module>
         <module>providers/ai-infrastructure-onnx-starter</module>
         <module>ai-infrastructure-relationship-query</module>
+        <module>ai-infrastructure-behavior</module>
         <module>victor-databases/ai-infrastructure-vector-lucene</module>
         <module>victor-databases/ai-infrastructure-vector-pinecone</module>
         <module>ai-infrastructure-migration</module>
