@@ -6,26 +6,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.DependsOn;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
-import com.ai.infrastructure.behavior.repository.BehaviorInsightsRepository;
-import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
 
 @Slf4j
 @AutoConfiguration
-@AutoConfigureAfter(JpaRepositoriesAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "ai.behavior", name = "enabled", havingValue = "true")
-@ConditionalOnMissingBean(BehaviorInsightsRepository.class)
 @RequiredArgsConstructor
 @DependsOn("AIEntityConfigurationLoader")
 @ComponentScan(basePackages = "com.ai.infrastructure.behavior")
 @EntityScan(basePackages = "com.ai.infrastructure.behavior.entity")
-@EnableJpaRepositories(basePackages = "com.ai.infrastructure.behavior.repository")
 public class BehaviorAIAutoConfiguration {
     
     private final AIEntityConfigurationLoader frameworkConfigLoader;
