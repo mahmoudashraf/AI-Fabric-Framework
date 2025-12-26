@@ -52,6 +52,14 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Relationship query integration (optional) -->
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-relationship-query</artifactId>
+            <version>${project.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

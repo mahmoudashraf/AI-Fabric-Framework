@@ -6,9 +6,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.ai.infrastructure</groupId>
-        <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
+        <groupId>com.ai.fabric</groupId>
+        <artifactId>ai-fabric-spring-boot-starter</artifactId>
         <version>1.0.0</version>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>ai-infrastructure-integration-tests</artifactId>
@@ -25,56 +26,69 @@
     <dependencies>
         <!-- AI Infrastructure Module (the module being tested) -->
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
-            <artifactId>ai-infrastructure-core</artifactId>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-fabric-core</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-migration-core</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
-            <artifactId>ai-infrastructure-provider-openai</artifactId>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-fabric-provider-openai</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-provider-azure</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-provider-cohere</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-provider-anthropic</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-provider-rest</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-lucene</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-pinecone</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-memory</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-milvus</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- Optional ONNX starter to supply bundled model/tokenizer assets -->
