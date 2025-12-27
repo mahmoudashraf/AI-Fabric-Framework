@@ -8,6 +8,8 @@ import com.ai.infrastructure.behavior.api.dto.ScheduledControlResponse;
 import com.ai.infrastructure.behavior.config.BehaviorProcessingProperties;
 import com.ai.infrastructure.behavior.entity.BehaviorInsights;
 import com.ai.infrastructure.behavior.state.BehaviorProcessingState;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -31,9 +33,18 @@ public class BehaviorProcessingManager {
     private final BehaviorAnalysisService analysisService;
     private final BehaviorProcessingProperties properties;
     private final BehaviorProcessingState processingState;
+    private final MeterRegistry meterRegistry;
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final ConcurrentHashMap<String, Future<?>> runningJobs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ContinuousJobStatus> jobStatuses = new ConcurrentHashMap<>();
+
+    private Counter processedCounter() {
+        return meterRegistry != null ? meterRegistry.counter("ai.behavior.processing.processed") : null;
+    }
+
+    private Counter errorCounter() {
+        return meterRegistry != null ? meterRegistry.counter("ai.behavior.processing.errors") : null;
+    }
 
     public BehaviorInsights analyzeUser(UUID userId) {
         return analysisService.analyzeUser(userId);
@@ -144,6 +155,9 @@ public class BehaviorProcessingManager {
         int success = 0;
         int errors = 0;
 
+        Counter processedMetric = processedCounter();
+        Counter errorMetric = errorCounter();
+
         for (int i = 0; i < maxUsers; i++) {
             if (Duration.between(start, Instant.now()).compareTo(maxDuration) > 0) {
                 break;
@@ -155,6 +169,9 @@ public class BehaviorProcessingManager {
                 }
                 processed++;
                 success++;
+                if (processedMetric != null) {
+                    processedMetric.increment();
+                }
                 if (delay.toMillis() > 0 && i < maxUsers - 1) {
                     Thread.sleep(delay.toMillis());
                 }
@@ -163,6 +180,9 @@ public class BehaviorProcessingManager {
                 break;
             } catch (Exception e) {
                 errors++;
+                if (errorMetric != null) {
+                    errorMetric.increment();
+                }
                 if (!suppressLogs) {
                     log.error("Error during batch processing", e);
                 }
