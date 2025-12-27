@@ -38,6 +38,7 @@
         <module>providers/ai-infrastructure-provider-rest</module>
         <module>providers/ai-infrastructure-onnx-starter</module>
         <module>ai-infrastructure-relationship-query</module>
+        <module>ai-infrastructure-behavior</module>
         <module>victor-databases/ai-infrastructure-vector-lucene</module>
         <module>victor-databases/ai-infrastructure-vector-pinecone</module>
         <module>ai-infrastructure-migration</module>
@@ -47,6 +48,7 @@
         <module>victor-databases/ai-infrastructure-vector-milvus</module>
         <module>integration-Testing/integration-tests</module>
         <module>integration-Testing/relationship-query-integration-tests</module>
+        <module>integration-Testing/behavior-integration-tests</module>
     </modules>
 
     <properties>
