@@ -2,6 +2,7 @@ package com.ai.infrastructure.behavior.service;
 
 import com.ai.infrastructure.behavior.entity.BehaviorInsights;
 import com.ai.infrastructure.behavior.model.ExternalEvent;
+import com.ai.infrastructure.behavior.model.SentimentLabel;
 import com.ai.infrastructure.behavior.model.UserEventBatch;
 import com.ai.infrastructure.behavior.spi.ExternalEventProvider;
 import com.ai.infrastructure.core.AICoreService;
@@ -132,5 +133,37 @@ class BehaviorAnalysisServiceTest {
         ArgumentCaptor<AIGenerationResponse> captor = ArgumentCaptor.forClass(AIGenerationResponse.class);
         verify(aiCoreService).generateContent(any());
         verify(storageAdapter).save(any(BehaviorInsights.class));
+    }
+
+    @Test
+    void clampsAndDefaultsInvalidSentimentAndChurn() {
+        UUID userId = UUID.randomUUID();
+        when(eventProvider.getEventsForUser(userId, null, null)).thenReturn(
+            List.of(ExternalEvent.builder().eventType("test").build())
+        );
+        when(storageAdapter.findByUserId(userId)).thenReturn(Optional.empty());
+        when(aiCoreService.generateContent(any())).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "segment": "Test",
+                      "patterns": [],
+                      "sentiment": {"score": 1.5, "label": "INVALID"},
+                      "churn": {"risk": -0.2},
+                      "trend": "STABLE",
+                      "recommendations": [],
+                      "insights": {},
+                      "confidence": 0.5
+                    }
+                    """)
+                .build()
+        );
+        when(storageAdapter.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        BehaviorInsights result = service.analyzeUser(userId);
+
+        assertThat(result.getSentimentScore()).isBetween(-1.0, 1.0);
+        assertThat(result.getChurnRisk()).isBetween(0.0, 1.0);
+        assertThat(result.getSentimentLabel()).isEqualTo(SentimentLabel.NEUTRAL);
     }
 }
