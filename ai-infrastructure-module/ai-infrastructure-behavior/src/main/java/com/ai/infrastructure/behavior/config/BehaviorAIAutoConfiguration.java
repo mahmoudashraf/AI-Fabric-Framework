@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Slf4j
 @AutoConfiguration
@@ -18,6 +19,7 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 @DependsOn("AIEntityConfigurationLoader")
 @ComponentScan(basePackages = "com.ai.infrastructure.behavior")
 @EntityScan(basePackages = "com.ai.infrastructure.behavior.entity")
+@EnableScheduling
 public class BehaviorAIAutoConfiguration {
     
     private final AIEntityConfigurationLoader frameworkConfigLoader;
