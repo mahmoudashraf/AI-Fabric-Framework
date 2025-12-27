@@ -1,9 +1,12 @@
 package com.ai.infrastructure.behavior.api;
 
-import com.ai.infrastructure.behavior.config.BehaviorProcessingProperties;
+import com.ai.infrastructure.behavior.api.dto.BatchProcessingRequest;
+import com.ai.infrastructure.behavior.api.dto.BatchProcessingResult;
+import com.ai.infrastructure.behavior.api.dto.ContinuousProcessingRequest;
+import com.ai.infrastructure.behavior.api.dto.ContinuousProcessingResponse;
+import com.ai.infrastructure.behavior.api.dto.ScheduledControlResponse;
 import com.ai.infrastructure.behavior.entity.BehaviorInsights;
-import com.ai.infrastructure.behavior.service.BehaviorAnalysisService;
-import com.ai.infrastructure.behavior.state.BehaviorProcessingState;
+import com.ai.infrastructure.behavior.service.BehaviorProcessingManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -14,7 +17,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.time.Duration;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -26,17 +28,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class BehaviorProcessingControllerTest {
 
     @Mock
-    private BehaviorAnalysisService analysisService;
+    private BehaviorProcessingManager processingManager;
 
-    private BehaviorProcessingProperties properties;
-    private BehaviorProcessingState state;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setup() {
-        properties = new BehaviorProcessingProperties();
-        state = new BehaviorProcessingState();
-        BehaviorProcessingController controller = new BehaviorProcessingController(analysisService, properties, state);
+        BehaviorProcessingController controller = new BehaviorProcessingController(processingManager);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -46,7 +44,7 @@ class BehaviorProcessingControllerTest {
             .userId(UUID.randomUUID())
             .segment("seg")
             .build();
-        Mockito.when(analysisService.analyzeUser(any())).thenReturn(insight);
+        Mockito.when(processingManager.analyzeUser(any())).thenReturn(insight);
 
         mockMvc.perform(post("/api/behavior/processing/users/{id}", UUID.randomUUID()))
             .andExpect(status().isOk())
@@ -54,16 +52,36 @@ class BehaviorProcessingControllerTest {
     }
 
     @Test
-    void batchHonorsMaxUsers() throws Exception {
-        properties.setApiMaxBatchSize(1);
-        Mockito.when(analysisService.processNextUser())
-            .thenReturn(BehaviorInsights.builder().userId(UUID.randomUUID()).build())
-            .thenReturn(null);
+    void batchReturnsResultFromManager() throws Exception {
+        Mockito.when(processingManager.processBatch(any(BatchProcessingRequest.class)))
+            .thenReturn(BatchProcessingResult.builder().processedCount(1).successCount(1).build());
 
         mockMvc.perform(post("/api/behavior/processing/batch")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"maxUsers\":5,\"maxDurationMinutes\":1}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.processedCount").value(1));
+    }
+
+    @Test
+    void continuousStartReturnsJobId() throws Exception {
+        Mockito.when(processingManager.startContinuous(any(ContinuousProcessingRequest.class)))
+            .thenReturn(ContinuousProcessingResponse.builder().jobId("job-1").status("RUNNING").build());
+
+        mockMvc.perform(post("/api/behavior/processing/continuous")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.jobId").value("job-1"));
+    }
+
+    @Test
+    void pauseScheduled() throws Exception {
+        Mockito.when(processingManager.pauseScheduled())
+            .thenReturn(ScheduledControlResponse.builder().paused(true).message("paused").build());
+
+        mockMvc.perform(post("/api/behavior/processing/scheduled/pause"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.paused").value(true));
     }
 }
