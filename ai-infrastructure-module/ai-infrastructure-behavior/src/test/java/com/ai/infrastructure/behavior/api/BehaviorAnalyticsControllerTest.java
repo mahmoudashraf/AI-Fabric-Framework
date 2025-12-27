@@ -99,4 +99,23 @@ class BehaviorAnalyticsControllerTest {
             .andExpect(jsonPath("$.churnDelta").value(0.2))
             .andExpect(jsonPath("$.trend").value("IMPROVING"));
     }
+
+    @Test
+    void userTrendReturnsNotFoundForUnknownUser() throws Exception {
+        UUID userId = UUID.randomUUID();
+        Mockito.when(repository.findByUserId(userId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/behavior/analytics/users/{userId}/trend", userId)
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void trendDistributionEmptyReturnsEmptyMap() throws Exception {
+        Mockito.when(repository.findAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/behavior/analytics/trend-distribution"))
+            .andExpect(status().isOk())
+            .andExpect(content().string("{}"));
+    }
 }

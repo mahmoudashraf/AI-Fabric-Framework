@@ -65,24 +65,22 @@ public class BehaviorAnalyticsController {
 
     @GetMapping("/users/{userId}/trend")
     public ResponseEntity<UserTrendDTO> getUserTrend(@PathVariable UUID userId) {
-        BehaviorInsights insight = repository.findByUserId(userId)
-            .orElseThrow(() -> new RuntimeException("User not found"));
-
-        UserTrendDTO dto = UserTrendDTO.builder()
-            .userId(userId)
-            .currentSentiment(insight.getSentimentScore())
-            .previousSentiment(insight.getPreviousSentimentScore())
-            .sentimentDelta(insight.getSentimentDelta())
-            .currentChurnRisk(insight.getChurnRisk())
-            .previousChurnRisk(insight.getPreviousChurnRisk())
-            .churnDelta(insight.getChurnDelta())
-            .trend(insight.getTrend() != null ? insight.getTrend().name() : null)
-            .churnReason(insight.getChurnReason())
-            .recommendations(insight.getRecommendations())
-            .analyzedAt(insight.getAnalyzedAt())
-            .build();
-
-        return ResponseEntity.ok(dto);
+        return repository.findByUserId(userId)
+            .map(insight -> UserTrendDTO.builder()
+                .userId(userId)
+                .currentSentiment(insight.getSentimentScore())
+                .previousSentiment(insight.getPreviousSentimentScore())
+                .sentimentDelta(insight.getSentimentDelta())
+                .currentChurnRisk(insight.getChurnRisk())
+                .previousChurnRisk(insight.getPreviousChurnRisk())
+                .churnDelta(insight.getChurnDelta())
+                .trend(insight.getTrend() != null ? insight.getTrend().name() : null)
+                .churnReason(insight.getChurnReason())
+                .recommendations(insight.getRecommendations())
+                .analyzedAt(insight.getAnalyzedAt())
+                .build())
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @Data

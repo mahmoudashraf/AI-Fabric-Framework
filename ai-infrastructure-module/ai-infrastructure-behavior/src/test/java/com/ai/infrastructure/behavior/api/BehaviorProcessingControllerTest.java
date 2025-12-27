@@ -84,4 +84,28 @@ class BehaviorProcessingControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.paused").value(true));
     }
+
+    @Test
+    void analyzeUserReturnsNoContentWhenManagerReturnsNull() throws Exception {
+        Mockito.when(processingManager.analyzeUser(any())).thenReturn(null);
+
+        mockMvc.perform(post("/api/behavior/processing/users/{id}", UUID.randomUUID()))
+            .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void cancelNonExistingContinuousJobReturnsNotFound() throws Exception {
+        Mockito.when(processingManager.cancelContinuous("missing")).thenReturn(null);
+
+        mockMvc.perform(post("/api/behavior/processing/continuous/{jobId}/cancel", "missing"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void invalidJsonBodyReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/behavior/processing/batch")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{invalid-json"))
+            .andExpect(status().isBadRequest());
+    }
 }
