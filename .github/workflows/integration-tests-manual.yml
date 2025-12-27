@@ -300,6 +300,11 @@ jobs:
             ${{ runner.os }}-maven-behavior-
             ${{ runner.os }}-maven-
 
+      - name: Build AI Infrastructure Module (skip unit tests)
+        run: |
+          cd ai-infrastructure-module
+          mvn clean install -DskipTests -B -V
+
       - name: Run Behavior Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/behavior-integration-tests
