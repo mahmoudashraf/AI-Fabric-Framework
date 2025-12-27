@@ -266,10 +266,10 @@ jobs:
           check_name: Relationship Query Test Results
 
   # ==============================================================================
-  # Job 3: Behavior Integration Tests (compile-only)
+  # Job 3: Behavior Integration Tests
   # ==============================================================================
   behavior-tests:
-    name: Behavior Integration (compile-only)
+    name: Behavior Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -304,6 +304,28 @@ jobs:
         run: |
           cd ai-infrastructure-module
           mvn -pl integration-Testing/behavior-integration-tests -am -B -V clean verify
+        env:
+          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: behavior-test-reports
+          path: |
+            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/surefire-reports/
+            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/failsafe-reports/
+          retention-days: 30
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: |
+            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/surefire-reports/*.xml
+            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/failsafe-reports/*.xml
+          check_name: Behavior Test Results
 
   # ==============================================================================
   # Summary Job - Aggregates all test results
