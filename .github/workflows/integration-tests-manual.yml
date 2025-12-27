@@ -300,10 +300,10 @@ jobs:
             ${{ runner.os }}-maven-behavior-
             ${{ runner.os }}-maven-
 
-      - name: Build & run behavior integration module (tests placeholder)
+      - name: Run Behavior Integration Tests (Real API)
         run: |
-          cd ai-infrastructure-module
-          mvn -pl integration-Testing/behavior-integration-tests -am -B -V clean verify
+          cd ai-infrastructure-module/integration-Testing/behavior-integration-tests
+          bash run-behavior-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
