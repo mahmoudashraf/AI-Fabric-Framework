@@ -122,15 +122,30 @@ public class BehaviorProcessingManager {
     }
 
     public ContinuousProcessingResponse cancelContinuous(String jobId) {
-        Future<?> future = runningJobs.remove(jobId);
         ContinuousJobStatus status = jobStatuses.get(jobId);
-        if (future == null || status == null) {
+        if (status == null) {
             return null;
         }
-        future.cancel(true);
-        status.setStatus("CANCELLED");
-        status.setCompletedAt(LocalDateTime.now());
-        return ContinuousProcessingResponse.builder().jobId(jobId).status("CANCELLED").build();
+
+        Future<?> future = runningJobs.remove(jobId);
+        if (future != null) {
+            future.cancel(true);
+            status.setStatus("CANCELLED");
+            status.setCompletedAt(LocalDateTime.now());
+        } else {
+            // Job already completed or was never started; return the last known status
+            if (status.getCompletedAt() == null) {
+                status.setCompletedAt(LocalDateTime.now());
+            }
+            if (status.getStatus() == null) {
+                status.setStatus("COMPLETED");
+            }
+        }
+
+        return ContinuousProcessingResponse.builder()
+            .jobId(jobId)
+            .status(status.getStatus())
+            .build();
     }
 
     public ScheduledControlResponse pauseScheduled() {
