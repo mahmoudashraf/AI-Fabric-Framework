@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -165,5 +166,118 @@ class BehaviorAnalysisServiceTest {
         assertThat(result.getSentimentScore()).isBetween(-1.0, 1.0);
         assertThat(result.getChurnRisk()).isBetween(0.0, 1.0);
         assertThat(result.getSentimentLabel()).isEqualTo(SentimentLabel.NEUTRAL);
+    }
+
+    @Test
+    void fallsBackGracefullyOnMalformedLLMResponse() {
+        UUID userId = UUID.randomUUID();
+        when(eventProvider.getEventsForUser(userId, null, null)).thenReturn(
+            List.of(ExternalEvent.builder().eventType("purchase").build())
+        );
+        when(storageAdapter.findByUserId(userId)).thenReturn(Optional.empty());
+        // malformed content (no JSON braces)
+        when(aiCoreService.generateContent(any())).thenReturn(
+            AIGenerationResponse.builder().content("not-json").model("bad-model").build()
+        );
+        when(storageAdapter.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        BehaviorInsights result = service.analyzeUser(userId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getTrend()).isEqualTo(com.ai.infrastructure.behavior.model.BehaviorTrend.STABLE);
+        assertThat(result.getConfidence()).isEqualTo(0.0);
+        assertThat(result.getAiModelUsed()).isEqualTo("fallback");
+        verify(storageAdapter).save(any(BehaviorInsights.class));
+    }
+
+    @Test
+    void recomputesTrendFromDeltasWhenStableReturned() {
+        UUID userId = UUID.randomUUID();
+        BehaviorInsights existing = BehaviorInsights.builder()
+            .id(UUID.randomUUID())
+            .userId(userId)
+            .sentimentScore(0.5)
+            .churnRisk(0.1)
+            .trend(com.ai.infrastructure.behavior.model.BehaviorTrend.IMPROVING)
+            .createdAt(LocalDateTime.now().minusDays(1))
+            .analyzedAt(LocalDateTime.now().minusDays(1))
+            .build();
+
+        when(storageAdapter.findByUserId(userId)).thenReturn(Optional.of(existing));
+        when(eventProvider.getEventsForUser(userId, null, null)).thenReturn(
+            List.of(ExternalEvent.builder().eventType("downgrade").timestamp(LocalDateTime.now()).build())
+        );
+        when(aiCoreService.generateContent(any())).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "segment": "AtRisk",
+                      "patterns": ["downgrade"],
+                      "sentiment": {"score": 0.0, "label": "NEUTRAL"},
+                      "churn": {"risk": 0.6, "reason": "downgrade"},
+                      "trend": "STABLE",
+                      "recommendations": ["retain"],
+                      "insights": {},
+                      "confidence": 0.7
+                    }
+                    """)
+                .build()
+        );
+        when(storageAdapter.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        BehaviorInsights result = service.analyzeUser(userId);
+
+        assertThat(result.getTrend()).isEqualTo(com.ai.infrastructure.behavior.model.BehaviorTrend.RAPIDLY_DECLINING);
+        assertThat(result.getPreviousSentimentScore()).isEqualTo(0.5);
+        assertThat(result.getPreviousChurnRisk()).isEqualTo(0.1);
+        assertThat(result.getSentimentDelta()).isEqualTo(-0.5);
+        assertThat(result.getChurnDelta()).isEqualTo(0.5);
+        assertThat(result.getId()).isEqualTo(existing.getId());
+        assertThat(result.getCreatedAt()).isEqualTo(existing.getCreatedAt());
+    }
+
+    @Test
+    void carriesForwardPreviousValuesWhenNewInsightCreated() {
+        UUID userId = UUID.randomUUID();
+        BehaviorInsights existing = BehaviorInsights.builder()
+            .id(UUID.randomUUID())
+            .userId(userId)
+            .sentimentScore(0.2)
+            .churnRisk(0.3)
+            .trend(com.ai.infrastructure.behavior.model.BehaviorTrend.STABLE)
+            .createdAt(LocalDateTime.now().minusDays(2))
+            .analyzedAt(LocalDateTime.now().minusDays(2))
+            .build();
+
+        when(storageAdapter.findByUserId(userId)).thenReturn(Optional.of(existing));
+        when(eventProvider.getEventsForUser(userId, null, null)).thenReturn(
+            List.of(ExternalEvent.builder().eventType("help").timestamp(LocalDateTime.now()).build())
+        );
+        when(aiCoreService.generateContent(any())).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "segment": "NeedsHelp",
+                      "patterns": ["support"],
+                      "sentiment": {"score": 0.6, "label": "SATISFIED"},
+                      "churn": {"risk": 0.1, "reason": "helped"},
+                      "trend": "IMPROVING",
+                      "recommendations": ["follow_up"],
+                      "insights": {},
+                      "confidence": 0.8
+                    }
+                    """)
+                .build()
+        );
+        when(storageAdapter.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        BehaviorInsights result = service.analyzeUser(userId);
+
+        assertThat(result.getPreviousSentimentScore()).isEqualTo(0.2);
+        assertThat(result.getPreviousChurnRisk()).isEqualTo(0.3);
+        assertThat(result.getSentimentDelta()).isCloseTo(0.4, within(1e-9));
+        assertThat(result.getChurnDelta()).isCloseTo(-0.2, within(1e-9));
+        assertThat(result.getId()).isEqualTo(existing.getId());
+        assertThat(result.getCreatedAt()).isEqualTo(existing.getCreatedAt());
     }
 }
