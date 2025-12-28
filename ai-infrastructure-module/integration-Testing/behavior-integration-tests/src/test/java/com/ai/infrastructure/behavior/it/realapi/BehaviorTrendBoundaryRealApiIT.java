@@ -95,8 +95,8 @@ class BehaviorTrendBoundaryRealApiIT {
         BehaviorInsights updated = analysisService.analyzeUser(userId);
 
         assertThat(updated.getTrend()).isEqualTo(BehaviorTrend.RAPIDLY_IMPROVING);
-        assertThat(updated.getSentimentDelta()).isEqualTo(0.5);
-        assertThat(updated.getChurnDelta()).isEqualTo(-0.2);
+        assertThat(updated.getSentimentDelta()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(updated.getChurnDelta()).isCloseTo(-0.2, org.assertj.core.data.Offset.offset(1e-9));
         assertThat(updated.getId()).isEqualTo(existing.getId());
     }
 
@@ -143,8 +143,8 @@ class BehaviorTrendBoundaryRealApiIT {
         BehaviorInsights updated = analysisService.analyzeUser(userId);
 
         assertThat(updated.getTrend()).isEqualTo(BehaviorTrend.RAPIDLY_DECLINING);
-        assertThat(updated.getSentimentDelta()).isEqualTo(-0.5);
-        assertThat(updated.getChurnDelta()).isEqualTo(0.6);
+        assertThat(updated.getSentimentDelta()).isCloseTo(-0.5, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(updated.getChurnDelta()).isCloseTo(0.6, org.assertj.core.data.Offset.offset(1e-9));
         assertThat(updated.getId()).isEqualTo(existing.getId());
     }
 }

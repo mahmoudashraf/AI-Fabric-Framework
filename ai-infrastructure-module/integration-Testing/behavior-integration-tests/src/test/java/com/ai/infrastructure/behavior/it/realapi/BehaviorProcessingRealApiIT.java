@@ -108,6 +108,7 @@ class BehaviorProcessingRealApiIT {
         assertThat(body.getChurnRisk()).isEqualTo(0.1);
         assertThat(body.getTrend()).isEqualTo(BehaviorTrend.IMPROVING);
         assertThat(body.getRecommendations()).contains("nps");
+        log.info("analyzeUser API response: {}", body);
 
         BehaviorInsights persisted = repository.findByUserId(userId).orElseThrow();
         assertThat(persisted.getSentimentLabel()).isEqualTo(SentimentLabel.SATISFIED);
@@ -161,6 +162,7 @@ class BehaviorProcessingRealApiIT {
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(response.getBody()).containsKey("processedCount");
+        log.info("batch API response: {}", response.getBody());
 
         BehaviorInsights persisted = repository.findByUserId(userId).orElse(null);
         assertThat(persisted).isNotNull();
