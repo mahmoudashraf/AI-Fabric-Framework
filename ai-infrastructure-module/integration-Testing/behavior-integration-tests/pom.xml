@@ -106,6 +106,10 @@
                             <includes>
                                 <include>**/*IT.java</include>
                             </includes>
+                            <excludes>
+                                <!-- Skip real API suites during default verify; run them via the manual workflow/runner -->
+                                <exclude>**/realapi/**</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>
