@@ -241,8 +241,8 @@ class BehaviorAnalysisIntegrationIT {
 
         assertThat(updated.getPreviousSentimentScore()).isEqualTo(0.4);
         assertThat(updated.getPreviousChurnRisk()).isEqualTo(0.2);
-        assertThat(updated.getSentimentDelta()).isEqualTo(-0.4);
-        assertThat(updated.getChurnDelta()).isEqualTo(0.6);
+        assertThat(updated.getSentimentDelta()).isCloseTo(-0.4, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(updated.getChurnDelta()).isCloseTo(0.6, org.assertj.core.data.Offset.offset(1e-9));
         assertThat(updated.getTrend()).isEqualTo(BehaviorTrend.RAPIDLY_DECLINING);
         assertThat(updated.getChurnReason()).isEqualTo("downgrade");
         assertThat(updated.getId()).isEqualTo(existing.getId());
