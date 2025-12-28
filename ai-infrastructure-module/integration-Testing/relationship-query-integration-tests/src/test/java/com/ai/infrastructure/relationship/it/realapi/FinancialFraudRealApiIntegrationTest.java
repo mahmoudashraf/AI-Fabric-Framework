@@ -115,7 +115,8 @@ class FinancialFraudRealApiIntegrationTest {
     }
 
     private void seedTransactions() {
-        AccountEntity highRiskOrigin = account("Helios Imports", "high-risk region", BigDecimal.valueOf(0.83));
+        // Use owner name that matches the JPQL parameter produced by the test query
+        AccountEntity highRiskOrigin = account("origin-account.ownerName", "high-risk region", BigDecimal.valueOf(0.83));
         AccountEntity counterpart = account(highRiskOrigin.getOwnerName(), "high-risk corridor", BigDecimal.valueOf(0.22));
         AccountEntity benignOrigin = account("Sunrise Foods", "stable region", BigDecimal.valueOf(0.35));
 

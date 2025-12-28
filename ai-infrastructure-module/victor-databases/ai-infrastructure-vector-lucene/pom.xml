@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.ai.infrastructure</groupId>
-        <artifactId>ai-infrastructure-spring-boot-starter</artifactId>
+        <groupId>com.ai.fabric</groupId>
+        <artifactId>ai-fabric-spring-boot-starter</artifactId>
         <version>1.0.0</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
@@ -19,8 +19,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
-            <artifactId>ai-infrastructure-core</artifactId>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-fabric-core</artifactId>
             <version>${project.version}</version>
         </dependency>
 
