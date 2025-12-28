@@ -2,6 +2,8 @@ package com.ai.infrastructure.behavior.it;
 
 import com.ai.infrastructure.behavior.entity.BehaviorInsights;
 import com.ai.infrastructure.behavior.model.ExternalEvent;
+import com.ai.infrastructure.behavior.model.BehaviorTrend;
+import com.ai.infrastructure.behavior.model.SentimentLabel;
 import com.ai.infrastructure.behavior.repository.BehaviorInsightsRepository;
 import com.ai.infrastructure.behavior.service.BehaviorAnalysisService;
 import com.ai.infrastructure.behavior.it.support.TestEventProvider;
@@ -152,5 +154,97 @@ class BehaviorAnalysisIntegrationIT {
         assertThat(insight.getSegment()).isEqualTo("Browser");
         assertThat(insight.getPatterns()).contains("view");
         assertThat(insight.getRecommendations()).contains("cta");
+    }
+
+    @Test
+    void targetedAnalysis_populatesSentimentChurnAndTrend() {
+        UUID userId = UUID.randomUUID();
+        eventProvider.setTargetedEvents(List.of(
+            ExternalEvent.builder()
+                .eventType("upgrade")
+                .timestamp(LocalDateTime.now())
+                .eventData(Map.of("plan", "pro"))
+                .source("web")
+                .build()
+        ));
+
+        when(aiCoreService.generateContent(ArgumentMatchers.any())).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "segment": "Pro",
+                      "patterns": ["upgrade"],
+                      "sentiment": {"score": 0.9, "label": "DELIGHTED"},
+                      "churn": {"risk": 0.05, "reason": "happy path"},
+                      "trend": "IMPROVING",
+                      "recommendations": ["celebrate"],
+                      "insights": {"plan": "pro"},
+                      "confidence": 0.92
+                    }
+                    """)
+                .model("stub-model")
+                .build()
+        );
+
+        BehaviorInsights insight = behaviorAnalysisService.analyzeUser(userId);
+
+        assertThat(insight.getSentimentLabel()).isEqualTo(SentimentLabel.DELIGHTED);
+        assertThat(insight.getSentimentScore()).isEqualTo(0.9);
+        assertThat(insight.getChurnRisk()).isEqualTo(0.05);
+        assertThat(insight.getChurnReason()).isEqualTo("happy path");
+        assertThat(insight.getTrend()).isEqualTo(BehaviorTrend.IMPROVING);
+        assertThat(insight.getRecommendations()).contains("celebrate");
+        assertThat(insight.getConfidence()).isEqualTo(0.92);
+    }
+
+    @Test
+    void trendRecomputedFromDeltasWhenStableReturned() {
+        UUID userId = UUID.randomUUID();
+        BehaviorInsights existing = repository.save(
+            BehaviorInsights.builder()
+                .userId(userId)
+                .sentimentScore(0.4)
+                .churnRisk(0.2)
+                .trend(BehaviorTrend.STABLE)
+                .analyzedAt(LocalDateTime.now().minusDays(1))
+                .build()
+        );
+
+        eventProvider.setTargetedEvents(List.of(
+            ExternalEvent.builder()
+                .eventType("downgrade")
+                .timestamp(LocalDateTime.now())
+                .eventData(Map.of("from", "pro", "to", "basic"))
+                .source("app")
+                .build()
+        ));
+
+        when(aiCoreService.generateContent(ArgumentMatchers.any())).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "segment": "AtRisk",
+                      "patterns": ["downgrade"],
+                      "sentiment": {"score": 0.0, "label": "NEUTRAL"},
+                      "churn": {"risk": 0.8, "reason": "downgrade"},
+                      "trend": "STABLE",
+                      "recommendations": ["retain"],
+                      "insights": {},
+                      "confidence": 0.6
+                    }
+                    """)
+                .model("stub-model")
+                .build()
+        );
+
+        BehaviorInsights updated = behaviorAnalysisService.analyzeUser(userId);
+
+        assertThat(updated.getPreviousSentimentScore()).isEqualTo(0.4);
+        assertThat(updated.getPreviousChurnRisk()).isEqualTo(0.2);
+        assertThat(updated.getSentimentDelta()).isEqualTo(-0.4);
+        assertThat(updated.getChurnDelta()).isEqualTo(0.6);
+        assertThat(updated.getTrend()).isEqualTo(BehaviorTrend.RAPIDLY_DECLINING);
+        assertThat(updated.getChurnReason()).isEqualTo("downgrade");
+        assertThat(updated.getId()).isEqualTo(existing.getId());
     }
 }
