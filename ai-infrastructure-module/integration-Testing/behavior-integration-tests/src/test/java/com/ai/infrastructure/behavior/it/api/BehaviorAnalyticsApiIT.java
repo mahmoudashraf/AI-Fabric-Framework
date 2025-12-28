@@ -15,6 +15,8 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,6 +34,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @ActiveProfiles("integration")
 class BehaviorAnalyticsApiIT {
+
+    private static final Logger log = LoggerFactory.getLogger(BehaviorAnalyticsApiIT.class);
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -76,6 +80,7 @@ class BehaviorAnalyticsApiIT {
         Map<String, Object> alert = response.getBody().get(0);
         assertThat(alert.get("trend")).isEqualTo("RAPIDLY_DECLINING");
         assertThat(alert.get("churnRisk")).isEqualTo(0.9);
+        log.info("rapid-decline alerts: {}", response.getBody());
     }
 
     @Test
@@ -107,6 +112,7 @@ class BehaviorAnalyticsApiIT {
         Map<String, Integer> distribution = response.getBody();
         assertThat(distribution.get("IMPROVING")).isEqualTo(2);
         assertThat(distribution.get("DECLINING")).isEqualTo(1);
+        log.info("trend distribution: {}", distribution);
     }
 
     @Test
@@ -136,5 +142,6 @@ class BehaviorAnalyticsApiIT {
         assertThat(body.get("trend")).isEqualTo("IMPROVING");
         assertThat(body.get("sentimentDelta")).isEqualTo(0.5);
         assertThat(body.get("churnDelta")).isEqualTo(0.2);
+        log.info("user trend response: {}", body);
     }
 }
