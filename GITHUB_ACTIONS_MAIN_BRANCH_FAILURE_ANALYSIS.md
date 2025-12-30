@@ -89,8 +89,9 @@ This happened because during the rebranding, the migration-core module's artifac
 
 ### Additional Files Fixed
 
-8. **ai-infrastructure-module/ai-infrastructure-migration/ai-infrastructure-migration-core/pom.xml**
+8. **ai-infrastructure-module/ai-infrastructure-migration/pom.xml**
    - Changed artifactId: `ai-infrastructure-migration-core` → `ai-fabric-migration-core`
+   - Restructured: Flattened nested module structure (removed ai-infrastructure-migration-core subdirectory)
 
 9. **ai-infrastructure-module/integration-Testing/integration-tests/pom.xml** (additional fix)
    - Changed: `com.ai.fabric:ai-infrastructure-migration-core` → `com.ai.fabric:ai-fabric-migration-core`
