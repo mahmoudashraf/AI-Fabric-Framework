@@ -93,7 +93,7 @@
 
         <!-- Optional ONNX starter to supply bundled model/tokenizer assets -->
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-onnx-starter</artifactId>
             <version>${project.version}</version>
         </dependency>

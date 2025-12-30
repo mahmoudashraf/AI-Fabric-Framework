@@ -19,8 +19,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.ai.infrastructure</groupId>
-            <artifactId>ai-infrastructure-core</artifactId>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-fabric-core</artifactId>
             <version>${project.version}</version>
         </dependency>
 
