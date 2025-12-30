@@ -937,7 +937,7 @@ class AIInfrastructureIntegrationTest {
 | **Core** | [Guide](ai-infrastructure-core/AI_CORE_USER_GUIDE.md) | [README](ai-infrastructure-core/README.md) |
 | **Web** | [Guide](ai-infrastructure-web/AI_WEB_USER_GUIDE.md) | [README](ai-infrastructure-web/README.md) |
 | **Behavior** | [Guide](ai-infrastructure-behavior/user-guides/BEHAVIOR_MODULE_USER_GUIDE.md) | [README](ai-infrastructure-behavior/README.md) |
-| **Migration** | [Guide](ai-infrastructure-migration/ai-infrastructure-migration-core/MIGRATION_MODULE_USER_GUIDE.md) | [README](ai-infrastructure-migration/README.md) |
+| **Migration** | [Guide](ai-infrastructure-migration/MIGRATION_MODULE_USER_GUIDE.md) | [README](ai-infrastructure-migration/README.md) |
 | **Relationship Query** | [Guide](ai-infrastructure-relationship-query/RELATIONSHIP_QUERY_USER_GUIDE.md) | [README](ai-infrastructure-relationship-query/README.md) |
 | **ONNX** | [Guide](providers/ai-infrastructure-onnx-starter/ONNX_MODULE_USER_GUIDE.md) | [README](providers/ai-infrastructure-onnx-starter/README.md) |
 

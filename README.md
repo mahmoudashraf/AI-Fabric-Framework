@@ -1034,7 +1034,7 @@ ai:
 | **Core** | Foundation for everything | [Technical Guide](ai-infrastructure-module/ai-infrastructure-core/AI_CORE_USER_GUIDE.md) | [README](ai-infrastructure-module/ai-infrastructure-core/README.md) |
 | **Web** | 59 REST endpoints | [API Reference](ai-infrastructure-module/ai-infrastructure-web/AI_WEB_USER_GUIDE.md) | [README](ai-infrastructure-module/ai-infrastructure-web/README.md) |
 | **Behavior** | Churn prediction & sentiment | [User Guide](ai-infrastructure-module/ai-infrastructure-behavior/user-guides/BEHAVIOR_MODULE_USER_GUIDE.md) | [README](ai-infrastructure-module/ai-infrastructure-behavior/README.md) |
-| **Migration** | Bulk data indexing | [User Guide](ai-infrastructure-module/ai-infrastructure-migration/ai-infrastructure-migration-core/MIGRATION_MODULE_USER_GUIDE.md) | [README](ai-infrastructure-module/ai-infrastructure-migration/README.md) |
+| **Migration** | Bulk data indexing | [User Guide](ai-infrastructure-module/ai-infrastructure-migration/MIGRATION_MODULE_USER_GUIDE.md) | [README](ai-infrastructure-module/ai-infrastructure-migration/README.md) |
 | **Relationship Query** | Natural language to SQL | [User Guide](ai-infrastructure-module/ai-infrastructure-relationship-query/RELATIONSHIP_QUERY_USER_GUIDE.md) | [README](ai-infrastructure-module/ai-infrastructure-relationship-query/README.md) |
 | **ONNX** | Free local embeddings | [User Guide](ai-infrastructure-module/providers/ai-infrastructure-onnx-starter/ONNX_MODULE_USER_GUIDE.md) | [README](ai-infrastructure-module/providers/ai-infrastructure-onnx-starter/README.md) |
 
