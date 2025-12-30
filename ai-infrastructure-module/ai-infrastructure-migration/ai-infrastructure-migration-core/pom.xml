@@ -12,7 +12,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ai-infrastructure-migration-core</artifactId>
+    <artifactId>ai-fabric-migration-core</artifactId>
     <packaging>jar</packaging>
 
     <name>AI Infrastructure Migration Core</name>

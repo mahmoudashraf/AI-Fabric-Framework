@@ -32,7 +32,7 @@
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-migration-core</artifactId>
+            <artifactId>ai-fabric-migration-core</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

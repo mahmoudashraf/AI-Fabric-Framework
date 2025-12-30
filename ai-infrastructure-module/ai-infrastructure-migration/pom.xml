@@ -21,4 +21,7 @@
     <modules>
         <module>ai-infrastructure-migration-core</module>
     </modules>
+    
+    <!-- Note: The child module directory is named ai-infrastructure-migration-core 
+         but produces artifact ai-fabric-migration-core to match naming convention -->
 </project>
