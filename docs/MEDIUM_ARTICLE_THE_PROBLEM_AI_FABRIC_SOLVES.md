@@ -1,5 +1,25 @@
 # The Problem AI Fabric Framework is Solving
 
+---
+
+## 🚀 Support This Mission
+
+**AI Fabric Framework is under active development** and we need your support to make AI accessible to every developer.
+
+### How You Can Help:
+
+⭐ **[Star us on GitHub](https://github.com/your-org/ai-fabric-framework)** - Show your support and help others discover the project
+
+👀 **[Watch the repository](https://github.com/your-org/ai-fabric-framework)** - Get notified about releases and updates
+
+💼 **[Register interest for Pro License](https://aifabric.dev/register-interest)** - Get early access to enterprise features, priority support, and influence the roadmap
+
+🌐 **[Visit our website](https://aifabric.dev)** - Learn more about the vision and progress
+
+**Every star, watch, and registration helps us understand the demand and prioritize development.** If you've ever struggled with building AI infrastructure, your support means everything.
+
+---
+
 ## A Story That Every Development Team Knows Too Well
 
 It's a Tuesday morning. Your product manager walks into your office with that familiar gleam in their eye — the one that usually means weeks of work ahead.
