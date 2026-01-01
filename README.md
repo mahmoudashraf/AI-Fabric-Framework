@@ -9,6 +9,21 @@
 
 ---
 
+<div align="center">
+
+## 🎁 Get Early Access — Q2 2026 Launch
+
+**Secure your 50% lifetime discount on Pro License**  
+*Limited to first 500 early supporters*
+
+### 👉 **[Register Your Interest](https://ai-fabric.dev/register-interest)** 👈
+
+⭐ [Star us on GitHub](https://github.com/mahmoudashraf/ai-fabric-framework) | 🌐 [Visit Website](https://ai-fabric.dev)
+
+</div>
+
+---
+
 ## 💡 Imagine Your App Could...
 
 - 🔍 **Understand meaning**, not just match keywords — "laptop for developers" finds MacBooks, not laptop bags
@@ -78,38 +93,6 @@ private AISearchService searchService;
 </table>
 
 **From 5 months to 5 minutes. Really.**
-
----
-
-## 🎁 Get Early Access
-
-**AI Fabric Framework is launching in Q2 2026**
-
-### Secure Your Discounted Pro License — Early Supporters Only
-
-Be among the first to experience AI Fabric and get exclusive benefits:
-
-- ✅ **50% off Pro License** for life (early bird pricing)
-- ✅ **Priority support** from the core team
-- ✅ **Beta access** in 2025 before public launch
-- ✅ **Influence the roadmap** — your feedback shapes v1.0
-- ✅ **Exclusive Discord channel** with the development team
-- ✅ **Early documentation** and migration guides
-
-<div align="center">
-
-### 👉 **[Register Your Interest Now](https://ai-fabric.dev/register-interest)** 👈
-
-**Limited to the first 500 registrations**
-
-*Open source version (MIT licensed) will always be free. Pro License adds enterprise features, SLA, and priority support.*
-
----
-
-**Already using AI Fabric in development?**  
-⭐ [Star us on GitHub](https://github.com/mahmoudashraf/ai-fabric-framework) to show your support!
-
-</div>
 
 ---
 
