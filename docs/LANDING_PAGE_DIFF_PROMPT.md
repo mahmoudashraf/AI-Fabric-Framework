@@ -358,7 +358,7 @@ export default function RegistrationForm() {
         </p>
         <div className="mt-8 flex justify-center gap-4">
           <a 
-            href="https://github.com/your-org/ai-fabric-framework"
+            href="https://github.com/mahmoudashraf/ai-fabric-framework"
             className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
             target="_blank"
             rel="noopener noreferrer"
@@ -366,7 +366,7 @@ export default function RegistrationForm() {
             ⭐ Star on GitHub
           </a>
           <a 
-            href="https://aifabric.dev"
+            href="https://ai-fabric.dev"
             className="px-6 py-3 border-2 border-gray-900 text-gray-900 rounded-lg hover:bg-gray-50"
           >
             Visit Website
@@ -655,7 +655,7 @@ AISearchResponse results =
         <h3 className="font-bold mb-4">Documentation</h3>
         <ul className="space-y-2 text-sm text-gray-400">
           <li><a href="#" className="hover:text-white">Getting Started</a></li>
-          <li><a href="https://github.com/your-org/ai-fabric-framework" className="hover:text-white">GitHub</a></li>
+          <li><a href="https://github.com/mahmoudashraf/ai-fabric-framework" className="hover:text-white">GitHub</a></li>
           <li><a href="#" className="hover:text-white">Roadmap</a></li>
           <li><a href="#" className="hover:text-white">Blog</a></li>
         </ul>
@@ -745,15 +745,15 @@ Add to `<head>`:
   <!-- OpenGraph -->
   <meta property="og:title" content="AI Fabric: Stop Building AI Infrastructure" />
   <meta property="og:description" content="Add AI to Spring Boot in 5 minutes instead of 5 months. Open source framework launching Q2 2026." />
-  <meta property="og:image" content="https://aifabric.lovable.app/og-image.png" />
-  <meta property="og:url" content="https://aifabric.lovable.app" />
+  <meta property="og:image" content="https://ai-fabric.dev/og-image.png" />
+  <meta property="og:url" content="https://ai-fabric.dev" />
   <meta property="og:type" content="website" />
   
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="AI Fabric: Spring Boot AI Framework" />
   <meta name="twitter:description" content="5 months → 5 minutes. AI infrastructure for Spring Boot. Launching 2026." />
-  <meta name="twitter:image" content="https://aifabric.lovable.app/twitter-card.png" />
+  <meta name="twitter:image" content="https://ai-fabric.dev/twitter-card.png" />
   
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="/favicon.png" />
@@ -867,7 +867,7 @@ After making changes, test:
 
 ## 📝 QUICK REFERENCE
 
-**Current URL:** https://aifabric.lovable.app/
+**Current URL:** https://ai-fabric.dev/
 
 **Required Sections (In Order):**
 1. Hero with animated code

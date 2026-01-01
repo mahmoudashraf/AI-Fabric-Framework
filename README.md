@@ -98,7 +98,7 @@ Be among the first to experience AI Fabric and get exclusive benefits:
 
 <div align="center">
 
-### 👉 **[Register Your Interest Now](https://aifabric.lovable.app)** 👈
+### 👉 **[Register Your Interest Now](https://ai-fabric.dev/register-interest)** 👈
 
 **Limited to the first 500 registrations**
 

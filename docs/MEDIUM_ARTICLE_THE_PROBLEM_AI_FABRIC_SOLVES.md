@@ -10,13 +10,13 @@
 
 ### How You Can Help:
 
-⭐ **[Star us on GitHub](https://github.com/your-org/ai-fabric-framework)** - Show your support and help others discover the project
+⭐ **[Star us on GitHub](https://github.com/mahmoudashraf/ai-fabric-framework)** - Show your support and help others discover the project
 
-👀 **[Watch the repository](https://github.com/your-org/ai-fabric-framework)** - Get notified about progress toward the 2026 v1.0 release
+👀 **[Watch the repository](https://github.com/mahmoudashraf/ai-fabric-framework)** - Get notified about progress toward the 2026 v1.0 release
 
-💼 **[Register interest for Pro License](https://aifabric.dev/register-interest)** - Get early access when we launch in 2026, priority support, and influence the roadmap
+💼 **[Register interest for Pro License](https://ai-fabric.dev/register-interest)** - Get early access when we launch in 2026, priority support, and influence the roadmap
 
-🌐 **[Visit our website](https://aifabric.dev)** - Track our progress toward the 2026 release
+🌐 **[Visit our website](https://ai-fabric.dev)** - Track our progress toward the 2026 release
 
 📅 **Target Release:** Q2 2026
 
@@ -663,9 +663,9 @@ This is a serious attempt to solve a serious problem that affects thousands of d
 
 Even though launch is in 2026, you can participate today:
 
-🌟 **[Star the repo](https://github.com/your-org/ai-fabric-framework)** - Show support and track progress
+🌟 **[Star the repo](https://github.com/mahmoudashraf/ai-fabric-framework)** - Show support and track progress
 
-📧 **[Register interest](https://aifabric.dev/register-interest)** - Influence roadmap priorities and get early access
+📧 **[Register interest](https://ai-fabric.dev/register-interest)** - Influence roadmap priorities and get early access
 
 💬 **Join discussions** - Share what features matter most to your team
 
@@ -673,9 +673,9 @@ Even though launch is in 2026, you can participate today:
 
 **Want to be there when AI Fabric launches?**
 
-👉 **[Register your interest in AI Fabric](https://aifabric.dev/register-interest)**
+👉 **[Register your interest in AI Fabric](https://ai-fabric.dev/register-interest)**
 
-👉 **[Star AI Fabric on GitHub](https://github.com/your-org/ai-fabric-framework)**
+👉 **[Star AI Fabric on GitHub](https://github.com/mahmoudashraf/ai-fabric-framework)**
 
 ---
 
