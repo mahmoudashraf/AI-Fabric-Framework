@@ -9,6 +9,21 @@
 
 ---
 
+<div align="center">
+
+## 🎁 Get Early Access — Q2 2026 Launch
+
+**Secure your 50% lifetime discount on Pro License**  
+*Limited to first 500 early supporters*
+
+### 👉 **[Register Your Interest](https://ai-fabric.dev/register-interest)** 👈
+
+⭐ [Star us on GitHub](https://github.com/mahmoudashraf/ai-fabric-framework) | 🌐 [Visit Website](https://ai-fabric.dev)
+
+</div>
+
+---
+
 ## 💡 Imagine Your App Could...
 
 - 🔍 **Understand meaning**, not just match keywords — "laptop for developers" finds MacBooks, not laptop bags
