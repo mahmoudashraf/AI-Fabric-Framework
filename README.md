@@ -81,6 +81,38 @@ private AISearchService searchService;
 
 ---
 
+## 🎁 Get Early Access
+
+**AI Fabric Framework is launching in Q2 2026**
+
+### Secure Your Discounted Pro License — Early Supporters Only
+
+Be among the first to experience AI Fabric and get exclusive benefits:
+
+- ✅ **50% off Pro License** for life (early bird pricing)
+- ✅ **Priority support** from the core team
+- ✅ **Beta access** in 2025 before public launch
+- ✅ **Influence the roadmap** — your feedback shapes v1.0
+- ✅ **Exclusive Discord channel** with the development team
+- ✅ **Early documentation** and migration guides
+
+<div align="center">
+
+### 👉 **[Register Your Interest Now](https://aifabric.lovable.app)** 👈
+
+**Limited to the first 500 registrations**
+
+*Open source version (MIT licensed) will always be free. Pro License adds enterprise features, SLA, and priority support.*
+
+---
+
+**Already using AI Fabric in development?**  
+⭐ [Star us on GitHub](https://github.com/mahmoudashraf/ai-fabric-framework) to show your support!
+
+</div>
+
+---
+
 ## 🎭 The Philosophy
 
 ### Why We Built This
