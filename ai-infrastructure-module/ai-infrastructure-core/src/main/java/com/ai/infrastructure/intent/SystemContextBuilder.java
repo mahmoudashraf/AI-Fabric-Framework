@@ -5,6 +5,7 @@ import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.spi.BehaviorContextProvider;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -23,6 +24,7 @@ public class SystemContextBuilder {
     private final Optional<BehaviorContextProvider> behaviorContextProvider;
     private final Clock clock;
 
+    @Autowired
     public SystemContextBuilder(AvailableActionsRegistry availableActionsRegistry,
                                 KnowledgeBaseOverviewService knowledgeBaseOverviewService,
                                 ObjectProvider<BehaviorContextProvider> behaviorContextProvider,
@@ -37,16 +39,15 @@ public class SystemContextBuilder {
     public SystemContextBuilder(AvailableActionsRegistry availableActionsRegistry,
                                 KnowledgeBaseOverviewService knowledgeBaseOverviewService,
                                 ObjectProvider<Clock> clockProvider) {
-        this(availableActionsRegistry, knowledgeBaseOverviewService, new ObjectProvider<BehaviorContextProvider>() {
-            @Override
-            public BehaviorContextProvider getObject(Object... args) { return null; }
-            @Override
-            public BehaviorContextProvider getObject() { return null; }
-            @Override
-            public BehaviorContextProvider getIfAvailable() { return null; }
-            @Override
-            public BehaviorContextProvider getIfUnique() { return null; }
-        }, clockProvider);
+        this(availableActionsRegistry, knowledgeBaseOverviewService,
+            new ObjectProvider<BehaviorContextProvider>() {
+                @Override public BehaviorContextProvider getObject(Object... args) { return null; }
+                @Override public BehaviorContextProvider getObject() { return null; }
+                @Override public BehaviorContextProvider getIfAvailable() { return null; }
+                @Override public BehaviorContextProvider getIfUnique() { return null; }
+            },
+            clockProvider
+        );
     }
 
     public SystemContext buildContext(OrchestrationContext orchestrationContext) {
