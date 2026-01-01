@@ -11,7 +11,7 @@
 
 <div align="center">
 
-## 🎁 Get Early Access — Q2 2026 Launch
+## 🎁 Get Early Access — Q1 2026 Launch
 
 **Secure your 50% lifetime discount on Pro License**  
 *Limited to first 500 early supporters*
