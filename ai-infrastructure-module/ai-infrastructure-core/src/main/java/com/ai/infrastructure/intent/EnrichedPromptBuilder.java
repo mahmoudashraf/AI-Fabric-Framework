@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.intent.action.ActionInfo;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,14 +19,15 @@ public class EnrichedPromptBuilder {
 
     private final SystemContextBuilder systemContextBuilder;
 
-    public String buildSystemPrompt(String userId) {
-        SystemContext context = systemContextBuilder.buildContext(userId);
+    public String buildSystemPrompt(OrchestrationContext contextInput) {
+        SystemContext context = systemContextBuilder.buildContext(contextInput);
 
         StringBuilder prompt = new StringBuilder(1024);
         prompt.append("You are the intent extraction engine powering our Retrieval-Augmented Generation (RAG) assistant.\n");
         prompt.append("Analyse the user message and respond with a JSON payload that follows the schema provided below.\n");
         prompt.append("Use one call to capture intent, generation need, and optimized query (no extra services).\n\n");
 
+        appendBehaviorContext(prompt, context);
         appendAvailableActions(prompt, context);
         appendKnowledgeBaseSummary(prompt, context);
         appendExtractionRules(prompt);
@@ -33,6 +35,20 @@ public class EnrichedPromptBuilder {
         appendOutputFormat(prompt);
 
         return prompt.toString();
+    }
+
+    @Deprecated(forRemoval = true)
+    public String buildSystemPrompt(String userId) {
+        return buildSystemPrompt(OrchestrationContext.forUser(userId));
+    }
+
+    private void appendBehaviorContext(StringBuilder prompt, SystemContext context) {
+        if (!context.hasBehaviorContext()) {
+            return;
+        }
+        prompt.append("## USER BEHAVIOR CONTEXT\n");
+        prompt.append(context.getBehaviorContext().toPromptString());
+        prompt.append("\nUse this context to tailor tone and recommendations (be empathetic for frustrated users, proactive for at-risk users).\n\n");
     }
 
     private void appendAvailableActions(StringBuilder prompt, SystemContext context) {

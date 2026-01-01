@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -41,12 +42,15 @@ public class IntentQueryExtractor {
             .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
     }
 
-    public MultiIntentResponse extract(String query, String userId) {
+    public MultiIntentResponse extract(String query, OrchestrationContext context) {
         if (!StringUtils.hasText(query)) {
             throw new AIServiceException("Query cannot be blank when extracting intents");
         }
 
-        String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(userId);
+        OrchestrationContext safeContext = context != null ? context : OrchestrationContext.anonymous();
+        safeContext.validate();
+
+        String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(safeContext);
         
         String userPrompt = "analyze the following request from a user and extract the user intents from it in the provided format in system prompt\n\n-----------\n\nUser's question is :( " + query +")";
 
@@ -56,7 +60,7 @@ public class IntentQueryExtractor {
             .generationType("intent_extraction")
             .systemPrompt(systemPrompt)
             .prompt(userPrompt)
-            .userId(userId)
+            .userId(safeContext.getUserId())
             .build();
 
         AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest);
@@ -71,7 +75,7 @@ public class IntentQueryExtractor {
             response = parseResponse(sanitized);
         } catch (AIServiceException parseException) {
             log.warn("Primary intent extraction parsing failed, attempting JSON repair.", parseException);
-            response = attemptRepair(userId, generationRequest, sanitized, parseException);
+            response = attemptRepair(safeContext.getUserId(), generationRequest, sanitized, parseException);
         }
 
         response.normalize();
@@ -200,6 +204,11 @@ public class IntentQueryExtractor {
             return "RETRIEVE_AND_GENERATE";
         }
         return "ADMIT_UNKNOWN";
+    }
+
+    @Deprecated(forRemoval = true)
+    public MultiIntentResponse extract(String query, String userId) {
+        return extract(query, OrchestrationContext.forUser(userId));
     }
 
     private String stripCodeFences(String content) {

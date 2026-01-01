@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,7 +31,7 @@ class IntentQueryExtractorTest {
 
     @Test
     void shouldParseJsonResponseIntoMultiIntentResponse() {
-        when(enrichedPromptBuilder.buildSystemPrompt("user-123")).thenReturn("system-prompt");
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
 
         String json = """
             {
@@ -53,7 +55,7 @@ class IntentQueryExtractorTest {
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
-        MultiIntentResponse response = extractor.extract("Cancel my subscription", "user-123");
+        MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
 
         assertThat(response.getIntents()).hasSize(1);
         Intent intent = response.getIntents().getFirst();
@@ -64,7 +66,7 @@ class IntentQueryExtractorTest {
 
     @Test
     void shouldParseInformationIntentAndMarkRetrieval() {
-        when(enrichedPromptBuilder.buildSystemPrompt("user-456")).thenReturn("system-prompt");
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
 
         String json = """
             {
@@ -88,7 +90,7 @@ class IntentQueryExtractorTest {
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
-        MultiIntentResponse response = extractor.extract("What is your refund policy?", "user-456");
+        MultiIntentResponse response = extractor.extract("What is your refund policy?", OrchestrationContext.forUser("user-456"));
 
         assertThat(response.getIntents()).hasSize(1);
         Intent intent = response.getIntents().getFirst();
@@ -101,7 +103,7 @@ class IntentQueryExtractorTest {
 
     @Test
     void shouldParseOutOfScopeIntent() {
-        when(enrichedPromptBuilder.buildSystemPrompt("user-789")).thenReturn("system-prompt");
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
 
         String json = """
             {
@@ -123,7 +125,7 @@ class IntentQueryExtractorTest {
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
-        MultiIntentResponse response = extractor.extract("Build me a spaceship", "user-789");
+        MultiIntentResponse response = extractor.extract("Build me a spaceship", OrchestrationContext.forUser("user-789"));
 
         assertThat(response.getIntents()).hasSize(1);
         Intent intent = response.getIntents().getFirst();
@@ -134,7 +136,7 @@ class IntentQueryExtractorTest {
 
     @Test
     void shouldParseNextStepRecommendation() {
-        when(enrichedPromptBuilder.buildSystemPrompt("user-321")).thenReturn("system-prompt");
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
 
         String json = """
             {
@@ -161,7 +163,7 @@ class IntentQueryExtractorTest {
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
-        MultiIntentResponse response = extractor.extract("Update my payment details", "user-321");
+        MultiIntentResponse response = extractor.extract("Update my payment details", OrchestrationContext.forUser("user-321"));
 
         Intent intent = response.getIntents().getFirst();
         assertThat(intent.getNextStepRecommended()).isNotNull();
@@ -173,14 +175,14 @@ class IntentQueryExtractorTest {
     void shouldRejectBlankQuery() {
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
-        assertThatThrownBy(() -> extractor.extract("   ", "user-123"))
+        assertThatThrownBy(() -> extractor.extract("   ", OrchestrationContext.forUser("user-123")))
             .isInstanceOf(AIServiceException.class)
             .hasMessageContaining("Query cannot be blank");
     }
 
     @Test
     void shouldRaiseExceptionWhenJsonInvalid() {
-        when(enrichedPromptBuilder.buildSystemPrompt("user-123")).thenReturn("system-prompt");
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
         // Mock initial call returning invalid JSON
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
             req != null && req.getGenerationType().equals("intent_extraction"))))
@@ -192,14 +194,14 @@ class IntentQueryExtractorTest {
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
-        assertThatThrownBy(() -> extractor.extract("Cancel my subscription", "user-123"))
+        assertThatThrownBy(() -> extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123")))
             .isInstanceOf(AIServiceException.class)
             .hasMessageContaining("Unable to parse intent extraction response");
     }
 
     @Test
     void shouldRepairInvalidJsonAndReturnValidResponse() {
-        when(enrichedPromptBuilder.buildSystemPrompt("user-123")).thenReturn("system-prompt");
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
         // Mock initial call returning invalid JSON
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
             req != null && req.getGenerationType().equals("intent_extraction"))))
@@ -225,7 +227,7 @@ class IntentQueryExtractorTest {
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
-        MultiIntentResponse response = extractor.extract("Cancel my subscription", "user-123");
+        MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
 
         assertThat(response.getIntents()).hasSize(1);
         assertThat(response.getIntents().getFirst().getIntent()).isEqualTo("cancel_subscription");
