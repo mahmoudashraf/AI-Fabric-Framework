@@ -13,7 +13,7 @@
 
 ## 🎁 Get Early Access — Q1 2026 Launch
 
-**Secure your 50% lifetime discount on Pro License**  
+**Secure your 50% lifetime discount on Pro Developer License**  
 *Limited to first 500 early supporters*
 
 ### 👉 **[Register Your Interest](https://ai-fabric.dev/#register)** 👈
