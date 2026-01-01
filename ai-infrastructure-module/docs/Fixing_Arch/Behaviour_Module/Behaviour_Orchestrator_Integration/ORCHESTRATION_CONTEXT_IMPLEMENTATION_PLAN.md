@@ -346,7 +346,9 @@ public class RAGOrchestrator {
         AISecurityResponse securityResponse = securityService.analyzeRequest(
             AISecurityRequest.builder()
                 .requestId(requestId)
-                .userId(identifier)
+                // Pass explicit userId (may be null) and sessionId; do not overload userId
+                .userId(context.getUserId())
+                .sessionId(context.getSessionId())
                 .content(query)
                 .operationType("INTENT_QUERY")
                 .timestamp(requestTimestamp)
@@ -362,7 +364,9 @@ public class RAGOrchestrator {
         AIAccessControlResponse accessResponse = accessControlService.checkAccess(
             AIAccessControlRequest.builder()
                 .requestId(requestId)
-                .userId(identifier)
+                // Pass both identifiers; providers can enforce their own rules
+                .userId(context.getUserId())
+                .sessionId(context.getSessionId())
                 .resourceId("rag:intent")
                 .operationType("READ")
                 .context(query)
@@ -444,6 +448,7 @@ public class RAGOrchestrator {
     private Map<String, Object> buildSecurityMetadata(OrchestrationContext context) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("authenticated", context.isAuthenticated());
+        metadata.put("sessionId", context.getSessionId());
         if (context.getIpAddress() != null) {
             metadata.put("ipAddress", context.getIpAddress());
         }
@@ -489,6 +494,16 @@ public class RAGOrchestrator {
     }
     
     private OrchestrationResult handleAction(Intent intent, OrchestrationContext context) {
+        // Guardrail: block action intents for anonymous users
+        if (context.isAnonymous()) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ACTION_DENIED)
+                .success(false)
+                .message("Action not permitted for anonymous users.")
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
         String actionName = StringUtils.hasText(intent.getAction()) 
             ? intent.getAction() 
             : intent.getIntent();
@@ -1133,8 +1148,8 @@ public class BehaviorContextProviderImpl implements BehaviorContextProvider {
             return Optional.empty();
         }
         
+        String userId = context.getUserId(); // Opaque string; do not enforce UUID
         try {
-            UUID userId = UUID.fromString(context.getUserId());
             Optional<BehaviorInsights> insights = storageAdapter.findByUserId(userId);
             
             if (insights.isEmpty()) {
@@ -1159,9 +1174,6 @@ public class BehaviorContextProviderImpl implements BehaviorContextProvider {
             
             return Optional.of(behaviorContext);
             
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid userId format: {}", context.getUserId());
-            return Optional.empty();
         } catch (Exception e) {
             log.error("Error fetching behavior context for user: {}", context.getUserId(), e);
             return Optional.empty();
@@ -1179,7 +1191,7 @@ public class BehaviorContextProviderImpl implements BehaviorContextProvider {
     
     private BehaviorContext toBehaviorContext(BehaviorInsights insights) {
         return BehaviorContext.builder()
-            .userId(insights.getUserId().toString())
+            .userId(insights.getUserId()) // Already a string in storage
             .segment(insights.getSegment())
             .sentimentLabel(insights.getSentimentLabel() != null 
                 ? insights.getSentimentLabel().name() 
@@ -1488,7 +1500,7 @@ NO CIRCULAR DEPENDENCY! ✅
 ### How It Works
 
 1. **Core defines the contract** (interface + DTO):
-   - `BehaviorContextProvider` (interface)
+   - `BehaviorContextProvider` (interface) — accepts arbitrary string `userId` (UUID not required)
    - `BehaviorContext` (DTO with no behavior module dependencies)
 
 2. **Behavior implements the contract**:
