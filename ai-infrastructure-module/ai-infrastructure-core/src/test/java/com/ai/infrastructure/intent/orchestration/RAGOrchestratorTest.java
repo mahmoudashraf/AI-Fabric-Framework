@@ -23,6 +23,7 @@ import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.dto.AIComplianceResponse;
 import com.ai.infrastructure.dto.AISecurityResponse;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -141,7 +142,7 @@ class RAGOrchestratorTest {
         when(actionHandler.executeAction(intent.getActionParams(), "user-1"))
             .thenReturn(ActionResult.builder().success(true).message("Cancelled").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Cancel my plan", "user-1");
+        OrchestrationResult result = orchestrator.orchestrate("Cancel my plan", OrchestrationContext.forUser("user-1"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
@@ -161,7 +162,7 @@ class RAGOrchestratorTest {
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("unknown_action")).thenReturn(Optional.empty());
 
-        OrchestrationResult result = orchestrator.orchestrate("Do something", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Do something", OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
         assertThat(result.isSuccess()).isFalse();
@@ -178,7 +179,7 @@ class RAGOrchestratorTest {
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed("user")).thenReturn(false);
 
-        OrchestrationResult result = orchestrator.orchestrate("Cancel", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Cancel", OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_DENIED);
         assertThat(result.isSuccess()).isFalse();
@@ -200,7 +201,7 @@ class RAGOrchestratorTest {
         when(actionHandler.handleError(any(), eq("user")))
             .thenReturn(ActionResult.builder().success(false).message("boom").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Cancel", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Cancel", OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
         assertThat(result.getMessage()).isEqualTo("boom");
@@ -222,7 +223,7 @@ class RAGOrchestratorTest {
             .build();
         when(ragService.performRag(any(RAGRequest.class))).thenReturn(ragResponse);
 
-        OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", "user");
+        OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Refunds take 5-7 days.");
@@ -250,7 +251,7 @@ class RAGOrchestratorTest {
             .build();
         when(ragService.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
 
-        OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Here are top picks.");
@@ -270,7 +271,7 @@ class RAGOrchestratorTest {
         when(intentQueryExtractor.extract(any(), any()))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Build me a spaceship", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Build me a spaceship", OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
         assertThat(result.isSuccess()).isTrue();
@@ -300,7 +301,7 @@ class RAGOrchestratorTest {
             .thenReturn(ActionResult.builder().success(true).message("Cancelled").build());
         lenient().when(ragService.performRag(any())).thenReturn(RAGResponse.builder().response("info").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
         assertThat(result.getChildren()).hasSize(2);
@@ -330,7 +331,7 @@ class RAGOrchestratorTest {
             .documents(List.of())
             .build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", OrchestrationContext.forUser("user"));
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion())
@@ -363,7 +364,7 @@ class RAGOrchestratorTest {
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Updated").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", OrchestrationContext.forUser("user"));
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion()).isEmpty();
@@ -394,7 +395,7 @@ class RAGOrchestratorTest {
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Updated").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", OrchestrationContext.forUser("user"));
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion()).isEmpty();

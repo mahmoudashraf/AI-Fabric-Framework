@@ -90,7 +90,7 @@ class RAGOrchestratorLiveHandlersTest {
         when(intentQueryExtractor.extract(eq("Clear index"), any()))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Clear index", "test-user");
+        OrchestrationResult result = orchestrator.orchestrate("Clear index", OrchestrationContext.forUser("test-user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
@@ -125,7 +125,7 @@ class RAGOrchestratorLiveHandlersTest {
         when(intentQueryExtractor.extract(eq("Remove vector"), any()))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Remove vector", "test-user");
+        OrchestrationResult result = orchestrator.orchestrate("Remove vector", OrchestrationContext.forUser("test-user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();

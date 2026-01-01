@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.intent.action.ActionInfo;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,8 +19,8 @@ public class EnrichedPromptBuilder {
 
     private final SystemContextBuilder systemContextBuilder;
 
-    public String buildSystemPrompt(String userId) {
-        SystemContext context = systemContextBuilder.buildContext(userId);
+    public String buildSystemPrompt(OrchestrationContext orchestrationContext) {
+        SystemContext context = systemContextBuilder.buildContext(orchestrationContext);
 
         StringBuilder prompt = new StringBuilder(1024);
         prompt.append("You are the intent extraction engine powering our Retrieval-Augmented Generation (RAG) assistant.\n");

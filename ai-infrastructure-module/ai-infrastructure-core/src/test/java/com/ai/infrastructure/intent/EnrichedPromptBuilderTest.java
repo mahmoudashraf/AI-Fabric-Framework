@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.intent.action.ActionInfo;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
@@ -46,7 +47,7 @@ class EnrichedPromptBuilderTest {
 
         EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(contextBuilder);
 
-        String prompt = promptBuilder.buildSystemPrompt("user-123");
+        String prompt = promptBuilder.buildSystemPrompt(OrchestrationContext.forUser("user-123"));
 
         assertThat(prompt)
             .contains("AVAILABLE ACTIONS")

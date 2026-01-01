@@ -93,7 +93,7 @@ private void appendOutputFormat(StringBuilder prompt) {
 2. RAGOrchestrator calls: IntentQueryExtractor.extract(query, userId)
    ↓
 3. IntentQueryExtractor builds system prompt
-   ├─ Calls: EnrichedPromptBuilder.buildSystemPrompt(userId)
+   ├─ Calls: EnrichedPromptBuilder.buildSystemPrompt(context) // context carries userId only when authenticated
    └─ Gets prompt with:
       ✅ Rule #6 about requiresGeneration
       ✅ JSON schema including requiresGeneration

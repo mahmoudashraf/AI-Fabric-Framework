@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.intent.action.ActionInfo;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
@@ -39,11 +40,12 @@ class SystemContextBuilderTest {
 
         SystemContextBuilder builder = new SystemContextBuilder(registry, overviewService, clockProvider);
 
-        SystemContext context = builder.buildContext("user-123");
+        SystemContext context = builder.buildContext(OrchestrationContext.forUser("user-123"));
 
         assertThat(context.getAvailableActions()).hasSize(1);
         assertThat(context.getKnowledgeBaseOverview().getTotalIndexedDocuments()).isEqualTo(42);
         assertThat(context.getUserId()).isEqualTo("user-123");
+        assertThat(context.isAuthenticated()).isTrue();
         assertThat(context.getTimestamp()).isEqualTo(LocalDateTime.of(2025, 1, 1, 10, 15, 30));
     }
 }

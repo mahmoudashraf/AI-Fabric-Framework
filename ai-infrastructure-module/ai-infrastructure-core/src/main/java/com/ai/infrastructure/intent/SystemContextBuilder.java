@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.intent.action.ActionInfo;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,26 @@ public class SystemContextBuilder {
         this.clock = clockProvider.getIfAvailable(Clock::systemUTC);
     }
 
+    public SystemContext buildContext(OrchestrationContext orchestrationContext) {
+        List<ActionInfo> actions = availableActionsRegistry.getAllAvailableActions();
+        KnowledgeBaseOverview overview = knowledgeBaseOverviewService.getOverview();
+
+        return SystemContext.builder()
+            .availableActions(actions)
+            .knowledgeBaseOverview(overview)
+            .userId(orchestrationContext.getUserId())
+            .sessionId(orchestrationContext.getSessionId())
+            .authenticated(orchestrationContext.isAuthenticated())
+            .locale(orchestrationContext.getLocale())
+            .metadata(orchestrationContext.getMetadata())
+            .timestamp(LocalDateTime.now(clock))
+            .build();
+    }
+
+    /**
+     * @deprecated use {@link #buildContext(OrchestrationContext)}
+     */
+    @Deprecated(since = "2.0", forRemoval = true)
     public SystemContext buildContext(String userId) {
         List<ActionInfo> actions = availableActionsRegistry.getAllAvailableActions();
         KnowledgeBaseOverview overview = knowledgeBaseOverviewService.getOverview();

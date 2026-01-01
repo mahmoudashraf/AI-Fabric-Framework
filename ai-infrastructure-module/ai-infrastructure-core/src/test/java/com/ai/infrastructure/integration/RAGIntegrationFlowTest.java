@@ -13,6 +13,7 @@ import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.rag.RAGService;
@@ -121,7 +122,7 @@ class RAGIntegrationFlowTest {
 
         vectorDatabaseService.storeVector("doc", "123", "content", List.of(0.1, 0.2), Map.of());
 
-        OrchestrationResult result = orchestrator.orchestrate(ACTION_QUERY, "user-action");
+        OrchestrationResult result = orchestrator.orchestrate(ACTION_QUERY, OrchestrationContext.forUser("user-action"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
@@ -155,7 +156,7 @@ class RAGIntegrationFlowTest {
             .success(true)
             .build()).when(ragService).performRag(any(RAGRequest.class));
 
-        OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, "user-info");
+        OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, OrchestrationContext.forUser("user-info"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getSanitizedPayload()).isNotEmpty();
@@ -189,7 +190,7 @@ class RAGIntegrationFlowTest {
         doReturn(RAGResponse.builder().response("Here are current offers.").build())
             .when(ragService).performRag(any(RAGRequest.class));
 
-        OrchestrationResult result = orchestrator.orchestrate(COMPOUND_QUERY, "user-compound");
+        OrchestrationResult result = orchestrator.orchestrate(COMPOUND_QUERY, OrchestrationContext.forUser("user-compound"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
         assertRecordedHistory("user-compound", 1);
@@ -211,7 +212,7 @@ class RAGIntegrationFlowTest {
                     .build()))
                 .build());
 
-        OrchestrationResult result = orchestrator.orchestrate(OOS_QUERY, "user-oos");
+        OrchestrationResult result = orchestrator.orchestrate(OOS_QUERY, OrchestrationContext.forUser("user-oos"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
         assertRecordedHistory("user-oos", 1);

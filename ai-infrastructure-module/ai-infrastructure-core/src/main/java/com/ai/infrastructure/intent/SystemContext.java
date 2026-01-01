@@ -9,7 +9,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Bundles the contextual information passed to the intent extraction prompt.
@@ -29,6 +31,14 @@ public class SystemContext {
 
     private String userId;
 
+    private String sessionId;
+
+    private Boolean authenticated;
+
+    private Locale locale;
+
+    private Map<String, Object> metadata;
+
     private LocalDateTime timestamp;
 
     public void setAvailableActions(List<ActionInfo> availableActions) {
@@ -37,5 +47,13 @@ public class SystemContext {
 
     public void setKnowledgeBaseOverview(KnowledgeBaseOverview knowledgeBaseOverview) {
         this.knowledgeBaseOverview = knowledgeBaseOverview;
+    }
+
+    public boolean isAuthenticated() {
+        return Boolean.TRUE.equals(authenticated);
+    }
+
+    public String getIdentifier() {
+        return isAuthenticated() ? userId : sessionId;
     }
 }

@@ -317,6 +317,8 @@ class OrchestrationContextTest {
 1. **Add new method with OrchestrationContext**
 2. **Keep old method temporarily** (deprecate it)
 3. **Update internal logic to use context**
+4. **Block anonymous ACTION intents (require authenticated user)**
+5. **Never send sessionId to LLM/providers (userId only when authenticated)**
 
 ```java
 @Service

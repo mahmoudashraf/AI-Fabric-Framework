@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -41,13 +42,17 @@ public class IntentQueryExtractor {
             .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
     }
 
-    public MultiIntentResponse extract(String query, String userId) {
+    public MultiIntentResponse extract(String query, OrchestrationContext context) {
         if (!StringUtils.hasText(query)) {
             throw new AIServiceException("Query cannot be blank when extracting intents");
         }
+        if (context == null) {
+            throw new AIServiceException("OrchestrationContext cannot be null");
+        }
 
-        String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(userId);
-        
+        String userForLlm = context.isAuthenticated() ? context.getUserId() : null;
+        String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(context);
+
         String userPrompt = "analyze the following request from a user and extract the user intents from it in the provided format in system prompt\n\n-----------\n\nUser's question is :( " + query +")";
 
         AIGenerationRequest generationRequest = AIGenerationRequest.builder()
@@ -56,7 +61,7 @@ public class IntentQueryExtractor {
             .generationType("intent_extraction")
             .systemPrompt(systemPrompt)
             .prompt(userPrompt)
-            .userId(userId)
+            .userId(userForLlm) // never send sessionId to provider
             .build();
 
         AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest);
@@ -71,7 +76,7 @@ public class IntentQueryExtractor {
             response = parseResponse(sanitized);
         } catch (AIServiceException parseException) {
             log.warn("Primary intent extraction parsing failed, attempting JSON repair.", parseException);
-            response = attemptRepair(userId, generationRequest, sanitized, parseException);
+            response = attemptRepair(userForLlm, generationRequest, sanitized, parseException);
         }
 
         response.normalize();
@@ -80,6 +85,14 @@ public class IntentQueryExtractor {
             log.warn("Intent extractor returned no intents for query '{}'", query);
         }
         return response;
+    }
+
+    /**
+     * @deprecated use {@link #extract(String, OrchestrationContext)}
+     */
+    @Deprecated(since = "2.0", forRemoval = true)
+    public MultiIntentResponse extract(String query, String userId) {
+        return extract(query, OrchestrationContext.forUser(userId));
     }
 
     private MultiIntentResponse parseResponse(String rawJson) {
