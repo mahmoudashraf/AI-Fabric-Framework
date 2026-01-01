@@ -465,19 +465,22 @@ public class RAGOrchestrator {
 
         try {
             // Use vectorSpace from the recommendation if provided, allowing the LLM to specify which KB section to search
+            Map<String, Object> suggestionMetadata = new LinkedHashMap<>();
+            suggestionMetadata.put("source", "smart-suggestion");
+            suggestionMetadata.put("suggestionIntent", candidate.getIntent());
+            suggestionMetadata.put("suggestionConfidence", candidate.getConfidence());
+            suggestionMetadata.put("vectorSpace", candidate.getVectorSpace() != null ? candidate.getVectorSpace() : "unspecified");
+            suggestionMetadata.put("userId", context.getIdentifier());
+            if (context.getSessionId() != null) {
+                suggestionMetadata.put("sessionId", context.getSessionId());
+            }
+
             RAGRequest ragRequest = RAGRequest.builder()
                 .query(query)
                 .entityType(candidate.getVectorSpace())  // Use LLM-provided vectorSpace for precise KB targeting
                 .limit(smartSuggestionsProperties.getRetrievalLimit())
                 .threshold(smartSuggestionsProperties.getRetrievalThreshold())
-                .metadata(Map.of(
-                    "source", "smart-suggestion",
-                    "suggestionIntent", candidate.getIntent(),
-                    "suggestionConfidence", candidate.getConfidence(),
-                    "vectorSpace", candidate.getVectorSpace() != null ? candidate.getVectorSpace() : "unspecified",
-                    "userId", context.getIdentifier(),
-                    "sessionId", context.getSessionId()
-                ))
+                .metadata(Collections.unmodifiableMap(suggestionMetadata))
                 .userId(context.getIdentifier())
                 .build();
 
@@ -503,7 +506,7 @@ public class RAGOrchestrator {
             result.setSmartSuggestion(Collections.unmodifiableMap(suggestion));
             result.withAdditionalData(Map.of("smartSuggestion", suggestion));
         } catch (Exception ex) {
-            log.warn("Failed to generate smart suggestion for intent {}: {}", candidate.getIntent(), ex.getMessage());
+            log.warn("Failed to generate smart suggestion for intent {}: {}", candidate.getIntent(), ex.getMessage(), ex);
         }
     }
 
