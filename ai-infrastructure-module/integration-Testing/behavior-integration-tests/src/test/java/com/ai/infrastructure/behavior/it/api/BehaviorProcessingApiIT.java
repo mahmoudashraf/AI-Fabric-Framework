@@ -57,7 +57,7 @@ class BehaviorProcessingApiIT {
 
     @Test
     void analyzeUser_returnsInsight() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         BehaviorInsights saved = repository.save(BehaviorInsights.builder()
             .userId(userId)
             .segment("Existing")
@@ -84,7 +84,7 @@ class BehaviorProcessingApiIT {
         properties.setApiMaxBatchSize(1);
         // Seed one pending user to be processed by processNextUser (the service will return null afterwards)
         repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("test-user-" + java.util.UUID.randomUUID().toString())
             .segment("Pending")
             .analyzedAt(LocalDateTime.now())
             .build());

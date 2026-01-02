@@ -50,7 +50,7 @@ class BehaviorAnalysisServiceTest {
 
     @Test
     void analyzeUser_returnsExistingWhenNoEvents() {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-12345";
         BehaviorInsights existing = BehaviorInsights.builder()
             .id(UUID.randomUUID())
             .userId(userId)
@@ -69,7 +69,7 @@ class BehaviorAnalysisServiceTest {
 
     @Test
     void analyzeUser_processesEventsAndSaves() {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-67890";
         List<ExternalEvent> events = List.of(
             ExternalEvent.builder()
                 .eventType("purchase")
@@ -101,7 +101,7 @@ class BehaviorAnalysisServiceTest {
 
     @Test
     void processNextUser_usesContextAndSaves() {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-abc123";
         UserEventBatch batch = UserEventBatch.builder()
             .userId(userId)
             .events(List.of(
@@ -138,7 +138,7 @@ class BehaviorAnalysisServiceTest {
 
     @Test
     void clampsAndDefaultsInvalidSentimentAndChurn() {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-xyz789";
         when(eventProvider.getEventsForUser(userId, null, null)).thenReturn(
             List.of(ExternalEvent.builder().eventType("test").build())
         );
@@ -170,7 +170,7 @@ class BehaviorAnalysisServiceTest {
 
     @Test
     void fallsBackGracefullyOnMalformedLLMResponse() {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-malformed";
         when(eventProvider.getEventsForUser(userId, null, null)).thenReturn(
             List.of(ExternalEvent.builder().eventType("purchase").build())
         );
@@ -192,7 +192,7 @@ class BehaviorAnalysisServiceTest {
 
     @Test
     void recomputesTrendFromDeltasWhenStableReturned() {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-trend-test";
         BehaviorInsights existing = BehaviorInsights.builder()
             .id(UUID.randomUUID())
             .userId(userId)
@@ -238,7 +238,7 @@ class BehaviorAnalysisServiceTest {
 
     @Test
     void carriesForwardPreviousValuesWhenNewInsightCreated() {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-carry-forward";
         BehaviorInsights existing = BehaviorInsights.builder()
             .id(UUID.randomUUID())
             .userId(userId)

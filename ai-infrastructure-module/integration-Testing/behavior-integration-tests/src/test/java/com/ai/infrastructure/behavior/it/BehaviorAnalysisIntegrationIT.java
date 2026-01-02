@@ -62,7 +62,7 @@ class BehaviorAnalysisIntegrationIT {
 
     @Test
     void targetedAnalysis_updatesExistingInsight() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         BehaviorInsights existing = repository.save(
             BehaviorInsights.builder()
                 .userId(userId)
@@ -100,7 +100,7 @@ class BehaviorAnalysisIntegrationIT {
 
     @Test
     void batchProcessing_usesUserContext() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         eventProvider.setNextBatch(
             userId,
             List.of(
@@ -131,7 +131,7 @@ class BehaviorAnalysisIntegrationIT {
 
     @Test
     void malformedJsonFallsBackToExtractor() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         eventProvider.setTargetedEvents(List.of(
             ExternalEvent.builder()
                 .eventType("page_view")
@@ -158,7 +158,7 @@ class BehaviorAnalysisIntegrationIT {
 
     @Test
     void targetedAnalysis_populatesSentimentChurnAndTrend() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         eventProvider.setTargetedEvents(List.of(
             ExternalEvent.builder()
                 .eventType("upgrade")
@@ -199,7 +199,7 @@ class BehaviorAnalysisIntegrationIT {
 
     @Test
     void trendRecomputedFromDeltasWhenStableReturned() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         BehaviorInsights existing = repository.save(
             BehaviorInsights.builder()
                 .userId(userId)

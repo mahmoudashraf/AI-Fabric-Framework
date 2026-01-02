@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
@@ -19,7 +18,7 @@ public class TestEventProvider implements ExternalEventProvider {
     private final AtomicReference<UserEventBatch> nextBatch = new AtomicReference<>(null);
 
     @Override
-    public List<ExternalEvent> getEventsForUser(UUID userId, LocalDateTime since, LocalDateTime until) {
+    public List<ExternalEvent> getEventsForUser(String userId, LocalDateTime since, LocalDateTime until) {
         return targetedEvents.get();
     }
 
@@ -32,7 +31,7 @@ public class TestEventProvider implements ExternalEventProvider {
         targetedEvents.set(events);
     }
 
-    public void setNextBatch(UUID userId, List<ExternalEvent> events, Map<String, Object> userContext) {
+    public void setNextBatch(String userId, List<ExternalEvent> events, Map<String, Object> userContext) {
         nextBatch.set(UserEventBatch.builder()
             .userId(userId)
             .events(events)

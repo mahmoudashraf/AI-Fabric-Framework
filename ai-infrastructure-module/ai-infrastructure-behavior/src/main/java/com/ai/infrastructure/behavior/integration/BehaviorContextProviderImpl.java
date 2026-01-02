@@ -10,15 +10,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Bridges behavior insights into the SPI contract without coupling core to behavior.
- * Accepts arbitrary string userIds; UUIDs are optional.
+ * Accepts arbitrary string userIds for maximum flexibility.
  */
 @Slf4j
 @Component
@@ -36,28 +34,27 @@ public class BehaviorContextProviderImpl implements BehaviorContextProvider {
             return Optional.empty();
         }
 
-        String rawUserId = context.getUserId();
-        UUID lookupId = toLookupId(rawUserId);
+        String userId = context.getUserId();
 
         try {
-            Optional<BehaviorInsights> insights = storageAdapter.findByUserId(lookupId);
+            Optional<BehaviorInsights> insights = storageAdapter.findByUserId(userId);
             if (insights.isEmpty()) {
-                log.debug("No behavior insights found for userId={}", rawUserId);
+                log.debug("No behavior insights found for userId={}", userId);
                 return Optional.empty();
             }
 
             BehaviorInsights insight = insights.get();
             if (isStale(insight)) {
-                log.info("Behavior insights stale for userId={} (updatedAt={})", rawUserId, insight.getUpdatedAt());
+                log.info("Behavior insights stale for userId={} (updatedAt={})", userId, insight.getUpdatedAt());
                 return Optional.empty();
             }
 
-            BehaviorContext behaviorContext = toBehaviorContext(insight, rawUserId, context.getSessionId());
+            BehaviorContext behaviorContext = toBehaviorContext(insight, userId, context.getSessionId());
             log.debug("Behavior context loaded for userId={} segment={} sentiment={}",
-                rawUserId, behaviorContext.getSegment(), behaviorContext.getSentimentLabel());
+                userId, behaviorContext.getSegment(), behaviorContext.getSentimentLabel());
             return Optional.of(behaviorContext);
         } catch (Exception ex) {
-            log.error("Failed to fetch behavior context for userId={}", rawUserId, ex);
+            log.error("Failed to fetch behavior context for userId={}", userId, ex);
             return Optional.empty();
         }
     }
@@ -71,9 +68,9 @@ public class BehaviorContextProviderImpl implements BehaviorContextProvider {
         return age.compareTo(MAX_INSIGHT_AGE) > 0;
     }
 
-    private BehaviorContext toBehaviorContext(BehaviorInsights insights, String rawUserId, String sessionId) {
+    private BehaviorContext toBehaviorContext(BehaviorInsights insights, String userId, String sessionId) {
         return BehaviorContext.builder()
-            .userId(rawUserId)
+            .userId(userId)
             .sessionId(sessionId)
             .segment(insights.getSegment())
             .patterns(insights.getPatterns())
@@ -87,13 +84,5 @@ public class BehaviorContextProviderImpl implements BehaviorContextProvider {
             .confidence(insights.getConfidence())
             .analyzedAt(insights.getUpdatedAt())
             .build();
-    }
-
-    private UUID toLookupId(String rawUserId) {
-        try {
-            return UUID.fromString(rawUserId);
-        } catch (IllegalArgumentException ex) {
-            return UUID.nameUUIDFromBytes(rawUserId.getBytes(StandardCharsets.UTF_8));
-        }
     }
 }

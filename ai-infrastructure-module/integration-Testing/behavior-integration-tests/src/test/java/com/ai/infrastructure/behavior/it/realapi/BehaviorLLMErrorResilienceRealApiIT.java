@@ -52,7 +52,7 @@ class BehaviorLLMErrorResilienceRealApiIT {
 
     @Test
     void malformedJsonFallsBackAndDoesNotPersistBadState() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         eventProvider.setTargetedEvents(List.of(
             ExternalEvent.builder()
                 .eventType("page_view")

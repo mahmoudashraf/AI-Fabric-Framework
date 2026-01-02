@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -64,7 +63,7 @@ public class BehaviorAnalyticsController {
     }
 
     @GetMapping("/users/{userId}/trend")
-    public ResponseEntity<UserTrendDTO> getUserTrend(@PathVariable UUID userId) {
+    public ResponseEntity<UserTrendDTO> getUserTrend(@PathVariable String userId) {
         return repository.findByUserId(userId)
             .map(insight -> UserTrendDTO.builder()
                 .userId(userId)
@@ -86,7 +85,7 @@ public class BehaviorAnalyticsController {
     @Data
     @Builder
     public static class TrendAlertDTO {
-        private UUID userId;
+        private String userId;
         private String sentiment;
         private Double churnRisk;
         private String churnReason;
@@ -98,7 +97,7 @@ public class BehaviorAnalyticsController {
     @Data
     @Builder
     public static class UserTrendDTO {
-        private UUID userId;
+        private String userId;
         private Double currentSentiment;
         private Double previousSentiment;
         private Double sentimentDelta;

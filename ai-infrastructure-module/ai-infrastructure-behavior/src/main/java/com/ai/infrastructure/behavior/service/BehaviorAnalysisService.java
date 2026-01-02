@@ -39,7 +39,7 @@ public class BehaviorAnalysisService {
      * CASE 1: Analyze a specific user (Targeted)
      */
     @Transactional
-    public BehaviorInsights analyzeUser(UUID userId) {
+    public BehaviorInsights analyzeUser(String userId) {
         log.info("Starting targeted analysis for user: {}", userId);
         
         Optional<BehaviorInsights> existingInsight = storageAdapter.findByUserId(userId);
@@ -98,7 +98,7 @@ public class BehaviorAnalysisService {
     }
     
     private BehaviorInsights performEvolutionaryAnalysis(
-        UUID userId,
+        String userId,
         BehaviorInsights oldInsight,
         List<ExternalEvent> newEvents,
         Map<String, Object> userContext
@@ -109,7 +109,7 @@ public class BehaviorAnalysisService {
 
             AIGenerationResponse response = aiCoreService.generateContent(
                 AIGenerationRequest.builder()
-                    .entityId(userId.toString())
+                    .entityId(userId)
                     .entityType("behavior-insight")
                     .generationType("behavioral-analysis")
                     .prompt(prompt)
@@ -230,7 +230,7 @@ public class BehaviorAnalysisService {
     }
 
     private BehaviorInsights parseLLMResponse(
-        UUID userId,
+        String userId,
         String llmResponse,
         BehaviorInsights oldInsight
     ) throws Exception {
@@ -306,7 +306,7 @@ public class BehaviorAnalysisService {
         return response.substring(start, end + 1);
     }
 
-    private void logTrendAlert(UUID userId, BehaviorInsights old, BehaviorInsights current) {
+    private void logTrendAlert(String userId, BehaviorInsights old, BehaviorInsights current) {
         if (old == null) {
             log.info("New user analyzed: {} | Sentiment: {} | Churn: {} | Trend: {}",
                 userId, current.getSentimentLabel(), current.getChurnRisk(), current.getTrend());

@@ -49,7 +49,7 @@ class BehaviorProcessingManagerTest {
     @Test
     void processBatch_countsSuccessAndMetrics() {
         BehaviorInsights insight = BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("user-batch-test")
             .analyzedAt(LocalDateTime.now())
             .build();
 

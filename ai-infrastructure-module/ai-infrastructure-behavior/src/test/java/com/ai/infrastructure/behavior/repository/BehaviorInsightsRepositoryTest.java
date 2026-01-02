@@ -40,7 +40,7 @@ class BehaviorInsightsRepositoryTest {
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS ai_behavior_insights (
               id UUID PRIMARY KEY,
-              user_id UUID UNIQUE NOT NULL,
+              user_id VARCHAR(255) UNIQUE NOT NULL,
               segment VARCHAR(100),
               patterns CLOB,
               recommendations CLOB,
@@ -66,7 +66,7 @@ class BehaviorInsightsRepositoryTest {
     @Test
     void findRapidlyDecliningUsersFiltersAndOrders() throws Exception {
         BehaviorInsights improving = repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("user-improving")
             .trend(BehaviorTrend.IMPROVING)
             .sentimentLabel(SentimentLabel.SATISFIED)
             .churnRisk(0.2)
@@ -74,7 +74,7 @@ class BehaviorInsightsRepositoryTest {
             .build());
 
         BehaviorInsights decliningOld = repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("user-declining-old")
             .trend(BehaviorTrend.RAPIDLY_DECLINING)
             .sentimentLabel(SentimentLabel.FRUSTRATED)
             .churnRisk(0.9)
@@ -87,7 +87,7 @@ class BehaviorInsightsRepositoryTest {
 
         Thread.sleep(5);
         BehaviorInsights decliningNew = repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("user-declining-new")
             .trend(BehaviorTrend.RAPIDLY_DECLINING)
             .sentimentLabel(SentimentLabel.CHURNING)
             .churnRisk(0.98)
@@ -105,7 +105,7 @@ class BehaviorInsightsRepositoryTest {
 
     @Test
     void uniqueUserIdConstraintEnforced() {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-unique-test";
         repository.saveAndFlush(BehaviorInsights.builder()
             .userId(userId)
             .trend(BehaviorTrend.STABLE)

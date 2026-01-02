@@ -46,7 +46,7 @@ public class BehaviorProcessingManager {
         return meterRegistry != null ? meterRegistry.counter("ai.behavior.processing.errors") : null;
     }
 
-    public BehaviorInsights analyzeUser(UUID userId) {
+    public BehaviorInsights analyzeUser(String userId) {
         return analysisService.analyzeUser(userId);
     }
 
