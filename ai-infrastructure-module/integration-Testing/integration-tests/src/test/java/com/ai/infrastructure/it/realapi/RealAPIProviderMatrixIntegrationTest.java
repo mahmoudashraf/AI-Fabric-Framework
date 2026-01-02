@@ -82,8 +82,6 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     public Stream<DynamicTest> providerMatrix() {
-        Assumptions.assumeTrue(shouldRunRealApi(),
-            "Real API matrix disabled (set RUN_REAL_API_TESTS=true and OPENAI_API_KEY).");
         Assumptions.assumeTrue(hasOpenAIKey(),
             "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
         return super.providerMatrix();
@@ -92,8 +90,6 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     @Override
     protected void beforeMatrixExecution() {
         RealAPITestSupport.ensureOpenAIConfigured();
-        Assumptions.assumeTrue(shouldRunRealApi(),
-            "Real API matrix disabled (set RUN_REAL_API_TESTS=true and OPENAI_API_KEY).");
         Assumptions.assumeTrue(hasOpenAIKey(),
             "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
     }
@@ -204,13 +200,5 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             apiKey = System.getenv("OPENAI_API_KEY");
         }
         return StringUtils.hasText(apiKey);
-    }
-
-    private boolean shouldRunRealApi() {
-        String flag = System.getProperty("RUN_REAL_API_TESTS");
-        if (!StringUtils.hasText(flag)) {
-            flag = System.getenv("RUN_REAL_API_TESTS");
-        }
-        return "true".equalsIgnoreCase(flag);
     }
 }
