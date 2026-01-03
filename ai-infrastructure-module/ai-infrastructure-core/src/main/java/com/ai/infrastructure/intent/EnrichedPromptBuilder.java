@@ -107,7 +107,8 @@ public class EnrichedPromptBuilder {
         prompt.append("4. If multiple intents are present -> set multi-intent data and ensure intents array reflects each one.\n");
         prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
         prompt.append("6. For INFORMATION intents decide if LLM generation is needed (requiresGeneration = true for opinions/recommendations, false for data lookup).\n");
-        prompt.append("7. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n\n");
+        prompt.append("7. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
+        prompt.append("8. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings; use [] when unknown. Example: {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find premium customers who ordered this month\",\"entityTypes\":[\"customer\",\"order\"],\"limit\":20}}.\n\n");
     }
 
     private void appendNextStepGuidance(StringBuilder prompt) {

@@ -26,6 +26,11 @@ public class RelationshipQueryProperties {
     private boolean enabled = true;
 
     /**
+     * Enable integration with the RAG orchestrator via ActionHandler.
+     */
+    private boolean enableOrchestratorIntegration = true;
+
+    /**
      * Whether semantic/vector ranking is permitted. The planner can still decide not to use it.
      */
     private boolean enableVectorSearch = true;

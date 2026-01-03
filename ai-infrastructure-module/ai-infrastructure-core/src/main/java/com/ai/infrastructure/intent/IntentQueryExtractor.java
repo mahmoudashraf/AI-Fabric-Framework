@@ -16,7 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -182,6 +185,7 @@ public class IntentQueryExtractor {
             if (!intent.hasMeaningfulName()) {
                 throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
             }
+            validateRelationshipActionParams(intent);
             if (intent.getRequiresRetrieval() == null) {
                 intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
             }
@@ -204,6 +208,42 @@ public class IntentQueryExtractor {
             return "RETRIEVE_AND_GENERATE";
         }
         return "ADMIT_UNKNOWN";
+    }
+
+    private void validateRelationshipActionParams(Intent intent) {
+        if (intent.getType() != IntentType.ACTION) {
+            return;
+        }
+        if (!"relationship_query".equalsIgnoreCase(intent.getAction())) {
+            return;
+        }
+
+        Map<String, Object> params = intent.getActionParams();
+        Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
+        Object rawEntityTypes = mutable.get("entityTypes");
+
+        List<String> normalizedEntityTypes;
+        if (rawEntityTypes == null) {
+            log.warn("Relationship query intent missing entityTypes - defaulting to empty list for actionParams");
+            normalizedEntityTypes = List.of();
+        } else if (rawEntityTypes instanceof List<?> list) {
+            normalizedEntityTypes = list.stream()
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(String::toLowerCase)
+                .toList();
+        } else if (rawEntityTypes instanceof String value) {
+            String trimmed = value.trim();
+            normalizedEntityTypes = trimmed.isEmpty() ? List.of() : List.of(trimmed.toLowerCase());
+        } else {
+            log.warn("Relationship query entityTypes should be List<String> or String but was {}", rawEntityTypes.getClass().getSimpleName());
+            normalizedEntityTypes = List.of();
+        }
+
+        mutable.put("entityTypes", normalizedEntityTypes);
+        intent.setActionParams(mutable);
     }
 
     @Deprecated(forRemoval = true)

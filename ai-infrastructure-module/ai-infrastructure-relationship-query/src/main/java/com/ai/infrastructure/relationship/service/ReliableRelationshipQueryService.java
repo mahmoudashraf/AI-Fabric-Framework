@@ -78,6 +78,20 @@ public class ReliableRelationshipQueryService {
         this.queryMetrics = queryMetrics;
     }
 
+    /**
+     * Execute relationship query with full auto-detection and default options.
+     */
+    public RAGResponse execute(String query) {
+        return execute(query, null, null);
+    }
+
+    /**
+     * Execute relationship query with default entity type detection and supplied options.
+     */
+    public RAGResponse execute(String query, @Nullable QueryOptions options) {
+        return execute(query, null, options);
+    }
+
     public RAGResponse execute(String query, List<String> entityTypes, @Nullable QueryOptions options) {
         QueryOptions effectiveOptions = options != null ? options : QueryOptions.defaults();
         RAGResponse primary = tryPrimary(query, entityTypes, effectiveOptions);
