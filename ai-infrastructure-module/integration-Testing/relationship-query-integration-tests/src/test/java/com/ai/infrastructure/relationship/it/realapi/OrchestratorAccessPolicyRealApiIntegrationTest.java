@@ -7,6 +7,8 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
+import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
+import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
 import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
 import com.ai.infrastructure.relationship.it.config.BackendEnvTestConfiguration;
 import com.ai.infrastructure.relationship.it.entity.BrandEntity;
@@ -162,6 +164,17 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         @Bean
         RecordingEntityAccessPolicy recordingEntityAccessPolicy() {
             return new RecordingEntityAccessPolicy();
+        }
+
+        /**
+         * Minimal compliance provider to satisfy orchestrator dependency in tests.
+         */
+        @Bean
+        ComplianceCheckProvider allowAllComplianceCheckProvider() {
+            return request -> ComplianceCheckResult.builder()
+                .compliant(true)
+                .details("test-allow-all")
+                .build();
         }
     }
 
