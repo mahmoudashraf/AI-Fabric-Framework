@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.service.AICapabilityService;
@@ -34,6 +35,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -102,7 +104,7 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
             .requiresGeneration(true)
             .build();
 
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         OrchestrationResult result = orchestrator.orchestrate("Suggest an affordable audio headset", "real-gen-routing-user");

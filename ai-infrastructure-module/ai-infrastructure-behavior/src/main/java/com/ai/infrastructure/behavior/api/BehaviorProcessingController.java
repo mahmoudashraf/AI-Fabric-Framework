@@ -17,8 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
-
 @Slf4j
 @RestController
 @RequestMapping("/api/behavior/processing")
@@ -29,7 +27,7 @@ public class BehaviorProcessingController {
     private final BehaviorProcessingManager processingManager;
 
     @PostMapping("/users/{userId}")
-    public ResponseEntity<BehaviorInsights> analyzeUser(@PathVariable UUID userId) {
+    public ResponseEntity<BehaviorInsights> analyzeUser(@PathVariable String userId) {
         BehaviorInsights result = processingManager.analyzeUser(userId);
         if (result == null) {
             return ResponseEntity.noContent().build();

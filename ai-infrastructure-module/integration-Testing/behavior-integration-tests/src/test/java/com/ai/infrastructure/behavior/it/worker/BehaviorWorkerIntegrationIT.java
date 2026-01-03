@@ -63,7 +63,7 @@ class BehaviorWorkerIntegrationIT {
         when(analysisService.processNextUser()).thenAnswer(inv -> {
             Thread.sleep(3);
             return BehaviorInsights.builder()
-                .userId(UUID.randomUUID())
+                .userId("test-user-" + java.util.UUID.randomUUID().toString())
                 .analyzedAt(LocalDateTime.now())
                 .build();
         });

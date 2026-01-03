@@ -3,6 +3,7 @@ package com.ai.infrastructure.it;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -24,6 +25,7 @@ import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.security.ResponseSanitizer;
@@ -115,7 +117,7 @@ class RAGOrchestratorIntegrationTest {
             .vectorSpace("default")
             .build();
 
-        when(intentQueryExtractor.extract(any(), any())).thenReturn(
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class))).thenReturn(
             MultiIntentResponse.builder()
                 .compound(false)
                 .intents(List.of(informationIntent))

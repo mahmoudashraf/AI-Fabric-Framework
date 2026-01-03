@@ -67,7 +67,7 @@ class BehaviorProcessingRealApiIT {
 
     @Test
     void analyzeUser_viaApi_persistsSentimentChurnTrend() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         eventProvider.setTargetedEvents(java.util.List.of(
             ExternalEvent.builder()
                 .eventType("login")
@@ -118,7 +118,7 @@ class BehaviorProcessingRealApiIT {
 
     @Test
     void batchProcessing_viaApi_processesNextUserWithContext() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         eventProvider.setNextBatch(
             userId,
             java.util.List.of(

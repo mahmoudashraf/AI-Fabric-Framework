@@ -87,7 +87,7 @@ class RAGOrchestratorLiveHandlersTest {
             .type(IntentType.ACTION)
             .action("clear_vector_index")
             .build();
-        when(intentQueryExtractor.extract(eq("Clear index"), any()))
+        when(intentQueryExtractor.extract(eq("Clear index"), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         OrchestrationResult result = orchestrator.orchestrate("Clear index", "test-user");
@@ -122,7 +122,7 @@ class RAGOrchestratorLiveHandlersTest {
             .action("remove_vector")
             .actionParams(Map.of("entityType", entityType, "entityId", entityId))
             .build();
-        when(intentQueryExtractor.extract(eq("Remove vector"), any()))
+        when(intentQueryExtractor.extract(eq("Remove vector"), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         OrchestrationResult result = orchestrator.orchestrate("Remove vector", "test-user");

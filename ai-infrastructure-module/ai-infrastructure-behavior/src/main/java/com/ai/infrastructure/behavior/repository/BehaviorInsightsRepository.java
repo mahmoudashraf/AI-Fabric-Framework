@@ -13,9 +13,9 @@ import java.util.UUID;
 @Repository
 public interface BehaviorInsightsRepository extends JpaRepository<BehaviorInsights, UUID> {
     
-    Optional<BehaviorInsights> findByUserId(UUID userId);
+    Optional<BehaviorInsights> findByUserId(String userId);
     
-    void deleteByUserId(UUID userId);
+    void deleteByUserId(String userId);
 
     List<BehaviorInsights> findByTrend(BehaviorTrend trend);
 

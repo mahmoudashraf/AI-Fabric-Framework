@@ -41,12 +41,12 @@ class BehaviorProcessingControllerTest {
     @Test
     void analyzeUserReturnsOk() throws Exception {
         BehaviorInsights insight = BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("user-test-ok")
             .segment("seg")
             .build();
         Mockito.when(processingManager.analyzeUser(any())).thenReturn(insight);
 
-        mockMvc.perform(post("/api/behavior/processing/users/{id}", UUID.randomUUID()))
+        mockMvc.perform(post("/api/behavior/processing/users/{id}", "user-test-ok"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.segment").value("seg"));
     }
@@ -89,7 +89,7 @@ class BehaviorProcessingControllerTest {
     void analyzeUserReturnsNoContentWhenManagerReturnsNull() throws Exception {
         Mockito.when(processingManager.analyzeUser(any())).thenReturn(null);
 
-        mockMvc.perform(post("/api/behavior/processing/users/{id}", UUID.randomUUID()))
+        mockMvc.perform(post("/api/behavior/processing/users/{id}", "user-null-test"))
             .andExpect(status().isNoContent());
     }
 

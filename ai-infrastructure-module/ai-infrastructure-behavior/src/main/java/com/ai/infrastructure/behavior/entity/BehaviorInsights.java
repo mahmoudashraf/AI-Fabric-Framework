@@ -54,8 +54,8 @@ public class BehaviorInsights {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
     
-    @Column(name = "user_id", nullable = false, unique = true)
-    private UUID userId;
+    @Column(name = "user_id", nullable = false, unique = true, length = 255)
+    private String userId;
     
     // Core AI insights
     @Column(name = "segment", length = 100)

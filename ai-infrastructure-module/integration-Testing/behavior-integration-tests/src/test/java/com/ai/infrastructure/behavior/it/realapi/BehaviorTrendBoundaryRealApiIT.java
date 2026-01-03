@@ -54,7 +54,7 @@ class BehaviorTrendBoundaryRealApiIT {
 
     @Test
     void trendBoundaryRapidlyImprovingWhenSentimentDeltaAbovePointFour() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         BehaviorInsights existing = repository.save(
             BehaviorInsights.builder()
                 .userId(userId)
@@ -102,7 +102,7 @@ class BehaviorTrendBoundaryRealApiIT {
 
     @Test
     void trendBoundaryRapidlyDecliningWhenChurnDeltaAbovePointFour() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         BehaviorInsights existing = repository.save(
             BehaviorInsights.builder()
                 .userId(userId)

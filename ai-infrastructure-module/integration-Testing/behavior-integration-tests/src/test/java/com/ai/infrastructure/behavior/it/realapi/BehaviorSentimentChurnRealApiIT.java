@@ -55,7 +55,7 @@ class BehaviorSentimentChurnRealApiIT {
 
     @Test
     void targetedAnalysis_populatesAllSentimentChurnFields() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         eventProvider.setTargetedEvents(List.of(
             ExternalEvent.builder()
                 .eventType("upgrade")
@@ -99,7 +99,7 @@ class BehaviorSentimentChurnRealApiIT {
 
     @Test
     void trendRecomputedFromDeltasWhenStableReturned() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         BehaviorInsights existing = repository.save(
             BehaviorInsights.builder()
                 .userId(userId)

@@ -39,6 +39,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -132,7 +133,7 @@ class RAGOrchestratorTest {
             .action("cancel_subscription")
             .actionParams(Map.of("reason", "too expensive"))
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed("user-1")).thenReturn(true);
@@ -157,7 +158,7 @@ class RAGOrchestratorTest {
             .type(IntentType.ACTION)
             .action("unknown_action")
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("unknown_action")).thenReturn(Optional.empty());
 
@@ -173,7 +174,7 @@ class RAGOrchestratorTest {
             .type(IntentType.ACTION)
             .action("cancel_subscription")
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed("user")).thenReturn(false);
@@ -190,7 +191,7 @@ class RAGOrchestratorTest {
             .type(IntentType.ACTION)
             .action("cancel_subscription")
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed("user")).thenReturn(true);
@@ -213,7 +214,7 @@ class RAGOrchestratorTest {
             .intent("refund_policy")
             .vectorSpace("policies")
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         RAGResponse ragResponse = RAGResponse.builder()
@@ -240,7 +241,7 @@ class RAGOrchestratorTest {
             .optimizedQuery("Product entities where price_usd < 100 and stock_status = 'in_stock'")
             .requiresGeneration(true)
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         RAGResponse ragResponse = RAGResponse.builder()
@@ -267,13 +268,30 @@ class RAGOrchestratorTest {
             .type(IntentType.OUT_OF_SCOPE)
             .actionParams(Map.of("reason", "Unsupported domain"))
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         OrchestrationResult result = orchestrator.orchestrate("Build me a spaceship", "user");
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
         assertThat(result.isSuccess()).isTrue();
+    }
+
+    @Test
+    void shouldDenyActionForAnonymousSession() {
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("cancel_subscription")
+            .build();
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+            .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
+
+        OrchestrationContext anonymous = OrchestrationContext.forSession("sess-123");
+
+        OrchestrationResult result = orchestrator.orchestrate("Cancel my plan", anonymous);
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_DENIED);
+        assertThat(result.isSuccess()).isFalse();
     }
 
     @Test
@@ -291,7 +309,7 @@ class RAGOrchestratorTest {
             .compound(true)
             .build();
 
-        when(intentQueryExtractor.extract(any(), any())).thenReturn(compound);
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class))).thenReturn(compound);
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
         when(actionHandler.getConfirmationMessage(any())).thenReturn("Confirm?");
@@ -317,7 +335,7 @@ class RAGOrchestratorTest {
             .action("update_payment_method")
             .nextStepRecommended(recommendation)
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
@@ -354,7 +372,7 @@ class RAGOrchestratorTest {
             .nextStepRecommended(recommendation)
             .build();
 
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
@@ -385,7 +403,7 @@ class RAGOrchestratorTest {
             .nextStepRecommended(recommendation)
             .build();
 
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);

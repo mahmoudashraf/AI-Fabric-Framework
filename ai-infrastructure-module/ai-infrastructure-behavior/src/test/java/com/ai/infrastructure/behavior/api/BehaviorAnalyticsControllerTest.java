@@ -43,7 +43,7 @@ class BehaviorAnalyticsControllerTest {
     @Test
     void rapidDeclineEndpointReturnsAlerts() throws Exception {
         BehaviorInsights bi = BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("user-rapid-decline")
             .sentimentLabel(SentimentLabel.FRUSTRATED)
             .churnRisk(0.9)
             .churnReason("Payment failures")
@@ -77,7 +77,7 @@ class BehaviorAnalyticsControllerTest {
 
     @Test
     void userTrendReturnsDeltas() throws Exception {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-trend-deltas";
         BehaviorInsights bi = BehaviorInsights.builder()
             .userId(userId)
             .sentimentScore(0.6)
@@ -102,7 +102,7 @@ class BehaviorAnalyticsControllerTest {
 
     @Test
     void userTrendReturnsNotFoundForUnknownUser() throws Exception {
-        UUID userId = UUID.randomUUID();
+        String userId = "user-unknown";
         Mockito.when(repository.findByUserId(userId)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/behavior/analytics/users/{userId}/trend", userId)

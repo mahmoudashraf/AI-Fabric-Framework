@@ -51,7 +51,7 @@ class BehaviorAnalyticsApiIT {
     @Test
     void rapidDeclineEndpointReturnsAlerts() {
         BehaviorInsights declining = repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("test-user-" + java.util.UUID.randomUUID().toString())
             .sentimentLabel(SentimentLabel.FRUSTRATED)
             .churnRisk(0.9)
             .churnReason("payment failures")
@@ -61,7 +61,7 @@ class BehaviorAnalyticsApiIT {
             .build());
 
         repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("test-user-" + java.util.UUID.randomUUID().toString())
             .sentimentLabel(SentimentLabel.SATISFIED)
             .churnRisk(0.1)
             .trend(BehaviorTrend.IMPROVING)
@@ -86,17 +86,17 @@ class BehaviorAnalyticsApiIT {
     @Test
     void trendDistributionAggregatesCounts() {
         repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("test-user-" + java.util.UUID.randomUUID().toString())
             .trend(BehaviorTrend.IMPROVING)
             .analyzedAt(LocalDateTime.now())
             .build());
         repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("test-user-" + java.util.UUID.randomUUID().toString())
             .trend(BehaviorTrend.IMPROVING)
             .analyzedAt(LocalDateTime.now())
             .build());
         repository.save(BehaviorInsights.builder()
-            .userId(UUID.randomUUID())
+            .userId("test-user-" + java.util.UUID.randomUUID().toString())
             .trend(BehaviorTrend.DECLINING)
             .analyzedAt(LocalDateTime.now())
             .build());
@@ -117,7 +117,7 @@ class BehaviorAnalyticsApiIT {
 
     @Test
     void userTrendReturnsDeltas() {
-        UUID userId = UUID.randomUUID();
+        String userId = "test-user-" + java.util.UUID.randomUUID().toString();
         repository.save(BehaviorInsights.builder()
             .userId(userId)
             .sentimentScore(0.6)

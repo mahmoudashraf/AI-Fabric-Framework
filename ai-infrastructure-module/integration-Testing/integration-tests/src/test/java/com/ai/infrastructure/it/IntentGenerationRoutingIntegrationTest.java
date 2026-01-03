@@ -14,6 +14,7 @@ import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.security.ResponseSanitizer;
@@ -31,6 +32,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -102,7 +104,7 @@ class IntentGenerationRoutingIntegrationTest {
             .optimizedQuery("Product entities with price_usd < 60 and stock_status = 'in_stock'")
             .requiresGeneration(false)
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(ragService.performRag(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().response("search-only").documents(List.of()).success(true).build()
@@ -128,7 +130,7 @@ class IntentGenerationRoutingIntegrationTest {
             .optimizedQuery("Product entities with sentiment = 'positive'")
             .requiresGeneration(true)
             .build();
-        when(intentQueryExtractor.extract(any(), any()))
+        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(ragService.performRAGQuery(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().response("llm-needed").documents(List.of()).success(true).build()

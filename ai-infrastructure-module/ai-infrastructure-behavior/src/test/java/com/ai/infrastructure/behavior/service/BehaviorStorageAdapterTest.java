@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -20,7 +19,7 @@ class BehaviorStorageAdapterTest {
         BehaviorInsightsRepository repo = mock(BehaviorInsightsRepository.class);
         BehaviorStorageAdapter adapter = new BehaviorStorageAdapter(Optional.of(customStore), repo);
 
-        UUID userId = UUID.randomUUID();
+        String userId = "user-12345";
         BehaviorInsights insight = BehaviorInsights.builder()
             .userId(userId)
             .segment("custom")
@@ -44,7 +43,7 @@ class BehaviorStorageAdapterTest {
         BehaviorInsightsRepository repo = mock(BehaviorInsightsRepository.class);
         BehaviorStorageAdapter adapter = new BehaviorStorageAdapter(Optional.empty(), repo);
 
-        UUID userId = UUID.randomUUID();
+        String userId = "user-67890";
         BehaviorInsights insight = BehaviorInsights.builder()
             .userId(userId)
             .segment("repo")

@@ -15,11 +15,11 @@ import com.ai.infrastructure.dto.AIComplianceResponse;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
-import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.security.ResponseSanitizer;
@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -63,17 +62,26 @@ public class RAGOrchestrator {
     private final AIComplianceService complianceService;
     private final Clock clock;
 
-    public OrchestrationResult orchestrate(String query, String userId) {
-        String requestId = "rag-" + UUID.randomUUID();
+    public OrchestrationResult orchestrate(String query, OrchestrationContext context) {
+        Objects.requireNonNull(query, "query must not be null");
+        Objects.requireNonNull(context, "context must not be null");
+        context.validate();
+
+        String identifier = context.getIdentifier();
+        String requestId = context.getOrGenerateRequestId();
         LocalDateTime requestTimestamp = LocalDateTime.now(clock);
 
         AISecurityResponse securityResponse = securityService.analyzeRequest(
             AISecurityRequest.builder()
                 .requestId(requestId)
-                .userId(userId)
+                .userId(context.getUserId())
+                .sessionId(context.getSessionId())
                 .content(query)
                 .operationType("INTENT_QUERY")
                 .timestamp(requestTimestamp)
+                .metadata(buildSecurityMetadata(context))
+                .ipAddress(context.getIpAddress())
+                .userAgent(context.getUserAgent())
                 .build()
         );
 
@@ -84,11 +92,14 @@ public class RAGOrchestrator {
         AIAccessControlResponse accessResponse = accessControlService.checkAccess(
             AIAccessControlRequest.builder()
                 .requestId(requestId)
-                .userId(userId)
+                .userId(context.getUserId())
+                .sessionId(context.getSessionId())
                 .resourceId("rag:intent")
                 .operationType("READ")
                 .context(query)
-                .metadata(Map.of("entryPoint", "RAG_ORCHESTRATOR"))
+                .metadata(buildAccessControlMetadata(context))
+                .ipAddress(context.getIpAddress())
+                .userAgent(context.getUserAgent())
                 .timestamp(requestTimestamp)
                 .build()
         );
@@ -100,14 +111,14 @@ public class RAGOrchestrator {
         // STEP 1: Detect & Redact PII in user query (based on configuration)
         List<String> detectedPiiTypes = new ArrayList<>();
         String processedQuery = query;
-        
+
         com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection detectionDirection =
             piiDetectionProperties.getDetectionDirection();
 
         boolean detectInput = piiDetectionProperties.isEnabled() &&
             (detectionDirection == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT ||
              detectionDirection == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT);
-        
+
         if (detectInput) {
             com.ai.infrastructure.dto.PIIDetectionResult queryPiiAnalysis = piiDetectionService.analyze(query);
             if (queryPiiAnalysis.isPiiDetected()) {
@@ -123,13 +134,13 @@ public class RAGOrchestrator {
         } else {
             log.debug("PII INPUT detection is disabled (configuration: {})", detectionDirection);
         }
-        
+
         AIComplianceResponse complianceResponse = complianceService.checkCompliance(
             AIComplianceRequest.builder()
                 .requestId(requestId)
-                .userId(userId)
+                .userId(context.getUserId())
                 .content(processedQuery)
-                .timestamp(LocalDateTime.now(clock))
+                .timestamp(requestTimestamp)
                 .build()
         );
 
@@ -138,7 +149,7 @@ public class RAGOrchestrator {
         }
 
         // STEP 2: Send processed query to LLM for intent extraction
-        MultiIntentResponse multiIntentResponse = intentQueryExtractor.extract(processedQuery, userId);
+        MultiIntentResponse multiIntentResponse = intentQueryExtractor.extract(processedQuery, context);
 
         if (!multiIntentResponse.hasIntents()) {
             log.warn("No intents extracted for query '{}'", processedQuery);
@@ -147,38 +158,40 @@ public class RAGOrchestrator {
 
         OrchestrationResult result;
         if (multiIntentResponse.isCompound() || multiIntentResponse.getIntents().size() > 1) {
-            result = handleCompoundIntents(multiIntentResponse, userId);
+            result = handleCompoundIntents(multiIntentResponse, context);
         } else {
-            result = handleSingleIntent(multiIntentResponse.getIntents().getFirst(), userId);
+            result = handleSingleIntent(multiIntentResponse.getIntents().getFirst(), context);
         }
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("requestId", requestId);
+        metadata.put("sessionId", context.getSessionId());
         metadata.put("intentsCount", multiIntentResponse.getIntents().size());
         metadata.put("compound", multiIntentResponse.isCompound());
+        metadata.put("authenticated", context.isAuthenticated());
         if (!CollectionUtils.isEmpty(multiIntentResponse.getMetadata())) {
             metadata.put("intentMetadata", multiIntentResponse.getMetadata());
         }
         result.setMetadata(Collections.unmodifiableMap(metadata));
 
-        applySmartSuggestions(result, userId);
-        
+        applySmartSuggestions(result, context);
+
         // STEP 3: Sanitize the response (based on configuration)
-        Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, userId);
-        
+        Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, identifier);
+
         boolean detectOutput = piiDetectionProperties.isEnabled() &&
             detectionDirection == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT;
-        
+
         if (!detectOutput) {
             log.debug("PII OUTPUT detection is disabled (configuration: {})", detectionDirection);
         }
-        
+
         // STEP 4: Add detected PII types to response metadata
         if ((!detectedPiiTypes.isEmpty() || detectOutput) && sanitizedPayload.containsKey("sanitization")) {
             @SuppressWarnings("unchecked")
             Map<String, Object> sanitization = (Map<String, Object>) sanitizedPayload.get("sanitization");
             Map<String, Object> updatedSanitization = new LinkedHashMap<>(sanitization);
-            
+
             @SuppressWarnings("unchecked")
             List<String> existingTypes = (List<String>) sanitization.get("detectedTypes");
             List<String> mergedTypes = new ArrayList<>();
@@ -186,17 +199,17 @@ public class RAGOrchestrator {
                 mergedTypes.addAll(existingTypes);
             }
             mergedTypes.addAll(detectedPiiTypes);
-            
+
             // Deduplicate and sort
             List<String> finalTypes = mergedTypes.stream()
                 .distinct()
                 .sorted()
                 .collect(Collectors.toList());
-            
+
             if (!finalTypes.isEmpty()) {
                 updatedSanitization.put("detectedTypes", finalTypes);
             }
-            
+
             // Create new payload map with updated sanitization if changed
             if (!updatedSanitization.equals(sanitization)) {
                 Map<String, Object> updatedPayload = new LinkedHashMap<>(sanitizedPayload);
@@ -204,24 +217,38 @@ public class RAGOrchestrator {
                 sanitizedPayload = Collections.unmodifiableMap(updatedPayload);
             }
         }
-        
+
         result.setSanitizedPayload(sanitizedPayload);
-        persistIntentHistory(query, userId, multiIntentResponse, result);
+        persistIntentHistory(query, context, multiIntentResponse, result);
 
         return result;
     }
 
-    private OrchestrationResult handleSingleIntent(Intent intent, String userId) {
+    @Deprecated(forRemoval = true)
+    public OrchestrationResult orchestrate(String query, String userId) {
+        log.warn("Using deprecated orchestrate(query, userId). Prefer orchestrate(query, OrchestrationContext).");
+        return orchestrate(query, OrchestrationContext.forUser(userId));
+    }
+
+    private OrchestrationResult handleSingleIntent(Intent intent, OrchestrationContext context) {
         return switch (intent.getType()) {
-            case ACTION -> handleAction(intent, userId);
-            case INFORMATION -> handleInformation(intent, userId);
+            case ACTION -> handleAction(intent, context);
+            case INFORMATION -> handleInformation(intent, context);
             case OUT_OF_SCOPE -> handleOutOfScope(intent);
-            case COMPOUND -> handleSyntheticCompound(intent, userId);
+            case COMPOUND -> handleSyntheticCompound(intent, context);
             default -> OrchestrationResult.error("Unknown intent type: " + intent.getType());
         };
     }
 
-    private OrchestrationResult handleAction(Intent intent, String userId) {
+    private OrchestrationResult handleAction(Intent intent, OrchestrationContext context) {
+        if (context.isAnonymous()) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ACTION_DENIED)
+                .success(false)
+                .message("Action not permitted for anonymous users.")
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
         String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
         if (!StringUtils.hasText(actionName)) {
             return OrchestrationResult.error("Intent is missing an action name.");
@@ -235,7 +262,8 @@ public class RAGOrchestrator {
         ActionHandler handler = maybeHandler.get();
         Map<String, Object> params = intent.getActionParams();
 
-        if (!handler.validateActionAllowed(userId)) {
+        String identifier = context.getIdentifier();
+        if (!handler.validateActionAllowed(identifier)) {
             AIActionMetaData metadata = metadataForAction(actionName);
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("action", actionName);
@@ -253,7 +281,7 @@ public class RAGOrchestrator {
 
         String confirmationMessage = handler.getConfirmationMessage(params);
         try {
-            ActionResult actionResult = handler.executeAction(params, userId);
+            ActionResult actionResult = handler.executeAction(params, identifier);
             boolean success = actionResult != null && actionResult.isSuccess();
 
             Map<String, Object> data = new LinkedHashMap<>();
@@ -273,7 +301,7 @@ public class RAGOrchestrator {
                 .build();
         } catch (Exception ex) {
             log.error("Action handler {} threw an exception executing action '{}'", handler.getClass().getName(), actionName, ex);
-            ActionResult errorResult = handler.handleError(ex, userId);
+            ActionResult errorResult = handler.handleError(ex, identifier);
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("action", actionName);
             data.put("metadata", metadataForAction(actionName));
@@ -290,14 +318,16 @@ public class RAGOrchestrator {
         }
     }
 
-    private OrchestrationResult handleInformation(Intent intent, String userId) {
+    private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context) {
         boolean needsGeneration = intent.requiresGenerationOrDefault(false);
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String query = StringUtils.hasText(optimizedQuery) ? optimizedQuery : intent.getIntentOrAction();
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("source", "orchestrator");
-        metadata.put("userId", userId);
+        metadata.put("userId", context.getIdentifier());
+        metadata.put("sessionId", context.getSessionId());
+        metadata.put("authenticated", context.isAuthenticated());
         metadata.put("requiresGeneration", needsGeneration);
         if (optimizedQuery != null) {
             metadata.put("optimizedQuery", optimizedQuery);
@@ -309,7 +339,7 @@ public class RAGOrchestrator {
             .limit(DEFAULT_RAG_LIMIT)
             .threshold(DEFAULT_RAG_THRESHOLD)
             .metadata(Collections.unmodifiableMap(metadata))
-            .userId(userId)
+            .userId(context.getIdentifier())
             .build();
 
         RAGResponse ragResponse = needsGeneration
@@ -347,7 +377,7 @@ public class RAGOrchestrator {
             .build();
     }
 
-    private OrchestrationResult handleSyntheticCompound(Intent intent, String userId) {
+    private OrchestrationResult handleSyntheticCompound(Intent intent, OrchestrationContext context) {
         if (CollectionUtils.isEmpty(intent.getActionParams())) {
             return OrchestrationResult.error("Compound intent payload is missing component intents.");
         }
@@ -372,15 +402,15 @@ public class RAGOrchestrator {
             .intents(children)
             .compound(true)
             .build();
-        return handleCompoundIntents(syntheticResponse, userId);
+        return handleCompoundIntents(syntheticResponse, context);
     }
 
-    private OrchestrationResult handleCompoundIntents(MultiIntentResponse response, String userId) {
+    private OrchestrationResult handleCompoundIntents(MultiIntentResponse response, OrchestrationContext context) {
         List<OrchestrationResult> childResults = new ArrayList<>();
         List<NextStepRecommendation> nextSteps = new ArrayList<>();
 
         for (Intent intent : response.getIntents()) {
-            OrchestrationResult child = handleSingleIntent(intent, userId);
+            OrchestrationResult child = handleSingleIntent(intent, context);
             childResults.add(child);
             nextSteps.addAll(child.getNextSteps());
         }
@@ -407,7 +437,7 @@ public class RAGOrchestrator {
         return List.of(intent.getNextStepRecommended());
     }
 
-    private void applySmartSuggestions(OrchestrationResult result, String userId) {
+    private void applySmartSuggestions(OrchestrationResult result, OrchestrationContext context) {
         if (result == null || !smartSuggestionsProperties.isEnabled()) {
             return;
         }
@@ -435,19 +465,23 @@ public class RAGOrchestrator {
 
         try {
             // Use vectorSpace from the recommendation if provided, allowing the LLM to specify which KB section to search
+            Map<String, Object> suggestionMetadata = new LinkedHashMap<>();
+            suggestionMetadata.put("source", "smart-suggestion");
+            suggestionMetadata.put("suggestionIntent", candidate.getIntent());
+            suggestionMetadata.put("suggestionConfidence", candidate.getConfidence());
+            suggestionMetadata.put("vectorSpace", candidate.getVectorSpace() != null ? candidate.getVectorSpace() : "unspecified");
+            suggestionMetadata.put("userId", context.getIdentifier());
+            if (context.getSessionId() != null) {
+                suggestionMetadata.put("sessionId", context.getSessionId());
+            }
+
             RAGRequest ragRequest = RAGRequest.builder()
                 .query(query)
                 .entityType(candidate.getVectorSpace())  // Use LLM-provided vectorSpace for precise KB targeting
                 .limit(smartSuggestionsProperties.getRetrievalLimit())
                 .threshold(smartSuggestionsProperties.getRetrievalThreshold())
-                .metadata(Map.of(
-                    "source", "smart-suggestion",
-                    "suggestionIntent", candidate.getIntent(),
-                    "suggestionConfidence", candidate.getConfidence(),
-                    "vectorSpace", candidate.getVectorSpace() != null ? candidate.getVectorSpace() : "unspecified",
-                    "userId", userId
-                ))
-                .userId(userId)
+                .metadata(Collections.unmodifiableMap(suggestionMetadata))
+                .userId(context.getIdentifier())
                 .build();
 
             RAGResponse ragResponse = ragService.performRag(ragRequest);
@@ -472,7 +506,7 @@ public class RAGOrchestrator {
             result.setSmartSuggestion(Collections.unmodifiableMap(suggestion));
             result.withAdditionalData(Map.of("smartSuggestion", suggestion));
         } catch (Exception ex) {
-            log.warn("Failed to generate smart suggestion for intent {}: {}", candidate.getIntent(), ex.getMessage());
+            log.warn("Failed to generate smart suggestion for intent {}: {}", candidate.getIntent(), ex.getMessage(), ex);
         }
     }
 
@@ -511,19 +545,46 @@ public class RAGOrchestrator {
     }
 
     private void persistIntentHistory(String originalQuery,
-                                      String userId,
+                                      OrchestrationContext context,
                                       MultiIntentResponse intents,
                                       OrchestrationResult result) {
         try {
             intentHistoryService.recordIntent(
-                userId,
+                context.getIdentifier(),
                 result.getMetadata() != null ? (String) result.getMetadata().get("sessionId") : null,
                 originalQuery,
                 intents,
                 result
             );
         } catch (Exception ex) {
-            log.debug("Unable to persist intent history for user {}: {}", userId, ex.getMessage());
+            log.debug("Unable to persist intent history for user {}: {}", context.getIdentifier(), ex.getMessage());
         }
+    }
+
+    private Map<String, Object> buildSecurityMetadata(OrchestrationContext context) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("authenticated", context.isAuthenticated());
+        metadata.put("sessionId", context.getSessionId());
+        if (context.getIpAddress() != null) {
+            metadata.put("ipAddress", context.getIpAddress());
+        }
+        if (context.getUserAgent() != null) {
+            metadata.put("userAgent", context.getUserAgent());
+        }
+        if (context.getMetadata() != null && !context.getMetadata().isEmpty()) {
+            metadata.putAll(context.getMetadata());
+        }
+        return metadata;
+    }
+
+    private Map<String, Object> buildAccessControlMetadata(OrchestrationContext context) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("entryPoint", "RAG_ORCHESTRATOR");
+        metadata.put("authenticated", context.isAuthenticated());
+        metadata.put("sessionId", context.getSessionId());
+        if (context.getIpAddress() != null) {
+            metadata.put("ipAddress", context.getIpAddress());
+        }
+        return metadata;
     }
 }
