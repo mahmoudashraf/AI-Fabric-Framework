@@ -178,6 +178,16 @@ public class RAGOrchestrator {
 
         // STEP 3: Sanitize the response (based on configuration)
         Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, identifier);
+        if (sanitizedPayload == null || sanitizedPayload.isEmpty()) {
+            Map<String, Object> fallbackPayload = new LinkedHashMap<>();
+            if (result.getType() != null) {
+                fallbackPayload.put("type", result.getType().name());
+            }
+            fallbackPayload.put("success", result.isSuccess());
+            fallbackPayload.put("message", result.getMessage());
+            fallbackPayload.put("data", result.getData());
+            sanitizedPayload = Collections.unmodifiableMap(fallbackPayload);
+        }
 
         boolean detectOutput = piiDetectionProperties.isEnabled() &&
             detectionDirection == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT;
