@@ -90,18 +90,31 @@ class RelationshipQueryActionHandlerTest {
 
     @Test
     void executeActionShouldAllowAutoDetectWhenEntityTypesEmpty() {
+        // When entity types are empty, policy provides allowed types for auto-detect
+        when(accessControlPolicy.getAllowedEntityTypesForUser("user-123"))
+            .thenReturn(List.of("document", "product"));  // Policy returns allowed types
+        
         Map<String, Object> params = Map.of(
             "query", "Find documents about onboarding",
             "entityTypes", List.of()
         );
 
-        when(queryService.execute(any(), isNull(), any(QueryOptions.class)))
+        when(queryService.execute(any(), anyList(), any(QueryOptions.class)))
             .thenReturn(RAGResponse.builder().success(true).build());
 
         ActionResult result = handler.executeAction(params, "user-123");
 
         assertThat(result.isSuccess()).isTrue();
-        verify(queryService).execute(eq("Find documents about onboarding"), isNull(), any(QueryOptions.class));
+        
+        // Verify policy was consulted for allowed types
+        verify(accessControlPolicy).getAllowedEntityTypesForUser("user-123");
+        
+        // Verify query executed with policy-provided allowed types
+        verify(queryService).execute(
+            eq("Find documents about onboarding"), 
+            eq(List.of("document", "product")),  // Policy-provided types
+            any(QueryOptions.class)
+        );
     }
 
     @Test
