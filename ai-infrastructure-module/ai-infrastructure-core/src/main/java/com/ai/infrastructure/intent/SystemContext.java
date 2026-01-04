@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Bundles the contextual information passed to the intent extraction prompt.
@@ -49,6 +50,10 @@ public class SystemContext {
 
     // Optional behavior insights (only when provider is present)
     private BehaviorContext behaviorContext;
+
+    // Available entity types for relationship queries (only when relationship-query module is present)
+    @Builder.Default
+    private Set<String> availableEntityTypes = Set.of();
 
     public boolean isAuthenticated() {
         return Boolean.TRUE.equals(authenticated);
