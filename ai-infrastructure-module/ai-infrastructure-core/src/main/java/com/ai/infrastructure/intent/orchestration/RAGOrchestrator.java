@@ -163,6 +163,12 @@ public class RAGOrchestrator {
             result = handleSingleIntent(multiIntentResponse.getIntents().getFirst(), context);
         }
 
+        // Ensure result is never null before proceeding
+        if (result == null) {
+            log.error("Intent handling produced null result - this should never happen. Query: '{}'", query);
+            return OrchestrationResult.error("Internal error: orchestration failed to produce a result");
+        }
+
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("requestId", requestId);
         metadata.put("sessionId", context.getSessionId());
@@ -177,6 +183,7 @@ public class RAGOrchestrator {
         applySmartSuggestions(result, context);
 
         // STEP 3: Sanitize the response (based on configuration)
+        // ResponseSanitizer guarantees a non-empty payload (see lines 116-123 in ResponseSanitizer.java)
         Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, identifier);
 
         boolean detectOutput = piiDetectionProperties.isEnabled() &&
@@ -411,6 +418,11 @@ public class RAGOrchestrator {
 
         for (Intent intent : response.getIntents()) {
             OrchestrationResult child = handleSingleIntent(intent, context);
+            if (child == null) {
+                log.error("handleSingleIntent returned null for intent type: {} - this should never happen", 
+                    intent != null ? intent.getType() : "NULL_INTENT");
+                continue; // Skip null results
+            }
             childResults.add(child);
             nextSteps.addAll(child.getNextSteps());
         }

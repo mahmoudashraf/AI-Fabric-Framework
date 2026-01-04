@@ -152,14 +152,41 @@ public class LLMDrivenJPAQueryService {
         return metadataTraversalService.traverse(plan, query);
     }
 
+    /**
+     * Resolves the execution mode based on LLM's analysis and configuration.
+     * 
+     * <p><strong>Simple Decision:</strong></p>
+     * <ul>
+     *   <li>LLM says semantic search needed + vector search enabled → ENHANCED</li>
+     *   <li>Otherwise → STANDALONE</li>
+     * </ul>
+     * 
+     * <p>The LLM analyzes each query to determine if semantic search would improve results.
+     * Configuration ({@code enable-vector-search}) acts as a constraint.</p>
+     */
     private QueryMode resolveMode(RelationshipQueryPlan plan, QueryOptions options) {
-        if (options != null && options.getForceMode() != null) {
-            return options.getForceMode();
-        }
-        if (plan.isNeedsSemanticSearch() && moduleMetadata.vectorSearchEnabled() && vectorDependenciesPresent()) {
+        // LLM analyzed the query and determined semantic search is needed
+        if (plan.isNeedsSemanticSearch()) {
+            // Configuration check: is vector search enabled?
+            if (!moduleMetadata.vectorSearchEnabled()) {
+                log.info("LLM recommended semantic search for query: '{}', but enable-vector-search=false in configuration. " +
+                    "Using STANDALONE mode.", plan.getOriginalQuery());
+                return QueryMode.STANDALONE;
+            }
+            
+            // System availability check: is vector DB present?
+            if (!vectorDependenciesPresent()) {
+                log.warn("LLM recommended semantic search for query: '{}', but vector database is not available. " +
+                    "Using STANDALONE mode. Results may have lower relevance.", plan.getOriginalQuery());
+                return QueryMode.STANDALONE;
+            }
+            
+            // All checks passed - use ENHANCED as LLM recommended
             return QueryMode.ENHANCED;
         }
-        return properties.getDefaultQueryMode();
+        
+        // LLM decided semantic search not needed - use pure relational
+        return QueryMode.STANDALONE;
     }
 
     private boolean vectorDependenciesPresent() {
@@ -349,3 +376,4 @@ public class LLMDrivenJPAQueryService {
         }
     }
 }
+

@@ -30,7 +30,7 @@ public class EnrichedPromptBuilder {
         appendBehaviorContext(prompt, context);
         appendAvailableActions(prompt, context);
         appendKnowledgeBaseSummary(prompt, context);
-        appendExtractionRules(prompt);
+        appendExtractionRules(prompt, context);
         appendNextStepGuidance(prompt);
         appendOutputFormat(prompt);
 
@@ -99,7 +99,7 @@ public class EnrichedPromptBuilder {
         prompt.append("\n");
     }
 
-    private void appendExtractionRules(StringBuilder prompt) {
+    private void appendExtractionRules(StringBuilder prompt, SystemContext context) {
         prompt.append("EXTRACTION RULES:\n");
         prompt.append("1. If the user wants to execute an action -> intent.type = ACTION and include action + actionParams.\n");
         prompt.append("2. If the user is searching for information -> intent.type = INFORMATION.\n");
@@ -107,7 +107,18 @@ public class EnrichedPromptBuilder {
         prompt.append("4. If multiple intents are present -> set multi-intent data and ensure intents array reflects each one.\n");
         prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
         prompt.append("6. For INFORMATION intents decide if LLM generation is needed (requiresGeneration = true for opinions/recommendations, false for data lookup).\n");
-        prompt.append("7. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n\n");
+        prompt.append("7. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
+        
+        // Add entity types information - always include, even if empty
+        prompt.append("8. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
+        if (context.getAvailableEntityTypes() != null && !context.getAvailableEntityTypes().isEmpty()) {
+            prompt.append("Available entity types: ").append(String.join(", ", context.getAvailableEntityTypes())).append(". ");
+            prompt.append("Only use entity types from this list. ");
+        } else {
+            prompt.append("No entity types are currently registered. ");
+        }
+        prompt.append("Use [] when unknown or when no entity types match. ");
+        prompt.append("Example: {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find premium customers who ordered this month\",\"entityTypes\":[\"customer\",\"order\"],\"limit\":20}}.\n\n");
     }
 
     private void appendNextStepGuidance(StringBuilder prompt) {
