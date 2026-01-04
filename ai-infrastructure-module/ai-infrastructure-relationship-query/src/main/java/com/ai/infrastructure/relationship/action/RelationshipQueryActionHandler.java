@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * ActionHandler bridge that lets the orchestrator execute relationship queries.
@@ -40,7 +39,7 @@ import java.util.Objects;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnBean(ReliableRelationshipQueryService.class)
+@ConditionalOnBean({ReliableRelationshipQueryService.class, RelationshipQueryAccessControlPolicy.class})
 @ConditionalOnProperty(
     prefix = "ai.infrastructure.relationship",
     name = "enable-orchestrator-integration",
@@ -49,7 +48,6 @@ import java.util.Objects;
 )
 // Access control policy is REQUIRED when orchestrator integration is enabled
 // Application will fail to start if no policy bean is provided
-@ConditionalOnBean(RelationshipQueryAccessControlPolicy.class)
 public class RelationshipQueryActionHandler implements ActionHandler {
 
     private static final String ACTION_NAME = "relationship_query";
@@ -312,7 +310,7 @@ public class RelationshipQueryActionHandler implements ActionHandler {
         if (response.getConfidenceScore() != null) {
             data.put("confidenceScore", response.getConfidenceScore());
         }
-        if (Objects.nonNull(response.getEntityType())) {
+        if (response.getEntityType() != null) {
             data.put("entityType", response.getEntityType());
         }
         return data;
