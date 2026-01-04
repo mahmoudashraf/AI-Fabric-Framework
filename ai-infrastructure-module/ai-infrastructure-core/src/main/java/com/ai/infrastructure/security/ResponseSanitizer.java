@@ -110,6 +110,16 @@ public class ResponseSanitizer {
 
         publishSanitizationEvent(userId, aggregatedRisk, aggregatedTypes);
 
+        // Guarantee a minimal, non-empty sanitized payload
+        if (payload.isEmpty()) {
+            payload.put("type", result.getType() != null ? result.getType().name() : "UNKNOWN");
+            payload.put("success", result.isSuccess());
+            payload.put("sanitization", Map.of(
+                "risk", aggregatedRisk.name(),
+                "detectedTypes", aggregatedTypes
+            ));
+        }
+
         return Collections.unmodifiableMap(payload);
     }
 
