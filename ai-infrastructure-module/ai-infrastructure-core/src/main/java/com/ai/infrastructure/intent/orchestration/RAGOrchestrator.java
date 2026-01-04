@@ -184,8 +184,10 @@ public class RAGOrchestrator {
                 fallbackPayload.put("type", result.getType().name());
             }
             fallbackPayload.put("success", result.isSuccess());
-            fallbackPayload.put("message", result.getMessage());
-            fallbackPayload.put("data", result.getData());
+            fallbackPayload.put("sanitization", Map.of(
+                "risk", "NONE",
+                "detectedTypes", Collections.emptyList()
+            ));
             sanitizedPayload = Collections.unmodifiableMap(fallbackPayload);
         }
 
