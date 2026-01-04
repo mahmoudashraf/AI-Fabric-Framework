@@ -84,7 +84,9 @@ public class ResponseSanitizer {
         if (!suggestionOutcome.value().isEmpty()) {
             payload.put("suggestions", Collections.unmodifiableList(suggestionOutcome.value()));
         }
-        if (!smartSuggestionOutcome.value().isEmpty()) {
+        // Always include smartSuggestion if it was present in original result, even if empty after sanitization
+        // This preserves the response structure and allows clients to detect that suggestions were sanitized
+        if (!CollectionUtils.isEmpty(result.getSmartSuggestion()) || !smartSuggestionOutcome.value().isEmpty()) {
             payload.put("smartSuggestion", Collections.unmodifiableMap(smartSuggestionOutcome.value()));
         }
         payload.put("safeSummary", buildSafeSummary(messageOutcome, result));
@@ -221,7 +223,10 @@ public class ResponseSanitizer {
             }
 
             SanitizationOutcome<Object> outcome = sanitizeObject(entry.getValue(), userId);
-            if (outcome.value() != null) {
+            // Always preserve the key-value structure, even if value is sanitized
+            // This ensures that response structures like smartSuggestion maintain their shape
+            // Only exclude if the value was null in the original AND no PII was detected
+            if (outcome.value() != null || outcome.riskLevel() != RiskLevel.NONE) {
                 sanitized.put(key, outcome.value());
             }
             riskLevel = RiskLevel.max(riskLevel, outcome.riskLevel());
