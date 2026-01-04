@@ -165,7 +165,7 @@ class RelationshipQueryActionHandlerTest {
     }
 
     @Test
-    void validateActionAllowedDelegatesTo AccessControlPolicy() {
+    void validateActionAllowedDelegatesToAccessControlPolicy() {
         when(accessControlPolicy.canUserExecuteRelationshipQueries("user-123")).thenReturn(true);
         when(accessControlPolicy.canUserExecuteRelationshipQueries("user-456")).thenReturn(false);
 
