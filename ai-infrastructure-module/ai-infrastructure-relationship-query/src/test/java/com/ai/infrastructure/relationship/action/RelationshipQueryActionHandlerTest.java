@@ -6,6 +6,8 @@ import com.ai.infrastructure.relationship.model.QueryMode;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
+import com.ai.infrastructure.relationship.spi.RelationshipQueryAccessControlPolicy;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -19,6 +21,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -31,8 +34,19 @@ class RelationshipQueryActionHandlerTest {
     @Mock
     private ReliableRelationshipQueryService queryService;
 
+    @Mock
+    private RelationshipQueryAccessControlPolicy accessControlPolicy;
+
     @InjectMocks
     private RelationshipQueryActionHandler handler;
+
+    @BeforeEach
+    void setUp() {
+        // Default: allow all access (tests can override)
+        when(accessControlPolicy.canUserExecuteRelationshipQueries(anyString())).thenReturn(true);
+        when(accessControlPolicy.canUserQueryEntityType(anyString(), anyString())).thenReturn(true);
+        when(accessControlPolicy.getAllowedEntityTypesForUser(anyString())).thenReturn(List.of());
+    }
 
     @Test
     void metadataShouldExposeRelationshipQuery() {
@@ -145,8 +159,91 @@ class RelationshipQueryActionHandlerTest {
 
     @Test
     void validateActionAllowedRequiresUserId() {
-        assertThat(handler.validateActionAllowed("user-123")).isTrue();
         assertThat(handler.validateActionAllowed(null)).isFalse();
         assertThat(handler.validateActionAllowed("")).isFalse();
+        assertThat(handler.validateActionAllowed("   ")).isFalse();
+    }
+
+    @Test
+    void validateActionAllowedDelegatesTo AccessControlPolicy() {
+        when(accessControlPolicy.canUserExecuteRelationshipQueries("user-123")).thenReturn(true);
+        when(accessControlPolicy.canUserExecuteRelationshipQueries("user-456")).thenReturn(false);
+
+        assertThat(handler.validateActionAllowed("user-123")).isTrue();
+        assertThat(handler.validateActionAllowed("user-456")).isFalse();
+
+        verify(accessControlPolicy).canUserExecuteRelationshipQueries("user-123");
+        verify(accessControlPolicy).canUserExecuteRelationshipQueries("user-456");
+    }
+
+    @Test
+    void executeActionShouldFilterEntityTypesBasedOnPolicy() {
+        // Policy allows only "user" entity type, not "order"
+        when(accessControlPolicy.canUserQueryEntityType("user-123", "user")).thenReturn(true);
+        when(accessControlPolicy.canUserQueryEntityType("user-123", "order")).thenReturn(false);
+
+        Map<String, Object> params = Map.of(
+            "query", "Find users and orders",
+            "entityTypes", List.of("user", "order")
+        );
+
+        when(queryService.execute(any(), anyList(), any(QueryOptions.class)))
+            .thenReturn(RAGResponse.builder().success(true).build());
+
+        ActionResult result = handler.executeAction(params, "user-123");
+
+        assertThat(result.isSuccess()).isTrue();
+
+        // Verify only "user" entity type was passed to query service
+        ArgumentCaptor<List<String>> entityTypesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(queryService).execute(any(), entityTypesCaptor.capture(), any(QueryOptions.class));
+
+        assertThat(entityTypesCaptor.getValue()).containsExactly("user");
+        assertThat(entityTypesCaptor.getValue()).doesNotContain("order");
+    }
+
+    @Test
+    void executeActionShouldDenyWhenNoEntityTypesAllowed() {
+        // Policy denies all entity types
+        when(accessControlPolicy.canUserQueryEntityType("user-123", "user")).thenReturn(false);
+        when(accessControlPolicy.canUserQueryEntityType("user-123", "order")).thenReturn(false);
+
+        Map<String, Object> params = Map.of(
+            "query", "Find users and orders",
+            "entityTypes", List.of("user", "order")
+        );
+
+        ActionResult result = handler.executeAction(params, "user-123");
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getErrorCode()).isEqualTo("ACCESS_DENIED");
+        assertThat(result.getMessage()).contains("Access denied");
+
+        verify(queryService, never()).execute(any(), anyList(), any());
+    }
+
+    @Test
+    void executeActionShouldUseAllowedEntityTypesWhenEmptyListProvided() {
+        // When entity types are empty, policy provides allowed entity types
+        when(accessControlPolicy.getAllowedEntityTypesForUser("user-123"))
+            .thenReturn(List.of("user", "product"));
+
+        Map<String, Object> params = Map.of(
+            "query", "Find stuff",
+            "entityTypes", List.of()
+        );
+
+        when(queryService.execute(any(), anyList(), any(QueryOptions.class)))
+            .thenReturn(RAGResponse.builder().success(true).build());
+
+        ActionResult result = handler.executeAction(params, "user-123");
+
+        assertThat(result.isSuccess()).isTrue();
+
+        // Verify allowed entity types from policy were passed
+        ArgumentCaptor<List<String>> entityTypesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(queryService).execute(any(), entityTypesCaptor.capture(), any(QueryOptions.class));
+
+        assertThat(entityTypesCaptor.getValue()).containsExactly("user", "product");
     }
 }

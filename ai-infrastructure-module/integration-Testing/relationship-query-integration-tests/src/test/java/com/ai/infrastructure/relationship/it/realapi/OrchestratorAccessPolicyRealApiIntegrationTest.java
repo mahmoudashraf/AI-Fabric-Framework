@@ -55,7 +55,11 @@ import static org.assertj.core.api.Assertions.assertThat;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
 @ActiveProfiles("realapi")
-@Import({BackendEnvTestConfiguration.class, OrchestratorAccessPolicyRealApiIntegrationTest.PolicyConfig.class})
+@Import({
+    BackendEnvTestConfiguration.class,
+    OrchestratorAccessPolicyRealApiIntegrationTest.PolicyConfig.class,
+    com.ai.infrastructure.relationship.it.config.TestRelationshipQueryAccessControlPolicy.class
+})
 @TestPropertySource(properties = {
     "ai.infrastructure.relationship.enable-orchestrator-integration=true"
 })

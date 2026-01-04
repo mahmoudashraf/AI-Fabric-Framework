@@ -8,6 +8,7 @@ import com.ai.infrastructure.relationship.model.QueryMode;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
+import com.ai.infrastructure.relationship.spi.RelationshipQueryAccessControlPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -23,6 +24,18 @@ import java.util.Objects;
 
 /**
  * ActionHandler bridge that lets the orchestrator execute relationship queries.
+ * 
+ * <p><strong>REQUIREMENT:</strong> When orchestrator integration is enabled, users MUST provide
+ * an implementation of {@link RelationshipQueryAccessControlPolicy}. The application will fail
+ * to start if no policy bean is provided.</p>
+ * 
+ * <p><strong>Behavior:</strong>
+ * <ul>
+ *   <li>When {@code enable-orchestrator-integration=true}: Handler is created, policy is REQUIRED</li>
+ *   <li>When {@code enable-orchestrator-integration=false}: Handler is NOT created, policy is NOT needed
+ *       (standalone mode - users handle access control manually)</li>
+ * </ul>
+ * </p>
  */
 @Slf4j
 @Component
@@ -34,11 +47,17 @@ import java.util.Objects;
     havingValue = "true",
     matchIfMissing = true
 )
+// Access control policy is REQUIRED when orchestrator integration is enabled
+// Application will fail to start if no policy bean is provided
+@ConditionalOnBean(RelationshipQueryAccessControlPolicy.class)
 public class RelationshipQueryActionHandler implements ActionHandler {
 
     private static final String ACTION_NAME = "relationship_query";
 
     private final ReliableRelationshipQueryService queryService;
+    // REQUIRED - enforced via @ConditionalOnBean above
+    // Users must provide their own implementation of RelationshipQueryAccessControlPolicy
+    private final RelationshipQueryAccessControlPolicy accessControlPolicy;
 
     @Override
     public AIActionMetaData getActionMetadata() {
@@ -107,7 +126,12 @@ public class RelationshipQueryActionHandler implements ActionHandler {
 
     @Override
     public boolean validateActionAllowed(String userId) {
-        return userId != null && !userId.isBlank();
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        
+        // Policy is always present when orchestrator integration is enabled (enforced by @ConditionalOnBean)
+        return accessControlPolicy.canUserExecuteRelationshipQueries(userId);
     }
 
     @Override
@@ -177,18 +201,44 @@ public class RelationshipQueryActionHandler implements ActionHandler {
         throw new IllegalArgumentException("'entityTypes' must be a String or List<String>");
     }
 
+    /**
+     * Filter entity types based on user permissions using RelationshipQueryAccessControlPolicy SPI.
+     * 
+     * Policy is REQUIRED when orchestrator integration is enabled (enforced by @ConditionalOnBean).
+     * 
+     * @param userId User identifier
+     * @param requestedEntityTypes Entity types requested in the query
+     * @return Filtered list of entity types the user is allowed to query
+     */
     private List<String> filterAllowedEntityTypes(String userId, List<String> requestedEntityTypes) {
-        // Placeholder for downstream access control; currently allow all.
-        if (requestedEntityTypes == null) {
-            return List.of();
+        if (requestedEntityTypes == null || requestedEntityTypes.isEmpty()) {
+            // If no entity types specified, get allowed entity types from policy
+            List<String> allowed = accessControlPolicy.getAllowedEntityTypesForUser(userId);
+            if (log.isDebugEnabled()) {
+                log.debug("No entity types specified - using policy allowed types: {} for user {}", allowed, userId);
+            }
+            return allowed;
         }
-        if (requestedEntityTypes.isEmpty()) {
-            return List.of();
+        
+        // Filter requested entity types based on user permissions
+        List<String> allowed = new ArrayList<>();
+        for (String entityType : requestedEntityTypes) {
+            if (accessControlPolicy.canUserQueryEntityType(userId, entityType)) {
+                allowed.add(entityType);
+            } else {
+                log.debug("Access denied: user {} cannot query entity type {}", userId, entityType);
+            }
         }
-        if (log.isDebugEnabled()) {
-            log.debug("Allowing entity types {} for user {}", requestedEntityTypes, userId);
+        
+        // Log if some entity types were filtered out
+        if (allowed.size() < requestedEntityTypes.size()) {
+            List<String> denied = new ArrayList<>(requestedEntityTypes);
+            denied.removeAll(allowed);
+            log.info("Access control filtered entity types for user {}: denied {} ({}), allowed {} ({})", 
+                userId, denied.size(), denied, allowed.size(), allowed);
         }
-        return requestedEntityTypes;
+        
+        return allowed;
     }
 
     private int parseInteger(Object raw, int defaultValue) {
