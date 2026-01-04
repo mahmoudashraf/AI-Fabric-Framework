@@ -115,16 +115,33 @@ public class RelationshipQueryActionHandler implements ActionHandler {
 
             boolean autoDetect = entityTypes.isEmpty();
             
-            // Security: If user explicitly requested entity types, ALL must be allowed
-            // Fail-closed: Deny the request if ANY requested entity type is not allowed
-            if (!autoDetect) {
+            // SECURITY CRITICAL: Access control ALWAYS enforced, even for auto-detect
+            // If user didn't specify entity types, use ONLY what policy allows
+            if (autoDetect) {
+                // Auto-detect scenario: user didn't specify entity types
+                // Security: Use ONLY entity types the user is allowed to access
                 if (allowedEntityTypes.isEmpty()) {
-                    // All entity types denied
+                    // Policy returned no allowed entity types
+                    log.warn("Access denied: user {} has no allowed entity types for auto-detection", userId);
                     return ActionResult.builder()
                         .success(false)
-                    .message("Access denied: You do not have permission to query the requested entity types")
-                    .errorCode(ERROR_ACCESS_DENIED)
-                    .data(Map.of(DATA_KEY_REQUESTED_ENTITY_TYPES, entityTypes))
+                        .message("Access denied: You do not have permission to query any entity types")
+                        .errorCode(ERROR_ACCESS_DENIED)
+                        .data(Map.of("reason", "No entity types accessible for auto-detection"))
+                        .build();
+                }
+                // Continue with allowed entity types only (policy-constrained auto-detection)
+                log.debug("Auto-detect: using policy-allowed entity types: {} for user {}", 
+                    allowedEntityTypes, userId);
+            } else {
+                // Explicit entity types requested: ALL must be allowed (fail-closed)
+                if (allowedEntityTypes.isEmpty()) {
+                    // All requested entity types denied
+                    return ActionResult.builder()
+                        .success(false)
+                        .message("Access denied: You do not have permission to query the requested entity types")
+                        .errorCode(ERROR_ACCESS_DENIED)
+                        .data(Map.of(DATA_KEY_REQUESTED_ENTITY_TYPES, entityTypes))
                         .build();
                 }
                 
@@ -147,8 +164,8 @@ public class RelationshipQueryActionHandler implements ActionHandler {
             }
 
             QueryOptions options = buildQueryOptions(params);
-            List<String> entityTypeHints = allowedEntityTypes.isEmpty() ? null : allowedEntityTypes;
-            RAGResponse response = queryService.execute(query, entityTypeHints, options);
+            // Always pass allowed entity types (never null, never unrestricted)
+            RAGResponse response = queryService.execute(query, allowedEntityTypes, options);
 
             return ActionResult.builder()
                 .success(response.getSuccess() == null || response.getSuccess())
