@@ -63,7 +63,6 @@ class RelationshipQueryActionHandlerTest {
             "entityTypes", List.of("user"),
             "limit", 25,
             "returnMode", "FULL",
-            "queryMode", "ENHANCED",
             "similarityThreshold", 0.42
         );
 
@@ -85,8 +84,8 @@ class RelationshipQueryActionHandlerTest {
         QueryOptions options = optionsCaptor.getValue();
         assertThat(options.getLimit()).isEqualTo(25);
         assertThat(options.getReturnMode()).isEqualTo(ReturnMode.FULL);
-        assertThat(options.getForceMode()).isEqualTo(QueryMode.ENHANCED);
         assertThat(options.getSimilarityThreshold()).isEqualTo(0.42);
+        // Note: QueryMode is determined by LLM's needsSemanticSearch flag, not by parameters
     }
 
     @Test
@@ -180,7 +179,7 @@ class RelationshipQueryActionHandlerTest {
     }
 
     @Test
-    void executeActionShouldFilterEntityTypesBasedOnPolicy() {
+    void executeActionShouldDenyWhenSomeEntityTypesNotAllowed() {
         // Policy allows only "user" entity type, not "order"
         when(accessControlPolicy.canUserQueryEntityType("user-123", "user")).thenReturn(true);
         when(accessControlPolicy.canUserQueryEntityType("user-123", "order")).thenReturn(false);
@@ -190,19 +189,23 @@ class RelationshipQueryActionHandlerTest {
             "entityTypes", List.of("user", "order")
         );
 
-        when(queryService.execute(any(), anyList(), any(QueryOptions.class)))
-            .thenReturn(RAGResponse.builder().success(true).build());
-
         ActionResult result = handler.executeAction(params, "user-123");
 
-        assertThat(result.isSuccess()).isTrue();
+        // Should DENY the request (fail-closed security model)
+        // User requested ["user", "order"] but only allowed ["user"]
+        // We deny the entire request rather than executing partial query
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getErrorCode()).isEqualTo("ACCESS_DENIED");
+        assertThat(result.getMessage()).contains("Access denied");
+        assertThat(result.getData()).isInstanceOf(Map.class);
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) result.getData();
+        assertThat(data).containsKeys("requestedEntityTypes", "allowedEntityTypes", "deniedEntityTypes");
+        assertThat(data.get("deniedEntityTypes")).isEqualTo(List.of("order"));
 
-        // Verify only "user" entity type was passed to query service
-        ArgumentCaptor<List<String>> entityTypesCaptor = ArgumentCaptor.forClass(List.class);
-        verify(queryService).execute(any(), entityTypesCaptor.capture(), any(QueryOptions.class));
-
-        assertThat(entityTypesCaptor.getValue()).containsExactly("user");
-        assertThat(entityTypesCaptor.getValue()).doesNotContain("order");
+        // Verify query service was never called (security enforcement)
+        verify(queryService, never()).execute(any(), anyList(), any(QueryOptions.class));
     }
 
     @Test

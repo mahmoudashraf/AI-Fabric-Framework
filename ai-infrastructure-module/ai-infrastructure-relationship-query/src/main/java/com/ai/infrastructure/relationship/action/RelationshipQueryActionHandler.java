@@ -50,7 +50,40 @@ import java.util.Map;
 // Application will fail to start if no policy bean is provided
 public class RelationshipQueryActionHandler implements ActionHandler {
 
+    // Action metadata
     private static final String ACTION_NAME = "relationship_query";
+    
+    // Parameter names (extracted by LLM from user query)
+    private static final String PARAM_QUERY = "query";  // From user input
+    private static final String PARAM_ENTITY_TYPES = "entityTypes";  // Extracted by LLM
+    
+    // Application-level parameters (NOT extracted by LLM - passed by application code)
+    private static final String PARAM_LIMIT = "limit";  // Application config
+    private static final String PARAM_RETURN_MODE = "returnMode";  // Application config (IDS vs FULL)
+    private static final String PARAM_SIMILARITY_THRESHOLD = "similarityThreshold";  // Application config
+    
+    // Error codes
+    private static final String ERROR_ACCESS_DENIED = "ACCESS_DENIED";
+    private static final String ERROR_INVALID_PARAMETERS = "INVALID_PARAMETERS";
+    private static final String ERROR_EXECUTION_FAILED = "EXECUTION_FAILED";
+    
+    // Response data keys
+    private static final String DATA_KEY_REQUESTED_ENTITY_TYPES = "requestedEntityTypes";
+    private static final String DATA_KEY_ALLOWED_ENTITY_TYPES = "allowedEntityTypes";
+    private static final String DATA_KEY_DENIED_ENTITY_TYPES = "deniedEntityTypes";
+    private static final String DATA_KEY_ERROR_TYPE = "errorType";
+    private static final String DATA_KEY_DOCUMENTS = "documents";
+    private static final String DATA_KEY_TOTAL_RESULTS = "totalResults";
+    private static final String DATA_KEY_RETURNED_RESULTS = "returnedResults";
+    private static final String DATA_KEY_HYBRID_SEARCH_USED = "hybridSearchUsed";
+    private static final String DATA_KEY_PROCESSING_TIME_MS = "processingTimeMs";
+    private static final String DATA_KEY_METADATA = "metadata";
+    private static final String DATA_KEY_WARNINGS = "warnings";
+    private static final String DATA_KEY_CONFIDENCE_SCORE = "confidenceScore";
+    private static final String DATA_KEY_ENTITY_TYPE = "entityType";
+    
+    // Default values
+    private static final int DEFAULT_LIMIT = 20;
 
     private final ReliableRelationshipQueryService queryService;
     // REQUIRED - enforced via @ConditionalOnBean above
@@ -64,12 +97,11 @@ public class RelationshipQueryActionHandler implements ActionHandler {
             .description("Execute natural language relationship queries across entities")
             .category("data_query")
             .parameters(Map.of(
-                "query", "Natural language query (required)",
-                "entityTypes", "List<String> entity types to target (required)",
-                "limit", "Maximum number of results (optional, default 20)",
-                "returnMode", "IDS or FULL (optional, default IDS)",
-                "queryMode", "STANDALONE or ENHANCED (optional)",
-                "similarityThreshold", "Vector similarity threshold 0-1 (optional)"
+                PARAM_QUERY, "Natural language query (required)",
+                PARAM_ENTITY_TYPES, "List<String> entity types to target (required)",
+                PARAM_LIMIT, "Maximum number of results (optional, default " + DEFAULT_LIMIT + ")",
+                PARAM_RETURN_MODE, "IDS or FULL (optional, default IDS)",
+                PARAM_SIMILARITY_THRESHOLD, "Vector similarity threshold 0-1 (optional, used when ENHANCED mode is active)"
             ))
             .build();
     }
@@ -82,13 +114,36 @@ public class RelationshipQueryActionHandler implements ActionHandler {
             List<String> allowedEntityTypes = filterAllowedEntityTypes(userId, entityTypes);
 
             boolean autoDetect = entityTypes.isEmpty();
-            if (allowedEntityTypes.isEmpty() && !autoDetect) {
-                return ActionResult.builder()
-                    .success(false)
-                    .message("Access denied for requested entity types")
-                    .errorCode("ACCESS_DENIED")
-                    .data(Map.of("requestedEntityTypes", entityTypes))
-                    .build();
+            
+            // Security: If user explicitly requested entity types, ALL must be allowed
+            // Fail-closed: Deny the request if ANY requested entity type is not allowed
+            if (!autoDetect) {
+                if (allowedEntityTypes.isEmpty()) {
+                    // All entity types denied
+                    return ActionResult.builder()
+                        .success(false)
+                    .message("Access denied: You do not have permission to query the requested entity types")
+                    .errorCode(ERROR_ACCESS_DENIED)
+                    .data(Map.of(DATA_KEY_REQUESTED_ENTITY_TYPES, entityTypes))
+                        .build();
+                }
+                
+                if (allowedEntityTypes.size() < entityTypes.size()) {
+                    // Some entity types denied - fail-closed for security
+                    List<String> denied = new ArrayList<>(entityTypes);
+                    denied.removeAll(allowedEntityTypes);
+                    log.warn("Access denied: user {} requested unauthorized entity types: {}", userId, denied);
+                    return ActionResult.builder()
+                        .success(false)
+                        .message("Access denied: You do not have permission to query some of the requested entity types")
+                        .errorCode(ERROR_ACCESS_DENIED)
+                        .data(Map.of(
+                            DATA_KEY_REQUESTED_ENTITY_TYPES, entityTypes,
+                            DATA_KEY_ALLOWED_ENTITY_TYPES, allowedEntityTypes,
+                            DATA_KEY_DENIED_ENTITY_TYPES, denied
+                        ))
+                        .build();
+                }
             }
 
             QueryOptions options = buildQueryOptions(params);
@@ -104,7 +159,7 @@ public class RelationshipQueryActionHandler implements ActionHandler {
             return ActionResult.builder()
                 .success(false)
                 .message(ex.getMessage())
-                .errorCode("INVALID_PARAMETERS")
+                .errorCode(ERROR_INVALID_PARAMETERS)
                 .build();
         } catch (Exception ex) {
             return handleError(ex, userId);
@@ -117,8 +172,8 @@ public class RelationshipQueryActionHandler implements ActionHandler {
         return ActionResult.builder()
             .success(false)
             .message("Relationship query failed: " + e.getMessage())
-            .errorCode("EXECUTION_FAILED")
-            .data(Map.of("errorType", e.getClass().getSimpleName()))
+            .errorCode(ERROR_EXECUTION_FAILED)
+            .data(Map.of(DATA_KEY_ERROR_TYPE, e.getClass().getSimpleName()))
             .build();
     }
 
@@ -143,33 +198,29 @@ public class RelationshipQueryActionHandler implements ActionHandler {
     private QueryOptions buildQueryOptions(Map<String, Object> params) {
         QueryOptions.QueryOptionsBuilder builder = QueryOptions.builder();
 
-        if (params.containsKey("limit")) {
-            builder.limit(parseInteger(params.get("limit"), 20));
+        if (params.containsKey(PARAM_LIMIT)) {
+            builder.limit(parseInteger(params.get(PARAM_LIMIT), DEFAULT_LIMIT));
         }
-        if (params.containsKey("returnMode")) {
-            builder.returnMode(parseReturnMode(params.get("returnMode")));
+        if (params.containsKey(PARAM_RETURN_MODE)) {
+            builder.returnMode(parseReturnMode(params.get(PARAM_RETURN_MODE)));
         }
-        if (params.containsKey("queryMode") || params.containsKey("forceMode")) {
-            Object rawMode = params.getOrDefault("queryMode", params.get("forceMode"));
-            builder.forceMode(parseQueryMode(rawMode));
-        }
-        if (params.containsKey("similarityThreshold")) {
-            builder.similarityThreshold(parseDouble(params.get("similarityThreshold"), null));
+        if (params.containsKey(PARAM_SIMILARITY_THRESHOLD)) {
+            builder.similarityThreshold(parseDouble(params.get(PARAM_SIMILARITY_THRESHOLD), null));
         }
 
         return builder.build();
     }
 
     private String requireQuery(Map<String, Object> params) {
-        Object value = params != null ? params.get("query") : null;
+        Object value = params != null ? params.get(PARAM_QUERY) : null;
         if (value == null || value.toString().isBlank()) {
-            throw new IllegalArgumentException("'query' parameter is required for relationship_query");
+            throw new IllegalArgumentException("'" + PARAM_QUERY + "' parameter is required for relationship_query");
         }
         return value.toString();
     }
 
     private List<String> requireEntityTypes(Map<String, Object> params) {
-        Object value = params != null ? params.get("entityTypes") : null;
+        Object value = params != null ? params.get(PARAM_ENTITY_TYPES) : null;
         if (value == null) {
             log.warn("No entityTypes supplied for relationship_query; falling back to auto-detection");
             return List.of();
@@ -196,7 +247,7 @@ public class RelationshipQueryActionHandler implements ActionHandler {
                 : List.of(trimmed.toLowerCase(Locale.ROOT));
         }
 
-        throw new IllegalArgumentException("'entityTypes' must be a String or List<String>");
+        throw new IllegalArgumentException("'" + PARAM_ENTITY_TYPES + "' must be a String or List<String>");
     }
 
     /**
@@ -226,14 +277,6 @@ public class RelationshipQueryActionHandler implements ActionHandler {
             } else {
                 log.debug("Access denied: user {} cannot query entity type {}", userId, entityType);
             }
-        }
-        
-        // Log if some entity types were filtered out
-        if (allowed.size() < requestedEntityTypes.size()) {
-            List<String> denied = new ArrayList<>(requestedEntityTypes);
-            denied.removeAll(allowed);
-            log.info("Access control filtered entity types for user {}: denied {} ({}), allowed {} ({})", 
-                userId, denied.size(), denied, allowed.size(), allowed);
         }
         
         return allowed;
@@ -276,12 +319,6 @@ public class RelationshipQueryActionHandler implements ActionHandler {
         return ReturnMode.fromValue(raw.toString());
     }
 
-    private QueryMode parseQueryMode(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        return QueryMode.fromValue(raw.toString());
-    }
 
     private String buildSuccessMessage(RAGResponse response) {
         Integer total = response.getTotalResults();
@@ -296,22 +333,22 @@ public class RelationshipQueryActionHandler implements ActionHandler {
 
     private Map<String, Object> buildResultData(RAGResponse response) {
         Map<String, Object> data = new HashMap<>();
-        data.put("documents", response.getDocuments());
-        data.put("totalResults", response.getTotalResults());
-        data.put("returnedResults", response.getReturnedResults());
-        data.put("hybridSearchUsed", response.getHybridSearchUsed());
-        data.put("processingTimeMs", response.getProcessingTimeMs());
+        data.put(DATA_KEY_DOCUMENTS, response.getDocuments());
+        data.put(DATA_KEY_TOTAL_RESULTS, response.getTotalResults());
+        data.put(DATA_KEY_RETURNED_RESULTS, response.getReturnedResults());
+        data.put(DATA_KEY_HYBRID_SEARCH_USED, response.getHybridSearchUsed());
+        data.put(DATA_KEY_PROCESSING_TIME_MS, response.getProcessingTimeMs());
         if (response.getMetadata() != null && !response.getMetadata().isEmpty()) {
-            data.put("metadata", response.getMetadata());
+            data.put(DATA_KEY_METADATA, response.getMetadata());
         }
         if (response.getWarnings() != null && !response.getWarnings().isEmpty()) {
-            data.put("warnings", response.getWarnings());
+            data.put(DATA_KEY_WARNINGS, response.getWarnings());
         }
         if (response.getConfidenceScore() != null) {
-            data.put("confidenceScore", response.getConfidenceScore());
+            data.put(DATA_KEY_CONFIDENCE_SCORE, response.getConfidenceScore());
         }
         if (response.getEntityType() != null) {
-            data.put("entityType", response.getEntityType());
+            data.put(DATA_KEY_ENTITY_TYPE, response.getEntityType());
         }
         return data;
     }

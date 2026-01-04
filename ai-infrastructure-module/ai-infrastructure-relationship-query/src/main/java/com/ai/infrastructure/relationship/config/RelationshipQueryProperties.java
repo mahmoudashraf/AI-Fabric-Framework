@@ -31,7 +31,14 @@ public class RelationshipQueryProperties {
     private boolean enableOrchestratorIntegration = true;
 
     /**
-     * Whether semantic/vector ranking is permitted. The planner can still decide not to use it.
+     * Enable ENHANCED mode (vector reranking) for relationship queries.
+     * 
+     * <p>When enabled, the LLM can activate ENHANCED mode when it determines semantic search
+     * would improve relevance (based on query complexity and ambiguity).</p>
+     * 
+     * <p>When disabled, only STANDALONE mode (pure relational queries) is used.</p>
+     * 
+     * <p>Default: true (LLM decides when to use vector reranking)</p>
      */
     private boolean enableVectorSearch = true;
 
@@ -79,7 +86,11 @@ public class RelationshipQueryProperties {
 
     /**
      * Default mode when callers do not override (LLM auto-detection will flip to ENHANCED only when needed).
+     * 
+     * @deprecated No longer used. Mode is determined by LLM's needsSemanticSearch flag.
+     *             Use {@code enable-vector-search} to control if ENHANCED mode is available.
      */
+    @Deprecated
     @NotNull
     private QueryMode defaultQueryMode = QueryMode.STANDALONE;
 

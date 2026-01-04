@@ -42,7 +42,19 @@ class EnrichedPromptBuilderTest {
             return supplier.get();
         });
 
-        SystemContextBuilder contextBuilder = new SystemContextBuilder(registry, overviewService, clockProvider);
+        ObjectProvider<com.ai.infrastructure.spi.BehaviorContextProvider> behaviorProvider = Mockito.mock(ObjectProvider.class);
+        Mockito.when(behaviorProvider.getIfAvailable()).thenReturn(null);
+        
+        ObjectProvider<org.springframework.beans.factory.BeanFactory> beanFactoryProvider = Mockito.mock(ObjectProvider.class);
+        Mockito.when(beanFactoryProvider.getIfAvailable()).thenReturn(null);
+        
+        SystemContextBuilder contextBuilder = new SystemContextBuilder(
+            registry, 
+            overviewService, 
+            behaviorProvider,
+            clockProvider,
+            beanFactoryProvider
+        );
 
         EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(contextBuilder);
 

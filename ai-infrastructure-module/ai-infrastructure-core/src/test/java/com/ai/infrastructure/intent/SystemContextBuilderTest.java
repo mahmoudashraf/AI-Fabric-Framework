@@ -2,8 +2,10 @@ package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.intent.action.ActionInfo;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
+import com.ai.infrastructure.spi.BehaviorContextProvider;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Clock;
@@ -37,7 +39,20 @@ class SystemContextBuilderTest {
         Mockito.when(clockProvider.getIfUnique()).thenReturn(fixedClock);
         Mockito.when(clockProvider.getIfAvailable(Mockito.any())).thenReturn(fixedClock);
 
-        SystemContextBuilder builder = new SystemContextBuilder(registry, overviewService, clockProvider);
+        // Create ObjectProvider mocks for all parameters
+        ObjectProvider<BehaviorContextProvider> behaviorProvider = Mockito.mock(ObjectProvider.class);
+        Mockito.when(behaviorProvider.getIfAvailable()).thenReturn(null);
+        
+        ObjectProvider<BeanFactory> beanFactoryProvider = Mockito.mock(ObjectProvider.class);
+        Mockito.when(beanFactoryProvider.getIfAvailable()).thenReturn(null);
+        
+        SystemContextBuilder builder = new SystemContextBuilder(
+            registry, 
+            overviewService, 
+            behaviorProvider,
+            clockProvider,
+            beanFactoryProvider
+        );
 
         SystemContext context = builder.buildContext("user-123");
 
