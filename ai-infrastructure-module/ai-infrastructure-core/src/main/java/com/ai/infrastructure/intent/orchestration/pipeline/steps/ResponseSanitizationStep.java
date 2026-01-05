@@ -1,0 +1,175 @@
+package com.ai.infrastructure.intent.orchestration.pipeline.steps;
+
+import com.ai.infrastructure.config.PIIDetectionProperties;
+import com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.security.ResponseSanitizer;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Pipeline step that sanitizes the response before returning to the client.
+ * 
+ * <p>This step uses the {@link ResponseSanitizer} to clean and secure the
+ * response data. It also merges PII detection information from the input
+ * processing stage.</p>
+ * 
+ * <p><strong>Order:</strong> 90 (after smart suggestions)</p>
+ * 
+ * <p><strong>Output PII Detection:</strong> If configured for INPUT_OUTPUT
+ * detection, this step handles the OUTPUT detection phase.</p>
+ * 
+ * @see ResponseSanitizer
+ * @see PIIDetectionProperties
+ * @see PipelineStep
+ * @since 1.0
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class ResponseSanitizationStep implements PipelineStep {
+    
+    // =========================================================================
+    // Constants
+    // =========================================================================
+    
+    private static final String STEP_NAME = "ResponseSanitization";
+    private static final int STEP_ORDER = 90;
+    
+    // Sanitization keys
+    private static final String SANITIZATION_KEY = "sanitization";
+    private static final String DETECTED_TYPES_KEY = "detectedTypes";
+    
+    // =========================================================================
+    // Dependencies
+    // =========================================================================
+    
+    private final ResponseSanitizer responseSanitizer;
+    private final PIIDetectionProperties piiDetectionProperties;
+    
+    // =========================================================================
+    // PipelineStep Implementation
+    // =========================================================================
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getStepName() {
+        return STEP_NAME;
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int getOrder() {
+        return STEP_ORDER;
+    }
+    
+    /**
+     * Sanitize the response and merge PII detection information.
+     * 
+     * <p>This step:</p>
+     * <ol>
+     *   <li>Calls the response sanitizer to clean the result</li>
+     *   <li>Merges PII types detected in input with any output detections</li>
+     *   <li>Sets the sanitized payload on the result</li>
+     * </ol>
+     * 
+     * @param context the current pipeline context
+     * @return updated context with sanitized payload
+     */
+    @Override
+    public PipelineContext process(PipelineContext context) {
+        log.debug("Sanitizing response for request {}", context.getRequestId());
+        
+        OrchestrationResult result = context.getIntentResult();
+        if (result == null) {
+            log.warn("No intent result available for sanitization in request {}", 
+                context.getRequestId());
+            return context;
+        }
+        
+        String identifier = context.getIdentifier();
+        
+        // ResponseSanitizer guarantees a non-empty payload
+        Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, identifier);
+        
+        PIIDetectionDirection detectionDirection = piiDetectionProperties.getDetectionDirection();
+        boolean detectOutput = piiDetectionProperties.isEnabled() &&
+            detectionDirection == PIIDetectionDirection.INPUT_OUTPUT;
+        
+        if (!detectOutput) {
+            log.debug("PII OUTPUT detection is disabled (configuration: {})", detectionDirection);
+        }
+        
+        // Merge PII detection information
+        List<String> inputPiiTypes = context.getDetectedPiiTypes();
+        if ((!inputPiiTypes.isEmpty() || detectOutput) && sanitizedPayload.containsKey(SANITIZATION_KEY)) {
+            sanitizedPayload = mergePiiDetectionInfo(sanitizedPayload, inputPiiTypes);
+        }
+        
+        result.setSanitizedPayload(sanitizedPayload);
+        
+        log.debug("Response sanitization complete for request {}", context.getRequestId());
+        
+        return context.toBuilder()
+            .sanitizedPayload(sanitizedPayload)
+            .build();
+    }
+    
+    // =========================================================================
+    // Private Helper Methods
+    // =========================================================================
+    
+    /**
+     * Merge PII detection information from input into the sanitization metadata.
+     * 
+     * @param sanitizedPayload the current sanitized payload
+     * @param inputPiiTypes PII types detected in the input
+     * @return updated payload with merged PII information
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mergePiiDetectionInfo(Map<String, Object> sanitizedPayload,
+                                                       List<String> inputPiiTypes) {
+        Map<String, Object> sanitization = (Map<String, Object>) sanitizedPayload.get(SANITIZATION_KEY);
+        Map<String, Object> updatedSanitization = new LinkedHashMap<>(sanitization);
+        
+        List<String> existingTypes = (List<String>) sanitization.get(DETECTED_TYPES_KEY);
+        List<String> mergedTypes = new ArrayList<>();
+        if (existingTypes != null) {
+            mergedTypes.addAll(existingTypes);
+        }
+        mergedTypes.addAll(inputPiiTypes);
+        
+        // Deduplicate and sort
+        List<String> finalTypes = mergedTypes.stream()
+            .distinct()
+            .sorted()
+            .collect(Collectors.toList());
+        
+        if (!finalTypes.isEmpty()) {
+            updatedSanitization.put(DETECTED_TYPES_KEY, finalTypes);
+        }
+        
+        // Create new payload map with updated sanitization if changed
+        if (!updatedSanitization.equals(sanitization)) {
+            Map<String, Object> updatedPayload = new LinkedHashMap<>(sanitizedPayload);
+            updatedPayload.put(SANITIZATION_KEY, Collections.unmodifiableMap(updatedSanitization));
+            return Collections.unmodifiableMap(updatedPayload);
+        }
+        
+        return sanitizedPayload;
+    }
+}
