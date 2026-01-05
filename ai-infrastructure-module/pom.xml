@@ -30,6 +30,7 @@
 
     <modules>
         <module>ai-infrastructure-core</module>
+        <module>ai-infrastructure-chat-session</module>
         <module>ai-infrastructure-web</module>
         <module>providers/ai-infrastructure-provider-openai</module>
         <module>providers/ai-infrastructure-provider-azure</module>
@@ -83,6 +84,11 @@
             <dependency>
                 <groupId>com.ai.fabric</groupId>
                 <artifactId>ai-fabric-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-infrastructure-chat-session</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

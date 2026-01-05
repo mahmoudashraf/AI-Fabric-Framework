@@ -60,7 +60,8 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPIMultiProviderFailoverIntegrationTest.class,
         RealAPISmartSuggestionsIntegrationTest.class,
         RealAPIPIIEdgeSpectrumIntegrationTest.class,
-        RealAPICreativeAIScenariosIntegrationTest.class
+        RealAPICreativeAIScenariosIntegrationTest.class,
+        com.ai.infrastructure.it.RealAPIChatSessionIntegrationTest.class
     };
 
     private static final Class<?>[] REAL_API_TEST_CLASSES = {
@@ -77,7 +78,8 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPISmartSuggestionsIntegrationTest.class,
         RealAPIPIIEdgeSpectrumIntegrationTest.class,
         IndexingStrategyIntegrationTest.class,
-        RealAPICreativeAIScenariosIntegrationTest.class
+        RealAPICreativeAIScenariosIntegrationTest.class,
+        com.ai.infrastructure.it.RealAPIChatSessionIntegrationTest.class
     };
 
     @Override

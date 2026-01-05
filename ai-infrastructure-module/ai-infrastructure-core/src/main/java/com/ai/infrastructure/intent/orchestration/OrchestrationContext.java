@@ -58,6 +58,19 @@ public class OrchestrationContext {
     private Map<String, Object> metadata = new HashMap<>();
 
     /**
+     * Conversation ID for multi-turn chat tracking (optional).
+     * <p>
+     * When provided:
+     * <ul>
+     *   <li>Loads conversation history before processing</li>
+     *   <li>Enriches query with conversation context</li>
+     *   <li>Records query/response as new turn after processing</li>
+     * </ul>
+     * When omitted: stateless query (no history recorded).
+     */
+    private String conversationId;
+
+    /**
      * True if an authenticated userId was provided.
      */
     public boolean isAuthenticated() {
@@ -69,6 +82,13 @@ public class OrchestrationContext {
      */
     public boolean isAnonymous() {
         return !isAuthenticated();
+    }
+
+    /**
+     * True when a conversation identifier has been supplied.
+     */
+    public boolean hasConversation() {
+        return conversationId != null && !conversationId.isBlank();
     }
 
     /**

@@ -4,6 +4,9 @@ import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
+import com.ai.infrastructure.chat.config.ChatSessionAutoConfiguration;
+import com.ai.infrastructure.chat.repository.ChatSessionRepository;
+import com.ai.infrastructure.chat.spi.ChatSessionAccessControlPolicy;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -22,7 +25,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * @version 1.0.0
  */
 @SpringBootApplication(scanBasePackages = {"com.ai.infrastructure", "com.ai.infrastructure.it"})
-@Import(AIInfrastructureAutoConfiguration.class)
+@Import({AIInfrastructureAutoConfiguration.class, ChatSessionAutoConfiguration.class})
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
     "com.ai.infrastructure.it.entity",
@@ -50,5 +53,32 @@ public class TestApplication {
             .compliant(true)
             .details("Test compliance provider approval")
             .build();
+    }
+
+    @Bean
+    public ChatSessionAccessControlPolicy chatSessionAccessControlPolicy(ChatSessionRepository repository) {
+        return new ChatSessionAccessControlPolicy() {
+            @Override
+            public boolean canUserCreateConversation(String ownerId) {
+                return repository.countByOwnerId(ownerId) < 200;
+            }
+
+            @Override
+            public boolean canUserAccessConversation(String requestingUser, String conversationId) {
+                return repository.findById(conversationId)
+                    .map(session -> session.isOwnedBy(requestingUser))
+                    .orElse(true);
+            }
+
+            @Override
+            public boolean canUserDeleteConversation(String requestingUser, String conversationId) {
+                return canUserAccessConversation(requestingUser, conversationId);
+            }
+
+            @Override
+            public boolean canUserViewHistory(String requestingUser, String conversationId) {
+                return canUserAccessConversation(requestingUser, conversationId);
+            }
+        };
     }
 }
