@@ -14,6 +14,19 @@ import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.orchestration.pipeline.DefaultOrchestrationPipeline;
+import com.ai.infrastructure.intent.orchestration.pipeline.Pipeline;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.AccessControlStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.ComplianceCheckStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.HistoryPersistenceStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.IntentExtractionStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.IntentHandlingStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.MetadataBuildingStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.PIIDetectionStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.ResponseSanitizationStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.SecurityAnalysisStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.SmartSuggestionsStep;
 import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.security.ResponseSanitizer;
@@ -30,9 +43,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -75,7 +85,8 @@ class RAGOrchestratorTest {
 
     private ResponseSanitizer responseSanitizer;
     private SmartSuggestionsProperties smartSuggestionsProperties;
-    private Clock clock;
+    private PIIDetectionService piiDetectionService;
+    private PIIDetectionProperties piiDetectionProperties;
 
     private RAGOrchestrator orchestrator;
 
@@ -84,10 +95,10 @@ class RAGOrchestratorTest {
         smartSuggestionsProperties = new SmartSuggestionsProperties();
         ResponseSanitizationProperties sanitizationProperties = new ResponseSanitizationProperties();
         sanitizationProperties.setEnabled(false);
-        PIIDetectionProperties piiDetectionProperties = new PIIDetectionProperties();
+        piiDetectionProperties = new PIIDetectionProperties();
         piiDetectionProperties.setEnabled(true);
         piiDetectionProperties.setDetectionDirection(PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT);
-        PIIDetectionService piiDetectionService = new PIIDetectionService(piiDetectionProperties);
+        piiDetectionService = new PIIDetectionService(piiDetectionProperties);
         responseSanitizer = new ResponseSanitizer(piiDetectionService, sanitizationProperties);
         when(intentHistoryService.recordIntent(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
         when(securityService.analyzeRequest(any())).thenReturn(
@@ -109,21 +120,29 @@ class RAGOrchestratorTest {
                 .success(true)
                 .build()
         );
-        clock = Clock.fixed(Instant.parse("2025-01-01T00:00:00Z"), ZoneOffset.UTC);
-        orchestrator = new RAGOrchestrator(
-            intentQueryExtractor,
-            actionHandlerRegistry,
-            ragService,
-            responseSanitizer,
-            intentHistoryService,
-            smartSuggestionsProperties,
-            piiDetectionService,
-            piiDetectionProperties,
-            securityService,
-            accessControlService,
-            complianceService,
-            clock
+        
+        // Create pipeline with all steps
+        Pipeline pipeline = createPipeline();
+        orchestrator = new RAGOrchestrator(pipeline);
+    }
+    
+    /**
+     * Creates a pipeline with all required steps for testing.
+     */
+    private Pipeline createPipeline() {
+        List<PipelineStep> steps = List.of(
+            new SecurityAnalysisStep(securityService),
+            new AccessControlStep(accessControlService),
+            new PIIDetectionStep(piiDetectionService, piiDetectionProperties),
+            new ComplianceCheckStep(complianceService),
+            new IntentExtractionStep(intentQueryExtractor),
+            new IntentHandlingStep(actionHandlerRegistry, ragService),
+            new MetadataBuildingStep(),
+            new SmartSuggestionsStep(smartSuggestionsProperties, ragService),
+            new ResponseSanitizationStep(responseSanitizer, piiDetectionProperties),
+            new HistoryPersistenceStep(intentHistoryService)
         );
+        return new DefaultOrchestrationPipeline(steps);
     }
 
     @Test
@@ -359,7 +378,10 @@ class RAGOrchestratorTest {
 
     @Test
     void shouldSkipSmartSuggestionWhenConfidenceBelowThreshold() {
+        // Recreate pipeline with updated properties
         smartSuggestionsProperties.setMinConfidence(0.8d);
+        Pipeline pipeline = createPipeline();
+        orchestrator = new RAGOrchestrator(pipeline);
 
         NextStepRecommendation recommendation = NextStepRecommendation.builder()
             .intent("view_billing_history")
@@ -390,7 +412,10 @@ class RAGOrchestratorTest {
 
     @Test
     void shouldNotInvokeSmartSuggestionsWhenDisabled() {
+        // Recreate pipeline with updated properties
         smartSuggestionsProperties.setEnabled(false);
+        Pipeline pipeline = createPipeline();
+        orchestrator = new RAGOrchestrator(pipeline);
 
         NextStepRecommendation recommendation = NextStepRecommendation.builder()
             .intent("view_billing_history")
