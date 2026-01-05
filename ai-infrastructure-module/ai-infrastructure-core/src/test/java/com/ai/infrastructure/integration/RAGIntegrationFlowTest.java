@@ -16,7 +16,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.security.AISecurityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,8 +61,8 @@ class RAGIntegrationFlowTest {
     @MockBean
     private IntentQueryExtractor intentQueryExtractor;
 
-    @SpyBean(name = "ragService")
-    private RAGService ragService;
+    @SpyBean
+    private RAGProvider ragProvider;
 
     @MockBean
     private AISecurityService securityService;
@@ -155,7 +155,7 @@ class RAGIntegrationFlowTest {
             .response("Refunds are processed within 5 business days.")
             .documents(List.of())
             .success(true)
-            .build()).when(ragService).performRag(any(RAGRequest.class));
+            .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
         OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, "user-info");
 
@@ -189,7 +189,7 @@ class RAGIntegrationFlowTest {
                 .build());
 
         doReturn(RAGResponse.builder().response("Here are current offers.").build())
-            .when(ragService).performRag(any(RAGRequest.class));
+            .when(ragProvider).performRag(any(RAGRequest.class));
 
         OrchestrationResult result = orchestrator.orchestrate(COMPOUND_QUERY, "user-compound");
 

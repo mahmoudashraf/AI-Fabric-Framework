@@ -4,8 +4,8 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.rag.AdvancedRAGService;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.rag.service.AdvancedRAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -50,7 +50,7 @@ class RAGCrossEntityQueryIntegrationTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private AdvancedRAGService advancedRAGService;
@@ -147,7 +147,7 @@ class RAGCrossEntityQueryIntegrationTest {
     }
 
     private void seedCrossEntityData() {
-        ragService.indexContent(
+        ragProvider.indexContent(
             CUSTOMER_ENTITY,
             "cust_ava_stone",
             "Profile: Ava Stone is a high-value cycling enthusiast. Last month she invested $8,900 in an Orion X carbon road bike bundle and a Lumen Platinum smartwatch to track performance.",
@@ -160,7 +160,7 @@ class RAGCrossEntityQueryIntegrationTest {
             )
         );
 
-        ragService.indexContent(
+        ragProvider.indexContent(
             CUSTOMER_ENTITY,
             "cust_liam_chen",
             "Profile: Liam Chen is a high-value triathlete who refreshes premium gear quarterly. Last month he secured the Orion X carbon road bike and the AeroFlow racing kit for upcoming events.",
@@ -173,7 +173,7 @@ class RAGCrossEntityQueryIntegrationTest {
             )
         );
 
-        ragService.indexContent(
+        ragProvider.indexContent(
             PRODUCT_ENTITY,
             "prod_orion_x",
             "Product brief: Orion X carbon road bike engineered for elite endurance with aerodynamic carbon frame and integrated telemetry suited for high-value athletes.",
@@ -186,7 +186,7 @@ class RAGCrossEntityQueryIntegrationTest {
             )
         );
 
-        ragService.indexContent(
+        ragProvider.indexContent(
             PRODUCT_ENTITY,
             "prod_lumen_platinum",
             "Product brief: Lumen Platinum smartwatch with adaptive coaching and VO2 max analytics bundled with premium bike packages.",
@@ -199,7 +199,7 @@ class RAGCrossEntityQueryIntegrationTest {
             )
         );
 
-        ragService.indexContent(
+        ragProvider.indexContent(
             ORDER_ENTITY,
             "order_4521",
             "Order summary: Invoice 4521 closed on September 18 for high-value customer Ava Stone including Orion X carbon road bike, Lumen Platinum smartwatch, and bike fitting concierge service.",
@@ -212,7 +212,7 @@ class RAGCrossEntityQueryIntegrationTest {
             )
         );
 
-        ragService.indexContent(
+        ragProvider.indexContent(
             ORDER_ENTITY,
             "order_4578",
             "Order summary: Invoice 4578 processed on September 22 for VIP customer Liam Chen combining Orion X carbon road bike, AeroFlow racing kit, and extended maintenance coverage.",

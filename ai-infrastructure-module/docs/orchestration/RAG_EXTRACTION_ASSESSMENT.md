@@ -340,24 +340,19 @@ The RAG module extraction has been successfully implemented:
 - [x] **ai-infrastructure-rag module** - New module with RAGService and AdvancedRAGService
 - [x] **Pipeline step updates** - IntentHandlingStep and SmartSuggestionsStep now use RAGProvider
 - [x] **Auto-configuration** - RAGAutoConfiguration provides default RAGProvider implementation
-- [x] **Backward compatibility** - Core module's RAGService deprecated but still works
+- [x] **Clean extraction** - Old RAGService/AdvancedRAGService removed from core (greenfield principle)
 - [x] **Test coverage** - Unit tests for RAGProvider and updated pipeline steps
 
-### Migration Guide
+### Usage
 
-Applications using the old RAGService should migrate to RAGProvider:
+Use the RAGProvider SPI interface:
 
 ```java
-// Old way (deprecated):
-@Autowired
-private RAGService ragService;
-
-// New way:
 @Autowired
 private RAGProvider ragProvider;
 ```
 
-Add the new RAG module dependency:
+Add the RAG module dependency:
 
 ```xml
 <dependency>

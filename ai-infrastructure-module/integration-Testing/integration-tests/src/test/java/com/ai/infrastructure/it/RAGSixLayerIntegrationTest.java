@@ -17,7 +17,7 @@ import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.security.SanitizationEvent;
 import com.ai.infrastructure.intent.history.IntentHistoryService;
@@ -91,7 +91,7 @@ class RAGSixLayerIntegrationTest {
     private IntentQueryExtractor intentQueryExtractor;
 
     @SpyBean(name = "ragService")
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @BeforeEach
     void setUp() {
@@ -212,7 +212,7 @@ class RAGSixLayerIntegrationTest {
             .response("Refunds are processed within 5-7 business days once approved.")
             .documents(List.of())
             .success(true)
-            .build()).when(ragService).performRag(any(RAGRequest.class));
+            .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
         Mockito.when(intentQueryExtractor.extract("Please email me the refund process at user.medium@example.com", "user-info"))
             .thenReturn(response);
@@ -292,7 +292,7 @@ class RAGSixLayerIntegrationTest {
             .response("Here are the current promotional discounts available.")
             .documents(List.of())
             .success(true)
-            .build()).when(ragService).performRag(any(RAGRequest.class));
+            .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
         Mockito.when(intentQueryExtractor.extract(
             "Customer wants card 5555-2222-3333-4444 wiped and discount catalog emailed to hq@company.com",
@@ -358,7 +358,7 @@ class RAGSixLayerIntegrationTest {
         );
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
-        Mockito.verify(ragService, never()).performRag(any(RAGRequest.class));
+        Mockito.verify(ragProvider, never()).performRag(any(RAGRequest.class));
 
         Map<String, Object> payload = result.getSanitizedPayload();
         assertThat(payload.get("guidance")).isNull();
@@ -445,7 +445,7 @@ class RAGSixLayerIntegrationTest {
             .response("Our featured collection includes curated items updated daily.")
             .documents(List.of())
             .success(true)
-            .build()).when(ragService).performRag(any(RAGRequest.class));
+            .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
         Mockito.when(intentQueryExtractor.extract("What are your featured products today?", "user-suggest"))
             .thenReturn(response);
@@ -514,7 +514,7 @@ class RAGSixLayerIntegrationTest {
             .response("Rotate credentials immediately. Current key sk-THISSHOULDBEREDACTED may be compromised.")
             .documents(List.of())
             .success(true)
-            .build()).when(ragService).performRag(any(RAGRequest.class));
+            .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
         Mockito.when(intentQueryExtractor.extract("My api key is sk-THISSHOULDBEREDACTED, is that safe?", "user-api"))
             .thenReturn(response);
@@ -617,7 +617,7 @@ class RAGSixLayerIntegrationTest {
             .response("Refund investigations typically complete within 3 business days.")
             .documents(List.of())
             .success(true)
-            .build()).when(ragService).performRag(any(RAGRequest.class));
+            .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
         Mockito.when(intentQueryExtractor.extract(query, userId)).thenReturn(response);
     }

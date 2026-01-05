@@ -26,7 +26,7 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.security.ResponseSanitizer;
 import java.util.List;
@@ -68,11 +68,8 @@ class RAGOrchestratorIntegrationTest {
     @MockBean
     private ActionHandlerRegistry actionHandlerRegistry;
 
-    @MockBean(name = "RAGService")
-    private RAGService ragServiceUpper;
-
-    @MockBean(name = "ragService")
-    private RAGService ragService;
+    @MockBean
+    private RAGProvider ragProvider;
 
     @MockBean
     private ResponseSanitizer responseSanitizer;
@@ -124,14 +121,7 @@ class RAGOrchestratorIntegrationTest {
                 .build()
         );
 
-        when(ragService.performRag(any(RAGRequest.class))).thenReturn(
-            RAGResponse.builder()
-                .response("ok")
-                .documents(List.of())
-                .success(true)
-                .build()
-        );
-        when(ragServiceUpper.performRag(any(RAGRequest.class))).thenReturn(
+        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder()
                 .response("ok")
                 .documents(List.of())
@@ -157,11 +147,11 @@ class RAGOrchestratorIntegrationTest {
 
         assertTrue(result.isSuccess());
 
-        InOrder order = inOrder(securityService, accessControlService, complianceService, ragService);
+        InOrder order = inOrder(securityService, accessControlService, complianceService, ragProvider);
         order.verify(securityService).analyzeRequest(any());
         order.verify(accessControlService).checkAccess(any());
         order.verify(complianceService).checkCompliance(any());
-        order.verify(ragService).performRag(any());
+        order.verify(ragProvider).performRag(any());
     }
 
     @Test
@@ -182,11 +172,11 @@ class RAGOrchestratorIntegrationTest {
         OrchestrationResult result = orchestrator.orchestrate("malicious", "user");
 
         assertFalse(result.isSuccess());
-        InOrder order = inOrder(securityService, accessControlService, complianceService, ragService);
+        InOrder order = inOrder(securityService, accessControlService, complianceService, ragProvider);
         order.verify(securityService).analyzeRequest(any());
         order.verify(accessControlService, never()).checkAccess(any());
         order.verify(complianceService, never()).checkCompliance(any());
-        order.verify(ragService, never()).performRag(any());
+        order.verify(ragProvider, never()).performRag(any());
     }
 
     @Test
@@ -202,10 +192,10 @@ class RAGOrchestratorIntegrationTest {
         OrchestrationResult result = orchestrator.orchestrate("hello world", "user");
 
         assertFalse(result.isSuccess());
-        InOrder order = inOrder(securityService, accessControlService, complianceService, ragService);
+        InOrder order = inOrder(securityService, accessControlService, complianceService, ragProvider);
         order.verify(securityService).analyzeRequest(any());
         order.verify(accessControlService).checkAccess(any());
         order.verify(complianceService).checkCompliance(any());
-        order.verify(ragService, never()).performRag(any());
+        order.verify(ragProvider, never()).performRag(any());
     }
 }

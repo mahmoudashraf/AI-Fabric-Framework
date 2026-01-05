@@ -4,8 +4,8 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.rag.AdvancedRAGService;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.rag.service.AdvancedRAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import org.junit.jupiter.api.AfterEach;
@@ -49,7 +49,7 @@ class AdvancedRAGQueryExpansionIntegrationTest {
     private static final String ENTITY_TYPE = "ragproduct-expansion";
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private AdvancedRAGService advancedRAGService;
@@ -185,7 +185,7 @@ class AdvancedRAGQueryExpansionIntegrationTest {
 
         IntStream.range(0, 30)
             .mapToObj(index -> buildProductDocument(index, categories.get(index % categories.size())))
-            .forEach(document -> ragService.indexContent(ENTITY_TYPE, document.id(), document.content(), document.metadata()));
+            .forEach(document -> ragProvider.indexContent(ENTITY_TYPE, document.id(), document.content(), document.metadata()));
     }
 
     private ProductDocument buildProductDocument(int index, String category) {

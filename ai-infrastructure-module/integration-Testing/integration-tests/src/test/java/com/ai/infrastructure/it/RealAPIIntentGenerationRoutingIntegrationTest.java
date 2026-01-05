@@ -14,7 +14,7 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -64,7 +64,7 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
     private RAGOrchestrator orchestrator;
 
     @SpyBean
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @MockBean
     private IntentQueryExtractor intentQueryExtractor;
@@ -128,8 +128,8 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
 
         // Ensure generation path was taken
         ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragService).performRAGQuery(requestCaptor.capture());
-        verify(ragService, never()).performRag(any());
+        verify(ragProvider).performRAGQuery(requestCaptor.capture());
+        verify(ragProvider, never()).performRag(any());
         assertThat(requestCaptor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
     }
 

@@ -2,7 +2,7 @@ package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
@@ -51,7 +51,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
     private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
@@ -170,7 +170,7 @@ class AISearchableEntityVectorSynchronizationIntegrationTest {
             "category", "technology"
         );
 
-        ragService.indexContent(entityType, entityId, "Introduction to AI and Machine Learning", metadata);
+        ragProvider.indexContent(entityType, entityId, "Introduction to AI and Machine Learning", metadata);
 
         Optional<AISearchableEntity> entity = storageStrategy.findByEntityTypeAndEntityId(entityType, entityId);
         assertTrue(entity.isPresent());
