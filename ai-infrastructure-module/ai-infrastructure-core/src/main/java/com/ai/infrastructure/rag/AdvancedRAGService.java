@@ -17,11 +17,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
- * Advanced RAG Service with query expansion, re-ranking, and context optimization
+ * Advanced RAG Service with query expansion, re-ranking, and context optimization.
+ * 
+ * <p><strong>DEPRECATION NOTICE:</strong> This class is deprecated and will be removed 
+ * in a future version. Use the {@code ai-infrastructure-rag} module instead, which provides
+ * the same functionality through {@code com.ai.infrastructure.rag.service.AdvancedRAGService}.</p>
+ * 
+ * @deprecated Use ai-infrastructure-rag module's AdvancedRAGService instead.
+ *             This class will be removed in version 2.0.0.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Deprecated(since = "1.1.0", forRemoval = true)
 public class AdvancedRAGService {
 
     private final AISearchService aiSearchService;

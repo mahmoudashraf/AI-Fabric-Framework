@@ -14,7 +14,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
  * Action handlers must implement {@link ActionHandler#validateActionAllowed}.</p>
  * 
  * @see ActionHandlerRegistry
- * @see RAGService
+ * @see RAGProvider
  * @see PipelineStep
  * @since 1.0
  */
@@ -109,7 +109,7 @@ public class IntentHandlingStep implements PipelineStep {
     // =========================================================================
     
     private final ActionHandlerRegistry actionHandlerRegistry;
-    private final RAGService ragService;
+    private final RAGProvider ragProvider;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -283,8 +283,8 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
         
         RAGResponse ragResponse = needsGeneration
-            ? ragService.performRAGQuery(ragRequest)
-            : ragService.performRag(ragRequest);
+            ? ragProvider.performRAGQuery(ragRequest)
+            : ragProvider.performRag(ragRequest);
         
         Map<String, Object> data = new LinkedHashMap<>();
         data.put(DATA_KEY_ANSWER, ragResponse.getResponse());

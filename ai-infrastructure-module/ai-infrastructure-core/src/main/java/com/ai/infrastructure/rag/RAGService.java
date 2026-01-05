@@ -13,6 +13,7 @@ import com.ai.infrastructure.dto.PIIMode;
 import com.ai.infrastructure.dto.PIIDetectionResult;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,18 +26,36 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * RAG (Retrieval-Augmented Generation) Service
+ * RAG (Retrieval-Augmented Generation) Service.
  * 
- * This service provides RAG capabilities by combining retrieval and generation.
- * It can index content, perform semantic search, and generate context-aware responses.
+ * <p>This service provides RAG capabilities by combining retrieval and generation.
+ * It can index content, perform semantic search, and generate context-aware responses.</p>
+ * 
+ * <p><strong>DEPRECATION NOTICE:</strong> This class is deprecated and will be removed 
+ * in a future version. Use the {@code ai-infrastructure-rag} module instead, which provides
+ * the same functionality through the {@link RAGProvider} SPI.</p>
+ * 
+ * <p>Migration:</p>
+ * <pre>{@code
+ * // Old way (deprecated):
+ * @Autowired
+ * private RAGService ragService;
+ * 
+ * // New way:
+ * @Autowired
+ * private RAGProvider ragProvider;
+ * }</pre>
  * 
  * @author AI Infrastructure Team
  * @version 1.0.0
+ * @deprecated Use {@link RAGProvider} SPI from ai-infrastructure-rag module instead.
+ *             This class will be removed in version 2.0.0.
  */
 @Slf4j
 @Service("ragService")
 @RequiredArgsConstructor
-public class RAGService {
+@Deprecated(since = "1.1.0", forRemoval = true)
+public class RAGService implements RAGProvider {
     
     private final AIProviderConfig config;
     private final AIEmbeddingService embeddingService;
@@ -600,5 +619,16 @@ public class RAGService {
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+    
+    /**
+     * {@inheritDoc}
+     * 
+     * @deprecated This class is deprecated. Use ai-infrastructure-rag module instead.
+     */
+    @Override
+    @Deprecated
+    public String getProviderName() {
+        return "deprecated-core-rag-service";
     }
 }
