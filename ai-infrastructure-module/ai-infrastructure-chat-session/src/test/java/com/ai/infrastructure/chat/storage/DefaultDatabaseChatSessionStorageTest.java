@@ -7,7 +7,11 @@ import com.ai.infrastructure.chat.repository.ChatSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -15,7 +19,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create")
+@Import(DefaultDatabaseChatSessionStorageTest.TestConfig.class)
 class DefaultDatabaseChatSessionStorageTest {
 
     @Autowired
@@ -73,5 +78,12 @@ class DefaultDatabaseChatSessionStorageTest {
             .aiResponse("hi")
             .timestamp(LocalDateTime.now(clock))
             .build();
+    }
+
+    @Configuration
+    @EnableJpaRepositories(basePackageClasses = ChatSessionRepository.class)
+    @EntityScan(basePackageClasses = ChatSession.class)
+    @Import(DefaultDatabaseChatSessionStorage.class)
+    static class TestConfig {
     }
 }

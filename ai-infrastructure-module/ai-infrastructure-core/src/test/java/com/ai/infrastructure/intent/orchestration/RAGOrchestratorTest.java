@@ -122,7 +122,8 @@ class RAGOrchestratorTest {
             securityService,
             accessControlService,
             complianceService,
-            clock
+            clock,
+            Optional.empty()
         );
     }
 
