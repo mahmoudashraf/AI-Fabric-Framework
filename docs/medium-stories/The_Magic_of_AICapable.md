@@ -80,6 +80,7 @@ ai-entities:
   review:
     searchable-fields: ["text"] # Only embed the text
     filter-fields: ["rating"]   # Keep rating as metadata
+    embeddable-fields: ["text"]
 ```
 It extracts *exactly* what is needed, keeping your vectors lean and efficient.
 
@@ -104,8 +105,8 @@ Notice the name: **`@AICapable`**, not `@AISearchable`.
 
 This distinction is critical. By marking an entity as "Capable," you unlock a suite of enterprise features instantly:
 
-*   **🔮 Churn Prediction:** The **Behavior Module** automatically monitors entities annotated with `@AICapable`. It tracks changes over time to predict user churn or sentiment shifts.
-*   **🗣️ Natural Language Querying:** You can now ask, *"Show me negative reviews from last week about battery life."* The **Relationship Query Engine** knows how to map that question to this entity because of the annotation.
+*   **🔍 Instant RAG Readiness:** Your entity is now instantly embeddable and searchable. You can feed it into LLMs for RAG (Retrieval-Augmented Generation) without writing a single line of retrieval code.
+*   **🗣️ Natural Language Querying:** You can now ask, *"Show me negative reviews from last week about battery life."* The **Relationship Query Engine** uses the annotation metadata to map natural language to your database schema.
 *   **🚚 Zero-Downtime Migration:** Need to move to a new Vector DB? The **Migration Module** scans for all `@AICapable` entities and re-indexes them in the background.
 
 ---
