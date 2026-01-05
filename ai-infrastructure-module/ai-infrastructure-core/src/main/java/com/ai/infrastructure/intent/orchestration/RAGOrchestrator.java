@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration;
 
 import com.ai.infrastructure.access.AIAccessControlService;
+import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.Intent;
@@ -61,6 +62,7 @@ public class RAGOrchestrator {
     private final AIAccessControlService accessControlService;
     private final AIComplianceService complianceService;
     private final Clock clock;
+    private final Optional<ChatSessionService> chatSessionService;
 
     public OrchestrationResult orchestrate(String query, OrchestrationContext context) {
         Objects.requireNonNull(query, "query must not be null");
@@ -71,12 +73,21 @@ public class RAGOrchestrator {
         String requestId = context.getOrGenerateRequestId();
         LocalDateTime requestTimestamp = LocalDateTime.now(clock);
 
+        String processedQuery = query;
+        if (context.hasConversation() && chatSessionService.isPresent()) {
+            processedQuery = enrichQueryWithConversationHistory(
+                query,
+                context.getConversationId(),
+                identifier
+            );
+        }
+
         AISecurityResponse securityResponse = securityService.analyzeRequest(
             AISecurityRequest.builder()
                 .requestId(requestId)
                 .userId(context.getUserId())
                 .sessionId(context.getSessionId())
-                .content(query)
+                .content(processedQuery)
                 .operationType("INTENT_QUERY")
                 .timestamp(requestTimestamp)
                 .metadata(buildSecurityMetadata(context))
@@ -110,7 +121,6 @@ public class RAGOrchestrator {
 
         // STEP 1: Detect & Redact PII in user query (based on configuration)
         List<String> detectedPiiTypes = new ArrayList<>();
-        String processedQuery = query;
 
         com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection detectionDirection =
             piiDetectionProperties.getDetectionDirection();
@@ -120,7 +130,7 @@ public class RAGOrchestrator {
              detectionDirection == com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT);
 
         if (detectInput) {
-            com.ai.infrastructure.dto.PIIDetectionResult queryPiiAnalysis = piiDetectionService.analyze(query);
+            com.ai.infrastructure.dto.PIIDetectionResult queryPiiAnalysis = piiDetectionService.analyze(processedQuery);
             if (queryPiiAnalysis.isPiiDetected()) {
                 detectedPiiTypes = queryPiiAnalysis.getDetections().stream()
                     .map(com.ai.infrastructure.dto.PIIDetection::getType)
@@ -172,6 +182,7 @@ public class RAGOrchestrator {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("requestId", requestId);
         metadata.put("sessionId", context.getSessionId());
+        metadata.put("conversationId", context.getConversationId());
         metadata.put("intentsCount", multiIntentResponse.getIntents().size());
         metadata.put("compound", multiIntentResponse.isCompound());
         metadata.put("authenticated", context.isAuthenticated());
@@ -226,7 +237,16 @@ public class RAGOrchestrator {
         }
 
         result.setSanitizedPayload(sanitizedPayload);
-        persistIntentHistory(query, context, multiIntentResponse, result);
+        if (context.hasConversation() && chatSessionService.isPresent()) {
+            recordTurnToConversation(
+                context.getConversationId(),
+                identifier,
+                query,
+                result
+            );
+        }
+
+        persistIntentHistory(processedQuery, context, multiIntentResponse, result);
 
         return result;
     }
@@ -447,6 +467,60 @@ public class RAGOrchestrator {
             return List.of();
         }
         return List.of(intent.getNextStepRecommended());
+    }
+
+    private String enrichQueryWithConversationHistory(String currentQuery,
+                                                      String conversationId,
+                                                      String ownerId) {
+        try {
+            String conversationHistory = chatSessionService.get()
+                .getConversationContext(conversationId, ownerId);
+
+            if (conversationHistory != null && !conversationHistory.isBlank()) {
+                log.debug("Enriching query with conversation history: conversationId={}, historyLength={} chars",
+                    conversationId, conversationHistory.length());
+
+                return String.format(
+                    "Conversation History:\n%s\n\nCurrent Query: %s",
+                    conversationHistory,
+                    currentQuery
+                );
+            }
+
+            log.debug("New conversation (no history): {}", conversationId);
+            return currentQuery;
+
+        } catch (Exception ex) {
+            log.warn("Failed to load conversation history for {}: {}. Continuing without history.",
+                conversationId, ex.getMessage());
+            return currentQuery;
+        }
+    }
+
+    private void recordTurnToConversation(String conversationId,
+                                          String ownerId,
+                                          String originalQuery,
+                                          OrchestrationResult result) {
+        try {
+            String aiResponse = result.getMessage();
+            if (aiResponse == null || aiResponse.isBlank()) {
+                log.debug("No response to record for conversation: {}", conversationId);
+                return;
+            }
+
+            chatSessionService.get().recordTurn(
+                conversationId,
+                ownerId,
+                originalQuery,
+                aiResponse
+            );
+
+            log.debug("Turn recorded: conversationId={}, owner={}", conversationId, ownerId);
+
+        } catch (Exception ex) {
+            log.error("Failed to record turn to conversation {}: {}. User still receives response.",
+                conversationId, ex.getMessage());
+        }
     }
 
     private void applySmartSuggestions(OrchestrationResult result, OrchestrationContext context) {
