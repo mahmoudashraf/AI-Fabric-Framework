@@ -310,6 +310,30 @@ public class IntentHandlingStep implements PipelineStep {
         data.put(DATA_KEY_RETRIEVAL_RESULT, retrievalResult);
         data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
         
+        // If ContentRetriever is RAGService, also add RAGResponse for backward compatibility
+        // Use reflection to avoid hard dependency on RAG module
+        try {
+            Class<?> ragServiceClass = Class.forName("com.ai.infrastructure.rag.service.RAGService");
+            Class<?> ragRequestClass = Class.forName("com.ai.infrastructure.rag.dto.RAGRequest");
+            if (ragServiceClass.isInstance(contentRetriever)) {
+                // Build RAGRequest using reflection (builder methods return builder for chaining)
+                Object ragRequestBuilder = ragRequestClass.getMethod("builder").invoke(null);
+                ragRequestBuilder = ragRequestClass.getMethod("query", String.class).invoke(ragRequestBuilder, query);
+                ragRequestBuilder = ragRequestClass.getMethod("entityType", String.class).invoke(ragRequestBuilder, intent.getVectorSpace());
+                ragRequestBuilder = ragRequestClass.getMethod("limit", Integer.class).invoke(ragRequestBuilder, DEFAULT_RETRIEVAL_LIMIT);
+                ragRequestBuilder = ragRequestClass.getMethod("threshold", Double.class).invoke(ragRequestBuilder, DEFAULT_RETRIEVAL_THRESHOLD);
+                ragRequestBuilder = ragRequestClass.getMethod("metadata", Map.class).invoke(ragRequestBuilder, Collections.unmodifiableMap(metadata));
+                Object ragRequest = ragRequestClass.getMethod("build").invoke(ragRequestBuilder);
+                
+                // Call retrieve(RAGRequest) method to get RAGResponse
+                Object ragResponse = ragServiceClass.getMethod("retrieve", ragRequestClass).invoke(contentRetriever, ragRequest);
+                data.put("ragResponse", ragResponse);
+            }
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
+            // RAG module not available or reflection failed - skip adding ragResponse
+            log.debug("RAG module not available or reflection failed, skipping ragResponse in data map", e);
+        }
+        
         String message = retrievalResult.success() ? MSG_SEARCH_COMPLETED : retrievalResult.errorMessage();
         
         return OrchestrationResult.builder()
