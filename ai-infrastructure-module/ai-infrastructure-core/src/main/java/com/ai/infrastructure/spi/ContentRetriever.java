@@ -79,6 +79,22 @@ public interface ContentRetriever {
     }
     
     /**
+     * Get extended result object if available.
+     * This allows implementations to return richer response objects (e.g., RAGResponse)
+     * without requiring core to depend on specific implementations.
+     * 
+     * @param query the search query
+     * @param entityType the type of entity to search
+     * @param limit maximum number of results
+     * @param threshold minimum similarity threshold
+     * @param metadata additional search parameters
+     * @return extended result object, or null if not available
+     */
+    default Object getExtendedResult(String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
+        return null;
+    }
+    
+    /**
      * Result of a retrieval operation.
      */
     record RetrievalResult(

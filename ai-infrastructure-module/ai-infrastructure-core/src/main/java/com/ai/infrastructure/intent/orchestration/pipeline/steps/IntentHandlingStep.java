@@ -14,9 +14,6 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.spi.ContentRetriever;
 import com.ai.infrastructure.spi.ContentRetriever.RetrievalResult;
-import com.ai.infrastructure.rag.dto.RAGRequest;
-import com.ai.infrastructure.rag.dto.RAGResponse;
-import com.ai.infrastructure.rag.service.RAGService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -313,18 +310,16 @@ public class IntentHandlingStep implements PipelineStep {
         data.put(DATA_KEY_RETRIEVAL_RESULT, retrievalResult);
         data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
         
-        // If ContentRetriever is RAGService, also add RAGResponse
-        if (contentRetriever instanceof RAGService ragService) {
-            RAGRequest ragRequest = RAGRequest.builder()
-                .query(query)
-                .entityType(intent.getVectorSpace())
-                .limit(DEFAULT_RETRIEVAL_LIMIT)
-                .threshold(DEFAULT_RETRIEVAL_THRESHOLD)
-                .metadata(Collections.unmodifiableMap(metadata))
-                .build();
-            
-            RAGResponse ragResponse = ragService.retrieve(ragRequest);
-            data.put("ragResponse", ragResponse);
+        // Get extended result (e.g., RAGResponse) if available via SPI
+        Object extendedResult = contentRetriever.getExtendedResult(
+            query,
+            intent.getVectorSpace(),
+            DEFAULT_RETRIEVAL_LIMIT,
+            DEFAULT_RETRIEVAL_THRESHOLD,
+            Collections.unmodifiableMap(metadata)
+        );
+        if (extendedResult != null) {
+            data.put("ragResponse", extendedResult);
         }
         
         String message = retrievalResult.success() ? MSG_SEARCH_COMPLETED : retrievalResult.errorMessage();

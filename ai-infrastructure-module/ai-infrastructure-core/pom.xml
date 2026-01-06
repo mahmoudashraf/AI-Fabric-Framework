@@ -116,14 +116,6 @@
             <version>4.0.4</version>
         </dependency>
 
-        <!-- RAG Module (for RAGResponse in orchestration results) -->
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-rag</artifactId>
-            <version>${project.version}</version>
-            <optional>true</optional>
-        </dependency>
-
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
