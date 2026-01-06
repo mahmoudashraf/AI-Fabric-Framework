@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,6 +40,8 @@ public class IntentQueryExtractor {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;
         this.objectMapper = objectMapper.copy()
+            .configure(JsonParser.Feature.ALLOW_COMMENTS, true)
+            .configure(JsonParser.Feature.ALLOW_YAML_COMMENTS, true)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
             .configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true)
@@ -125,11 +128,14 @@ public class IntentQueryExtractor {
             You transform assistant responses so that they strictly comply with a JSON schema.
             Respond with JSON only, using double quotes, matching the schema exactly as previously described.
             Never wrap the JSON in markdown code fences or add commentary.
+            Never include // or # comments in the JSON output.
             """;
 
         String repairPrompt = """
             Convert the following assistant response into valid JSON using the exact schema supplied earlier for multi-intent extraction.
+            The response may be truncated or incomplete - complete it logically based on context.
             If any fields are missing, infer sensible defaults (e.g. OUT_OF_SCOPE intent with neutral confidence) while keeping the schema intact.
+            Ensure all brackets and braces are properly closed.
             Assistant response:
             ```
             %s
@@ -166,11 +172,122 @@ public class IntentQueryExtractor {
         int startIdx = text.indexOf('{');
         if (startIdx >= 0) {
             int endIdx = text.lastIndexOf('}');
+            log.warn("extractJsonFromText: startIdx={}, endIdx={}, textLength={}", startIdx, endIdx, text.length());
             if (endIdx > startIdx) {
                 return text.substring(startIdx, endIdx + 1);
             }
+            // JSON appears truncated - try to complete it
+            String truncated = text.substring(startIdx);
+            String completed = attemptJsonCompletion(truncated);
+            
+            // Validate the completed JSON can be parsed
+            try {
+                objectMapper.readTree(completed);
+                log.info("Successfully completed truncated JSON");
+                return completed;
+            } catch (JsonProcessingException e) {
+                log.error("Completed JSON still invalid: {}", e.getMessage());
+                // Return completed version anyway - let the caller handle the error explicitly
+                return completed;
+            }
         }
         return text;
+    }
+    
+    /**
+     * Attempts to complete truncated JSON by adding missing closing brackets/braces.
+     * This handles cases where LLM responses are cut off mid-stream.
+     * Uses a stack to maintain correct nesting order.
+     */
+    private String attemptJsonCompletion(String truncatedJson) {
+        StringBuilder result = new StringBuilder(truncatedJson);
+        // Stack to track opening brackets/braces in order - stores the CLOSING character needed
+        java.util.Deque<Character> stack = new java.util.ArrayDeque<>();
+        boolean inString = false;
+        boolean afterColon = false;  // Track if we just saw a colon (expecting value)
+        boolean stringIsValue = false;  // Track if current string is a value (came after colon)
+        char prevChar = 0;
+        
+        for (int i = 0; i < truncatedJson.length(); i++) {
+            char c = truncatedJson.charAt(i);
+            if (c == '"' && prevChar != '\\') {
+                if (!inString) {
+                    // Starting a string - is it a value (after colon) or key?
+                    stringIsValue = afterColon;
+                }
+                inString = !inString;
+                if (!inString) {
+                    // Just closed a string
+                    afterColon = false;
+                }
+            } else if (!inString) {
+                if (c == '{') {
+                    stack.push('}');
+                    afterColon = false;
+                } else if (c == '[') {
+                    stack.push(']');
+                    afterColon = false;
+                } else if (c == '}' || c == ']') {
+                    if (!stack.isEmpty()) {
+                        stack.pop();
+                    }
+                    afterColon = false;
+                } else if (c == ':') {
+                    afterColon = true;
+                } else if (c == ',') {
+                    afterColon = false;
+                } else if (!Character.isWhitespace(c)) {
+                    // Some other value (number, boolean, null)
+                    afterColon = false;
+                }
+            }
+            prevChar = c;
+        }
+        
+        StringBuilder closingChars = new StringBuilder();
+        
+        log.warn("JSON completion state: inString={}, afterColon={}, stringIsValue={}, stackSize={}", 
+            inString, afterColon, stringIsValue, stack.size());
+        
+        // Close any open strings
+        if (inString) {
+            closingChars.append('"');
+            // If the string was a key (not a value), we need to add ": null"
+            if (!stringIsValue) {
+                closingChars.append(": null");
+            }
+        } else if (afterColon) {
+            // Ended after colon with no value started - add null
+            closingChars.append("null");
+        } else {
+            // Check for orphan key: completed string that's a key with no colon after it
+            String trimmed = truncatedJson.trim();
+            if (trimmed.endsWith("\"")) {
+                int lastQuote = trimmed.lastIndexOf('"');
+                if (lastQuote > 0) {
+                    int secondLastQuote = trimmed.lastIndexOf('"', lastQuote - 1);
+                    if (secondLastQuote >= 0) {
+                        String beforeKey = trimmed.substring(0, secondLastQuote).trim();
+                        if (beforeKey.endsWith(",") || beforeKey.endsWith("{")) {
+                            closingChars.append(": null");
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Pop from stack to add closing characters in correct LIFO order
+        while (!stack.isEmpty()) {
+            closingChars.append(stack.pop());
+        }
+        
+        result.append(closingChars);
+        
+        log.warn("JSON completion: truncated={} chars, added='{}', result ends with: '{}'", 
+            truncatedJson.length(), closingChars, 
+            result.length() > 20 ? result.substring(result.length() - 20) : result.toString());
+        
+        return result.toString();
     }
 
     private void validateResponse(MultiIntentResponse response) {

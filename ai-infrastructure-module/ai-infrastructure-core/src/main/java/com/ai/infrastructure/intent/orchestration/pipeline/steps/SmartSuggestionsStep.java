@@ -2,14 +2,14 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.NextStepRecommendation;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.spi.ContentRetriever;
+import com.ai.infrastructure.spi.ContentRetriever.RetrievalResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -25,10 +25,13 @@ import java.util.Objects;
  * Pipeline step that generates smart suggestions based on next step recommendations.
  * 
  * <p>This step analyzes the next step recommendations from intent handling and,
- * if a high-confidence suggestion is found, performs a RAG query to provide
+ * if a high-confidence suggestion is found, performs a retrieval query to provide
  * additional context and information.</p>
  * 
  * <p><strong>Order:</strong> 80 (after metadata building)</p>
+ * 
+ * <p><strong>Retrieval Dependency:</strong> ContentRetriever is optional. If not
+ * available (RAG module not present), smart suggestions will be skipped.</p>
  * 
  * <p><strong>Configuration:</strong> Controlled by {@link SmartSuggestionsProperties}:</p>
  * <ul>
@@ -40,7 +43,7 @@ import java.util.Objects;
  * </ul>
  * 
  * @see SmartSuggestionsProperties
- * @see RAGProvider
+ * @see ContentRetriever
  * @see PipelineStep
  * @since 1.0
  */
@@ -75,7 +78,7 @@ public class SmartSuggestionsStep implements PipelineStep {
     private static final String SUGGESTION_KEY_CONFIDENCE = "confidence";
     private static final String SUGGESTION_KEY_PRIORITY = "priority";
     private static final String SUGGESTION_KEY_RATIONALE = "rationale";
-    private static final String SUGGESTION_KEY_RESPONSE = "response";
+    private static final String SUGGESTION_KEY_CONTEXT = "context";
     private static final String SUGGESTION_KEY_DOCUMENTS = "documents";
     private static final String SUGGESTION_KEY_METADATA = "metadata";
     
@@ -91,7 +94,13 @@ public class SmartSuggestionsStep implements PipelineStep {
     // =========================================================================
     
     private final SmartSuggestionsProperties smartSuggestionsProperties;
-    private final RAGProvider ragProvider;
+    
+    /**
+     * Optional ContentRetriever - RAG module may not be present.
+     * Core module does NOT depend on RAG module.
+     */
+    @Autowired(required = false)
+    private ContentRetriever contentRetriever;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -119,8 +128,9 @@ public class SmartSuggestionsStep implements PipelineStep {
      * <p>This step:</p>
      * <ol>
      *   <li>Checks if smart suggestions are enabled</li>
+     *   <li>Checks if ContentRetriever is available</li>
      *   <li>Finds the highest confidence next step recommendation</li>
-     *   <li>If above threshold, performs RAG query for related content</li>
+     *   <li>If above threshold, performs retrieval for related content</li>
      *   <li>Attaches suggestion data to the result</li>
      * </ol>
      * 
@@ -134,6 +144,13 @@ public class SmartSuggestionsStep implements PipelineStep {
         if (result == null || !smartSuggestionsProperties.isEnabled()) {
             log.debug("Smart suggestions skipped for request {} (result={}, enabled={})", 
                 context.getRequestId(), result != null, smartSuggestionsProperties.isEnabled());
+            return context;
+        }
+        
+        // Check if retrieval is available (RAG module present)
+        if (contentRetriever == null || !contentRetriever.isAvailable()) {
+            log.debug("Smart suggestions skipped for request {} - ContentRetriever not available", 
+                context.getRequestId());
             return context;
         }
         
@@ -168,23 +185,22 @@ public class SmartSuggestionsStep implements PipelineStep {
         try {
             Map<String, Object> suggestionMetadata = buildSuggestionMetadata(candidate, context);
             
-            RAGRequest ragRequest = RAGRequest.builder()
-                .query(query)
-                .entityType(candidate.getVectorSpace())
-                .limit(smartSuggestionsProperties.getRetrievalLimit())
-                .threshold(smartSuggestionsProperties.getRetrievalThreshold())
-                .metadata(Collections.unmodifiableMap(suggestionMetadata))
-                .userId(context.getIdentifier())
-                .build();
+            // Use ContentRetriever (generic interface from core)
+            RetrievalResult retrievalResult = contentRetriever.retrieve(
+                query,
+                candidate.getVectorSpace(),
+                smartSuggestionsProperties.getRetrievalLimit(),
+                smartSuggestionsProperties.getRetrievalThreshold(),
+                Collections.unmodifiableMap(suggestionMetadata)
+            );
             
-            RAGResponse ragResponse = ragProvider.performRag(ragRequest);
-            if (ragResponse == null) {
-                log.debug("Smart suggestion retrieval returned null for intent {} in request {}", 
-                    candidate.getIntent(), context.getRequestId());
+            if (!retrievalResult.success()) {
+                log.debug("Smart suggestion retrieval failed for intent {} in request {}: {}", 
+                    candidate.getIntent(), context.getRequestId(), retrievalResult.errorMessage());
                 return context;
             }
             
-            Map<String, Object> suggestion = buildSuggestion(candidate, query, ragResponse);
+            Map<String, Object> suggestion = buildSuggestion(candidate, query, retrievalResult);
             
             result.setSmartSuggestion(Collections.unmodifiableMap(suggestion));
             result.withAdditionalData(Map.of(DATA_KEY_SMART_SUGGESTION, suggestion));
@@ -226,7 +242,7 @@ public class SmartSuggestionsStep implements PipelineStep {
     
     private Map<String, Object> buildSuggestion(NextStepRecommendation candidate, 
                                                  String query, 
-                                                 RAGResponse ragResponse) {
+                                                 RetrievalResult retrievalResult) {
         Map<String, Object> suggestion = new LinkedHashMap<>();
         suggestion.put(SUGGESTION_KEY_INTENT, candidate.getIntent());
         suggestion.put(SUGGESTION_KEY_TITLE, convertToTitle(candidate.getIntent()));
@@ -242,9 +258,13 @@ public class SmartSuggestionsStep implements PipelineStep {
             suggestion.put(SUGGESTION_KEY_RATIONALE, candidate.getRationale());
         }
         
-        suggestion.put(SUGGESTION_KEY_RESPONSE, ragResponse.getResponse());
-        suggestion.put(SUGGESTION_KEY_DOCUMENTS, ragResponse.getDocuments());
-        suggestion.put(SUGGESTION_KEY_METADATA, ragResponse.getMetadata());
+        suggestion.put(SUGGESTION_KEY_CONTEXT, retrievalResult.buildContext());
+        suggestion.put(SUGGESTION_KEY_DOCUMENTS, retrievalResult.documents());
+        suggestion.put(SUGGESTION_KEY_METADATA, Map.of(
+            "totalDocuments", retrievalResult.totalDocuments(),
+            "maxScore", retrievalResult.maxScore(),
+            "processingTimeMs", retrievalResult.processingTimeMs()
+        ));
         
         return suggestion;
     }

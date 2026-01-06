@@ -1,9 +1,9 @@
 package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.vector.VectorDatabase;
@@ -130,8 +130,8 @@ class RAGHybridSearchIntegrationTest {
             .enableContextualSearch(false)
             .build();
 
-        RAGResponse vectorResponse = ragProvider.performRAGQuery(vectorOnly);
-        RAGResponse hybridResponse = ragProvider.performRAGQuery(hybridEnabled);
+        RAGResponse vectorResponse = ragProvider.retrieve(vectorOnly);
+        RAGResponse hybridResponse = ragProvider.retrieve(hybridEnabled);
 
         assertNotNull(vectorResponse, "Vector-only response should not be null");
         assertNotNull(hybridResponse, "Hybrid response should not be null");
@@ -139,8 +139,8 @@ class RAGHybridSearchIntegrationTest {
         assertTrue(Boolean.TRUE.equals(vectorResponse.getSuccess()), "Vector-only request should succeed");
         assertTrue(Boolean.TRUE.equals(hybridResponse.getSuccess()), "Hybrid request should succeed");
 
-        List<RAGResponse.RAGDocument> vectorDocs = Optional.ofNullable(vectorResponse.getDocuments()).orElse(List.of());
-        List<RAGResponse.RAGDocument> hybridDocs = Optional.ofNullable(hybridResponse.getDocuments()).orElse(List.of());
+        List<RAGResponse.RetrievedDocument> vectorDocs = Optional.ofNullable(vectorResponse.getDocuments()).orElse(List.of());
+        List<RAGResponse.RetrievedDocument> hybridDocs = Optional.ofNullable(hybridResponse.getDocuments()).orElse(List.of());
 
         assertFalse(vectorDocs.isEmpty(), "Vector-only response should return documents");
         assertFalse(hybridDocs.isEmpty(), "Hybrid response should return documents");
@@ -149,12 +149,12 @@ class RAGHybridSearchIntegrationTest {
         assertTrue(Boolean.TRUE.equals(hybridResponse.getHybridSearchUsed()), "Hybrid response should flag hybrid as true");
 
         Set<String> vectorDocIds = vectorDocs.stream()
-            .map(RAGResponse.RAGDocument::getId)
+            .map(RAGResponse.RetrievedDocument::getId)
             .filter(id -> id != null && !id.isBlank())
             .collect(Collectors.toSet());
 
         Set<String> hybridDocIds = hybridDocs.stream()
-            .map(RAGResponse.RAGDocument::getId)
+            .map(RAGResponse.RetrievedDocument::getId)
             .filter(id -> id != null && !id.isBlank())
             .collect(Collectors.toSet());
 

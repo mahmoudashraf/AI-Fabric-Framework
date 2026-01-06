@@ -3,8 +3,6 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -14,9 +12,11 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.spi.ContentRetriever;
+import com.ai.infrastructure.spi.ContentRetriever.RetrievalResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -35,18 +35,21 @@ import java.util.stream.Collectors;
  * <p>This step routes intents to appropriate handlers based on intent type:</p>
  * <ul>
  *   <li>{@code ACTION} - Executes via registered action handlers</li>
- *   <li>{@code INFORMATION} - Performs RAG search/generation</li>
+ *   <li>{@code INFORMATION} - Performs retrieval via ContentRetriever</li>
  *   <li>{@code OUT_OF_SCOPE} - Returns guidance message</li>
  *   <li>{@code COMPOUND} - Processes multiple intents</li>
  * </ul>
  * 
  * <p><strong>Order:</strong> 60 (after intent extraction)</p>
  * 
+ * <p><strong>RAG Dependency:</strong> ContentRetriever is optional. If not available,
+ * INFORMATION intents will return a message indicating retrieval is unavailable.</p>
+ * 
  * <p><strong>Security:</strong> Actions are blocked for anonymous users.
  * Action handlers must implement {@link ActionHandler#validateActionAllowed}.</p>
  * 
  * @see ActionHandlerRegistry
- * @see RAGProvider
+ * @see ContentRetriever
  * @see PipelineStep
  * @since 1.0
  */
@@ -62,9 +65,9 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String STEP_NAME = "IntentHandling";
     private static final int STEP_ORDER = 60;
     
-    // RAG defaults
-    private static final double DEFAULT_RAG_THRESHOLD = 0.6;
-    private static final int DEFAULT_RAG_LIMIT = 5;
+    // Retrieval defaults
+    private static final double DEFAULT_RETRIEVAL_THRESHOLD = 0.6;
+    private static final int DEFAULT_RETRIEVAL_LIMIT = 5;
     
     // Data keys
     private static final String DATA_KEY_ACTION = "action";
@@ -73,10 +76,11 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CONFIRMATION_MESSAGE = "confirmationMessage";
     private static final String DATA_KEY_ANSWER = "answer";
     private static final String DATA_KEY_DOCUMENTS = "documents";
-    private static final String DATA_KEY_RAG_RESPONSE = "ragResponse";
+    private static final String DATA_KEY_RETRIEVAL_RESULT = "retrievalResult";
     private static final String DATA_KEY_REQUIRES_GENERATION = "requiresGeneration";
     private static final String DATA_KEY_DETAILS = "details";
     private static final String DATA_KEY_RESULTS = "results";
+    private static final String DATA_KEY_CONTEXT = "context";
     
     // Metadata keys
     private static final String METADATA_KEY_SOURCE = "source";
@@ -97,6 +101,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String ERROR_MSG_COMPOUND_MISSING = "Compound intent payload is missing component intents.";
     private static final String ERROR_MSG_COMPOUND_EMPTY = "Compound intent payload did not include any child intents.";
     private static final String MSG_SEARCH_COMPLETED = "Search completed.";
+    private static final String MSG_RETRIEVAL_UNAVAILABLE = "Retrieval service is not available.";
     private static final String MSG_OUT_OF_SCOPE = "I'm not able to help with that request. Please contact support for further assistance.";
     private static final String MSG_ALL_PROCESSED = "All intents processed successfully.";
     private static final String MSG_SOME_FAILED = "Some intents failed. See results for details.";
@@ -109,7 +114,13 @@ public class IntentHandlingStep implements PipelineStep {
     // =========================================================================
     
     private final ActionHandlerRegistry actionHandlerRegistry;
-    private final RAGProvider ragProvider;
+    
+    /**
+     * Optional ContentRetriever - RAG module may not be present.
+     * Core module does NOT depend on RAG module.
+     */
+    @Autowired(required = false)
+    private ContentRetriever contentRetriever;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -259,6 +270,17 @@ public class IntentHandlingStep implements PipelineStep {
     }
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context) {
+        // Check if retrieval is available (RAG module present)
+        if (contentRetriever == null || !contentRetriever.isAvailable()) {
+            log.warn("ContentRetriever not available for INFORMATION intent");
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(false)
+                .message(MSG_RETRIEVAL_UNAVAILABLE)
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+        
         boolean needsGeneration = intent.requiresGenerationOrDefault(false);
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String query = StringUtils.hasText(optimizedQuery) ? optimizedQuery : intent.getIntentOrAction();
@@ -273,32 +295,50 @@ public class IntentHandlingStep implements PipelineStep {
             metadata.put(METADATA_KEY_OPTIMIZED_QUERY, optimizedQuery);
         }
         
-        RAGRequest ragRequest = RAGRequest.builder()
-            .query(query)
-            .entityType(intent.getVectorSpace())
-            .limit(DEFAULT_RAG_LIMIT)
-            .threshold(DEFAULT_RAG_THRESHOLD)
-            .metadata(Collections.unmodifiableMap(metadata))
-            .userId(context.getIdentifier())
-            .build();
-        
-        RAGResponse ragResponse = needsGeneration
-            ? ragProvider.performRAGQuery(ragRequest)
-            : ragProvider.performRag(ragRequest);
+        // Use ContentRetriever (generic interface from core)
+        RetrievalResult retrievalResult = contentRetriever.retrieve(
+            query,
+            intent.getVectorSpace(),
+            DEFAULT_RETRIEVAL_LIMIT,
+            DEFAULT_RETRIEVAL_THRESHOLD,
+            Collections.unmodifiableMap(metadata)
+        );
         
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put(DATA_KEY_ANSWER, ragResponse.getResponse());
-        data.put(DATA_KEY_DOCUMENTS, ragResponse.getDocuments());
-        data.put(DATA_KEY_RAG_RESPONSE, ragResponse);
+        data.put(DATA_KEY_CONTEXT, retrievalResult.buildContext());
+        data.put(DATA_KEY_DOCUMENTS, retrievalResult.documents());
+        data.put(DATA_KEY_RETRIEVAL_RESULT, retrievalResult);
         data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
         
-        String message = StringUtils.hasText(ragResponse.getResponse()) 
-            ? ragResponse.getResponse() 
-            : MSG_SEARCH_COMPLETED;
+        // Get extended result (e.g., RAGResponse) if available via SPI
+        // Pass the already-retrieved result to avoid double retrieval
+        try {
+            Object extendedResult = contentRetriever.getExtendedResult(
+                retrievalResult,
+                query,
+                intent.getVectorSpace(),
+                DEFAULT_RETRIEVAL_LIMIT,
+                DEFAULT_RETRIEVAL_THRESHOLD,
+                Collections.unmodifiableMap(metadata)
+            );
+            if (extendedResult != null) {
+                data.put("ragResponse", extendedResult);
+                log.debug("Added ragResponse to orchestration result data (ContentRetriever: {})", 
+                    contentRetriever.getClass().getSimpleName());
+            } else {
+                log.debug("getExtendedResult returned null (ContentRetriever: {})", 
+                    contentRetriever.getClass().getSimpleName());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get extended result from ContentRetriever ({}): {}", 
+                contentRetriever.getClass().getSimpleName(), e.getMessage(), e);
+        }
+        
+        String message = retrievalResult.success() ? MSG_SEARCH_COMPLETED : retrievalResult.errorMessage();
         
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
-            .success(Boolean.TRUE.equals(ragResponse.getSuccess()) || ragResponse.getSuccess() == null)
+            .success(retrievalResult.success())
             .message(message)
             .data(Collections.unmodifiableMap(data))
             .nextSteps(extractNextSteps(intent))

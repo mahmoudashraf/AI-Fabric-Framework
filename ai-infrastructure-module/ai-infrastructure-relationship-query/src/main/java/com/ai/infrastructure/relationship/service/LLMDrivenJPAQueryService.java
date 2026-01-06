@@ -5,7 +5,7 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
@@ -110,7 +110,7 @@ public class LLMDrivenJPAQueryService {
             }
 
             ReturnMode returnMode = resolveReturnMode(options);
-            List<RAGResponse.RAGDocument> documents = materializeDocuments(plan, entityIds, returnMode, options);
+            List<RAGResponse.RetrievedDocument> documents = materializeDocuments(plan, entityIds, returnMode, options);
             long duration = Math.max(0, (System.nanoTime() - startNano) / 1_000_000);
 
             recordExecutionMetrics(mode, duration, documents.size(), plan.isNeedsSemanticSearch() || mode == QueryMode.ENHANCED);
@@ -200,21 +200,21 @@ public class LLMDrivenJPAQueryService {
         return properties.getDefaultReturnMode();
     }
 
-    private List<RAGResponse.RAGDocument> materializeDocuments(RelationshipQueryPlan plan,
+    private List<RAGResponse.RetrievedDocument> materializeDocuments(RelationshipQueryPlan plan,
                                                                List<String> entityIds,
                                                                ReturnMode returnMode,
                                                                QueryOptions options) {
         List<String> limited = applyLimit(plan, entityIds, options);
         if (returnMode == ReturnMode.IDS) {
             return limited.stream()
-                .map(id -> RAGResponse.RAGDocument.builder().id(id).build())
+                .map(id -> RAGResponse.RetrievedDocument.builder().id(id).build())
                 .collect(Collectors.toList());
         }
 
-        List<RAGResponse.RAGDocument> documents = new ArrayList<>();
+        List<RAGResponse.RetrievedDocument> documents = new ArrayList<>();
         for (String entityId : limited) {
             entityRepository.findByEntityTypeAndEntityId(plan.getPrimaryEntityType(), entityId)
-                .ifPresent(entity -> documents.add(RAGResponse.RAGDocument.builder()
+                .ifPresent(entity -> documents.add(RAGResponse.RetrievedDocument.builder()
                     .id(entityId)
                     .content(entity.getSearchableContent())
                     .metadata(parseMetadata(entity.getMetadata()))
@@ -354,12 +354,12 @@ public class LLMDrivenJPAQueryService {
         log.info("[RelationshipQuery] Serialized response:\n{}", toJson(response));
     }
 
-    private List<String> previewDocumentIds(List<RAGResponse.RAGDocument> documents) {
+    private List<String> previewDocumentIds(List<RAGResponse.RetrievedDocument> documents) {
         if (CollectionUtils.isEmpty(documents)) {
             return List.of();
         }
         return documents.stream()
-            .map(RAGResponse.RAGDocument::getId)
+            .map(RAGResponse.RetrievedDocument::getId)
             .filter(Objects::nonNull)
             .limit(5)
             .collect(Collectors.toList());

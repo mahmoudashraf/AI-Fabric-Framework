@@ -6,10 +6,10 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.rag.service.AdvancedRAGService;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -190,7 +190,7 @@ class AdvancedRAGContextualSearchIntegrationTest {
             .toList();
 
         if (modernWatches.size() < 3) {
-            RAGResponse fallbackResponse = ragProvider.performRag(RAGRequest.builder()
+            RAGResponse fallbackResponse = ragProvider.retrieve(RAGRequest.builder()
                 .query("modern luxury watch accessories")
                 .entityType(ENTITY_TYPE)
                 .limit(20)

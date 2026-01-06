@@ -1,6 +1,6 @@
 package com.ai.infrastructure.relationship.it.api;
 
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;

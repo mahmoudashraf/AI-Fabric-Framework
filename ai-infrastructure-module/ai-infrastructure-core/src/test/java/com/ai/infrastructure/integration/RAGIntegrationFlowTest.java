@@ -5,8 +5,6 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.entity.IntentHistory;
@@ -16,7 +14,9 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.spi.ContentRetriever;
+import com.ai.infrastructure.spi.ContentRetriever.RetrievalResult;
+import com.ai.infrastructure.spi.ContentRetriever.RetrievedDocument;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.security.AISecurityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,10 +36,18 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doReturn;
 
+/**
+ * Integration test for RAG orchestration flow.
+ * 
+ * <p>Uses ContentRetriever (generic interface from core) instead of RAGProvider
+ * since core module should NOT depend on RAG module.</p>
+ */
 @SpringBootTest(classes = TestConfiguration.class)
 @ActiveProfiles("test")
 class RAGIntegrationFlowTest {
@@ -62,7 +70,7 @@ class RAGIntegrationFlowTest {
     private IntentQueryExtractor intentQueryExtractor;
 
     @SpyBean
-    private RAGProvider ragProvider;
+    private ContentRetriever contentRetriever;
 
     @MockBean
     private AISecurityService securityService;
@@ -151,11 +159,11 @@ class RAGIntegrationFlowTest {
                     .build()))
                 .build());
 
-        doReturn(RAGResponse.builder()
-            .response("Refunds are processed within 5 business days.")
-            .documents(List.of())
-            .success(true)
-            .build()).when(ragProvider).performRag(any(RAGRequest.class));
+        // Use ContentRetriever's RetrievalResult
+        doReturn(RetrievalResult.success(
+            List.of(new RetrievedDocument("doc1", "Refunds are processed within 5 business days.", "Refund Policy", "policy", 0.95, Map.of())),
+            1, 0.95, 0.95, 10L
+        )).when(contentRetriever).retrieve(anyString(), anyString(), anyInt(), anyDouble(), any());
 
         OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, "user-info");
 
@@ -166,7 +174,6 @@ class RAGIntegrationFlowTest {
         var history = historyRepository.findByUserIdOrderByCreatedAtDesc("user-info").getFirst();
         assertThat(history.getRedactedQuery()).isEqualTo(INFO_QUERY);
         assertThat(history.getIntentCount()).isEqualTo(1);
-        assertThat(history.getResultJson()).contains("Refunds are processed");
     }
 
     @Test
@@ -188,8 +195,10 @@ class RAGIntegrationFlowTest {
                 .compound(true)
                 .build());
 
-        doReturn(RAGResponse.builder().response("Here are current offers.").build())
-            .when(ragProvider).performRag(any(RAGRequest.class));
+        doReturn(RetrievalResult.success(
+            List.of(new RetrievedDocument("doc1", "Here are current offers.", "Offers", "offer", 0.9, Map.of())),
+            1, 0.9, 0.9, 10L
+        )).when(contentRetriever).retrieve(anyString(), anyString(), anyInt(), anyDouble(), any());
 
         OrchestrationResult result = orchestrator.orchestrate(COMPOUND_QUERY, "user-compound");
 

@@ -1,6 +1,6 @@
 package com.ai.infrastructure.relationship.integration;
 
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.core.AIEmbeddingService;
@@ -236,7 +236,7 @@ public class RelationshipQueryIntegrationTest {
                 .build()
         );
 
-        assertThat(response.getDocuments()).extracting(RAGResponse.RAGDocument::getId)
+        assertThat(response.getDocuments()).extracting(RAGResponse.RetrievedDocument::getId)
             .containsExactly(activeDocumentId);
         assertThat(response.getEntityType()).isEqualTo("document");
         assertThat(response.getDocuments().get(0).getContent()).isEqualTo("LLM Guardrails Playbook");

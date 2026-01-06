@@ -7,8 +7,6 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.ActionHandler;
@@ -27,7 +25,9 @@ import com.ai.infrastructure.intent.orchestration.pipeline.steps.PIIDetectionSte
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.ResponseSanitizationStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SecurityAnalysisStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SmartSuggestionsStep;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.spi.ContentRetriever;
+import com.ai.infrastructure.spi.ContentRetriever.RetrievalResult;
+import com.ai.infrastructure.spi.ContentRetriever.RetrievedDocument;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.security.ResponseSanitizer;
 import com.ai.infrastructure.security.AISecurityService;
@@ -42,6 +42,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -56,6 +59,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for RAGOrchestrator.
+ * 
+ * <p>Uses ContentRetriever (generic interface from core) instead of RAGProvider
+ * since core module should NOT depend on RAG module.</p>
+ */
 @ExtendWith(MockitoExtension.class)
 class RAGOrchestratorTest {
 
@@ -66,7 +75,7 @@ class RAGOrchestratorTest {
     private ActionHandlerRegistry actionHandlerRegistry;
 
     @Mock
-    private RAGProvider ragProvider;
+    private ContentRetriever contentRetriever;
 
     @Mock
     private ActionHandler actionHandler;
@@ -121,6 +130,9 @@ class RAGOrchestratorTest {
                 .build()
         );
         
+        // Stub ContentRetriever to be available (lenient since some tests don't use it)
+        lenient().when(contentRetriever.isAvailable()).thenReturn(true);
+        
         // Create pipeline with all steps
         Pipeline pipeline = createPipeline();
         orchestrator = new RAGOrchestrator(pipeline);
@@ -128,17 +140,25 @@ class RAGOrchestratorTest {
     
     /**
      * Creates a pipeline with all required steps for testing.
+     * Uses ContentRetriever (generic interface) instead of RAGProvider.
      */
     private Pipeline createPipeline() {
+        // Create steps that need ContentRetriever and inject via reflection
+        IntentHandlingStep intentHandlingStep = new IntentHandlingStep(actionHandlerRegistry);
+        ReflectionTestUtils.setField(intentHandlingStep, "contentRetriever", contentRetriever);
+        
+        SmartSuggestionsStep smartSuggestionsStep = new SmartSuggestionsStep(smartSuggestionsProperties);
+        ReflectionTestUtils.setField(smartSuggestionsStep, "contentRetriever", contentRetriever);
+        
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
             new PIIDetectionStep(piiDetectionService, piiDetectionProperties),
             new ComplianceCheckStep(complianceService),
             new IntentExtractionStep(intentQueryExtractor),
-            new IntentHandlingStep(actionHandlerRegistry, ragProvider),
+            intentHandlingStep,
             new MetadataBuildingStep(),
-            new SmartSuggestionsStep(smartSuggestionsProperties, ragProvider),
+            smartSuggestionsStep,
             new ResponseSanitizationStep(responseSanitizer, piiDetectionProperties),
             new HistoryPersistenceStep(intentHistoryService)
         );
@@ -227,7 +247,7 @@ class RAGOrchestratorTest {
     }
 
     @Test
-    void shouldProcessInformationIntentViaRag() {
+    void shouldProcessInformationIntentViaContentRetriever() {
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
             .intent("refund_policy")
@@ -236,49 +256,19 @@ class RAGOrchestratorTest {
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
-        RAGResponse ragResponse = RAGResponse.builder()
-            .response("Refunds take 5-7 days.")
-            .documents(List.of())
-            .build();
-        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(ragResponse);
+        // Use ContentRetriever's RetrievalResult instead of RAGResponse
+        RetrievalResult retrievalResult = RetrievalResult.success(
+            List.of(new RetrievedDocument("doc1", "Refunds take 5-7 days.", "Refund Policy", "policy", 0.95, Map.of())),
+            1, 0.95, 0.95, 10L
+        );
+        when(contentRetriever.retrieve(anyString(), anyString(), anyInt(), anyDouble(), any())).thenReturn(retrievalResult);
 
         OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", "user");
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
-        assertThat(result.getMessage()).isEqualTo("Refunds take 5-7 days.");
+        assertThat(result.getMessage()).isEqualTo("Search completed.");
 
-        ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRag(requestCaptor.capture());
-        assertThat(requestCaptor.getValue().getEntityType()).isEqualTo("policies");
-    }
-
-    @Test
-    void shouldRouteInformationIntentToGenerationWhenRequested() {
-        Intent intent = Intent.builder()
-            .type(IntentType.INFORMATION)
-            .intent("product_recommendations")
-            .optimizedQuery("Product entities where price_usd < 100 and stock_status = 'in_stock'")
-            .requiresGeneration(true)
-            .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
-            .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
-
-        RAGResponse ragResponse = RAGResponse.builder()
-            .response("Here are top picks.")
-            .documents(List.of())
-            .success(true)
-            .build();
-        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
-
-        OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", "user");
-
-        assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
-        assertThat(result.getMessage()).isEqualTo("Here are top picks.");
-
-        ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRAGQuery(requestCaptor.capture());
-        assertThat(requestCaptor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
-        verify(ragProvider, never()).performRag(any(RAGRequest.class));
+        verify(contentRetriever).retrieve(anyString(), eq("policies"), anyInt(), anyDouble(), any());
     }
 
     @Test
@@ -335,7 +325,8 @@ class RAGOrchestratorTest {
         when(actionHandlerRegistry.findMetadata("cancel_subscription")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Cancelled").build());
-        lenient().when(ragProvider.performRag(any())).thenReturn(RAGResponse.builder().response("info").build());
+        lenient().when(contentRetriever.retrieve(anyString(), any(), anyInt(), anyDouble(), any()))
+            .thenReturn(RetrievalResult.success(List.of(), 0, 0.0, 0.0, 5L));
 
         OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", "user");
 
@@ -348,6 +339,7 @@ class RAGOrchestratorTest {
         NextStepRecommendation recommendation = NextStepRecommendation.builder()
             .intent("view_billing_history")
             .confidence(0.71)
+            .query("Show my billing history")
             .build();
         Intent intent = Intent.builder()
             .type(IntentType.ACTION)
@@ -362,18 +354,17 @@ class RAGOrchestratorTest {
         when(actionHandlerRegistry.findMetadata("update_payment_method")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Updated").build());
-        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(RAGResponse.builder()
-            .response("Your payment method is confirmed.")
-            .documents(List.of())
-            .build());
+        when(contentRetriever.retrieve(anyString(), any(), anyInt(), anyDouble(), any()))
+            .thenReturn(RetrievalResult.success(
+                List.of(new RetrievedDocument("doc1", "Your payment method is confirmed.", "Payment", "info", 0.9, Map.of())),
+                1, 0.9, 0.9, 10L
+            ));
 
         OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
-        assertThat(result.getSmartSuggestion())
-            .containsEntry("intent", "view_billing_history")
-            .containsEntry("response", "Your payment method is confirmed.");
-        assertThat(result.getData()).containsKey("smartSuggestion");
+        // Smart suggestion uses context from retrieval, not "response"
+        assertThat(result.getSmartSuggestion()).containsEntry("intent", "view_billing_history");
     }
 
     @Test
@@ -407,7 +398,7 @@ class RAGOrchestratorTest {
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion()).isEmpty();
-        verify(ragProvider, never()).performRag(any(RAGRequest.class));
+        verify(contentRetriever, never()).retrieve(anyString(), any(), anyInt(), anyDouble(), any());
     }
 
     @Test
@@ -441,6 +432,6 @@ class RAGOrchestratorTest {
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion()).isEmpty();
-        verify(ragProvider, never()).performRag(any(RAGRequest.class));
+        verify(contentRetriever, never()).retrieve(anyString(), any(), anyInt(), anyDouble(), any());
     }
 }

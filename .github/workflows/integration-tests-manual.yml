@@ -99,7 +99,7 @@ jobs:
   ai-infrastructure-tests:
     name: AI Infrastructure Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(github.event.inputs.timeout_minutes) }}
+    timeout-minutes: ${{ github.event.inputs.timeout_minutes || 30 }}
     permissions:
       checks: write
       pull-requests: write

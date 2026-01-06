@@ -3,12 +3,12 @@ package com.ai.infrastructure.rag.service;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -150,7 +150,7 @@ public class AdvancedRAGService {
             
             List<RAGResponse> searchResults = performMultiStrategySearch(expandedQueries, request);
             
-            List<RAGResponse.RAGDocument> rerankedDocuments = rerankDocuments(
+            List<RAGResponse.RetrievedDocument> rerankedDocuments = rerankDocuments(
                 searchResults, request.getQuery(), request.getRerankingStrategy()
             );
             
@@ -265,7 +265,7 @@ public class AdvancedRAGService {
 
             RAGRequest ragRequest = ragRequestBuilder.build();
             
-            return ragProvider.performRag(ragRequest);
+            return ragProvider.retrieve(ragRequest);
         } catch (Exception e) {
             log.warn("Search failed for query: {}", query, e);
             return RAGResponse.builder()
@@ -280,10 +280,10 @@ public class AdvancedRAGService {
     // Private Methods - Re-ranking
     // =========================================================================
 
-    private List<RAGResponse.RAGDocument> rerankDocuments(
+    private List<RAGResponse.RetrievedDocument> rerankDocuments(
             List<RAGResponse> searchResults, String originalQuery, String strategy) {
         
-        List<RAGResponse.RAGDocument> allDocuments = searchResults.stream()
+        List<RAGResponse.RetrievedDocument> allDocuments = searchResults.stream()
             .flatMap(response -> response.getDocuments().stream())
             .distinct()
             .collect(Collectors.toList());
@@ -296,8 +296,8 @@ public class AdvancedRAGService {
         };
     }
 
-    private List<RAGResponse.RAGDocument> rerankBySemanticSimilarity(
-            List<RAGResponse.RAGDocument> documents, String query) {
+    private List<RAGResponse.RetrievedDocument> rerankBySemanticSimilarity(
+            List<RAGResponse.RetrievedDocument> documents, String query) {
         
         try {
             AIEmbeddingRequest queryRequest = AIEmbeddingRequest.builder()
@@ -331,8 +331,8 @@ public class AdvancedRAGService {
         }
     }
 
-    private List<RAGResponse.RAGDocument> rerankByHybridScore(
-            List<RAGResponse.RAGDocument> documents, String query) {
+    private List<RAGResponse.RetrievedDocument> rerankByHybridScore(
+            List<RAGResponse.RetrievedDocument> documents, String query) {
         
         return documents.stream()
             .map(doc -> {
@@ -344,19 +344,19 @@ public class AdvancedRAGService {
             .collect(Collectors.toList());
     }
 
-    private List<RAGResponse.RAGDocument> rerankByDiversity(
-            List<RAGResponse.RAGDocument> documents) {
-        List<RAGResponse.RAGDocument> diverse = new ArrayList<>();
+    private List<RAGResponse.RetrievedDocument> rerankByDiversity(
+            List<RAGResponse.RetrievedDocument> documents) {
+        List<RAGResponse.RetrievedDocument> diverse = new ArrayList<>();
         Set<String> usedTypes = new HashSet<>();
         
-        for (RAGResponse.RAGDocument doc : documents) {
+        for (RAGResponse.RetrievedDocument doc : documents) {
             if (!usedTypes.contains(doc.getType())) {
                 diverse.add(doc);
                 usedTypes.add(doc.getType());
             }
         }
         
-        for (RAGResponse.RAGDocument doc : documents) {
+        for (RAGResponse.RetrievedDocument doc : documents) {
             if (!diverse.contains(doc)) {
                 diverse.add(doc);
             }
@@ -365,8 +365,8 @@ public class AdvancedRAGService {
         return diverse;
     }
 
-    private List<RAGResponse.RAGDocument> rerankByScore(
-            List<RAGResponse.RAGDocument> documents) {
+    private List<RAGResponse.RetrievedDocument> rerankByScore(
+            List<RAGResponse.RetrievedDocument> documents) {
         return documents.stream()
             .sorted((d1, d2) -> Double.compare(d2.getScore(), d1.getScore()))
             .collect(Collectors.toList());
@@ -376,7 +376,7 @@ public class AdvancedRAGService {
     // Private Methods - Context Optimization
     // =========================================================================
 
-    private String optimizeContext(List<RAGResponse.RAGDocument> documents, String level) {
+    private String optimizeContext(List<RAGResponse.RetrievedDocument> documents, String level) {
         if (documents.isEmpty()) {
             return "";
         }
@@ -386,15 +386,15 @@ public class AdvancedRAGService {
             case LEVEL_MEDIUM -> optimizeContextMedium(documents);
             case LEVEL_LOW -> optimizeContextLow(documents);
             default -> documents.stream()
-                .map(RAGResponse.RAGDocument::getContent)
+                .map(RAGResponse.RetrievedDocument::getContent)
                 .collect(Collectors.joining("\n\n"));
         };
     }
 
-    private String optimizeContextHigh(List<RAGResponse.RAGDocument> documents) {
+    private String optimizeContextHigh(List<RAGResponse.RetrievedDocument> documents) {
         try {
             String context = documents.stream()
-                .map(RAGResponse.RAGDocument::getContent)
+                .map(RAGResponse.RetrievedDocument::getContent)
                 .collect(Collectors.joining("\n\n"));
             
             String optimizationPrompt = String.format(OPTIMIZATION_PROMPT_TEMPLATE, context);
@@ -407,17 +407,17 @@ public class AdvancedRAGService {
         }
     }
 
-    private String optimizeContextMedium(List<RAGResponse.RAGDocument> documents) {
+    private String optimizeContextMedium(List<RAGResponse.RetrievedDocument> documents) {
         return documents.stream()
             .sorted((d1, d2) -> Double.compare(d2.getScore(), d1.getScore()))
             .limit(TOP_DOCUMENTS_FOR_MEDIUM_OPTIMIZATION)
-            .map(RAGResponse.RAGDocument::getContent)
+            .map(RAGResponse.RetrievedDocument::getContent)
             .collect(Collectors.joining("\n\n"));
     }
 
-    private String optimizeContextLow(List<RAGResponse.RAGDocument> documents) {
+    private String optimizeContextLow(List<RAGResponse.RetrievedDocument> documents) {
         return documents.stream()
-            .map(RAGResponse.RAGDocument::getContent)
+            .map(RAGResponse.RetrievedDocument::getContent)
             .collect(Collectors.joining("\n\n"));
     }
 
@@ -463,31 +463,31 @@ public class AdvancedRAGService {
         return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
     }
 
-    private double calculateHybridScore(RAGResponse.RAGDocument doc) {
+    private double calculateHybridScore(RAGResponse.RetrievedDocument doc) {
         double score = doc.getScore();
         double similarity = doc.getSimilarity();
         
         return (score * SCORE_WEIGHT) + (similarity * SIMILARITY_WEIGHT);
     }
 
-    private List<Double> extractRelevanceScores(List<RAGResponse.RAGDocument> documents) {
+    private List<Double> extractRelevanceScores(List<RAGResponse.RetrievedDocument> documents) {
         return documents.stream()
-            .map(RAGResponse.RAGDocument::getSimilarity)
+            .map(RAGResponse.RetrievedDocument::getSimilarity)
             .collect(Collectors.toList());
     }
 
-    private double calculateConfidence(List<RAGResponse.RAGDocument> documents) {
+    private double calculateConfidence(List<RAGResponse.RetrievedDocument> documents) {
         if (documents.isEmpty()) {
             return 0.0;
         }
         
         double avgScore = documents.stream()
-            .mapToDouble(RAGResponse.RAGDocument::getScore)
+            .mapToDouble(RAGResponse.RetrievedDocument::getScore)
             .average()
             .orElse(0.0);
         
         double avgSimilarity = documents.stream()
-            .mapToDouble(RAGResponse.RAGDocument::getSimilarity)
+            .mapToDouble(RAGResponse.RetrievedDocument::getSimilarity)
             .average()
             .orElse(0.0);
         
@@ -507,7 +507,7 @@ public class AdvancedRAGService {
         return metadata;
     }
     
-    private AdvancedRAGResponse.RAGDocument convertToAdvancedDocument(RAGResponse.RAGDocument doc) {
+    private AdvancedRAGResponse.RAGDocument convertToAdvancedDocument(RAGResponse.RetrievedDocument doc) {
         return AdvancedRAGResponse.RAGDocument.builder()
             .id(doc.getId())
             .content(doc.getContent())

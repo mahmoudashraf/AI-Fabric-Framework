@@ -1,6 +1,6 @@
 package com.ai.infrastructure.relationship.action;
 
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.relationship.model.QueryMode;
 import com.ai.infrastructure.relationship.model.QueryOptions;

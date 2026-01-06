@@ -6,12 +6,9 @@ import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.PIIDetectionResult;
-import com.ai.infrastructure.dto.PIIMode;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.vector.VectorDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,9 +23,14 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 /**
- * Tests for RAGService optimized query handling.
+ * Tests for RAGService retrieval with query handling.
+ * 
+ * <p><strong>Note:</strong> RAGService does NOT perform PII detection or LLM generation.
+ * The orchestration pipeline handles PII via {@code PIIDetectionStep} and generation
+ * is done in orchestrator steps.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class RAGServiceOptimizedQueryTest {
@@ -49,18 +51,13 @@ class RAGServiceOptimizedQueryTest {
     private AISearchService searchService;
 
     @Mock
-    private PIIDetectionService piiDetectionService;
-
-    @Mock
     private AIEmbeddingResponse embeddingResponse;
 
     private RAGService ragService;
 
     @BeforeEach
     void setUp() {
-        ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService, piiDetectionService);
-
-        when(config.resolveLlmDefaults()).thenReturn(new AIProviderConfig.GenerationDefaults("openai", "gpt-test", 1024, 0.0, 60, 1));
+        ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService);
 
         when(embeddingService.generateEmbedding(any(AIEmbeddingRequest.class))).thenReturn(embeddingResponse);
         when(embeddingResponse.getEmbedding()).thenReturn(List.of(0.1, 0.2));
@@ -80,33 +77,39 @@ class RAGServiceOptimizedQueryTest {
             .build();
 
         when(searchService.search(any(), any())).thenReturn(searchResponse);
-
-        when(piiDetectionService.detectAndProcess(any(String.class))).thenAnswer(invocation ->
-            PIIDetectionResult.builder()
-                .originalQuery(invocation.getArgument(0))
-                .processedQuery(invocation.getArgument(0))
-                .modeApplied(PIIMode.PASS_THROUGH)
-                .piiDetected(false)
-                .build()
-        );
     }
 
     @Test
-    void usesOptimizedQueryForEmbeddingsWhenProvided() {
+    void retrieveUsesQueryForEmbeddings() {
         ArgumentCaptor<AIEmbeddingRequest> embeddingCaptor = ArgumentCaptor.forClass(AIEmbeddingRequest.class);
 
-        RAGResponse response = ragService.performRag(RAGRequest.builder()
+        RAGResponse response = ragService.retrieve(RAGRequest.builder()
             .query("user query about products")
-            .metadata(Map.of("optimizedQuery", "Product entities with price_usd < 50"))
             .entityType("product")
             .limit(3)
             .threshold(0.5)
             .build());
 
         assertThat(response).isNotNull();
-        assertThat(response.getMetadata()).containsEntry("optimizedQueryProvided", true);
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getDocuments()).hasSize(1);
 
-        org.mockito.Mockito.verify(embeddingService).generateEmbedding(embeddingCaptor.capture());
-        assertThat(embeddingCaptor.getValue().getText()).isEqualTo("Product entities with price_usd < 50");
+        verify(embeddingService).generateEmbedding(embeddingCaptor.capture());
+        assertThat(embeddingCaptor.getValue().getText()).isEqualTo("user query about products");
+    }
+    
+    @Test
+    void retrieveReturnsDocumentsWithRelevanceScores() {
+        RAGResponse response = ragService.retrieve(RAGRequest.builder()
+            .query("search query")
+            .entityType("product")
+            .limit(5)
+            .threshold(0.6)
+            .build());
+
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getDocuments()).hasSize(1);
+        assertThat(response.getDocuments().get(0).getScore()).isEqualTo(0.9);
+        assertThat(response.getMaxScore()).isEqualTo(0.9);
     }
 }

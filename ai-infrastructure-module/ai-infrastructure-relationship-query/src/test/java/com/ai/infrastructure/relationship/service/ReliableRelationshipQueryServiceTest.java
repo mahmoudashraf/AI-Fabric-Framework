@@ -3,7 +3,7 @@ package com.ai.infrastructure.relationship.service;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
@@ -91,7 +91,7 @@ class ReliableRelationshipQueryServiceTest {
     @Test
     void shouldReturnPrimaryResponseWhenAvailable() {
         RAGResponse primary = RAGResponse.builder()
-            .documents(List.of(RAGResponse.RAGDocument.builder().id("1").build()))
+            .documents(List.of(RAGResponse.RetrievedDocument.builder().id("1").build()))
             .build();
         when(llmService.executeRelationshipQuery(anyString(), anyList(), any())).thenReturn(primary);
 

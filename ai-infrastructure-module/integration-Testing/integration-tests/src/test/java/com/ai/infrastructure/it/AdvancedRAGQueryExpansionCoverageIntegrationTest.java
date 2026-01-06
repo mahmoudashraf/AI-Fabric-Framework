@@ -7,7 +7,7 @@ import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
 import com.ai.infrastructure.rag.service.AdvancedRAGService;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;

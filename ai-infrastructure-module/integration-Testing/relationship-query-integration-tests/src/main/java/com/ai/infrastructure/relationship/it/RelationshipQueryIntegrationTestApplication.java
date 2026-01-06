@@ -1,8 +1,8 @@
 package com.ai.infrastructure.relationship.it;
 
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -49,17 +49,14 @@ public class RelationshipQueryIntegrationTestApplication {
     public RAGProvider testRAGProvider() {
         return new RAGProvider() {
             @Override
-            public RAGResponse performRag(RAGRequest request) {
+            public RAGResponse retrieve(RAGRequest request) {
                 return RAGResponse.builder()
-                    .response("Test RAG response")
                     .documents(List.of())
                     .success(true)
+                    .totalDocuments(0)
+                    .returnedDocuments(0)
+                    .query(request != null ? request.getQuery() : null)
                     .build();
-            }
-
-            @Override
-            public RAGResponse performRAGQuery(RAGRequest request) {
-                return performRag(request);
             }
 
             @Override

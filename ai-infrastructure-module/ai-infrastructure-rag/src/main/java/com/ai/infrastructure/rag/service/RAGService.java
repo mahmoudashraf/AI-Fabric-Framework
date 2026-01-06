@@ -7,48 +7,43 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.dto.PIIMode;
-import com.ai.infrastructure.dto.PIIDetectionResult;
-import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
+import com.ai.infrastructure.rag.spi.RAGProvider;
+import com.ai.infrastructure.spi.ContentRetriever;
 import com.ai.infrastructure.vector.VectorDatabase;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
-import java.util.Collection;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * RAG (Retrieval-Augmented Generation) Service implementation.
+ * RAG Service - Retrieval-focused implementation.
  * 
- * <p>This service provides RAG capabilities by combining retrieval and generation.
- * It can index content, perform semantic search, and generate context-aware responses.</p>
- * 
- * <p>This is the default implementation of {@link RAGProvider} SPI, providing:</p>
+ * <p>This service performs <strong>retrieval operations only</strong>:</p>
  * <ul>
- *   <li>Content indexing with embeddings</li>
- *   <li>Semantic search with vector similarity</li>
- *   <li>Hybrid and contextual search modes</li>
- *   <li>PII detection integration</li>
- *   <li>Context building for generation</li>
+ *   <li>Embedding generation for queries</li>
+ *   <li>Vector similarity search</li>
+ *   <li>Content indexing and removal</li>
  * </ul>
  * 
- * <p><strong>Thread Safety:</strong> This service is thread-safe and can be used
- * concurrently by multiple threads.</p>
+ * <p><strong>What this service does NOT do:</strong></p>
+ * <ul>
+ *   <li>PII detection - handled by orchestrator's PIIDetectionStep</li>
+ *   <li>LLM generation - handled by orchestrator's generation step</li>
+ *   <li>Response sanitization - handled by orchestrator's ResponseSanitizationStep</li>
+ * </ul>
+ * 
+ * <p><strong>Thread Safety:</strong> This service is thread-safe.</p>
  * 
  * @author AI Infrastructure Team
  * @version 2.0.0
@@ -57,8 +52,9 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service("ragService")
+@org.springframework.context.annotation.Primary
 @RequiredArgsConstructor
-public class RAGService implements RAGProvider {
+public class RAGService implements RAGProvider, ContentRetriever {
     
     // =========================================================================
     // Constants
@@ -66,34 +62,15 @@ public class RAGService implements RAGProvider {
     
     private static final String PROVIDER_NAME = "default-rag-service";
     
-    // Metadata keys
-    private static final String METADATA_KEY_PII_DETECTION = "piiDetection";
-    private static final String METADATA_KEY_DETECTED = "detected";
-    private static final String METADATA_KEY_MODE = "mode";
-    private static final String METADATA_KEY_DETECTIONS_COUNT = "detectionsCount";
-    private static final String METADATA_KEY_ENCRYPTED_ORIGINAL_STORED = "encryptedOriginalStored";
-    private static final String METADATA_KEY_OPTIMIZED_QUERY_PROVIDED = "optimizedQueryProvided";
-    private static final String METADATA_KEY_EMBEDDING_QUERY = "embeddingQuery";
-    private static final String METADATA_KEY_OPTIMIZED_QUERY = "optimizedQuery";
-    
-    // Result keys
-    private static final String RESULT_KEY_CONTENT = "content";
-    private static final String RESULT_KEY_SCORE = "score";
-    private static final String RESULT_KEY_SIMILARITY = "similarity";
-    private static final String RESULT_KEY_ID = "id";
-    private static final String RESULT_KEY_TITLE = "title";
-    private static final String RESULT_KEY_TYPE = "type";
-    private static final String RESULT_KEY_METADATA = "metadata";
-    private static final String RESULT_KEY_RAW = "raw";
-    
-    // Default values
-    private static final double DEFAULT_SEARCH_THRESHOLD = 0.7;
-    
-    // Messages
-    private static final String NO_CONTEXT_MESSAGE = "No relevant context found.";
-    private static final String CONTEXT_HEADER = "Relevant Context:\n\n";
-    private static final String NO_INFO_MESSAGE = "I don't have enough information to answer your question: ";
-    private static final String BASED_ON_INFO_MESSAGE = "Based on the available information: ";
+    // Result keys from search response
+    private static final String KEY_ID = "id";
+    private static final String KEY_CONTENT = "content";
+    private static final String KEY_TITLE = "title";
+    private static final String KEY_TYPE = "type";
+    private static final String KEY_SCORE = "score";
+    private static final String KEY_SIMILARITY = "similarity";
+    private static final String KEY_METADATA = "metadata";
+    private static final String KEY_SOURCE = "source";
     
     // =========================================================================
     // Dependencies
@@ -104,541 +81,410 @@ public class RAGService implements RAGProvider {
     private final VectorDatabaseService vectorDatabaseService;
     private final VectorDatabase vectorDatabase;
     private final AISearchService searchService;
-    private final PIIDetectionService piiDetectionService;
     
-    // =========================================================================
-    // JSON Processing
-    // =========================================================================
-    
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final TypeReference<Map<String, Object>> MAP_TYPE_REFERENCE = new TypeReference<>() {};
+    // Thread-local storage for the last RAGResponse to avoid double retrieval
+    private final ThreadLocal<RAGResponse> lastRAGResponse = new ThreadLocal<>();
     
     // =========================================================================
     // RAGProvider Implementation
     // =========================================================================
     
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getProviderName() {
         return PROVIDER_NAME;
     }
     
     /**
-     * {@inheritDoc}
+     * Resolve conflicting default method from both interfaces.
      */
     @Override
-    public void indexContent(String entityType, String entityId, String content, Map<String, Object> metadata) {
+    public boolean isAvailable() {
+        return true;
+    }
+    
+    @Override
+    public RAGResponse retrieve(RAGRequest request) {
         try {
-            log.debug("Indexing content for entity {} of type {}", entityId, entityType);
+            log.debug("Performing retrieval (entityType={}, requestId={})",
+                request.getEntityType(), request.getRequestId());
             
+            long startTime = System.currentTimeMillis();
+            
+            // Generate embedding for the query
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(content)
-                .entityType(entityType)
-                .entityId(entityId)
-                .metadata(metadata != null ? metadata.toString() : null)
-                .build();
-            
-            var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
-            
-            vectorDatabaseService.storeVector(entityType, entityId, content, 
-                embeddingResponse.getEmbedding(), metadata);
-            
-            log.debug("Successfully indexed content for entity {} of type {}", entityId, entityType);
-            
-        } catch (Exception e) {
-            log.error("Error indexing content for entity {} of type {}", entityId, entityType, e);
-            throw new AIServiceException("Failed to index content", e);
-        }
-    }
-    
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void removeContent(String entityType, String entityId) {
-        try {
-            log.debug("Removing content for entity {} of type {}", entityId, entityType);
-            
-            vectorDatabaseService.removeVector(entityType, entityId);
-            
-            log.debug("Successfully removed content for entity {} of type {}", entityId, entityType);
-            
-        } catch (Exception e) {
-            log.error("Error removing content for entity {} of type {}", entityId, entityType, e);
-            throw new AIServiceException("Failed to remove content", e);
-        }
-    }
-    
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Map<String, Object> getStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalIndexed", vectorDatabaseService.getStatistics());
-        stats.put("vectorDatabase", vectorDatabase.getStatistics());
-        return stats;
-    }
-    
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public RAGResponse performRag(RAGRequest request) {
-        try {
-            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(request.getQuery());
-            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
-            String embeddingQuery = resolveEmbeddingQuery(request, sanitizedQuery);
-            
-            log.debug("Performing RAG operation (entityType={}, requestId={}, piiDetected={}, mode={})",
-                request.getEntityType(),
-                request.getRequestId(),
-                piiDetectionResult.isPiiDetected(),
-                Optional.ofNullable(piiDetectionResult.getModeApplied())
-                    .map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
-
-            AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(embeddingQuery)
+                .text(request.getQuery())
                 .build();
             
             AIEmbeddingResponse embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
             List<Double> queryVector = embeddingResponse.getEmbedding();
             
-            String contextString = request.getContext() != null ? request.getContext().toString() : null;
-            String filtersString = request.getFilters() != null ? request.getFilters().toString() : null;
-            
+            // Build search request
             AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(embeddingQuery)
+                .query(request.getQuery())
                 .entityType(request.getEntityType())
-                .limit(request.getLimit())
-                .threshold(request.getThreshold())
-                .context(contextString)
-                .filters(filtersString)
+                .limit(request.getLimit() != null ? request.getLimit() : DEFAULT_LIMIT)
+                .threshold(request.getThreshold() != null ? request.getThreshold() : DEFAULT_THRESHOLD)
                 .metadata(request.getMetadata())
                 .build();
             
-            AISearchResponse searchResponse = searchService.search(queryVector, searchRequest);
+            // Perform search
+            AISearchResponse searchResponse;
+            if (Boolean.TRUE.equals(request.getEnableHybridSearch())) {
+                searchResponse = vectorDatabase.search(queryVector, searchRequest);
+            } else if (Boolean.TRUE.equals(request.getEnableContextualSearch())) {
+                searchResponse = vectorDatabase.search(queryVector, searchRequest);
+            } else {
+                searchResponse = searchService.search(queryVector, searchRequest);
+            }
             
-            Map<String, Object> filters = request.getFilters();
-
-            List<RAGResponse.RAGDocument> documents = searchResponse.getResults().stream()
-                .map(result -> {
-                    Map<String, Object> normalizedMetadata = normalizeMetadata(result.get(RESULT_KEY_METADATA));
-                    if (!matchesFilters(normalizedMetadata, filters)) {
-                        return null;
-                    }
-
-                    return RAGResponse.RAGDocument.builder()
-                        .id((String) result.get(RESULT_KEY_ID))
-                        .content((String) result.get(RESULT_KEY_CONTENT))
-                        .title((String) result.get(RESULT_KEY_TITLE))
-                        .type((String) result.get(RESULT_KEY_TYPE))
-                        .score((Double) result.get(RESULT_KEY_SCORE))
-                        .similarity((Double) result.get(RESULT_KEY_SIMILARITY))
-                        .metadata(normalizedMetadata)
-                        .build();
-                })
+            // Convert results to retrieved documents
+            List<RAGResponse.RetrievedDocument> documents = searchResponse.getResults().stream()
+                .map(this::convertToDocument)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
-
-            Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
-                request.getMetadata(), piiDetectionResult, embeddingQuery);
+            
+            // Apply filters if provided
+            if (request.getFilters() != null && !request.getFilters().isEmpty()) {
+                documents = filterDocuments(documents, request.getFilters());
+            }
+            
+            long processingTime = System.currentTimeMillis() - startTime;
             
             return RAGResponse.builder()
                 .documents(documents)
                 .totalDocuments(searchResponse.getTotalResults())
-                .usedDocuments(documents.size())
-                .relevanceScores(documents.stream()
-                    .map(RAGResponse.RAGDocument::getScore)
-                    .collect(Collectors.toList()))
+                .returnedDocuments(documents.size())
                 .success(true)
-                .totalResults(searchResponse.getTotalResults())
-                .returnedResults(documents.size())
                 .maxScore(documents.stream()
-                    .mapToDouble(RAGResponse.RAGDocument::getScore)
+                    .mapToDouble(d -> d.getScore() != null ? d.getScore() : 0.0)
                     .max().orElse(0.0))
                 .averageScore(documents.stream()
-                    .mapToDouble(RAGResponse.RAGDocument::getScore)
+                    .mapToDouble(d -> d.getScore() != null ? d.getScore() : 0.0)
                     .average().orElse(0.0))
-                .processingTimeMs(searchResponse.getProcessingTimeMs())
-                .requestId(request.getRequestId())
-                .originalQuery(sanitizedQuery)
-                .entityType(request.getEntityType())
-                .model(config.resolveLlmDefaults().model())
-                .timestamp(java.time.LocalDateTime.now())
-                .piiDetectionResult(piiDetectionResult)
-                .metadata(Collections.unmodifiableMap(aggregatedMetadata))
-                .build();
-                
-        } catch (Exception e) {
-            log.error("Error performing RAG operation", e);
-            return RAGResponse.builder()
-                .success(false)
-                .errorMessage("Failed to perform RAG operation: " + e.getMessage())
-                .build();
-        }
-    }
-    
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public RAGResponse performRAGQuery(RAGRequest request) {
-        try {
-            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(request.getQuery());
-            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
-            String embeddingQuery = resolveEmbeddingQuery(request, sanitizedQuery);
-            
-            log.debug("Performing RAG query (entityType={}, requestId={}, piiDetected={}, mode={})",
-                request.getEntityType(),
-                request.getRequestId(),
-                piiDetectionResult.isPiiDetected(),
-                Optional.ofNullable(piiDetectionResult.getModeApplied())
-                    .map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
-            
-            long startTime = System.currentTimeMillis();
-            
-            AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(embeddingQuery)
-                .model(config.resolveEmbeddingDefaults().model())
-                .build();
-            
-            var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
-            List<Double> queryVector = embeddingResponse.getEmbedding();
-            
-            AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(embeddingQuery)
-                .entityType(request.getEntityType())
-                .limit(request.getLimit())
-                .threshold(request.getThreshold())
-                .build();
-            
-            AISearchResponse searchResponse;
-            if (Boolean.TRUE.equals(request.getEnableHybridSearch())) {
-                searchResponse = performHybridSearch(queryVector, sanitizedQuery, searchRequest);
-            } else if (Boolean.TRUE.equals(request.getEnableContextualSearch())) {
-                searchResponse = performContextualSearch(queryVector, 
-                    request.getContext() != null ? request.getContext().toString() : "", searchRequest);
-            } else {
-                searchResponse = vectorDatabase.search(queryVector, searchRequest);
-            }
-            
-            String context = buildContext(searchResponse);
-            String response = generateResponse(sanitizedQuery, context);
-            
-            long processingTime = System.currentTimeMillis() - startTime;
-
-            Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
-                request.getMetadata(), piiDetectionResult, embeddingQuery);
-            
-            return RAGResponse.builder()
-                .response(response)
-                .context(context)
-                .documents(convertToRAGDocuments(searchResponse.getResults()))
-                .totalDocuments(searchResponse.getTotalResults())
-                .usedDocuments(Math.min(searchResponse.getTotalResults(), request.getLimit()))
-                .confidenceScore(calculateConfidence(searchResponse))
-                .relevanceScores(searchResponse.getResults().stream()
-                    .map(doc -> (Double) doc.get(RESULT_KEY_SIMILARITY))
+                .relevanceScores(documents.stream()
+                    .map(RAGResponse.RetrievedDocument::getScore)
                     .collect(Collectors.toList()))
                 .processingTimeMs(processingTime)
                 .requestId(request.getRequestId())
-                .model(config.resolveEmbeddingDefaults().model())
-                .success(true)
+                .query(request.getQuery())
+                .entityType(request.getEntityType())
+                .timestamp(LocalDateTime.now())
                 .hybridSearchUsed(Boolean.TRUE.equals(request.getEnableHybridSearch()))
                 .contextualSearchUsed(Boolean.TRUE.equals(request.getEnableContextualSearch()))
-                .originalQuery(sanitizedQuery)
-                .entityType(request.getEntityType())
                 .searchedCategories(request.getCategories())
-                .piiDetectionResult(piiDetectionResult)
-                .metadata(Collections.unmodifiableMap(aggregatedMetadata))
                 .build();
                 
         } catch (Exception e) {
-            log.error("Error performing RAG query", e);
+            log.error("Error performing retrieval", e);
             return RAGResponse.builder()
-                .response("")
-                .context("")
+                .success(false)
+                .errorMessage("Retrieval failed: " + e.getMessage())
                 .documents(Collections.emptyList())
                 .totalDocuments(0)
-                .usedDocuments(0)
-                .confidenceScore(0.0)
-                .relevanceScores(Collections.emptyList())
-                .processingTimeMs(0L)
+                .returnedDocuments(0)
+                .timestamp(LocalDateTime.now())
                 .requestId(request.getRequestId())
-                .model(config.resolveEmbeddingDefaults().model())
-                .success(false)
-                .errorMessage(e.getMessage())
                 .build();
         }
     }
     
-    // =========================================================================
-    // Additional Public Methods (for backward compatibility)
-    // =========================================================================
-    
-    /**
-     * Perform RAG query with basic parameters.
-     * 
-     * @param query the search query
-     * @param entityType the type of entities to search
-     * @param limit maximum number of results
-     * @return RAG response with retrieved context
-     */
-    public AISearchResponse performRAGQuery(String query, String entityType, int limit) {
+    @Override
+    public void indexContent(String entityType, String entityId, String content, Map<String, Object> metadata) {
         try {
-            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(query);
-            log.debug("Performing RAG query for entity type={} (piiDetected={}, mode={})",
-                entityType, piiDetectionResult.isPiiDetected(),
-                Optional.ofNullable(piiDetectionResult.getModeApplied())
-                    .map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
-            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
+            log.debug("Indexing content (entityType={}, entityId={})", entityType, entityId);
             
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(sanitizedQuery)
+                .text(content)
                 .entityType(entityType)
+                .entityId(entityId)
                 .build();
             
-            var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
+            AIEmbeddingResponse embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
             
-            AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(sanitizedQuery)
-                .entityType(entityType)
-                .limit(limit)
-                .threshold(DEFAULT_SEARCH_THRESHOLD)
-                .build();
+            vectorDatabaseService.storeVector(entityType, entityId, content, 
+                embeddingResponse.getEmbedding(), metadata);
             
-            AISearchResponse searchResponse = vectorDatabaseService.search(
-                embeddingResponse.getEmbedding(), searchRequest);
-            
-            log.debug("RAG query completed with {} results", searchResponse.getTotalResults());
-            
-            return searchResponse;
+            log.debug("Successfully indexed content (entityType={}, entityId={})", entityType, entityId);
             
         } catch (Exception e) {
-            log.error("Error performing RAG query", e);
-            throw new AIServiceException("Failed to perform RAG query", e);
+            log.error("Error indexing content (entityType={}, entityId={})", entityType, entityId, e);
+            throw new AIServiceException("Failed to index content", e);
         }
     }
     
-    /**
-     * Build context from search results.
-     * 
-     * @param searchResponse the search results
-     * @return formatted context string
-     */
-    public String buildContext(AISearchResponse searchResponse) {
-        if (searchResponse.getResults().isEmpty()) {
-            return NO_CONTEXT_MESSAGE;
+    @Override
+    public void removeContent(String entityType, String entityId) {
+        try {
+            log.debug("Removing content (entityType={}, entityId={})", entityType, entityId);
+            vectorDatabaseService.removeVector(entityType, entityId);
+            log.debug("Successfully removed content (entityType={}, entityId={})", entityType, entityId);
+        } catch (Exception e) {
+            log.error("Error removing content (entityType={}, entityId={})", entityType, entityId, e);
+            throw new AIServiceException("Failed to remove content", e);
         }
-        
-        StringBuilder context = new StringBuilder();
-        context.append(CONTEXT_HEADER);
-        
-        for (int i = 0; i < searchResponse.getResults().size(); i++) {
-            Map<String, Object> result = searchResponse.getResults().get(i);
-            context.append(String.format("%d. %s (Score: %.3f)\n", 
-                i + 1, result.get(RESULT_KEY_CONTENT), result.get(RESULT_KEY_SCORE)));
-        }
-        
-        return context.toString();
+    }
+    
+    @Override
+    public Map<String, Object> getStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("vectorDatabaseService", vectorDatabaseService.getStatistics());
+        stats.put("vectorDatabase", vectorDatabase.getStatistics());
+        return stats;
     }
     
     // =========================================================================
-    // Private Helper Methods
+    // ContentRetriever Implementation (Generic interface for pipeline)
     // =========================================================================
     
-    private AISearchResponse performHybridSearch(List<Double> queryVector, String queryText, 
-            AISearchRequest request) {
-        return vectorDatabase.search(queryVector, request);
+    @Override
+    public String getRetrieverName() {
+        return PROVIDER_NAME;
     }
     
-    private AISearchResponse performContextualSearch(List<Double> queryVector, String context, 
-            AISearchRequest request) {
-        return vectorDatabase.search(queryVector, request);
-    }
-    
-    private String generateResponse(String query, String context) {
-        if (context.isEmpty() || NO_CONTEXT_MESSAGE.equals(context)) {
-            return NO_INFO_MESSAGE + query;
+    @Override
+    public Object getExtendedResult(RetrievalResult retrievalResult, String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
+        try {
+            // Use the stored RAGResponse from the last retrieve() call to avoid data loss
+            // This preserves all fields (similarity, embeddings, etc.) that would be lost in conversion
+            RAGResponse storedResponse = lastRAGResponse.get();
+            if (storedResponse != null) {
+                // Verify it matches the current retrieval (same query and entity type)
+                // This is a simple check - in a multi-threaded environment, thread-local ensures correctness
+                if (storedResponse.getQuery() != null && storedResponse.getQuery().equals(query) &&
+                    storedResponse.getEntityType() != null && storedResponse.getEntityType().equals(entityType)) {
+                    log.debug("getExtendedResult returning stored RAGResponse (success: {}, documents: {})", 
+                        storedResponse.getSuccess(), storedResponse.getDocuments() != null ? storedResponse.getDocuments().size() : 0);
+                    // Clear thread-local after use
+                    lastRAGResponse.remove();
+                    return storedResponse;
+                }
+            }
+            
+            // Fallback: Convert RetrievalResult to RAGResponse if stored response not available
+            // This preserves core fields but may lose some enrichment fields
+            List<RAGResponse.RetrievedDocument> documents = retrievalResult.documents().stream()
+                .map(doc -> RAGResponse.RetrievedDocument.builder()
+                    .id(doc.id())
+                    .content(doc.content())
+                    .title(doc.title())
+                    .type(doc.type())
+                    .score(doc.score())
+                    .metadata(doc.metadata())
+                    .build())
+                .collect(Collectors.toList());
+            
+            RAGResponse response = RAGResponse.builder()
+                .documents(documents)
+                .totalDocuments(retrievalResult.totalDocuments())
+                .returnedDocuments(documents.size())
+                .success(retrievalResult.success())
+                .errorMessage(retrievalResult.errorMessage())
+                .maxScore(retrievalResult.maxScore())
+                .averageScore(retrievalResult.averageScore())
+                .processingTimeMs(retrievalResult.processingTimeMs())
+                .query(query)
+                .entityType(entityType)
+                .metadata(metadata)
+                .build();
+            
+            log.debug("getExtendedResult returning converted RAGResponse (success: {}, documents: {})", 
+                response.getSuccess(), response.getDocuments() != null ? response.getDocuments().size() : 0);
+            return response;
+        } catch (Exception e) {
+            log.error("Error in getExtendedResult: {}", e.getMessage(), e);
+            lastRAGResponse.remove(); // Clean up on error
+            return null;
         }
-        
-        int maxLength = Math.min(context.length(), 500);
-        return BASED_ON_INFO_MESSAGE + context.substring(0, maxLength) + "...";
     }
     
-    private double calculateConfidence(AISearchResponse searchResponse) {
-        if (searchResponse.getResults().isEmpty()) {
-            return 0.0;
+    @Override
+    @Deprecated
+    public Object getExtendedResult(String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
+        // Legacy implementation - performs retrieval again (less efficient)
+        try {
+            RAGRequest request = RAGRequest.builder()
+                .query(query)
+                .entityType(entityType)
+                .limit(limit)
+                .threshold(threshold)
+                .metadata(metadata)
+                .build();
+            RAGResponse response = retrieve(request);
+            log.debug("getExtendedResult (legacy) returning RAGResponse (success: {}, documents: {})", 
+                response.getSuccess(), response.getDocuments() != null ? response.getDocuments().size() : 0);
+            return response;
+        } catch (Exception e) {
+            log.error("Error in getExtendedResult (legacy): {}", e.getMessage(), e);
+            return null;
         }
-        
-        return searchResponse.getResults().stream()
-            .mapToDouble(doc -> {
-                Object similarity = doc.get(RESULT_KEY_SIMILARITY);
-                return similarity instanceof Number ? ((Number) similarity).doubleValue() : 0.0;
-            })
-            .average()
-            .orElse(0.0);
     }
     
-    private List<RAGResponse.RAGDocument> convertToRAGDocuments(List<Map<String, Object>> results) {
-        return results.stream()
-            .map(this::convertToRAGDocument)
-            .collect(Collectors.toList());
-    }
-    
-    private RAGResponse.RAGDocument convertToRAGDocument(Map<String, Object> result) {
-        Map<String, Object> metadata = normalizeMetadata(result.get(RESULT_KEY_METADATA));
-
-        Object scoreValue = result.getOrDefault(RESULT_KEY_SCORE, 0.0);
-        Object similarityValue = result.getOrDefault(RESULT_KEY_SIMILARITY, 0.0);
-
-        double score = scoreValue instanceof Number ? ((Number) scoreValue).doubleValue() 
-            : parseDouble(scoreValue) != null ? parseDouble(scoreValue) : 0.0;
-        double similarity = similarityValue instanceof Number ? ((Number) similarityValue).doubleValue() 
-            : parseDouble(similarityValue) != null ? parseDouble(similarityValue) : 0.0;
-
-        return RAGResponse.RAGDocument.builder()
-            .id((String) result.get(RESULT_KEY_ID))
-            .content((String) result.get(RESULT_KEY_CONTENT))
-            .title((String) result.get(RESULT_KEY_TITLE))
-            .type((String) result.get(RESULT_KEY_TYPE))
-            .score(score)
-            .similarity(similarity)
+    @Override
+    public RetrievalResult retrieve(String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
+        RAGRequest request = RAGRequest.builder()
+            .query(query)
+            .entityType(entityType)
+            .limit(limit)
+            .threshold(threshold)
             .metadata(metadata)
+            .build();
+        
+        RAGResponse response = retrieve(request);
+        
+        // Store the RAGResponse in thread-local for getExtendedResult() to use
+        lastRAGResponse.set(response);
+        
+        if (!Boolean.TRUE.equals(response.getSuccess())) {
+            return RetrievalResult.error(response.getErrorMessage());
+        }
+        
+        List<RetrievedDocument> docs = response.getDocuments().stream()
+            .map(d -> new RetrievedDocument(
+                d.getId(),
+                d.getContent(),
+                d.getTitle(),
+                d.getType(),
+                d.getScore() != null ? d.getScore() : 0.0,
+                d.getMetadata()
+            ))
+            .collect(Collectors.toList());
+        
+        return RetrievalResult.success(
+            docs,
+            response.getTotalDocuments() != null ? response.getTotalDocuments() : docs.size(),
+            response.getMaxScore() != null ? response.getMaxScore() : 0.0,
+            response.getAverageScore() != null ? response.getAverageScore() : 0.0,
+            response.getProcessingTimeMs() != null ? response.getProcessingTimeMs() : 0L
+        );
+    }
+    
+    // =========================================================================
+    // Helper Methods
+    // =========================================================================
+    
+    private RAGResponse.RetrievedDocument convertToDocument(Map<String, Object> result) {
+        if (result == null) {
+            return null;
+        }
+        
+        return RAGResponse.RetrievedDocument.builder()
+            .id(getString(result, KEY_ID))
+            .content(getString(result, KEY_CONTENT))
+            .title(getString(result, KEY_TITLE))
+            .type(getString(result, KEY_TYPE))
+            .score(getDouble(result, KEY_SCORE))
+            .similarity(getDouble(result, KEY_SIMILARITY))
+            .metadata(getMap(result, KEY_METADATA))
+            .source(getString(result, KEY_SOURCE))
             .build();
     }
     
-    private String resolveEmbeddingQuery(RAGRequest request, String sanitizedQuery) {
-        String optimized = extractOptimizedQuery(request.getMetadata());
-        if (StringUtils.hasText(optimized)) {
-            try {
-                return piiDetectionService.detectAndProcess(optimized).getProcessedQuery();
-            } catch (Exception ex) {
-                log.debug("Unable to sanitize optimized query, using as provided: {}", ex.getMessage());
-                return optimized;
-            }
-        }
-        return sanitizedQuery;
+    private List<RAGResponse.RetrievedDocument> filterDocuments(
+            List<RAGResponse.RetrievedDocument> documents, 
+            Map<String, Object> filters) {
+        return documents.stream()
+            .filter(doc -> matchesFilters(doc.getMetadata(), filters))
+            .collect(Collectors.toList());
     }
-
-    private String extractOptimizedQuery(Map<String, Object> metadata) {
-        if (metadata == null || metadata.isEmpty()) {
-            return null;
-        }
-        Object candidate = metadata.get(METADATA_KEY_OPTIMIZED_QUERY);
-        if (candidate instanceof String str && StringUtils.hasText(str)) {
-            return str;
-        }
-        return null;
-    }
-
-    private Map<String, Object> normalizeMetadata(Object metadata) {
-        if (metadata instanceof Map<?, ?> rawMap) {
-            return rawMap.entrySet().stream()
-                .collect(Collectors.toMap(entry -> String.valueOf(entry.getKey()), Map.Entry::getValue));
-        }
-        if (metadata instanceof String metadataJson && !metadataJson.trim().isEmpty()) {
-            try {
-                Map<String, Object> parsed = OBJECT_MAPPER.readValue(metadataJson, MAP_TYPE_REFERENCE);
-                return parsed != null ? parsed : Collections.emptyMap();
-            } catch (Exception e) {
-                log.debug("Unable to parse metadata JSON: {}", metadataJson, e);
-                return Collections.singletonMap(RESULT_KEY_RAW, metadataJson);
-            }
-        }
-        return Collections.emptyMap();
-    }
-
+    
     private boolean matchesFilters(Map<String, Object> metadata, Map<String, Object> filters) {
         if (filters == null || filters.isEmpty()) {
             return true;
         }
-
-        Map<String, Object> safeMetadata = metadata != null ? metadata : Collections.emptyMap();
-
-        return filters.entrySet().stream()
-            .allMatch(entry -> matchesFilter(safeMetadata, entry.getKey(), entry.getValue()));
-    }
-
-    private boolean matchesFilter(Map<String, Object> metadata, String key, Object expected) {
-        if (expected == null) {
-            return true;
-        }
-
-        Object actual = metadata.get(key);
-        if (actual == null) {
+        if (metadata == null) {
             return false;
         }
-
-        if (expected instanceof Collection<?> collection) {
-            return collection.stream().anyMatch(item -> valuesEqual(actual, item));
-        }
-
-        if (expected instanceof Map<?, ?> rangeMap) {
-            Double actualValue = parseDouble(actual);
-            if (actualValue == null) {
+        
+        for (Map.Entry<String, Object> filter : filters.entrySet()) {
+            Object expected = filter.getValue();
+            Object actual = metadata.get(filter.getKey());
+            
+            if (expected != null && !String.valueOf(expected).equalsIgnoreCase(String.valueOf(actual))) {
                 return false;
             }
-
-            Double min = parseDouble(rangeMap.get("min"));
-            Double max = parseDouble(rangeMap.get("max"));
-
-            if (min != null && actualValue < min) {
-                return false;
-            }
-            if (max != null && actualValue > max) {
-                return false;
-            }
-            return true;
         }
-
-        return valuesEqual(actual, expected);
-    }
-
-    private boolean valuesEqual(Object actual, Object expected) {
-        if (actual == null || expected == null) {
-            return false;
-        }
-        return String.valueOf(actual).equalsIgnoreCase(String.valueOf(expected));
-    }
-
-    private Double parseDouble(Object value) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            if (value instanceof Number number) {
-                return number.doubleValue();
-            }
-            String normalized = String.valueOf(value).replaceAll("[^0-9.\\-]", "");
-            if (normalized.isEmpty()) {
-                return null;
-            }
-            return Double.parseDouble(normalized);
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
+        return true;
     }
     
-    private Map<String, Object> buildAggregatedMetadata(Map<String, Object> requestMetadata,
-            PIIDetectionResult piiDetectionResult, String embeddingQuery) {
-        Map<String, Object> aggregatedMetadata = new HashMap<>();
-        if (requestMetadata != null) {
-            aggregatedMetadata.putAll(requestMetadata);
+    private String getString(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value != null ? String.valueOf(value) : null;
+    }
+    
+    private Double getDouble(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
         }
-        aggregatedMetadata.put(METADATA_KEY_PII_DETECTION, Map.of(
-            METADATA_KEY_DETECTED, piiDetectionResult.isPiiDetected(),
-            METADATA_KEY_MODE, Optional.ofNullable(piiDetectionResult.getModeApplied())
-                .map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()),
-            METADATA_KEY_DETECTIONS_COUNT, piiDetectionResult.getDetections().size(),
-            METADATA_KEY_ENCRYPTED_ORIGINAL_STORED, piiDetectionResult.getEncryptedOriginalQuery() != null
-        ));
-        aggregatedMetadata.put(METADATA_KEY_OPTIMIZED_QUERY_PROVIDED, 
-            extractOptimizedQuery(requestMetadata) != null);
-        aggregatedMetadata.put(METADATA_KEY_EMBEDDING_QUERY, embeddingQuery);
-        return aggregatedMetadata;
+        return null;
+    }
+    
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getMap(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value instanceof Map) {
+            return (Map<String, Object>) value;
+        }
+        // Handle JSON string from Lucene vector database
+        if (value instanceof String jsonString && !jsonString.isBlank()) {
+            try {
+                return parseJsonToMap(jsonString);
+            } catch (Exception e) {
+                log.warn("Failed to parse metadata JSON: {}", jsonString, e);
+            }
+        }
+        return Collections.emptyMap();
+    }
+    
+    /**
+     * Parse a JSON string to a Map.
+     * Handles simple JSON objects with string values.
+     */
+    private Map<String, Object> parseJsonToMap(String json) {
+        Map<String, Object> result = new HashMap<>();
+        if (json == null || json.isBlank() || !json.startsWith("{") || !json.endsWith("}")) {
+            return result;
+        }
+        
+        // Remove braces and parse key-value pairs
+        String content = json.substring(1, json.length() - 1);
+        if (content.isBlank()) {
+            return result;
+        }
+        
+        // Simple JSON parser for "key":"value" pairs
+        int i = 0;
+        while (i < content.length()) {
+            // Skip whitespace
+            while (i < content.length() && Character.isWhitespace(content.charAt(i))) i++;
+            if (i >= content.length()) break;
+            
+            // Parse key
+            if (content.charAt(i) != '"') break;
+            int keyStart = ++i;
+            while (i < content.length() && content.charAt(i) != '"') i++;
+            if (i >= content.length()) break;
+            String key = content.substring(keyStart, i);
+            i++; // Skip closing quote
+            
+            // Skip colon
+            while (i < content.length() && (Character.isWhitespace(content.charAt(i)) || content.charAt(i) == ':')) i++;
+            if (i >= content.length()) break;
+            
+            // Parse value
+            if (content.charAt(i) != '"') break;
+            int valueStart = ++i;
+            while (i < content.length() && content.charAt(i) != '"') i++;
+            if (i >= content.length()) break;
+            String value = content.substring(valueStart, i);
+            i++; // Skip closing quote
+            
+            result.put(key, value);
+            
+            // Skip comma and whitespace
+            while (i < content.length() && (Character.isWhitespace(content.charAt(i)) || content.charAt(i) == ',')) i++;
+        }
+        
+        return result;
     }
 }

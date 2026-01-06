@@ -5,12 +5,11 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.dto.PIIDetectionResult;
-import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
+import com.ai.infrastructure.rag.spi.RAGProvider;
+import com.ai.infrastructure.spi.ContentRetriever;
 import com.ai.infrastructure.vector.VectorDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,7 +31,12 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for RAGService.
  * 
- * <p>Tests verify that RAGService correctly implements the RAGProvider SPI.</p>
+ * <p>Tests verify that RAGService correctly implements both RAGProvider SPI
+ * (RAG-specific) and ContentRetriever SPI (generic, used by core pipeline).</p>
+ * 
+ * <p><strong>Note:</strong> RAGService does NOT perform PII detection. The orchestration
+ * pipeline handles PII via {@code PIIDetectionStep} (before) and 
+ * {@code ResponseSanitizationStep} (after).</p>
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -53,9 +57,6 @@ class RAGServiceTest {
     @Mock
     private AISearchService searchService;
     
-    @Mock
-    private PIIDetectionService piiDetectionService;
-    
     private RAGService ragService;
     
     @BeforeEach
@@ -65,19 +66,10 @@ class RAGServiceTest {
             embeddingService,
             vectorDatabaseService,
             vectorDatabase,
-            searchService,
-            piiDetectionService
+            searchService
         );
         
         // Default mock setup
-        when(piiDetectionService.detectAndProcess(any())).thenReturn(
-            PIIDetectionResult.builder()
-                .processedQuery("test query")
-                .piiDetected(false)
-                .detections(Collections.emptyList())
-                .build()
-        );
-        
         when(embeddingService.generateEmbedding(any())).thenReturn(
             AIEmbeddingResponse.builder()
                 .embedding(List.of(0.1, 0.2, 0.3))
@@ -107,9 +99,21 @@ class RAGServiceTest {
     }
     
     @Test
+    @DisplayName("RAGService implements ContentRetriever interface")
+    void ragServiceImplementsContentRetriever() {
+        assertThat(ragService).isInstanceOf(ContentRetriever.class);
+    }
+    
+    @Test
     @DisplayName("getProviderName returns expected name")
     void getProviderNameReturnsExpectedName() {
         assertThat(ragService.getProviderName()).isEqualTo("default-rag-service");
+    }
+    
+    @Test
+    @DisplayName("getRetrieverName returns expected name")
+    void getRetrieverNameReturnsExpectedName() {
+        assertThat(ragService.getRetrieverName()).isEqualTo("default-rag-service");
     }
     
     @Test
@@ -119,8 +123,8 @@ class RAGServiceTest {
     }
     
     @Test
-    @DisplayName("performRag returns successful response")
-    void performRagReturnsSuccessfulResponse() {
+    @DisplayName("retrieve(RAGRequest) returns successful response")
+    void retrieveWithRAGRequestReturnsSuccessfulResponse() {
         RAGRequest request = RAGRequest.builder()
             .query("test query")
             .entityType("document")
@@ -128,7 +132,7 @@ class RAGServiceTest {
             .threshold(0.7)
             .build();
         
-        RAGResponse response = ragService.performRag(request);
+        RAGResponse response = ragService.retrieve(request);
         
         assertThat(response).isNotNull();
         assertThat(response.getSuccess()).isTrue();
@@ -136,26 +140,19 @@ class RAGServiceTest {
     }
     
     @Test
-    @DisplayName("performRAGQuery returns successful response")
-    void performRAGQueryReturnsSuccessfulResponse() {
-        when(vectorDatabase.search(any(), any())).thenReturn(
-            AISearchResponse.builder()
-                .results(Collections.emptyList())
-                .totalResults(0)
-                .build()
+    @DisplayName("retrieve(String...) returns successful result via ContentRetriever interface")
+    void retrieveViaContentRetrieverReturnsSuccessfulResult() {
+        ContentRetriever.RetrievalResult result = ragService.retrieve(
+            "test query",
+            "document",
+            10,
+            0.7,
+            Map.of()
         );
         
-        RAGRequest request = RAGRequest.builder()
-            .query("test query")
-            .entityType("document")
-            .limit(10)
-            .threshold(0.7)
-            .build();
-        
-        RAGResponse response = ragService.performRAGQuery(request);
-        
-        assertThat(response).isNotNull();
-        assertThat(response.getSuccess()).isTrue();
+        assertThat(result).isNotNull();
+        assertThat(result.success()).isTrue();
+        assertThat(result.documents()).isNotNull();
     }
     
     @Test
@@ -167,14 +164,14 @@ class RAGServiceTest {
         Map<String, Object> stats = ragService.getStatistics();
         
         assertThat(stats).isNotNull();
-        assertThat(stats).containsKey("totalIndexed");
+        assertThat(stats).containsKey("vectorDatabaseService");
         assertThat(stats).containsKey("vectorDatabase");
     }
     
     @Test
-    @DisplayName("performRag handles errors gracefully")
-    void performRagHandlesErrorsGracefully() {
-        when(piiDetectionService.detectAndProcess(any())).thenThrow(new RuntimeException("Test error"));
+    @DisplayName("retrieve handles errors gracefully")
+    void retrieveHandlesErrorsGracefully() {
+        when(embeddingService.generateEmbedding(any())).thenThrow(new RuntimeException("Test error"));
         
         RAGRequest request = RAGRequest.builder()
             .query("test query")
@@ -182,10 +179,28 @@ class RAGServiceTest {
             .limit(10)
             .build();
         
-        RAGResponse response = ragService.performRag(request);
+        RAGResponse response = ragService.retrieve(request);
         
         assertThat(response).isNotNull();
         assertThat(response.getSuccess()).isFalse();
         assertThat(response.getErrorMessage()).contains("Test error");
+    }
+    
+    @Test
+    @DisplayName("retrieve via ContentRetriever handles errors gracefully")
+    void retrieveViaContentRetrieverHandlesErrorsGracefully() {
+        when(embeddingService.generateEmbedding(any())).thenThrow(new RuntimeException("Test error"));
+        
+        ContentRetriever.RetrievalResult result = ragService.retrieve(
+            "test query",
+            "document",
+            10,
+            0.7,
+            Map.of()
+        );
+        
+        assertThat(result).isNotNull();
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorMessage()).contains("Test error");
     }
 }
