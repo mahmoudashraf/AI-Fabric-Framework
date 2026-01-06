@@ -172,6 +172,7 @@ public class IntentQueryExtractor {
         int startIdx = text.indexOf('{');
         if (startIdx >= 0) {
             int endIdx = text.lastIndexOf('}');
+            log.warn("extractJsonFromText: startIdx={}, endIdx={}, textLength={}", startIdx, endIdx, text.length());
             if (endIdx > startIdx) {
                 return text.substring(startIdx, endIdx + 1);
             }
@@ -245,6 +246,9 @@ public class IntentQueryExtractor {
         
         StringBuilder closingChars = new StringBuilder();
         
+        log.warn("JSON completion state: inString={}, afterColon={}, stringIsValue={}, stackSize={}", 
+            inString, afterColon, stringIsValue, stack.size());
+        
         // Close any open strings
         if (inString) {
             closingChars.append('"');
@@ -279,8 +283,9 @@ public class IntentQueryExtractor {
         
         result.append(closingChars);
         
-        log.info("JSON completion: truncated={} chars, added='{}' ({} chars)", 
-            truncatedJson.length(), closingChars, closingChars.length());
+        log.warn("JSON completion: truncated={} chars, added='{}', result ends with: '{}'", 
+            truncatedJson.length(), closingChars, 
+            result.length() > 20 ? result.substring(result.length() - 20) : result.toString());
         
         return result.toString();
     }
