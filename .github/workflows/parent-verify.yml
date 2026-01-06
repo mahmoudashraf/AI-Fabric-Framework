@@ -65,7 +65,7 @@ jobs:
         run: |
           cd ai-infrastructure-module
           # First install all dependencies (excluding test modules) to local repository
-          mvn clean install -B -V -pl '!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests' -DskipTests
+          mvn clean install -B -V -pl '!ai-infrastructure-integration-tests,!relationship-query-integration-tests' -DskipTests
           # Then verify all modules including integration tests (dependencies are now in local repo)
           mvn verify -B -V
        
@@ -121,8 +121,30 @@ jobs:
               });
             }
             
-            parseTestReports('./target/surefire-reports');
-            parseTestReports('./target/failsafe-reports');
+            function findTestReportDirs(baseDir, reportType) {
+              if (!fs.existsSync(baseDir)) return;
+              
+              function walkDir(dir) {
+                const files = fs.readdirSync(dir);
+                files.forEach(file => {
+                  const filePath = path.join(dir, file);
+                  const stat = fs.statSync(filePath);
+                  
+                  if (stat.isDirectory()) {
+                    if (file === reportType) {
+                      parseTestReports(filePath);
+                    } else {
+                      walkDir(filePath);
+                    }
+                  }
+                });
+              }
+              
+              walkDir(baseDir);
+            }
+            
+            findTestReportDirs('ai-infrastructure-module', 'surefire-reports');
+            findTestReportDirs('ai-infrastructure-module', 'failsafe-reports');
             
             testResults += `- **Total Tests:** ${totalTests}\n`;
             testResults += `- **Failures:** ${totalFailures}\n`;
