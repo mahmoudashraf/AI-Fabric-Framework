@@ -340,6 +340,66 @@ public class RAGService implements RAGProvider, ContentRetriever {
         if (value instanceof Map) {
             return (Map<String, Object>) value;
         }
+        // Handle JSON string from Lucene vector database
+        if (value instanceof String jsonString && !jsonString.isBlank()) {
+            try {
+                return parseJsonToMap(jsonString);
+            } catch (Exception e) {
+                log.warn("Failed to parse metadata JSON: {}", jsonString, e);
+            }
+        }
         return Collections.emptyMap();
+    }
+    
+    /**
+     * Parse a JSON string to a Map.
+     * Handles simple JSON objects with string values.
+     */
+    private Map<String, Object> parseJsonToMap(String json) {
+        Map<String, Object> result = new HashMap<>();
+        if (json == null || json.isBlank() || !json.startsWith("{") || !json.endsWith("}")) {
+            return result;
+        }
+        
+        // Remove braces and parse key-value pairs
+        String content = json.substring(1, json.length() - 1);
+        if (content.isBlank()) {
+            return result;
+        }
+        
+        // Simple JSON parser for "key":"value" pairs
+        int i = 0;
+        while (i < content.length()) {
+            // Skip whitespace
+            while (i < content.length() && Character.isWhitespace(content.charAt(i))) i++;
+            if (i >= content.length()) break;
+            
+            // Parse key
+            if (content.charAt(i) != '"') break;
+            int keyStart = ++i;
+            while (i < content.length() && content.charAt(i) != '"') i++;
+            if (i >= content.length()) break;
+            String key = content.substring(keyStart, i);
+            i++; // Skip closing quote
+            
+            // Skip colon
+            while (i < content.length() && (Character.isWhitespace(content.charAt(i)) || content.charAt(i) == ':')) i++;
+            if (i >= content.length()) break;
+            
+            // Parse value
+            if (content.charAt(i) != '"') break;
+            int valueStart = ++i;
+            while (i < content.length() && content.charAt(i) != '"') i++;
+            if (i >= content.length()) break;
+            String value = content.substring(valueStart, i);
+            i++; // Skip closing quote
+            
+            result.put(key, value);
+            
+            // Skip comma and whitespace
+            while (i < content.length() && (Character.isWhitespace(content.charAt(i)) || content.charAt(i) == ',')) i++;
+        }
+        
+        return result;
     }
 }

@@ -34,12 +34,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-import org.junit.jupiter.api.Disabled;
-
 /**
  * Integration test for TEST-RAG-005: Query Expansion.
  */
-@Disabled("Disabled: Requires Lucene index commit synchronization - documents not immediately searchable after indexing")
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
 @TestPropertySource(properties = {
