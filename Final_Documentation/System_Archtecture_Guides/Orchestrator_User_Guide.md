@@ -41,7 +41,7 @@ The orchestrator delegates all processing to a `Pipeline` composed of ordered `P
 | 30 | `PIIDetectionStep` | Detects and processes PII in input query |
 | 40 | `ComplianceCheckStep` | Validates compliance requirements; terminates if non-compliant |
 | 50 | `IntentExtractionStep` | Extracts user intent(s) from the query |
-| 60 | `IntentHandlingStep` | Routes and processes intents (ACTION, INFORMATION, etc.) |
+| 60 | `IntentHandlingStep` | Routes and processes intents (ACTION, INFORMATION, etc.), using the processed query from `PIIDetectionStep` |
 | 70 | `MetadataBuildingStep` | Builds request metadata for the result |
 | 80 | `SmartSuggestionsStep` | Generates smart suggestions based on next-step recommendations |
 | 90 | `ResponseSanitizationStep` | Sanitizes response and merges PII detection info |
@@ -117,9 +117,9 @@ OrchestrationResult orchestrate(String query, OrchestrationContext context)
 ### Intent Processing (Steps 50-60)
 
 5. **IntentExtractionStep**: Calls `IntentQueryExtractor.extract(query, context)` - terminates if no intents
-6. **IntentHandlingStep**: Routes based on intent type:
+6. **IntentHandlingStep**: Routes based on intent type, prioritizing `processedQuery` from `PIIDetectionStep` (or `optimizedQuery` when provided) before the raw intent text:
    - `ACTION`: Requires authenticated user; routed to `ActionHandlerRegistry`
-   - `INFORMATION`: Performs RAG via `RAGService.performRag()` or `performRAGQuery()`
+   - `INFORMATION`: Performs RAG via `RAGService.performRag()` or `performRAGQuery()` with the already-redacted query; RAG no longer runs PII detection
    - `COMPOUND`: Processes multiple intents sequentially
    - `OUT_OF_SCOPE`: Returns guidance message
 

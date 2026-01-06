@@ -4,7 +4,6 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
-import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.rag.service.AdvancedRAGService;
 import com.ai.infrastructure.rag.service.RAGService;
@@ -34,7 +33,6 @@ import org.springframework.context.annotation.Bean;
  *   <li>{@link VectorDatabaseService} - Vector database operations</li>
  *   <li>{@link VectorDatabase} - Vector database interface</li>
  *   <li>{@link AISearchService} - Search service</li>
- *   <li>{@link PIIDetectionService} - PII detection service</li>
  * </ul>
  * 
  * <p><strong>Conditional Loading:</strong></p>
@@ -94,7 +92,6 @@ public class RAGAutoConfiguration {
      * @param vectorDatabaseService vector database operations
      * @param vectorDatabase vector database interface
      * @param searchService search service
-     * @param piiDetectionService PII detection service
      * @return RAGService implementing RAGProvider
      */
     @Bean("ragService")
@@ -104,16 +101,14 @@ public class RAGAutoConfiguration {
         AIEmbeddingService.class,
         VectorDatabaseService.class,
         VectorDatabase.class,
-        AISearchService.class,
-        PIIDetectionService.class
+        AISearchService.class
     })
     public RAGService ragService(
             AIProviderConfig config,
             AIEmbeddingService embeddingService,
             VectorDatabaseService vectorDatabaseService,
             VectorDatabase vectorDatabase,
-            AISearchService searchService,
-            PIIDetectionService piiDetectionService) {
+            AISearchService searchService) {
         
         log.info(LOG_RAG_SERVICE_CREATED);
         
@@ -122,8 +117,7 @@ public class RAGAutoConfiguration {
             embeddingService,
             vectorDatabaseService,
             vectorDatabase,
-            searchService,
-            piiDetectionService
+            searchService
         );
     }
     

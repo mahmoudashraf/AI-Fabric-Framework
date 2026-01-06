@@ -7,8 +7,6 @@ import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.dto.PIIDetectionResult;
-import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
@@ -53,9 +51,6 @@ class RAGServiceTest {
     @Mock
     private AISearchService searchService;
     
-    @Mock
-    private PIIDetectionService piiDetectionService;
-    
     private RAGService ragService;
     
     @BeforeEach
@@ -65,17 +60,7 @@ class RAGServiceTest {
             embeddingService,
             vectorDatabaseService,
             vectorDatabase,
-            searchService,
-            piiDetectionService
-        );
-        
-        // Default mock setup
-        when(piiDetectionService.detectAndProcess(any())).thenReturn(
-            PIIDetectionResult.builder()
-                .processedQuery("test query")
-                .piiDetected(false)
-                .detections(Collections.emptyList())
-                .build()
+            searchService
         );
         
         when(embeddingService.generateEmbedding(any())).thenReturn(
@@ -171,21 +156,4 @@ class RAGServiceTest {
         assertThat(stats).containsKey("vectorDatabase");
     }
     
-    @Test
-    @DisplayName("performRag handles errors gracefully")
-    void performRagHandlesErrorsGracefully() {
-        when(piiDetectionService.detectAndProcess(any())).thenThrow(new RuntimeException("Test error"));
-        
-        RAGRequest request = RAGRequest.builder()
-            .query("test query")
-            .entityType("document")
-            .limit(10)
-            .build();
-        
-        RAGResponse response = ragService.performRag(request);
-        
-        assertThat(response).isNotNull();
-        assertThat(response.getSuccess()).isFalse();
-        assertThat(response.getErrorMessage()).contains("Test error");
-    }
 }

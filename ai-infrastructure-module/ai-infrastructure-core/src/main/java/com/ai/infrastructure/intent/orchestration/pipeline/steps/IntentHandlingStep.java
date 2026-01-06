@@ -149,9 +149,9 @@ public class IntentHandlingStep implements PipelineStep {
         
         OrchestrationResult result;
         if (intentResponse.isCompound() || intentResponse.getIntents().size() > 1) {
-            result = handleCompoundIntents(intentResponse, orchContext);
+            result = handleCompoundIntents(intentResponse, orchContext, context);
         } else {
-            result = handleSingleIntent(intentResponse.getIntents().getFirst(), orchContext);
+            result = handleSingleIntent(intentResponse.getIntents().getFirst(), orchContext, context);
         }
         
         if (result == null) {
@@ -168,12 +168,12 @@ public class IntentHandlingStep implements PipelineStep {
     // Intent Handling Methods
     // =========================================================================
     
-    private OrchestrationResult handleSingleIntent(Intent intent, OrchestrationContext context) {
+    private OrchestrationResult handleSingleIntent(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
         return switch (intent.getType()) {
             case ACTION -> handleAction(intent, context);
-            case INFORMATION -> handleInformation(intent, context);
+            case INFORMATION -> handleInformation(intent, context, pipelineContext);
             case OUT_OF_SCOPE -> handleOutOfScope(intent);
-            case COMPOUND -> handleSyntheticCompound(intent, context);
+            case COMPOUND -> handleSyntheticCompound(intent, context, pipelineContext);
             default -> OrchestrationResult.error(ERROR_MSG_UNKNOWN_INTENT + intent.getType());
         };
     }
@@ -258,10 +258,13 @@ public class IntentHandlingStep implements PipelineStep {
         }
     }
     
-    private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context) {
+    private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
         boolean needsGeneration = intent.requiresGenerationOrDefault(false);
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
-        String query = StringUtils.hasText(optimizedQuery) ? optimizedQuery : intent.getIntentOrAction();
+        String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
+        String query = StringUtils.hasText(optimizedQuery)
+            ? optimizedQuery
+            : (StringUtils.hasText(processedQuery) ? processedQuery : intent.getIntentOrAction());
         
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put(METADATA_KEY_SOURCE, METADATA_VALUE_ORCHESTRATOR);
@@ -271,6 +274,10 @@ public class IntentHandlingStep implements PipelineStep {
         metadata.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
         if (optimizedQuery != null) {
             metadata.put(METADATA_KEY_OPTIMIZED_QUERY, optimizedQuery);
+        }
+        if (pipelineContext != null && !pipelineContext.getDetectedPiiTypesView().isEmpty()) {
+            metadata.put("piiProcessed", true);
+            metadata.put("piiDetectedTypes", pipelineContext.getDetectedPiiTypesView());
         }
         
         RAGRequest ragRequest = RAGRequest.builder()
@@ -319,7 +326,7 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
     
-    private OrchestrationResult handleSyntheticCompound(Intent intent, OrchestrationContext context) {
+    private OrchestrationResult handleSyntheticCompound(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
         if (CollectionUtils.isEmpty(intent.getActionParams())) {
             return OrchestrationResult.error(ERROR_MSG_COMPOUND_MISSING);
         }
@@ -344,15 +351,15 @@ public class IntentHandlingStep implements PipelineStep {
             .intents(children)
             .compound(true)
             .build();
-        return handleCompoundIntents(syntheticResponse, context);
+        return handleCompoundIntents(syntheticResponse, context, pipelineContext);
     }
     
-    private OrchestrationResult handleCompoundIntents(MultiIntentResponse response, OrchestrationContext context) {
+    private OrchestrationResult handleCompoundIntents(MultiIntentResponse response, OrchestrationContext context, PipelineContext pipelineContext) {
         List<OrchestrationResult> childResults = new ArrayList<>();
         List<NextStepRecommendation> nextSteps = new ArrayList<>();
         
         for (Intent intent : response.getIntents()) {
-            OrchestrationResult child = handleSingleIntent(intent, context);
+            OrchestrationResult child = handleSingleIntent(intent, context, pipelineContext);
             if (child == null) {
                 log.error("handleSingleIntent returned null for intent type: {}", 
                     intent != null ? intent.getType() : "NULL_INTENT");
