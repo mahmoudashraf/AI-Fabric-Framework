@@ -4,7 +4,7 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
@@ -128,7 +128,7 @@ class LLMDrivenJPAQueryServiceTest {
 
         RAGResponse response = service.executeRelationshipQuery("cached query", List.of("document"), QueryOptions.defaults());
 
-        assertThat(response.getDocuments()).extracting(RAGResponse.RAGDocument::getId).containsExactly("cached-1");
+        assertThat(response.getDocuments()).extracting(RAGResponse.RetrievedDocument::getId).containsExactly("cached-1");
         verify(jpaTraversalService, never()).traverse(any(), any());
         verify(metadataTraversalService, never()).traverse(any(), any());
         verify(queryCache, never()).putQueryResult(anyString(), any());
@@ -146,7 +146,7 @@ class LLMDrivenJPAQueryServiceTest {
 
         RAGResponse response = service.executeRelationshipQuery("needs fallback", List.of("document"), QueryOptions.defaults());
 
-        assertThat(response.getDocuments()).extracting(RAGResponse.RAGDocument::getId).containsExactly("meta-1");
+        assertThat(response.getDocuments()).extracting(RAGResponse.RetrievedDocument::getId).containsExactly("meta-1");
         verify(metadataTraversalService).traverse(plan, jpqlQuery);
     }
 
@@ -192,7 +192,7 @@ class LLMDrivenJPAQueryServiceTest {
         RAGResponse response = service.executeRelationshipQuery("vector query", List.of("document"), options);
 
         assertThat(response.getHybridSearchUsed()).isTrue();
-        assertThat(response.getDocuments()).extracting(RAGResponse.RAGDocument::getId)
+        assertThat(response.getDocuments()).extracting(RAGResponse.RetrievedDocument::getId)
             .containsExactly("vec-1", "doc-1");
         verify(embeddingService).generateEmbedding(any(AIEmbeddingRequest.class));
         verify(vectorDatabaseService).searchByEntityType(eq(embeddingResponse.getEmbedding()), eq("document"), eq(5), anyDouble());

@@ -2,7 +2,7 @@ package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.entity.AISearchableEntity;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;

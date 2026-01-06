@@ -4,7 +4,7 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
@@ -162,7 +162,7 @@ public class ReliableRelationshipQueryService {
             return emptyResponse(query, plan, "VECTOR_DISABLED");
         }
         try {
-            List<RAGResponse.RAGDocument> documents = vectorSearch(plan, options);
+            List<RAGResponse.RetrievedDocument> documents = vectorSearch(plan, options);
             recordFallbackStage("FALLBACK_VECTOR", !documents.isEmpty(), documents.size());
             return documents.isEmpty()
                 ? emptyResponse(query, plan, "FALLBACK_VECTOR_EMPTY")
@@ -187,10 +187,10 @@ public class ReliableRelationshipQueryService {
         try {
             List<AISearchableEntity> entities = entityRepository.findByEntityType(plan.getPrimaryEntityType());
             int limit = options.getLimit() != null ? options.getLimit() : 20;
-            List<RAGResponse.RAGDocument> documents = new ArrayList<>();
+            List<RAGResponse.RetrievedDocument> documents = new ArrayList<>();
             for (int i = 0; i < entities.size() && i < limit; i++) {
                 AISearchableEntity entity = entities.get(i);
-                documents.add(RAGResponse.RAGDocument.builder()
+                documents.add(RAGResponse.RetrievedDocument.builder()
                     .id(entity.getEntityId())
                     .content(entity.getSearchableContent())
                     .metadata(Map.of("source", "simple-fallback"))
@@ -237,7 +237,7 @@ public class ReliableRelationshipQueryService {
         }
     }
 
-    private List<RAGResponse.RAGDocument> vectorSearch(RelationshipQueryPlan plan, QueryOptions options) {
+    private List<RAGResponse.RetrievedDocument> vectorSearch(RelationshipQueryPlan plan, QueryOptions options) {
         String embeddingKey = QueryCache.hash(plan.getSemanticQuery());
         AIEmbeddingResponse embedding = null;
         if (queryCache.isEnabled()) {
@@ -263,13 +263,13 @@ public class ReliableRelationshipQueryService {
         if (response == null || CollectionUtils.isEmpty(response.getResults())) {
             return List.of();
         }
-        List<RAGResponse.RAGDocument> documents = new ArrayList<>();
+        List<RAGResponse.RetrievedDocument> documents = new ArrayList<>();
         for (Map<String, Object> result : response.getResults()) {
             if (result == null) {
                 continue;
             }
             Object id = result.getOrDefault("entityId", result.get("id"));
-            documents.add(RAGResponse.RAGDocument.builder()
+            documents.add(RAGResponse.RetrievedDocument.builder()
                 .id(id != null ? id.toString() : null)
                 .score((Double) result.getOrDefault("score", 0.0d))
                 .metadata(new LinkedHashMap<>(result))
@@ -289,18 +289,18 @@ public class ReliableRelationshipQueryService {
         if (limited.isEmpty()) {
             return emptyResponse(query, plan, stage + "_EMPTY");
         }
-        List<RAGResponse.RAGDocument> documents = new ArrayList<>();
+        List<RAGResponse.RetrievedDocument> documents = new ArrayList<>();
         ReturnMode returnMode = options.getReturnMode() != null ? options.getReturnMode() : properties.getDefaultReturnMode();
         for (String id : limited) {
             if (returnMode == ReturnMode.IDS) {
-                documents.add(RAGResponse.RAGDocument.builder()
+                documents.add(RAGResponse.RetrievedDocument.builder()
                     .id(id)
                     .source(stage.toLowerCase())
                     .build());
             } else {
                 entityRepository.findByEntityTypeAndEntityId(plan.getPrimaryEntityType(), id)
                     .ifPresent(entity -> documents.add(
-                        RAGResponse.RAGDocument.builder()
+                        RAGResponse.RetrievedDocument.builder()
                             .id(id)
                             .content(entity.getSearchableContent())
                             .metadata(Map.of("source", stage.toLowerCase()))
@@ -313,7 +313,7 @@ public class ReliableRelationshipQueryService {
 
     private RAGResponse buildResponse(String query,
                                       RelationshipQueryPlan plan,
-                                      List<RAGResponse.RAGDocument> documents,
+                                      List<RAGResponse.RetrievedDocument> documents,
                                       String stage) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("plan", plan);

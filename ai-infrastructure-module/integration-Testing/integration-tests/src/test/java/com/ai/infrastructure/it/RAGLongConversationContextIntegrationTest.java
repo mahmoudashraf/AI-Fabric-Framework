@@ -2,10 +2,10 @@ package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -160,7 +160,7 @@ class RAGLongConversationContextIntegrationTest {
             .metadata(Map.of("sessionId", "hyperion-convo"))
             .build();
 
-        RAGResponse response = ragProvider.performRag(request);
+        RAGResponse response = ragProvider.retrieve(request);
         return new ConversationResult(response, windowHistory);
     }
 
@@ -197,7 +197,7 @@ class RAGLongConversationContextIntegrationTest {
     private String getDocumentContent(RAGResponse response, String documentId) {
         return response.getDocuments().stream()
             .filter(doc -> documentId.equals(doc.getId()))
-            .map(RAGResponse.RAGDocument::getContent)
+            .map(RAGResponse.RetrievedDocument::getContent)
             .findFirst()
             .orElse("");
     }

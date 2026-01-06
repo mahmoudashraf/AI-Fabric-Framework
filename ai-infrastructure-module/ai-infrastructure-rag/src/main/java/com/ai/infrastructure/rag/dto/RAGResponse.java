@@ -29,10 +29,75 @@ import java.util.Map;
  * @since 1.1
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class RAGResponse {
+    
+    /**
+     * Custom builder extensions for backward compatibility.
+     */
+    public static class RAGResponseBuilder {
+        /**
+         * Alias for {@link #query(String)}.
+         * @deprecated Use {@link #query(String)} instead.
+         */
+        @Deprecated
+        public RAGResponseBuilder originalQuery(String query) {
+            this.query = query;
+            return this;
+        }
+        
+        /**
+         * Alias for {@link #totalDocuments(Integer)}.
+         * @deprecated Use {@link #totalDocuments(Integer)} instead.
+         */
+        @Deprecated
+        public RAGResponseBuilder totalResults(int total) {
+            this.totalDocuments = total;
+            return this;
+        }
+        
+        /**
+         * Alias for {@link #returnedDocuments(Integer)}.
+         * @deprecated Use {@link #returnedDocuments(Integer)} instead.
+         */
+        @Deprecated
+        public RAGResponseBuilder returnedResults(int returned) {
+            this.returnedDocuments = returned;
+            return this;
+        }
+        
+        /**
+         * No-op for removed warnings field.
+         * @deprecated Warnings are no longer part of retrieval response.
+         */
+        @Deprecated
+        public RAGResponseBuilder warnings(List<String> warnings) {
+            // No-op: warnings are no longer part of retrieval response
+            return this;
+        }
+        
+        /**
+         * No-op for removed response field.
+         * @deprecated Use orchestrator for generation. RAG is retrieval-only.
+         */
+        @Deprecated
+        public RAGResponseBuilder response(String response) {
+            // No-op: response generation is handled by orchestrator
+            return this;
+        }
+        
+        /**
+         * Alias for {@link #maxScore(Double)}.
+         * @deprecated Use individual document scores or {@link #maxScore(Double)}.
+         */
+        @Deprecated
+        public RAGResponseBuilder confidenceScore(Double score) {
+            this.maxScore = score;
+            return this;
+        }
+    }
     
     /**
      * Retrieved documents with relevance scores.
@@ -118,6 +183,78 @@ public class RAGResponse {
      * Categories that were searched.
      */
     private List<String> searchedCategories;
+    
+    // =========================================================================
+    // Backward Compatibility Methods
+    // =========================================================================
+    
+    /**
+     * Alias for {@link #getTotalDocuments()}.
+     * @deprecated Use {@link #getTotalDocuments()} instead.
+     */
+    @Deprecated
+    public Integer getTotalResults() {
+        return totalDocuments;
+    }
+    
+    /**
+     * Alias for {@link #getReturnedDocuments()}.
+     * @deprecated Use {@link #getReturnedDocuments()} instead.
+     */
+    @Deprecated
+    public Integer getReturnedResults() {
+        return returnedDocuments;
+    }
+    
+    /**
+     * Alias for {@link #getQuery()}.
+     * @deprecated Use {@link #getQuery()} instead.
+     */
+    @Deprecated
+    public String getOriginalQuery() {
+        return query;
+    }
+    
+    /**
+     * Placeholder for removed generation field.
+     * RAG is now retrieval-only; generation happens in orchestrator.
+     * @deprecated RAG is now retrieval-only. Use {@link #buildContextForGeneration()} to get context for generation.
+     */
+    @Deprecated
+    public String getResponse() {
+        return buildContextForGeneration();
+    }
+    
+    /**
+     * Placeholder for removed warnings field.
+     * @deprecated Warnings are no longer part of retrieval response.
+     */
+    @Deprecated
+    public List<String> getWarnings() {
+        return List.of();
+    }
+    
+    /**
+     * Placeholder for removed confidence score field.
+     * @deprecated Use individual document scores or {@link #getMaxScore()}.
+     */
+    @Deprecated
+    public Double getConfidenceScore() {
+        return maxScore;
+    }
+    
+    /**
+     * Type alias for backward compatibility.
+     * @deprecated Use {@link RetrievedDocument} instead.
+     */
+    @Deprecated
+    public static class RAGDocument extends RetrievedDocument {
+        public RAGDocument() { super(); }
+        public RAGDocument(String id, String content, String title, String type, 
+                          Double score, Double similarity, Map<String, Object> metadata, String source) {
+            super(id, content, title, type, score, similarity, metadata, source);
+        }
+    }
     
     /**
      * Retrieved Document - represents a single retrieved result.

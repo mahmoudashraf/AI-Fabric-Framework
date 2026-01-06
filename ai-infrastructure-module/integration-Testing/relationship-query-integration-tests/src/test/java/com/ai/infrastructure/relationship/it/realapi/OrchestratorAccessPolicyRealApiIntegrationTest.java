@@ -1,7 +1,7 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -150,7 +150,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         assertThat(payload).containsKey("documents");
 
         @SuppressWarnings("unchecked")
-        List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
+        List<RAGResponse.RetrievedDocument> documents = (List<RAGResponse.RetrievedDocument>) payload.get("documents");
         assertThat(documents).isNotNull();
         assertThat(documents).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(blueRunnerId));
     }
@@ -210,7 +210,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             .containsKey("documents");
 
         @SuppressWarnings("unchecked")
-        List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
+        List<RAGResponse.RetrievedDocument> documents = (List<RAGResponse.RetrievedDocument>) payload.get("documents");
         assertThat(documents)
             .as("Documents should be returned if entityTypes were correctly extracted")
             .isNotNull()
@@ -260,7 +260,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
 
         @SuppressWarnings("unchecked")
-        List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
+        List<RAGResponse.RetrievedDocument> documents = (List<RAGResponse.RetrievedDocument>) payload.get("documents");
         assertThat(documents).isNotNull().isNotEmpty();
         assertThat(documents).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(contractDocId));
 
@@ -292,7 +292,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
 
         @SuppressWarnings("unchecked")
-        List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
+        List<RAGResponse.RetrievedDocument> documents = (List<RAGResponse.RetrievedDocument>) payload.get("documents");
         assertThat(documents).isNotNull();
 
         // Verify JPQL query was generated correctly for transaction-account relationship
@@ -323,7 +323,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
 
         @SuppressWarnings("unchecked")
-        List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
+        List<RAGResponse.RetrievedDocument> documents = (List<RAGResponse.RetrievedDocument>) payload.get("documents");
         assertThat(documents).isNotNull();
 
         // Verify JPQL query was generated correctly for brand entity

@@ -90,6 +90,14 @@ public class RAGService implements RAGProvider, ContentRetriever {
         return PROVIDER_NAME;
     }
     
+    /**
+     * Resolve conflicting default method from both interfaces.
+     */
+    @Override
+    public boolean isAvailable() {
+        return true;
+    }
+    
     @Override
     public RAGResponse retrieve(RAGRequest request) {
         try {

@@ -3,8 +3,8 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -14,7 +14,7 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -128,8 +128,8 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
 
         // Ensure generation path was taken
         ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRAGQuery(requestCaptor.capture());
-        verify(ragProvider, never()).performRag(any());
+        verify(ragProvider).retrieve(requestCaptor.capture());
+        verify(ragProvider, never()).retrieve(any());
         assertThat(requestCaptor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
     }
 

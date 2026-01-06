@@ -17,8 +17,8 @@ import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.IntentType;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -26,7 +26,7 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.security.ResponseSanitizer;
 import java.util.List;
@@ -121,7 +121,7 @@ class RAGOrchestratorIntegrationTest {
                 .build()
         );
 
-        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
+        when(ragProvider.retrieve(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder()
                 .response("ok")
                 .documents(List.of())
@@ -151,7 +151,7 @@ class RAGOrchestratorIntegrationTest {
         order.verify(securityService).analyzeRequest(any());
         order.verify(accessControlService).checkAccess(any());
         order.verify(complianceService).checkCompliance(any());
-        order.verify(ragProvider).performRag(any());
+        order.verify(ragProvider).retrieve(any());
     }
 
     @Test
@@ -176,7 +176,7 @@ class RAGOrchestratorIntegrationTest {
         order.verify(securityService).analyzeRequest(any());
         order.verify(accessControlService, never()).checkAccess(any());
         order.verify(complianceService, never()).checkCompliance(any());
-        order.verify(ragProvider, never()).performRag(any());
+        order.verify(ragProvider, never()).retrieve(any());
     }
 
     @Test
@@ -196,6 +196,6 @@ class RAGOrchestratorIntegrationTest {
         order.verify(securityService).analyzeRequest(any());
         order.verify(accessControlService).checkAccess(any());
         order.verify(complianceService).checkCompliance(any());
-        order.verify(ragProvider, never()).performRag(any());
+        order.verify(ragProvider, never()).retrieve(any());
     }
 }

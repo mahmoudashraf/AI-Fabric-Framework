@@ -1,8 +1,8 @@
 package com.ai.infrastructure.it;
 
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,7 +68,7 @@ class RAGBasicQueryIntegrationTest {
             .build();
 
         long startTime = System.currentTimeMillis();
-        RAGResponse response = ragProvider.performRAGQuery(request);
+        RAGResponse response = ragProvider.retrieve(request);
         long duration = System.currentTimeMillis() - startTime;
 
         assertNotNull(response, "RAG response should not be null");
@@ -80,7 +80,7 @@ class RAGBasicQueryIntegrationTest {
 
         if (response.getDocuments() != null && !response.getDocuments().isEmpty()) {
             boolean containsLuxuryTerm = response.getDocuments().stream()
-                .map(RAGResponse.RAGDocument::getContent)
+                .map(RAGResponse.RetrievedDocument::getContent)
                 .filter(contentStr -> contentStr != null)
                 .anyMatch(contentStr -> contentStr.toLowerCase().contains("luxury") || contentStr.toLowerCase().contains("diamond"));
             assertTrue(containsLuxuryTerm, "At least one document should reference luxury or diamond");

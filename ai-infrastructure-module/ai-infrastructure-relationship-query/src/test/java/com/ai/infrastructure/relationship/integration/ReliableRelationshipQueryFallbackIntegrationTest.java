@@ -4,7 +4,7 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
@@ -147,7 +147,7 @@ class ReliableRelationshipQueryFallbackIntegrationTest {
         RAGResponse response = reliableService.execute("resilient docs", DOCUMENT_ENTITY_TYPES, fullReturnOptions());
 
         assertThat(response.getMetadata().get("executionStage")).isEqualTo("FALLBACK_METADATA");
-        assertThat(response.getDocuments()).extracting(RAGResponse.RAGDocument::getId)
+        assertThat(response.getDocuments()).extracting(RAGResponse.RetrievedDocument::getId)
             .containsExactly(activeDocumentId);
         assertThat(queryMetrics.snapshot().getFallbackMetadataCount()).isEqualTo(metadataBefore + 1);
     }
@@ -176,7 +176,7 @@ class ReliableRelationshipQueryFallbackIntegrationTest {
         RAGResponse response = reliableService.execute("vector docs", DOCUMENT_ENTITY_TYPES, fullReturnOptions());
 
         assertThat(response.getMetadata().get("executionStage")).isEqualTo("FALLBACK_VECTOR");
-        assertThat(response.getDocuments()).extracting(RAGResponse.RAGDocument::getId)
+        assertThat(response.getDocuments()).extracting(RAGResponse.RetrievedDocument::getId)
             .containsExactly(activeDocumentId);
         assertThat(queryMetrics.snapshot().getFallbackVectorCount()).isEqualTo(vectorBefore + 1);
         verify(vectorDatabaseService).searchByEntityType(eq(embeddingResponse.getEmbedding()), eq("document"), eq(5), anyDouble());

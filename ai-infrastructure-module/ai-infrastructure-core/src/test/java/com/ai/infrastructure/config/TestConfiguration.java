@@ -4,13 +4,11 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.spi.ContentRetriever;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
@@ -30,7 +28,10 @@ import static org.mockito.Mockito.mock;
 
 /**
  * Test configuration supplying deterministic provider and vector service doubles
- * so core module tests can run without external modules.
+ * so core module tests can run without external modules (including RAG module).
+ * 
+ * <p>Uses ContentRetriever (generic interface from core) instead of RAGProvider
+ * to avoid dependency on the RAG module.</p>
  */
 @SpringBootApplication(scanBasePackages = "com.ai.infrastructure")
 @Import(AIInfrastructureAutoConfiguration.class)
@@ -56,36 +57,64 @@ public class TestConfiguration {
         return new InMemoryVectorDatabaseService();
     }
 
+    /**
+     * Test ContentRetriever implementation for core module tests.
+     * Uses generic interface (ContentRetriever) from core, NOT RAGProvider from RAG module.
+     */
     @Bean
     @Primary
-    public RAGProvider testRAGProvider(VectorDatabaseService vectorDatabaseService) {
-        return new TestRAGProvider(vectorDatabaseService);
+    public ContentRetriever testContentRetriever(VectorDatabaseService vectorDatabaseService) {
+        return new TestContentRetriever(vectorDatabaseService);
     }
 
     /**
-     * Test RAGProvider implementation for core module tests.
-     * Provides basic RAG functionality using the in-memory vector database.
+     * Test ContentRetriever implementation for core module tests.
+     * Provides basic retrieval functionality using the in-memory vector database.
      */
-    private static final class TestRAGProvider implements RAGProvider {
+    private static final class TestContentRetriever implements ContentRetriever {
         private final VectorDatabaseService vectorDatabaseService;
 
-        TestRAGProvider(VectorDatabaseService vectorDatabaseService) {
+        TestContentRetriever(VectorDatabaseService vectorDatabaseService) {
             this.vectorDatabaseService = vectorDatabaseService;
         }
 
         @Override
-        public RAGResponse performRag(RAGRequest request) {
-            return RAGResponse.builder()
-                .response("Test RAG response for: " + request.getQuery())
-                .documents(List.of())
-                .success(true)
-                .metadata(Map.of("provider", "test"))
+        public RetrievalResult retrieve(String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
+            long startTime = System.currentTimeMillis();
+            
+            // Generate test embedding
+            List<Double> queryVector = new ArrayList<>(384);
+            for (int i = 0; i < 384; i++) {
+                queryVector.add(0.1 + (i % 7) * 0.01);
+            }
+            
+            AISearchRequest searchRequest = AISearchRequest.builder()
+                .query(query)
+                .entityType(entityType)
+                .limit(limit)
+                .threshold(threshold)
+                .metadata(metadata)
                 .build();
-        }
-
-        @Override
-        public RAGResponse performRAGQuery(RAGRequest request) {
-            return performRag(request);
+            
+            AISearchResponse searchResponse = vectorDatabaseService.search(queryVector, searchRequest);
+            
+            List<RetrievedDocument> documents = new ArrayList<>();
+            for (Map<String, Object> result : searchResponse.getResults()) {
+                documents.add(new RetrievedDocument(
+                    (String) result.get("vectorId"),
+                    (String) result.get("content"),
+                    null, // title
+                    (String) result.get("entityType"),
+                    result.get("score") instanceof Number ? ((Number) result.get("score")).doubleValue() : 0.0,
+                    result.get("metadata") instanceof Map ? (Map<String, Object>) result.get("metadata") : Map.of()
+                ));
+            }
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            double maxScore = documents.stream().mapToDouble(RetrievedDocument::score).max().orElse(0.0);
+            double avgScore = documents.stream().mapToDouble(RetrievedDocument::score).average().orElse(0.0);
+            
+            return RetrievalResult.success(documents, searchResponse.getTotalResults(), maxScore, avgScore, processingTime);
         }
 
         @Override
@@ -103,13 +132,8 @@ public class TestConfiguration {
         }
 
         @Override
-        public Map<String, Object> getStatistics() {
-            return vectorDatabaseService.getStatistics();
-        }
-
-        @Override
-        public String getProviderName() {
-            return "test-rag-provider";
+        public String getRetrieverName() {
+            return "test-content-retriever";
         }
     }
 

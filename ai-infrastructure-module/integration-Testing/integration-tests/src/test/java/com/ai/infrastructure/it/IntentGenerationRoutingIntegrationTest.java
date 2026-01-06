@@ -8,14 +8,14 @@ import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.rag.dto.RAGRequest;
+import com.ai.infrastructure.rag.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.security.ResponseSanitizer;
 import org.junit.jupiter.api.BeforeEach;
@@ -106,7 +106,7 @@ class IntentGenerationRoutingIntegrationTest {
             .build();
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
-        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
+        when(ragProvider.retrieve(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().response("search-only").documents(List.of()).success(true).build()
         );
 
@@ -116,9 +116,9 @@ class IntentGenerationRoutingIntegrationTest {
         assertThat(result.getMessage()).isEqualTo("search-only");
 
         ArgumentCaptor<RAGRequest> captor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRag(captor.capture());
+        verify(ragProvider).retrieve(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
-        verify(ragProvider, never()).performRAGQuery(any());
+        verify(ragProvider, never()).retrieve(any());
     }
 
     @Test
@@ -132,7 +132,7 @@ class IntentGenerationRoutingIntegrationTest {
             .build();
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
-        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
+        when(ragProvider.retrieve(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().response("llm-needed").documents(List.of()).success(true).build()
         );
 
@@ -142,8 +142,8 @@ class IntentGenerationRoutingIntegrationTest {
         assertThat(result.getMessage()).isEqualTo("llm-needed");
 
         ArgumentCaptor<RAGRequest> captor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRAGQuery(captor.capture());
+        verify(ragProvider).retrieve(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("requiresGeneration", true);
-        verify(ragProvider, never()).performRag(any());
+        verify(ragProvider, never()).retrieve(any());
     }
 }
