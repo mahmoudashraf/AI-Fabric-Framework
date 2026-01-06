@@ -1,6 +1,7 @@
 # AI Annotations User Guide
 
-> **Source of Truth:** This guide is based on source code in `com.ai.infrastructure.annotation.*`
+> **Source of Truth:** This guide reflects the redesigned annotation system.  
+> See `AI_ANNOTATION_REDESIGN_SPEC.md` for implementation details.
 
 ---
 
@@ -10,163 +11,207 @@
 |------------|-------|---------|
 | `@AICapable` | Class | Enable AI features for an entity |
 | `@AIProcess` | Method | Trigger AI processing on method execution |
-| `@AIEmbedding` | Field | Configure embedding generation for a field |
-| `@AIKnowledge` | Field | Mark field as knowledge for RAG |
-| `@AISmartValidation` | Field/Method | Enable AI-powered validation |
+| `@AISearchable` | Field | Mark field for semantic search |
+| `@AIContext` | Field | Mark field for LLM context (not embedded) |
 
----
-
-## 1. `@AICapable` — Entity-Level AI Enablement
-
-**Target:** `@Target(ElementType.TYPE)` — Classes only
-
-**Purpose:** Declares an entity as AI-enabled and configures its default behaviors.
-
-### Attributes
-
-| Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `entityType` | String | `""` | **Required.** Unique identifier for this entity in AI system |
-| `autoProcess` | boolean | `true` | Enable automatic AI processing |
-| `autoEmbedding` | boolean | `true` | Auto-generate embeddings |
-| `indexable` | boolean | `true` | Enable search indexing |
-| `enableSearch` | boolean | `true` | Enable semantic search |
-| `enableRecommendations` | boolean | `false` | Enable recommendations |
-| `features` | String[] | `{"embedding", "search"}` | Features to enable |
-| `indexingStrategy` | IndexingStrategy | `ASYNC` | Default indexing strategy |
-| `onCreateStrategy` | IndexingStrategy | `AUTO` | Override for create ops |
-| `onUpdateStrategy` | IndexingStrategy | `AUTO` | Override for update ops |
-| `onDeleteStrategy` | IndexingStrategy | `AUTO` | Override for delete ops |
-| `migrationRepository` | Class | `NoMigrationRepository` | JPA repo for data migration |
-| `configFile` | String | `ai-entity-config.yml` | External config file path |
-
-### Usage
+### At a Glance
 
 ```java
-// Minimal
 @Entity
 @AICapable(entityType = "product")
-public class Product { }
-
-// Full configuration
-@Entity
-@AICapable(
-    entityType = "product",
-    autoEmbedding = true,
-    indexable = true,
-    enableSearch = true,
-    features = {"embedding", "search", "rag"},
-    indexingStrategy = IndexingStrategy.ASYNC,
-    onCreateStrategy = IndexingStrategy.SYNC,  // Immediate on create
-    onDeleteStrategy = IndexingStrategy.SYNC,  // Immediate on delete
-    migrationRepository = ProductRepository.class
-)
 public class Product {
-    @Id
-    private Long id;
+    
+    @AISearchable   // Users can FIND by this (semantic search)
     private String name;
+    
+    @AISearchable
     private String description;
+    
+    @AIContext      // AI will KNOW this when responding
+    private BigDecimal price;
+    
+    @AIContext
+    private String brand;
 }
 ```
 
 ---
 
-## 2. `@AIProcess` — Method-Level Processing Trigger
+## How It Works
 
-**Target:** `@Target(ElementType.METHOD)` — Methods only
+### Storage Model
 
-**Purpose:** Marks a method as a trigger for AI processing. When the method executes, AI operations run automatically via AOP.
+When an entity is saved, the framework creates an `AISearchableEntity`:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Your Entity                                                    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  @AISearchable name = "Bamboo Toothbrush"               │    │
+│  │  @AISearchable description = "Eco-friendly dental..."  │    │
+│  │  @AIContext price = 29.99                               │    │
+│  │  @AIContext brand = "EcoLife"                           │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                  │
+│                              ▼                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  AISearchableEntity                                     │    │
+│  │                                                         │    │
+│  │  searchableContent: "Bamboo Toothbrush Eco-friendly..." │    │
+│  │  metadata: {"price": 29.99, "brand": "EcoLife"}         │    │
+│  │  vectorId: "vec-abc-123" → [0.023, -0.156, ...]         │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Query Flow
+
+```
+User: "eco-friendly dental products"
+           │
+           ▼
+    Embed query → Vector search
+           │
+           ▼
+    Find matching AISearchableEntity
+           │
+           ▼
+    Build LLM context from:
+    • searchableContent (@AISearchable fields)
+    • metadata (@AIContext fields)
+           │
+           ▼
+    LLM generates response:
+    "The Bamboo Toothbrush by EcoLife ($29.99) is an eco-friendly..."
+```
+
+---
+
+## 1. `@AICapable` — Entity-Level
+
+**Target:** Classes only
+
+**Purpose:** Declares an entity as AI-enabled. Field annotations (`@AISearchable`, `@AIContext`) are auto-discovered when this is present.
+
+### Attributes
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `entityType` | String | `""` | **Required.** Unique identifier in AI system |
+| `indexingStrategy` | IndexingStrategy | `ASYNC` | Default indexing strategy |
+| `onCreateStrategy` | IndexingStrategy | `AUTO` | Override for create ops |
+| `onUpdateStrategy` | IndexingStrategy | `AUTO` | Override for update ops |
+| `onDeleteStrategy` | IndexingStrategy | `AUTO` | Override for delete ops |
+
+### Usage
+
+```java
+// Minimal — recommended for most cases
+@Entity
+@AICapable(entityType = "product")
+public class Product {
+    @Id
+    private Long id;
+    
+    @AISearchable
+    private String name;
+    
+    @AIContext
+    private BigDecimal price;
+}
+
+// With indexing strategy overrides
+@Entity
+@AICapable(
+    entityType = "product",
+    indexingStrategy = IndexingStrategy.ASYNC,
+    onCreateStrategy = IndexingStrategy.SYNC,   // Immediate indexing on create
+    onDeleteStrategy = IndexingStrategy.SYNC    // Immediate removal on delete
+)
+public class Product {
+    // ...
+}
+```
+
+---
+
+## 2. `@AIProcess` — Method-Level
+
+**Target:** Methods only
+
+**Purpose:** Triggers AI processing when the method executes (via AOP).
 
 ### Attributes
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `entityType` | String | `""` | Entity type (can be inferred from return type) |
-| `processType` | String | `"create"` | Operation: `create`, `update`, `delete`, `search`, `analyze` |
-| `generateEmbedding` | boolean | `true` | Generate embeddings for this operation |
+| `processType` | String | `"create"` | Operation: `create`, `update`, `delete` |
+| `generateEmbedding` | boolean | `true` | Generate embeddings |
 | `indexForSearch` | boolean | `true` | Index for search |
-| `enableAnalysis` | boolean | `false` | Enable AI analysis |
-| `indexingStrategy` | IndexingStrategy | `AUTO` | Override entity strategy |
+| `indexingStrategy` | IndexingStrategy | `AUTO` | Override strategy |
 
 ### Usage
 
 ```java
 @Service
+@RequiredArgsConstructor
 public class ProductService {
     
-    // Basic - uses entity defaults
+    private final ProductRepository repository;
+    
+    // Create — full processing
     @AIProcess(entityType = "product", processType = "create")
     @Transactional
-    public Product createProduct(Product product) {
+    public Product create(Product product) {
         return repository.save(product);
     }
     
-    // Disable embedding for updates (performance)
-    @AIProcess(entityType = "product", processType = "update", generateEmbedding = false)
+    // Update — full processing
+    @AIProcess(entityType = "product", processType = "update")
     @Transactional
-    public Product updateMetadataOnly(Product product) {
+    public Product update(Product product) {
         return repository.save(product);
     }
     
-    // Delete - no embedding, no indexing (just remove from index)
+    // Delete — no embedding needed, just remove from index
     @AIProcess(
         entityType = "product", 
-        processType = "delete", 
-        generateEmbedding = false, 
+        processType = "delete",
+        generateEmbedding = false,
         indexForSearch = false
     )
     @Transactional
-    public void deleteProduct(Long id) {
+    public void delete(Long id) {
         repository.deleteById(id);
     }
     
-    // Bulk import - use BATCH strategy
+    // Bulk import — use BATCH for performance
     @AIProcess(
-        entityType = "product", 
-        processType = "create", 
+        entityType = "product",
+        processType = "create",
         indexingStrategy = IndexingStrategy.BATCH
     )
     @Transactional
     public List<Product> bulkImport(List<Product> products) {
         return repository.saveAll(products);
     }
-    
-    // Enable AI analysis
-    @AIProcess(
-        entityType = "product", 
-        processType = "analyze", 
-        enableAnalysis = true
-    )
-    public Product analyzeProduct(Long id) {
-        return repository.findById(id).orElseThrow();
-    }
 }
 ```
 
 ---
 
-## 3. `@AIEmbedding` — Field-Level Embedding Configuration
+## 3. `@AISearchable` — Field-Level
 
-**Target:** `@Target(ElementType.FIELD)` — Fields only
+**Target:** Fields only
 
-**Purpose:** Configures how a field contributes to embedding generation.
+**Purpose:** Mark a field for **semantic search**. Users can find entities by searching for similar meaning.
 
-### Key Attributes (Most Used)
+### What It Does
 
-| Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `weight` | double | `1.0` | Importance weight (higher = more influence) |
-| `type` | String | `"text"` | Embedding type: `text`, `image`, `audio` |
-| `autoGenerate` | boolean | `true` | Auto-generate embeddings |
-| `indexable` | boolean | `true` | Include in vector index |
-| `similarityThreshold` | double | `0.7` | Matching threshold (0.0-1.0) |
-| `similarityMetric` | String | `"cosine"` | Metric: `cosine`, `euclidean`, `dot_product` |
-| `dimension` | int | `1536` | Embedding vector dimension |
-| `cacheable` | boolean | `true` | Enable caching |
-| `cacheTtlSeconds` | long | `3600` | Cache TTL |
-| `chunkingStrategy` | String | `"sentence"` | Text chunking strategy |
-| `maxChunkSize` | int | `1000` | Max chunk size |
-| `includeInSimilarity` | boolean | `true` | Include in similarity calculations |
+- ✅ Included in embedding vector (for similarity search)
+- ✅ Stored in `AISearchableEntity.searchableContent`
+- ✅ Included in LLM context during RAG
 
 ### Usage
 
@@ -178,194 +223,204 @@ public class Article {
     @Id
     private Long id;
     
-    @AIEmbedding(weight = 2.0)  // Title is 2x more important
+    @AISearchable   // Can find by "machine learning basics"
     private String title;
     
-    @AIEmbedding(weight = 1.0, chunkingStrategy = "paragraph", maxChunkSize = 500)
+    @AISearchable   // Can find by concepts in content
     private String content;
     
-    @AIEmbedding(weight = 0.5)  // Summary is less important
-    private String summary;
+    @AISearchable   // Can find by topics
+    private String tags;
     
-    @AIEmbedding(autoGenerate = false)  // Don't embed this field
-    private String internalNotes;
+    private String authorId;  // Not searchable, not in AI
 }
 ```
 
+### Mental Model
+
+> **"Can users FIND this entity by searching for words related to this field?"**
+> 
+> If yes → `@AISearchable`
+
 ---
 
-## 4. `@AIKnowledge` — Field-Level Knowledge Configuration
+## 4. `@AIContext` — Field-Level
 
-**Target:** `@Target(ElementType.FIELD)` — Fields only
+**Target:** Fields only
 
-**Purpose:** Marks a field as knowledge for RAG (Retrieval-Augmented Generation) operations.
+**Purpose:** Mark a field for **LLM context** (without embedding). The AI will know this value when responding.
 
-### Key Attributes (Most Used)
+### What It Does
 
-| Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `type` | String | `"text"` | Knowledge type: `text`, `structured`, `unstructured` |
-| `category` | String | `""` | Category for organization |
-| `priority` | int | `5` | Priority 1-10 (higher = more priority) |
-| `importance` | int | `1` | Importance level |
-| `indexable` | boolean | `true` | Enable indexing |
-| `searchable` | boolean | `true` | Enable search |
-| `retrievable` | boolean | `true` | Retrievable for RAG |
-| `includeInRAG` | boolean | `true` | Include in RAG responses |
-| `enableSemanticSearch` | boolean | `true` | Enable semantic search |
-| `enableKeywordSearch` | boolean | `true` | Enable keyword search |
-| `cacheable` | boolean | `true` | Enable caching |
-| `cacheTtlSeconds` | long | `3600` | Cache TTL |
-| `keywords` | String[] | `{}` | Keywords for this knowledge |
+- ❌ NOT included in embedding vector (no semantic search)
+- ✅ Stored in `AISearchableEntity.metadata` (JSON)
+- ✅ Included in LLM context during RAG
+
+### When to Use
+
+Use for structured data that:
+- Has no semantic meaning (prices, ratings, IDs)
+- Shouldn't influence search results
+- But the LLM needs to know when generating responses
 
 ### Usage
 
 ```java
 @Entity
-@AICapable(entityType = "support-ticket")
-public class SupportTicket {
+@AICapable(entityType = "product")
+public class Product {
     
     @Id
     private Long id;
     
-    @AIKnowledge(category = "issue", priority = 8)
-    private String problemDescription;
+    @AISearchable
+    private String name;
     
-    @AIKnowledge(category = "resolution", priority = 10, importance = 2)
-    private String resolution;
+    @AISearchable
+    private String description;
     
-    @AIKnowledge(
-        category = "context",
-        includeInRAG = true,
-        keywords = {"error", "troubleshooting"}
-    )
-    private String technicalDetails;
+    @AIContext      // LLM knows the price (can answer "How much?")
+    private BigDecimal price;
     
-    @AIKnowledge(retrievable = false)  // Don't retrieve this in RAG
-    private String internalComments;
+    @AIContext      // LLM knows the brand
+    private String brand;
+    
+    @AIContext      // LLM knows the rating
+    private Double rating;
+    
+    @AIContext      // LLM knows availability
+    private Boolean inStock;
+    
+    private String internalSku;  // Not in AI system at all
 }
 ```
 
----
+### Mental Model
 
-## 5. `@AISmartValidation` — AI-Powered Validation
-
-**Target:** `@Target({ElementType.FIELD, ElementType.METHOD})` — Fields or Methods
-
-**Purpose:** Enable AI-powered intelligent validation.
-
-### Attributes
-
-| Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `rules` | String[] | `{}` | Validation rules |
-| `validateContent` | boolean | `true` | Validate content |
-| `validateFormat` | boolean | `true` | Validate format |
-| `validateSemantic` | boolean | `true` | Semantic validation |
-| `prompt` | String | `""` | Custom validation prompt |
-| `required` | boolean | `true` | Is validation required |
-| `severity` | SeverityLevel | `ERROR` | `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
-| `realTime` | boolean | `false` | Real-time validation |
-| `crossField` | boolean | `false` | Cross-field validation |
-| `context` | String | `""` | Validation context |
-
-### Usage
-
-```java
-@Entity
-@AICapable(entityType = "user-profile")
-public class UserProfile {
-    
-    @AISmartValidation(
-        validateContent = true,
-        validateSemantic = true,
-        rules = {"no_profanity", "no_spam"}
-    )
-    private String bio;
-    
-    @AISmartValidation(
-        prompt = "Validate this is a professional job title",
-        severity = AISmartValidation.SeverityLevel.WARNING
-    )
-    private String jobTitle;
-    
-    @AISmartValidation(
-        validateFormat = true,
-        rules = {"valid_url", "https_only"},
-        severity = AISmartValidation.SeverityLevel.ERROR
-    )
-    private String websiteUrl;
-}
-```
+> **"Does the AI need to KNOW this value when answering questions?"**
+> 
+> If yes → `@AIContext`
 
 ---
 
-## 6. `IndexingStrategy` — When to Index
+## 5. `IndexingStrategy` — When to Index
 
 | Strategy | Description | Use Case |
 |----------|-------------|----------|
-| `AUTO` | Inherit from parent | Method inherits from entity |
-| `SYNC` | Immediate, same transaction | Compliance-critical, immediate consistency |
-| `ASYNC` | Background, near-real-time | **Default.** Most CRUD operations |
-| `BATCH` | Scheduled batch processing | High-volume imports, eventual consistency OK |
+| `AUTO` | Inherit from parent | Default for `@AIProcess` |
+| `SYNC` | Immediate, blocking | Critical data, compliance |
+| `ASYNC` | Background, non-blocking | **Default.** Most operations |
+| `BATCH` | Scheduled batch | High-volume imports |
 
-### Strategy Resolution Order
+### Resolution Order
 
 ```
-Method (@AIProcess.indexingStrategy)
+@AIProcess.indexingStrategy
     ↓ if AUTO
-Entity Operation (@AICapable.onCreate/Update/DeleteStrategy)
+@AICapable.onCreateStrategy (or onUpdate/onDelete)
     ↓ if AUTO
-Entity Default (@AICapable.indexingStrategy)
+@AICapable.indexingStrategy
     ↓ if not set
 Framework Default (ASYNC)
 ```
 
 ---
 
-## Complete Example
+## YAML Override (Optional)
+
+Annotations provide sensible defaults. Use YAML **only** when you need fine-tuned control.
+
+### When to Use YAML
+
+| Scenario | Annotation | YAML Override |
+|----------|------------|---------------|
+| Basic field marking | ✅ `@AISearchable` | Not needed |
+| Custom weight | `@AISearchable` | ✅ `weight: 2.0` |
+| Exclude from RAG | `@AISearchable` | ✅ `include-in-rag: false` |
+| Enable filtering | `@AIContext` | ✅ `include-in-search: true` |
+
+### Example
 
 ```java
-// Entity with full AI configuration
 @Entity
-@AICapable(
-    entityType = "product",
-    autoEmbedding = true,
-    indexable = true,
-    enableSearch = true,
-    features = {"embedding", "search", "rag"},
-    indexingStrategy = IndexingStrategy.ASYNC,
-    onCreateStrategy = IndexingStrategy.SYNC,
-    onDeleteStrategy = IndexingStrategy.SYNC,
-    migrationRepository = ProductRepository.class
-)
+@AICapable(entityType = "article")
+public class Article {
+    
+    @AISearchable
+    private String title;
+    
+    @AISearchable
+    private String content;
+    
+    @AIContext
+    private String author;
+    
+    @AIContext
+    private LocalDateTime publishDate;
+}
+```
+
+```yaml
+# ai-entity-config.yml — Optional overrides
+ai-entities:
+  article:
+    searchable-fields:
+      - name: "title"
+        weight: 3.0           # Title is 3x more important
+        include-in-rag: true
+      - name: "content"
+        weight: 1.0
+        include-in-rag: true
+    
+    metadata-fields:
+      - name: "author"
+        type: "TEXT"
+        include-in-search: true  # Enable filtering by author
+      - name: "publishDate"
+        type: "DATE"
+        include-in-search: true  # Enable filtering by date
+```
+
+---
+
+## Complete Examples
+
+### Example 1: E-Commerce Product
+
+```java
+@Entity
+@AICapable(entityType = "product")
 public class Product {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @AIEmbedding(weight = 2.0)
-    @AIKnowledge(category = "product", priority = 9)
+    @AISearchable   // "Find running shoes"
     private String name;
     
-    @AIEmbedding(weight = 1.5, chunkingStrategy = "paragraph")
-    @AIKnowledge(category = "product", priority = 7, includeInRAG = true)
+    @AISearchable   // "Find shoes with good arch support"
     private String description;
     
-    @AIKnowledge(category = "metadata", searchable = true)
+    @AISearchable   // "Find athletic footwear"
     private String category;
     
-    @AISmartValidation(
-        validateContent = true,
-        rules = {"no_profanity", "product_appropriate"}
-    )
-    private String userReview;
+    @AIContext      // "How much does it cost?"
+    private BigDecimal price;
     
-    private BigDecimal price;  // No AI annotations - excluded from AI processing
+    @AIContext      // "What brand is it?"
+    private String brand;
+    
+    @AIContext      // "Is it highly rated?"
+    private Double rating;
+    
+    @AIContext      // "Is it in stock?"
+    private Integer stockQuantity;
+    
+    private String sku;           // Internal only
+    private String warehouseCode; // Internal only
 }
 
-// Service with AI processing triggers
 @Service
 @RequiredArgsConstructor
 public class ProductService {
@@ -384,62 +439,137 @@ public class ProductService {
         return repository.save(product);
     }
     
-    @AIProcess(
-        entityType = "product", 
-        processType = "delete",
-        generateEmbedding = false,
-        indexForSearch = false
-    )
+    @AIProcess(entityType = "product", processType = "delete",
+               generateEmbedding = false, indexForSearch = false)
     @Transactional
     public void delete(Long id) {
         repository.deleteById(id);
     }
+}
+```
+
+### Example 2: Knowledge Base Article
+
+```java
+@Entity
+@AICapable(
+    entityType = "kb-article",
+    indexingStrategy = IndexingStrategy.ASYNC,
+    onCreateStrategy = IndexingStrategy.SYNC  // Immediate for new articles
+)
+public class KnowledgeBaseArticle {
     
-    @AIProcess(
-        entityType = "product",
-        processType = "create",
-        indexingStrategy = IndexingStrategy.BATCH
-    )
-    @Transactional
-    public List<Product> bulkImport(List<Product> products) {
-        return repository.saveAll(products);
-    }
+    @Id
+    private Long id;
+    
+    @AISearchable   // Find by title
+    private String title;
+    
+    @AISearchable   // Find by content meaning
+    @Column(columnDefinition = "TEXT")
+    private String content;
+    
+    @AISearchable   // Find by keywords
+    private String tags;
+    
+    @AIContext      // Show author in response
+    private String author;
+    
+    @AIContext      // Show last updated date
+    private LocalDateTime lastUpdated;
+    
+    @AIContext      // Show view count
+    private Integer viewCount;
+    
+    @AIContext      // Show helpfulness rating
+    private Double helpfulnessRating;
+}
+```
+
+### Example 3: Support Ticket
+
+```java
+@Entity
+@AICapable(entityType = "support-ticket")
+public class SupportTicket {
+    
+    @Id
+    private Long id;
+    
+    @AISearchable   // Find similar issues
+    private String subject;
+    
+    @AISearchable   // Find by problem description
+    private String issueDescription;
+    
+    @AISearchable   // Find by solution
+    private String resolution;
+    
+    @AIContext      // Know the status
+    private String status;
+    
+    @AIContext      // Know the priority
+    private String priority;
+    
+    @AIContext      // Know when created
+    private LocalDateTime createdAt;
+    
+    @AIContext      // Know resolution time
+    private LocalDateTime resolvedAt;
+    
+    private String customerId;     // Not in AI (privacy)
+    private String internalNotes;  // Not in AI (internal)
 }
 ```
 
 ---
 
-## Annotation Relationships
+## Decision Flowchart
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        @AICapable                               │
-│                    (Entity/Class Level)                         │
-│  • Declares entity as AI-enabled                                │
-│  • Sets default indexing strategies                             │
-│  • Configures features (embedding, search, RAG)                 │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │
-        ┌───────────────┼───────────────┐
-        │               │               │
-        ▼               ▼               ▼
-┌───────────────┐ ┌───────────────┐ ┌───────────────┐
-│ @AIEmbedding  │ │ @AIKnowledge  │ │@AISmartValid. │
-│ (Field Level) │ │ (Field Level) │ │(Field/Method) │
-│               │ │               │ │               │
-│ • Weight      │ │ • Category    │ │ • Rules       │
-│ • Dimension   │ │ • Priority    │ │ • Severity    │
-│ • Chunking    │ │ • RAG config  │ │ • Prompt      │
-└───────────────┘ └───────────────┘ └───────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        @AIProcess                               │
-│                      (Method Level)                             │
-│  • Triggers AI processing on method execution                   │
-│  • Can override entity defaults                                 │
-│  • Specifies operation type (create/update/delete)              │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│ Should this field be in the AI system? │
+└─────────────────────┬───────────────────┘
+                      │
+              ┌───────┴───────┐
+              │               │
+              ▼               ▼
+           Yes              No
+              │               │
+              │               ▼
+              │         Don't annotate
+              │
+              ▼
+┌─────────────────────────────────────────┐
+│ Can users SEARCH by this field's        │
+│ meaning/concepts?                       │
+│                                         │
+│ "sustainable products" → description    │
+│ "machine learning" → content            │
+└─────────────────────┬───────────────────┘
+                      │
+              ┌───────┴───────┐
+              │               │
+              ▼               ▼
+           Yes              No
+              │               │
+              ▼               ▼
+       @AISearchable    ┌─────────────────┐
+                        │ Does AI need to │
+                        │ KNOW this value │
+                        │ when responding?│
+                        │                 │
+                        │ "How much?"     │
+                        │ "What brand?"   │
+                        └────────┬────────┘
+                                 │
+                         ┌───────┴───────┐
+                         │               │
+                         ▼               ▼
+                       Yes              No
+                         │               │
+                         ▼               ▼
+                    @AIContext      Don't annotate
 ```
 
 ---
@@ -452,63 +582,120 @@ public class ProductService {
 // 1. Always specify entityType
 @AICapable(entityType = "product")
 
-// 2. Use appropriate indexing strategies
-@AICapable(
-    indexingStrategy = IndexingStrategy.ASYNC,      // Default background
-    onCreateStrategy = IndexingStrategy.SYNC,       // Immediate for creates
-    onDeleteStrategy = IndexingStrategy.SYNC        // Immediate for deletes
-)
+// 2. Use @AISearchable for semantic content
+@AISearchable
+private String description;
 
-// 3. Weight important fields higher
-@AIEmbedding(weight = 2.0)  // Title
-@AIEmbedding(weight = 1.0)  // Description
+// 3. Use @AIContext for structured data the AI needs
+@AIContext
+private BigDecimal price;
 
-// 4. Disable unnecessary processing
+// 4. Disable unnecessary processing on delete
 @AIProcess(processType = "delete", generateEmbedding = false, indexForSearch = false)
 
 // 5. Use BATCH for bulk operations
 @AIProcess(indexingStrategy = IndexingStrategy.BATCH)
 public List<Product> bulkImport(List<Product> products)
+
+// 6. Use YAML for fine-tuning only
+// ai-entity-config.yml
+searchable-fields:
+  - name: "title"
+    weight: 2.0  # Override weight
 ```
 
 ### DON'T ❌
 
 ```java
 // 1. Don't forget entityType
-@AICapable  // Missing entityType!
+@AICapable  // ❌ Missing entityType!
 
-// 2. Don't use SYNC for everything (performance impact)
-@AICapable(indexingStrategy = IndexingStrategy.SYNC)  // Only if needed
+// 2. Don't annotate internal/private fields
+@AISearchable
+private String internalNotes;  // ❌ Should not be searchable
 
-// 3. Don't over-annotate
-@AIEmbedding  // Every field doesn't need this
-@AIKnowledge  // Be selective
+// 3. Don't use @AISearchable for non-semantic data
+@AISearchable
+private BigDecimal price;  // ❌ Use @AIContext instead
 
-// 4. Don't mix up entity vs method annotations
-@AIProcess  // This goes on methods, not classes!
+// 4. Don't over-annotate (be selective)
+@AISearchable  // Every field?
+@AIContext     // Every field?
+
+// 5. Don't use SYNC everywhere (performance impact)
+@AICapable(indexingStrategy = IndexingStrategy.SYNC)  // ❌ Only if needed
+
+// 6. Don't put @AIProcess on classes
+@AIProcess  // ❌ This goes on methods!
 public class Product { }
 ```
 
 ---
 
-## Configuration Reference
+## Migration from Old Annotations
+
+| Old Annotation | New Annotation | Notes |
+|----------------|----------------|-------|
+| `@AIEmbedding` | `@AISearchable` | Remove all attributes, use YAML if needed |
+| `@AIKnowledge` | Remove or `@AISearchable` | Usually redundant with `@AISearchable` |
+| `@AISmartValidation` | Remove | Feature deprecated |
+
+### Before
+
+```java
+@AIEmbedding(weight = 1.5, chunkingStrategy = "sentence", maxChunkSize = 500)
+@AIKnowledge(category = "product", priority = 8, includeInRAG = true)
+private String description;
+```
+
+### After
+
+```java
+@AISearchable
+private String description;
+```
 
 ```yaml
-# application.yml
-ai:
-  enabled: true
-  providers:
-    embedding-provider: onnx  # or openai, cohere
-  vector:
-    database-type: lucene     # or milvus, qdrant
-  indexing:
-    default-strategy: ASYNC
-    batch:
-      size: 100
-      interval-ms: 5000
+# If you need weight override
+ai-entities:
+  product:
+    searchable-fields:
+      - name: "description"
+        weight: 1.5
 ```
 
 ---
 
-*Generated from source code in `com.ai.infrastructure.annotation.*`*
+## Summary
 
+| Question | Answer | Annotation |
+|----------|--------|------------|
+| Can users find this by meaning? | Yes | `@AISearchable` |
+| Does AI need to know this value? | Yes | `@AIContext` |
+| Both searchable AND contextual? | — | `@AISearchable` (includes both) |
+| Neither? | — | Don't annotate |
+
+```java
+@Entity
+@AICapable(entityType = "product")
+public class Product {
+    
+    @AISearchable   // Search + Context
+    private String name;
+    
+    @AISearchable   // Search + Context
+    private String description;
+    
+    @AIContext      // Context only (no search)
+    private BigDecimal price;
+    
+    @AIContext      // Context only (no search)  
+    private String brand;
+    
+    private String sku;  // Not in AI system
+}
+```
+
+---
+
+*Last Updated: January 2026*

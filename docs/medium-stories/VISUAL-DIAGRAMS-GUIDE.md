@@ -2891,19 +2891,333 @@ Concurrent Jobs         Manual         ✅ max-concurrent-jobs
 
 ---
 
+## 🏷️ AI Annotations Diagrams
+
+### 1. The Annotation Family
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  THE AI ANNOTATION FAMILY                                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ @AICapable                                              │    │
+│  │ Level: Class                                            │    │
+│  │ Purpose: "This entity is AI-enabled"                    │    │
+│  │ Think: Like @Entity for JPA                             │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                   │
+│                              ▼                                   │
+│  ┌──────────────────┐   ┌──────────────────┐                    │
+│  │ @AISearchable    │   │ @AIContext       │                    │
+│  │ Level: Field     │   │ Level: Field     │                    │
+│  │ "Find by this"   │   │ "Know this"      │                    │
+│  │ ↓                │   │ ↓                │                    │
+│  │ Embedded +       │   │ Metadata JSON    │                    │
+│  │ Searchable +     │   │ (not embedded)   │                    │
+│  │ LLM Context      │   │ + LLM Context    │                    │
+│  └──────────────────┘   └──────────────────┘                    │
+│                              │                                   │
+│                              ▼                                   │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ @AIProcess                                              │    │
+│  │ Level: Method                                           │    │
+│  │ Purpose: "When this runs, trigger AI processing"        │    │
+│  │ Think: Like @Transactional for databases                │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 2. Field Annotation Decision Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WHICH ANNOTATION DO I USE?                                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Question 1: Can users SEARCH by this field's meaning?          │
+│                                                                  │
+│    "eco-friendly" finds "sustainable, biodegradable"            │
+│    "comfortable chair" finds "ergonomic, lumbar support"        │
+│                                                                  │
+│    YES → @AISearchable                                          │
+│    NO  → Continue to Question 2                                 │
+│                                                                  │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                  │
+│  Question 2: Does AI need to KNOW this when responding?         │
+│                                                                  │
+│    "How much is it?" → AI needs to know the price               │
+│    "What brand?" → AI needs to know the brand                   │
+│    "Is it in stock?" → AI needs to know availability            │
+│                                                                  │
+│    YES → @AIContext                                             │
+│    NO  → Don't annotate (internal field)                        │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 3. Entity to Storage Transformation
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  YOUR ENTITY                                                     │
+│  ═══════════════════════════════════════════════════════════════│
+│                                                                  │
+│  @Entity                                                        │
+│  @AICapable(entityType = "product")                             │
+│  public class Product {                                         │
+│      @AISearchable name = "Bamboo Toothbrush"                   │
+│      @AISearchable description = "Eco-friendly dental care..."  │
+│      @AIContext price = 29.99                                   │
+│      @AIContext brand = "EcoLife"                               │
+│      private String sku = "SKU-123"  // not annotated           │
+│  }                                                              │
+│                                                                  │
+│                              │                                   │
+│                              ▼                                   │
+│                                                                  │
+│  AISearchableEntity (what gets stored)                          │
+│  ═══════════════════════════════════════════════════════════════│
+│  {                                                              │
+│    entityType: "product",                                       │
+│    entityId: "123",                                             │
+│    searchableContent: "Bamboo Toothbrush Eco-friendly dental...",│
+│    metadata: {                                                  │
+│      "price": 29.99,                                            │
+│      "brand": "EcoLife"                                         │
+│    },                                                           │
+│    vectorId: "vec-abc-123"                                      │
+│  }                                                              │
+│                                                                  │
+│                              │                                   │
+│                              ▼                                   │
+│                                                                  │
+│  Vector Database                                                │
+│  ═══════════════════════════════════════════════════════════════│
+│  ID: "vec-abc-123"                                              │
+│  Vector: [0.023, -0.156, 0.891, 0.234, -0.456, ...]            │
+│  (384 dimensions from all-MiniLM-L6-v2)                        │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 4. @AIProcess Execution Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  productService.create(product)                                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1️⃣  @AIProcess detected                                        │
+│      ↓                                                           │
+│  2️⃣  Method executes: repository.save()                         │
+│      ↓                                                           │
+│  3️⃣  Product saved to DB                                        │
+│      ↓                                                           │
+│  4️⃣  HTTP Response returns (+10ms, not +450ms!)                 │
+│      ↓                                                           │
+│  5️⃣  ASYNC: Background worker processes                         │
+│      │                                                           │
+│      ├─ Scan @AISearchable fields                               │
+│      │  → Build searchableContent                               │
+│      │                                                           │
+│      ├─ Scan @AIContext fields                                  │
+│      │  → Build metadata JSON                                   │
+│      │                                                           │
+│      ├─ Scan for PII (automatic!)                               │
+│      │  → Redact if found                                       │
+│      │                                                           │
+│      ├─ Generate embedding                                       │
+│      │  → [0.023, -0.156, 0.891, ...]                           │
+│      │                                                           │
+│      └─ Store in vector DB                                      │
+│         → Retry on failure (exponential backoff)                │
+│                                                                  │
+│  Result: ✅ Searchable in 1-5 seconds                           │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 5. Semantic Search Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  User: "eco-friendly dental products"                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1️⃣  Embed query → [0.019, -0.148, 0.887, ...]                  │
+│                                                                  │
+│  2️⃣  Vector search → Find similar embeddings                    │
+│                                                                  │
+│  3️⃣  Results (by MEANING, not keywords!):                       │
+│                                                                  │
+│      ┌─────────────────────────────────────────────────┐       │
+│      │ "Bamboo Toothbrush"                              │       │
+│      │ "Biodegradable bristles, sustainable handle..."  │       │
+│      │ Similarity: 0.94 ✅                              │       │
+│      └─────────────────────────────────────────────────┘       │
+│                                                                  │
+│      ┌─────────────────────────────────────────────────┐       │
+│      │ "Natural Dental Floss"                           │       │
+│      │ "Plant-based, compostable packaging..."          │       │
+│      │ Similarity: 0.91 ✅                              │       │
+│      └─────────────────────────────────────────────────┘       │
+│                                                                  │
+│  4️⃣  Build LLM context:                                         │
+│      • searchableContent (@AISearchable fields)                 │
+│      • metadata (@AIContext: price, brand, rating)              │
+│                                                                  │
+│  5️⃣  LLM generates response:                                    │
+│      "I found 2 eco-friendly dental products:                   │
+│       1. Bamboo Toothbrush ($29.99) ⭐ 4.8 - In Stock           │
+│       2. Natural Dental Floss ($12.99) ⭐ 4.6 - In Stock"       │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6. Annotation Comparison Table
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  @AISearchable vs @AIContext                                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌────────────────┬────────────────┬────────────────┐          │
+│  │                │ @AISearchable  │ @AIContext     │          │
+│  ├────────────────┼────────────────┼────────────────┤          │
+│  │ Purpose        │ Find by meaning│ Know the value │          │
+│  │ Embedded?      │ ✅ Yes         │ ❌ No          │          │
+│  │ Searchable?    │ ✅ Yes         │ ❌ No          │          │
+│  │ LLM Context?   │ ✅ Yes         │ ✅ Yes         │          │
+│  │ Storage        │ searchable     │ metadata JSON  │          │
+│  │                │ Content        │                │          │
+│  │ Use for        │ Text w/meaning │ Structured data│          │
+│  │ Examples       │ name, desc     │ price, rating  │          │
+│  └────────────────┴────────────────┴────────────────┘          │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 7. Before vs After Comparison
+
+```
+═══════════════════════════════════════════════════════════════════
+BEFORE: 50 Lines of Regret
+═══════════════════════════════════════════════════════════════════
+public Product saveProduct(Product product) {
+    product = productRepo.save(product);
+    try {
+        String text = product.getName() + " " + product.getDescription();
+        // PII check? Forgot it.
+        float[] embedding = embeddingService.embed(text);  // 💥 Network timeout
+        VectorPoint point = VectorPoint.builder()
+            .id(product.getId().toString())
+            .vector(embedding)
+            .metadata(Map.of("price", product.getPrice().toString()))
+            .build();
+        vectorDb.upsert("products", point);  // 💥 Never reached
+    } catch (Exception e) {
+        log.error("Welcome to distributed consistency hell", e);
+        // Product in DB but not searchable. Good luck!
+    }
+    return product;  // Half-indexed
+}
+
+Failure modes: 6+
+PII protection: None
+Response time: +450ms
+
+
+═══════════════════════════════════════════════════════════════════
+AFTER: 5 Annotations of Bliss
+═══════════════════════════════════════════════════════════════════
+@Entity
+@AICapable(entityType = "product")
+public class Product {
+    @AISearchable private String name;
+    @AISearchable private String description;
+    @AIContext private BigDecimal price;
+}
+
+@AIProcess(entityType = "product", processType = "create")
+public Product create(Product product) {
+    return repository.save(product);
+}
+
+Failure modes: 0 (framework handles retries)
+PII protection: Automatic
+Response time: +10ms
+═══════════════════════════════════════════════════════════════════
+```
+
+### AI Annotations One-Slide
+
+```
+┌─────────────────────────────────────────────┐
+│  AI ANNOTATIONS                             │
+│  ═══════════════════════════════════════    │
+│                                             │
+│  4 annotations to rule them all:            │
+│                                             │
+│  🏷️ @AICapable                              │
+│     "This entity is AI-enabled"             │
+│                                             │
+│  ⚡ @AIProcess                               │
+│     "Trigger AI processing here"            │
+│                                             │
+│  🔍 @AISearchable                           │
+│     "Users can FIND by meaning"             │
+│                                             │
+│  💡 @AIContext                              │
+│     "AI needs to KNOW this value"           │
+│                                             │
+│  Impact: 50 lines → 5 annotations           │
+│  ─────────────────────────────────────────  │
+│  Part of AI Fabric Framework (Q1 2026)      │
+│  ⭐ Star for 50% discount (first 500)       │
+└─────────────────────────────────────────────┘
+```
+
+### AI Annotations Carousel (7 slides)
+
+**Slide 1:** Cover - "4 Annotations That Killed AI Boilerplate"  
+**Slide 2:** The Problem - "50 lines of regret, 2 AM debugging"  
+**Slide 3:** The Solution - The 4 Annotation Family diagram  
+**Slide 4:** @AISearchable vs @AIContext decision flow  
+**Slide 5:** Entity to Storage transformation  
+**Slide 6:** Real impact (50 lines → 5 annotations, 0 failures)  
+**Slide 7:** CTA (Star on GitHub, Q1 2026)
+
+### AI Annotations Video Script (8-10 min)
+
+```
+0:00 - Hook: "The 2 AM debugging nightmare"
+1:00 - The crime scene: 50 lines of fragile code
+2:00 - The revelation: declarative always wins
+3:00 - The 4 annotation family explained
+5:00 - @AISearchable vs @AIContext decision flow
+6:00 - Live demo: Entity → Storage transformation
+7:30 - Real scenario: E-commerce semantic search
+9:00 - CTA: Star GitHub, Q1 2026 launch
+```
+
+---
+
 ## ✅ **Ready-to-Use Assets**
 
 **All available in `docs/medium-stories/`:**
 
 **Stories:**
-- ✅ 18 story files (9 LONG, 9 SHORT)
+- ✅ 20 story files (10 LONG, 10 SHORT)
   - Orchestrator, Indexing Strategies, Migration Module
   - Storage Strategy, RAG/ONNX, Behavior Analytics
   - Core Module, Relationship Query, Getting Started
   - Intent Extraction & Action Handlers, Custom Access Policy
   - PII Detection, OpenAI Provider, ONNX Provider
   - Audit Capabilities, Cleanup Capabilities, Compliance Capabilities
-  - Retention Capabilities
+  - Retention Capabilities, **AI Annotations** (NEW!)
 - ✅ All based on actual codebase
 - ✅ All include ASCII diagrams
 - ✅ All reference real code with line numbers
