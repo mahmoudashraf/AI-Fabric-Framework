@@ -7,8 +7,6 @@ import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.dto.PIIDetectionResult;
-import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
@@ -33,6 +31,10 @@ import static org.mockito.Mockito.when;
  * Unit tests for RAGService.
  * 
  * <p>Tests verify that RAGService correctly implements the RAGProvider SPI.</p>
+ * 
+ * <p><strong>Note:</strong> RAGService does NOT perform PII detection. The orchestration
+ * pipeline handles PII via {@code PIIDetectionStep} (before) and 
+ * {@code ResponseSanitizationStep} (after).</p>
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -53,9 +55,6 @@ class RAGServiceTest {
     @Mock
     private AISearchService searchService;
     
-    @Mock
-    private PIIDetectionService piiDetectionService;
-    
     private RAGService ragService;
     
     @BeforeEach
@@ -65,19 +64,10 @@ class RAGServiceTest {
             embeddingService,
             vectorDatabaseService,
             vectorDatabase,
-            searchService,
-            piiDetectionService
+            searchService
         );
         
         // Default mock setup
-        when(piiDetectionService.detectAndProcess(any())).thenReturn(
-            PIIDetectionResult.builder()
-                .processedQuery("test query")
-                .piiDetected(false)
-                .detections(Collections.emptyList())
-                .build()
-        );
-        
         when(embeddingService.generateEmbedding(any())).thenReturn(
             AIEmbeddingResponse.builder()
                 .embedding(List.of(0.1, 0.2, 0.3))
@@ -174,7 +164,7 @@ class RAGServiceTest {
     @Test
     @DisplayName("performRag handles errors gracefully")
     void performRagHandlesErrorsGracefully() {
-        when(piiDetectionService.detectAndProcess(any())).thenThrow(new RuntimeException("Test error"));
+        when(embeddingService.generateEmbedding(any())).thenThrow(new RuntimeException("Test error"));
         
         RAGRequest request = RAGRequest.builder()
             .query("test query")

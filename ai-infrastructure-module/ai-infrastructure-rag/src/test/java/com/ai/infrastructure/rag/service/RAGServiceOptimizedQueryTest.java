@@ -6,11 +6,8 @@ import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.PIIDetectionResult;
-import com.ai.infrastructure.dto.PIIMode;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.vector.VectorDatabase;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +26,10 @@ import static org.mockito.Mockito.when;
 
 /**
  * Tests for RAGService optimized query handling.
+ * 
+ * <p><strong>Note:</strong> RAGService does NOT perform PII detection. The orchestration
+ * pipeline handles PII via {@code PIIDetectionStep} (before) and 
+ * {@code ResponseSanitizationStep} (after).</p>
  */
 @ExtendWith(MockitoExtension.class)
 class RAGServiceOptimizedQueryTest {
@@ -49,16 +50,13 @@ class RAGServiceOptimizedQueryTest {
     private AISearchService searchService;
 
     @Mock
-    private PIIDetectionService piiDetectionService;
-
-    @Mock
     private AIEmbeddingResponse embeddingResponse;
 
     private RAGService ragService;
 
     @BeforeEach
     void setUp() {
-        ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService, piiDetectionService);
+        ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService);
 
         when(config.resolveLlmDefaults()).thenReturn(new AIProviderConfig.GenerationDefaults("openai", "gpt-test", 1024, 0.0, 60, 1));
 
@@ -80,15 +78,6 @@ class RAGServiceOptimizedQueryTest {
             .build();
 
         when(searchService.search(any(), any())).thenReturn(searchResponse);
-
-        when(piiDetectionService.detectAndProcess(any(String.class))).thenAnswer(invocation ->
-            PIIDetectionResult.builder()
-                .originalQuery(invocation.getArgument(0))
-                .processedQuery(invocation.getArgument(0))
-                .modeApplied(PIIMode.PASS_THROUGH)
-                .piiDetected(false)
-                .build()
-        );
     }
 
     @Test

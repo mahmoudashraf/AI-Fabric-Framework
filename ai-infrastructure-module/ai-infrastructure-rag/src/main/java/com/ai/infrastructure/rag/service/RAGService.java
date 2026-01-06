@@ -9,9 +9,6 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.dto.PIIMode;
-import com.ai.infrastructure.dto.PIIDetectionResult;
-import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.spi.RAGProvider;
@@ -67,11 +64,6 @@ public class RAGService implements RAGProvider {
     private static final String PROVIDER_NAME = "default-rag-service";
     
     // Metadata keys
-    private static final String METADATA_KEY_PII_DETECTION = "piiDetection";
-    private static final String METADATA_KEY_DETECTED = "detected";
-    private static final String METADATA_KEY_MODE = "mode";
-    private static final String METADATA_KEY_DETECTIONS_COUNT = "detectionsCount";
-    private static final String METADATA_KEY_ENCRYPTED_ORIGINAL_STORED = "encryptedOriginalStored";
     private static final String METADATA_KEY_OPTIMIZED_QUERY_PROVIDED = "optimizedQueryProvided";
     private static final String METADATA_KEY_EMBEDDING_QUERY = "embeddingQuery";
     private static final String METADATA_KEY_OPTIMIZED_QUERY = "optimizedQuery";
@@ -104,7 +96,6 @@ public class RAGService implements RAGProvider {
     private final VectorDatabaseService vectorDatabaseService;
     private final VectorDatabase vectorDatabase;
     private final AISearchService searchService;
-    private final PIIDetectionService piiDetectionService;
     
     // =========================================================================
     // JSON Processing
@@ -184,20 +175,19 @@ public class RAGService implements RAGProvider {
     
     /**
      * {@inheritDoc}
+     * 
+     * <p><strong>Note:</strong> PII detection is NOT performed here. The orchestration
+     * pipeline's {@code PIIDetectionStep} handles PII detection BEFORE calling RAG,
+     * and {@code ResponseSanitizationStep} handles output sanitization AFTER.</p>
      */
     @Override
     public RAGResponse performRag(RAGRequest request) {
         try {
-            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(request.getQuery());
-            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
-            String embeddingQuery = resolveEmbeddingQuery(request, sanitizedQuery);
+            String query = request.getQuery();
+            String embeddingQuery = resolveEmbeddingQuery(request, query);
             
-            log.debug("Performing RAG operation (entityType={}, requestId={}, piiDetected={}, mode={})",
-                request.getEntityType(),
-                request.getRequestId(),
-                piiDetectionResult.isPiiDetected(),
-                Optional.ofNullable(piiDetectionResult.getModeApplied())
-                    .map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
+            log.debug("Performing RAG operation (entityType={}, requestId={})",
+                request.getEntityType(), request.getRequestId());
 
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
                 .text(embeddingQuery)
@@ -244,7 +234,7 @@ public class RAGService implements RAGProvider {
                 .collect(Collectors.toList());
 
             Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
-                request.getMetadata(), piiDetectionResult, embeddingQuery);
+                request.getMetadata(), embeddingQuery);
             
             return RAGResponse.builder()
                 .documents(documents)
@@ -264,11 +254,10 @@ public class RAGService implements RAGProvider {
                     .average().orElse(0.0))
                 .processingTimeMs(searchResponse.getProcessingTimeMs())
                 .requestId(request.getRequestId())
-                .originalQuery(sanitizedQuery)
+                .originalQuery(query)
                 .entityType(request.getEntityType())
                 .model(config.resolveLlmDefaults().model())
                 .timestamp(java.time.LocalDateTime.now())
-                .piiDetectionResult(piiDetectionResult)
                 .metadata(Collections.unmodifiableMap(aggregatedMetadata))
                 .build();
                 
@@ -283,20 +272,19 @@ public class RAGService implements RAGProvider {
     
     /**
      * {@inheritDoc}
+     * 
+     * <p><strong>Note:</strong> PII detection is NOT performed here. The orchestration
+     * pipeline's {@code PIIDetectionStep} handles PII detection BEFORE calling RAG,
+     * and {@code ResponseSanitizationStep} handles output sanitization AFTER.</p>
      */
     @Override
     public RAGResponse performRAGQuery(RAGRequest request) {
         try {
-            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(request.getQuery());
-            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
-            String embeddingQuery = resolveEmbeddingQuery(request, sanitizedQuery);
+            String query = request.getQuery();
+            String embeddingQuery = resolveEmbeddingQuery(request, query);
             
-            log.debug("Performing RAG query (entityType={}, requestId={}, piiDetected={}, mode={})",
-                request.getEntityType(),
-                request.getRequestId(),
-                piiDetectionResult.isPiiDetected(),
-                Optional.ofNullable(piiDetectionResult.getModeApplied())
-                    .map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
+            log.debug("Performing RAG query (entityType={}, requestId={})",
+                request.getEntityType(), request.getRequestId());
             
             long startTime = System.currentTimeMillis();
             
@@ -317,7 +305,7 @@ public class RAGService implements RAGProvider {
             
             AISearchResponse searchResponse;
             if (Boolean.TRUE.equals(request.getEnableHybridSearch())) {
-                searchResponse = performHybridSearch(queryVector, sanitizedQuery, searchRequest);
+                searchResponse = performHybridSearch(queryVector, query, searchRequest);
             } else if (Boolean.TRUE.equals(request.getEnableContextualSearch())) {
                 searchResponse = performContextualSearch(queryVector, 
                     request.getContext() != null ? request.getContext().toString() : "", searchRequest);
@@ -326,12 +314,12 @@ public class RAGService implements RAGProvider {
             }
             
             String context = buildContext(searchResponse);
-            String response = generateResponse(sanitizedQuery, context);
+            String response = generateResponse(query, context);
             
             long processingTime = System.currentTimeMillis() - startTime;
 
             Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
-                request.getMetadata(), piiDetectionResult, embeddingQuery);
+                request.getMetadata(), embeddingQuery);
             
             return RAGResponse.builder()
                 .response(response)
@@ -349,10 +337,9 @@ public class RAGService implements RAGProvider {
                 .success(true)
                 .hybridSearchUsed(Boolean.TRUE.equals(request.getEnableHybridSearch()))
                 .contextualSearchUsed(Boolean.TRUE.equals(request.getEnableContextualSearch()))
-                .originalQuery(sanitizedQuery)
+                .originalQuery(query)
                 .entityType(request.getEntityType())
                 .searchedCategories(request.getCategories())
-                .piiDetectionResult(piiDetectionResult)
                 .metadata(Collections.unmodifiableMap(aggregatedMetadata))
                 .build();
                 
@@ -382,29 +369,27 @@ public class RAGService implements RAGProvider {
     /**
      * Perform RAG query with basic parameters.
      * 
-     * @param query the search query
+     * <p><strong>Note:</strong> PII detection should be handled by the caller
+     * (typically the orchestration pipeline) before invoking this method.</p>
+     * 
+     * @param query the search query (should already be sanitized if needed)
      * @param entityType the type of entities to search
      * @param limit maximum number of results
      * @return RAG response with retrieved context
      */
     public AISearchResponse performRAGQuery(String query, String entityType, int limit) {
         try {
-            PIIDetectionResult piiDetectionResult = piiDetectionService.detectAndProcess(query);
-            log.debug("Performing RAG query for entity type={} (piiDetected={}, mode={})",
-                entityType, piiDetectionResult.isPiiDetected(),
-                Optional.ofNullable(piiDetectionResult.getModeApplied())
-                    .map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()));
-            String sanitizedQuery = piiDetectionResult.getProcessedQuery();
+            log.debug("Performing RAG query for entity type={}", entityType);
             
             AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(sanitizedQuery)
+                .text(query)
                 .entityType(entityType)
                 .build();
             
             var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
             
             AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(sanitizedQuery)
+                .query(query)
                 .entityType(entityType)
                 .limit(limit)
                 .threshold(DEFAULT_SEARCH_THRESHOLD)
@@ -511,17 +496,12 @@ public class RAGService implements RAGProvider {
             .build();
     }
     
-    private String resolveEmbeddingQuery(RAGRequest request, String sanitizedQuery) {
+    private String resolveEmbeddingQuery(RAGRequest request, String query) {
         String optimized = extractOptimizedQuery(request.getMetadata());
         if (StringUtils.hasText(optimized)) {
-            try {
-                return piiDetectionService.detectAndProcess(optimized).getProcessedQuery();
-            } catch (Exception ex) {
-                log.debug("Unable to sanitize optimized query, using as provided: {}", ex.getMessage());
-                return optimized;
-            }
+            return optimized;
         }
-        return sanitizedQuery;
+        return query;
     }
 
     private String extractOptimizedQuery(Map<String, Object> metadata) {
@@ -624,18 +604,11 @@ public class RAGService implements RAGProvider {
     }
     
     private Map<String, Object> buildAggregatedMetadata(Map<String, Object> requestMetadata,
-            PIIDetectionResult piiDetectionResult, String embeddingQuery) {
+            String embeddingQuery) {
         Map<String, Object> aggregatedMetadata = new HashMap<>();
         if (requestMetadata != null) {
             aggregatedMetadata.putAll(requestMetadata);
         }
-        aggregatedMetadata.put(METADATA_KEY_PII_DETECTION, Map.of(
-            METADATA_KEY_DETECTED, piiDetectionResult.isPiiDetected(),
-            METADATA_KEY_MODE, Optional.ofNullable(piiDetectionResult.getModeApplied())
-                .map(Enum::name).orElse(PIIMode.PASS_THROUGH.name()),
-            METADATA_KEY_DETECTIONS_COUNT, piiDetectionResult.getDetections().size(),
-            METADATA_KEY_ENCRYPTED_ORIGINAL_STORED, piiDetectionResult.getEncryptedOriginalQuery() != null
-        ));
         aggregatedMetadata.put(METADATA_KEY_OPTIMIZED_QUERY_PROVIDED, 
             extractOptimizedQuery(requestMetadata) != null);
         aggregatedMetadata.put(METADATA_KEY_EMBEDDING_QUERY, embeddingQuery);
