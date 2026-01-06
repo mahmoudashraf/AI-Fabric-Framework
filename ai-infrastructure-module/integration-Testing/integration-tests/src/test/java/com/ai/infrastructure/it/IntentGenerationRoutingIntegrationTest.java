@@ -13,34 +13,38 @@ import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.security.ResponseSanitizer;
+import com.ai.infrastructure.spi.ContentRetriever;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Integration test for intent generation routing.
  * 
- * <p>Note: This test is temporarily disabled because the ContentRetriever mock
- * cannot be properly injected into IntentHandlingStep's @Autowired(required=false)
- * field. This is a Spring context configuration issue, not a code defect.
- * The underlying intent routing logic is covered by unit tests.</p>
+ * <p>Tests that the orchestrator correctly routes queries based on intent type
+ * and the requiresGeneration flag.</p>
  */
-@Disabled("Disabled: ContentRetriever mock injection issue with @Autowired(required=false) field")
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
@@ -52,6 +56,9 @@ class IntentGenerationRoutingIntegrationTest {
 
     @Autowired
     private RAGOrchestrator orchestrator;
+
+    @Autowired
+    private List<PipelineStep> pipelineSteps;
 
     @MockBean
     private IntentQueryExtractor intentQueryExtractor;
@@ -71,8 +78,11 @@ class IntentGenerationRoutingIntegrationTest {
     @MockBean
     private ActionHandlerRegistry actionHandlerRegistry;
 
+    private ContentRetriever mockContentRetriever;
+
     @BeforeEach
     void setUp() {
+        // Configure security mocks
         when(securityService.analyzeRequest(any())).thenReturn(
             AISecurityResponse.builder()
                 .shouldBlock(false)
@@ -93,10 +103,30 @@ class IntentGenerationRoutingIntegrationTest {
                 .build()
         );
         when(responseSanitizer.sanitize(any(), any())).thenReturn(Map.of("sanitization", Map.of()));
+
+        // Create and configure ContentRetriever mock
+        mockContentRetriever = mock(ContentRetriever.class);
+        when(mockContentRetriever.isAvailable()).thenReturn(true);
+        when(mockContentRetriever.retrieve(anyString(), anyString(), anyInt(), anyDouble(), any()))
+            .thenReturn(ContentRetriever.RetrievalResult.success(
+                List.of(new ContentRetriever.RetrievedDocument(
+                    "doc-1", "Test content about products", "Product Guide", "document", 0.95, Map.of()
+                )),
+                1, 0.95, 0.95, 10L
+            ));
+
+        // Inject mock into IntentHandlingStep and SmartSuggestionsStep
+        for (PipelineStep step : pipelineSteps) {
+            if (step.getStepName().equals("IntentHandling") || step.getStepName().equals("SmartSuggestions")) {
+                ReflectionTestUtils.setField(step, "contentRetriever", mockContentRetriever);
+            }
+        }
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void routesSearchOnlyWhenGenerationNotRequired() {
+        // Arrange
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
             .intent("find_products")
@@ -107,15 +137,27 @@ class IntentGenerationRoutingIntegrationTest {
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
+        // Act
         OrchestrationResult result = orchestrator.orchestrate("show me products under $60", "user-1");
 
-        // Test assertions - these would pass if ContentRetriever was properly mocked
-        assertThat(result).isNotNull();
+        // Assert
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isNotNull();
+
+        // Verify contentRetriever was called with correct metadata
+        ArgumentCaptor<Map<String, Object>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(mockContentRetriever).retrieve(anyString(), anyString(), anyInt(), anyDouble(), metadataCaptor.capture());
+        assertThat(metadataCaptor.getValue()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
+        assertThat(metadataCaptor.getValue()).containsEntry("requiresGeneration", false);
+        
+        // Verify intent doesn't require generation
         assertThat(intent.getRequiresGeneration()).isFalse();
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void routesToGenerationWhenFlagged() {
+        // Arrange
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
             .intent("recommend_products")
@@ -126,10 +168,19 @@ class IntentGenerationRoutingIntegrationTest {
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
+        // Act
         OrchestrationResult result = orchestrator.orchestrate("what should I buy next?", "user-2");
 
-        // Test assertions - these would pass if ContentRetriever was properly mocked
-        assertThat(result).isNotNull();
+        // Assert
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isNotNull();
+
+        // Verify contentRetriever was called with requiresGeneration flag
+        ArgumentCaptor<Map<String, Object>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(mockContentRetriever).retrieve(anyString(), anyString(), anyInt(), anyDouble(), metadataCaptor.capture());
+        assertThat(metadataCaptor.getValue()).containsEntry("requiresGeneration", true);
+        
+        // Verify intent requires generation
         assertThat(intent.getRequiresGeneration()).isTrue();
     }
 }
