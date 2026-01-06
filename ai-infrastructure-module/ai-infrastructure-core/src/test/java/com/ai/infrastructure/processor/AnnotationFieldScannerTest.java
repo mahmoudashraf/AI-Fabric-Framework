@@ -192,8 +192,6 @@ class AnnotationFieldScannerTest {
 
     @AICapable(entityType = "product")
     static class TestProduct {
-        private UUID id;
-
         @AISearchable(weight = 2.0, preprocessing = "normalize")
         private String name;
 
