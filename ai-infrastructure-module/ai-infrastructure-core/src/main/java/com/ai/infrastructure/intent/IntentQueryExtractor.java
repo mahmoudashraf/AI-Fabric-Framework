@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,6 +40,8 @@ public class IntentQueryExtractor {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;
         this.objectMapper = objectMapper.copy()
+            .configure(JsonParser.Feature.ALLOW_COMMENTS, true)
+            .configure(JsonParser.Feature.ALLOW_YAML_COMMENTS, true)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
             .configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true)
