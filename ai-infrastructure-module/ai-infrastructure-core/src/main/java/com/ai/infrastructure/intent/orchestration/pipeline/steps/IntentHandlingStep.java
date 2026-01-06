@@ -311,15 +311,25 @@ public class IntentHandlingStep implements PipelineStep {
         data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
         
         // Get extended result (e.g., RAGResponse) if available via SPI
-        Object extendedResult = contentRetriever.getExtendedResult(
-            query,
-            intent.getVectorSpace(),
-            DEFAULT_RETRIEVAL_LIMIT,
-            DEFAULT_RETRIEVAL_THRESHOLD,
-            Collections.unmodifiableMap(metadata)
-        );
-        if (extendedResult != null) {
-            data.put("ragResponse", extendedResult);
+        try {
+            Object extendedResult = contentRetriever.getExtendedResult(
+                query,
+                intent.getVectorSpace(),
+                DEFAULT_RETRIEVAL_LIMIT,
+                DEFAULT_RETRIEVAL_THRESHOLD,
+                Collections.unmodifiableMap(metadata)
+            );
+            if (extendedResult != null) {
+                data.put("ragResponse", extendedResult);
+                log.debug("Added ragResponse to orchestration result data (ContentRetriever: {})", 
+                    contentRetriever.getClass().getSimpleName());
+            } else {
+                log.debug("getExtendedResult returned null (ContentRetriever: {})", 
+                    contentRetriever.getClass().getSimpleName());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get extended result from ContentRetriever ({}): {}", 
+                contentRetriever.getClass().getSimpleName(), e.getMessage(), e);
         }
         
         String message = retrievalResult.success() ? MSG_SEARCH_COMPLETED : retrievalResult.errorMessage();

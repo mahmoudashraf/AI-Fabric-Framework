@@ -91,8 +91,10 @@ public class RAGAutoConfiguration {
     /**
      * Register RAGService as ContentRetriever bean for orchestrator pipeline.
      * This allows the orchestrator to use RAGService via the ContentRetriever SPI.
+     * Using @Primary ensures RAGService is preferred over any test ContentRetriever implementations.
      */
     @Bean
+    @org.springframework.context.annotation.Primary
     @ConditionalOnBean(RAGService.class)
     public com.ai.infrastructure.spi.ContentRetriever contentRetriever(RAGService ragService) {
         return ragService;

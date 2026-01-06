@@ -239,14 +239,22 @@ public class RAGService implements RAGProvider, ContentRetriever {
     
     @Override
     public Object getExtendedResult(String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
-        RAGRequest request = RAGRequest.builder()
-            .query(query)
-            .entityType(entityType)
-            .limit(limit)
-            .threshold(threshold)
-            .metadata(metadata)
-            .build();
-        return retrieve(request);
+        try {
+            RAGRequest request = RAGRequest.builder()
+                .query(query)
+                .entityType(entityType)
+                .limit(limit)
+                .threshold(threshold)
+                .metadata(metadata)
+                .build();
+            RAGResponse response = retrieve(request);
+            log.debug("getExtendedResult returning RAGResponse (success: {}, documents: {})", 
+                response.getSuccess(), response.getDocuments() != null ? response.getDocuments().size() : 0);
+            return response;
+        } catch (Exception e) {
+            log.error("Error in getExtendedResult: {}", e.getMessage(), e);
+            return null;
+        }
     }
     
     @Override
