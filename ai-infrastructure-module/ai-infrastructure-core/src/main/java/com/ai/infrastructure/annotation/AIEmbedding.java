@@ -7,13 +7,44 @@ import java.lang.annotation.Target;
 
 /**
  * AIEmbedding Annotation
- * 
- * Marks a field as containing or requiring AI embeddings for vector operations.
- * Used for semantic search, similarity matching, and RAG operations.
- * 
+ *
+ * <p><strong>DEPRECATED in v2.0.0 - Use {@link AISearchable} instead</strong></p>
+ *
+ * <p>This annotation has been replaced with {@link AISearchable} which provides
+ * a simpler, more focused API for marking fields that should be embedded and searched.</p>
+ *
+ * <p><strong>Migration Path:</strong></p>
+ * <pre>{@code
+ * // OLD (v1.x):
+ * @AIEmbedding(weight = 2.0, autoGenerate = true)
+ * private String description;
+ *
+ * // NEW (v2.0):
+ * @AISearchable(weight = 2.0)
+ * private String description;
+ * }</pre>
+ *
+ * <p><strong>Breaking Changes:</strong></p>
+ * <ul>
+ *   <li>50+ configuration attributes removed (over-engineered)</li>
+ *   <li>Auto-generation is now always enabled for searchable fields</li>
+ *   <li>Framework handles optimizations internally (caching, compression, etc.)</li>
+ * </ul>
+ *
+ * <p><strong>Timeline:</strong></p>
+ * <ul>
+ *   <li>v2.x: Deprecated but still functional (use for gradual migration)</li>
+ *   <li>v3.0 (Q4 2026): Will be removed</li>
+ * </ul>
+ *
+ * <p>See {@code ANNOTATION_MIGRATION_GUIDE.md} for complete migration instructions.</p>
+ *
  * @author AI Infrastructure Team
  * @version 1.0.0
+ * @deprecated Use {@link AISearchable} instead. Will be removed in v3.0.
+ * @see AISearchable
  */
+@Deprecated(since = "2.0.0", forRemoval = true)
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AIEmbedding {

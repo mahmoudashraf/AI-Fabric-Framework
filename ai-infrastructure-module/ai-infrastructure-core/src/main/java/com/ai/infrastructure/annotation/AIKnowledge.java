@@ -7,13 +7,66 @@ import java.lang.annotation.Target;
 
 /**
  * AIKnowledge Annotation
- * 
- * Marks a field as containing knowledge that can be used for RAG operations,
- * content generation, and AI-powered analysis. Used for knowledge base integration.
- * 
+ *
+ * <p><strong>DEPRECATED in v2.0.0 - Use {@link AISearchable} or {@link AIContext} instead</strong></p>
+ *
+ * <p>This annotation has been split into two focused annotations:</p>
+ * <ul>
+ *   <li>{@link AISearchable} - For text content that should be embedded and searched</li>
+ *   <li>{@link AIContext} - For structured metadata that provides LLM context without embedding</li>
+ * </ul>
+ *
+ * <p><strong>Migration Decision Matrix:</strong></p>
+ * <table border="1">
+ *   <tr><th>Field Type</th><th>Use Case</th><th>New Annotation</th></tr>
+ *   <tr><td>Text content</td><td>Descriptions, notes, summaries</td><td>{@link AISearchable}</td></tr>
+ *   <tr><td>Structured data</td><td>IDs, status, category</td><td>{@link AIContext}</td></tr>
+ *   <tr><td>Dates/Times</td><td>createdAt, updatedAt</td><td>{@link AIContext}</td></tr>
+ *   <tr><td>Enums</td><td>Status, Role, Priority</td><td>{@link AIContext}</td></tr>
+ *   <tr><td>Numbers</td><td>price, quantity, rating</td><td>{@link AIContext}</td></tr>
+ * </table>
+ *
+ * <p><strong>Migration Examples:</strong></p>
+ * <pre>{@code
+ * // OLD (v1.x) - Text Content:
+ * @AIKnowledge(searchable = true, includeInRAG = true)
+ * private String description;
+ *
+ * // NEW (v2.0) - Use @AISearchable:
+ * @AISearchable
+ * private String description;
+ *
+ * // OLD (v1.x) - Metadata:
+ * @AIKnowledge(category = "status", searchable = false)
+ * private OrderStatus status;
+ *
+ * // NEW (v2.0) - Use @AIContext (more efficient!):
+ * @AIContext(contextKey = "order_status")
+ * private OrderStatus status;
+ * }</pre>
+ *
+ * <p><strong>Benefits of Migration:</strong></p>
+ * <ul>
+ *   <li>Clearer intent: searchable vs metadata</li>
+ *   <li>Better performance: {@link AIContext} doesn't embed (faster, cheaper)</li>
+ *   <li>Simpler configuration: 80+ attributes reduced to ~10</li>
+ * </ul>
+ *
+ * <p><strong>Timeline:</strong></p>
+ * <ul>
+ *   <li>v2.x: Deprecated but still functional (use for gradual migration)</li>
+ *   <li>v3.0 (Q4 2026): Will be removed</li>
+ * </ul>
+ *
+ * <p>See {@code ANNOTATION_MIGRATION_GUIDE.md} for complete migration instructions.</p>
+ *
  * @author AI Infrastructure Team
  * @version 1.0.0
+ * @deprecated Use {@link AISearchable} for searchable content or {@link AIContext} for metadata. Will be removed in v3.0.
+ * @see AISearchable
+ * @see AIContext
  */
+@Deprecated(since = "2.0.0", forRemoval = true)
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AIKnowledge {

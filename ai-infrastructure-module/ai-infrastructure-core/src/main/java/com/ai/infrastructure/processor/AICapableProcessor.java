@@ -1,9 +1,7 @@
 package com.ai.infrastructure.processor;
 
-import com.ai.infrastructure.annotation.AICapable;
-import com.ai.infrastructure.annotation.AIEmbedding;
-import com.ai.infrastructure.annotation.AIKnowledge;
-import com.ai.infrastructure.annotation.AISmartValidation;
+import com.ai.infrastructure.annotation.*;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -13,16 +11,26 @@ import java.util.stream.Collectors;
 
 /**
  * Processor for @AICapable annotation
- * 
- * This processor handles entities annotated with @AICapable and provides
- * AI capabilities based on the annotation configuration.
- * 
+ *
+ * <p>This processor handles entities annotated with @AICapable and provides
+ * AI capabilities based on the annotation configuration. It integrates with
+ * the new annotation system (@AISearchable, @AIContext) while maintaining
+ * backward compatibility with legacy annotations (@AIEmbedding, @AIKnowledge).</p>
+ *
+ * <p><strong>Thread Safety:</strong> This is a singleton Spring bean. All methods are thread-safe.</p>
+ *
+ * <p><strong>Performance:</strong> Reflection results are cached via AnnotationFieldScanner
+ * for optimal performance.</p>
+ *
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class AICapableProcessor {
+
+    private final AnnotationFieldScanner fieldScanner;
     
     /**
      * Process an entity for AI capabilities
@@ -286,7 +294,7 @@ public class AICapableProcessor {
     
     /**
      * Check if an entity has any AI annotations
-     * 
+     *
      * @param entity the entity to check
      * @return true if entity has AI annotations
      */
@@ -294,23 +302,162 @@ public class AICapableProcessor {
         if (entity == null) {
             return false;
         }
-        
+
         Class<?> entityClass = entity.getClass();
-        
+
         // Check class-level annotation
         if (entityClass.isAnnotationPresent(AICapable.class)) {
             return true;
         }
-        
-        // Check field-level annotations
+
+        // Check field-level annotations (including new annotations)
         for (Field field : entityClass.getDeclaredFields()) {
             if (field.isAnnotationPresent(AIEmbedding.class) ||
                 field.isAnnotationPresent(AIKnowledge.class) ||
-                field.isAnnotationPresent(AISmartValidation.class)) {
+                field.isAnnotationPresent(AISmartValidation.class) ||
+                field.isAnnotationPresent(AISearchable.class) ||
+                field.isAnnotationPresent(AIContext.class)) {
                 return true;
             }
         }
-        
+
         return false;
+    }
+
+    // ========== New Annotation System (v2.0) ==========
+
+    /**
+     * Extracts searchable content from an entity using @AISearchable annotations.
+     *
+     * <p>This method delegates to {@link AnnotationFieldScanner} which caches
+     * reflection results at application level for optimal performance.</p>
+     *
+     * <p><strong>New in v2.0:</strong> Replaces manual field extraction with
+     * annotation-driven auto-discovery.</p>
+     *
+     * @param entity The entity instance to extract searchable content from
+     * @return Combined searchable content (never null, may be empty)
+     * @throws IllegalArgumentException if entity is null
+     * @see AISearchable
+     * @see AnnotationFieldScanner#extractSearchableContent(Object)
+     */
+    public String extractSearchableContent(Object entity) {
+        if (entity == null) {
+            throw new IllegalArgumentException("entity cannot be null");
+        }
+        return fieldScanner.extractSearchableContent(entity);
+    }
+
+    /**
+     * Extracts context metadata from an entity using @AIContext annotations.
+     *
+     * <p>This method delegates to {@link AnnotationFieldScanner} which caches
+     * reflection results at application level for optimal performance.</p>
+     *
+     * <p><strong>New in v2.0:</strong> Structured metadata for LLM context without
+     * the overhead of vector embeddings.</p>
+     *
+     * @param entity The entity instance to extract context metadata from
+     * @return Metadata map (never null, may be empty)
+     * @throws IllegalArgumentException if entity is null
+     * @see AIContext
+     * @see AnnotationFieldScanner#extractContextMetadata(Object)
+     */
+    public Map<String, Object> extractContextMetadata(Object entity) {
+        if (entity == null) {
+            throw new IllegalArgumentException("entity cannot be null");
+        }
+        return fieldScanner.extractContextMetadata(entity);
+    }
+
+    /**
+     * Gets metadata for all @AISearchable fields on an entity class.
+     *
+     * <p>Results are cached at application level for performance.</p>
+     *
+     * @param entityClass The entity class to scan
+     * @return List of searchable field metadata (never null)
+     * @throws IllegalArgumentException if entityClass is null
+     * @see AISearchable
+     * @see AnnotationFieldScanner#getSearchableFields(Class)
+     */
+    public List<AnnotationFieldScanner.SearchableFieldMetadata> getSearchableFieldMetadata(Class<?> entityClass) {
+        if (entityClass == null) {
+            throw new IllegalArgumentException("entityClass cannot be null");
+        }
+        return fieldScanner.getSearchableFields(entityClass);
+    }
+
+    /**
+     * Gets metadata for all @AIContext fields on an entity class.
+     *
+     * <p>Results are cached at application level for performance.
+     * Fields are sorted by priority (highest first).</p>
+     *
+     * @param entityClass The entity class to scan
+     * @return List of context field metadata (never null)
+     * @throws IllegalArgumentException if entityClass is null
+     * @see AIContext
+     * @see AnnotationFieldScanner#getContextFields(Class)
+     */
+    public List<AnnotationFieldScanner.ContextFieldMetadata> getContextFieldMetadata(Class<?> entityClass) {
+        if (entityClass == null) {
+            throw new IllegalArgumentException("entityClass cannot be null");
+        }
+        return fieldScanner.getContextFields(entityClass);
+    }
+
+    /**
+     * Checks if an entity has @AISearchable fields.
+     *
+     * @param entity The entity to check
+     * @return true if entity has @AISearchable fields
+     */
+    public boolean hasSearchableFields(Object entity) {
+        if (entity == null) {
+            return false;
+        }
+        List<AnnotationFieldScanner.SearchableFieldMetadata> fields =
+            fieldScanner.getSearchableFields(entity.getClass());
+        return !fields.isEmpty();
+    }
+
+    /**
+     * Checks if an entity has @AIContext fields.
+     *
+     * @param entity The entity to check
+     * @return true if entity has @AIContext fields
+     */
+    public boolean hasContextFields(Object entity) {
+        if (entity == null) {
+            return false;
+        }
+        List<AnnotationFieldScanner.ContextFieldMetadata> fields =
+            fieldScanner.getContextFields(entity.getClass());
+        return !fields.isEmpty();
+    }
+
+    /**
+     * Extracts complete AI data from an entity including both searchable content
+     * and context metadata.
+     *
+     * <p>This is the primary method for preparing entity data for AI indexing.</p>
+     *
+     * @param entity The entity instance to process
+     * @return Map containing searchableContent and contextMetadata
+     * @throws IllegalArgumentException if entity is null
+     */
+    public Map<String, Object> extractCompleteAIData(Object entity) {
+        if (entity == null) {
+            throw new IllegalArgumentException("entity cannot be null");
+        }
+
+        Map<String, Object> aiData = new LinkedHashMap<>();
+        aiData.put("searchableContent", extractSearchableContent(entity));
+        aiData.put("contextMetadata", extractContextMetadata(entity));
+        aiData.put("hasSearchableFields", hasSearchableFields(entity));
+        aiData.put("hasContextFields", hasContextFields(entity));
+
+        return aiData;
     }
 }
