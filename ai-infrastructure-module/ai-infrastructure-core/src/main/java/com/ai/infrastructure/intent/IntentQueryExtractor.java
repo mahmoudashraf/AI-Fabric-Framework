@@ -185,30 +185,12 @@ public class IntentQueryExtractor {
                 log.info("Successfully completed truncated JSON");
                 return completed;
             } catch (JsonProcessingException e) {
-                log.warn("Completed JSON still invalid, using fallback response: {}", e.getMessage());
-                return createFallbackIntentJson();
+                log.error("Completed JSON still invalid: {}", e.getMessage());
+                // Return completed version anyway - let the caller handle the error explicitly
+                return completed;
             }
         }
         return text;
-    }
-    
-    /**
-     * Creates a minimal valid intent JSON when the LLM response is too corrupted to repair.
-     */
-    private String createFallbackIntentJson() {
-        return """
-            {
-              "intents": [{
-                "type": "INFORMATION",
-                "intent": "general_query",
-                "confidence": 0.5,
-                "requiresRetrieval": true,
-                "requiresGeneration": true
-              }],
-              "isCompound": false,
-              "orchestrationStrategy": "RETRIEVE_AND_GENERATE"
-            }
-            """;
     }
     
     /**
