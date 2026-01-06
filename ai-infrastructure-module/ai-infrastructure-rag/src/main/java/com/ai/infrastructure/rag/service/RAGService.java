@@ -82,6 +82,9 @@ public class RAGService implements RAGProvider, ContentRetriever {
     private final VectorDatabase vectorDatabase;
     private final AISearchService searchService;
     
+    // Thread-local storage for the last RAGResponse to avoid double retrieval
+    private final ThreadLocal<RAGResponse> lastRAGResponse = new ThreadLocal<>();
+    
     // =========================================================================
     // RAGProvider Implementation
     // =========================================================================
@@ -239,7 +242,65 @@ public class RAGService implements RAGProvider, ContentRetriever {
     }
     
     @Override
+    public Object getExtendedResult(RetrievalResult retrievalResult, String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
+        try {
+            // Use the stored RAGResponse from the last retrieve() call to avoid data loss
+            // This preserves all fields (similarity, embeddings, etc.) that would be lost in conversion
+            RAGResponse storedResponse = lastRAGResponse.get();
+            if (storedResponse != null) {
+                // Verify it matches the current retrieval (same query and entity type)
+                // This is a simple check - in a multi-threaded environment, thread-local ensures correctness
+                if (storedResponse.getQuery() != null && storedResponse.getQuery().equals(query) &&
+                    storedResponse.getEntityType() != null && storedResponse.getEntityType().equals(entityType)) {
+                    log.debug("getExtendedResult returning stored RAGResponse (success: {}, documents: {})", 
+                        storedResponse.getSuccess(), storedResponse.getDocuments() != null ? storedResponse.getDocuments().size() : 0);
+                    // Clear thread-local after use
+                    lastRAGResponse.remove();
+                    return storedResponse;
+                }
+            }
+            
+            // Fallback: Convert RetrievalResult to RAGResponse if stored response not available
+            // This preserves core fields but may lose some enrichment fields
+            List<RAGResponse.RetrievedDocument> documents = retrievalResult.documents().stream()
+                .map(doc -> RAGResponse.RetrievedDocument.builder()
+                    .id(doc.id())
+                    .content(doc.content())
+                    .title(doc.title())
+                    .type(doc.type())
+                    .score(doc.score())
+                    .metadata(doc.metadata())
+                    .build())
+                .collect(Collectors.toList());
+            
+            RAGResponse response = RAGResponse.builder()
+                .documents(documents)
+                .totalDocuments(retrievalResult.totalDocuments())
+                .returnedDocuments(documents.size())
+                .success(retrievalResult.success())
+                .errorMessage(retrievalResult.errorMessage())
+                .maxScore(retrievalResult.maxScore())
+                .averageScore(retrievalResult.averageScore())
+                .processingTimeMs(retrievalResult.processingTimeMs())
+                .query(query)
+                .entityType(entityType)
+                .metadata(metadata)
+                .build();
+            
+            log.debug("getExtendedResult returning converted RAGResponse (success: {}, documents: {})", 
+                response.getSuccess(), response.getDocuments() != null ? response.getDocuments().size() : 0);
+            return response;
+        } catch (Exception e) {
+            log.error("Error in getExtendedResult: {}", e.getMessage(), e);
+            lastRAGResponse.remove(); // Clean up on error
+            return null;
+        }
+    }
+    
+    @Override
+    @Deprecated
     public Object getExtendedResult(String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
+        // Legacy implementation - performs retrieval again (less efficient)
         try {
             RAGRequest request = RAGRequest.builder()
                 .query(query)
@@ -249,11 +310,11 @@ public class RAGService implements RAGProvider, ContentRetriever {
                 .metadata(metadata)
                 .build();
             RAGResponse response = retrieve(request);
-            log.debug("getExtendedResult returning RAGResponse (success: {}, documents: {})", 
+            log.debug("getExtendedResult (legacy) returning RAGResponse (success: {}, documents: {})", 
                 response.getSuccess(), response.getDocuments() != null ? response.getDocuments().size() : 0);
             return response;
         } catch (Exception e) {
-            log.error("Error in getExtendedResult: {}", e.getMessage(), e);
+            log.error("Error in getExtendedResult (legacy): {}", e.getMessage(), e);
             return null;
         }
     }
@@ -269,6 +330,9 @@ public class RAGService implements RAGProvider, ContentRetriever {
             .build();
         
         RAGResponse response = retrieve(request);
+        
+        // Store the RAGResponse in thread-local for getExtendedResult() to use
+        lastRAGResponse.set(response);
         
         if (!Boolean.TRUE.equals(response.getSuccess())) {
             return RetrievalResult.error(response.getErrorMessage());

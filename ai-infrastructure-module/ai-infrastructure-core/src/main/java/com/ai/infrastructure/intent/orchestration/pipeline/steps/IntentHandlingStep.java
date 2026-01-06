@@ -311,8 +311,10 @@ public class IntentHandlingStep implements PipelineStep {
         data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
         
         // Get extended result (e.g., RAGResponse) if available via SPI
+        // Pass the already-retrieved result to avoid double retrieval
         try {
             Object extendedResult = contentRetriever.getExtendedResult(
+                retrievalResult,
                 query,
                 intent.getVectorSpace(),
                 DEFAULT_RETRIEVAL_LIMIT,

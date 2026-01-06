@@ -83,6 +83,10 @@ public interface ContentRetriever {
      * This allows implementations to return richer response objects (e.g., RAGResponse)
      * without requiring core to depend on specific implementations.
      * 
+     * <p>This overload accepts the already-retrieved RetrievalResult to avoid double retrieval.
+     * Implementations can convert the RetrievalResult to their extended format.</p>
+     * 
+     * @param retrievalResult the already-retrieved result
      * @param query the search query
      * @param entityType the type of entity to search
      * @param limit maximum number of results
@@ -90,6 +94,25 @@ public interface ContentRetriever {
      * @param metadata additional search parameters
      * @return extended result object, or null if not available
      */
+    default Object getExtendedResult(RetrievalResult retrievalResult, String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
+        // Default implementation: try the parameterless version for backward compatibility
+        return getExtendedResult(query, entityType, limit, threshold, metadata);
+    }
+    
+    /**
+     * Get extended result object if available (legacy method).
+     * This allows implementations to return richer response objects (e.g., RAGResponse)
+     * without requiring core to depend on specific implementations.
+     * 
+     * @param query the search query
+     * @param entityType the type of entity to search
+     * @param limit maximum number of results
+     * @param threshold minimum similarity threshold
+     * @param metadata additional search parameters
+     * @return extended result object, or null if not available
+     * @deprecated Use {@link #getExtendedResult(RetrievalResult, String, String, int, double, Map)} instead to avoid double retrieval
+     */
+    @Deprecated
     default Object getExtendedResult(String query, String entityType, int limit, double threshold, Map<String, Object> metadata) {
         return null;
     }
