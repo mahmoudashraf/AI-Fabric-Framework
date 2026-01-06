@@ -105,7 +105,10 @@ public class RAGResponse {
     private String requestId;
     
     /**
-     * Original query that was processed
+     * Original query provided to RAG.
+     * <p>
+     * This value is expected to be pre-processed by the orchestrator
+     * (PII redacted, sanitized) before being sent to the RAG module.
      */
     private String originalQuery;
     
@@ -134,13 +137,6 @@ public class RAGResponse {
      */
     private Boolean fromCache;
 
-    /**
-     * Structured result from the PII detection layer for the processed query.
-     * Provides visibility into whether sensitive information was identified and
-     * how it was handled before downstream processing.
-     */
-    private PIIDetectionResult piiDetectionResult;
-    
     /**
      * Cache hit rate for this request
      */

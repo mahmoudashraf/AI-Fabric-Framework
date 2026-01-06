@@ -22,7 +22,7 @@ import java.util.Map;
  * <p><strong>Implementation Requirements:</strong></p>
  * <ul>
  *   <li>Implementations MUST be thread-safe</li>
- *   <li>Implementations SHOULD handle PII detection internally</li>
+ *   <li>Implementations assume queries are pre-processed (PII handled by orchestrator)</li>
  *   <li>Implementations MUST return non-null {@link RAGResponse} objects</li>
  *   <li>On error, return a RAGResponse with {@code success=false} rather than throwing exceptions</li>
  * </ul>
@@ -87,7 +87,6 @@ public interface RAGProvider {
      * 
      * <p><strong>Process:</strong></p>
      * <ol>
-     *   <li>Process query for PII (if configured)</li>
      *   <li>Generate embedding for the query</li>
      *   <li>Perform vector similarity search</li>
      *   <li>Return matching documents with relevance scores</li>
@@ -109,7 +108,6 @@ public interface RAGProvider {
      * 
      * <p><strong>Process:</strong></p>
      * <ol>
-     *   <li>Process query for PII (if configured)</li>
      *   <li>Generate embedding for the query</li>
      *   <li>Perform vector similarity search (with hybrid/contextual options)</li>
      *   <li>Build context from retrieved documents</li>

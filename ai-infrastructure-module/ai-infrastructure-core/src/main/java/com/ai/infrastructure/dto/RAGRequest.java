@@ -24,7 +24,10 @@ import java.util.Map;
 public class RAGRequest {
     
     /**
-     * The query text for RAG processing
+     * The query text for RAG processing.
+     * <p>
+     * This value should already be processed by the orchestrator
+     * (PII redacted, sanitized, normalized) before invoking the RAG service.
      */
     private String query;
     
