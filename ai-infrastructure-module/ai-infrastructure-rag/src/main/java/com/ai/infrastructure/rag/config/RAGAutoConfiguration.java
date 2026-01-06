@@ -1,13 +1,11 @@
 package com.ai.infrastructure.rag.config;
 
 import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.rag.service.AdvancedRAGService;
 import com.ai.infrastructure.rag.service.RAGService;
-import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.spi.RAGProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -20,49 +18,26 @@ import org.springframework.context.annotation.Bean;
 /**
  * Auto-configuration for RAG (Retrieval-Augmented Generation) module.
  * 
- * <p>This configuration provides:</p>
+ * <p>This configuration provides the RAGService which is a <strong>retrieval-only</strong>
+ * service. It does NOT handle:</p>
  * <ul>
- *   <li>{@link RAGService} - Default implementation of {@link RAGProvider} SPI</li>
- *   <li>{@link AdvancedRAGService} - Advanced RAG with query expansion and re-ranking</li>
+ *   <li>PII detection - handled by orchestrator pipeline</li>
+ *   <li>LLM generation - handled by orchestrator pipeline</li>
+ *   <li>Response sanitization - handled by orchestrator pipeline</li>
  * </ul>
  * 
- * <p><strong>Required Dependencies:</strong></p>
- * <ul>
- *   <li>{@link AIProviderConfig} - AI provider configuration</li>
- *   <li>{@link AIEmbeddingService} - Embedding generation service</li>
- *   <li>{@link VectorDatabaseService} - Vector database operations</li>
- *   <li>{@link VectorDatabase} - Vector database interface</li>
- *   <li>{@link AISearchService} - Search service</li>
- * </ul>
- * 
- * <p><strong>PII Detection:</strong> RAGService does NOT perform PII detection internally.
- * The orchestration pipeline's {@code PIIDetectionStep} handles PII detection BEFORE
- * calling RAG, and {@code ResponseSanitizationStep} handles output sanitization AFTER.
- * This ensures PII is protected before being sent to LLMs, which is the real security concern.</p>
- * 
- * <p><strong>Conditional Loading:</strong></p>
- * <ul>
- *   <li>RAGService loads when {@code ai.infrastructure.rag.enabled=true} (default)</li>
- *   <li>AdvancedRAGService loads when {@code ai.infrastructure.rag.advanced.enabled=true} (default)</li>
- *   <li>Custom RAGProvider implementations take precedence over default</li>
- * </ul>
- * 
- * <p><strong>Configuration Properties:</strong></p>
+ * <h2>Configuration Properties</h2>
  * <pre>{@code
  * ai.infrastructure.rag:
- *   enabled: true                    # Enable RAG module
- *   default-limit: 10               # Default search result limit
- *   default-threshold: 0.7          # Default similarity threshold
- *   advanced:
- *     enabled: true                 # Enable advanced RAG features
+ *   enabled: true              # Enable RAG module
+ *   default-limit: 10          # Default retrieval limit
+ *   default-threshold: 0.7     # Default similarity threshold
  * }</pre>
  * 
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 2.0.0
  * @see RAGProvider
  * @see RAGService
- * @see AdvancedRAGService
- * @see RAGProperties
  * @since 1.0
  */
 @Slf4j
@@ -71,30 +46,13 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnProperty(prefix = "ai.infrastructure.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class RAGAutoConfiguration {
     
-    // =========================================================================
-    // Constants
-    // =========================================================================
-    
-    private static final String LOG_RAG_SERVICE_CREATED = "RAGService created as default RAGProvider implementation";
-    private static final String LOG_ADVANCED_RAG_CREATED = "AdvancedRAGService created with RAGProvider integration";
-    
-    // =========================================================================
-    // Bean Definitions
-    // =========================================================================
+    private static final String LOG_RAG_SERVICE_CREATED = "RAGService created (retrieval-only mode)";
     
     /**
-     * Creates the default RAGService bean implementing RAGProvider SPI.
+     * Creates the RAGService bean implementing RAGProvider SPI.
      * 
-     * <p>This bean is only created if:</p>
-     * <ul>
-     *   <li>No other RAGProvider bean exists</li>
-     *   <li>All required dependencies are available</li>
-     *   <li>RAG module is enabled</li>
-     * </ul>
-     * 
-     * <p><strong>Note:</strong> RAGService does not perform PII detection. The orchestration
-     * pipeline handles PII via {@code PIIDetectionStep} (before) and 
-     * {@code ResponseSanitizationStep} (after).</p>
+     * <p>This service performs retrieval operations only. The orchestrator
+     * pipeline handles PII detection and LLM generation.</p>
      * 
      * @param config AI provider configuration
      * @param embeddingService embedding generation service
@@ -127,46 +85,6 @@ public class RAGAutoConfiguration {
             vectorDatabaseService,
             vectorDatabase,
             searchService
-        );
-    }
-    
-    /**
-     * Creates the AdvancedRAGService bean for advanced RAG operations.
-     * 
-     * <p>This bean is only created if:</p>
-     * <ul>
-     *   <li>Advanced RAG is enabled ({@code ai.infrastructure.rag.advanced.enabled=true})</li>
-     *   <li>RAGProvider bean exists</li>
-     *   <li>All required dependencies are available</li>
-     * </ul>
-     * 
-     * @param searchService AI search service
-     * @param embeddingService AI embedding service
-     * @param coreService AI core service
-     * @param ragProvider RAG provider (either RAGService or custom implementation)
-     * @return AdvancedRAGService
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "ai.infrastructure.rag.advanced", name = "enabled", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnBean({
-        AISearchService.class,
-        AIEmbeddingService.class,
-        AICoreService.class,
-        RAGProvider.class
-    })
-    public AdvancedRAGService advancedRAGService(
-            AISearchService searchService,
-            AIEmbeddingService embeddingService,
-            AICoreService coreService,
-            RAGProvider ragProvider) {
-        
-        log.info(LOG_ADVANCED_RAG_CREATED);
-        
-        return new AdvancedRAGService(
-            searchService,
-            embeddingService,
-            coreService,
-            ragProvider
         );
     }
 }
