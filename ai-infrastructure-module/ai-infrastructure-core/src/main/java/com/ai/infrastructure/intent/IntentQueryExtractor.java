@@ -203,21 +203,41 @@ public class IntentQueryExtractor {
         // Stack to track opening brackets/braces in order - stores the CLOSING character needed
         java.util.Deque<Character> stack = new java.util.ArrayDeque<>();
         boolean inString = false;
+        boolean afterColon = false;  // Track if we just saw a colon (expecting value)
+        boolean stringIsValue = false;  // Track if current string is a value (came after colon)
         char prevChar = 0;
         
         for (int i = 0; i < truncatedJson.length(); i++) {
             char c = truncatedJson.charAt(i);
             if (c == '"' && prevChar != '\\') {
+                if (!inString) {
+                    // Starting a string - is it a value (after colon) or key?
+                    stringIsValue = afterColon;
+                }
                 inString = !inString;
+                if (!inString) {
+                    // Just closed a string
+                    afterColon = false;
+                }
             } else if (!inString) {
                 if (c == '{') {
                     stack.push('}');
+                    afterColon = false;
                 } else if (c == '[') {
                     stack.push(']');
+                    afterColon = false;
                 } else if (c == '}' || c == ']') {
                     if (!stack.isEmpty()) {
                         stack.pop();
                     }
+                    afterColon = false;
+                } else if (c == ':') {
+                    afterColon = true;
+                } else if (c == ',') {
+                    afterColon = false;
+                } else if (!Character.isWhitespace(c)) {
+                    // Some other value (number, boolean, null)
+                    afterColon = false;
                 }
             }
             prevChar = c;
@@ -225,9 +245,31 @@ public class IntentQueryExtractor {
         
         StringBuilder closingChars = new StringBuilder();
         
-        // Close any open strings (add closing quote if we're mid-string)
+        // Close any open strings
         if (inString) {
             closingChars.append('"');
+            // If the string was a key (not a value), we need to add ": null"
+            if (!stringIsValue) {
+                closingChars.append(": null");
+            }
+        } else if (afterColon) {
+            // Ended after colon with no value started - add null
+            closingChars.append("null");
+        } else {
+            // Check for orphan key: completed string that's a key with no colon after it
+            String trimmed = truncatedJson.trim();
+            if (trimmed.endsWith("\"")) {
+                int lastQuote = trimmed.lastIndexOf('"');
+                if (lastQuote > 0) {
+                    int secondLastQuote = trimmed.lastIndexOf('"', lastQuote - 1);
+                    if (secondLastQuote >= 0) {
+                        String beforeKey = trimmed.substring(0, secondLastQuote).trim();
+                        if (beforeKey.endsWith(",") || beforeKey.endsWith("{")) {
+                            closingChars.append(": null");
+                        }
+                    }
+                }
+            }
         }
         
         // Pop from stack to add closing characters in correct LIFO order
