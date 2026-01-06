@@ -249,11 +249,7 @@ public class RAGResponse {
      */
     @Deprecated
     public static class RAGDocument extends RetrievedDocument {
-        public RAGDocument() { super(); }
-        public RAGDocument(String id, String content, String title, String type, 
-                          Double score, Double similarity, Map<String, Object> metadata, String source) {
-            super(id, content, title, type, score, similarity, metadata, source);
-        }
+        // Inherits all fields and methods from RetrievedDocument
     }
     
     /**
@@ -301,9 +297,79 @@ public class RAGResponse {
         private Map<String, Object> metadata;
         
         /**
+         * Document embeddings (if requested).
+         */
+        private List<Double> embeddings;
+        
+        /**
+         * Highlighted content with search terms.
+         */
+        private String highlightedContent;
+        
+        /**
          * Document source.
          */
         private String source;
+        
+        /**
+         * Document URL or reference.
+         */
+        private String url;
+        
+        /**
+         * Document creation date.
+         */
+        private LocalDateTime createdAt;
+        
+        /**
+         * Document last modified date.
+         */
+        private LocalDateTime modifiedAt;
+        
+        /**
+         * Document author.
+         */
+        private String author;
+        
+        /**
+         * Document tags.
+         */
+        private List<String> tags;
+        
+        /**
+         * Document language.
+         */
+        private String language;
+        
+        /**
+         * Document size in characters.
+         */
+        private Integer size;
+        
+        /**
+         * Document word count.
+         */
+        private Integer wordCount;
+        
+        /**
+         * Document reading time in minutes.
+         */
+        private Double readingTimeMinutes;
+        
+        /**
+         * Document quality score.
+         */
+        private Double qualityScore;
+        
+        /**
+         * Document freshness score.
+         */
+        private Double freshnessScore;
+        
+        /**
+         * Document authority score.
+         */
+        private Double authorityScore;
     }
     
     /**
