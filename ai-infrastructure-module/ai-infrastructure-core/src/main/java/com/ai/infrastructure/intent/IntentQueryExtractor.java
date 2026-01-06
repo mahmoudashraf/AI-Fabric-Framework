@@ -128,11 +128,14 @@ public class IntentQueryExtractor {
             You transform assistant responses so that they strictly comply with a JSON schema.
             Respond with JSON only, using double quotes, matching the schema exactly as previously described.
             Never wrap the JSON in markdown code fences or add commentary.
+            Never include // or # comments in the JSON output.
             """;
 
         String repairPrompt = """
             Convert the following assistant response into valid JSON using the exact schema supplied earlier for multi-intent extraction.
+            The response may be truncated or incomplete - complete it logically based on context.
             If any fields are missing, infer sensible defaults (e.g. OUT_OF_SCOPE intent with neutral confidence) while keeping the schema intact.
+            Ensure all brackets and braces are properly closed.
             Assistant response:
             ```
             %s
@@ -172,8 +175,54 @@ public class IntentQueryExtractor {
             if (endIdx > startIdx) {
                 return text.substring(startIdx, endIdx + 1);
             }
+            // JSON appears truncated - try to complete it
+            String truncated = text.substring(startIdx);
+            return attemptJsonCompletion(truncated);
         }
         return text;
+    }
+    
+    /**
+     * Attempts to complete truncated JSON by adding missing closing brackets/braces.
+     * This handles cases where LLM responses are cut off mid-stream.
+     */
+    private String attemptJsonCompletion(String truncatedJson) {
+        StringBuilder result = new StringBuilder(truncatedJson);
+        int openBraces = 0;
+        int openBrackets = 0;
+        boolean inString = false;
+        char prevChar = 0;
+        
+        for (int i = 0; i < truncatedJson.length(); i++) {
+            char c = truncatedJson.charAt(i);
+            if (c == '"' && prevChar != '\\') {
+                inString = !inString;
+            } else if (!inString) {
+                if (c == '{') openBraces++;
+                else if (c == '}') openBraces--;
+                else if (c == '[') openBrackets++;
+                else if (c == ']') openBrackets--;
+            }
+            prevChar = c;
+        }
+        
+        // Close any open strings (add closing quote if we're mid-string)
+        if (inString) {
+            result.append('"');
+        }
+        
+        // Add missing closing brackets and braces
+        for (int i = 0; i < openBrackets; i++) {
+            result.append(']');
+        }
+        for (int i = 0; i < openBraces; i++) {
+            result.append('}');
+        }
+        
+        log.debug("Attempted JSON completion: added {} closing braces and {} closing brackets", 
+            openBraces, openBrackets);
+        
+        return result.toString();
     }
 
     private void validateResponse(MultiIntentResponse response) {
