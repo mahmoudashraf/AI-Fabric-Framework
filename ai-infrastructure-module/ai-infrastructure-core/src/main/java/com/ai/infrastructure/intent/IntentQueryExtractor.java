@@ -177,9 +177,38 @@ public class IntentQueryExtractor {
             }
             // JSON appears truncated - try to complete it
             String truncated = text.substring(startIdx);
-            return attemptJsonCompletion(truncated);
+            String completed = attemptJsonCompletion(truncated);
+            
+            // Validate the completed JSON can be parsed
+            try {
+                objectMapper.readTree(completed);
+                log.info("Successfully completed truncated JSON");
+                return completed;
+            } catch (JsonProcessingException e) {
+                log.warn("Completed JSON still invalid, using fallback response: {}", e.getMessage());
+                return createFallbackIntentJson();
+            }
         }
         return text;
+    }
+    
+    /**
+     * Creates a minimal valid intent JSON when the LLM response is too corrupted to repair.
+     */
+    private String createFallbackIntentJson() {
+        return """
+            {
+              "intents": [{
+                "type": "INFORMATION",
+                "intent": "general_query",
+                "confidence": 0.5,
+                "requiresRetrieval": true,
+                "requiresGeneration": true
+              }],
+              "isCompound": false,
+              "orchestrationStrategy": "RETRIEVE_AND_GENERATE"
+            }
+            """;
     }
     
     /**
@@ -212,18 +241,22 @@ public class IntentQueryExtractor {
             prevChar = c;
         }
         
+        StringBuilder closingChars = new StringBuilder();
+        
         // Close any open strings (add closing quote if we're mid-string)
         if (inString) {
-            result.append('"');
+            closingChars.append('"');
         }
         
         // Pop from stack to add closing characters in correct LIFO order
-        int closingCount = stack.size();
         while (!stack.isEmpty()) {
-            result.append(stack.pop());
+            closingChars.append(stack.pop());
         }
         
-        log.debug("Attempted JSON completion: added {} closing characters", closingCount);
+        result.append(closingChars);
+        
+        log.info("JSON completion: truncated={} chars, added='{}' ({} chars)", 
+            truncatedJson.length(), closingChars, closingChars.length());
         
         return result.toString();
     }
