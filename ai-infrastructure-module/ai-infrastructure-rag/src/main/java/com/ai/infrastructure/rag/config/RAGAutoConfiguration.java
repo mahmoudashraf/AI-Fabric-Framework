@@ -87,4 +87,14 @@ public class RAGAutoConfiguration {
             searchService
         );
     }
+    
+    /**
+     * Register RAGService as ContentRetriever bean for orchestrator pipeline.
+     * This allows the orchestrator to use RAGService via the ContentRetriever SPI.
+     */
+    @Bean
+    @ConditionalOnBean(RAGService.class)
+    public com.ai.infrastructure.spi.ContentRetriever contentRetriever(RAGService ragService) {
+        return ragService;
+    }
 }
