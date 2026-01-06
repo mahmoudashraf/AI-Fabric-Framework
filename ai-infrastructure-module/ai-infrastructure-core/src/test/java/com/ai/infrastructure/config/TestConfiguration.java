@@ -4,10 +4,13 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
+import com.ai.infrastructure.dto.RAGRequest;
+import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.spi.RAGProvider;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
@@ -51,6 +54,63 @@ public class TestConfiguration {
     @Primary
     public VectorDatabaseService testVectorDatabaseService() {
         return new InMemoryVectorDatabaseService();
+    }
+
+    @Bean
+    @Primary
+    public RAGProvider testRAGProvider(VectorDatabaseService vectorDatabaseService) {
+        return new TestRAGProvider(vectorDatabaseService);
+    }
+
+    /**
+     * Test RAGProvider implementation for core module tests.
+     * Provides basic RAG functionality using the in-memory vector database.
+     */
+    private static final class TestRAGProvider implements RAGProvider {
+        private final VectorDatabaseService vectorDatabaseService;
+
+        TestRAGProvider(VectorDatabaseService vectorDatabaseService) {
+            this.vectorDatabaseService = vectorDatabaseService;
+        }
+
+        @Override
+        public RAGResponse performRag(RAGRequest request) {
+            return RAGResponse.builder()
+                .response("Test RAG response for: " + request.getQuery())
+                .documents(List.of())
+                .success(true)
+                .metadata(Map.of("provider", "test"))
+                .build();
+        }
+
+        @Override
+        public RAGResponse performRAGQuery(RAGRequest request) {
+            return performRag(request);
+        }
+
+        @Override
+        public void indexContent(String entityType, String entityId, String content, Map<String, Object> metadata) {
+            List<Double> embedding = new ArrayList<>(384);
+            for (int i = 0; i < 384; i++) {
+                embedding.add(0.1 + (i % 7) * 0.01);
+            }
+            vectorDatabaseService.storeVector(entityType, entityId, content, embedding, metadata);
+        }
+
+        @Override
+        public void removeContent(String entityType, String entityId) {
+            vectorDatabaseService.removeVector(entityType, entityId);
+        }
+
+        @Override
+        public Map<String, Object> getStatistics() {
+            return vectorDatabaseService.getStatistics();
+        }
+
+        @Override
+        public String getProviderName() {
+            return "test-rag-provider";
+        }
     }
 
     private static final class TestEmbeddingProvider implements EmbeddingProvider {

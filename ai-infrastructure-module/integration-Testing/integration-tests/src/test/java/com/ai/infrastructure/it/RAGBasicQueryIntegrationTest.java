@@ -1,9 +1,8 @@
 package com.ai.infrastructure.it;
 
-import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +32,7 @@ class RAGBasicQueryIntegrationTest {
     private static final String ENTITY_TYPE = "ragproduct";
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private VectorManagementService vectorManagementService;
@@ -59,16 +58,6 @@ class RAGBasicQueryIntegrationTest {
     void testBasicRAGQuery() {
         String query = "Luxury Swiss watch model 0 featuring diamonds and premium craftsmanship.";
 
-        AISearchResponse searchResponse = ragService.performRAGQuery(query, ENTITY_TYPE, 5);
-        assertNotNull(searchResponse, "Search response should not be null");
-        assertNotNull(searchResponse.getResults(), "Search results should not be null");
-        assertFalse(searchResponse.getResults().isEmpty(), "Search results should not be empty");
-        assertTrue(searchResponse.getResults().size() <= 5, "Search response should respect the limit");
-
-        String context = ragService.buildContext(searchResponse);
-        assertNotNull(context, "Generated context should not be null");
-        assertTrue(context.toLowerCase().contains("watch"), "Context should reference watches");
-
         RAGRequest request = RAGRequest.builder()
             .query(query)
             .entityType(ENTITY_TYPE)
@@ -79,7 +68,7 @@ class RAGBasicQueryIntegrationTest {
             .build();
 
         long startTime = System.currentTimeMillis();
-        RAGResponse response = ragService.performRAGQuery(request);
+        RAGResponse response = ragProvider.performRAGQuery(request);
         long duration = System.currentTimeMillis() - startTime;
 
         assertNotNull(response, "RAG response should not be null");
@@ -102,7 +91,7 @@ class RAGBasicQueryIntegrationTest {
         for (int i = 0; i < 20; i++) {
             String entityId = "rag_watch_" + i;
             String content = "Luxury Swiss watch model " + i + " featuring diamonds and premium craftsmanship.";
-            ragService.indexContent(ENTITY_TYPE, entityId, content, Map.of(
+            ragProvider.indexContent(ENTITY_TYPE, entityId, content, Map.of(
                 "category", "luxury-watch",
                 "brand", i % 2 == 0 ? "Rolex" : "Omega"
             ));

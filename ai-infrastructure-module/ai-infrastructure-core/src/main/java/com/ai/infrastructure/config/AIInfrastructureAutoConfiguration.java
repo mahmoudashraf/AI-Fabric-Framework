@@ -7,8 +7,6 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
-import com.ai.infrastructure.rag.AdvancedRAGService;
-import com.ai.infrastructure.rag.RAGService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.cleanup.CleanupPolicyProvider;
@@ -141,10 +139,8 @@ public class AIInfrastructureAutoConfiguration {
         return new AISearchService(config, vectorSearchService, vectorManagementService);
     }
     
-    @Bean
-    public AdvancedRAGService advancedRAGService(AISearchService aiSearchService, AIEmbeddingService aiEmbeddingService, AICoreService aiCoreService, RAGService ragService) {
-        return new AdvancedRAGService(aiSearchService, aiEmbeddingService, aiCoreService, ragService);
-    }
+    // AdvancedRAGService is now provided by ai-infrastructure-rag module
+    // See com.ai.infrastructure.rag.config.RAGAutoConfiguration
     
     @Bean
     public AISecurityService aiSecurityService(PIIDetectionService piiDetectionService,

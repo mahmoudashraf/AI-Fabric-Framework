@@ -27,7 +27,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.steps.PIIDetectionSte
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.ResponseSanitizationStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SecurityAnalysisStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SmartSuggestionsStep;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.security.ResponseSanitizer;
 import com.ai.infrastructure.security.AISecurityService;
@@ -66,7 +66,7 @@ class RAGOrchestratorTest {
     private ActionHandlerRegistry actionHandlerRegistry;
 
     @Mock
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Mock
     private ActionHandler actionHandler;
@@ -136,9 +136,9 @@ class RAGOrchestratorTest {
             new PIIDetectionStep(piiDetectionService, piiDetectionProperties),
             new ComplianceCheckStep(complianceService),
             new IntentExtractionStep(intentQueryExtractor),
-            new IntentHandlingStep(actionHandlerRegistry, ragService),
+            new IntentHandlingStep(actionHandlerRegistry, ragProvider),
             new MetadataBuildingStep(),
-            new SmartSuggestionsStep(smartSuggestionsProperties, ragService),
+            new SmartSuggestionsStep(smartSuggestionsProperties, ragProvider),
             new ResponseSanitizationStep(responseSanitizer, piiDetectionProperties),
             new HistoryPersistenceStep(intentHistoryService)
         );
@@ -240,7 +240,7 @@ class RAGOrchestratorTest {
             .response("Refunds take 5-7 days.")
             .documents(List.of())
             .build();
-        when(ragService.performRag(any(RAGRequest.class))).thenReturn(ragResponse);
+        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(ragResponse);
 
         OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", "user");
 
@@ -248,7 +248,7 @@ class RAGOrchestratorTest {
         assertThat(result.getMessage()).isEqualTo("Refunds take 5-7 days.");
 
         ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragService).performRag(requestCaptor.capture());
+        verify(ragProvider).performRag(requestCaptor.capture());
         assertThat(requestCaptor.getValue().getEntityType()).isEqualTo("policies");
     }
 
@@ -268,7 +268,7 @@ class RAGOrchestratorTest {
             .documents(List.of())
             .success(true)
             .build();
-        when(ragService.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", "user");
 
@@ -276,9 +276,9 @@ class RAGOrchestratorTest {
         assertThat(result.getMessage()).isEqualTo("Here are top picks.");
 
         ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragService).performRAGQuery(requestCaptor.capture());
+        verify(ragProvider).performRAGQuery(requestCaptor.capture());
         assertThat(requestCaptor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
-        verify(ragService, never()).performRag(any(RAGRequest.class));
+        verify(ragProvider, never()).performRag(any(RAGRequest.class));
     }
 
     @Test
@@ -335,7 +335,7 @@ class RAGOrchestratorTest {
         when(actionHandlerRegistry.findMetadata("cancel_subscription")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Cancelled").build());
-        lenient().when(ragService.performRag(any())).thenReturn(RAGResponse.builder().response("info").build());
+        lenient().when(ragProvider.performRag(any())).thenReturn(RAGResponse.builder().response("info").build());
 
         OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", "user");
 
@@ -362,7 +362,7 @@ class RAGOrchestratorTest {
         when(actionHandlerRegistry.findMetadata("update_payment_method")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Updated").build());
-        when(ragService.performRag(any(RAGRequest.class))).thenReturn(RAGResponse.builder()
+        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(RAGResponse.builder()
             .response("Your payment method is confirmed.")
             .documents(List.of())
             .build());
@@ -407,7 +407,7 @@ class RAGOrchestratorTest {
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion()).isEmpty();
-        verify(ragService, never()).performRag(any(RAGRequest.class));
+        verify(ragProvider, never()).performRag(any(RAGRequest.class));
     }
 
     @Test
@@ -441,6 +441,6 @@ class RAGOrchestratorTest {
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion()).isEmpty();
-        verify(ragService, never()).performRag(any(RAGRequest.class));
+        verify(ragProvider, never()).performRag(any(RAGRequest.class));
     }
 }

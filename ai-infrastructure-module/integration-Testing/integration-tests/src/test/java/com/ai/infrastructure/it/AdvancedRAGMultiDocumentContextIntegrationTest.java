@@ -6,8 +6,8 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.rag.RAGService;
-import com.ai.infrastructure.rag.AdvancedRAGService;
+import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.rag.service.AdvancedRAGService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import org.junit.jupiter.api.AfterEach;
@@ -48,7 +48,7 @@ class AdvancedRAGMultiDocumentContextIntegrationTest {
     );
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private AdvancedRAGService advancedRAGService;
@@ -152,7 +152,7 @@ class AdvancedRAGMultiDocumentContextIntegrationTest {
     private void seedCatalog() {
         IntStream.range(0, 50)
             .mapToObj(this::buildDocument)
-            .forEach(document -> ragService.indexContent(
+            .forEach(document -> ragProvider.indexContent(
                 ENTITY_TYPE,
                 document.id(),
                 document.content(),

@@ -6,8 +6,8 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.rag.AdvancedRAGService;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.rag.service.AdvancedRAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +45,7 @@ class AdvancedRAGResultRerankingIntegrationTest {
     private static final String ENTITY_TYPE = "ragproduct-reranking";
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @MockBean
     private AICoreService aiCoreService;
@@ -149,7 +149,7 @@ class AdvancedRAGResultRerankingIntegrationTest {
     }
 
     private void seedCatalog() {
-        IntStream.range(0, 6).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 6).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_flagship_" + index,
             "Flagship collector chronograph with hand-finished movement and limited edition serial number " + index,
@@ -161,7 +161,7 @@ class AdvancedRAGResultRerankingIntegrationTest {
             )
         ));
 
-        IntStream.range(0, 6).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 6).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_midrange_" + index,
             "Midrange automatic watch focused on everyday reliability and comfort " + index,
@@ -173,7 +173,7 @@ class AdvancedRAGResultRerankingIntegrationTest {
             )
         ));
 
-        IntStream.range(0, 4).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 4).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_fitness_" + index,
             "Lightweight fitness tracker with wellness metrics and sleep monitoring " + index,

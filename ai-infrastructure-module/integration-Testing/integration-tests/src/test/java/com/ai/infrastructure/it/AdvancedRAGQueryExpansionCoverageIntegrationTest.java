@@ -6,8 +6,8 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
-import com.ai.infrastructure.rag.AdvancedRAGService;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.rag.service.AdvancedRAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -49,7 +49,7 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private AdvancedRAGService advancedRAGService;
@@ -198,7 +198,7 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
     }
 
     private void seedCatalog() {
-        IntStream.range(0, 10).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 10).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_watch_" + index,
             String.format(
@@ -212,7 +212,7 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
             )
         ));
 
-        IntStream.range(0, 6).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 6).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_jewelry_" + index,
             String.format("Modern jewelry pairing %d featuring diamonds and precious metals for evening events.", index),
@@ -223,7 +223,7 @@ class AdvancedRAGQueryExpansionCoverageIntegrationTest {
             )
         ));
 
-        IntStream.range(0, 4).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 4).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_accessory_" + index,
             String.format("Accessory ensemble %d curated to complete refined wardrobes for special occasions.", index),

@@ -6,8 +6,8 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.rag.AdvancedRAGService;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.rag.service.AdvancedRAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import org.junit.jupiter.api.AfterEach;
@@ -45,7 +45,7 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
     private static final String ENTITY_TYPE = "ragproduct-confidence";
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private AdvancedRAGService advancedRAGService;
@@ -132,7 +132,7 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
     }
 
     private void seedCatalog() {
-        IntStream.range(0, 5).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 5).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_dive_" + index,
             "Professional dive watch with ceramic bezel, helium escape valve, and chronometer certification " + index,
@@ -144,7 +144,7 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
             )
         ));
 
-        IntStream.range(0, 4).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 4).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_field_" + index,
             "Field watch with anti-magnetic case and sapphire crystal designed for daily wear " + index,
@@ -156,7 +156,7 @@ class AdvancedRAGConfidenceScoreIntegrationTest {
             )
         ));
 
-        IntStream.range(0, 3).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 3).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_dress_" + index,
             "Dress watch with ultra-thin profile, micro-rotor movement, and polished indices " + index,

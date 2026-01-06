@@ -4,6 +4,7 @@ import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
+import com.ai.infrastructure.rag.config.RAGAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -22,7 +23,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * @version 1.0.0
  */
 @SpringBootApplication(scanBasePackages = {"com.ai.infrastructure", "com.ai.infrastructure.it"})
-@Import(AIInfrastructureAutoConfiguration.class)
+@Import({AIInfrastructureAutoConfiguration.class, RAGAutoConfiguration.class})
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
     "com.ai.infrastructure.it.entity",

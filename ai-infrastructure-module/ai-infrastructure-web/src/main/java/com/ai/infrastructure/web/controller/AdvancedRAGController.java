@@ -2,7 +2,7 @@ package com.ai.infrastructure.web.controller;
 
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
-import com.ai.infrastructure.rag.AdvancedRAGService;
+import com.ai.infrastructure.rag.service.AdvancedRAGService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

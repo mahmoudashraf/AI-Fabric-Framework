@@ -5,7 +5,7 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +41,7 @@ class RAGLongConversationContextIntegrationTest {
     private VectorManagementService vectorManagementService;
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private AIEmbeddingService embeddingService;
@@ -160,7 +160,7 @@ class RAGLongConversationContextIntegrationTest {
             .metadata(Map.of("sessionId", "hyperion-convo"))
             .build();
 
-        RAGResponse response = ragService.performRag(request);
+        RAGResponse response = ragProvider.performRag(request);
         return new ConversationResult(response, windowHistory);
     }
 

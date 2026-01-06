@@ -3,7 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.vector.VectorDatabase;
@@ -46,7 +46,7 @@ class RAGHybridSearchIntegrationTest {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private VectorManagementService vectorManagementService;
@@ -130,8 +130,8 @@ class RAGHybridSearchIntegrationTest {
             .enableContextualSearch(false)
             .build();
 
-        RAGResponse vectorResponse = ragService.performRAGQuery(vectorOnly);
-        RAGResponse hybridResponse = ragService.performRAGQuery(hybridEnabled);
+        RAGResponse vectorResponse = ragProvider.performRAGQuery(vectorOnly);
+        RAGResponse hybridResponse = ragProvider.performRAGQuery(hybridEnabled);
 
         assertNotNull(vectorResponse, "Vector-only response should not be null");
         assertNotNull(hybridResponse, "Hybrid response should not be null");
@@ -189,7 +189,7 @@ class RAGHybridSearchIntegrationTest {
                 focus
             );
 
-            ragService.indexContent(
+            ragProvider.indexContent(
                 ENTITY_TYPE,
                 id,
                 description,
@@ -202,7 +202,7 @@ class RAGHybridSearchIntegrationTest {
         });
 
         // Add a couple of explicit keyword-heavy entries to emphasise hybrid keyword relevance.
-        ragService.indexContent(
+        ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_deep_dive_1",
             "Swiss automatic dive watch with sapphire crystal, helium escape valve, and luminous bezel for deep sea expeditions.",
@@ -213,7 +213,7 @@ class RAGHybridSearchIntegrationTest {
             )
         );
 
-        ragService.indexContent(
+        ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_deep_dive_2",
             "Professional diver's watch boasting sapphire crystal protection, ceramic bezel, and chronometer certification.",
@@ -224,7 +224,7 @@ class RAGHybridSearchIntegrationTest {
             )
         );
 
-        ragService.indexContent(
+        ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_query_match",
             TARGET_QUERY + " plus helium escape valve and luminous indices",

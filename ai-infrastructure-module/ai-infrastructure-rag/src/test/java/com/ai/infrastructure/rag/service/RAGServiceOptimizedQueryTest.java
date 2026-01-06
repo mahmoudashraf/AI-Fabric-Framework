@@ -1,4 +1,4 @@
-package com.ai.infrastructure.rag;
+package com.ai.infrastructure.rag.service;
 
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.core.AIEmbeddingService;
@@ -11,6 +11,7 @@ import com.ai.infrastructure.dto.PIIMode;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.vector.VectorDatabase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for RAGService optimized query handling.
+ */
 @ExtendWith(MockitoExtension.class)
 class RAGServiceOptimizedQueryTest {
 

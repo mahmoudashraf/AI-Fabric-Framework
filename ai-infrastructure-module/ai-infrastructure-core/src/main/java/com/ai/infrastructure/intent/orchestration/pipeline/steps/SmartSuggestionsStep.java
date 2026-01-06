@@ -7,7 +7,7 @@ import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -40,7 +40,7 @@ import java.util.Objects;
  * </ul>
  * 
  * @see SmartSuggestionsProperties
- * @see RAGService
+ * @see RAGProvider
  * @see PipelineStep
  * @since 1.0
  */
@@ -91,7 +91,7 @@ public class SmartSuggestionsStep implements PipelineStep {
     // =========================================================================
     
     private final SmartSuggestionsProperties smartSuggestionsProperties;
-    private final RAGService ragService;
+    private final RAGProvider ragProvider;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -177,7 +177,7 @@ public class SmartSuggestionsStep implements PipelineStep {
                 .userId(context.getIdentifier())
                 .build();
             
-            RAGResponse ragResponse = ragService.performRag(ragRequest);
+            RAGResponse ragResponse = ragProvider.performRag(ragRequest);
             if (ragResponse == null) {
                 log.debug("Smart suggestion retrieval returned null for intent {} in request {}", 
                     candidate.getIntent(), context.getRequestId());

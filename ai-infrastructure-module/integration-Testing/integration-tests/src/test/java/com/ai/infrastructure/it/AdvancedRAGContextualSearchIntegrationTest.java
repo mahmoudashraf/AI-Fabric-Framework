@@ -8,8 +8,8 @@ import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AdvancedRAGResponse.RAGDocument;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.rag.AdvancedRAGService;
-import com.ai.infrastructure.rag.RAGService;
+import com.ai.infrastructure.rag.service.AdvancedRAGService;
+import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,7 +51,7 @@ class AdvancedRAGContextualSearchIntegrationTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Autowired
-    private RAGService ragService;
+    private RAGProvider ragProvider;
 
     @Autowired
     private AdvancedRAGService advancedRAGService;
@@ -190,7 +190,7 @@ class AdvancedRAGContextualSearchIntegrationTest {
             .toList();
 
         if (modernWatches.size() < 3) {
-            RAGResponse fallbackResponse = ragService.performRag(RAGRequest.builder()
+            RAGResponse fallbackResponse = ragProvider.performRag(RAGRequest.builder()
                 .query("modern luxury watch accessories")
                 .entityType(ENTITY_TYPE)
                 .limit(20)
@@ -263,7 +263,7 @@ class AdvancedRAGContextualSearchIntegrationTest {
             String audience = index % 3 == 0 ? "collectors" : "enthusiasts";
             String priceRange = index % 2 == 0 ? "premium" : "luxury";
 
-            ragService.indexContent(
+            ragProvider.indexContent(
                 ENTITY_TYPE,
                 ENTITY_TYPE + "_watch_" + index,
                 String.format("%s modern chronograph watch %d with premium finishing for discerning %s. Luxury watch accessory designed for special occasions and contemporary style enthusiasts.", brand, index, audience),
@@ -277,7 +277,7 @@ class AdvancedRAGContextualSearchIntegrationTest {
             );
         });
 
-        IntStream.range(0, 4).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 4).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_jewelry_" + index,
             String.format("%s signature bracelet %d crafted for evening events and luxury gifting.",
@@ -290,7 +290,7 @@ class AdvancedRAGContextualSearchIntegrationTest {
             )
         ));
 
-        IntStream.range(0, 2).forEach(index -> ragService.indexContent(
+        IntStream.range(0, 2).forEach(index -> ragProvider.indexContent(
             ENTITY_TYPE,
             ENTITY_TYPE + "_accessory_" + index,
             String.format("%s accessory look %d to complement refined wardrobes.",
