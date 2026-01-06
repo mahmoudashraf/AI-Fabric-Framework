@@ -185,11 +185,12 @@ public class IntentQueryExtractor {
     /**
      * Attempts to complete truncated JSON by adding missing closing brackets/braces.
      * This handles cases where LLM responses are cut off mid-stream.
+     * Uses a stack to maintain correct nesting order.
      */
     private String attemptJsonCompletion(String truncatedJson) {
         StringBuilder result = new StringBuilder(truncatedJson);
-        int openBraces = 0;
-        int openBrackets = 0;
+        // Stack to track opening brackets/braces in order - stores the CLOSING character needed
+        java.util.Deque<Character> stack = new java.util.ArrayDeque<>();
         boolean inString = false;
         char prevChar = 0;
         
@@ -198,10 +199,15 @@ public class IntentQueryExtractor {
             if (c == '"' && prevChar != '\\') {
                 inString = !inString;
             } else if (!inString) {
-                if (c == '{') openBraces++;
-                else if (c == '}') openBraces--;
-                else if (c == '[') openBrackets++;
-                else if (c == ']') openBrackets--;
+                if (c == '{') {
+                    stack.push('}');
+                } else if (c == '[') {
+                    stack.push(']');
+                } else if (c == '}' || c == ']') {
+                    if (!stack.isEmpty()) {
+                        stack.pop();
+                    }
+                }
             }
             prevChar = c;
         }
@@ -211,16 +217,13 @@ public class IntentQueryExtractor {
             result.append('"');
         }
         
-        // Add missing closing brackets and braces
-        for (int i = 0; i < openBrackets; i++) {
-            result.append(']');
-        }
-        for (int i = 0; i < openBraces; i++) {
-            result.append('}');
+        // Pop from stack to add closing characters in correct LIFO order
+        int closingCount = stack.size();
+        while (!stack.isEmpty()) {
+            result.append(stack.pop());
         }
         
-        log.debug("Attempted JSON completion: added {} closing braces and {} closing brackets", 
-            openBraces, openBrackets);
+        log.debug("Attempted JSON completion: added {} closing characters", closingCount);
         
         return result.toString();
     }
