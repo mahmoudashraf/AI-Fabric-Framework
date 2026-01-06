@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service("ragService")
+@org.springframework.context.annotation.Primary
 @RequiredArgsConstructor
 public class RAGService implements RAGProvider, ContentRetriever {
     
