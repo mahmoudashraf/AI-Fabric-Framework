@@ -1906,7 +1906,446 @@ ai:
 
 ---
 
-### 10.12 Security Considerations
+### 10.12 Handling Compound Intents with Confirmation 🆕
+
+**Problem:** User confirms a pending action AND makes a new request in the same message.
+
+**Example:**
+```
+Turn 1:
+───────
+User: "cancel my subscription"
+Response: "Confirm cancellation? Reply 'yes' or 'no'."
+
+Turn 2:
+───────
+User: "yes and give me programming laptop black colour"
+```
+
+**Expected Behavior:**
+1. Confirm and execute the pending action ("cancel_subscription")
+2. Process the new request ("give me programming laptop black colour")
+3. Return a combined response
+
+---
+
+#### 10.12.1 Flow Diagram
+
+```
+User: "yes and give me programming laptop black colour"
+    ↓
+ConversationEnrichmentStep (25):
+    - Detects pending action: "cancel_subscription"
+    - Enriches query with confirmation context
+    ↓ "CONFIRMATION CONTEXT: User has pending action 'cancel subscription'.
+        Their message: 'yes and give me programming laptop black colour'.
+        Determine if confirming/cancelling, and detect any additional requests."
+    ↓
+IntentExtractionStep (50): LLM analyzes enriched query
+    ↓ Detects: COMPOUND intent with:
+        - CONFIRMATION_POSITIVE ("yes")
+        - INFORMATION ("give me programming laptop black colour")
+    ↓
+ConfirmationResolutionStep (55):
+    - Detects intentResponse.isCompound() == true
+    - Finds CONFIRMATION_POSITIVE in intent list
+    - Executes pending action ("cancel_subscription")
+    - Removes CONFIRMATION_POSITIVE from intent list
+    - Keeps remaining intents: [INFORMATION]
+    - Stores executed action result in context metadata
+    - Updates context with modified intent list
+    ↓
+IntentHandlingStep (60):
+    - Processes remaining INFORMATION intent
+    - Retrieves laptop recommendations
+    - Combines with pending action result
+    ↓
+Response: {
+  "confirmedAction": {
+    "action": "cancel_subscription",
+    "success": true,
+    "message": "Subscription cancelled"
+  },
+  "additionalRequests": {
+    "laptops": [...]
+  },
+  "message": "Your subscription has been cancelled. Here are programming laptops in black: ..."
+}
+```
+
+---
+
+#### 10.12.2 Enhanced ConfirmationResolutionStep Logic
+
+**Add handling for COMPOUND intents in ConfirmationResolutionStep:**
+
+```java
+@Override
+public PipelineContext process(PipelineContext context) {
+    // ... existing code ...
+
+    // Get intent from context
+    MultiIntentResponse intentResponse = context.getIntentResponse();
+    if (intentResponse == null || intentResponse.getIntents().isEmpty()) {
+        return context;
+    }
+
+    // Load conversation session and check for pending action
+    ChatSession session = chatSessionService.get().getSession(conversationId, ownerId);
+    Map<String, Object> metadata = session.getSessionMetadata();
+
+    if (!metadata.containsKey(METADATA_KEY_PENDING_ACTION)) {
+        return context;  // No pending action
+    }
+
+    String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+    Map<String, Object> pendingParams = (Map<String, Object>) metadata.get(METADATA_KEY_PENDING_PARAMS);
+
+    // Check if timeout expired
+    if (isConfirmationExpired(metadata.get(METADATA_KEY_PENDING_TIMESTAMP))) {
+        clearPendingAction(conversationId, ownerId, metadata);
+        return context;
+    }
+
+    // ========== NEW: Handle COMPOUND intents with confirmation ==========
+    if (intentResponse.isCompound() && intentResponse.getIntents().size() > 1) {
+        return handleCompoundIntentWithConfirmation(
+            context, intentResponse, pendingAction, pendingParams,
+            conversationId, ownerId, metadata
+        );
+    }
+    // ====================================================================
+
+    // Handle single intent (existing logic)
+    Intent detectedIntent = intentResponse.getIntents().get(0);
+
+    if (detectedIntent.getType() == IntentType.CONFIRMATION_POSITIVE) {
+        // ... existing confirmation logic ...
+    } else if (detectedIntent.getType() == IntentType.CONFIRMATION_NEGATIVE) {
+        // ... existing cancellation logic ...
+    }
+
+    return context;
+}
+
+/**
+ * Handle COMPOUND intent where user confirms AND makes additional request.
+ *
+ * <p>Example: "yes and give me programming laptop black colour"</p>
+ *
+ * <p>Strategy:</p>
+ * <ol>
+ *   <li>Find CONFIRMATION_POSITIVE or CONFIRMATION_NEGATIVE in intent list</li>
+ *   <li>If CONFIRMATION_POSITIVE: Execute pending action, store result</li>
+ *   <li>If CONFIRMATION_NEGATIVE: Cancel pending action</li>
+ *   <li>Remove confirmation intent from list</li>
+ *   <li>Keep remaining intents for normal processing</li>
+ *   <li>Pass modified intent list to IntentHandlingStep</li>
+ * </ol>
+ */
+private PipelineContext handleCompoundIntentWithConfirmation(
+    PipelineContext context,
+    MultiIntentResponse intentResponse,
+    String pendingAction,
+    Map<String, Object> pendingParams,
+    String conversationId,
+    String ownerId,
+    Map<String, Object> sessionMetadata
+) {
+    List<Intent> intents = new ArrayList<>(intentResponse.getIntents());
+
+    // Find confirmation intent
+    Intent confirmationIntent = intents.stream()
+        .filter(i -> i.getType() == IntentType.CONFIRMATION_POSITIVE ||
+                     i.getType() == IntentType.CONFIRMATION_NEGATIVE)
+        .findFirst()
+        .orElse(null);
+
+    if (confirmationIntent == null) {
+        // No confirmation intent in compound list - process normally
+        return context;
+    }
+
+    // Remove confirmation intent from list
+    intents.remove(confirmationIntent);
+
+    if (confirmationIntent.getType() == IntentType.CONFIRMATION_POSITIVE) {
+        log.info("LLM confirmed pending action '{}' in COMPOUND intent for conversation {}",
+            pendingAction, conversationId);
+
+        // Create ACTION intent from pending action
+        Intent confirmedIntent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action(pendingAction)
+            .actionParams(pendingParams != null ? pendingParams : new HashMap<>())
+            .confidence(1.0)
+            .originalText("(confirmed: " + pendingAction + ")")
+            .build();
+
+        // Add confirmed action as FIRST intent (execute before others)
+        intents.add(0, confirmedIntent);
+
+        // Clear pending action
+        clearPendingAction(conversationId, ownerId, sessionMetadata);
+
+        // Update context with modified intent list
+        MultiIntentResponse modifiedResponse = MultiIntentResponse.builder()
+            .intents(intents)
+            .compound(intents.size() > 1)  // Still compound if >1 remaining
+            .metadata(Map.of(
+                "confirmedAction", pendingAction,
+                "originalCompound", true
+            ))
+            .build();
+
+        return context.toBuilder()
+            .intentResponse(modifiedResponse)
+            .build();
+
+    } else if (confirmationIntent.getType() == IntentType.CONFIRMATION_NEGATIVE) {
+        log.info("LLM cancelled pending action '{}' in COMPOUND intent for conversation {}",
+            pendingAction, conversationId);
+
+        // Clear pending action
+        clearPendingAction(conversationId, ownerId, sessionMetadata);
+
+        // Add cancellation message to metadata
+        Map<String, Object> responseMetadata = new HashMap<>(intentResponse.getMetadata());
+        responseMetadata.put("cancellationMessage",
+            "Action '" + pendingAction + "' was cancelled.");
+        responseMetadata.put("originalCompound", true);
+
+        // Process remaining intents normally
+        MultiIntentResponse modifiedResponse = MultiIntentResponse.builder()
+            .intents(intents)
+            .compound(intents.size() > 1)
+            .metadata(responseMetadata)
+            .build();
+
+        return context.toBuilder()
+            .intentResponse(modifiedResponse)
+            .build();
+    }
+
+    return context;
+}
+```
+
+---
+
+#### 10.12.3 Enhanced IntentHandlingStep for Compound Results
+
+**Update IntentHandlingStep to combine results from confirmed action + additional intents:**
+
+```java
+// In IntentHandlingStep.handleCompoundIntent() method:
+
+private OrchestrationResult handleCompoundIntent(
+    MultiIntentResponse intentResponse,
+    PipelineContext context
+) {
+    List<Intent> intents = intentResponse.getIntents();
+    List<OrchestrationResult> results = new ArrayList<>();
+
+    // Check if this was originally a compound confirmation
+    boolean isConfirmationCompound = intentResponse.getMetadata()
+        .containsKey("confirmedAction");
+
+    // Process all intents
+    for (Intent intent : intents) {
+        OrchestrationResult result = processSingleIntent(intent, context);
+        results.add(result);
+    }
+
+    // Combine results
+    if (isConfirmationCompound) {
+        // Special formatting for confirmation + additional request
+        return combineConfirmationWithAdditionalRequests(results, intentResponse);
+    } else {
+        // Normal compound handling
+        return combineResults(results);
+    }
+}
+
+/**
+ * Combine confirmed action result with additional requests.
+ */
+private OrchestrationResult combineConfirmationWithAdditionalRequests(
+    List<OrchestrationResult> results,
+    MultiIntentResponse intentResponse
+) {
+    OrchestrationResult confirmedActionResult = results.get(0);  // First is confirmed action
+    List<OrchestrationResult> additionalResults = results.subList(1, results.size());
+
+    StringBuilder combinedMessage = new StringBuilder();
+    combinedMessage.append(confirmedActionResult.getMessage());
+
+    if (!additionalResults.isEmpty()) {
+        combinedMessage.append("\n\n");
+        combinedMessage.append("Additionally:\n");
+
+        for (OrchestrationResult additionalResult : additionalResults) {
+            combinedMessage.append("- ").append(additionalResult.getMessage()).append("\n");
+        }
+    }
+
+    Map<String, Object> combinedData = new LinkedHashMap<>();
+    combinedData.put("confirmedAction", Map.of(
+        "action", intentResponse.getMetadata().get("confirmedAction"),
+        "result", confirmedActionResult.getData()
+    ));
+
+    if (!additionalResults.isEmpty()) {
+        combinedData.put("additionalResults",
+            additionalResults.stream()
+                .map(OrchestrationResult::getData)
+                .collect(Collectors.toList())
+        );
+    }
+
+    return OrchestrationResult.builder()
+        .type(OrchestrationResultType.COMPOUND_RESULT)
+        .success(confirmedActionResult.isSuccess() &&
+                 additionalResults.stream().allMatch(OrchestrationResult::isSuccess))
+        .message(combinedMessage.toString())
+        .data(combinedData)
+        .metadata(Map.of(
+            "compound", true,
+            "confirmationIncluded", true,
+            "intentCount", results.size()
+        ))
+        .build();
+}
+```
+
+---
+
+#### 10.12.4 Example Flow
+
+**Full Example: Confirmation + New Request**
+
+```
+Turn 1:
+───────
+User: "cancel my subscription"
+
+IntentExtraction: ACTION (cancel_subscription)
+    ↓
+IntentHandling: Requires confirmation → stores pending action
+    ↓
+Response: "You are about to cancel your subscription. Reply 'yes' to confirm."
+
+
+Turn 2:
+───────
+User: "yes and give me programming laptop black colour"
+
+ConversationEnrichment: Enriches with pending action context
+    ↓
+IntentExtraction: COMPOUND intent detected
+    ↓ Intents:
+        1. CONFIRMATION_POSITIVE ("yes")
+        2. INFORMATION ("give me programming laptop black colour")
+    ↓
+ConfirmationResolution:
+    - Detects compound intent with CONFIRMATION_POSITIVE
+    - Creates ACTION intent from pending "cancel_subscription"
+    - Removes CONFIRMATION_POSITIVE
+    - Adds confirmed ACTION as first intent
+    - Keeps INFORMATION intent
+    ↓ Modified intents:
+        1. ACTION (cancel_subscription) ← from pending
+        2. INFORMATION (laptop query) ← original
+    ↓
+IntentHandling:
+    - Processes ACTION: Executes subscription cancellation
+    - Processes INFORMATION: Retrieves laptop recommendations
+    - Combines results with special formatting
+    ↓
+Response: {
+  "type": "COMPOUND_RESULT",
+  "success": true,
+  "message": "Your subscription has been cancelled successfully.
+
+             Additionally:
+             - Here are black programming laptops: Dell XPS 15, ThinkPad X1...",
+  "data": {
+    "confirmedAction": {
+      "action": "cancel_subscription",
+      "result": {
+        "effectiveDate": "2026-01-07",
+        "refundEligible": false
+      }
+    },
+    "additionalResults": [
+      {
+        "laptops": [...]
+      }
+    ]
+  },
+  "metadata": {
+    "compound": true,
+    "confirmationIncluded": true,
+    "intentCount": 2
+  }
+}
+```
+
+---
+
+#### 10.12.5 Edge Cases
+
+**Case 1: Confirmation + Multiple Requests**
+```
+User: "yes and also show my account history and tell me refund policy"
+
+LLM Detects:
+  - CONFIRMATION_POSITIVE
+  - INFORMATION (account history)
+  - INFORMATION (refund policy)
+
+Result:
+  1. Execute pending action
+  2. Process account history request
+  3. Process refund policy request
+  4. Return combined response
+```
+
+**Case 2: Cancellation + New Request**
+```
+User: "no, actually I want to keep it. Show me subscription benefits instead"
+
+LLM Detects:
+  - CONFIRMATION_NEGATIVE
+  - INFORMATION (subscription benefits)
+
+Result:
+  1. Cancel pending action
+  2. Process benefits request
+  3. Return: "Action cancelled. Here are your subscription benefits: ..."
+```
+
+**Case 3: Ambiguous + New Request**
+```
+User: "maybe later. What are alternative plans?"
+
+LLM Detects:
+  - INFORMATION (alternative plans) ← No confirmation intent!
+
+ConfirmationResolution:
+  - No confirmation intent found in compound list
+  - Keeps pending action for next turn
+  - Passes INFORMATION intent through unchanged
+
+Result:
+  - Pending action remains active
+  - "Here are alternative plans: ..."
+  - User can still confirm/cancel later
+```
+
+---
+
+### 10.13 Security Considerations
 
 1. **Ownership Verification:** Pending actions tied to conversation owner
 2. **Timeout:** Confirmations expire after 5 minutes (configurable)
@@ -1915,6 +2354,8 @@ ai:
 5. **Audit Trail:** All confirmations logged with user ID and timestamp
 6. **LLM-Based Detection:** No bypass via hardcoded keywords - LLM analyzes full intent
 7. **Context Enrichment:** ConversationEnrichmentStep provides context for accurate LLM detection
+8. **Compound Intent Integrity:** Confirmed actions always execute first in compound intents
+9. **Atomic Operations:** Pending action cleared atomically when confirmed/cancelled
 
 ---
 
@@ -2049,6 +2490,11 @@ spring:
 ✅ shouldStoreAndRetrievePendingActionMetadata
 ✅ shouldRespectOwnershipOnConfirmation
 ✅ shouldSupportNuancedResponses (e.g., "no, wait, changed my mind")
+✅ shouldHandleCompoundConfirmationWithNewRequest (e.g., "yes and show me laptops")
+✅ shouldHandleCompoundCancellationWithNewRequest (e.g., "no, show me benefits")
+✅ shouldHandleCompoundConfirmationWithMultipleRequests
+✅ shouldKeepPendingActionWhenCompoundHasNoConfirmation
+✅ shouldExecuteConfirmedActionBeforeAdditionalRequests
 ```
 
 ---
@@ -2149,7 +2595,10 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 - [ ] Update ConversationEnrichmentStep to enrich with pending action context
 - [ ] Update IntentHandlingStep with confirmation detection and storage
 - [ ] Implement LLM-based confirmation detection (NO hardcoded keywords!)
+- [ ] Add handleCompoundIntentWithConfirmation() to ConfirmationResolutionStep
+- [ ] Add combineConfirmationWithAdditionalRequests() to IntentHandlingStep
 - [ ] Test confirmation flow (positive, negative, ambiguous, timeout)
+- [ ] Test compound confirmation scenarios (confirmation + new requests)
 
 ### Phase 8: Testing
 - [ ] Unit tests for ConversationEnrichmentStep (7+ tests)
@@ -2193,6 +2642,9 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 ✅ **Stateful Tracking:** Pending actions in conversation metadata
 ✅ **Context-Aware:** Enriches query with pending action for LLM analysis
 ✅ **Nuanced Understanding:** LLM handles "no, wait, I changed my mind" correctly
+✅ **Compound Intent Support:** Handles "yes and show me laptops" naturally
+✅ **Multi-Request Handling:** Execute confirmed action + process additional requests
+✅ **Intelligent Response Combining:** Special formatting for confirmation + requests
 ✅ **Secure:** Ownership verification + timeout protection
 ✅ **Flexible:** Action handlers opt-in via `requiresConfirmation()`
 ✅ **Backward Compatible:** Actions without confirmation work as before
@@ -2210,15 +2662,16 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 
 **Module Changes:**
 - `ConversationEnrichmentStep`: ~120 lines
-- `ConfirmationResolutionStep`: ~150 lines
+- `ConfirmationResolutionStep`: ~230 lines (includes compound confirmation handling)
 - `ConversationRecordingStep`: ~100 lines
 - `ChatSessionService.updateSessionMetadata()`: ~20 lines
+- `IntentHandlingStep.combineConfirmationWithAdditionalRequests()`: ~50 lines
 - Support infrastructure (domain, storage, strategies): ~800 lines
 
 **Total Lines of Code:**
 - Core changes: ~100 lines
-- Module changes: ~1,200 lines
-- **Total:** ~1,300 lines
+- Module changes: ~1,320 lines
+- **Total:** ~1,420 lines
 
 **Key Architectural Decision:**
 - ✅ **NO Hardcoded Keywords** - All confirmation detection via LLM
