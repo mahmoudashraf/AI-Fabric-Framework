@@ -348,6 +348,18 @@ public class AIServiceConfig {
     public static class FeatureFlags {
         @Builder.Default
         private Boolean enableRAG = true;
+
+        /**
+         * Enable Advanced RAG orchestration integration (query expansion, re-ranking, context optimization).
+         */
+        @Builder.Default
+        private Boolean enableAdvancedRAG = true;
+
+        /**
+         * Auto-enable Advanced RAG for complex queries when an AdvancedRAGProvider is present.
+         */
+        @Builder.Default
+        private Boolean autoEnableAdvancedRAGForComplexQueries = false;
         
         @Builder.Default
         private Boolean enableEmbeddings = true;

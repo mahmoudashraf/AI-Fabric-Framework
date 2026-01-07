@@ -3,6 +3,8 @@ package com.ai.infrastructure.intent.orchestration;
 import com.ai.infrastructure.config.PIIDetectionProperties;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
+import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -27,6 +29,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.steps.PIIDetectionSte
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.ResponseSanitizationStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SecurityAnalysisStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SmartSuggestionsStep;
+import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.security.ResponseSanitizer;
@@ -42,6 +45,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
@@ -67,6 +71,15 @@ class RAGOrchestratorTest {
 
     @Mock
     private RAGProvider ragProvider;
+
+    @Mock
+    private AICoreService aiCoreService;
+
+    @Mock
+    private AIServiceConfig aiServiceConfig;
+
+    @Mock
+    private ObjectProvider<AdvancedRAGProvider> advancedRagProvider;
 
     @Mock
     private ActionHandler actionHandler;
@@ -136,7 +149,7 @@ class RAGOrchestratorTest {
             new PIIDetectionStep(piiDetectionService, piiDetectionProperties),
             new ComplianceCheckStep(complianceService),
             new IntentExtractionStep(intentQueryExtractor),
-            new IntentHandlingStep(actionHandlerRegistry, ragProvider),
+            new IntentHandlingStep(actionHandlerRegistry, ragProvider, aiCoreService, aiServiceConfig, advancedRagProvider),
             new MetadataBuildingStep(),
             new SmartSuggestionsStep(smartSuggestionsProperties, ragProvider),
             new ResponseSanitizationStep(responseSanitizer, piiDetectionProperties),
@@ -232,15 +245,17 @@ class RAGOrchestratorTest {
             .type(IntentType.INFORMATION)
             .intent("refund_policy")
             .vectorSpace("policies")
+            .requiresGeneration(true)
             .build();
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         RAGResponse ragResponse = RAGResponse.builder()
-            .response("Refunds take 5-7 days.")
+            .context("Refunds take 5-7 days.")
             .documents(List.of())
             .build();
         when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(ragResponse);
+        when(aiCoreService.generateText(anyString())).thenReturn("Refunds take 5-7 days.");
 
         OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", "user");
 
@@ -264,11 +279,12 @@ class RAGOrchestratorTest {
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         RAGResponse ragResponse = RAGResponse.builder()
-            .response("Here are top picks.")
+            .context("Top picks context.")
             .documents(List.of())
             .success(true)
             .build();
-        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
+        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(ragResponse);
+        when(aiCoreService.generateText(anyString())).thenReturn("Here are top picks.");
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", "user");
 
@@ -276,9 +292,9 @@ class RAGOrchestratorTest {
         assertThat(result.getMessage()).isEqualTo("Here are top picks.");
 
         ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRAGQuery(requestCaptor.capture());
+        verify(ragProvider).performRag(requestCaptor.capture());
         assertThat(requestCaptor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
-        verify(ragProvider, never()).performRag(any(RAGRequest.class));
+        verify(ragProvider, never()).performRAGQuery(any(RAGRequest.class));
     }
 
     @Test
@@ -335,7 +351,10 @@ class RAGOrchestratorTest {
         when(actionHandlerRegistry.findMetadata("cancel_subscription")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Cancelled").build());
-        lenient().when(ragProvider.performRag(any())).thenReturn(RAGResponse.builder().response("info").build());
+        lenient().when(ragProvider.performRag(any())).thenReturn(RAGResponse.builder()
+            .context("info")
+            .success(true)
+            .build());
 
         OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", "user");
 
@@ -363,7 +382,7 @@ class RAGOrchestratorTest {
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Updated").build());
         when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(RAGResponse.builder()
-            .response("Your payment method is confirmed.")
+            .context("Your payment method is confirmed.")
             .documents(List.of())
             .build());
 

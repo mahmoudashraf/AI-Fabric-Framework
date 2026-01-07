@@ -161,9 +161,9 @@ class RAGHybridSearchIntegrationTest {
         assertTrue(hybridDocIds.containsAll(vectorDocIds),
             "Hybrid search should include at least the vector-only document set");
 
-        assertNotNull(hybridResponse.getResponse(), "Hybrid response text should not be null");
-        assertTrue(hybridResponse.getResponse().toLowerCase().contains("watch"),
-            "Hybrid response text should reference the watch domain");
+        assertNotNull(hybridResponse.getContext(), "Hybrid context should not be null");
+        assertTrue(hybridResponse.getContext().toLowerCase().contains("watch"),
+            "Hybrid context should reference the watch domain");
     }
 
     private void seedHybridCatalog() {

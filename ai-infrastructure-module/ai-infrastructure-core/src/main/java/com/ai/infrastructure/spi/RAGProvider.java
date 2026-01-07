@@ -39,7 +39,7 @@ import java.util.Map;
  *     
  *     @Override
  *     public RAGResponse performRAGQuery(RAGRequest request) {
- *         // Generation-focused implementation
+ *         // Retrieval + context-building implementation (generation is handled by orchestrator)
  *     }
  * }
  * }</pre>
@@ -100,19 +100,18 @@ public interface RAGProvider {
     RAGResponse performRag(RAGRequest request);
     
     /**
-     * Perform RAG query with generation support.
+     * Perform RAG query with context-building support.
      * 
      * <p>This method performs semantic search and optionally generates
-     * a synthesized response using the retrieved context. Use this for
-     * question-answering and content generation use cases.</p>
+ * a context string for downstream generation. Generation is handled by the
+ * orchestrator (pipeline) or a higher-level service, not by the RAG provider.</p>
      * 
      * <p><strong>Process:</strong></p>
      * <ol>
      *   <li>Generate embedding for the query</li>
      *   <li>Perform vector similarity search (with hybrid/contextual options)</li>
      *   <li>Build context from retrieved documents</li>
-     *   <li>Generate response using LLM (if configured)</li>
-     *   <li>Return response with context and metadata</li>
+ *   <li>Return documents + context + metadata</li>
      * </ol>
      * 
      * <p><strong>Search Modes:</strong></p>
@@ -123,7 +122,7 @@ public interface RAGProvider {
      * </ul>
      * 
      * @param request the RAG request containing query, entity type, and options
-     * @return RAGResponse with generated response, context, and documents; never null
+ * @return RAGResponse with context and documents; never null
      * @throws IllegalArgumentException if request is null or query is blank
      * @see #performRag(RAGRequest) for retrieval-focused operations
      */

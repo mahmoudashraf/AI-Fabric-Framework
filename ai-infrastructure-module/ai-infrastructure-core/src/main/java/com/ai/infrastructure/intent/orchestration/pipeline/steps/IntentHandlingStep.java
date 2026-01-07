@@ -1,5 +1,9 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
+import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AdvancedRAGRequest;
+import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
@@ -14,9 +18,11 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -77,6 +83,12 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_REQUIRES_GENERATION = "requiresGeneration";
     private static final String DATA_KEY_DETAILS = "details";
     private static final String DATA_KEY_RESULTS = "results";
+
+    // Advanced RAG data keys
+    private static final String DATA_KEY_EXPANDED_QUERIES = "expandedQueries";
+    private static final String DATA_KEY_CONFIDENCE_SCORE = "confidenceScore";
+    private static final String DATA_KEY_RERANKING_STRATEGY = "rerankingStrategy";
+    private static final String DATA_KEY_CONTEXT_OPTIMIZATION_LEVEL = "contextOptimizationLevel";
     
     // Metadata keys
     private static final String METADATA_KEY_SOURCE = "source";
@@ -100,6 +112,26 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String MSG_OUT_OF_SCOPE = "I'm not able to help with that request. Please contact support for further assistance.";
     private static final String MSG_ALL_PROCESSED = "All intents processed successfully.";
     private static final String MSG_SOME_FAILED = "Some intents failed. See results for details.";
+
+    private static final String ERROR_MSG_RAG_NULL_RESPONSE = "RAG retrieval returned null response.";
+
+    private static final String RAG_NO_CONTEXT_MESSAGE = "No relevant context found.";
+    private static final String RAG_NO_INFO_MESSAGE_PREFIX = "I don't have enough information to answer your question: ";
+    private static final String RAG_PROMPT_TEMPLATE =
+        "Based on the following context, answer the question: %s\n\n" +
+            "Context:\n%s\n\n" +
+            "Provide a comprehensive, accurate answer based on the context provided. " +
+            "If the context doesn't contain enough information, say so.";
+
+    private static final String DATA_KEY_GENERATION_ERROR = "generationError";
+
+    private static final String CONTEXT_METADATA_KEY_USE_ADVANCED_RAG = "useAdvancedRAG";
+    private static final String CONTEXT_METADATA_KEY_ADVANCED_EXPANSION_LEVEL = "advancedRagExpansionLevel";
+    private static final String CONTEXT_METADATA_KEY_ADVANCED_RERANKING_STRATEGY = "advancedRagRerankingStrategy";
+    private static final String CONTEXT_METADATA_KEY_ADVANCED_CONTEXT_OPTIMIZATION_LEVEL = "advancedRagContextOptimizationLevel";
+
+    private static final int ADVANCED_QUERY_LENGTH_THRESHOLD = 50;
+    private static final int ADVANCED_QUERY_WORD_THRESHOLD = 8;
     
     // Intent params key
     private static final String PARAM_KEY_INTENTS = "intents";
@@ -110,6 +142,9 @@ public class IntentHandlingStep implements PipelineStep {
     
     private final ActionHandlerRegistry actionHandlerRegistry;
     private final RAGProvider ragProvider;
+    private final AICoreService aiCoreService;
+    private final AIServiceConfig aiServiceConfig;
+    private final ObjectProvider<AdvancedRAGProvider> advancedRagProvider;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -279,7 +314,23 @@ public class IntentHandlingStep implements PipelineStep {
             metadata.put("piiProcessed", true);
             metadata.put("piiDetectedTypes", pipelineContext.getDetectedPiiTypesView());
         }
-        
+
+        if (shouldUseAdvancedRag(needsGeneration, query, context)) {
+            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, query, metadata);
+            if (advanced != null) {
+                return advanced;
+            }
+        }
+
+        return handleInformationBasic(intent, context, pipelineContext, needsGeneration, query, metadata);
+    }
+
+    private OrchestrationResult handleInformationBasic(Intent intent,
+                                                       OrchestrationContext context,
+                                                       PipelineContext pipelineContext,
+                                                       boolean needsGeneration,
+                                                       String query,
+                                                       Map<String, Object> metadata) {
         RAGRequest ragRequest = RAGRequest.builder()
             .query(query)
             .entityType(intent.getVectorSpace())
@@ -288,21 +339,49 @@ public class IntentHandlingStep implements PipelineStep {
             .metadata(Collections.unmodifiableMap(metadata))
             .userId(context.getIdentifier())
             .build();
-        
-        RAGResponse ragResponse = needsGeneration
-            ? ragProvider.performRAGQuery(ragRequest)
-            : ragProvider.performRag(ragRequest);
-        
+
+        RAGResponse ragResponse = ragProvider.performRag(ragRequest);
+        if (ragResponse == null) {
+            return OrchestrationResult.error(ERROR_MSG_RAG_NULL_RESPONSE);
+        }
+
+        String answer = null;
+        if (needsGeneration) {
+            try {
+                answer = generateRagAnswer(query, ragResponse.getContext());
+            } catch (Exception ex) {
+                log.error("RAG generation failed for request {}: {}",
+                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+                    ex.getMessage(),
+                    ex);
+
+                Map<String, Object> errorData = new LinkedHashMap<>();
+                errorData.put(DATA_KEY_ANSWER, null);
+                errorData.put(DATA_KEY_DOCUMENTS, ragResponse.getDocuments());
+                errorData.put(DATA_KEY_RAG_RESPONSE, ragResponse);
+                errorData.put(DATA_KEY_REQUIRES_GENERATION, true);
+                errorData.put(DATA_KEY_GENERATION_ERROR, ex.getMessage());
+
+                return OrchestrationResult.builder()
+                    .type(OrchestrationResultType.ERROR)
+                    .success(false)
+                    .message("Failed to generate response: " + ex.getMessage())
+                    .data(Collections.unmodifiableMap(errorData))
+                    .nextSteps(extractNextSteps(intent))
+                    .build();
+            }
+        }
+
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put(DATA_KEY_ANSWER, ragResponse.getResponse());
+        data.put(DATA_KEY_ANSWER, answer);
         data.put(DATA_KEY_DOCUMENTS, ragResponse.getDocuments());
         data.put(DATA_KEY_RAG_RESPONSE, ragResponse);
         data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
-        
-        String message = StringUtils.hasText(ragResponse.getResponse()) 
-            ? ragResponse.getResponse() 
+
+        String message = StringUtils.hasText(answer)
+            ? answer
             : MSG_SEARCH_COMPLETED;
-        
+
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
             .success(Boolean.TRUE.equals(ragResponse.getSuccess()) || ragResponse.getSuccess() == null)
@@ -310,6 +389,231 @@ public class IntentHandlingStep implements PipelineStep {
             .data(Collections.unmodifiableMap(data))
             .nextSteps(extractNextSteps(intent))
             .build();
+    }
+
+    private OrchestrationResult handleInformationAdvanced(Intent intent,
+                                                          OrchestrationContext context,
+                                                          PipelineContext pipelineContext,
+                                                          String query,
+                                                          Map<String, Object> metadata) {
+        AdvancedRAGProvider provider = advancedRagProvider.getIfAvailable();
+        if (provider == null) {
+            return null;
+        }
+
+        try {
+            AdvancedRAGRequest request = buildAdvancedRagRequest(intent, context, query, metadata);
+            AdvancedRAGResponse advancedResponse = provider.performAdvancedRAG(request);
+            if (advancedResponse == null) {
+                log.warn("Advanced RAG returned null response for request {}", 
+                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown");
+                return null;
+            }
+
+            if (Boolean.FALSE.equals(advancedResponse.getSuccess())) {
+                log.warn("Advanced RAG failed for request {}: {}", 
+                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+                    advancedResponse.getErrorMessage());
+                return null;
+            }
+
+            List<RAGResponse.RAGDocument> documents = convertToRagDocuments(advancedResponse.getDocuments());
+            RAGResponse ragResponse = convertToRagResponse(advancedResponse, documents, query, intent.getVectorSpace());
+
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_ANSWER, advancedResponse.getResponse());
+            data.put(DATA_KEY_DOCUMENTS, documents);
+            data.put(DATA_KEY_RAG_RESPONSE, ragResponse);
+            data.put(DATA_KEY_REQUIRES_GENERATION, true);
+            data.put(DATA_KEY_EXPANDED_QUERIES, advancedResponse.getExpandedQueries());
+            data.put(DATA_KEY_CONFIDENCE_SCORE, advancedResponse.getConfidenceScore());
+            data.put(DATA_KEY_RERANKING_STRATEGY, advancedResponse.getRerankingStrategy());
+            data.put(DATA_KEY_CONTEXT_OPTIMIZATION_LEVEL, advancedResponse.getContextOptimizationLevel());
+
+            String message = StringUtils.hasText(advancedResponse.getResponse())
+                ? advancedResponse.getResponse()
+                : MSG_SEARCH_COMPLETED;
+
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(Boolean.TRUE.equals(advancedResponse.getSuccess()) || advancedResponse.getSuccess() == null)
+                .message(message)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        } catch (Exception ex) {
+            log.error("Advanced RAG failed for request {}, falling back to basic RAG: {}", 
+                pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+                ex.getMessage(),
+                ex);
+            return null;
+        }
+    }
+
+    private AdvancedRAGRequest buildAdvancedRagRequest(Intent intent,
+                                                       OrchestrationContext context,
+                                                       String query,
+                                                       Map<String, Object> metadata) {
+        Map<String, Object> ctxMetadata = context != null ? context.getMetadata() : null;
+
+        AdvancedRAGRequest.AdvancedRAGRequestBuilder builder = AdvancedRAGRequest.builder()
+            .query(query)
+            .entityType(intent != null ? intent.getVectorSpace() : null)
+            .maxResults(DEFAULT_RAG_LIMIT)
+            .maxDocuments(DEFAULT_RAG_LIMIT)
+            .similarityThreshold(DEFAULT_RAG_THRESHOLD)
+            .userId(context != null ? context.getUserId() : null)
+            .sessionId(context != null ? context.getSessionId() : null)
+            .metadata(metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Map.of());
+
+        Integer expansionLevel = readInteger(ctxMetadata, CONTEXT_METADATA_KEY_ADVANCED_EXPANSION_LEVEL);
+        if (expansionLevel != null) {
+            builder.expansionLevel(expansionLevel);
+        }
+
+        String reranking = readString(ctxMetadata, CONTEXT_METADATA_KEY_ADVANCED_RERANKING_STRATEGY);
+        if (StringUtils.hasText(reranking)) {
+            builder.rerankingStrategy(reranking);
+        }
+
+        String optimization = readString(ctxMetadata, CONTEXT_METADATA_KEY_ADVANCED_CONTEXT_OPTIMIZATION_LEVEL);
+        if (StringUtils.hasText(optimization)) {
+            builder.contextOptimizationLevel(optimization);
+        }
+
+        return builder.build();
+    }
+
+    private boolean shouldUseAdvancedRag(boolean needsGeneration, String query, OrchestrationContext context) {
+        AdvancedRAGProvider provider = advancedRagProvider.getIfAvailable();
+        if (provider == null) {
+            return false;
+        }
+
+        AIServiceConfig.FeatureFlags features = aiServiceConfig != null ? aiServiceConfig.getFeatures() : null;
+        if (features != null && Boolean.FALSE.equals(features.getEnableAdvancedRAG())) {
+            return false;
+        }
+
+        Map<String, Object> ctxMetadata = context != null ? context.getMetadata() : null;
+        if (isTrue(ctxMetadata != null ? ctxMetadata.get(CONTEXT_METADATA_KEY_USE_ADVANCED_RAG) : null)) {
+            return true;
+        }
+
+        if (!needsGeneration) {
+            return false;
+        }
+
+        boolean autoEnable = features != null
+            && Boolean.TRUE.equals(features.getAutoEnableAdvancedRAGForComplexQueries());
+        return autoEnable && isComplexQuery(query);
+    }
+
+    private boolean isComplexQuery(String query) {
+        if (!StringUtils.hasText(query)) {
+            return false;
+        }
+        if (query.length() >= ADVANCED_QUERY_LENGTH_THRESHOLD) {
+            return true;
+        }
+        if (query.contains("?")) {
+            return true;
+        }
+        int words = query.trim().split("\\s+").length;
+        return words >= ADVANCED_QUERY_WORD_THRESHOLD;
+    }
+
+    private boolean isTrue(Object value) {
+        return value instanceof Boolean bool && bool;
+    }
+
+    private Integer readInteger(Map<String, Object> metadata, String key) {
+        if (metadata == null || key == null) {
+            return null;
+        }
+        Object value = metadata.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String str && StringUtils.hasText(str)) {
+            try {
+                return Integer.parseInt(str.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String readString(Map<String, Object> metadata, String key) {
+        if (metadata == null || key == null) {
+            return null;
+        }
+        Object value = metadata.get(key);
+        if (value instanceof String str) {
+            String trimmed = str.trim();
+            return trimmed.isEmpty() ? null : trimmed;
+        }
+        return value != null ? value.toString() : null;
+    }
+
+    private List<RAGResponse.RAGDocument> convertToRagDocuments(List<AdvancedRAGResponse.RAGDocument> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return List.of();
+        }
+        return documents.stream()
+            .filter(java.util.Objects::nonNull)
+            .map(doc -> RAGResponse.RAGDocument.builder()
+                .id(doc.getId())
+                .content(doc.getContent())
+                .title(doc.getTitle())
+                .type(doc.getType())
+                .score(doc.getScore())
+                .similarity(doc.getSimilarity())
+                .metadata(doc.getMetadata())
+                .source(doc.getSource())
+                .createdAt(doc.getCreatedAt())
+                .author(doc.getAuthor())
+                .tags(doc.getTags())
+                .wordCount(doc.getWordCount())
+                .language(doc.getLanguage())
+                .build())
+            .collect(Collectors.toList());
+    }
+
+    private RAGResponse convertToRagResponse(AdvancedRAGResponse advanced,
+                                            List<RAGResponse.RAGDocument> documents,
+                                            String originalQuery,
+                                            String entityType) {
+        return RAGResponse.builder()
+            .documents(documents != null ? documents : List.of())
+            .context(advanced != null ? advanced.getContext() : null)
+            .totalDocuments(advanced != null ? advanced.getTotalDocuments() : null)
+            .usedDocuments(advanced != null ? advanced.getUsedDocuments() : null)
+            .relevanceScores(advanced != null ? advanced.getRelevanceScores() : null)
+            .confidenceScore(advanced != null ? advanced.getConfidenceScore() : null)
+            .processingTimeMs(advanced != null ? advanced.getProcessingTimeMs() : null)
+            .requestId(advanced != null ? advanced.getRequestId() : null)
+            .originalQuery(originalQuery)
+            .entityType(entityType)
+            .metadata(advanced != null ? advanced.getMetadata() : null)
+            .timestamp(advanced != null ? advanced.getTimestamp() : null)
+            .success(advanced != null ? advanced.getSuccess() : null)
+            .errorMessage(advanced != null ? advanced.getErrorMessage() : null)
+            .build();
+    }
+
+    private String generateRagAnswer(String query, String context) {
+        if (!StringUtils.hasText(query)) {
+            return null;
+        }
+
+        if (!StringUtils.hasText(context) || RAG_NO_CONTEXT_MESSAGE.equals(context)) {
+            return RAG_NO_INFO_MESSAGE_PREFIX + query;
+        }
+
+        String prompt = String.format(RAG_PROMPT_TEMPLATE, query, context);
+        return aiCoreService.generateText(prompt);
     }
     
     private OrchestrationResult handleOutOfScope(Intent intent) {

@@ -209,7 +209,7 @@ class RAGSixLayerIntegrationTest {
             .build();
 
         doReturn(RAGResponse.builder()
-            .response("Refunds are processed within 5-7 business days once approved.")
+            .context("Refunds are processed within 5-7 business days once approved.")
             .documents(List.of())
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
@@ -289,7 +289,7 @@ class RAGSixLayerIntegrationTest {
         );
 
         doReturn(RAGResponse.builder()
-            .response("Here are the current promotional discounts available.")
+            .context("Here are the current promotional discounts available.")
             .documents(List.of())
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
@@ -442,7 +442,7 @@ class RAGSixLayerIntegrationTest {
             .build();
 
         doReturn(RAGResponse.builder()
-            .response("Our featured collection includes curated items updated daily.")
+            .context("Our featured collection includes curated items updated daily.")
             .documents(List.of())
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
@@ -511,7 +511,7 @@ class RAGSixLayerIntegrationTest {
             .build();
 
         doReturn(RAGResponse.builder()
-            .response("Rotate credentials immediately. Current key sk-THISSHOULDBEREDACTED may be compromised.")
+            .context("Rotate credentials immediately. Current key sk-THISSHOULDBEREDACTED may be compromised.")
             .documents(List.of())
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
@@ -614,7 +614,7 @@ class RAGSixLayerIntegrationTest {
             .build();
 
         doReturn(RAGResponse.builder()
-            .response("Refund investigations typically complete within 3 business days.")
+            .context("Refund investigations typically complete within 3 business days.")
             .documents(List.of())
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));

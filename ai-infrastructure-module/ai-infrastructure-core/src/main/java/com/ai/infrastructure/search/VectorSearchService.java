@@ -106,32 +106,8 @@ public class VectorSearchService {
     public AISearchResponse hybridSearch(List<Double> queryVector, String queryText, AISearchRequest request) {
         try {
             log.debug("Performing hybrid search for query: {}", queryText);
-            
-            long startTime = System.currentTimeMillis();
-            
-            // Perform vector search via VectorDatabaseService
-            AISearchResponse vectorResponse = vectorDatabaseService.search(queryVector, request);
-            List<Map<String, Object>> vectorResults = vectorResponse.getResults();
-            
-            // For hybrid search, we can combine with text matching if needed
-            // This is a simplified implementation - production implementations
-            // might use specialized hybrid search features of vector databases
-            List<Map<String, Object>> combinedResults = vectorResults;
-            
-            // If text matching is needed, it would be done here
-            // For now, we rely on the vector database's similarity search
-            
-            long processingTime = System.currentTimeMillis() - startTime;
-            
-            return AISearchResponse.builder()
-                .results(combinedResults)
-                .totalResults(combinedResults.size())
-                .maxScore(combinedResults.isEmpty() ? 0.0 : (Double) combinedResults.get(0).get("similarity"))
-                .processingTimeMs(processingTime)
-                .requestId(UUID.randomUUID().toString())
-                .query(request.getQuery())
-                .model(config.resolveEmbeddingDefaults().model())
-                .build();
+
+            return vectorDatabaseService.hybridSearch(queryVector, queryText, request);
                 
         } catch (Exception e) {
             log.error("Error performing hybrid search", e);
@@ -154,25 +130,19 @@ public class VectorSearchService {
         try {
             log.debug("Performing contextual search with context: {}", context);
             
-            long startTime = System.currentTimeMillis();
-            
-            // Add context to request metadata if needed
-            if (request.getMetadata() == null) {
-                request = AISearchRequest.builder()
-                    .query(request.getQuery())
-                    .entityType(request.getEntityType())
-                    .limit(request.getLimit())
-                    .threshold(request.getThreshold())
-                    .metadata(Map.of("context", context))
-                    .build();
-            }
-            
+            AISearchRequest contextualRequest = AISearchRequest.builder()
+                .query(request.getQuery())
+                .entityType(request.getEntityType())
+                .limit(request.getLimit())
+                .threshold(request.getThreshold())
+                .filters(request.getFilters())
+                .sortBy(request.getSortBy())
+                .context(context)
+                .metadata(request.getMetadata())
+                .build();
+
             // Delegate to VectorDatabaseService - it handles similarity internally
-            AISearchResponse response = vectorDatabaseService.search(queryVector, request);
-            
-            long processingTime = System.currentTimeMillis() - startTime;
-            
-            return response;
+            return vectorDatabaseService.search(queryVector, contextualRequest);
                 
         } catch (Exception e) {
             log.error("Error performing contextual search", e);

@@ -3,6 +3,8 @@ package com.ai.infrastructure.rag;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -72,6 +74,59 @@ public interface VectorDatabaseService {
      * @return search results with similarity scores
      */
     AISearchResponse search(List<Double> queryVector, AISearchRequest request);
+
+    /**
+     * Perform hybrid search combining vector similarity and keyword/text search.
+     *
+     * <p>This is an OPTIONAL method. Providers that support native hybrid search
+     * should override this method. The default implementation falls back to
+     * {@link #search(List, AISearchRequest)}.</p>
+     *
+     * @param queryVector the query vector for semantic search
+     * @param queryText the original query text for keyword search
+     * @param request the search request
+     * @return search results combining vector + keyword signals
+     */
+    default AISearchResponse hybridSearch(List<Double> queryVector, String queryText, AISearchRequest request) {
+        Logger log = LoggerFactory.getLogger(this.getClass());
+        log.debug("Hybrid search not supported by {} - falling back to vector search",
+            this.getClass().getSimpleName());
+        return search(queryVector, request);
+    }
+
+    /**
+     * Perform keyword/text-only search (BM25/full-text/etc.).
+     *
+     * <p>This is an OPTIONAL method. Providers that support keyword search
+     * should override this method.</p>
+     *
+     * @param queryText the original query text
+     * @param request the search request
+     * @return keyword search results
+     * @throws UnsupportedOperationException if not supported by provider
+     */
+    default AISearchResponse keywordSearch(String queryText, AISearchRequest request) {
+        throw new UnsupportedOperationException(
+            "Keyword search not supported by " + this.getClass().getSimpleName());
+    }
+
+    /**
+     * Capability check: does this provider support actual hybrid search?
+     *
+     * @return true if hybrid search is supported
+     */
+    default boolean supportsHybridSearch() {
+        return false;
+    }
+
+    /**
+     * Capability check: does this provider support keyword search?
+     *
+     * @return true if keyword search is supported
+     */
+    default boolean supportsKeywordSearch() {
+        return false;
+    }
     
     /**
      * Search for similar vectors by entity type

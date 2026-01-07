@@ -242,7 +242,7 @@ public class SmartSuggestionsStep implements PipelineStep {
             suggestion.put(SUGGESTION_KEY_RATIONALE, candidate.getRationale());
         }
         
-        suggestion.put(SUGGESTION_KEY_RESPONSE, ragResponse.getResponse());
+        suggestion.put(SUGGESTION_KEY_RESPONSE, ragResponse.getContext());
         suggestion.put(SUGGESTION_KEY_DOCUMENTS, ragResponse.getDocuments());
         suggestion.put(SUGGESTION_KEY_METADATA, ragResponse.getMetadata());
         
