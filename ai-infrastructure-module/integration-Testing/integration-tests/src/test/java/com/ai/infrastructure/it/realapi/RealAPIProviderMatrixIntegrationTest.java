@@ -5,6 +5,7 @@ import com.ai.infrastructure.it.RealAPIActionErrorRecoveryIntegrationTest;
 import com.ai.infrastructure.it.RealAPIActionFlowIntegrationTest;
 import com.ai.infrastructure.it.RealAPIHybridRetrievalToggleIntegrationTest;
 import com.ai.infrastructure.it.RealAPIIntegrationTest;
+import com.ai.infrastructure.it.RealAPIIntegrationTestV2;
 import com.ai.infrastructure.it.RealAPIIntentHistoryAggregationIntegrationTest;
 import com.ai.infrastructure.it.RealAPIIntentGenerationRoutingIntegrationTest;
 import com.ai.infrastructure.it.RealAPIONNXFallbackIntegrationTest;
@@ -39,6 +40,7 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     // Test chunks for parallel execution
     private static final Class<?>[] CHUNK_CORE = {
         RealAPIIntegrationTest.class,
+        RealAPIIntegrationTestV2.class,
         RealAPIONNXFallbackIntegrationTest.class,
         RealAPISmartValidationIntegrationTest.class
     };
@@ -65,6 +67,7 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     private static final Class<?>[] REAL_API_TEST_CLASSES = {
         RealAPIIntegrationTest.class,
+        RealAPIIntegrationTestV2.class,
         RealAPIONNXFallbackIntegrationTest.class,
         RealAPISmartValidationIntegrationTest.class,
         RealAPIVectorLifecycleIntegrationTest.class,
