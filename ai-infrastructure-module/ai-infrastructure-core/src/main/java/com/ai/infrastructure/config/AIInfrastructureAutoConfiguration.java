@@ -335,8 +335,8 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AICapableProcessor aiCapableProcessor() {
-        return new AICapableProcessor();
+    public AICapableProcessor aiCapableProcessor(AnnotationFieldScanner annotationFieldScanner) {
+        return new AICapableProcessor(annotationFieldScanner);
     }
     
     @Bean
