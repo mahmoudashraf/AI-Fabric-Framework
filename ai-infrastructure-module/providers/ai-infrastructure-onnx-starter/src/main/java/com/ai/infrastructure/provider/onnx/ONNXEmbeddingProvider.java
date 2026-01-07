@@ -7,7 +7,6 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.exception.AIServiceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 
 import ai.onnxruntime.*;
 import jakarta.annotation.PostConstruct;
@@ -47,17 +46,10 @@ import java.lang.reflect.Method;
 public class ONNXEmbeddingProvider implements EmbeddingProvider {
     
     private final AIProviderConfig config;
-    
-    @Value("${ai.providers.onnx-model-path:classpath:/models/embeddings/all-MiniLM-L6-v2.onnx}")
+
     private String modelPath;
-    
-    @Value("${ai.providers.onnx-tokenizer-path:classpath:/models/embeddings/tokenizer.json}")
     private String tokenizerPath;
-    
-    @Value("${ai.providers.onnx-max-sequence-length:512}")
     private int maxSequenceLength;
-    
-    @Value("${ai.providers.onnx-use-gpu:false}")
     private boolean useGpu;
     
     private OrtEnvironment ortEnvironment;
@@ -87,6 +79,17 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     @PostConstruct
     public void initialize() {
         try {
+            AIProviderConfig.ONNXConfig onnx = config.getOnnx();
+            if (onnx == null) {
+                log.error("ONNX configuration is missing. Provider will not be available.");
+                return;
+            }
+
+            modelPath = onnx.getModelPath();
+            tokenizerPath = onnx.getTokenizerPath();
+            maxSequenceLength = onnx.getMaxSequenceLength() != null ? onnx.getMaxSequenceLength() : 512;
+            useGpu = onnx.getUseGpu() != null && onnx.getUseGpu();
+
             log.info("========================================");
             log.info("Initializing ONNX Embedding Provider");
             log.info("Model path: {}", modelPath);

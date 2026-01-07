@@ -108,10 +108,8 @@ public class EnrichedPromptBuilder {
         prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
         prompt.append("6. For INFORMATION intents decide if LLM generation is needed (requiresGeneration = true for opinions/recommendations, false for data lookup).\n");
         prompt.append("7. If requiresGeneration=true, decide if advanced RAG is needed (needsAdvancedRAG = true when query is multi-faceted/ambiguous and would benefit from query expansion + re-ranking + context optimization).\n");
-        prompt.append("8. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
-        
         // Add entity types information - always include, even if empty
-        prompt.append("9. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
+        prompt.append("8. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
         if (context.getAvailableEntityTypes() != null && !context.getAvailableEntityTypes().isEmpty()) {
             prompt.append("Available entity types: ").append(String.join(", ", context.getAvailableEntityTypes())).append(". ");
             prompt.append("Only use entity types from this list. ");
@@ -120,6 +118,8 @@ public class EnrichedPromptBuilder {
         }
         prompt.append("Use [] when unknown or when no entity types match. ");
         prompt.append("Example: {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find premium customers who ordered this month\",\"entityTypes\":[\"customer\",\"order\"],\"limit\":20}}.\n\n");
+
+        prompt.append("9. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
     }
 
     private void appendNextStepGuidance(StringBuilder prompt) {

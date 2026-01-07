@@ -235,7 +235,7 @@ public class AICoreService {
                 .generationType("text")
                 .prompt(prompt)
                 .model(defaults.model())
-                .maxTokens(Math.min(defaults.maxTokens(), 1000))
+                .maxTokens(defaults.maxTokens() != null ? Math.min(defaults.maxTokens(), 1000) : null)
                 .temperature(defaults.temperature())
                 .build();
 

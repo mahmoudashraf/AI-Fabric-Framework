@@ -47,7 +47,8 @@ public class OpenAIProvider implements AIProvider {
     private final AtomicReference<String> lastErrorMessage = new AtomicReference<>();
     private final AtomicReference<Double> averageResponseTime = new AtomicReference<>(0.0);
     
-    private static final String OPENAI_BASE_URL = "https://api.openai.com/v1";
+    private static final String PATH_CHAT_COMPLETIONS = "/chat/completions";
+    private static final String PATH_EMBEDDINGS = "/embeddings";
     
     @Override
     public String getProviderName() {
@@ -74,7 +75,7 @@ public class OpenAIProvider implements AIProvider {
             log.debug("Generating content with OpenAI: model={}, prompt={}", 
                      request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
             
-            String url = OPENAI_BASE_URL + "/chat/completions";
+            String url = normalizeBaseUrl(config.getBaseUrl()) + PATH_CHAT_COMPLETIONS;
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -185,7 +186,7 @@ public class OpenAIProvider implements AIProvider {
             log.debug("Generating embedding with OpenAI: model={}, text={}", 
                      request.getModel(), request.getText().substring(0, Math.min(100, request.getText().length())));
             
-            String url = OPENAI_BASE_URL + "/embeddings";
+            String url = normalizeBaseUrl(config.getBaseUrl()) + PATH_EMBEDDINGS;
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -330,5 +331,16 @@ public class OpenAIProvider implements AIProvider {
         }
         
         return usage;
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        if (baseUrl == null) {
+            return "";
+        }
+        String trimmed = baseUrl.trim();
+        if (trimmed.endsWith("/")) {
+            return trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 }

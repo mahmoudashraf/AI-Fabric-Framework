@@ -39,6 +39,7 @@ import com.ai.infrastructure.health.AIHealthIndicator;
 import com.ai.infrastructure.repository.IndexingQueueRepository;
 import com.ai.infrastructure.storage.AIStorageProperties;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
+import com.ai.infrastructure.validation.AIProviderConfigValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -362,13 +363,26 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AIConfigurationService aiConfigurationService(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
-        return new AIConfigurationService(providerConfig, serviceConfig);
+    public AIProviderConfigValidator aiProviderConfigValidator(AIProviderConfig providerConfig, AIServiceConfig serviceConfig) {
+        return new AIProviderConfigValidator(providerConfig, serviceConfig);
     }
-    
+
     @Bean
-    public AIHealthIndicator aiHealthIndicator(AIConfigurationService configurationService, AIServiceConfig serviceConfig) {
-        return new AIHealthIndicator(configurationService, serviceConfig);
+    @ConditionalOnMissingBean(com.ai.infrastructure.service.AIConfigurationService.class)
+    public com.ai.infrastructure.service.AIConfigurationService aiServiceConfigurationService(
+        AIProviderConfig providerConfig,
+        AIServiceConfig serviceConfig
+    ) {
+        return new com.ai.infrastructure.service.AIConfigurationService(providerConfig, serviceConfig);
+    }
+
+    @Bean
+    public AIHealthIndicator aiHealthIndicator(
+        com.ai.infrastructure.service.AIConfigurationService configurationService,
+        AIServiceConfig serviceConfig,
+        AIProviderConfig providerConfig
+    ) {
+        return new AIHealthIndicator(configurationService, serviceConfig, providerConfig);
     }
 
     @Bean

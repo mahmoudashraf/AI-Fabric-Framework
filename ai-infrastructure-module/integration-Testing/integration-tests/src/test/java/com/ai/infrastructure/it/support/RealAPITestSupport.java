@@ -38,6 +38,10 @@ public final class RealAPITestSupport {
         if (StringUtils.hasText(apiKey)) {
             System.setProperty(OPENAI_KEY_PROPERTY, apiKey);
             System.setProperty("ai.providers.openai.api-key", apiKey);
+            System.setProperty("OPENAI_ENABLED", "true");
+            System.setProperty("ai.providers.openai.enabled", "true");
+            System.setProperty("ai.providers.openai.base-url",
+                System.getProperty("ai.providers.openai.base-url", "https://api.openai.com/v1"));
             configured = true;
         }
     }

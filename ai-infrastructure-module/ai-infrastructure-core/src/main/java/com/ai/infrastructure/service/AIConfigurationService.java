@@ -5,9 +5,9 @@ import com.ai.infrastructure.config.AIServiceConfig;
 import com.ai.infrastructure.dto.AIConfigurationDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -20,7 +20,6 @@ import java.util.Map;
  * @version 1.0.0
  */
 @Slf4j
-@Service("aiServiceConfigurationService")
 public class AIConfigurationService {
     
     private final AIProviderConfig providerConfig;
@@ -151,11 +150,17 @@ public class AIConfigurationService {
      * @return true if feature is enabled
      */
     public boolean isFeatureEnabled(String featureName) {
-        if (!serviceConfig.getFeatureFlagsEnabled()) {
+        Boolean flagsEnabled = serviceConfig.getFeatureFlagsEnabled();
+        if (flagsEnabled != null && !flagsEnabled) {
             return true; // All features enabled if feature flags disabled
         }
-        
-        return serviceConfig.getFeatureFlags().getOrDefault(featureName, false);
+
+        Map<String, Boolean> featureFlags = serviceConfig.getFeatureFlags();
+        if (featureFlags == null) {
+            return true;
+        }
+
+        return featureFlags.getOrDefault(featureName, false);
     }
     
     /**
@@ -165,7 +170,11 @@ public class AIConfigurationService {
      * @return true if service is enabled
      */
     public boolean isServiceEnabled(String serviceName) {
-        AIServiceConfig.ServiceConfig service = serviceConfig.getServices().get(serviceName);
+        Map<String, AIServiceConfig.ServiceConfig> services = serviceConfig.getServices();
+        if (services == null) {
+            return false;
+        }
+        AIServiceConfig.ServiceConfig service = services.get(serviceName);
         return service != null && service.isEnabled();
     }
     
@@ -176,141 +185,11 @@ public class AIConfigurationService {
      * @return service configuration
      */
     public AIServiceConfig.ServiceConfig getServiceConfig(String serviceName) {
-        return serviceConfig.getServices().get(serviceName);
-    }
-    
-    /**
-     * Validate configuration
-     * 
-     * @return validation result
-     */
-    public Map<String, Object> validateConfiguration() {
-        log.debug("Validating AI configuration");
-        
-        Map<String, Object> result = new HashMap<>();
-        boolean isValid = true;
-        Map<String, String> errors = new HashMap<>();
-        
-        // Validate provider configuration
-        String llmProvider = providerConfig.getLlmProvider() != null
-            ? providerConfig.getLlmProvider().toLowerCase()
-            : "openai";
-        switch (llmProvider) {
-            case "openai" -> {
-                if (providerConfig.getOpenai().getApiKey() == null || providerConfig.getOpenai().getApiKey().isBlank()) {
-                    errors.put("openaiApiKey", "OpenAI API key is required when OpenAI is the configured LLM provider.");
-                    isValid = false;
-                }
-                if (providerConfig.getOpenai().getModel() == null || providerConfig.getOpenai().getModel().isBlank()) {
-                    errors.put("openaiModel", "OpenAI model is required when OpenAI is the configured LLM provider.");
-                    isValid = false;
-                }
-            }
-            case "anthropic" -> {
-                if (providerConfig.getAnthropic().getApiKey() == null || providerConfig.getAnthropic().getApiKey().isBlank()) {
-                    errors.put("anthropicApiKey", "Anthropic API key is required when Anthropic is the configured LLM provider.");
-                    isValid = false;
-                }
-                if (providerConfig.getAnthropic().getModel() == null || providerConfig.getAnthropic().getModel().isBlank()) {
-                    errors.put("anthropicModel", "Anthropic model is required when Anthropic is the configured LLM provider.");
-                    isValid = false;
-                }
-            }
-            case "cohere" -> {
-                if (providerConfig.getCohere().getApiKey() == null || providerConfig.getCohere().getApiKey().isBlank()) {
-                    errors.put("cohereApiKey", "Cohere API key is required when Cohere is the configured LLM provider.");
-                    isValid = false;
-                }
-                if (providerConfig.getCohere().getModel() == null || providerConfig.getCohere().getModel().isBlank()) {
-                    errors.put("cohereModel", "Cohere model is required when Cohere is the configured LLM provider.");
-                    isValid = false;
-                }
-            }
-            default -> {
-                // For unsupported providers we rely on downstream validation
-            }
+        Map<String, AIServiceConfig.ServiceConfig> services = serviceConfig.getServices();
+        if (services == null) {
+            return null;
         }
-
-        String embeddingProvider = providerConfig.getEmbeddingProvider() != null
-            ? providerConfig.getEmbeddingProvider().toLowerCase()
-            : "onnx";
-        switch (embeddingProvider) {
-            case "openai" -> {
-                if (providerConfig.getOpenai().getApiKey() == null || providerConfig.getOpenai().getApiKey().isBlank()) {
-                    errors.put("openaiEmbeddingApiKey", "OpenAI API key is required when OpenAI is the embedding provider.");
-                    isValid = false;
-                }
-                if (providerConfig.getOpenai().getEmbeddingModel() == null || providerConfig.getOpenai().getEmbeddingModel().isBlank()) {
-                    errors.put("openaiEmbeddingModel", "OpenAI embedding model is required when OpenAI is the embedding provider.");
-                    isValid = false;
-                }
-            }
-            case "rest" -> {
-                if (providerConfig.getRest().getBaseUrl() == null || providerConfig.getRest().getBaseUrl().isBlank()) {
-                    errors.put("restBaseUrl", "REST embedding base URL is required when REST is the embedding provider.");
-                    isValid = false;
-                }
-                if (providerConfig.getRest().getEndpoint() == null || providerConfig.getRest().getEndpoint().isBlank()) {
-                    errors.put("restEndpoint", "REST embedding endpoint is required when REST is the embedding provider.");
-                    isValid = false;
-                }
-            }
-            case "onnx" -> {
-                if (providerConfig.getOnnx().getModelPath() == null || providerConfig.getOnnx().getModelPath().isBlank()) {
-                    errors.put("onnxModelPath", "ONNX model path is required when ONNX is the embedding provider.");
-                    isValid = false;
-                }
-            }
-            default -> {
-            }
-        }
-        
-        // Validate service configuration
-        if (serviceConfig.getDefaultTimeout() <= 0) {
-            errors.put("defaultTimeout", "Default timeout must be positive");
-            isValid = false;
-        }
-        
-        if (serviceConfig.getMaxRetries() < 0) {
-            errors.put("maxRetries", "Max retries must be non-negative");
-            isValid = false;
-        }
-        
-        if (serviceConfig.getRetryDelay() < 0) {
-            errors.put("retryDelay", "Retry delay must be non-negative");
-            isValid = false;
-        }
-        
-        if (serviceConfig.getThreadPoolSize() <= 0) {
-            errors.put("threadPoolSize", "Thread pool size must be positive");
-            isValid = false;
-        }
-        
-        if (serviceConfig.getBatchSize() <= 0) {
-            errors.put("batchSize", "Batch size must be positive");
-            isValid = false;
-        }
-        
-        if (serviceConfig.getRateLimitPerMinute() <= 0) {
-            errors.put("rateLimitPerMinute", "Rate limit per minute must be positive");
-            isValid = false;
-        }
-        
-        if (serviceConfig.getCircuitBreakerThreshold() <= 0) {
-            errors.put("circuitBreakerThreshold", "Circuit breaker threshold must be positive");
-            isValid = false;
-        }
-        
-        if (serviceConfig.getCircuitBreakerTimeout() <= 0) {
-            errors.put("circuitBreakerTimeout", "Circuit breaker timeout must be positive");
-            isValid = false;
-        }
-        
-        result.put("valid", isValid);
-        result.put("errors", errors);
-        
-        log.debug("Configuration validation completed. Valid: {}", isValid);
-        return result;
+        return services.get(serviceName);
     }
     
     /**
@@ -321,12 +200,17 @@ public class AIConfigurationService {
     public Map<String, Object> getConfigurationSummary() {
         log.debug("Generating configuration summary");
         
+        Map<String, Boolean> resolvedFeatureFlags = resolveFeatureFlags();
+        Map<String, AIServiceConfig.ServiceConfig> services = serviceConfig.getServices();
+
         Map<String, Object> summary = new HashMap<>();
         summary.put("enabled", serviceConfig.getEnabled());
-        summary.put("featuresEnabled", serviceConfig.getFeatureFlags().values().stream().mapToInt(b -> b ? 1 : 0).sum());
-        summary.put("totalFeatures", serviceConfig.getFeatureFlags().size());
-        summary.put("servicesEnabled", serviceConfig.getServices().values().stream().mapToInt(s -> s.isEnabled() ? 1 : 0).sum());
-        summary.put("totalServices", serviceConfig.getServices().size());
+        summary.put("featuresEnabled", resolvedFeatureFlags.values().stream().mapToInt(b -> b ? 1 : 0).sum());
+        summary.put("totalFeatures", resolvedFeatureFlags.size());
+        summary.put("servicesEnabled", services != null
+            ? services.values().stream().mapToInt(s -> s != null && s.isEnabled() ? 1 : 0).sum()
+            : 0);
+        summary.put("totalServices", services != null ? services.size() : 0);
         summary.put("cachingEnabled", serviceConfig.getCachingEnabled());
         summary.put("metricsEnabled", serviceConfig.getMetricsEnabled());
         summary.put("healthChecksEnabled", serviceConfig.getHealthChecksEnabled());
@@ -336,6 +220,33 @@ public class AIConfigurationService {
         summary.put("circuitBreakerEnabled", serviceConfig.getCircuitBreakerEnabled());
         
         return summary;
+    }
+
+    private Map<String, Boolean> resolveFeatureFlags() {
+        Map<String, Boolean> configured = serviceConfig.getFeatureFlags();
+        if (configured != null && !configured.isEmpty()) {
+            return new LinkedHashMap<>(configured);
+        }
+
+        AIServiceConfig.FeatureFlags features = serviceConfig.getFeatures();
+        if (features == null) {
+            return Map.of();
+        }
+
+        Map<String, Boolean> resolved = new LinkedHashMap<>();
+        resolved.put("enableRAG", features.getEnableRAG());
+        resolved.put("enableAdvancedRAG", features.getEnableAdvancedRAG());
+        resolved.put("autoEnableAdvancedRAGForComplexQueries", features.getAutoEnableAdvancedRAGForComplexQueries());
+        resolved.put("enableEmbeddings", features.getEnableEmbeddings());
+        resolved.put("enableSearch", features.getEnableSearch());
+        resolved.put("enableGeneration", features.getEnableGeneration());
+        resolved.put("enableCaching", features.getEnableCaching());
+        resolved.put("enableMonitoring", features.getEnableMonitoring());
+        resolved.put("enableAnalytics", features.getEnableAnalytics());
+        resolved.put("enableHealthChecks", features.getEnableHealthChecks());
+        resolved.put("enableAutoScaling", features.getEnableAutoScaling());
+        resolved.put("enableMultiProvider", features.getEnableMultiProvider());
+        return resolved;
     }
 
     private Map<String, Object> buildProviderDetails() {

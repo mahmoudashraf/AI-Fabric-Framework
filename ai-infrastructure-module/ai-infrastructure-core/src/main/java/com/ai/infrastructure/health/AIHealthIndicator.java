@@ -1,13 +1,14 @@
 package com.ai.infrastructure.health;
 
+import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIServiceConfig;
-import com.ai.infrastructure.config.AIConfigurationService;
 import com.ai.infrastructure.dto.AIHealthDto;
+import com.ai.infrastructure.service.AIConfigurationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -20,24 +21,46 @@ import java.util.Map;
  * @version 1.0.0
  */
 @Slf4j
-// @Component // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
 @RequiredArgsConstructor
 public class AIHealthIndicator {
     
-    private final AIConfigurationService configurationService;
+    private final AIConfigurationService aiServiceConfigurationService;
     private final AIServiceConfig aiServiceConfig;
+    private final AIProviderConfig aiProviderConfig;
     
     /**
      * Get health status as DTO
      */
     public AIHealthDto getHealthStatus() {
-        Map<String, Object> healthMap = health();
-        return AIHealthDto.builder()
-                .enabled(aiServiceConfig.getEnabled())
-                .status((String) healthMap.get("status"))
-                .configurationValid((Boolean) healthMap.get("configurationValid"))
-                .lastChecked(LocalDateTime.now().toString())
-                .build();
+        Map<String, Object> summary = aiServiceConfigurationService.getConfigurationSummary();
+
+        boolean enabled = aiServiceConfig != null && aiServiceConfig.isEnabled();
+        boolean configurationValid = true; // validated at startup (fail-fast) when providers are enabled
+
+        AIHealthDto.AIHealthDtoBuilder builder = AIHealthDto.builder()
+            .enabled(enabled)
+            .configurationValid(configurationValid)
+            .providerConfigurationValid(configurationValid)
+            .serviceConfigurationValid(configurationValid)
+            .lastChecked(LocalDateTime.now().toString())
+            .lastUpdated(LocalDateTime.now())
+            .featuresEnabled(asInt(summary.get("featuresEnabled")))
+            .totalFeatures(asInt(summary.get("totalFeatures")))
+            .servicesEnabled(asInt(summary.get("servicesEnabled")))
+            .totalServices(asInt(summary.get("totalServices")))
+            .cachingEnabled(asBoolean(summary.get("cachingEnabled")))
+            .metricsEnabled(asBoolean(summary.get("metricsEnabled")))
+            .healthChecksEnabled(asBoolean(summary.get("healthChecksEnabled")))
+            .asyncEnabled(asBoolean(summary.get("asyncEnabled")))
+            .batchProcessingEnabled(asBoolean(summary.get("batchProcessingEnabled")))
+            .rateLimitingEnabled(asBoolean(summary.get("rateLimitingEnabled")))
+            .circuitBreakerEnabled(asBoolean(summary.get("circuitBreakerEnabled")))
+            .openaiConfigured(hasText(aiProviderConfig != null ? aiProviderConfig.getOpenai().getApiKey() : null))
+            .pineconeConfigured(hasText(aiProviderConfig != null ? aiProviderConfig.getPinecone().getApiKey() : null));
+
+        AIHealthDto dto = builder.build();
+        dto.setStatus(determineHealthStatus(dto));
+        return dto;
     }
     
     /**
@@ -48,7 +71,7 @@ public class AIHealthIndicator {
             log.debug("Checking AI infrastructure health...");
             
             // Check if AI services are enabled
-            if (!aiServiceConfig.getEnabled()) {
+            if (aiServiceConfig == null || !aiServiceConfig.isEnabled()) {
                 return Map.of(
                     "status", "DOWN",
                     "reason", "AI services are disabled",
@@ -63,16 +86,17 @@ public class AIHealthIndicator {
             String status = determineHealthStatus(healthInfo);
             
             // Build health response
-            Map<String, Object> healthResponse = Map.of(
-                "status", status,
-                "enabled", healthInfo.isEnabled(),
-                "configurationValid", healthInfo.isConfigurationValid(),
-                "featuresEnabled", healthInfo.getFeaturesEnabled(),
-                "totalFeatures", healthInfo.getTotalFeatures(),
-                "servicesEnabled", healthInfo.getServicesEnabled(),
-                "totalServices", healthInfo.getTotalServices(),
-                "timestamp", LocalDateTime.now()
-            );
+            Map<String, Object> healthResponse = new HashMap<>();
+            healthResponse.put("status", status);
+            healthResponse.put("enabled", healthInfo.isEnabled());
+            healthResponse.put("configurationValid", healthInfo.isConfigurationValid());
+            healthResponse.put("featuresEnabled", healthInfo.getFeaturesEnabled());
+            healthResponse.put("totalFeatures", healthInfo.getTotalFeatures());
+            healthResponse.put("servicesEnabled", healthInfo.getServicesEnabled());
+            healthResponse.put("totalServices", healthInfo.getTotalServices());
+            healthResponse.put("llmProvider", aiProviderConfig != null ? aiProviderConfig.getLlmProvider() : null);
+            healthResponse.put("embeddingProvider", aiProviderConfig != null ? aiProviderConfig.getEmbeddingProvider() : null);
+            healthResponse.put("timestamp", LocalDateTime.now());
             
             // Add detailed information if available
             if (healthInfo.getPerformanceMetrics() != null) {
@@ -133,6 +157,34 @@ public class AIHealthIndicator {
         }
         
         return "UP";
+    }
+
+    private int asInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text) {
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private boolean asBoolean(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String text) {
+            return Boolean.parseBoolean(text);
+        }
+        return false;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
     
     /**
