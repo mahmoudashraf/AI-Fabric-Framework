@@ -35,7 +35,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 @SpringBootTest(classes = TestApplication.class,
     properties = {
         "ai.providers.embedding-provider=openai",
-        "ai.providers.enable-fallback=true"
+        "ai.providers.enable-fallback=true",
+        "ai.providers.openai.enabled=true",
+        "ai.providers.openai.api-key=sk-test-key",
+        "ai.providers.openai.base-url=https://api.openai.com/v1",
+        "ai.providers.openai.model=gpt-4o-mini",
+        "ai.providers.openai.embedding-model=text-embedding-3-small"
     })
 @ActiveProfiles("dev")
 @Import(AICacheConfig.class)

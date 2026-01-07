@@ -19,8 +19,20 @@ ai:
     enabled: true
     mode: FULL
   providers:
+    enabled: true
+    llm-provider: openai
     embedding-provider: onnx
-    provider: openai
+    enable-fallback: false
+
+    # Behavior integration tests do not require a live LLM provider.
+    openai:
+      enabled: false
+
+    # Keep ONNX configured so embedding-provider=onnx is valid.
+    onnx:
+      enabled: true
+      model-path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
+      tokenizer-path: classpath:/models/embeddings/tokenizer.json
 
 # keep logging quiet in CI
 logging:

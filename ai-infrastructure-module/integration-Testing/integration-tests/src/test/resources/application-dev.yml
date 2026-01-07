@@ -45,8 +45,9 @@ ai:
       model-alias: all-MiniLM-L6-v2
     
     openai:
-      enabled: ${OPENAI_ENABLED:true}
-      api-key: ${OPENAI_API_KEY}
+      enabled: ${OPENAI_ENABLED:false}
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
       model: gpt-4o-mini
       embedding-model: text-embedding-3-small
       max-tokens: 1000

@@ -73,8 +73,8 @@ public class AIProviderConfigValidator {
             case "anthropic" -> validateAnthropic(result);
             case "cohere" -> validateCohere(result);
             case "azure" -> validateAzure(result, true, false);
-            default -> result.addError("ai.providers.llm-provider",
-                "Unknown LLM provider: '" + provider + "'. Must be one of: openai, anthropic, cohere, azure");
+            default -> result.addWarning("ai.providers.llm-provider='" + provider
+                + "' is not a built-in provider. Skipping strict LLM provider validation.");
         }
     }
 
@@ -86,8 +86,8 @@ public class AIProviderConfigValidator {
             case "azure" -> validateAzure(result, false, true);
             case "rest" -> validateRest(result);
             case "onnx" -> validateOnnx(result);
-            default -> result.addError("ai.providers.embedding-provider",
-                "Unknown embedding provider: '" + provider + "'. Must be one of: openai, azure, rest, onnx");
+            default -> result.addWarning("ai.providers.embedding-provider='" + provider
+                + "' is not a built-in provider. Skipping strict embedding provider validation.");
         }
     }
 
