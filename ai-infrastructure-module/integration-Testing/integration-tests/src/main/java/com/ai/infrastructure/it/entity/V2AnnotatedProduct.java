@@ -50,7 +50,7 @@ public class V2AnnotatedProduct {
     /**
      * v2-only searchable field (NOT present in YAML config). This should be the only content that gets embedded.
      */
-    @AISearchable
+    @AISearchable(preprocessing = "none")
     @Column(columnDefinition = "TEXT")
     private String internalNotes;
 
