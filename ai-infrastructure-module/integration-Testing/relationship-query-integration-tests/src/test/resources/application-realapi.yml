@@ -56,6 +56,7 @@ ai:
     openai:
       enabled: true
       api-key: ${OPENAI_API_KEY}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
       model: ${OPENAI_MODEL:gpt-4o-mini}
       embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
       max-tokens: 2000
