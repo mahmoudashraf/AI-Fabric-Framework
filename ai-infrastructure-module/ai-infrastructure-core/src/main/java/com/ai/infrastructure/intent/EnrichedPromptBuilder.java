@@ -107,10 +107,11 @@ public class EnrichedPromptBuilder {
         prompt.append("4. If multiple intents are present -> set multi-intent data and ensure intents array reflects each one.\n");
         prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
         prompt.append("6. For INFORMATION intents decide if LLM generation is needed (requiresGeneration = true for opinions/recommendations, false for data lookup).\n");
-        prompt.append("7. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
+        prompt.append("7. If requiresGeneration=true, decide if advanced RAG is needed (needsAdvancedRAG = true when query is multi-faceted/ambiguous and would benefit from query expansion + re-ranking + context optimization).\n");
+        prompt.append("8. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
         
         // Add entity types information - always include, even if empty
-        prompt.append("8. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
+        prompt.append("9. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
         if (context.getAvailableEntityTypes() != null && !context.getAvailableEntityTypes().isEmpty()) {
             prompt.append("Available entity types: ").append(String.join(", ", context.getAvailableEntityTypes())).append(". ");
             prompt.append("Only use entity types from this list. ");
@@ -143,6 +144,7 @@ public class EnrichedPromptBuilder {
                   "vectorSpace": "policies | faq | ...",
                   "requiresRetrieval": true,
                   "requiresGeneration": false,
+                  "needsAdvancedRAG": false,
                   "optimizedQuery": "Product entities with price_usd < 60.00 AND stock_status = 'in_stock'",
                   "nextStepRecommended": {
                     "intent": "potential_follow_up_intent",

@@ -315,8 +315,8 @@ public class IntentHandlingStep implements PipelineStep {
             metadata.put("piiDetectedTypes", pipelineContext.getDetectedPiiTypesView());
         }
 
-        if (shouldUseAdvancedRag(needsGeneration, query, context)) {
-            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, query, metadata);
+        if (shouldUseAdvancedRag(intent, needsGeneration, query, context)) {
+            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, query, metadata);
             if (advanced != null) {
                 return advanced;
             }
@@ -397,6 +397,7 @@ public class IntentHandlingStep implements PipelineStep {
     private OrchestrationResult handleInformationAdvanced(Intent intent,
                                                           OrchestrationContext context,
                                                           PipelineContext pipelineContext,
+                                                          boolean needsGeneration,
                                                           String query,
                                                           Map<String, Object> metadata) {
         AdvancedRAGProvider provider = advancedRagProvider.getIfAvailable();
@@ -423,18 +424,53 @@ public class IntentHandlingStep implements PipelineStep {
             List<RAGResponse.RAGDocument> documents = convertToRagDocuments(advancedResponse.getDocuments());
             RAGResponse ragResponse = convertToRagResponse(advancedResponse, documents, query, intent.getVectorSpace());
 
+            String answer = null;
+            if (needsGeneration) {
+                if (StringUtils.hasText(advancedResponse.getResponse())) {
+                    answer = advancedResponse.getResponse();
+                } else {
+                    try {
+                        answer = generateRagAnswer(query, ragResponse.getContext());
+                    } catch (Exception ex) {
+                        log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
+                            pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+                            ex.getMessage(),
+                            ex);
+
+                        Map<String, Object> errorData = new LinkedHashMap<>();
+                        errorData.put(DATA_KEY_ANSWER, null);
+                        errorData.put(DATA_KEY_DOCUMENTS, documents);
+                        errorData.put(DATA_KEY_RAG_RESPONSE, ragResponse);
+                        errorData.put(DATA_KEY_REQUIRES_GENERATION, true);
+                        errorData.put(DATA_KEY_GENERATION_ERROR, ex.getMessage());
+                        errorData.put(DATA_KEY_EXPANDED_QUERIES, advancedResponse.getExpandedQueries());
+                        errorData.put(DATA_KEY_CONFIDENCE_SCORE, advancedResponse.getConfidenceScore());
+                        errorData.put(DATA_KEY_RERANKING_STRATEGY, advancedResponse.getRerankingStrategy());
+                        errorData.put(DATA_KEY_CONTEXT_OPTIMIZATION_LEVEL, advancedResponse.getContextOptimizationLevel());
+
+                        return OrchestrationResult.builder()
+                            .type(OrchestrationResultType.ERROR)
+                            .success(false)
+                            .message("Failed to generate response: " + ex.getMessage())
+                            .data(Collections.unmodifiableMap(errorData))
+                            .nextSteps(extractNextSteps(intent))
+                            .build();
+                    }
+                }
+            }
+
             Map<String, Object> data = new LinkedHashMap<>();
-            data.put(DATA_KEY_ANSWER, advancedResponse.getResponse());
+            data.put(DATA_KEY_ANSWER, answer);
             data.put(DATA_KEY_DOCUMENTS, documents);
             data.put(DATA_KEY_RAG_RESPONSE, ragResponse);
-            data.put(DATA_KEY_REQUIRES_GENERATION, true);
+            data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
             data.put(DATA_KEY_EXPANDED_QUERIES, advancedResponse.getExpandedQueries());
             data.put(DATA_KEY_CONFIDENCE_SCORE, advancedResponse.getConfidenceScore());
             data.put(DATA_KEY_RERANKING_STRATEGY, advancedResponse.getRerankingStrategy());
             data.put(DATA_KEY_CONTEXT_OPTIMIZATION_LEVEL, advancedResponse.getContextOptimizationLevel());
 
-            String message = StringUtils.hasText(advancedResponse.getResponse())
-                ? advancedResponse.getResponse()
+            String message = StringUtils.hasText(answer)
+                ? answer
                 : MSG_SEARCH_COMPLETED;
 
             return OrchestrationResult.builder()
@@ -487,7 +523,7 @@ public class IntentHandlingStep implements PipelineStep {
         return builder.build();
     }
 
-    private boolean shouldUseAdvancedRag(boolean needsGeneration, String query, OrchestrationContext context) {
+    private boolean shouldUseAdvancedRag(Intent intent, boolean needsGeneration, String query, OrchestrationContext context) {
         AdvancedRAGProvider provider = advancedRagProvider.getIfAvailable();
         if (provider == null) {
             return false;
@@ -505,6 +541,12 @@ public class IntentHandlingStep implements PipelineStep {
 
         if (!needsGeneration) {
             return false;
+        }
+
+        // LLM decides (when provided). Only fall back to heuristics when the LLM did not return a value.
+        Boolean llmDecision = intent != null ? intent.getNeedsAdvancedRAG() : null;
+        if (llmDecision != null) {
+            return llmDecision;
         }
 
         boolean autoEnable = features != null

@@ -64,6 +64,15 @@ public class Intent {
     private Boolean requiresGeneration;
 
     /**
+     * Whether this intent needs advanced RAG (query expansion, re-ranking, context optimization).
+     *
+     * <p>This value is expected to be produced by the intent extractor LLM. When absent (null),
+     * the orchestrator may fall back to heuristic complexity checks if configured.</p>
+     */
+    @JsonAlias({"needs_advanced_rag", "needsAdvancedRAG"})
+    private Boolean needsAdvancedRAG;
+
+    /**
      * Optimized, system-terminology aligned query for embeddings.
      */
     private String optimizedQuery;
@@ -96,6 +105,18 @@ public class Intent {
         return requiresGeneration != null ? requiresGeneration : fallback;
     }
 
+    public Boolean getNeedsAdvancedRAG() {
+        return needsAdvancedRAG;
+    }
+
+    public void setNeedsAdvancedRAG(Boolean needsAdvancedRAG) {
+        this.needsAdvancedRAG = needsAdvancedRAG;
+    }
+
+    public boolean needsAdvancedRagOrDefault(boolean fallback) {
+        return needsAdvancedRAG != null ? needsAdvancedRAG : fallback;
+    }
+
     public String getIntentOrAction() {
         if (intent != null && !intent.isBlank()) {
             return intent;
@@ -113,6 +134,8 @@ public class Intent {
         if (requiresGeneration == null) {
             requiresGeneration = Boolean.FALSE;
         }
+        // needsAdvancedRAG is intentionally NOT defaulted here. When null it indicates
+        // the LLM did not provide an explicit decision (allowing heuristic fallback).
         if (actionParams == null) {
             actionParams = Collections.emptyMap();
         } else {

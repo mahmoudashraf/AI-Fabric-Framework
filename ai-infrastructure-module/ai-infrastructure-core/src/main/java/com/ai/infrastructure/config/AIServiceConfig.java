@@ -193,7 +193,8 @@ public class AIServiceConfig {
     /**
      * Feature flags
      */
-    private FeatureFlags features;
+    @Builder.Default
+    private FeatureFlags features = new FeatureFlags();
     
     /**
      * Provider-specific configurations
