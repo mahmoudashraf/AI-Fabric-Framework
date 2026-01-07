@@ -1,10 +1,10 @@
 # AI Chat Session Module - Complete Implementation Specification
 ## Production-Ready, Framework-Compliant Design (Pipeline Architecture)
 
-**Version:** 5.0 - Pipeline Architecture Update  
-**Date:** January 2026  
-**Status:** ✅ Implementation Ready  
-**Compliance:** 100% AI Fabric Framework Standards  
+**Version:** 5.1 - Pipeline Architecture + Action Confirmation
+**Date:** January 2026
+**Status:** ✅ Implementation Ready
+**Compliance:** 100% AI Fabric Framework Standards
 **Architecture:** Pipeline-Based (Current Codebase)
 
 ---
@@ -16,9 +16,10 @@
 **Key Updates from v4.0:**
 1. ✅ **Pipeline Architecture:** Integration via `PipelineStep`s instead of modifying `RAGOrchestrator`
 2. ✅ **Zero Core Changes:** `RAGOrchestrator` remains unchanged (thin wrapper)
-3. ✅ **Composable Steps:** `ConversationEnrichmentStep` (Order 25) and `ConversationRecordingStep` (Order 95)
+3. ✅ **Composable Steps:** `ConversationEnrichmentStep` (Order 25), `ConfirmationResolutionStep` (Order 55), and `ConversationRecordingStep` (Order 95)
 4. ✅ **Auto-Discovery:** Steps automatically included via Spring dependency injection
 5. ✅ **Better Separation:** Each step has single responsibility
+6. ✅ **Action Confirmation:** Two-step conversational confirmation for high-risk actions
 
 ---
 
@@ -33,11 +34,12 @@
 7. [Memory Strategies](#7-memory-strategies)
 8. [Service Implementation](#8-service-implementation)
 9. [Pipeline Integration](#9-pipeline-integration) ⚠️ **UPDATED**
-10. [Security](#10-security)
-11. [Configuration](#11-configuration)
-12. [Testing](#12-testing)
-13. [User Guide](#13-user-guide)
-14. [Implementation Checklist](#14-implementation-checklist)
+10. [Action Confirmation Workflow](#10-action-confirmation-workflow) 🆕 **NEW**
+11. [Security](#11-security)
+12. [Configuration](#12-configuration)
+13. [Testing](#13-testing)
+14. [User Guide](#14-user-guide)
+15. [Implementation Checklist](#15-implementation-checklist)
 
 ---
 
@@ -73,6 +75,7 @@ PipelineSteps (in order):
     30: PIIDetectionStep
     40: ComplianceCheckStep
     50: IntentExtractionStep
+    55: ConfirmationResolutionStep  ← NEW: Handles action confirmations
     60: IntentHandlingStep
     70: MetadataBuildingStep  ← UPDATED: Includes conversationId
     80: SmartSuggestionsStep
@@ -162,6 +165,7 @@ ai-infrastructure-module/
         │   │   └── SummaryMemoryStrategy.java            # Summarizes old, keeps recent
         │   ├── pipeline/                                 # NEW: Pipeline integration
         │   │   ├── ConversationEnrichmentStep.java       # Order 25
+        │   │   ├── ConfirmationResolutionStep.java      # Order 55
         │   │   └── ConversationRecordingStep.java       # Order 95
         │   ├── config/
         │   │   ├── ChatSessionProperties.java
@@ -200,6 +204,7 @@ ai-infrastructure-module/
 │  30: PIIDetectionStep                                        │
 │  40: ComplianceCheckStep                                     │
 │  50: IntentExtractionStep                                    │
+│  55: ConfirmationResolutionStep  ← NEW (chat module)        │
 │  60: IntentHandlingStep                                      │
 │  70: MetadataBuildingStep  ← UPDATED (includes convId)     │
 │  80: SmartSuggestionsStep                                    │
@@ -1011,20 +1016,796 @@ public PipelineContext process(PipelineContext context) {
 |-----------|-------------|-------|--------|
 | `OrchestrationContext` | Add field | +3 | Minimal |
 | `ConversationEnrichmentStep` | New class | ~120 | New |
+| `ConfirmationResolutionStep` | New class | ~150 | New |
 | `ConversationRecordingStep` | New class | ~100 | New |
 | `MetadataBuildingStep` | Update | +1 | Minimal |
 | `RAGOrchestrator` | **ZERO changes** | 0 | ✅ None |
 
-**Total Core Changes:** ~4 lines (only OrchestrationContext)  
-**Total Module Changes:** ~220 lines (2 new PipelineSteps)  
-**Breaking Changes:** ZERO  
+**Total Core Changes:** ~4 lines (only OrchestrationContext)
+**Total Module Changes:** ~370 lines (3 new PipelineSteps)
+**Breaking Changes:** ZERO
 **Architecture Alignment:** ✅ 100% Pipeline-based
 
 ---
 
-## 10. Security
+## 10. Action Confirmation Workflow 🆕
 
-### 10.1 Access Control Enforcement
+### 10.1 Overview
+
+**Problem:** Some actions are high-risk (e.g., "cancel my subscription", "delete all data") and should require **explicit user confirmation** before execution.
+
+**Solution:** Two-step conversational confirmation using conversation metadata to track pending actions.
+
+**Key Design:**
+- ✅ **Conversational** - Natural "are you sure?" → "yes" flow
+- ✅ **Stateful** - Pending actions stored in conversation metadata
+- ✅ **Secure** - Confirmation tied to conversation + user ownership
+- ✅ **Non-Blocking** - Actions without confirmations execute immediately (backward compatible)
+
+---
+
+### 10.2 Confirmation Flow Diagram
+
+```
+Turn 1: User requests high-risk action
+─────────────────────────────────────
+User: "cancel my subscription"
+    ↓
+IntentExtractionStep (50): Detects ACTION intent
+    ↓
+ConfirmationResolutionStep (55):
+    - Checks if action requires confirmation
+    - No pending confirmation found
+    - Passes through to IntentHandlingStep
+    ↓
+IntentHandlingStep (60):
+    - Detects handler.requiresConfirmation() == true
+    - Stores pending action in conversation metadata:
+      {
+        "pendingAction": "cancel_subscription",
+        "pendingActionParams": {...},
+        "pendingActionTimestamp": "2026-01-07T10:00:00"
+      }
+    - Returns CONFIRMATION_REQUIRED result
+    ↓
+User sees: "You are about to cancel your subscription. This cannot be undone.
+            Reply 'yes' to confirm or 'no' to cancel."
+
+
+Turn 2: User confirms
+─────────────────────
+User: "yes"
+    ↓
+IntentExtractionStep (50): May detect INFORMATION or OUT_OF_SCOPE intent
+    ↓
+ConfirmationResolutionStep (55):
+    - Checks conversation metadata
+    - Finds pending action: "cancel_subscription"
+    - Detects confirmation response ("yes")
+    - Creates ACTION intent from pending data
+    - Clears pending action from metadata
+    - REPLACES extracted intent with confirmed action
+    ↓
+IntentHandlingStep (60):
+    - Receives ACTION intent for "cancel_subscription"
+    - Executes action (requiresConfirmation() bypassed - already confirmed)
+    - Returns ACTION_EXECUTED result
+    ↓
+User sees: "Subscription cancelled successfully."
+```
+
+---
+
+### 10.3 Enhanced ActionHandler Interface
+
+**Current Interface:**
+```java
+public interface ActionHandler {
+    AIActionMetaData getActionMetadata();
+    boolean validateActionAllowed(String userId);
+    String getConfirmationMessage(Map<String, Object> params);
+    ActionResult executeAction(Map<String, Object> params, String userId);
+    ActionResult handleError(Exception e, String userId);
+}
+```
+
+**Add Method:**
+```java
+public interface ActionHandler {
+    // ... existing methods ...
+
+    /**
+     * Indicates if this action requires explicit user confirmation.
+     *
+     * <p>When {@code true}:</p>
+     * <ul>
+     *   <li>First invocation stores action in conversation metadata</li>
+     *   <li>User must explicitly confirm (e.g., "yes", "confirm")</li>
+     *   <li>Second invocation executes the action</li>
+     * </ul>
+     *
+     * <p>When {@code false} (default): Action executes immediately.</p>
+     *
+     * @return true if confirmation is required, false otherwise
+     */
+    default boolean requiresConfirmation() {
+        return false;  // Default: no confirmation needed
+    }
+}
+```
+
+---
+
+### 10.4 New OrchestrationResultType
+
+**File:** `ai-infrastructure-core/.../orchestration/OrchestrationResult.java`
+
+**Add Enum Value:**
+```java
+public enum OrchestrationResultType {
+    // ... existing values ...
+    ACTION_EXECUTED,
+    ACTION_DENIED,
+
+    /**
+     * Action requires user confirmation before execution.
+     *
+     * <p>The action is stored in conversation metadata. User must
+     * respond with confirmation (e.g., "yes") in next turn.</p>
+     */
+    CONFIRMATION_REQUIRED,  // ← ADD THIS
+
+    // ... other values ...
+}
+```
+
+---
+
+### 10.5 ConfirmationResolutionStep Implementation
+
+**File:** `ai-infrastructure-chat-session/.../pipeline/ConfirmationResolutionStep.java`
+
+**Order:** 55 (between IntentExtractionStep (50) and IntentHandlingStep (60))
+
+**Why this order?**
+- ✅ After intent extraction (can see what user intent was detected)
+- ✅ Before intent handling (can replace intent before execution)
+- ✅ After security/access control (only process confirmed actions from authorized users)
+
+```java
+package com.ai.infrastructure.chat.pipeline;
+
+import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.chat.domain.ChatSession;
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+
+/**
+ * Pipeline step that resolves action confirmation requests in conversations.
+ *
+ * <p><strong>Execution Order:</strong> 55 (after IntentExtractionStep, before IntentHandlingStep)</p>
+ *
+ * <p><strong>Behavior:</strong></p>
+ * <ul>
+ *   <li>Checks for pending actions in conversation metadata</li>
+ *   <li>Detects confirmation responses ("yes", "confirm", "proceed")</li>
+ *   <li>Detects cancellation responses ("no", "cancel", "abort")</li>
+ *   <li>Replaces extracted intent with pending action intent when confirmed</li>
+ *   <li>Clears pending action when confirmed or cancelled</li>
+ * </ul>
+ *
+ * <p><strong>Timeout:</strong> Pending confirmations expire after configured TTL (default: 5 minutes)</p>
+ *
+ * @see IntentHandlingStep
+ * @see ChatSessionService
+ * @since 5.1
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+@ConditionalOnBean(ChatSessionService.class)
+public class ConfirmationResolutionStep implements PipelineStep {
+
+    // =========================================================================
+    // Constants
+    // =========================================================================
+
+    private static final String STEP_NAME = "ConfirmationResolution";
+    private static final int STEP_ORDER = 55;
+
+    // Metadata keys for pending actions
+    private static final String METADATA_KEY_PENDING_ACTION = "pendingAction";
+    private static final String METADATA_KEY_PENDING_PARAMS = "pendingActionParams";
+    private static final String METADATA_KEY_PENDING_TIMESTAMP = "pendingActionTimestamp";
+    private static final String METADATA_KEY_PENDING_CONFIRMATION_MSG = "pendingConfirmationMessage";
+
+    // Confirmation timeout (5 minutes)
+    private static final long CONFIRMATION_TIMEOUT_MINUTES = 5;
+
+    // Confirmation keywords (positive)
+    private static final Set<String> CONFIRMATION_KEYWORDS = Set.of(
+        "yes", "y", "confirm", "confirmed", "proceed", "ok", "okay", "sure", "continue"
+    );
+
+    // Cancellation keywords (negative)
+    private static final Set<String> CANCELLATION_KEYWORDS = Set.of(
+        "no", "n", "cancel", "abort", "stop", "nevermind", "never mind"
+    );
+
+    // =========================================================================
+    // Dependencies
+    // =========================================================================
+
+    private final Optional<ChatSessionService> chatSessionService;
+
+    // =========================================================================
+    // PipelineStep Implementation
+    // =========================================================================
+
+    @Override
+    public String getStepName() {
+        return STEP_NAME;
+    }
+
+    @Override
+    public int getOrder() {
+        return STEP_ORDER;
+    }
+
+    @Override
+    public PipelineContext process(PipelineContext context) {
+        // Skip if no conversation or service not available
+        if (!context.getOrchestrationContext().hasConversation() ||
+            chatSessionService.isEmpty()) {
+            return context;
+        }
+
+        String conversationId = context.getOrchestrationContext().getConversationId();
+        String ownerId = context.getIdentifier();
+        String originalQuery = context.getOriginalQuery();
+
+        try {
+            // Load conversation session
+            ChatSession session = chatSessionService.get().getSession(conversationId, ownerId);
+            Map<String, Object> metadata = session.getSessionMetadata();
+
+            // Check for pending action
+            if (!metadata.containsKey(METADATA_KEY_PENDING_ACTION)) {
+                return context;  // No pending action
+            }
+
+            // Extract pending action details
+            String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+            Map<String, Object> pendingParams = (Map<String, Object>) metadata.get(METADATA_KEY_PENDING_PARAMS);
+            String timestampStr = (String) metadata.get(METADATA_KEY_PENDING_TIMESTAMP);
+
+            // Check timeout
+            if (isConfirmationExpired(timestampStr)) {
+                log.warn("Pending action '{}' expired for conversation {}",
+                    pendingAction, conversationId);
+                clearPendingAction(conversationId, ownerId, metadata);
+                return context;  // Expired - clear and continue normally
+            }
+
+            // Detect confirmation or cancellation
+            ConfirmationResponse response = detectConfirmationResponse(originalQuery);
+
+            if (response == ConfirmationResponse.CONFIRMED) {
+                log.info("User confirmed pending action '{}' for conversation {}",
+                    pendingAction, conversationId);
+
+                // Create ACTION intent from pending action
+                Intent confirmedIntent = Intent.builder()
+                    .type(IntentType.ACTION)
+                    .action(pendingAction)
+                    .actionParams(pendingParams != null ? pendingParams : new HashMap<>())
+                    .confidence(1.0)
+                    .originalText(originalQuery)
+                    .build();
+
+                MultiIntentResponse confirmedResponse = MultiIntentResponse.builder()
+                    .intents(List.of(confirmedIntent))
+                    .compound(false)
+                    .build();
+
+                // Clear pending action
+                clearPendingAction(conversationId, ownerId, metadata);
+
+                // Replace intent in context
+                return context.toBuilder()
+                    .intentResponse(confirmedResponse)
+                    .build();
+
+            } else if (response == ConfirmationResponse.CANCELLED) {
+                log.info("User cancelled pending action '{}' for conversation {}",
+                    pendingAction, conversationId);
+
+                // Clear pending action
+                clearPendingAction(conversationId, ownerId, metadata);
+
+                // Create OUT_OF_SCOPE intent with cancellation message
+                Intent cancelIntent = Intent.builder()
+                    .type(IntentType.OUT_OF_SCOPE)
+                    .confidence(1.0)
+                    .originalText(originalQuery)
+                    .build();
+
+                MultiIntentResponse cancelResponse = MultiIntentResponse.builder()
+                    .intents(List.of(cancelIntent))
+                    .compound(false)
+                    .metadata(Map.of(
+                        "cancellationMessage", "Action cancelled. Your " + pendingAction + " was not executed."
+                    ))
+                    .build();
+
+                return context.toBuilder()
+                    .intentResponse(cancelResponse)
+                    .build();
+
+            } else {
+                // Ambiguous response - keep pending, let user know
+                log.debug("Ambiguous response to pending action '{}' for conversation {}: {}",
+                    pendingAction, conversationId, originalQuery);
+
+                // Return context unchanged - user will get normal processing
+                // but we keep the pending action for next turn
+                return context;
+            }
+
+        } catch (Exception ex) {
+            log.warn("Failed to process confirmation for conversation {}: {}. Continuing normally.",
+                conversationId, ex.getMessage());
+            return context;  // Graceful degradation
+        }
+    }
+
+    // =========================================================================
+    // Helper Methods
+    // =========================================================================
+
+    /**
+     * Detect if query is a confirmation response.
+     */
+    private ConfirmationResponse detectConfirmationResponse(String query) {
+        if (query == null || query.isBlank()) {
+            return ConfirmationResponse.AMBIGUOUS;
+        }
+
+        String normalized = query.toLowerCase().trim();
+
+        // Check for positive confirmation
+        if (CONFIRMATION_KEYWORDS.contains(normalized)) {
+            return ConfirmationResponse.CONFIRMED;
+        }
+
+        // Check for negative cancellation
+        if (CANCELLATION_KEYWORDS.contains(normalized)) {
+            return ConfirmationResponse.CANCELLED;
+        }
+
+        // Check for sentence-level confirmation
+        if (normalized.matches(".*(yes|confirm|proceed).*") &&
+            !normalized.matches(".*(no|cancel|don't|dont).*")) {
+            return ConfirmationResponse.CONFIRMED;
+        }
+
+        if (normalized.matches(".*(no|cancel|abort|stop).*") &&
+            !normalized.matches(".*(yes|confirm|proceed).*")) {
+            return ConfirmationResponse.CANCELLED;
+        }
+
+        return ConfirmationResponse.AMBIGUOUS;
+    }
+
+    /**
+     * Check if confirmation has expired.
+     */
+    private boolean isConfirmationExpired(String timestampStr) {
+        if (timestampStr == null) {
+            return true;  // No timestamp = expired
+        }
+
+        try {
+            LocalDateTime timestamp = LocalDateTime.parse(timestampStr);
+            long minutesElapsed = ChronoUnit.MINUTES.between(timestamp, LocalDateTime.now());
+            return minutesElapsed > CONFIRMATION_TIMEOUT_MINUTES;
+        } catch (Exception ex) {
+            log.warn("Failed to parse confirmation timestamp: {}", timestampStr);
+            return true;  // Parse error = expired
+        }
+    }
+
+    /**
+     * Clear pending action from conversation metadata.
+     */
+    private void clearPendingAction(String conversationId, String ownerId,
+                                    Map<String, Object> metadata) {
+        metadata.remove(METADATA_KEY_PENDING_ACTION);
+        metadata.remove(METADATA_KEY_PENDING_PARAMS);
+        metadata.remove(METADATA_KEY_PENDING_TIMESTAMP);
+        metadata.remove(METADATA_KEY_PENDING_CONFIRMATION_MSG);
+
+        try {
+            chatSessionService.get().updateSessionMetadata(conversationId, ownerId, metadata);
+            log.debug("Cleared pending action for conversation {}", conversationId);
+        } catch (Exception ex) {
+            log.error("Failed to clear pending action for conversation {}: {}",
+                conversationId, ex.getMessage());
+        }
+    }
+
+    // =========================================================================
+    // Inner Enum
+    // =========================================================================
+
+    private enum ConfirmationResponse {
+        CONFIRMED,   // User said yes
+        CANCELLED,   // User said no
+        AMBIGUOUS    // Unclear - process as normal query
+    }
+}
+```
+
+---
+
+### 10.6 Enhanced IntentHandlingStep
+
+**File:** `ai-infrastructure-core/.../pipeline/steps/IntentHandlingStep.java`
+
+**Add logic to detect confirmation requirement:**
+
+```java
+// In handleAction() method, BEFORE executing action:
+
+private OrchestrationResult handleAction(
+    Intent intent,
+    PipelineContext context,
+    String actionName,
+    Map<String, Object> params
+) {
+    // ... existing permission checks ...
+
+    ActionHandler handler = registry.getHandler(actionName);
+
+    // ... existing authorization check ...
+
+    // ========== NEW: Check if confirmation required ==========
+    if (handler.requiresConfirmation() && context.getOrchestrationContext().hasConversation()) {
+        // This action requires confirmation and we're in a conversation
+        return requestConfirmation(handler, actionName, params, context);
+    }
+    // =========================================================
+
+    // Get confirmation message (for informational purposes if no confirmation needed)
+    String confirmationMessage = handler.getConfirmationMessage(params);
+
+    // Execute action
+    ActionResult actionResult = handler.executeAction(params, identifier);
+
+    // ... rest of existing code ...
+}
+
+/**
+ * Request user confirmation for high-risk action.
+ */
+private OrchestrationResult requestConfirmation(
+    ActionHandler handler,
+    String actionName,
+    Map<String, Object> params,
+    PipelineContext context
+) {
+    String conversationId = context.getOrchestrationContext().getConversationId();
+    String ownerId = context.getIdentifier();
+    String confirmationMessage = handler.getConfirmationMessage(params);
+
+    try {
+        // Store pending action in conversation metadata
+        ChatSession session = chatSessionService.getSession(conversationId, ownerId);
+        Map<String, Object> metadata = new HashMap<>(session.getSessionMetadata());
+
+        metadata.put("pendingAction", actionName);
+        metadata.put("pendingActionParams", params);
+        metadata.put("pendingActionTimestamp", LocalDateTime.now().toString());
+        metadata.put("pendingConfirmationMessage", confirmationMessage);
+
+        chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
+
+        log.info("Stored pending action '{}' for conversation {}", actionName, conversationId);
+
+        // Return confirmation request result
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.CONFIRMATION_REQUIRED)
+            .success(false)  // Not executed yet
+            .message(confirmationMessage + "\n\nReply 'yes' to confirm or 'no' to cancel.")
+            .data(Map.of(
+                "action", actionName,
+                "requiresConfirmation", true,
+                "confirmationMessage", confirmationMessage,
+                "metadata", handler.getActionMetadata()
+            ))
+            .build();
+
+    } catch (Exception ex) {
+        log.error("Failed to store pending confirmation for action '{}': {}",
+            actionName, ex.getMessage());
+
+        // Graceful fallback - execute without confirmation
+        log.warn("Executing action '{}' without confirmation due to storage error", actionName);
+        ActionResult result = handler.executeAction(params, ownerId);
+
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.ACTION_EXECUTED)
+            .success(result.isSuccess())
+            .message(result.getMessage() + " (confirmation storage failed)")
+            .data(Map.of("actionResult", result))
+            .build();
+    }
+}
+```
+
+---
+
+### 10.7 ChatSessionService Enhancement
+
+**Add Method to Service Interface:**
+
+```java
+public interface ChatSessionService {
+    // ... existing methods ...
+
+    /**
+     * Update session metadata without recording a turn.
+     *
+     * <p>Used for storing pending actions, user preferences, etc.</p>
+     *
+     * @param conversationId the conversation ID
+     * @param ownerId the owner ID
+     * @param metadata the updated metadata
+     */
+    void updateSessionMetadata(String conversationId, String ownerId, Map<String, Object> metadata);
+}
+```
+
+**Implementation:**
+
+```java
+@Override
+public void updateSessionMetadata(String conversationId, String ownerId,
+                                  Map<String, Object> metadata) {
+    // Access control check
+    if (!accessPolicy.canUserAccessConversation(ownerId, conversationId)) {
+        throw new AccessDeniedException("Access denied to conversation: " + conversationId);
+    }
+
+    // Load session
+    ChatSession session = storage.findById(conversationId)
+        .orElseThrow(() -> new SessionNotFoundException("Conversation not found: " + conversationId));
+
+    // Verify ownership
+    if (!session.isOwnedBy(ownerId)) {
+        throw new AccessDeniedException("Conversation owned by different user");
+    }
+
+    // Update metadata
+    session.setSessionMetadata(metadata);
+    session.setLastInteractionAt(LocalDateTime.now());
+    storage.save(session);
+
+    log.debug("Updated metadata for conversation {}", conversationId);
+}
+```
+
+---
+
+### 10.8 Example Flows
+
+#### Example 1: Cancel Subscription with Confirmation
+
+**ActionHandler Implementation:**
+
+```java
+@Component
+public class CancelSubscriptionHandler implements ActionHandler {
+
+    @Override
+    public String getActionName() {
+        return "cancel_subscription";
+    }
+
+    @Override
+    public boolean requiresConfirmation() {
+        return true;  // High-risk action
+    }
+
+    @Override
+    public String getConfirmationMessage(Map<String, Object> params) {
+        String reason = (String) params.getOrDefault("reason", "unspecified");
+        return String.format(
+            "You are about to cancel your subscription. Reason: %s. " +
+            "This action cannot be undone and you will lose access to premium features.",
+            reason
+        );
+    }
+
+    @Override
+    public ActionResult executeAction(Map<String, Object> params, String userId) {
+        // Execute cancellation
+        subscriptionService.cancelSubscription(userId);
+
+        return ActionResult.builder()
+            .success(true)
+            .message("Subscription cancelled successfully")
+            .data(Map.of(
+                "effectiveDate", LocalDate.now().toString(),
+                "refundEligible", false
+            ))
+            .build();
+    }
+
+    // ... other methods ...
+}
+```
+
+**Conversation Flow:**
+
+```
+Turn 1:
+───────
+User: "I want to cancel my subscription because it's too expensive"
+
+IntentExtraction: Detects ACTION intent (cancel_subscription, reason="too expensive")
+    ↓
+ConfirmationResolution: No pending action found → pass through
+    ↓
+IntentHandling:
+    - Detects requiresConfirmation() == true
+    - Stores pending action in conversation metadata
+    - Returns CONFIRMATION_REQUIRED
+    ↓
+Response: {
+  "type": "CONFIRMATION_REQUIRED",
+  "success": false,
+  "message": "You are about to cancel your subscription. Reason: too expensive.
+              This action cannot be undone and you will lose access to premium features.
+
+              Reply 'yes' to confirm or 'no' to cancel.",
+  "data": {
+    "action": "cancel_subscription",
+    "requiresConfirmation": true,
+    "confirmationMessage": "...",
+    "metadata": {...}
+  }
+}
+
+
+Turn 2:
+───────
+User: "yes"
+
+IntentExtraction: May detect OUT_OF_SCOPE or INFORMATION intent
+    ↓
+ConfirmationResolution:
+    - Finds pending action: "cancel_subscription"
+    - Detects confirmation ("yes")
+    - Creates ACTION intent from pending data
+    - Clears pending action
+    - REPLACES intent in context
+    ↓
+IntentHandling:
+    - Receives ACTION intent
+    - requiresConfirmation() is bypassed (already confirmed)
+    - Executes cancellation
+    ↓
+Response: {
+  "type": "ACTION_EXECUTED",
+  "success": true,
+  "message": "Subscription cancelled successfully",
+  "data": {
+    "actionResult": {
+      "effectiveDate": "2026-01-07",
+      "refundEligible": false
+    }
+  }
+}
+```
+
+#### Example 2: User Cancels Confirmation
+
+```
+Turn 1:
+───────
+User: "delete all my data"
+
+Response: "You are about to permanently delete all your data.
+           This action cannot be undone and all your information will be lost.
+
+           Reply 'yes' to confirm or 'no' to cancel."
+
+
+Turn 2:
+───────
+User: "no, wait, I changed my mind"
+
+ConfirmationResolution:
+    - Finds pending action: "delete_all_data"
+    - Detects cancellation ("no")
+    - Clears pending action
+    - Creates OUT_OF_SCOPE intent with cancellation message
+    ↓
+Response: "Action cancelled. Your delete_all_data was not executed."
+```
+
+#### Example 3: Confirmation Timeout
+
+```
+Turn 1:
+───────
+User: "cancel my plan"
+
+Response: "Confirm cancellation? Reply 'yes' or 'no'."
+
+[User waits 6 minutes]
+
+Turn 2:
+───────
+User: "yes"
+
+ConfirmationResolution:
+    - Finds pending action: "cancel_subscription"
+    - Checks timestamp: 6 minutes ago
+    - TIMEOUT! (> 5 minutes)
+    - Clears expired pending action
+    - Passes through to normal processing
+    ↓
+Response: "I'm not sure what you're confirming. Could you clarify?"
+```
+
+---
+
+### 10.9 Configuration
+
+```yaml
+ai:
+  chat:
+    confirmation:
+      enabled: true
+      timeout-minutes: 5           # Confirmation expiration
+      keywords-positive:           # Custom confirmation words
+        - yes
+        - confirm
+        - proceed
+      keywords-negative:           # Custom cancellation words
+        - no
+        - cancel
+        - abort
+```
+
+---
+
+### 10.10 Security Considerations
+
+1. **Ownership Verification:** Pending actions tied to conversation owner
+2. **Timeout:** Confirmations expire after 5 minutes
+3. **Single Use:** Pending action cleared after confirmation/cancellation
+4. **Access Control:** Full access control checks on metadata updates
+5. **Audit Trail:** All confirmations logged with user ID and timestamp
+
+---
+
+## 11. Security
+
+### 11.1 Access Control Enforcement
 
 **All operations check ownership:**
 
@@ -1045,7 +1826,7 @@ if (!session.isOwnedBy(ownerId)) {
 - If policy check fails → DENY
 - If ANY check fails → Log + throw exception
 
-### 10.2 Pipeline Step Security
+### 11.2 Pipeline Step Security
 
 **ConversationEnrichmentStep:**
 - ✅ Loads history only after access control (Order 20)
@@ -1059,9 +1840,9 @@ if (!session.isOwnedBy(ownerId)) {
 
 ---
 
-## 11. Configuration
+## 12. Configuration
 
-### 11.1 Module Configuration
+### 12.1 Module Configuration
 
 ```yaml
 ai:
@@ -1075,7 +1856,7 @@ ai:
     cleanup-schedule: "0 0 * * * *"    # Every hour
 ```
 
-### 11.2 Storage Configuration
+### 12.2 Storage Configuration
 
 **Default (Database - no config needed):**
 ```yaml
@@ -1090,9 +1871,9 @@ spring:
 
 ---
 
-## 12. Testing
+## 13. Testing
 
-### 12.1 Pipeline Step Tests
+### 13.1 Pipeline Step Tests
 
 **ConversationEnrichmentStepTest.java:**
 ```java
@@ -1103,6 +1884,20 @@ spring:
 ✅ shouldHandleStorageErrorGracefully
 ✅ shouldUseOriginalQueryWhenNoHistory
 ✅ shouldUpdateProcessedQueryInContext
+```
+
+**ConfirmationResolutionStepTest.java:** 🆕
+```java
+✅ shouldDetectPositiveConfirmation
+✅ shouldDetectNegativeConfirmation
+✅ shouldHandleAmbiguousResponse
+✅ shouldReplaceIntentOnConfirmation
+✅ shouldCreateCancellationIntentOnNegative
+✅ shouldClearPendingActionAfterConfirmation
+✅ shouldHandleExpiredConfirmation
+✅ shouldSkipWhenNoPendingAction
+✅ shouldSkipWhenNoConversationId
+✅ shouldHandleMultipleKeywordVariations
 ```
 
 **ConversationRecordingStepTest.java:**
@@ -1116,7 +1911,7 @@ spring:
 ✅ shouldUseOriginalQueryNotEnriched
 ```
 
-### 12.2 Integration Tests
+### 13.2 Integration Tests
 
 **ChatSessionPipelineIntegrationTest.java:**
 ```java
@@ -1127,11 +1922,23 @@ spring:
 ✅ shouldWorkWithSummaryStrategy
 ```
 
+**ConfirmationWorkflowIntegrationTest.java:** 🆕
+```java
+✅ shouldRequestConfirmationForHighRiskAction
+✅ shouldExecuteActionAfterPositiveConfirmation
+✅ shouldCancelActionAfterNegativeConfirmation
+✅ shouldHandleConfirmationTimeout
+✅ shouldBypassConfirmationForNormalActions
+✅ shouldHandleAmbiguousConfirmationResponse
+✅ shouldStoreAndRetrievePendingActionMetadata
+✅ shouldRespectOwnershipOnConfirmation
+```
+
 ---
 
-## 13. User Guide
+## 14. User Guide
 
-### 13.1 Quick Start
+### 14.1 Quick Start
 
 **Step 1: Add Dependency**
 ```xml
@@ -1175,7 +1982,7 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 
 ---
 
-## 14. Implementation Checklist
+## 15. Implementation Checklist
 
 ### Phase 1: Foundation
 - [ ] Create module structure
@@ -1210,16 +2017,29 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 
 ### Phase 6: Pipeline Integration ⚠️ **UPDATED**
 - [ ] Add conversationId to OrchestrationContext
+- [ ] Add hasConversation() method to OrchestrationContext
 - [ ] Create ConversationEnrichmentStep (Order 25)
+- [ ] Create ConfirmationResolutionStep (Order 55)
 - [ ] Create ConversationRecordingStep (Order 95)
 - [ ] Update MetadataBuildingStep (include conversationId)
 - [ ] Test pipeline integration
 
-### Phase 7: Testing
-- [ ] Unit tests for PipelineSteps (15+ tests)
+### Phase 7: Action Confirmation Workflow 🆕 **NEW**
+- [ ] Add requiresConfirmation() method to ActionHandler interface
+- [ ] Add CONFIRMATION_REQUIRED to OrchestrationResultType enum
+- [ ] Add updateSessionMetadata() to ChatSessionService
+- [ ] Update IntentHandlingStep with confirmation detection
+- [ ] Add confirmation constants (keywords, timeout)
+- [ ] Test confirmation flow (positive, negative, timeout)
+
+### Phase 8: Testing
+- [ ] Unit tests for ConversationEnrichmentStep (7+ tests)
+- [ ] Unit tests for ConfirmationResolutionStep (10+ tests)
+- [ ] Unit tests for ConversationRecordingStep (7+ tests)
 - [ ] Unit tests for strategies (18+ tests)
 - [ ] Unit tests for storage (8+ tests)
-- [ ] Integration tests (10+ tests)
+- [ ] Integration tests - pipeline flow (10+ tests)
+- [ ] Integration tests - confirmation workflow (8+ tests)
 - [ ] RealAPI tests (5+ tests)
 
 ---
@@ -1228,28 +2048,62 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 
 ### Key Changes from v4.0
 
-| Aspect | v4.0 (Old) | v5.0 (New) |
+| Aspect | v4.0 (Old) | v5.1 (New) |
 |--------|------------|-------------|
 | **Integration** | Modify RAGOrchestrator | PipelineSteps |
-| **Core Changes** | ~40 lines | ~4 lines |
+| **Core Changes** | ~40 lines | ~7 lines |
+| **Pipeline Steps** | 2 (Enrich + Record) | 3 (Enrich + Confirm + Record) |
 | **Architecture** | Monolithic | Pipeline-based |
 | **Testability** | Hard (monolithic) | Easy (isolated steps) |
 | **Extensibility** | Limited | High (composable) |
+| **Confirmations** | Not supported | Two-step conversational |
 
 ### Benefits of Pipeline Approach
 
-✅ **Zero Core Changes:** `RAGOrchestrator` untouched  
-✅ **Better Architecture:** Separation of concerns  
-✅ **More Testable:** Isolated step testing  
-✅ **More Extensible:** Users can add custom steps  
-✅ **Auto-Discovery:** Spring automatically includes steps  
-✅ **Framework Aligned:** Follows current codebase patterns  
+✅ **Zero Core Changes:** `RAGOrchestrator` untouched
+✅ **Better Architecture:** Separation of concerns
+✅ **More Testable:** Isolated step testing
+✅ **More Extensible:** Users can add custom steps
+✅ **Auto-Discovery:** Spring automatically includes steps
+✅ **Framework Aligned:** Follows current codebase patterns
+
+### New in v5.1: Action Confirmation Workflow
+
+✅ **Conversational Confirmations:** Natural "are you sure?" → "yes" flow
+✅ **Stateful Tracking:** Pending actions in conversation metadata
+✅ **Secure:** Ownership verification + timeout protection
+✅ **Flexible:** Action handlers opt-in via `requiresConfirmation()`
+✅ **Backward Compatible:** Actions without confirmation work as before
+✅ **Graceful Degradation:** Storage failures fall back to immediate execution
+
+### Implementation Summary
+
+**Core Changes:**
+- `OrchestrationContext`: Add `conversationId` field + `hasConversation()` method (~6 lines)
+- `ActionHandler`: Add `requiresConfirmation()` default method (~5 lines)
+- `OrchestrationResultType`: Add `CONFIRMATION_REQUIRED` enum value (~1 line)
+- `MetadataBuildingStep`: Include conversationId in metadata (+1 line)
+- `IntentHandlingStep`: Add confirmation detection logic (~80 lines)
+
+**Module Changes:**
+- `ConversationEnrichmentStep`: ~120 lines
+- `ConfirmationResolutionStep`: ~150 lines
+- `ConversationRecordingStep`: ~100 lines
+- `ChatSessionService.updateSessionMetadata()`: ~20 lines
+- Support infrastructure (domain, storage, strategies): ~800 lines
+
+**Total Lines of Code:**
+- Core changes: ~93 lines
+- Module changes: ~1,190 lines
+- **Total:** ~1,283 lines
+
+**Breaking Changes:** ZERO ✅
 
 ---
 
-**Document Version:** 5.0 - Pipeline Architecture  
-**Status:** ✅ Ready for Implementation  
-**Compliance:** 100% AI Fabric Framework Standards  
+**Document Version:** 5.1 - Pipeline Architecture + Action Confirmation
+**Status:** ✅ Ready for Implementation
+**Compliance:** 100% AI Fabric Framework Standards
 **Architecture:** Pipeline-Based (Current Codebase)
 
 **Implement exactly as specified in this document.** 🎯
