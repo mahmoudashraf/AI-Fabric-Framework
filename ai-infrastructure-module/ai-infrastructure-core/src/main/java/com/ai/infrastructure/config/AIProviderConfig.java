@@ -126,13 +126,13 @@ public class AIProviderConfig {
     public static class OpenAIConfig {
         private boolean enabled = true;
         private String apiKey;
-        private String baseUrl = "https://api.openai.com/v1";
-        private String model = "gpt-4o-mini";
-        private Integer maxTokens = 2000;
-        private Double temperature = 0.3;
-        private Integer timeout = 60;
-        private Integer priority = 100;
-        private String embeddingModel = "text-embedding-3-small";
+        private String baseUrl;
+        private String model;
+        private Integer maxTokens;
+        private Double temperature;
+        private Integer timeout;
+        private Integer priority;
+        private String embeddingModel;
 
         GenerationDefaults toGenerationDefaults(String providerName) {
             return new GenerationDefaults(
@@ -157,9 +157,9 @@ public class AIProviderConfig {
         private String endpoint;
         private String deploymentName;
         private String embeddingDeploymentName;
-        private String apiVersion = "2024-02-15-preview";
-        private Integer timeout = 60;
-        private Integer priority = 90;
+        private String apiVersion;
+        private Integer timeout;
+        private Integer priority;
 
         GenerationDefaults toGenerationDefaults(String providerName) {
             return new GenerationDefaults(
@@ -181,12 +181,12 @@ public class AIProviderConfig {
     public static class AnthropicConfig {
         private boolean enabled;
         private String apiKey;
-        private String baseUrl = "https://api.anthropic.com/v1";
-        private String model = "claude-3-opus-20240229";
-        private Integer maxTokens = 4096;
-        private Double temperature = 0.3;
-        private Integer timeout = 60;
-        private Integer priority = 80;
+        private String baseUrl;
+        private String model;
+        private Integer maxTokens;
+        private Double temperature;
+        private Integer timeout;
+        private Integer priority;
 
         GenerationDefaults toGenerationDefaults(String providerName) {
             return new GenerationDefaults(
@@ -204,13 +204,13 @@ public class AIProviderConfig {
     public static class CohereConfig {
         private boolean enabled;
         private String apiKey;
-        private String baseUrl = "https://api.cohere.ai/v1";
-        private String model = "command";
-        private Integer maxTokens = 2000;
-        private Double temperature = 0.3;
-        private Integer timeout = 60;
-        private Integer priority = 70;
-        private String embeddingModel = "embed-english-v3.0";
+        private String baseUrl;
+        private String model;
+        private Integer maxTokens;
+        private Double temperature;
+        private Integer timeout;
+        private Integer priority;
+        private String embeddingModel;
 
         GenerationDefaults toGenerationDefaults(String providerName) {
             return new GenerationDefaults(
@@ -231,11 +231,11 @@ public class AIProviderConfig {
     @Data
     public static class ONNXConfig {
         private boolean enabled = true;
-        private String modelPath = "classpath:/models/embeddings/all-MiniLM-L6-v2.onnx";
-        private String tokenizerPath = "classpath:/models/embeddings/tokenizer.json";
+        private String modelPath;
+        private String tokenizerPath;
         private Integer maxSequenceLength = 512;
         private Boolean useGpu = false;
-        private String modelAlias = "all-MiniLM-L6-v2";
+        private String modelAlias;
 
         EmbeddingDefaults toEmbeddingDefaults(String providerName) {
             return new EmbeddingDefaults(providerName, modelAlias);
@@ -256,7 +256,7 @@ public class AIProviderConfig {
     @Data
     public static class QdrantConfig {
         private boolean enabled;
-        private String host = "localhost";
+        private String host;
         private Integer port = 6333;
         private String apiKey;
         private Integer timeout = 30;
@@ -267,10 +267,10 @@ public class AIProviderConfig {
     @Data
     public static class MilvusConfig {
         private boolean enabled;
-        private String host = "localhost";
+        private String host;
         private Integer port = 19530;
-        private String username = "";
-        private String password = "";
+        private String username;
+        private String password;
         private String databaseName = "default";
         private Integer timeout = 30;
         private Boolean secure = false;
@@ -279,11 +279,11 @@ public class AIProviderConfig {
     @Data
     public static class RestConfig {
         private boolean enabled;
-        private String baseUrl = "http://localhost:8000";
+        private String baseUrl;
         private String endpoint = "/embed";
         private String batchEndpoint = "/embed/batch";
         private Integer timeout = 30000;
-        private String model = "all-MiniLM-L6-v2";
+        private String model;
 
         EmbeddingDefaults toEmbeddingDefaults(String providerName) {
             return new EmbeddingDefaults(providerName, model);
@@ -294,8 +294,8 @@ public class AIProviderConfig {
     public static class PineconeConfig {
         private boolean enabled;
         private String apiKey;
-        private String environment = "us-east-1-aws";
-        private String indexName = "ai-infrastructure";
+        private String environment;
+        private String indexName;
         private Integer dimensions = 1536;
         private String projectId;
         private String apiHost;

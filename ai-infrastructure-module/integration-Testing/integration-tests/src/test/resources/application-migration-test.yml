@@ -13,6 +13,21 @@ spring:
     allow-bean-definition-overriding: true
 
 ai:
+  enabled: true
+  providers:
+    enabled: true
+    llm-provider: openai
+    embedding-provider: onnx
+    enable-fallback: false
+
+    openai:
+      enabled: false
+
+    onnx:
+      enabled: true
+      model-path: classpath:/models/embeddings/all-MiniLM-L6-v2.onnx
+      tokenizer-path: classpath:/models/embeddings/tokenizer.json
+
   migration:
     enabled: true
     default-batch-size: 50
