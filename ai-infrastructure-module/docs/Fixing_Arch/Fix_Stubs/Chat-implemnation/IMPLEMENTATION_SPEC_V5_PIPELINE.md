@@ -1051,7 +1051,7 @@ Turn 1: User requests high-risk action
 ─────────────────────────────────────
 User: "cancel my subscription"
     ↓
-IntentExtractionStep (50): Detects ACTION intent
+IntentExtractionStep (50): LLM detects ACTION intent
     ↓
 ConfirmationResolutionStep (55):
     - Checks if action requires confirmation
@@ -1064,7 +1064,8 @@ IntentHandlingStep (60):
       {
         "pendingAction": "cancel_subscription",
         "pendingActionParams": {...},
-        "pendingActionTimestamp": "2026-01-07T10:00:00"
+        "pendingActionTimestamp": "2026-01-07T10:00:00",
+        "pendingActionDescription": "cancel your subscription"
       }
     - Returns CONFIRMATION_REQUIRED result
     ↓
@@ -1076,12 +1077,17 @@ Turn 2: User confirms
 ─────────────────────
 User: "yes"
     ↓
-IntentExtractionStep (50): May detect INFORMATION or OUT_OF_SCOPE intent
+ConversationEnrichmentStep (25): Enriches query with pending action context
+    ↓ Enriched query: "Context: User has a pending action to 'cancel subscription'.
+                      Current message: 'yes'"
+    ↓
+IntentExtractionStep (50): LLM analyzes enriched query
+    ↓ Detects: CONFIRMATION_POSITIVE intent (new intent type)
     ↓
 ConfirmationResolutionStep (55):
     - Checks conversation metadata
     - Finds pending action: "cancel_subscription"
-    - Detects confirmation response ("yes")
+    - Detects CONFIRMATION_POSITIVE intent (from LLM)
     - Creates ACTION intent from pending data
     - Clears pending action from metadata
     - REPLACES extracted intent with confirmed action
@@ -1136,7 +1142,40 @@ public interface ActionHandler {
 
 ---
 
-### 10.4 New OrchestrationResultType
+### 10.4 New Intent Types for Confirmation
+
+**File:** `ai-infrastructure-core/.../dto/IntentType.java`
+
+**Add Enum Values:**
+```java
+public enum IntentType {
+    // ... existing values ...
+    ACTION,
+    INFORMATION,
+    OUT_OF_SCOPE,
+    COMPOUND,
+
+    /**
+     * User confirmed a pending action (e.g., "yes", "proceed", "do it").
+     *
+     * <p>Detected by LLM when user responds affirmatively to a confirmation request.</p>
+     */
+    CONFIRMATION_POSITIVE,  // ← ADD THIS
+
+    /**
+     * User cancelled a pending action (e.g., "no", "cancel", "abort").
+     *
+     * <p>Detected by LLM when user responds negatively to a confirmation request.</p>
+     */
+    CONFIRMATION_NEGATIVE,  // ← ADD THIS
+
+    // ... other values ...
+}
+```
+
+---
+
+### 10.5 New OrchestrationResultType
 
 **File:** `ai-infrastructure-core/.../orchestration/OrchestrationResult.java`
 
@@ -1161,7 +1200,73 @@ public enum OrchestrationResultType {
 
 ---
 
-### 10.5 ConfirmationResolutionStep Implementation
+### 10.6 Enhanced ConversationEnrichmentStep
+
+**CRITICAL UPDATE:** When there's a pending action, ConversationEnrichmentStep must enrich the query with **confirmation context** for the LLM.
+
+**File:** `ai-infrastructure-chat-session/.../pipeline/ConversationEnrichmentStep.java`
+
+**Enhanced Logic:**
+
+```java
+@Override
+public PipelineContext process(PipelineContext context) {
+    // ... existing code ...
+
+    // Load conversation session
+    ChatSession session = chatSessionService.get().getSession(conversationId, ownerId);
+    Map<String, Object> metadata = session.getSessionMetadata();
+
+    // Check for pending action (PRIORITY: Check this BEFORE loading history)
+    if (metadata.containsKey(METADATA_KEY_PENDING_ACTION)) {
+        String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+        String pendingDescription = (String) metadata.get(METADATA_KEY_PENDING_ACTION_DESCRIPTION);
+
+        // Enrich query with confirmation context for LLM
+        String enrichedQuery = String.format(
+            "CONFIRMATION CONTEXT: The user has a pending action to '%s'. " +
+            "Their current message is: '%s'. " +
+            "Determine if they are confirming (yes/proceed) or cancelling (no/abort) this action.",
+            pendingDescription,
+            originalQuery
+        );
+
+        log.debug("Enriched query with pending action context: action={}", pendingAction);
+
+        return context.toBuilder()
+            .processedQuery(enrichedQuery)
+            .build();
+    }
+
+    // No pending action - load normal conversation history
+    String conversationHistory = chatSessionService.get()
+        .getConversationContext(conversationId, ownerId);
+
+    if (conversationHistory != null && !conversationHistory.isBlank()) {
+        String enrichedQuery = String.format(
+            "Conversation History:\n%s\n\nCurrent Query: %s",
+            conversationHistory,
+            originalQuery
+        );
+
+        return context.toBuilder()
+            .processedQuery(enrichedQuery)
+            .build();
+    }
+
+    return context;
+}
+```
+
+**Key Changes:**
+1. **Check for pending action FIRST** - Before loading conversation history
+2. **Enrich with confirmation context** - Tell LLM about pending action
+3. **LLM detects intent** - IntentExtractionStep will detect CONFIRMATION_POSITIVE/NEGATIVE
+4. **No hardcoded keywords** - LLM analyzes user intent naturally
+
+---
+
+### 10.7 ConfirmationResolutionStep Implementation
 
 **File:** `ai-infrastructure-chat-session/.../pipeline/ConfirmationResolutionStep.java`
 
@@ -1199,16 +1304,20 @@ import java.util.*;
  * <p><strong>Behavior:</strong></p>
  * <ul>
  *   <li>Checks for pending actions in conversation metadata</li>
- *   <li>Detects confirmation responses ("yes", "confirm", "proceed")</li>
- *   <li>Detects cancellation responses ("no", "cancel", "abort")</li>
+ *   <li>Uses LLM-detected intent (CONFIRMATION_POSITIVE/NEGATIVE) from IntentExtractionStep</li>
+ *   <li>NO HARDCODED KEYWORDS - Respects LLM intelligence</li>
  *   <li>Replaces extracted intent with pending action intent when confirmed</li>
  *   <li>Clears pending action when confirmed or cancelled</li>
  * </ul>
  *
  * <p><strong>Timeout:</strong> Pending confirmations expire after configured TTL (default: 5 minutes)</p>
  *
+ * <p><strong>LLM Integration:</strong> Relies on ConversationEnrichmentStep enriching query
+ * with pending action context, allowing IntentExtractionStep to detect confirmation intent.</p>
+ *
  * @see IntentHandlingStep
  * @see ChatSessionService
+ * @see ConversationEnrichmentStep
  * @since 5.1
  */
 @Slf4j
@@ -1228,20 +1337,10 @@ public class ConfirmationResolutionStep implements PipelineStep {
     private static final String METADATA_KEY_PENDING_ACTION = "pendingAction";
     private static final String METADATA_KEY_PENDING_PARAMS = "pendingActionParams";
     private static final String METADATA_KEY_PENDING_TIMESTAMP = "pendingActionTimestamp";
-    private static final String METADATA_KEY_PENDING_CONFIRMATION_MSG = "pendingConfirmationMessage";
+    private static final String METADATA_KEY_PENDING_DESCRIPTION = "pendingActionDescription";
 
     // Confirmation timeout (5 minutes)
     private static final long CONFIRMATION_TIMEOUT_MINUTES = 5;
-
-    // Confirmation keywords (positive)
-    private static final Set<String> CONFIRMATION_KEYWORDS = Set.of(
-        "yes", "y", "confirm", "confirmed", "proceed", "ok", "okay", "sure", "continue"
-    );
-
-    // Cancellation keywords (negative)
-    private static final Set<String> CANCELLATION_KEYWORDS = Set.of(
-        "no", "n", "cancel", "abort", "stop", "nevermind", "never mind"
-    );
 
     // =========================================================================
     // Dependencies
@@ -1271,9 +1370,15 @@ public class ConfirmationResolutionStep implements PipelineStep {
             return context;
         }
 
+        // Get intent from context (set by IntentExtractionStep)
+        MultiIntentResponse intentResponse = context.getIntentResponse();
+        if (intentResponse == null || intentResponse.getIntents().isEmpty()) {
+            return context;  // No intent detected
+        }
+
+        Intent detectedIntent = intentResponse.getIntents().get(0);
         String conversationId = context.getOrchestrationContext().getConversationId();
         String ownerId = context.getIdentifier();
-        String originalQuery = context.getOriginalQuery();
 
         try {
             // Load conversation session
@@ -1298,11 +1403,9 @@ public class ConfirmationResolutionStep implements PipelineStep {
                 return context;  // Expired - clear and continue normally
             }
 
-            // Detect confirmation or cancellation
-            ConfirmationResponse response = detectConfirmationResponse(originalQuery);
-
-            if (response == ConfirmationResponse.CONFIRMED) {
-                log.info("User confirmed pending action '{}' for conversation {}",
+            // Use LLM-detected intent type (NO HARDCODED KEYWORDS!)
+            if (detectedIntent.getType() == IntentType.CONFIRMATION_POSITIVE) {
+                log.info("LLM confirmed pending action '{}' for conversation {}",
                     pendingAction, conversationId);
 
                 // Create ACTION intent from pending action
@@ -1311,7 +1414,7 @@ public class ConfirmationResolutionStep implements PipelineStep {
                     .action(pendingAction)
                     .actionParams(pendingParams != null ? pendingParams : new HashMap<>())
                     .confidence(1.0)
-                    .originalText(originalQuery)
+                    .originalText(context.getOriginalQuery())
                     .build();
 
                 MultiIntentResponse confirmedResponse = MultiIntentResponse.builder()
@@ -1327,8 +1430,8 @@ public class ConfirmationResolutionStep implements PipelineStep {
                     .intentResponse(confirmedResponse)
                     .build();
 
-            } else if (response == ConfirmationResponse.CANCELLED) {
-                log.info("User cancelled pending action '{}' for conversation {}",
+            } else if (detectedIntent.getType() == IntentType.CONFIRMATION_NEGATIVE) {
+                log.info("LLM cancelled pending action '{}' for conversation {}",
                     pendingAction, conversationId);
 
                 // Clear pending action
@@ -1338,7 +1441,7 @@ public class ConfirmationResolutionStep implements PipelineStep {
                 Intent cancelIntent = Intent.builder()
                     .type(IntentType.OUT_OF_SCOPE)
                     .confidence(1.0)
-                    .originalText(originalQuery)
+                    .originalText(context.getOriginalQuery())
                     .build();
 
                 MultiIntentResponse cancelResponse = MultiIntentResponse.builder()
@@ -1354,12 +1457,13 @@ public class ConfirmationResolutionStep implements PipelineStep {
                     .build();
 
             } else {
-                // Ambiguous response - keep pending, let user know
-                log.debug("Ambiguous response to pending action '{}' for conversation {}: {}",
-                    pendingAction, conversationId, originalQuery);
+                // Ambiguous response (LLM detected different intent)
+                // Keep pending action, process user's actual intent
+                log.debug("LLM detected {} intent instead of confirmation for pending action '{}'",
+                    detectedIntent.getType(), pendingAction);
 
                 // Return context unchanged - user will get normal processing
-                // but we keep the pending action for next turn
+                // Pending action remains for next turn
                 return context;
             }
 
@@ -1373,40 +1477,6 @@ public class ConfirmationResolutionStep implements PipelineStep {
     // =========================================================================
     // Helper Methods
     // =========================================================================
-
-    /**
-     * Detect if query is a confirmation response.
-     */
-    private ConfirmationResponse detectConfirmationResponse(String query) {
-        if (query == null || query.isBlank()) {
-            return ConfirmationResponse.AMBIGUOUS;
-        }
-
-        String normalized = query.toLowerCase().trim();
-
-        // Check for positive confirmation
-        if (CONFIRMATION_KEYWORDS.contains(normalized)) {
-            return ConfirmationResponse.CONFIRMED;
-        }
-
-        // Check for negative cancellation
-        if (CANCELLATION_KEYWORDS.contains(normalized)) {
-            return ConfirmationResponse.CANCELLED;
-        }
-
-        // Check for sentence-level confirmation
-        if (normalized.matches(".*(yes|confirm|proceed).*") &&
-            !normalized.matches(".*(no|cancel|don't|dont).*")) {
-            return ConfirmationResponse.CONFIRMED;
-        }
-
-        if (normalized.matches(".*(no|cancel|abort|stop).*") &&
-            !normalized.matches(".*(yes|confirm|proceed).*")) {
-            return ConfirmationResponse.CANCELLED;
-        }
-
-        return ConfirmationResponse.AMBIGUOUS;
-    }
 
     /**
      * Check if confirmation has expired.
@@ -1434,7 +1504,7 @@ public class ConfirmationResolutionStep implements PipelineStep {
         metadata.remove(METADATA_KEY_PENDING_ACTION);
         metadata.remove(METADATA_KEY_PENDING_PARAMS);
         metadata.remove(METADATA_KEY_PENDING_TIMESTAMP);
-        metadata.remove(METADATA_KEY_PENDING_CONFIRMATION_MSG);
+        metadata.remove(METADATA_KEY_PENDING_DESCRIPTION);
 
         try {
             chatSessionService.get().updateSessionMetadata(conversationId, ownerId, metadata);
@@ -1444,22 +1514,12 @@ public class ConfirmationResolutionStep implements PipelineStep {
                 conversationId, ex.getMessage());
         }
     }
-
-    // =========================================================================
-    // Inner Enum
-    // =========================================================================
-
-    private enum ConfirmationResponse {
-        CONFIRMED,   // User said yes
-        CANCELLED,   // User said no
-        AMBIGUOUS    // Unclear - process as normal query
-    }
 }
 ```
 
 ---
 
-### 10.6 Enhanced IntentHandlingStep
+### 10.8 Enhanced IntentHandlingStep
 
 **File:** `ai-infrastructure-core/.../pipeline/steps/IntentHandlingStep.java`
 
@@ -1509,6 +1569,12 @@ private OrchestrationResult requestConfirmation(
     String ownerId = context.getIdentifier();
     String confirmationMessage = handler.getConfirmationMessage(params);
 
+    // Extract human-readable action description for LLM context
+    String actionDescription = handler.getActionMetadata().getDescription();
+    if (actionDescription == null || actionDescription.isBlank()) {
+        actionDescription = actionName.replace("_", " ");
+    }
+
     try {
         // Store pending action in conversation metadata
         ChatSession session = chatSessionService.getSession(conversationId, ownerId);
@@ -1517,7 +1583,7 @@ private OrchestrationResult requestConfirmation(
         metadata.put("pendingAction", actionName);
         metadata.put("pendingActionParams", params);
         metadata.put("pendingActionTimestamp", LocalDateTime.now().toString());
-        metadata.put("pendingConfirmationMessage", confirmationMessage);
+        metadata.put("pendingActionDescription", actionDescription);  // ← For LLM enrichment
 
         chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
 
@@ -1554,9 +1620,12 @@ private OrchestrationResult requestConfirmation(
 }
 ```
 
+**Key Addition:**
+- `pendingActionDescription` - Human-readable description stored for ConversationEnrichmentStep to use in LLM prompt
+
 ---
 
-### 10.7 ChatSessionService Enhancement
+### 10.9 ChatSessionService Enhancement
 
 **Add Method to Service Interface:**
 
@@ -1608,7 +1677,7 @@ public void updateSessionMetadata(String conversationId, String ownerId,
 
 ---
 
-### 10.8 Example Flows
+### 10.10 Example Flows (LLM-Based)
 
 #### Example 1: Cancel Subscription with Confirmation
 
@@ -1657,20 +1726,28 @@ public class CancelSubscriptionHandler implements ActionHandler {
 }
 ```
 
-**Conversation Flow:**
+**Conversation Flow (LLM-Based Intent Detection):**
 
 ```
 Turn 1:
 ───────
 User: "I want to cancel my subscription because it's too expensive"
 
-IntentExtraction: Detects ACTION intent (cancel_subscription, reason="too expensive")
+ConversationEnrichment: No pending action → loads conversation history
+    ↓
+IntentExtraction: LLM detects ACTION intent (cancel_subscription, reason="too expensive")
     ↓
 ConfirmationResolution: No pending action found → pass through
     ↓
 IntentHandling:
     - Detects requiresConfirmation() == true
-    - Stores pending action in conversation metadata
+    - Stores pending action metadata:
+      {
+        "pendingAction": "cancel_subscription",
+        "pendingActionParams": {"reason": "too expensive"},
+        "pendingActionDescription": "cancel your subscription",
+        "pendingActionTimestamp": "2026-01-07T10:00:00"
+      }
     - Returns CONFIRMATION_REQUIRED
     ↓
 Response: {
@@ -1693,18 +1770,24 @@ Turn 2:
 ───────
 User: "yes"
 
-IntentExtraction: May detect OUT_OF_SCOPE or INFORMATION intent
+ConversationEnrichment: Detects pending action → enriches query:
+    ↓ "CONFIRMATION CONTEXT: The user has a pending action to 'cancel your subscription'.
+        Their current message is: 'yes'.
+        Determine if they are confirming (yes/proceed) or cancelling (no/abort) this action."
+    ↓
+IntentExtraction: LLM analyzes enriched query
+    ↓ Detects: CONFIRMATION_POSITIVE intent  ← LLM decision, not hardcoded!
     ↓
 ConfirmationResolution:
     - Finds pending action: "cancel_subscription"
-    - Detects confirmation ("yes")
+    - Detects intent.getType() == CONFIRMATION_POSITIVE
     - Creates ACTION intent from pending data
     - Clears pending action
     - REPLACES intent in context
     ↓
 IntentHandling:
     - Receives ACTION intent
-    - requiresConfirmation() is bypassed (already confirmed)
+    - requiresConfirmation() bypassed (already confirmed)
     - Executes cancellation
     ↓
 Response: {
@@ -1720,7 +1803,7 @@ Response: {
 }
 ```
 
-#### Example 2: User Cancels Confirmation
+#### Example 2: User Cancels Confirmation (LLM Detects Negative)
 
 ```
 Turn 1:
@@ -1737,16 +1820,47 @@ Turn 2:
 ───────
 User: "no, wait, I changed my mind"
 
+ConversationEnrichment: Enriches with pending action context
+    ↓
+IntentExtraction: LLM analyzes: "no, wait, I changed my mind"
+    ↓ Detects: CONFIRMATION_NEGATIVE intent  ← LLM understands nuance!
+    ↓
 ConfirmationResolution:
     - Finds pending action: "delete_all_data"
-    - Detects cancellation ("no")
+    - Detects intent.getType() == CONFIRMATION_NEGATIVE
     - Clears pending action
     - Creates OUT_OF_SCOPE intent with cancellation message
     ↓
 Response: "Action cancelled. Your delete_all_data was not executed."
 ```
 
-#### Example 3: Confirmation Timeout
+#### Example 3: Ambiguous Response (LLM Detects Different Intent)
+
+```
+Turn 2 (alternative):
+─────────────────────
+User: "actually, can you tell me what features I'll lose?"
+
+ConversationEnrichment: Enriches with pending action context
+    ↓
+IntentExtraction: LLM analyzes the question
+    ↓ Detects: INFORMATION intent (not confirmation)  ← LLM recognizes clarification request
+    ↓
+ConfirmationResolution:
+    - Finds pending action
+    - Detects intent.getType() == INFORMATION (not confirmation)
+    - Keeps pending action (doesn't clear)
+    - Passes through unchanged
+    ↓
+IntentHandling: Processes INFORMATION intent normally
+    ↓
+Response: "You'll lose: Premium support, Advanced analytics, Custom integrations...
+           Reply 'yes' to cancel or 'no' to keep your subscription."
+
+[Pending action still active for next turn]
+```
+
+#### Example 4: Timeout Expired
 
 ```
 Turn 1:
@@ -1761,45 +1875,46 @@ Turn 2:
 ───────
 User: "yes"
 
+ConversationEnrichment: Enriches with pending action context
+    ↓
 ConfirmationResolution:
     - Finds pending action: "cancel_subscription"
     - Checks timestamp: 6 minutes ago
     - TIMEOUT! (> 5 minutes)
     - Clears expired pending action
-    - Passes through to normal processing
+    ↓
+IntentExtraction: LLM analyzes "yes" (no pending context)
+    ↓ Detects: OUT_OF_SCOPE or INFORMATION
     ↓
 Response: "I'm not sure what you're confirming. Could you clarify?"
 ```
 
 ---
 
-### 10.9 Configuration
+### 10.11 Configuration
 
 ```yaml
 ai:
   chat:
     confirmation:
       enabled: true
-      timeout-minutes: 5           # Confirmation expiration
-      keywords-positive:           # Custom confirmation words
-        - yes
-        - confirm
-        - proceed
-      keywords-negative:           # Custom cancellation words
-        - no
-        - cancel
-        - abort
+      timeout-minutes: 5           # Confirmation expiration (default: 5)
+      # NO hardcoded keywords - LLM detects confirmation intent!
 ```
+
+**Note:** Confirmation detection is **fully LLM-based**. No keyword configuration needed - the LLM analyzes user intent naturally.
 
 ---
 
-### 10.10 Security Considerations
+### 10.12 Security Considerations
 
 1. **Ownership Verification:** Pending actions tied to conversation owner
-2. **Timeout:** Confirmations expire after 5 minutes
+2. **Timeout:** Confirmations expire after 5 minutes (configurable)
 3. **Single Use:** Pending action cleared after confirmation/cancellation
 4. **Access Control:** Full access control checks on metadata updates
 5. **Audit Trail:** All confirmations logged with user ID and timestamp
+6. **LLM-Based Detection:** No bypass via hardcoded keywords - LLM analyzes full intent
+7. **Context Enrichment:** ConversationEnrichmentStep provides context for accurate LLM detection
 
 ---
 
@@ -1888,16 +2003,16 @@ spring:
 
 **ConfirmationResolutionStepTest.java:** 🆕
 ```java
-✅ shouldDetectPositiveConfirmation
-✅ shouldDetectNegativeConfirmation
-✅ shouldHandleAmbiguousResponse
+✅ shouldDetectLLMPositiveConfirmation
+✅ shouldDetectLLMNegativeConfirmation
+✅ shouldHandleAmbiguousResponse (LLM detects different intent)
 ✅ shouldReplaceIntentOnConfirmation
 ✅ shouldCreateCancellationIntentOnNegative
 ✅ shouldClearPendingActionAfterConfirmation
 ✅ shouldHandleExpiredConfirmation
 ✅ shouldSkipWhenNoPendingAction
 ✅ shouldSkipWhenNoConversationId
-✅ shouldHandleMultipleKeywordVariations
+✅ shouldKeepPendingOnAmbiguousIntent
 ```
 
 **ConversationRecordingStepTest.java:**
@@ -1925,13 +2040,15 @@ spring:
 **ConfirmationWorkflowIntegrationTest.java:** 🆕
 ```java
 ✅ shouldRequestConfirmationForHighRiskAction
-✅ shouldExecuteActionAfterPositiveConfirmation
-✅ shouldCancelActionAfterNegativeConfirmation
+✅ shouldExecuteActionAfterLLMDetectsPositive
+✅ shouldCancelActionAfterLLMDetectsNegative
 ✅ shouldHandleConfirmationTimeout
 ✅ shouldBypassConfirmationForNormalActions
-✅ shouldHandleAmbiguousConfirmationResponse
+✅ shouldHandleAmbiguousLLMResponse
+✅ shouldEnrichQueryWithPendingActionContext
 ✅ shouldStoreAndRetrievePendingActionMetadata
 ✅ shouldRespectOwnershipOnConfirmation
+✅ shouldSupportNuancedResponses (e.g., "no, wait, changed my mind")
 ```
 
 ---
@@ -2025,12 +2142,14 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 - [ ] Test pipeline integration
 
 ### Phase 7: Action Confirmation Workflow 🆕 **NEW**
+- [ ] Add CONFIRMATION_POSITIVE and CONFIRMATION_NEGATIVE to IntentType enum
 - [ ] Add requiresConfirmation() method to ActionHandler interface
 - [ ] Add CONFIRMATION_REQUIRED to OrchestrationResultType enum
 - [ ] Add updateSessionMetadata() to ChatSessionService
-- [ ] Update IntentHandlingStep with confirmation detection
-- [ ] Add confirmation constants (keywords, timeout)
-- [ ] Test confirmation flow (positive, negative, timeout)
+- [ ] Update ConversationEnrichmentStep to enrich with pending action context
+- [ ] Update IntentHandlingStep with confirmation detection and storage
+- [ ] Implement LLM-based confirmation detection (NO hardcoded keywords!)
+- [ ] Test confirmation flow (positive, negative, ambiguous, timeout)
 
 ### Phase 8: Testing
 - [ ] Unit tests for ConversationEnrichmentStep (7+ tests)
@@ -2070,7 +2189,10 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 ### New in v5.1: Action Confirmation Workflow
 
 ✅ **Conversational Confirmations:** Natural "are you sure?" → "yes" flow
+✅ **LLM-Based Detection:** NO hardcoded keywords - respects intelligence
 ✅ **Stateful Tracking:** Pending actions in conversation metadata
+✅ **Context-Aware:** Enriches query with pending action for LLM analysis
+✅ **Nuanced Understanding:** LLM handles "no, wait, I changed my mind" correctly
 ✅ **Secure:** Ownership verification + timeout protection
 ✅ **Flexible:** Action handlers opt-in via `requiresConfirmation()`
 ✅ **Backward Compatible:** Actions without confirmation work as before
@@ -2080,10 +2202,11 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 
 **Core Changes:**
 - `OrchestrationContext`: Add `conversationId` field + `hasConversation()` method (~6 lines)
+- `IntentType`: Add `CONFIRMATION_POSITIVE` and `CONFIRMATION_NEGATIVE` enum values (~2 lines)
 - `ActionHandler`: Add `requiresConfirmation()` default method (~5 lines)
 - `OrchestrationResultType`: Add `CONFIRMATION_REQUIRED` enum value (~1 line)
 - `MetadataBuildingStep`: Include conversationId in metadata (+1 line)
-- `IntentHandlingStep`: Add confirmation detection logic (~80 lines)
+- `IntentHandlingStep`: Add confirmation detection logic (~85 lines)
 
 **Module Changes:**
 - `ConversationEnrichmentStep`: ~120 lines
@@ -2093,9 +2216,13 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 - Support infrastructure (domain, storage, strategies): ~800 lines
 
 **Total Lines of Code:**
-- Core changes: ~93 lines
-- Module changes: ~1,190 lines
-- **Total:** ~1,283 lines
+- Core changes: ~100 lines
+- Module changes: ~1,200 lines
+- **Total:** ~1,300 lines
+
+**Key Architectural Decision:**
+- ✅ **NO Hardcoded Keywords** - All confirmation detection via LLM
+- ✅ **Respects Intelligence** - Framework philosophy maintained
 
 **Breaking Changes:** ZERO ✅
 
