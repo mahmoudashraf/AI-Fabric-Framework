@@ -137,7 +137,7 @@ class IntentGenerationRoutingIntegrationTest {
             .build();
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
-        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().context("generation-context").documents(List.of()).success(true).build()
         );
         when(aiCoreService.generateText(anyString())).thenReturn("llm-needed");
@@ -148,9 +148,9 @@ class IntentGenerationRoutingIntegrationTest {
         assertThat(result.getMessage()).isEqualTo("llm-needed");
 
         ArgumentCaptor<RAGRequest> captor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRag(captor.capture());
+        verify(ragProvider).performRAGQuery(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("requiresGeneration", true);
-        verify(ragProvider, never()).performRAGQuery(any());
+        verify(ragProvider, never()).performRag(any());
         verify(aiCoreService).generateText(anyString());
     }
 }

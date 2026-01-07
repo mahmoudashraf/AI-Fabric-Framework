@@ -340,7 +340,10 @@ public class IntentHandlingStep implements PipelineStep {
             .userId(context.getIdentifier())
             .build();
 
-        RAGResponse ragResponse = ragProvider.performRag(ragRequest);
+        // Use retrieval-only for search-only intents; use context-building query mode for generation flows.
+        RAGResponse ragResponse = needsGeneration
+            ? ragProvider.performRAGQuery(ragRequest)
+            : ragProvider.performRag(ragRequest);
         if (ragResponse == null) {
             return OrchestrationResult.error(ERROR_MSG_RAG_NULL_RESPONSE);
         }

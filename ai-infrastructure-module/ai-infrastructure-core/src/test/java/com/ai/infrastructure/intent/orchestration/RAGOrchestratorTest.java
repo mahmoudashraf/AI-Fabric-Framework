@@ -254,7 +254,7 @@ class RAGOrchestratorTest {
             .context("Refunds take 5-7 days.")
             .documents(List.of())
             .build();
-        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(ragResponse);
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
         when(aiCoreService.generateText(anyString())).thenReturn("Refunds take 5-7 days.");
 
         OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", "user");
@@ -263,7 +263,7 @@ class RAGOrchestratorTest {
         assertThat(result.getMessage()).isEqualTo("Refunds take 5-7 days.");
 
         ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRag(requestCaptor.capture());
+        verify(ragProvider).performRAGQuery(requestCaptor.capture());
         assertThat(requestCaptor.getValue().getEntityType()).isEqualTo("policies");
     }
 
@@ -283,7 +283,7 @@ class RAGOrchestratorTest {
             .documents(List.of())
             .success(true)
             .build();
-        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(ragResponse);
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
         when(aiCoreService.generateText(anyString())).thenReturn("Here are top picks.");
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", "user");
@@ -292,9 +292,9 @@ class RAGOrchestratorTest {
         assertThat(result.getMessage()).isEqualTo("Here are top picks.");
 
         ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
-        verify(ragProvider).performRag(requestCaptor.capture());
+        verify(ragProvider).performRAGQuery(requestCaptor.capture());
         assertThat(requestCaptor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
-        verify(ragProvider, never()).performRAGQuery(any(RAGRequest.class));
+        verify(ragProvider, never()).performRag(any(RAGRequest.class));
     }
 
     @Test

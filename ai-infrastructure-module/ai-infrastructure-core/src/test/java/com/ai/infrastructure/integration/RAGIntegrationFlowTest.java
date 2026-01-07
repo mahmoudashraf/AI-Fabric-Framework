@@ -160,7 +160,7 @@ class RAGIntegrationFlowTest {
             .context("Refunds are processed within 5 business days.")
             .documents(List.of())
             .success(true)
-            .build()).when(ragProvider).performRag(any(RAGRequest.class));
+            .build()).when(ragProvider).performRAGQuery(any(RAGRequest.class));
         when(aiCoreService.generateText(anyString())).thenReturn("Refunds are processed within 5 business days.");
 
         OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, "user-info");
