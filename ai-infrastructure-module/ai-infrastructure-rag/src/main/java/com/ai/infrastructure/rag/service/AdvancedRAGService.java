@@ -9,6 +9,7 @@ import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -57,7 +58,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AdvancedRAGService {
+public class AdvancedRAGService implements AdvancedRAGProvider {
 
     // =========================================================================
     // Constants

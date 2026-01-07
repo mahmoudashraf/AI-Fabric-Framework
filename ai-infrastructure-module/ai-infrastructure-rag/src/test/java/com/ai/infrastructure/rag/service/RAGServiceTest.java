@@ -25,6 +25,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
@@ -123,7 +124,7 @@ class RAGServiceTest {
     @Test
     @DisplayName("performRAGQuery returns successful response")
     void performRAGQueryReturnsSuccessfulResponse() {
-        when(vectorDatabase.search(any(), any())).thenReturn(
+        when(vectorDatabaseService.hybridSearch(any(), anyString(), any())).thenReturn(
             AISearchResponse.builder()
                 .results(Collections.emptyList())
                 .totalResults(0)

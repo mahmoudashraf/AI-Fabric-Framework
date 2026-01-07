@@ -51,7 +51,7 @@ public class RelationshipQueryIntegrationTestApplication {
             @Override
             public RAGResponse performRag(RAGRequest request) {
                 return RAGResponse.builder()
-                    .response("Test RAG response")
+                    .context("Test RAG context")
                     .documents(List.of())
                     .success(true)
                     .build();

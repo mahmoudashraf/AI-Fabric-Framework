@@ -31,8 +31,8 @@ import java.util.stream.Collectors;
 /**
  * RAG (Retrieval-Augmented Generation) Service implementation.
  * 
- * <p>This service provides RAG capabilities by combining retrieval and generation.
- * It can index content, perform semantic search, and generate context-aware responses.</p>
+ * <p><strong>Retrieval-only:</strong> This service performs indexing + retrieval and builds
+ * context strings for downstream generation. It does <em>not</em> perform LLM generation.</p>
  * 
  * <p>Queries passed to this service are assumed to be pre-processed by the
  * orchestrator (PII redacted, sanitized, normalized). The service performs no
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  *   <li>Content indexing with embeddings</li>
  *   <li>Semantic search with vector similarity</li>
  *   <li>Hybrid and contextual search modes</li>
- *   <li>Context building for generation</li>
+ *   <li>Context building for downstream generation</li>
  * </ul>
  * 
  * <p><strong>Thread Safety:</strong> This service is thread-safe and can be used
@@ -86,8 +86,6 @@ public class RAGService implements RAGProvider {
     // Messages
     private static final String NO_CONTEXT_MESSAGE = "No relevant context found.";
     private static final String CONTEXT_HEADER = "Relevant Context:\n\n";
-    private static final String NO_INFO_MESSAGE = "I don't have enough information to answer your question: ";
-    private static final String BASED_ON_INFO_MESSAGE = "Based on the available information: ";
     
     // =========================================================================
     // Dependencies
@@ -232,10 +230,13 @@ public class RAGService implements RAGProvider {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
+            String context = buildContextFromDocuments(documents);
+
             Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
                 request.getMetadata(), embeddingQuery);
             
             return RAGResponse.builder()
+                .context(context)
                 .documents(documents)
                 .totalDocuments(searchResponse.getTotalResults())
                 .usedDocuments(documents.size())
@@ -255,7 +256,7 @@ public class RAGService implements RAGProvider {
                 .requestId(request.getRequestId())
                 .originalQuery(processedQuery)
                 .entityType(request.getEntityType())
-                .model(config.resolveLlmDefaults().model())
+                .model(config.resolveEmbeddingDefaults().model())
                 .timestamp(java.time.LocalDateTime.now())
                 .metadata(Collections.unmodifiableMap(aggregatedMetadata))
                 .build();
@@ -310,7 +311,6 @@ public class RAGService implements RAGProvider {
             }
             
             String context = buildContext(searchResponse);
-            String response = generateResponse(processedQuery, context);
             
             long processingTime = System.currentTimeMillis() - startTime;
 
@@ -318,7 +318,6 @@ public class RAGService implements RAGProvider {
                 request.getMetadata(), embeddingQuery);
             
             return RAGResponse.builder()
-                .response(response)
                 .context(context)
                 .documents(convertToRAGDocuments(searchResponse.getResults()))
                 .totalDocuments(searchResponse.getTotalResults())
@@ -342,7 +341,6 @@ public class RAGService implements RAGProvider {
         } catch (Exception e) {
             log.error("Error performing RAG query", e);
             return RAGResponse.builder()
-                .response("")
                 .context("")
                 .documents(Collections.emptyList())
                 .totalDocuments(0)
@@ -357,55 +355,8 @@ public class RAGService implements RAGProvider {
                 .build();
         }
     }
-    
-    // =========================================================================
-    // Additional Public Methods (for backward compatibility)
-    // =========================================================================
-    
-    /**
-     * Perform RAG query with basic parameters.
-     * 
-     * @param query the search query
-     * @param entityType the type of entities to search
-     * @param limit maximum number of results
-     * @return RAG response with retrieved context
-     */
-    public AISearchResponse performRAGQuery(String query, String entityType, int limit) {
-        try {
-            AIEmbeddingRequest embeddingRequest = AIEmbeddingRequest.builder()
-                .text(query)
-                .entityType(entityType)
-                .build();
-            
-            var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
-            
-            AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(query)
-                .entityType(entityType)
-                .limit(limit)
-                .threshold(DEFAULT_SEARCH_THRESHOLD)
-                .build();
-            
-            AISearchResponse searchResponse = vectorDatabaseService.search(
-                embeddingResponse.getEmbedding(), searchRequest);
-            
-            log.debug("RAG query completed with {} results", searchResponse.getTotalResults());
-            
-            return searchResponse;
-            
-        } catch (Exception e) {
-            log.error("Error performing RAG query", e);
-            throw new AIServiceException("Failed to perform RAG query", e);
-        }
-    }
-    
-    /**
-     * Build context from search results.
-     * 
-     * @param searchResponse the search results
-     * @return formatted context string
-     */
-    public String buildContext(AISearchResponse searchResponse) {
+
+    private String buildContext(AISearchResponse searchResponse) {
         if (searchResponse.getResults().isEmpty()) {
             return NO_CONTEXT_MESSAGE;
         }
@@ -428,21 +379,23 @@ public class RAGService implements RAGProvider {
     
     private AISearchResponse performHybridSearch(List<Double> queryVector, String queryText, 
             AISearchRequest request) {
-        return vectorDatabase.search(queryVector, request);
+        return vectorDatabaseService.hybridSearch(queryVector, queryText, request);
     }
     
     private AISearchResponse performContextualSearch(List<Double> queryVector, String context, 
             AISearchRequest request) {
-        return vectorDatabase.search(queryVector, request);
-    }
-    
-    private String generateResponse(String query, String context) {
-        if (context.isEmpty() || NO_CONTEXT_MESSAGE.equals(context)) {
-            return NO_INFO_MESSAGE + query;
-        }
-        
-        int maxLength = Math.min(context.length(), 500);
-        return BASED_ON_INFO_MESSAGE + context.substring(0, maxLength) + "...";
+        AISearchRequest contextualRequest = AISearchRequest.builder()
+            .query(request.getQuery())
+            .entityType(request.getEntityType())
+            .limit(request.getLimit())
+            .threshold(request.getThreshold())
+            .filters(request.getFilters())
+            .sortBy(request.getSortBy())
+            .context(context)
+            .metadata(request.getMetadata())
+            .build();
+
+        return vectorDatabaseService.search(queryVector, contextualRequest);
     }
     
     private double calculateConfidence(AISearchResponse searchResponse) {
@@ -604,5 +557,27 @@ public class RAGService implements RAGProvider {
             extractOptimizedQuery(requestMetadata) != null);
         aggregatedMetadata.put(METADATA_KEY_EMBEDDING_QUERY, embeddingQuery);
         return aggregatedMetadata;
+    }
+
+    private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return NO_CONTEXT_MESSAGE;
+        }
+
+        StringBuilder context = new StringBuilder();
+        context.append(CONTEXT_HEADER);
+
+        for (int i = 0; i < documents.size(); i++) {
+            RAGResponse.RAGDocument doc = documents.get(i);
+            String content = doc != null ? doc.getContent() : null;
+            double score = doc != null && doc.getScore() != null ? doc.getScore() : 0.0;
+
+            context.append(String.format("%d. %s (Score: %.3f)\n",
+                i + 1,
+                content != null ? content : "",
+                score));
+        }
+
+        return context.toString();
     }
 }

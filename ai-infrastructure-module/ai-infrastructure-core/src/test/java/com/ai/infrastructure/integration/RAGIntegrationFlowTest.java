@@ -12,6 +12,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.compliance.AIComplianceService;
+import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -75,6 +76,9 @@ class RAGIntegrationFlowTest {
 
     @MockBean
     private Clock clock;
+
+    @MockBean
+    private AICoreService aiCoreService;
 
     @BeforeEach
     void resetState() {
@@ -148,14 +152,16 @@ class RAGIntegrationFlowTest {
                     .intent("show_refund_policy")
                     .confidence(0.9)
                     .vectorSpace("policies")
+                    .requiresGeneration(true)
                     .build()))
                 .build());
 
         doReturn(RAGResponse.builder()
-            .response("Refunds are processed within 5 business days.")
+            .context("Refunds are processed within 5 business days.")
             .documents(List.of())
             .success(true)
-            .build()).when(ragProvider).performRag(any(RAGRequest.class));
+            .build()).when(ragProvider).performRAGQuery(any(RAGRequest.class));
+        when(aiCoreService.generateText(anyString())).thenReturn("Refunds are processed within 5 business days.");
 
         OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, "user-info");
 
@@ -188,7 +194,7 @@ class RAGIntegrationFlowTest {
                 .compound(true)
                 .build());
 
-        doReturn(RAGResponse.builder().response("Here are current offers.").build())
+        doReturn(RAGResponse.builder().context("Here are current offers.").build())
             .when(ragProvider).performRag(any(RAGRequest.class));
 
         OrchestrationResult result = orchestrator.orchestrate(COMPOUND_QUERY, "user-compound");

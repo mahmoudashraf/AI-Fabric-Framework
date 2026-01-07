@@ -2,6 +2,7 @@ package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.compliance.AIComplianceService;
+import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.dto.AIComplianceResponse;
 import com.ai.infrastructure.dto.AISecurityResponse;
@@ -71,6 +72,9 @@ class IntentGenerationRoutingIntegrationTest {
     @MockBean
     private ActionHandlerRegistry actionHandlerRegistry;
 
+    @MockBean
+    private AICoreService aiCoreService;
+
     @BeforeEach
     void setUp() {
         when(securityService.analyzeRequest(any())).thenReturn(
@@ -107,18 +111,19 @@ class IntentGenerationRoutingIntegrationTest {
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
-            RAGResponse.builder().response("search-only").documents(List.of()).success(true).build()
+            RAGResponse.builder().context("search-only").documents(List.of()).success(true).build()
         );
 
         OrchestrationResult result = orchestrator.orchestrate("show me products under $60", "user-1");
 
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.getMessage()).isEqualTo("search-only");
+        assertThat(result.getMessage()).isEqualTo("Search completed.");
 
         ArgumentCaptor<RAGRequest> captor = ArgumentCaptor.forClass(RAGRequest.class);
         verify(ragProvider).performRag(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
         verify(ragProvider, never()).performRAGQuery(any());
+        verify(aiCoreService, never()).generateText(anyString());
     }
 
     @Test
@@ -133,8 +138,9 @@ class IntentGenerationRoutingIntegrationTest {
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
-            RAGResponse.builder().response("llm-needed").documents(List.of()).success(true).build()
+            RAGResponse.builder().context("generation-context").documents(List.of()).success(true).build()
         );
+        when(aiCoreService.generateText(anyString())).thenReturn("llm-needed");
 
         OrchestrationResult result = orchestrator.orchestrate("what should I buy next?", "user-2");
 
@@ -145,5 +151,6 @@ class IntentGenerationRoutingIntegrationTest {
         verify(ragProvider).performRAGQuery(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("requiresGeneration", true);
         verify(ragProvider, never()).performRag(any());
+        verify(aiCoreService).generateText(anyString());
     }
 }

@@ -123,7 +123,7 @@ class RAGOrchestratorIntegrationTest {
 
         when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder()
-                .response("ok")
+                .context("ok")
                 .documents(List.of())
                 .success(true)
                 .build()

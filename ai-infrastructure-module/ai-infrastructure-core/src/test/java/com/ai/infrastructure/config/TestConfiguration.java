@@ -76,7 +76,7 @@ public class TestConfiguration {
         @Override
         public RAGResponse performRag(RAGRequest request) {
             return RAGResponse.builder()
-                .response("Test RAG response for: " + request.getQuery())
+                .context("Test context for: " + request.getQuery())
                 .documents(List.of())
                 .success(true)
                 .metadata(Map.of("provider", "test"))

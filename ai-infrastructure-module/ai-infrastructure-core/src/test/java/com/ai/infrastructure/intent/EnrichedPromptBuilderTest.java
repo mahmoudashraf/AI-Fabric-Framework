@@ -67,6 +67,7 @@ class EnrichedPromptBuilderTest {
             .contains("Total documents: 123")
             .contains("NEXT-STEP RECOMMENDATIONS")
             .contains("requiresGeneration")
+            .contains("needsAdvancedRAG")
             .contains("optimizedQuery")
             .contains("OUTPUT JSON SCHEMA");
     }

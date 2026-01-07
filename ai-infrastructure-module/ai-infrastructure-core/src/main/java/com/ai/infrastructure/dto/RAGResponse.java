@@ -30,11 +30,6 @@ public class RAGResponse {
     private List<RAGDocument> documents;
     
     /**
-     * Generated response text
-     */
-    private String response;
-    
-    /**
      * Context used for generation
      */
     private String context;
