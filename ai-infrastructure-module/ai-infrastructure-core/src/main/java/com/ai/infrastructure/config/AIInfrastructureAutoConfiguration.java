@@ -6,6 +6,7 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.processor.AICapableProcessor;
+import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
@@ -335,8 +336,9 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
-    public AICapableProcessor aiCapableProcessor() {
-        return new AICapableProcessor();
+    @ConditionalOnMissingBean
+    public AICapableProcessor aiCapableProcessor(AnnotationFieldScanner annotationFieldScanner) {
+        return new AICapableProcessor(annotationFieldScanner);
     }
     
     @Bean
