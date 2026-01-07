@@ -322,8 +322,9 @@ public class AIInfrastructureAutoConfiguration {
             AICoreService aiCoreService,
             AISearchableEntityStorageStrategy storageStrategy,
             AIEntityConfigurationLoader entityConfigurationLoader,
-            VectorManagementService vectorManagementService) {
-        return new AICapabilityService(embeddingService, aiCoreService, storageStrategy, entityConfigurationLoader, vectorManagementService);
+            VectorManagementService vectorManagementService,
+            AnnotationFieldScanner annotationFieldScanner) {
+        return new AICapabilityService(embeddingService, aiCoreService, storageStrategy, entityConfigurationLoader, vectorManagementService, annotationFieldScanner);
     }
     
     @Bean

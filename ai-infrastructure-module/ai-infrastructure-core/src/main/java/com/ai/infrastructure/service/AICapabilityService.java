@@ -8,6 +8,7 @@ import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
 import lombok.RequiredArgsConstructor;
@@ -38,18 +39,22 @@ public class AICapabilityService {
     private final AISearchableEntityStorageStrategy storageStrategy;
     private final AIEntityConfigurationLoader configurationLoader;
     private final VectorManagementService vectorManagementService;
+    private final AnnotationFieldScanner annotationFieldScanner;
     
     public AICapabilityService(AIEmbeddingService embeddingService,
                               AICoreService aiCoreService,
                               AISearchableEntityStorageStrategy storageStrategy,
                               AIEntityConfigurationLoader configurationLoader,
-                              VectorManagementService vectorManagementService) {
+                              VectorManagementService vectorManagementService,
+                              AnnotationFieldScanner annotationFieldScanner) {
         this.embeddingService = embeddingService;
         this.aiCoreService = aiCoreService;
         this.storageStrategy = storageStrategy;
         this.configurationLoader = configurationLoader;
         this.vectorManagementService = Objects.requireNonNull(vectorManagementService,
             "VectorManagementService must be configured for AICapabilityService");
+        this.annotationFieldScanner = Objects.requireNonNull(annotationFieldScanner,
+            "AnnotationFieldScanner must be configured for AICapabilityService");
     }
     
     // Debug method to access configurationLoader
@@ -245,6 +250,11 @@ public class AICapabilityService {
     
     private String extractSearchableContent(Object entity, AIEntityConfig config) {
         try {
+            // v2.0 annotation-driven extraction (preferred when present)
+            if (entity != null && !annotationFieldScanner.getSearchableFields(entity.getClass()).isEmpty()) {
+                return annotationFieldScanner.extractSearchableContent(entity);
+            }
+
             List<String> contentParts = new ArrayList<>();
             
             if (config.getSearchableFields() != null) {
@@ -266,6 +276,12 @@ public class AICapabilityService {
     
     private String extractEmbeddableContent(Object entity, AIEntityConfig config) {
         try {
+            // v2.0 annotation-driven extraction (preferred when present)
+            if (entity != null && !annotationFieldScanner.getSearchableFields(entity.getClass()).isEmpty()) {
+                // Embeddable content in v2 is the searchable content (content intended to be embedded).
+                return annotationFieldScanner.extractSearchableContent(entity);
+            }
+
             List<String> contentParts = new ArrayList<>();
             
             if (config.getEmbeddableFields() != null) {
@@ -362,6 +378,11 @@ public class AICapabilityService {
         Map<String, Object> metadata = new LinkedHashMap<>();
         
         try {
+            // v2.0 annotation-driven context metadata (preferred when present)
+            if (entity != null && !annotationFieldScanner.getContextFields(entity.getClass()).isEmpty()) {
+                metadata.putAll(annotationFieldScanner.extractContextMetadata(entity));
+            }
+
             // Simple defensive check: if metadataFields is null, return empty metadata
             if (config == null || config.getMetadataFields() == null) {
                 log.warn("Config or metadata fields are null, skipping metadata extraction");
@@ -373,7 +394,7 @@ public class AICapabilityService {
                 try {
                     String value = getFieldValue(entity, field.getName());
                     if (value != null && !value.trim().isEmpty()) {
-                        metadata.put(field.getName(), value);
+                        metadata.putIfAbsent(field.getName(), value);
                         log.debug("Extracted metadata field {}: {}", field.getName(), value);
                     }
                 } catch (Exception fieldException) {
