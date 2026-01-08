@@ -163,9 +163,8 @@ check_provider_api_keys() {
     
     # Check API keys for all unique LLM providers needed
     for llm_provider in "${providers_needed_llm[@]}"; do
-    
-    # Check LLM provider API key
-    case "$llm_provider" in
+        # Check LLM provider API key
+        case "$llm_provider" in
         openai)
             if [ -z "$OPENAI_API_KEY" ]; then
                 missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)")
