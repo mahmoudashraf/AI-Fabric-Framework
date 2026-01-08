@@ -40,28 +40,38 @@ fi
 
 echo "✅ Registry YAML syntax is valid"
 
-# Extract provider names from registry (if yq available)
-if [ "$USE_YQ" = true ]; then
+# Extract provider names from registry using Python (more reliable)
+if command -v python3 &> /dev/null; then
     echo ""
     echo "📋 Providers in Registry:"
     
-    echo "  LLM Providers:"
-    yq eval '.providers.llm | keys | .[]' "$REGISTRY_FILE" | while read -r provider; do
-        display_name=$(yq eval ".providers.llm.$provider.displayName" "$REGISTRY_FILE")
-        enabled=$(yq eval ".providers.llm.$provider.enabled" "$REGISTRY_FILE")
-        status="✅"
-        [ "$enabled" != "true" ] && status="⚠️"
-        echo "    $status $provider ($display_name)"
-    done
-    
-    echo "  Embedding Providers:"
-    yq eval '.providers.embedding | keys | .[]' "$REGISTRY_FILE" | while read -r provider; do
-        display_name=$(yq eval ".providers.embedding.$provider.displayName" "$REGISTRY_FILE")
-        enabled=$(yq eval ".providers.embedding.$provider.enabled" "$REGISTRY_FILE")
-        status="✅"
-        [ "$enabled" != "true" ] && status="⚠️"
-        echo "    $status $provider ($display_name)"
-    done
+    python3 << 'PYTHON_SCRIPT'
+import yaml
+import sys
+
+registry_file = sys.argv[1]
+with open(registry_file, 'r') as f:
+    data = yaml.safe_load(f)
+
+providers = data.get('providers', {})
+
+print("  LLM Providers:")
+llm_providers = providers.get('llm', {})
+for name, provider in llm_providers.items():
+    display_name = provider.get('displayName', name)
+    enabled = provider.get('enabled', True)
+    status = "✅" if enabled else "⚠️"
+    print(f"    {status} {name} ({display_name})")
+
+print("  Embedding Providers:")
+embedding_providers = providers.get('embedding', {})
+for name, provider in embedding_providers.items():
+    display_name = provider.get('displayName', name)
+    enabled = provider.get('enabled', True)
+    status = "✅" if enabled else "⚠️"
+    print(f"    {status} {name} ({display_name})")
+PYTHON_SCRIPT
+    "$REGISTRY_FILE"
 fi
 
 # Check if workflow includes all providers from registry
