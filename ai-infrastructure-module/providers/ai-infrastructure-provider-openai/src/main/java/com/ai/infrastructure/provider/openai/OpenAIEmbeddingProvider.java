@@ -87,14 +87,20 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             
             // Test connection with a small embedding call
             try {
-                // Temporarily set available to true for initialization test
-                available = true;
-                
                 AIEmbeddingRequest testRequest = AIEmbeddingRequest.builder()
                     .text("test")
                     .build();
                 
-                AIEmbeddingResponse testResponse = generateEmbedding(testRequest);
+                // If using direct HTTP, call it directly to avoid availability check
+                AIEmbeddingResponse testResponse;
+                if (useDirectHttp && requestedDimensions != null) {
+                    long startTime = System.currentTimeMillis();
+                    testResponse = generateEmbeddingViaHttp(testRequest, requestedDimensions, startTime);
+                } else {
+                    // Temporarily set available to true for initialization test
+                    available = true;
+                    testResponse = generateEmbedding(testRequest);
+                }
                 if (testResponse != null && testResponse.getEmbedding() != null && !testResponse.getEmbedding().isEmpty()) {
                     available = true;
                     if (requestedDimensions == null) {
