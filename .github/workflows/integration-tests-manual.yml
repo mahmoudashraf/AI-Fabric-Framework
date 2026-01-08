@@ -37,14 +37,17 @@ on:
         description: 'Azure Endpoint URL (required for Azure)'
         required: false
         type: string
+        default: 'https://mahan-mk5op536-eastus2.services.ai.azure.com/openai/v1'
       azure_deployment_name:
         description: 'Azure Deployment Name (required for Azure LLM)'
         required: false
         type: string
+        default: 'Llama-4-Maverick-17B-128E-Instruct-FP8'
       azure_embedding_deployment_name:
         description: 'Azure Embedding Deployment Name (required for Azure Embedding)'
         required: false
         type: string
+        default: 'embedding-model'
       llm_provider:
         description: 'LLM Provider'
         required: true
