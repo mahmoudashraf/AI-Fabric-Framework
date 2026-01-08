@@ -213,6 +213,17 @@ abstract class AbstractProviderMatrixIntegrationTest {
             props.put("ai.providers.cohere.enabled", true); // Use boolean, not string
         }
         
+        String azureKey = System.getenv("AZURE_API_KEY");
+        String azureEndpoint = System.getenv("AZURE_ENDPOINT");
+        if (azureKey != null && !azureKey.trim().isEmpty() && azureEndpoint != null && !azureEndpoint.trim().isEmpty()) {
+            props.put("ai.providers.azure.api-key", azureKey);
+            props.put("ai.providers.azure.apiKey", azureKey); // Also set camelCase
+            props.put("ai.providers.azure.endpoint", azureEndpoint);
+            props.put("ai.providers.azure.deployment-name", System.getenv("AZURE_DEPLOYMENT_NAME"));
+            props.put("ai.providers.azure.embedding-deployment-name", System.getenv("AZURE_EMBEDDING_DEPLOYMENT_NAME"));
+            props.put("ai.providers.azure.enabled", true); // Use boolean, not string
+        }
+        
         return props;
     }
 

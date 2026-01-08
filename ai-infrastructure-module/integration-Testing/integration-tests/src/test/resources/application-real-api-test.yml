@@ -124,6 +124,16 @@ ai:
       timeout: 30
       priority: 100
 
+    azure:
+      enabled: ${AZURE_ENABLED:false}
+      api-key: ${AZURE_API_KEY:}
+      endpoint: ${AZURE_ENDPOINT:}
+      deployment-name: ${AZURE_DEPLOYMENT_NAME:}
+      embedding-deployment-name: ${AZURE_EMBEDDING_DEPLOYMENT_NAME:}
+      api-version: ${AZURE_API_VERSION:2024-02-15-preview}
+      timeout: 60
+      priority: 80
+
     anthropic:
       enabled: ${ANTHROPIC_ENABLED:true}
       api-key: ${ANTHROPIC_API_KEY:}

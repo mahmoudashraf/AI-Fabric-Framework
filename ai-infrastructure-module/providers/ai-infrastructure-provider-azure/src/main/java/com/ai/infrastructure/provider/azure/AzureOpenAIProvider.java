@@ -91,8 +91,23 @@ public class AzureOpenAIProvider implements AIProvider {
             headers.set(HEADER_API_KEY, config.getApiKey());
 
             List<Map<String, String>> messages = new ArrayList<>();
-            if (hasText(request.getSystemPrompt())) {
-                messages.add(Map.of("role", "system", "content", request.getSystemPrompt()));
+            
+            // Handle system prompt and enhance for intent extraction
+            String systemPrompt = request.getSystemPrompt();
+            if (hasText(systemPrompt)) {
+                // For intent extraction, enhance the system prompt to be very explicit about JSON-only responses
+                if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
+                    String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
+                        "You MUST respond with ONLY valid JSON. No markdown code blocks (no ```json or ```), " +
+                        "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
+                        "Just the raw JSON object. If you include any text other than JSON, the response will fail to parse.\n\n";
+                    
+                    systemPrompt = jsonInstruction + systemPrompt;
+                    
+                    log.info("Enhanced system prompt for intent extraction with JSON-only requirement (length: {})", systemPrompt.length());
+                    log.debug("Enhanced system prompt preview: {}", systemPrompt.substring(0, Math.min(200, systemPrompt.length())));
+                }
+                messages.add(Map.of("role", "system", "content", systemPrompt));
             }
             if (hasText(request.getPrompt())) {
                 messages.add(Map.of("role", "user", "content", request.getPrompt()));
