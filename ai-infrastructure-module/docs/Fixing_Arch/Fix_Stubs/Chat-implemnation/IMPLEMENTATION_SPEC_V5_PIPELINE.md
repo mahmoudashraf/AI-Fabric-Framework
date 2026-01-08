@@ -1266,7 +1266,110 @@ public PipelineContext process(PipelineContext context) {
 
 ---
 
-### 10.7 ConfirmationResolutionStep Implementation
+### 10.7 Intent Resolver Pattern (Extensible Architecture) 🆕
+
+**Problem:** Hardcoded conditionals for every edge case violates Open/Closed Principle and makes code fragile.
+
+**Solution:** Use **Strategy Pattern** with pluggable IntentResolvers.
+
+---
+
+#### 10.7.1 IntentResolver SPI
+
+**File:** `ai-infrastructure-chat-session/.../spi/IntentResolver.java`
+
+```java
+package com.ai.infrastructure.chat.spi;
+
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+
+import java.util.Map;
+
+/**
+ * SPI for resolving specific intent scenarios in conversations.
+ *
+ * <p><strong>Extensibility:</strong> Users can implement custom resolvers for
+ * new edge cases without modifying existing code.</p>
+ *
+ * <p><strong>Example Use Cases:</strong></p>
+ * <ul>
+ *   <li>Compound confirmations ("yes and show me laptops")</li>
+ *   <li>Nested confirmations (confirm action A, request action B requiring confirmation)</li>
+ *   <li>Timeout handling (expired confirmations)</li>
+ *   <li>Custom business logic (domain-specific resolution rules)</li>
+ * </ul>
+ *
+ * <p><strong>Registration:</strong> Simply annotate with {@code @Component} for auto-discovery.</p>
+ *
+ * @see ConfirmationResolutionStep
+ * @since 5.1
+ */
+public interface IntentResolver {
+
+    /**
+     * Check if this resolver can handle the current context.
+     *
+     * <p>Called in priority order. First resolver returning {@code true} will be used.</p>
+     *
+     * @param intentResponse the detected intents from IntentExtractionStep
+     * @param sessionMetadata the conversation session metadata (may contain pending actions)
+     * @param context the current pipeline context
+     * @return true if this resolver should handle this scenario
+     */
+    boolean canResolve(MultiIntentResponse intentResponse,
+                       Map<String, Object> sessionMetadata,
+                       PipelineContext context);
+
+    /**
+     * Resolve the intent and return modified context.
+     *
+     * <p>This method should:</p>
+     * <ul>
+     *   <li>Analyze the intent response and session metadata</li>
+     *   <li>Perform necessary transformations (e.g., replace confirmation with action)</li>
+     *   <li>Update session metadata if needed (e.g., clear pending actions)</li>
+     *   <li>Return modified PipelineContext for next step</li>
+     * </ul>
+     *
+     * @param intentResponse the detected intents
+     * @param sessionMetadata the conversation session metadata
+     * @param context the current pipeline context
+     * @return modified PipelineContext
+     */
+    PipelineContext resolve(MultiIntentResponse intentResponse,
+                           Map<String, Object> sessionMetadata,
+                           PipelineContext context);
+
+    /**
+     * Priority for resolver ordering (lower = higher priority).
+     *
+     * <p>Priorities:</p>
+     * <ul>
+     *   <li>1-10: Critical resolvers (timeouts, security)</li>
+     *   <li>11-50: Specific resolvers (compound, nested)</li>
+     *   <li>51-100: General resolvers (single confirmation)</li>
+     *   <li>101+: Fallback resolvers</li>
+     * </ul>
+     *
+     * @return priority value (lower executes first)
+     */
+    default int getPriority() {
+        return 100;
+    }
+
+    /**
+     * Resolver name for debugging/logging.
+     *
+     * @return human-readable resolver name
+     */
+    String getResolverName();
+}
+```
+
+---
+
+#### 10.7.2 ConfirmationResolutionStep (Resolver Coordinator)
 
 **File:** `ai-infrastructure-chat-session/.../pipeline/ConfirmationResolutionStep.java`
 
@@ -1277,13 +1380,14 @@ public PipelineContext process(PipelineContext context) {
 - ✅ Before intent handling (can replace intent before execution)
 - ✅ After security/access control (only process confirmed actions from authorized users)
 
+**New Role:** Acts as **coordinator** that delegates to IntentResolvers instead of hardcoded conditionals.
+
 ```java
 package com.ai.infrastructure.chat.pipeline;
 
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.chat.domain.ChatSession;
-import com.ai.infrastructure.dto.Intent;
-import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.chat.spi.IntentResolver;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -1292,31 +1396,39 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Pipeline step that resolves action confirmation requests in conversations.
+ * Pipeline step that coordinates intent resolution using pluggable resolvers.
  *
  * <p><strong>Execution Order:</strong> 55 (after IntentExtractionStep, before IntentHandlingStep)</p>
  *
- * <p><strong>Behavior:</strong></p>
+ * <p><strong>Architecture:</strong></p>
  * <ul>
- *   <li>Checks for pending actions in conversation metadata</li>
- *   <li>Uses LLM-detected intent (CONFIRMATION_POSITIVE/NEGATIVE) from IntentExtractionStep</li>
- *   <li>NO HARDCODED KEYWORDS - Respects LLM intelligence</li>
- *   <li>Replaces extracted intent with pending action intent when confirmed</li>
- *   <li>Clears pending action when confirmed or cancelled</li>
+ *   <li>Acts as coordinator - delegates to {@link IntentResolver} implementations</li>
+ *   <li>NO hardcoded conditionals - all logic in resolvers</li>
+ *   <li>Resolvers auto-discovered via Spring dependency injection</li>
+ *   <li>Executes first resolver that matches (priority-based ordering)</li>
  * </ul>
  *
- * <p><strong>Timeout:</strong> Pending confirmations expire after configured TTL (default: 5 minutes)</p>
+ * <p><strong>Extensibility:</strong></p>
+ * <ul>
+ *   <li>Add new edge case? Just create new {@code @Component} resolver</li>
+ *   <li>No modification to this step needed</li>
+ *   <li>Open/Closed Principle: open for extension, closed for modification</li>
+ * </ul>
  *
- * <p><strong>LLM Integration:</strong> Relies on ConversationEnrichmentStep enriching query
- * with pending action context, allowing IntentExtractionStep to detect confirmation intent.</p>
+ * <p><strong>Built-in Resolvers:</strong></p>
+ * <ul>
+ *   <li>{@code ExpiredConfirmationResolver} (Priority 5) - Handles timeouts</li>
+ *   <li>{@code CompoundConfirmationResolver} (Priority 10) - Handles "yes and show laptops"</li>
+ *   <li>{@code SingleConfirmationPositiveResolver} (Priority 50) - Handles simple "yes"</li>
+ *   <li>{@code SingleConfirmationNegativeResolver} (Priority 51) - Handles simple "no"</li>
+ * </ul>
  *
+ * @see IntentResolver
  * @see IntentHandlingStep
- * @see ChatSessionService
  * @see ConversationEnrichmentStep
  * @since 5.1
  */
@@ -1333,19 +1445,11 @@ public class ConfirmationResolutionStep implements PipelineStep {
     private static final String STEP_NAME = "ConfirmationResolution";
     private static final int STEP_ORDER = 55;
 
-    // Metadata keys for pending actions
-    private static final String METADATA_KEY_PENDING_ACTION = "pendingAction";
-    private static final String METADATA_KEY_PENDING_PARAMS = "pendingActionParams";
-    private static final String METADATA_KEY_PENDING_TIMESTAMP = "pendingActionTimestamp";
-    private static final String METADATA_KEY_PENDING_DESCRIPTION = "pendingActionDescription";
-
-    // Confirmation timeout (5 minutes)
-    private static final long CONFIRMATION_TIMEOUT_MINUTES = 5;
-
     // =========================================================================
-    // Dependencies
+    // Dependencies (Auto-injected by Spring)
     // =========================================================================
 
+    private final List<IntentResolver> resolvers;  // All @Component resolvers
     private final Optional<ChatSessionService> chatSessionService;
 
     // =========================================================================
@@ -1376,96 +1480,35 @@ public class ConfirmationResolutionStep implements PipelineStep {
             return context;  // No intent detected
         }
 
-        Intent detectedIntent = intentResponse.getIntents().get(0);
         String conversationId = context.getOrchestrationContext().getConversationId();
         String ownerId = context.getIdentifier();
 
         try {
-            // Load conversation session
+            // Load conversation session metadata
             ChatSession session = chatSessionService.get().getSession(conversationId, ownerId);
             Map<String, Object> metadata = session.getSessionMetadata();
 
-            // Check for pending action
-            if (!metadata.containsKey(METADATA_KEY_PENDING_ACTION)) {
-                return context;  // No pending action
+            // Sort resolvers by priority (lower = higher priority)
+            List<IntentResolver> sortedResolvers = resolvers.stream()
+                .sorted(Comparator.comparingInt(IntentResolver::getPriority))
+                .collect(Collectors.toList());
+
+            log.debug("Checking {} resolvers for conversation {}",
+                sortedResolvers.size(), conversationId);
+
+            // Find first resolver that can handle this scenario
+            for (IntentResolver resolver : sortedResolvers) {
+                if (resolver.canResolve(intentResponse, metadata, context)) {
+                    log.info("Resolver '{}' (priority {}) handling intent resolution for conversation {}",
+                        resolver.getResolverName(), resolver.getPriority(), conversationId);
+
+                    return resolver.resolve(intentResponse, metadata, context);
+                }
             }
 
-            // Extract pending action details
-            String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
-            Map<String, Object> pendingParams = (Map<String, Object>) metadata.get(METADATA_KEY_PENDING_PARAMS);
-            String timestampStr = (String) metadata.get(METADATA_KEY_PENDING_TIMESTAMP);
-
-            // Check timeout
-            if (isConfirmationExpired(timestampStr)) {
-                log.warn("Pending action '{}' expired for conversation {}",
-                    pendingAction, conversationId);
-                clearPendingAction(conversationId, ownerId, metadata);
-                return context;  // Expired - clear and continue normally
-            }
-
-            // Use LLM-detected intent type (NO HARDCODED KEYWORDS!)
-            if (detectedIntent.getType() == IntentType.CONFIRMATION_POSITIVE) {
-                log.info("LLM confirmed pending action '{}' for conversation {}",
-                    pendingAction, conversationId);
-
-                // Create ACTION intent from pending action
-                Intent confirmedIntent = Intent.builder()
-                    .type(IntentType.ACTION)
-                    .action(pendingAction)
-                    .actionParams(pendingParams != null ? pendingParams : new HashMap<>())
-                    .confidence(1.0)
-                    .originalText(context.getOriginalQuery())
-                    .build();
-
-                MultiIntentResponse confirmedResponse = MultiIntentResponse.builder()
-                    .intents(List.of(confirmedIntent))
-                    .compound(false)
-                    .build();
-
-                // Clear pending action
-                clearPendingAction(conversationId, ownerId, metadata);
-
-                // Replace intent in context
-                return context.toBuilder()
-                    .intentResponse(confirmedResponse)
-                    .build();
-
-            } else if (detectedIntent.getType() == IntentType.CONFIRMATION_NEGATIVE) {
-                log.info("LLM cancelled pending action '{}' for conversation {}",
-                    pendingAction, conversationId);
-
-                // Clear pending action
-                clearPendingAction(conversationId, ownerId, metadata);
-
-                // Create OUT_OF_SCOPE intent with cancellation message
-                Intent cancelIntent = Intent.builder()
-                    .type(IntentType.OUT_OF_SCOPE)
-                    .confidence(1.0)
-                    .originalText(context.getOriginalQuery())
-                    .build();
-
-                MultiIntentResponse cancelResponse = MultiIntentResponse.builder()
-                    .intents(List.of(cancelIntent))
-                    .compound(false)
-                    .metadata(Map.of(
-                        "cancellationMessage", "Action cancelled. Your " + pendingAction + " was not executed."
-                    ))
-                    .build();
-
-                return context.toBuilder()
-                    .intentResponse(cancelResponse)
-                    .build();
-
-            } else {
-                // Ambiguous response (LLM detected different intent)
-                // Keep pending action, process user's actual intent
-                log.debug("LLM detected {} intent instead of confirmation for pending action '{}'",
-                    detectedIntent.getType(), pendingAction);
-
-                // Return context unchanged - user will get normal processing
-                // Pending action remains for next turn
-                return context;
-            }
+            // No resolver matched - pass through unchanged
+            log.debug("No resolver matched for conversation {} - passing through", conversationId);
+            return context;
 
         } catch (Exception ex) {
             log.warn("Failed to process confirmation for conversation {}: {}. Continuing normally.",
@@ -1473,46 +1516,517 @@ public class ConfirmationResolutionStep implements PipelineStep {
             return context;  // Graceful degradation
         }
     }
+}
+```
 
-    // =========================================================================
-    // Helper Methods
-    // =========================================================================
+---
+
+#### 10.7.3 Built-in Intent Resolvers
+
+**File Structure:**
+```
+ai-infrastructure-chat-session/
+└── src/main/java/com/ai/infrastructure/chat/
+    └── resolver/                                    # NEW
+        ├── AbstractConfirmationResolver.java        # Base class with utilities
+        ├── ExpiredConfirmationResolver.java         # Priority 5
+        ├── CompoundConfirmationResolver.java        # Priority 10
+        ├── SingleConfirmationPositiveResolver.java  # Priority 50
+        └── SingleConfirmationNegativeResolver.java  # Priority 51
+```
+
+---
+
+##### 10.7.3.1 AbstractConfirmationResolver (Base Class)
+
+**File:** `ai-infrastructure-chat-session/.../resolver/AbstractConfirmationResolver.java`
+
+```java
+package com.ai.infrastructure.chat.resolver;
+
+import com.ai.infrastructure.chat.spi.IntentResolver;
+import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Base class for confirmation resolvers with shared utilities.
+ */
+@Slf4j
+@RequiredArgsConstructor
+public abstract class AbstractConfirmationResolver implements IntentResolver {
+
+    // Metadata keys
+    protected static final String METADATA_KEY_PENDING_ACTION = "pendingAction";
+    protected static final String METADATA_KEY_PENDING_PARAMS = "pendingActionParams";
+    protected static final String METADATA_KEY_PENDING_TIMESTAMP = "pendingActionTimestamp";
+    protected static final String METADATA_KEY_PENDING_DESCRIPTION = "pendingActionDescription";
+
+    // Timeout
+    protected static final long CONFIRMATION_TIMEOUT_MINUTES = 5;
+
+    protected final ChatSessionService chatSessionService;
 
     /**
      * Check if confirmation has expired.
      */
-    private boolean isConfirmationExpired(String timestampStr) {
-        if (timestampStr == null) {
-            return true;  // No timestamp = expired
+    protected boolean isConfirmationExpired(Object timestampObj) {
+        if (timestampObj == null) {
+            return true;
         }
 
         try {
-            LocalDateTime timestamp = LocalDateTime.parse(timestampStr);
+            LocalDateTime timestamp = LocalDateTime.parse(timestampObj.toString());
             long minutesElapsed = ChronoUnit.MINUTES.between(timestamp, LocalDateTime.now());
             return minutesElapsed > CONFIRMATION_TIMEOUT_MINUTES;
         } catch (Exception ex) {
-            log.warn("Failed to parse confirmation timestamp: {}", timestampStr);
-            return true;  // Parse error = expired
+            log.warn("Failed to parse confirmation timestamp: {}", timestampObj);
+            return true;
         }
     }
 
     /**
-     * Clear pending action from conversation metadata.
+     * Clear pending action from metadata.
      */
-    private void clearPendingAction(String conversationId, String ownerId,
-                                    Map<String, Object> metadata) {
+    protected void clearPendingAction(String conversationId, String ownerId,
+                                      Map<String, Object> metadata) {
         metadata.remove(METADATA_KEY_PENDING_ACTION);
         metadata.remove(METADATA_KEY_PENDING_PARAMS);
         metadata.remove(METADATA_KEY_PENDING_TIMESTAMP);
         metadata.remove(METADATA_KEY_PENDING_DESCRIPTION);
 
         try {
-            chatSessionService.get().updateSessionMetadata(conversationId, ownerId, metadata);
+            chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
             log.debug("Cleared pending action for conversation {}", conversationId);
         } catch (Exception ex) {
-            log.error("Failed to clear pending action for conversation {}: {}",
-                conversationId, ex.getMessage());
+            log.error("Failed to clear pending action: {}", ex.getMessage());
         }
+    }
+
+    /**
+     * Create ACTION intent from pending action data.
+     */
+    protected Intent createConfirmedActionIntent(Map<String, Object> metadata,
+                                                 String originalText) {
+        String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+        Map<String, Object> pendingParams = (Map<String, Object>)
+            metadata.get(METADATA_KEY_PENDING_PARAMS);
+
+        return Intent.builder()
+            .type(IntentType.ACTION)
+            .action(pendingAction)
+            .actionParams(pendingParams != null ? pendingParams : new HashMap<>())
+            .confidence(1.0)
+            .originalText(originalText)
+            .build();
+    }
+
+    /**
+     * Check if intent list contains confirmation intent.
+     */
+    protected boolean hasConfirmationIntent(List<Intent> intents) {
+        return intents.stream()
+            .anyMatch(i -> i.getType() == IntentType.CONFIRMATION_POSITIVE ||
+                          i.getType() == IntentType.CONFIRMATION_NEGATIVE);
+    }
+}
+```
+
+---
+
+##### 10.7.3.2 ExpiredConfirmationResolver (Priority 5)
+
+**File:** `ai-infrastructure-chat-session/.../resolver/ExpiredConfirmationResolver.java`
+
+```java
+package com.ai.infrastructure.chat.resolver;
+
+import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+
+/**
+ * Resolver for expired pending confirmations.
+ *
+ * <p><strong>Priority:</strong> 5 (highest - check timeouts first)</p>
+ * <p><strong>Handles:</strong> Pending actions that have exceeded timeout (5 minutes)</p>
+ *
+ * @since 5.1
+ */
+@Slf4j
+@Component
+public class ExpiredConfirmationResolver extends AbstractConfirmationResolver {
+
+    public ExpiredConfirmationResolver(ChatSessionService chatSessionService) {
+        super(chatSessionService);
+    }
+
+    @Override
+    public boolean canResolve(MultiIntentResponse intentResponse,
+                             Map<String, Object> metadata,
+                             PipelineContext context) {
+        return metadata.containsKey(METADATA_KEY_PENDING_ACTION) &&
+               isConfirmationExpired(metadata.get(METADATA_KEY_PENDING_TIMESTAMP));
+    }
+
+    @Override
+    public PipelineContext resolve(MultiIntentResponse intentResponse,
+                                   Map<String, Object> metadata,
+                                   PipelineContext context) {
+        String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+        String conversationId = context.getOrchestrationContext().getConversationId();
+        String ownerId = context.getIdentifier();
+
+        log.warn("Pending action '{}' expired for conversation {}", pendingAction, conversationId);
+
+        // Clear expired pending action
+        clearPendingAction(conversationId, ownerId, metadata);
+
+        // Return context unchanged - expired confirmation ignored
+        return context;
+    }
+
+    @Override
+    public int getPriority() {
+        return 5;  // Highest priority - check timeouts first
+    }
+
+    @Override
+    public String getResolverName() {
+        return "ExpiredConfirmationResolver";
+    }
+}
+```
+
+---
+
+##### 10.7.3.3 CompoundConfirmationResolver (Priority 10)
+
+**File:** `ai-infrastructure-chat-session/.../resolver/CompoundConfirmationResolver.java`
+
+```java
+package com.ai.infrastructure.chat.resolver;
+
+import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
+
+/**
+ * Resolver for compound intents containing confirmation.
+ *
+ * <p><strong>Priority:</strong> 10 (high - check compound scenarios before single)</p>
+ * <p><strong>Handles:</strong> "yes and show me laptops", "no, show me benefits"</p>
+ *
+ * <p><strong>Strategy:</strong></p>
+ * <ol>
+ *   <li>Extract confirmation intent from compound list</li>
+ *   <li>If POSITIVE: Create ACTION from pending, add as first intent</li>
+ *   <li>If NEGATIVE: Cancel pending, keep remaining intents</li>
+ *   <li>Remove confirmation intent from list</li>
+ *   <li>Pass modified intent list to next step</li>
+ * </ol>
+ *
+ * @since 5.1
+ */
+@Slf4j
+@Component
+public class CompoundConfirmationResolver extends AbstractConfirmationResolver {
+
+    public CompoundConfirmationResolver(ChatSessionService chatSessionService) {
+        super(chatSessionService);
+    }
+
+    @Override
+    public boolean canResolve(MultiIntentResponse intentResponse,
+                             Map<String, Object> metadata,
+                             PipelineContext context) {
+        return intentResponse.isCompound() &&
+               intentResponse.getIntents().size() > 1 &&
+               hasConfirmationIntent(intentResponse.getIntents()) &&
+               metadata.containsKey(METADATA_KEY_PENDING_ACTION);
+    }
+
+    @Override
+    public PipelineContext resolve(MultiIntentResponse intentResponse,
+                                   Map<String, Object> metadata,
+                                   PipelineContext context) {
+        String conversationId = context.getOrchestrationContext().getConversationId();
+        String ownerId = context.getIdentifier();
+        String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+
+        List<Intent> intents = new ArrayList<>(intentResponse.getIntents());
+
+        // Extract confirmation intent
+        Intent confirmationIntent = intents.stream()
+            .filter(i -> i.getType() == IntentType.CONFIRMATION_POSITIVE ||
+                         i.getType() == IntentType.CONFIRMATION_NEGATIVE)
+            .findFirst()
+            .orElse(null);
+
+        if (confirmationIntent == null) {
+            // Should never happen due to canResolve(), but safety check
+            return context;
+        }
+
+        // Remove confirmation intent from list
+        intents.remove(confirmationIntent);
+
+        if (confirmationIntent.getType() == IntentType.CONFIRMATION_POSITIVE) {
+            log.info("Compound confirmation: confirmed '{}', {} additional intents",
+                pendingAction, intents.size());
+
+            // Create ACTION from pending
+            Intent confirmedIntent = createConfirmedActionIntent(metadata,
+                "(confirmed: " + pendingAction + ")");
+
+            // Add confirmed action as FIRST intent
+            intents.add(0, confirmedIntent);
+
+            // Clear pending action
+            clearPendingAction(conversationId, ownerId, metadata);
+
+            // Build modified response
+            MultiIntentResponse modifiedResponse = MultiIntentResponse.builder()
+                .intents(intents)
+                .compound(intents.size() > 1)
+                .metadata(Map.of(
+                    "confirmedAction", pendingAction,
+                    "originalCompound", true
+                ))
+                .build();
+
+            return context.toBuilder()
+                .intentResponse(modifiedResponse)
+                .build();
+
+        } else {  // CONFIRMATION_NEGATIVE
+            log.info("Compound cancellation: cancelled '{}', {} additional intents",
+                pendingAction, intents.size());
+
+            // Clear pending action
+            clearPendingAction(conversationId, ownerId, metadata);
+
+            // Build modified response with cancellation message
+            Map<String, Object> responseMetadata = new HashMap<>(intentResponse.getMetadata());
+            responseMetadata.put("cancellationMessage",
+                "Action '" + pendingAction + "' was cancelled.");
+            responseMetadata.put("originalCompound", true);
+
+            MultiIntentResponse modifiedResponse = MultiIntentResponse.builder()
+                .intents(intents)
+                .compound(intents.size() > 1)
+                .metadata(responseMetadata)
+                .build();
+
+            return context.toBuilder()
+                .intentResponse(modifiedResponse)
+                .build();
+        }
+    }
+
+    @Override
+    public int getPriority() {
+        return 10;  // High priority - check compound before single
+    }
+
+    @Override
+    public String getResolverName() {
+        return "CompoundConfirmationResolver";
+    }
+}
+```
+
+---
+
+##### 10.7.3.4 SingleConfirmationPositiveResolver (Priority 50)
+
+**File:** `ai-infrastructure-chat-session/.../resolver/SingleConfirmationPositiveResolver.java`
+
+```java
+package com.ai.infrastructure.chat.resolver;
+
+import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Resolver for single positive confirmation (e.g., "yes", "confirm", "proceed").
+ *
+ * <p><strong>Priority:</strong> 50 (general - after specific resolvers)</p>
+ * <p><strong>Handles:</strong> Simple "yes" responses to pending actions</p>
+ *
+ * @since 5.1
+ */
+@Slf4j
+@Component
+public class SingleConfirmationPositiveResolver extends AbstractConfirmationResolver {
+
+    public SingleConfirmationPositiveResolver(ChatSessionService chatSessionService) {
+        super(chatSessionService);
+    }
+
+    @Override
+    public boolean canResolve(MultiIntentResponse intentResponse,
+                             Map<String, Object> metadata,
+                             PipelineContext context) {
+        return intentResponse.getIntents().size() == 1 &&
+               intentResponse.getIntents().get(0).getType() == IntentType.CONFIRMATION_POSITIVE &&
+               metadata.containsKey(METADATA_KEY_PENDING_ACTION);
+    }
+
+    @Override
+    public PipelineContext resolve(MultiIntentResponse intentResponse,
+                                   Map<String, Object> metadata,
+                                   PipelineContext context) {
+        String conversationId = context.getOrchestrationContext().getConversationId();
+        String ownerId = context.getIdentifier();
+        String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+
+        log.info("Single confirmation: confirmed '{}'", pendingAction);
+
+        // Create ACTION intent from pending
+        Intent confirmedIntent = createConfirmedActionIntent(metadata,
+            context.getOriginalQuery());
+
+        // Clear pending action
+        clearPendingAction(conversationId, ownerId, metadata);
+
+        // Replace intent with confirmed action
+        MultiIntentResponse confirmedResponse = MultiIntentResponse.builder()
+            .intents(List.of(confirmedIntent))
+            .compound(false)
+            .build();
+
+        return context.toBuilder()
+            .intentResponse(confirmedResponse)
+            .build();
+    }
+
+    @Override
+    public int getPriority() {
+        return 50;
+    }
+
+    @Override
+    public String getResolverName() {
+        return "SingleConfirmationPositiveResolver";
+    }
+}
+```
+
+---
+
+##### 10.7.3.5 SingleConfirmationNegativeResolver (Priority 51)
+
+**File:** `ai-infrastructure-chat-session/.../resolver/SingleConfirmationNegativeResolver.java`
+
+```java
+package com.ai.infrastructure.chat.resolver;
+
+import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Resolver for single negative confirmation (e.g., "no", "cancel", "abort").
+ *
+ * <p><strong>Priority:</strong> 51 (general - after positive confirmation)</p>
+ * <p><strong>Handles:</strong> Simple "no" responses to pending actions</p>
+ *
+ * @since 5.1
+ */
+@Slf4j
+@Component
+public class SingleConfirmationNegativeResolver extends AbstractConfirmationResolver {
+
+    public SingleConfirmationNegativeResolver(ChatSessionService chatSessionService) {
+        super(chatSessionService);
+    }
+
+    @Override
+    public boolean canResolve(MultiIntentResponse intentResponse,
+                             Map<String, Object> metadata,
+                             PipelineContext context) {
+        return intentResponse.getIntents().size() == 1 &&
+               intentResponse.getIntents().get(0).getType() == IntentType.CONFIRMATION_NEGATIVE &&
+               metadata.containsKey(METADATA_KEY_PENDING_ACTION);
+    }
+
+    @Override
+    public PipelineContext resolve(MultiIntentResponse intentResponse,
+                                   Map<String, Object> metadata,
+                                   PipelineContext context) {
+        String conversationId = context.getOrchestrationContext().getConversationId();
+        String ownerId = context.getIdentifier();
+        String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+
+        log.info("Single cancellation: cancelled '{}'", pendingAction);
+
+        // Clear pending action
+        clearPendingAction(conversationId, ownerId, metadata);
+
+        // Create OUT_OF_SCOPE intent with cancellation message
+        Intent cancelIntent = Intent.builder()
+            .type(IntentType.OUT_OF_SCOPE)
+            .confidence(1.0)
+            .originalText(context.getOriginalQuery())
+            .build();
+
+        MultiIntentResponse cancelResponse = MultiIntentResponse.builder()
+            .intents(List.of(cancelIntent))
+            .compound(false)
+            .metadata(Map.of(
+                "cancellationMessage",
+                "Action cancelled. Your " + pendingAction + " was not executed."
+            ))
+            .build();
+
+        return context.toBuilder()
+            .intentResponse(cancelResponse)
+            .build();
+    }
+
+    @Override
+    public int getPriority() {
+        return 51;
+    }
+
+    @Override
+    public String getResolverName() {
+        return "SingleConfirmationNegativeResolver";
     }
 }
 ```
@@ -1906,30 +2420,182 @@ ai:
 
 ---
 
-### 10.12 Handling Compound Intents with Confirmation 🆕
+### 10.12 Adding Custom Intent Resolvers 🆕 **EXTENSIBILITY**
 
-**Problem:** User confirms a pending action AND makes a new request in the same message.
-
-**Example:**
-```
-Turn 1:
-───────
-User: "cancel my subscription"
-Response: "Confirm cancellation? Reply 'yes' or 'no'."
-
-Turn 2:
-───────
-User: "yes and give me programming laptop black colour"
-```
-
-**Expected Behavior:**
-1. Confirm and execute the pending action ("cancel_subscription")
-2. Process the new request ("give me programming laptop black colour")
-3. Return a combined response
+**The Power of the Resolver Pattern:** Add new edge cases WITHOUT modifying existing code!
 
 ---
 
-#### 10.12.1 Flow Diagram
+#### 10.12.1 Quick Example: Custom Nested Confirmation Resolver
+
+**Scenario:** Handle case where user confirms action A and requests action B (which also requires confirmation):
+
+```
+User: "yes and also delete all my data"
+  - Confirms pending "cancel_subscription"
+  - Requests "delete_all_data" (also requires confirmation)
+```
+
+**Solution:** Create a custom resolver!
+
+**File:** `YourApp/.../NestedConfirmationResolver.java`
+
+```java
+@Slf4j
+@Component  // That's it! Auto-discovered by Spring
+public class NestedConfirmationResolver extends AbstractConfirmationResolver {
+
+    private final ActionHandlerRegistry actionRegistry;
+
+    public NestedConfirmationResolver(ChatSessionService chatSessionService,
+                                      ActionHandlerRegistry actionRegistry) {
+        super(chatSessionService);
+        this.actionRegistry = actionRegistry;
+    }
+
+    @Override
+    public boolean canResolve(MultiIntentResponse intentResponse,
+                             Map<String, Object> metadata,
+                             PipelineContext context) {
+        // Check: compound + confirmation + has pending + contains action requiring confirmation
+        return intentResponse.isCompound() &&
+               hasConfirmationIntent(intentResponse.getIntents()) &&
+               metadata.containsKey(METADATA_KEY_PENDING_ACTION) &&
+               hasActionRequiringConfirmation(intentResponse.getIntents());
+    }
+
+    @Override
+    public PipelineContext resolve(MultiIntentResponse intentResponse,
+                                   Map<String, Object> metadata,
+                                   PipelineContext context) {
+        log.info("Handling nested confirmation scenario");
+
+        // Extract confirmation intent
+        Intent confirmationIntent = extractConfirmationIntent(intentResponse.getIntents());
+        List<Intent> remainingIntents = removeConfirmationIntent(intentResponse.getIntents());
+
+        if (confirmationIntent.getType() == IntentType.CONFIRMATION_POSITIVE) {
+            // 1. Execute confirmed action
+            Intent confirmedAction = createConfirmedActionIntent(metadata,
+                "(confirmed: " + metadata.get(METADATA_KEY_PENDING_ACTION) + ")");
+
+            // 2. Find new action requiring confirmation
+            Intent newActionRequiringConfirmation = findActionRequiringConfirmation(remainingIntents);
+            List<Intent> otherIntents = removeAction(remainingIntents, newActionRequiringConfirmation);
+
+            // 3. Build intent list: [confirmed action, new pending action, others]
+            List<Intent> modifiedIntents = new ArrayList<>();
+            modifiedIntents.add(confirmedAction);  // Execute first confirmed action
+            if (newActionRequiringConfirmation != null) {
+                modifiedIntents.add(newActionRequiringConfirmation);  // Will trigger new confirmation
+            }
+            modifiedIntents.addAll(otherIntents);
+
+            // Clear old pending action
+            clearPendingAction(context.getOrchestrationContext().getConversationId(),
+                context.getIdentifier(), metadata);
+
+            // Return modified context
+            return context.toBuilder()
+                .intentResponse(MultiIntentResponse.builder()
+                    .intents(modifiedIntents)
+                    .compound(modifiedIntents.size() > 1)
+                    .metadata(Map.of("nestedConfirmation", true))
+                    .build())
+                .build();
+        }
+
+        return context;
+    }
+
+    @Override
+    public int getPriority() {
+        return 8;  // Higher priority than CompoundConfirmationResolver (10)
+    }
+
+    @Override
+    public String getResolverName() {
+        return "NestedConfirmationResolver";
+    }
+
+    // Helper methods...
+    private boolean hasActionRequiringConfirmation(List<Intent> intents) {
+        return intents.stream()
+            .filter(i -> i.getType() == IntentType.ACTION)
+            .anyMatch(i -> {
+                ActionHandler handler = actionRegistry.getHandler(i.getAction());
+                return handler != null && handler.requiresConfirmation();
+            });
+    }
+}
+```
+
+**That's it!** No modification to framework code. Just add your `@Component` resolver.
+
+---
+
+#### 10.12.2 How It Works
+
+1. **Framework discovers your resolver** via Spring component scanning
+2. **Priority determines execution order** (your Priority 8 runs before built-in Priority 10)
+3. **First matching resolver wins** - `canResolve()` checked in priority order
+4. **Your resolver processes the scenario** - `resolve()` called
+5. **Framework continues with modified context** - next steps see your changes
+
+---
+
+#### 10.12.3 Built-in Resolver Flow Examples
+
+##### Example 1: Simple Confirmation (SingleConfirmationPositiveResolver)
+
+```
+User: "yes"
+
+ConversationEnrichment: Enriches with pending action context
+    ↓
+IntentExtraction: Detects CONFIRMATION_POSITIVE
+    ↓
+ConfirmationResolution: Checks resolvers in priority order
+    ↓ ExpiredConfirmationResolver (5): canResolve() → false (not expired)
+    ↓ CompoundConfirmationResolver (10): canResolve() → false (not compound)
+    ↓ SingleConfirmationPositiveResolver (50): canResolve() → TRUE! ✅
+    ↓
+SingleConfirmationPositiveResolver.resolve():
+    - Creates ACTION intent from pending
+    - Clears pending action
+    - Returns modified context
+    ↓
+IntentHandling: Executes confirmed action
+    ↓
+Response: "Subscription cancelled successfully"
+```
+
+##### Example 2: Compound Confirmation (CompoundConfirmationResolver)
+
+```
+User: "yes and show me laptops"
+
+ConversationEnrichment: Enriches with pending action context
+    ↓
+IntentExtraction: Detects COMPOUND [CONFIRMATION_POSITIVE, INFORMATION]
+    ↓
+ConfirmationResolution: Checks resolvers
+    ↓ ExpiredConfirmationResolver (5): canResolve() → false
+    ↓ CompoundConfirmationResolver (10): canResolve() → TRUE! ✅
+    ↓
+CompoundConfirmationResolver.resolve():
+    - Extracts CONFIRMATION_POSITIVE from list
+    - Creates ACTION from pending
+    - Removes confirmation from list
+    - Adds confirmed ACTION as first intent
+    - Returns: [ACTION(cancel_subscription), INFORMATION(laptops)]
+    ↓
+IntentHandling: Processes both intents
+    ↓
+Response: "Subscription cancelled. Here are laptops: Dell XPS..."
+```
+
+##### Example 3: Timeout (ExpiredConfirmationResolver)
 
 ```
 User: "yes and give me programming laptop black colour"
