@@ -309,6 +309,45 @@ if [ -n "$AI_INFRASTRUCTURE_LLM_PROVIDER" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.llm-provider=$AI_INFRASTRUCTURE_LLM_PROVIDER"
 fi
 
+# Enable providers based on selection
+case "$AI_INFRASTRUCTURE_LLM_PROVIDER" in
+    openai)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DOPENAI_ENABLED=true"
+        ;;
+    anthropic)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.anthropic.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DANTHROPIC_ENABLED=true"
+        ;;
+    gemini)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.gemini.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DGEMINI_ENABLED=true"
+        ;;
+    cohere)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.cohere.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.azure.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DAZURE_ENABLED=true"
+        ;;
+esac
+
+case "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" in
+    openai)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DOPENAI_ENABLED=true"
+        ;;
+    cohere)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.cohere.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.azure.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DAZURE_ENABLED=true"
+        ;;
+esac
+
 # Auto-configure OpenAI embedding dimensions for Lucene compatibility
 # OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
 # Check if we're using OpenAI embeddings with Lucene vector database

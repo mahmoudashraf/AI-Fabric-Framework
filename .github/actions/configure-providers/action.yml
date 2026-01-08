@@ -97,7 +97,9 @@ runs:
       run: |
         if [ -n "${{ inputs.cohere_api_key }}" ]; then
           echo "COHERE_API_KEY=${{ inputs.cohere_api_key }}" >> $GITHUB_ENV
-          echo "✅ Configured Cohere API key"
+          echo "COHERE_ENABLED=true" >> $GITHUB_ENV
+          echo "ai.providers.cohere.enabled=true" >> $GITHUB_ENV
+          echo "✅ Configured Cohere API key and enabled provider"
         else
           echo "⚠️  WARNING: Cohere selected but no API key provided"
         fi
