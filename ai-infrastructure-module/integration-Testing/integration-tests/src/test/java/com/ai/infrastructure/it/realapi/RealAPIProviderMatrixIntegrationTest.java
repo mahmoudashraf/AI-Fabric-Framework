@@ -169,6 +169,15 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             .filter(availableSet::contains)
             .toList();
 
+        // If requested combinations are not in available set, still use them
+        // This allows testing providers that may not be available during discovery
+        // but are configured via system properties/environment variables
+        if (accepted.isEmpty() && !requested.isEmpty()) {
+            System.out.println("WARNING: Requested provider combinations not found in available set, but will attempt to use them anyway: " + 
+                     requested.stream().map(ProviderCombination::displayName).collect(java.util.stream.Collectors.joining(", ")));
+            return requested;
+        }
+
         return accepted.isEmpty() ? available : accepted;
     }
 

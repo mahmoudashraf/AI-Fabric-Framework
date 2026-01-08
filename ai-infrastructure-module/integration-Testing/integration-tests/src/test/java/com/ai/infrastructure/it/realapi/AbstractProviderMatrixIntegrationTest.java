@@ -177,11 +177,29 @@ abstract class AbstractProviderMatrixIntegrationTest {
     }
 
     private Map<String, Object> defaultDiscoveryProperties() {
-        return Map.of(
+        Map<String, Object> props = new java.util.HashMap<>(Map.of(
             "ai.providers.llm-provider", defaultLlmProvider(),
             "ai.providers.embedding-provider", defaultEmbeddingProvider(),
             STORAGE_STRATEGY_PROPERTY, defaultStorageStrategy()
-        );
+        ));
+        
+        // Include API keys from environment for provider availability checks during discovery
+        // Use both kebab-case and camelCase for Spring Boot relaxed binding
+        String anthropicKey = System.getenv("ANTHROPIC_API_KEY");
+        if (anthropicKey != null && !anthropicKey.trim().isEmpty()) {
+            props.put("ai.providers.anthropic.api-key", anthropicKey);
+            props.put("ai.providers.anthropic.apiKey", anthropicKey); // Also set camelCase
+            props.put("ai.providers.anthropic.enabled", true); // Use boolean, not string
+        }
+        
+        String openaiKey = System.getenv("OPENAI_API_KEY");
+        if (openaiKey != null && !openaiKey.trim().isEmpty()) {
+            props.put("ai.providers.openai.api-key", openaiKey);
+            props.put("ai.providers.openai.apiKey", openaiKey); // Also set camelCase
+            props.put("ai.providers.openai.enabled", true); // Use boolean, not string
+        }
+        
+        return props;
     }
 
     private List<ProviderCombination> parseMatrixSpec(String matrixSpec) {
