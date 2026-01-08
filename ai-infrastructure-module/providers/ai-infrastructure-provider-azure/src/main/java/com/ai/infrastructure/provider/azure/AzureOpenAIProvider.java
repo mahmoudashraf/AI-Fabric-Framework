@@ -66,11 +66,19 @@ public class AzureOpenAIProvider implements AIProvider {
     @Override
     public boolean isAvailable() {
         try {
-            return config.isValid()
-                && azureConfig.isEnabled()
-                && hasText(config.getApiKey())
-                && hasText(azureConfig.getEndpoint())
-                && hasText(azureConfig.getDeploymentName());
+            if (!config.isValid() || !azureConfig.isEnabled() || !hasText(config.getApiKey()) || !hasText(azureConfig.getEndpoint())) {
+                return false;
+            }
+            
+            // For Azure AI Services (Foundry), deployment name is not required in the URL
+            // Check if endpoint contains /models (Foundry format) - deployment name not needed
+            String endpoint = azureConfig.getEndpoint();
+            if (endpoint.contains("/models") || endpoint.contains("services.ai.azure.com")) {
+                return true; // Foundry format doesn't need deployment name in URL
+            }
+            
+            // For Azure OpenAI, deployment name is required
+            return hasText(azureConfig.getDeploymentName());
         } catch (Exception ex) {
             log.warn("Azure provider validation failed: {}", ex.getMessage());
             return false;
@@ -164,7 +172,12 @@ public class AzureOpenAIProvider implements AIProvider {
 
         try {
             String deployment = azureConfig.getEmbeddingDeploymentName();
-            if (!hasText(deployment)) {
+            // For Azure AI Services (Foundry), deployment name is not required in URL
+            String endpoint = azureConfig.getEndpoint();
+            if ((endpoint.contains("/models") || endpoint.contains("services.ai.azure.com")) && !hasText(deployment)) {
+                // Foundry format - deployment name not needed in URL
+                deployment = null;
+            } else if (!hasText(deployment)) {
                 throw new AIServiceException("Azure embedding deployment name is not configured");
             }
 
@@ -257,17 +270,58 @@ public class AzureOpenAIProvider implements AIProvider {
     }
 
     private String buildChatCompletionsUrl() {
+        String endpoint = normalizeEndpoint(azureConfig.getEndpoint());
+        String apiVersion = azureConfig.getApiVersion() != null ? azureConfig.getApiVersion() : "2024-02-15-preview";
+        
+        // Check if endpoint already contains /models/chat/completions (Azure AI Services/Foundry format)
+        if (endpoint.contains("/models/chat/completions")) {
+            // Azure AI Services (Foundry) format - endpoint already includes the path
+            if (endpoint.contains("?")) {
+                return endpoint; // Already has query params
+            }
+            return String.format("%s?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Check if endpoint contains /models (Azure AI Services/Foundry base format)
+        if (endpoint.contains("/models")) {
+            // Azure AI Services (Foundry) format - add chat/completions
+            return String.format("%s/chat/completions?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Azure OpenAI format - traditional deployment-based
+        String deployment = config.getDefaultModel();
+        if (deployment == null || deployment.isEmpty()) {
+            deployment = azureConfig.getDeploymentName();
+        }
         return String.format("%s/openai/deployments/%s/chat/completions?api-version=%s",
-            normalizeEndpoint(azureConfig.getEndpoint()),
-            config.getDefaultModel(),
-            azureConfig.getApiVersion());
+            endpoint, deployment, apiVersion);
     }
 
     private String buildEmbeddingsUrl(String deployment) {
+        String endpoint = normalizeEndpoint(azureConfig.getEndpoint());
+        String apiVersion = azureConfig.getApiVersion() != null ? azureConfig.getApiVersion() : "2024-02-15-preview";
+        
+        // Check if endpoint already contains /models/embeddings (Azure AI Services/Foundry format)
+        if (endpoint.contains("/models/embeddings")) {
+            // Azure AI Services (Foundry) format - endpoint already includes the path
+            if (endpoint.contains("?")) {
+                return endpoint; // Already has query params
+            }
+            return String.format("%s?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Check if endpoint contains /models (Azure AI Services/Foundry base format)
+        if (endpoint.contains("/models")) {
+            // Azure AI Services (Foundry) format - add embeddings
+            return String.format("%s/embeddings?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Azure OpenAI format - traditional deployment-based
+        if (deployment == null || deployment.isEmpty()) {
+            deployment = azureConfig.getEmbeddingDeploymentName();
+        }
         return String.format("%s/openai/deployments/%s/embeddings?api-version=%s",
-            normalizeEndpoint(azureConfig.getEndpoint()),
-            deployment,
-            azureConfig.getApiVersion());
+            endpoint, deployment, apiVersion);
     }
 
     private String normalizeEndpoint(String endpoint) {
