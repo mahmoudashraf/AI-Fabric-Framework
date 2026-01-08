@@ -87,6 +87,9 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             
             // Test connection with a small embedding call
             try {
+                // Temporarily set available to true for initialization test
+                available = true;
+                
                 AIEmbeddingRequest testRequest = AIEmbeddingRequest.builder()
                     .text("test")
                     .build();
