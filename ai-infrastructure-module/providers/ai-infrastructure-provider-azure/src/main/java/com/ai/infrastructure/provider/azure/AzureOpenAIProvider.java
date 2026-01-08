@@ -70,11 +70,12 @@ public class AzureOpenAIProvider implements AIProvider {
                 return false;
             }
             
-            // For Azure AI Services (Foundry), deployment name is not required in the URL
-            // Check if endpoint contains /models (Foundry format) - deployment name not needed
+            // For Azure AI Services (Foundry) or OpenAI-compatible format, deployment name is not required in URL
+            // Check if endpoint contains /models or /openai/v1 (Foundry/OpenAI-compatible format)
             String endpoint = azureConfig.getEndpoint();
-            if (endpoint.contains("/models") || endpoint.contains("services.ai.azure.com")) {
-                return true; // Foundry format doesn't need deployment name in URL
+            if (endpoint.contains("/models") || endpoint.contains("/openai/v1") || endpoint.contains("services.ai.azure.com")) {
+                // Deployment name is still needed for the model field in request body
+                return hasText(azureConfig.getDeploymentName()) || hasText(config.getDefaultModel());
             }
             
             // For Azure OpenAI, deployment name is required
@@ -125,6 +126,18 @@ public class AzureOpenAIProvider implements AIProvider {
             body.put("messages", messages);
             body.put("temperature", Optional.ofNullable(request.getTemperature()).orElse(config.getTemperature()));
             body.put("max_tokens", Optional.ofNullable(request.getMaxTokens()).orElse(config.getMaxTokens()));
+            
+            // For OpenAI-compatible format (/openai/v1), include model in request body
+            String endpoint = azureConfig.getEndpoint();
+            if (endpoint != null && endpoint.contains("/openai/v1")) {
+                String deployment = config.getDefaultModel();
+                if (deployment == null || deployment.isEmpty()) {
+                    deployment = azureConfig.getDeploymentName();
+                }
+                if (deployment != null && !deployment.isEmpty()) {
+                    body.put("model", deployment);
+                }
+            }
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
@@ -280,6 +293,17 @@ public class AzureOpenAIProvider implements AIProvider {
                 return endpoint; // Already has query params
             }
             return String.format("%s?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Check if endpoint contains /openai/v1 (OpenAI-compatible format on Azure AI Services)
+        if (endpoint.contains("/openai/v1")) {
+            // OpenAI-compatible format - use /chat/completions endpoint
+            String deployment = config.getDefaultModel();
+            if (deployment == null || deployment.isEmpty()) {
+                deployment = azureConfig.getDeploymentName();
+            }
+            // For OpenAI-compatible format, model is passed in the request body, not URL
+            return String.format("%s/chat/completions", endpoint);
         }
         
         // Check if endpoint contains /models (Azure AI Services/Foundry base format)

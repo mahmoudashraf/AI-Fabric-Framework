@@ -1,21 +1,25 @@
 #!/bin/bash
 
-# Azure AI Services (Foundry) Configuration
-# Using base endpoint so both LLM and embeddings work
+# Azure AI Services Configuration
+# LLM: Llama-4-Maverick-17B-128E-Instruct-FP8 (OpenAI-compatible format)
+# Embeddings: Using /models endpoint
 export AZURE_API_KEY="F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb"
-export AZURE_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/models"
-export AZURE_DEPLOYMENT_NAME="DeepSeek-V3.2"
-export AZURE_EMBEDDING_DEPLOYMENT_NAME="embedding-model"  # Informational only for Foundry
+
+# LLM endpoint - OpenAI-compatible format
+export AZURE_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/openai/v1"
+export AZURE_DEPLOYMENT_NAME="Llama-4-Maverick-17B-128E-Instruct-FP8"
+
+# Embeddings endpoint - Foundry format (separate endpoint if needed)
+# If embeddings use the same base, they'll use /models/embeddings
+export AZURE_EMBEDDING_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/models"
+export AZURE_EMBEDDING_DEPLOYMENT_NAME="embedding-model"
 export AZURE_API_VERSION="2024-05-01-preview"
 export AZURE_ENABLED="true"
 
-# Set providers to use Azure (use system properties for Maven)
-# Note: These need to be passed as -D properties to Maven, not as environment variables
-
-echo "✅ Azure AI Services (Foundry) configured!"
-echo "   Endpoint: $AZURE_ENDPOINT"
-echo "   LLM Deployment: $AZURE_DEPLOYMENT_NAME"
-echo "   Embedding Deployment: $AZURE_EMBEDDING_DEPLOYMENT_NAME"
-echo "   API Version: $AZURE_API_VERSION"
+echo "✅ Azure AI Services configured!"
+echo "   LLM Endpoint: $AZURE_ENDPOINT"
+echo "   LLM Model: $AZURE_DEPLOYMENT_NAME"
+echo "   Embedding Endpoint: $AZURE_EMBEDDING_ENDPOINT"
+echo "   Embedding Model: $AZURE_EMBEDDING_DEPLOYMENT_NAME"
 echo ""
 echo "To use these settings, run: source setup-azure-foundry.sh"
