@@ -10,6 +10,12 @@ import com.theokanning.openai.embedding.EmbeddingResult;
 import com.theokanning.openai.service.OpenAiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
 // @Component removed - using @Bean in auto-configuration instead
 
 import jakarta.annotation.PostConstruct;
@@ -35,8 +41,10 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
     
     private final AIProviderConfig config;
     private OpenAiService openAiService;
+    private RestTemplate restTemplate;
     private boolean available = false;
     private int embeddingDimension = 1536; // Default for text-embedding-3-small
+    private boolean useDirectHttp = false; // Use direct HTTP when dimension reduction is needed
     
     @PostConstruct
     public void initialize() {
@@ -62,47 +70,32 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                 Duration.ofSeconds(openai.getTimeout())
             );
             
+            // Initialize RestTemplate for direct HTTP calls (needed for dimension reduction)
+            restTemplate = new RestTemplate();
+            
+            // Check if dimension reduction is needed
+            Integer requestedDimensions = openai.getEmbeddingDimensions();
+            log.info("Checking dimension reduction: requestedDimensions={}, embeddingModel={}", 
+                requestedDimensions, openai.getEmbeddingModel());
+            
+            if (requestedDimensions != null) {
+                // Dimension reduction requested - use direct HTTP calls since library doesn't support it
+                useDirectHttp = true;
+                embeddingDimension = requestedDimensions;
+                log.info("Dimension reduction configured: {} dimensions. Using direct HTTP calls to OpenAI API.", requestedDimensions);
+            }
+            
             // Test connection with a small embedding call
             try {
-                var builder = EmbeddingRequest.builder()
-                    .model(openai.getEmbeddingModel())
-                    .input(List.of("test"));
+                AIEmbeddingRequest testRequest = AIEmbeddingRequest.builder()
+                    .text("test")
+                    .build();
                 
-                // Apply dimension reduction if configured and supported
-                Integer requestedDimensions = openai.getEmbeddingDimensions();
-                log.info("Checking dimension reduction: requestedDimensions={}, embeddingModel={}", 
-                    requestedDimensions, openai.getEmbeddingModel());
-                if (requestedDimensions != null) {
-                    try {
-                        // Try to use dimensions() method if available (for text-embedding-3 models)
-                        builder.getClass().getMethod("dimensions", Integer.class).invoke(builder, requestedDimensions);
-                        log.info("Using dimension reduction: {} dimensions", requestedDimensions);
-                        embeddingDimension = requestedDimensions;
-                    } catch (NoSuchMethodException e) {
-                        // Library doesn't support dimensions() method, try setting field directly via reflection
-                        try {
-                            java.lang.reflect.Field dimensionsField = builder.getClass().getDeclaredField("dimensions");
-                            dimensionsField.setAccessible(true);
-                            dimensionsField.set(builder, requestedDimensions);
-                            log.info("Using dimension reduction via reflection: {} dimensions", requestedDimensions);
-                            embeddingDimension = requestedDimensions;
-                        } catch (NoSuchFieldException | IllegalAccessException ex) {
-                            log.warn("Dimension reduction not supported by OpenAI library version. Library may need update. Using default dimensions.");
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed to apply dimension reduction: {}", e.getMessage(), e);
-                    }
-                } else {
-                    log.info("No dimension reduction configured, using model default");
-                }
-                
-                EmbeddingRequest testRequest = builder.build();
-                EmbeddingResult testResult = openAiService.createEmbeddings(testRequest);
-                if (!testResult.getData().isEmpty()) {
+                AIEmbeddingResponse testResponse = generateEmbedding(testRequest);
+                if (testResponse != null && testResponse.getEmbedding() != null && !testResponse.getEmbedding().isEmpty()) {
                     available = true;
-                    // Use actual dimension from response if dimension reduction wasn't applied
                     if (requestedDimensions == null) {
-                        embeddingDimension = testResult.getData().get(0).getEmbedding().size();
+                        embeddingDimension = testResponse.getEmbedding().size();
                     }
                     log.info("OpenAI Embedding Provider initialized successfully with dimension: {}", embeddingDimension);
                 } else {
@@ -140,30 +133,19 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             
             long startTime = System.currentTimeMillis();
             
-            var builder = EmbeddingRequest.builder()
-                  .model(request.getModel() != null ? request.getModel() : config.getOpenai().getEmbeddingModel())
-                .input(List.of(request.getText()));
+            AIProviderConfig.OpenAIConfig openai = config.getOpenai();
+            Integer requestedDimensions = openai.getEmbeddingDimensions();
             
-            // Apply dimension reduction if configured
-            Integer requestedDimensions = config.getOpenai().getEmbeddingDimensions();
-            if (requestedDimensions != null) {
-                try {
-                    builder.getClass().getMethod("dimensions", Integer.class).invoke(builder, requestedDimensions);
-                } catch (NoSuchMethodException e) {
-                    // Try setting field directly via reflection
-                    try {
-                        java.lang.reflect.Field dimensionsField = builder.getClass().getDeclaredField("dimensions");
-                        dimensionsField.setAccessible(true);
-                        dimensionsField.set(builder, requestedDimensions);
-                    } catch (NoSuchFieldException | IllegalAccessException ex) {
-                        // Dimension reduction not supported, will use default
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to apply dimension reduction: {}", e.getMessage());
-                }
+            // Use direct HTTP call if dimension reduction is needed (library doesn't support it)
+            if (useDirectHttp && requestedDimensions != null) {
+                return generateEmbeddingViaHttp(request, requestedDimensions, startTime);
             }
             
-            EmbeddingRequest embeddingRequest = builder.build();
+            // Use library for standard requests
+            EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
+                  .model(request.getModel() != null ? request.getModel() : openai.getEmbeddingModel())
+                .input(List.of(request.getText()))
+                .build();
             
             EmbeddingResult result = openAiService.createEmbeddings(embeddingRequest);
             var embedding = result.getData().get(0).getEmbedding();
@@ -175,7 +157,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             
             return AIEmbeddingResponse.builder()
                 .embedding(embedding)
-                .model(request.getModel() != null ? request.getModel() : config.getOpenai().getEmbeddingModel())
+                .model(request.getModel() != null ? request.getModel() : openai.getEmbeddingModel())
                 .dimensions(embedding.size())
                 .processingTimeMs(processingTime)
                 .requestId(UUID.randomUUID().toString())
@@ -184,6 +166,64 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
         } catch (Exception e) {
             log.error("Error generating OpenAI embedding", e);
             throw new AIServiceException("Failed to generate OpenAI embedding", e);
+        }
+    }
+    
+    /**
+     * Generate embedding via direct HTTP call to OpenAI API.
+     * This is used when dimension reduction is needed, as the library doesn't support it.
+     */
+    private AIEmbeddingResponse generateEmbeddingViaHttp(AIEmbeddingRequest request, Integer dimensions, long startTime) {
+        try {
+            AIProviderConfig.OpenAIConfig openai = config.getOpenai();
+            String baseUrl = openai.getBaseUrl() != null ? openai.getBaseUrl() : "https://api.openai.com/v1";
+            String url = baseUrl + "/embeddings";
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(openai.getApiKey());
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", request.getModel() != null ? request.getModel() : openai.getEmbeddingModel());
+            requestBody.put("input", List.of(request.getText()));
+            requestBody.put("dimensions", dimensions);
+            
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+            
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody == null) {
+                throw new AIServiceException("OpenAI API returned empty response");
+            }
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
+            if (data == null || data.isEmpty()) {
+                throw new AIServiceException("OpenAI API response missing data");
+            }
+            
+            @SuppressWarnings("unchecked")
+            List<Double> embedding = (List<Double>) data.get(0).get("embedding");
+            if (embedding == null) {
+                throw new AIServiceException("OpenAI API response missing embedding vector");
+            }
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            log.debug("Successfully generated OpenAI embedding with {} dimensions via HTTP in {}ms", 
+                     embedding.size(), processingTime);
+            
+            return AIEmbeddingResponse.builder()
+                .embedding(embedding)
+                .model(request.getModel() != null ? request.getModel() : openai.getEmbeddingModel())
+                .dimensions(embedding.size())
+                .processingTimeMs(processingTime)
+                .requestId(UUID.randomUUID().toString())
+                .build();
+                
+        } catch (Exception e) {
+            log.error("Error generating OpenAI embedding via HTTP", e);
+            throw new AIServiceException("Failed to generate OpenAI embedding via HTTP", e);
         }
     }
     
@@ -198,30 +238,19 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             
             long startTime = System.currentTimeMillis();
             
-            var builder = EmbeddingRequest.builder()
-                  .model(config.getOpenai().getEmbeddingModel())
-                .input(texts);
+            AIProviderConfig.OpenAIConfig openai = config.getOpenai();
+            Integer requestedDimensions = openai.getEmbeddingDimensions();
             
-            // Apply dimension reduction if configured
-            Integer requestedDimensions = config.getOpenai().getEmbeddingDimensions();
-            if (requestedDimensions != null) {
-                try {
-                    builder.getClass().getMethod("dimensions", Integer.class).invoke(builder, requestedDimensions);
-                } catch (NoSuchMethodException e) {
-                    // Try setting field directly via reflection
-                    try {
-                        java.lang.reflect.Field dimensionsField = builder.getClass().getDeclaredField("dimensions");
-                        dimensionsField.setAccessible(true);
-                        dimensionsField.set(builder, requestedDimensions);
-                    } catch (NoSuchFieldException | IllegalAccessException ex) {
-                        // Dimension reduction not supported, will use default
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to apply dimension reduction: {}", e.getMessage());
-                }
+            // Use direct HTTP call if dimension reduction is needed
+            if (useDirectHttp && requestedDimensions != null) {
+                return generateEmbeddingsViaHttp(texts, requestedDimensions, startTime);
             }
             
-            EmbeddingRequest embeddingRequest = builder.build();
+            // Use library for standard requests
+            EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
+                  .model(openai.getEmbeddingModel())
+                .input(texts)
+                .build();
             
             EmbeddingResult result = openAiService.createEmbeddings(embeddingRequest);
             
@@ -230,7 +259,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             List<AIEmbeddingResponse> responses = result.getData().stream()
                 .map(data -> AIEmbeddingResponse.builder()
                     .embedding(data.getEmbedding())
-                      .model(config.getOpenai().getEmbeddingModel())
+                      .model(openai.getEmbeddingModel())
                     .dimensions(data.getEmbedding().size())
                     .processingTimeMs(processingTime / texts.size())
                     .requestId(UUID.randomUUID().toString())
@@ -245,6 +274,65 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
         } catch (Exception e) {
             log.error("Error generating batch OpenAI embeddings", e);
             throw new AIServiceException("Failed to generate batch OpenAI embeddings", e);
+        }
+    }
+    
+    /**
+     * Generate multiple embeddings via direct HTTP call to OpenAI API.
+     */
+    private List<AIEmbeddingResponse> generateEmbeddingsViaHttp(List<String> texts, Integer dimensions, long startTime) {
+        try {
+            AIProviderConfig.OpenAIConfig openai = config.getOpenai();
+            String baseUrl = openai.getBaseUrl() != null ? openai.getBaseUrl() : "https://api.openai.com/v1";
+            String url = baseUrl + "/embeddings";
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(openai.getApiKey());
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", openai.getEmbeddingModel());
+            requestBody.put("input", texts);
+            requestBody.put("dimensions", dimensions);
+            
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+            
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody == null) {
+                throw new AIServiceException("OpenAI API returned empty response");
+            }
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
+            if (data == null || data.isEmpty()) {
+                throw new AIServiceException("OpenAI API response missing data");
+            }
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            List<AIEmbeddingResponse> responses = data.stream()
+                .map(item -> {
+                    @SuppressWarnings("unchecked")
+                    List<Double> embedding = (List<Double>) item.get("embedding");
+                    return AIEmbeddingResponse.builder()
+                        .embedding(embedding)
+                        .model(openai.getEmbeddingModel())
+                        .dimensions(embedding != null ? embedding.size() : 0)
+                        .processingTimeMs(processingTime / texts.size())
+                        .requestId(UUID.randomUUID().toString())
+                        .build();
+                })
+                .collect(Collectors.toList());
+            
+            log.debug("Successfully generated {} OpenAI embeddings via HTTP in {}ms", 
+                     responses.size(), processingTime);
+            
+            return responses;
+                
+        } catch (Exception e) {
+            log.error("Error generating batch OpenAI embeddings via HTTP", e);
+            throw new AIServiceException("Failed to generate batch OpenAI embeddings via HTTP", e);
         }
     }
     
