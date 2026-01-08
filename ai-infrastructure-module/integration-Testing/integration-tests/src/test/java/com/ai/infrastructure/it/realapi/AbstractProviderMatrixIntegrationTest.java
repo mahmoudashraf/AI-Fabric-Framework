@@ -138,8 +138,14 @@ abstract class AbstractProviderMatrixIntegrationTest {
             SummaryGeneratingListener listener = new SummaryGeneratingListener();
             Launcher launcher = LauncherFactory.create();
 
+            Class<?>[] testClasses = suiteTestClasses();
+            log.info("Executing {} test classes for combination: {}", testClasses.length, combo.displayName());
+            for (int i = 0; i < testClasses.length; i++) {
+                log.info("  [{}/{}] {}", i + 1, testClasses.length, testClasses[i].getSimpleName());
+            }
+
             LauncherDiscoveryRequestBuilder requestBuilder = LauncherDiscoveryRequestBuilder.request();
-            for (Class<?> testClass : suiteTestClasses()) {
+            for (Class<?> testClass : testClasses) {
                 requestBuilder.selectors(selectClass(testClass));
             }
 
@@ -148,6 +154,10 @@ abstract class AbstractProviderMatrixIntegrationTest {
 
             TestExecutionSummary summary = listener.getSummary();
             long duration = System.currentTimeMillis() - startTime;
+            
+            log.info("Test execution summary: {} tests found, {} failures, {} skipped, {} aborted",
+                summary.getTestsFoundCount(), summary.getTotalFailureCount(), 
+                summary.getTestsSkippedCount(), summary.getTestsAbortedCount());
 
             if (summary.getTotalFailureCount() > 0) {
                 String failures = summary.getFailures().stream()
@@ -172,7 +182,7 @@ abstract class AbstractProviderMatrixIntegrationTest {
                     summary.getTotalFailureCount() + " failures)" + System.lineSeparator() + failures);
             }
 
-            log.debug("Combination completed successfully in {} ms. Tests: {}, Failures: {}, Skipped: {}",
+            log.info("✓ Combination completed successfully in {} ms. Tests: {}, Failures: {}, Skipped: {}",
                 duration, summary.getTestsFoundCount(), summary.getTotalFailureCount(), summary.getTestsSkippedCount());
             successCount.incrementAndGet();
             log.info("✓ [{}] PASSED: {}", testCount.get(), combo.displayName());

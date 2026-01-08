@@ -150,33 +150,60 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             chunk = System.getenv("AI_PROVIDERS_REAL_API_TEST_CHUNK");
         }
         
+        Class<?>[] selectedClasses;
         if (!StringUtils.hasText(chunk) || "all".equalsIgnoreCase(chunk)) {
-            return REAL_API_TEST_CLASSES;
+            selectedClasses = REAL_API_TEST_CLASSES;
+            log.info("Using all test classes ({} total)", selectedClasses.length);
+        } else {
+            selectedClasses = switch (chunk.toLowerCase()) {
+                case "core" -> {
+                    log.info("Using core test chunk ({} classes)", CHUNK_CORE.length);
+                    yield CHUNK_CORE;
+                }
+                case "vector" -> {
+                    log.info("Using vector test chunk ({} classes)", CHUNK_VECTOR.length);
+                    yield CHUNK_VECTOR;
+                }
+                case "intent-actions", "intent_actions" -> {
+                    log.info("Using intent-actions test chunk ({} classes)", CHUNK_INTENT_ACTIONS.length);
+                    yield CHUNK_INTENT_ACTIONS;
+                }
+                case "advanced" -> {
+                    log.info("Using advanced test chunk ({} classes)", CHUNK_ADVANCED.length);
+                    yield CHUNK_ADVANCED;
+                }
+                default -> {
+                    // Support comma-separated chunk names
+                    String[] chunks = chunk.split(",");
+                    Class<?>[] selected = Arrays.stream(chunks)
+                        .map(String::trim)
+                        .flatMap(c -> switch (c.toLowerCase()) {
+                            case "core" -> Arrays.stream(CHUNK_CORE);
+                            case "vector" -> Arrays.stream(CHUNK_VECTOR);
+                            case "intent-actions", "intent_actions" -> Arrays.stream(CHUNK_INTENT_ACTIONS);
+                            case "advanced" -> Arrays.stream(CHUNK_ADVANCED);
+                            default -> Arrays.stream(new Class<?>[0]);
+                        })
+                        .distinct()
+                        .collect(Collectors.toList())
+                        .toArray(new Class<?>[0]);
+                    if (selected.length > 0) {
+                        log.info("Using custom test chunks: {} ({} classes)", chunk, selected.length);
+                        yield selected;
+                    } else {
+                        log.warn("Unknown test chunk '{}', falling back to all test classes", chunk);
+                        yield REAL_API_TEST_CLASSES;
+                    }
+                }
+            };
         }
-
-        return switch (chunk.toLowerCase()) {
-            case "core" -> CHUNK_CORE;
-            case "vector" -> CHUNK_VECTOR;
-            case "intent-actions", "intent_actions" -> CHUNK_INTENT_ACTIONS;
-            case "advanced" -> CHUNK_ADVANCED;
-            default -> {
-                // Support comma-separated chunk names
-                String[] chunks = chunk.split(",");
-                Class<?>[] selected = Arrays.stream(chunks)
-                    .map(String::trim)
-                    .flatMap(c -> switch (c.toLowerCase()) {
-                        case "core" -> Arrays.stream(CHUNK_CORE);
-                        case "vector" -> Arrays.stream(CHUNK_VECTOR);
-                        case "intent-actions", "intent_actions" -> Arrays.stream(CHUNK_INTENT_ACTIONS);
-                        case "advanced" -> Arrays.stream(CHUNK_ADVANCED);
-                        default -> Arrays.stream(new Class<?>[0]);
-                    })
-                    .distinct()
-                    .collect(Collectors.toList())
-                    .toArray(new Class<?>[0]);
-                yield selected.length > 0 ? selected : REAL_API_TEST_CLASSES;
-            }
-        };
+        
+        log.info("Selected test classes for execution:");
+        for (int i = 0; i < selectedClasses.length; i++) {
+            log.info("  [{}/{}] {}", i + 1, selectedClasses.length, selectedClasses[i].getSimpleName());
+        }
+        
+        return selectedClasses;
     }
 
     @Override
