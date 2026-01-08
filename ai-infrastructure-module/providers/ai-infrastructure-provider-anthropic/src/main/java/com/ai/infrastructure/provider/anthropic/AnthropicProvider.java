@@ -84,10 +84,23 @@ public class AnthropicProvider implements AIProvider {
             requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultModel());
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
-            requestBody.put("messages", List.of(Map.of(
-                "role", "user",
-                "content", request.getPrompt()
-            )));
+            
+            // Build messages list - if system prompt is present, add it; otherwise just user message
+            List<Map<String, Object>> messages = new java.util.ArrayList<>();
+            if (request.getSystemPrompt() != null && !request.getSystemPrompt().trim().isEmpty()) {
+                messages.add(Map.of("role", "system", "content", request.getSystemPrompt()));
+            }
+            // Add explicit JSON instruction for intent extraction
+            if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
+                String enhancedPrompt = request.getPrompt();
+                if (!enhancedPrompt.contains("JSON only") && !enhancedPrompt.contains("valid JSON")) {
+                    enhancedPrompt = "IMPORTANT: You MUST respond with valid JSON only. No additional text, explanations, or commentary. Just the JSON object.\n\n" + enhancedPrompt;
+                }
+                messages.add(Map.of("role", "user", "content", enhancedPrompt));
+            } else {
+                messages.add(Map.of("role", "user", "content", request.getPrompt()));
+            }
+            requestBody.put("messages", messages);
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
