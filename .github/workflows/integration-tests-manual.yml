@@ -410,6 +410,49 @@ jobs:
       - name: Run Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/integration-tests
+          
+          # Build Maven command with model properties if specified
+          MAVEN_OPTS=""
+          if [ -n "${{ github.event.inputs.llm_model }}" ]; then
+            case "${{ github.event.inputs.llm_provider }}" in
+              openai)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.openai.model=${{ github.event.inputs.llm_model }}"
+                ;;
+              anthropic)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.anthropic.model=${{ github.event.inputs.llm_model }}"
+                ;;
+              gemini)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.gemini.model=${{ github.event.inputs.llm_model }}"
+                ;;
+              cohere)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.cohere.model=${{ github.event.inputs.llm_model }}"
+                ;;
+              azure)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.azure.deployment-name=${{ github.event.inputs.llm_model }}"
+                ;;
+            esac
+          fi
+          
+          if [ -n "${{ github.event.inputs.embedding_model }}" ]; then
+            case "${{ github.event.inputs.embedding_provider }}" in
+              openai)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.openai.embedding-model=${{ github.event.inputs.embedding_model }}"
+                ;;
+              gemini)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.gemini.embedding-model=${{ github.event.inputs.embedding_model }}"
+                ;;
+              cohere)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.cohere.embedding-model=${{ github.event.inputs.embedding_model }}"
+                ;;
+              azure)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.azure.embedding-deployment-name=${{ github.event.inputs.embedding_model }}"
+                ;;
+            esac
+          fi
+          
+          # Export MAVEN_OPTS for the script to use
+          export MAVEN_OPTS
+          
           bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}:${{ github.event.inputs.storage_strategy }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
@@ -423,9 +466,16 @@ jobs:
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
-          # Model names (if specified)
+          # Model names (if specified) - also set as provider-specific env vars
           LLM_MODEL: ${{ github.event.inputs.llm_model }}
           EMBEDDING_MODEL: ${{ github.event.inputs.embedding_model }}
+          OPENAI_MODEL: ${{ github.event.inputs.llm_provider == 'openai' && github.event.inputs.llm_model || '' }}
+          OPENAI_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'openai' && github.event.inputs.embedding_model || '' }}
+          ANTHROPIC_MODEL: ${{ github.event.inputs.llm_provider == 'anthropic' && github.event.inputs.llm_model || '' }}
+          GEMINI_MODEL: ${{ github.event.inputs.llm_provider == 'gemini' && github.event.inputs.llm_model || '' }}
+          GEMINI_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'gemini' && github.event.inputs.embedding_model || '' }}
+          COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && github.event.inputs.llm_model || '' }}
+          COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && github.event.inputs.embedding_model || '' }}
 
       - name: Update Evidence with Test Results
         if: always()

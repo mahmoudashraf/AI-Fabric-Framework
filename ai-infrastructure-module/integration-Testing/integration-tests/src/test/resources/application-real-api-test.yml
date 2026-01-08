@@ -117,8 +117,8 @@ ai:
       enabled: ${OPENAI_ENABLED:false}
       api-key: ${OPENAI_API_KEY:}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
-      model: ${OPENAI_MODEL:${ai.providers.openai.model:gpt-4o-mini}}
-      embedding-model: ${OPENAI_EMBEDDING_MODEL:${ai.providers.openai.embedding-model:text-embedding-3-small}}
+      model: ${OPENAI_MODEL:${LLM_MODEL:${ai.providers.openai.model:gpt-4o-mini}}}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:${EMBEDDING_MODEL:${ai.providers.openai.embedding-model:text-embedding-3-small}}}
       max-tokens: 2000
       temperature: 0.0
       timeout: 30
@@ -138,7 +138,8 @@ ai:
       enabled: ${ANTHROPIC_ENABLED:true}
       api-key: ${ANTHROPIC_API_KEY:}
       base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
-      model: ${ANTHROPIC_MODEL:${ai.providers.anthropic.model:claude-3-haiku-20240307}}
+      model: ${ANTHROPIC_MODEL:${LLM_MODEL:${ai.providers.anthropic.model:claude-3-haiku-20240307}}}
+      embedding-model: ${ANTHROPIC_EMBEDDING_MODEL:${EMBEDDING_MODEL:${ai.providers.anthropic.embedding-model:}}}
       max-tokens: 4096
       temperature: 0.3
       timeout: 60
@@ -148,8 +149,8 @@ ai:
       enabled: ${GEMINI_ENABLED:true}
       api-key: ${GEMINI_API_KEY:}
       base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
-      model: ${GEMINI_MODEL:${ai.providers.gemini.model:gemini-2.5-flash}}
-      embedding-model: ${GEMINI_EMBEDDING_MODEL:${ai.providers.gemini.embedding-model:text-embedding-004}}
+      model: ${GEMINI_MODEL:${LLM_MODEL:${ai.providers.gemini.model:gemini-2.5-flash}}}
+      embedding-model: ${GEMINI_EMBEDDING_MODEL:${EMBEDDING_MODEL:${ai.providers.gemini.embedding-model:text-embedding-004}}}
       max-tokens: 4096
       temperature: 0.3
       timeout: 60

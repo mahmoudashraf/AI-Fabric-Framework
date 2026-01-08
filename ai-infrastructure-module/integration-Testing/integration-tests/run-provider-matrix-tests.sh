@@ -358,6 +358,59 @@ MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.matrix='$MATRIX_SPEC'"
 MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
 MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 
+# Add model name properties from environment variables if set
+if [ -n "$LLM_MODEL" ]; then
+    # Determine which provider is being used and set appropriate property
+    IFS=':' read -r llm_provider embedding_provider <<< "$MATRIX_SPEC"
+    llm_provider=$(echo "$llm_provider" | cut -d',' -f1 | xargs)
+    
+    case "$llm_provider" in
+        openai)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.model=$LLM_MODEL"
+            ;;
+        anthropic)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.anthropic.model=$LLM_MODEL"
+            ;;
+        gemini)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.gemini.model=$LLM_MODEL"
+            ;;
+        cohere)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.cohere.model=$LLM_MODEL"
+            ;;
+        azure)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.azure.deployment-name=$LLM_MODEL"
+            ;;
+    esac
+    print_info "Using custom LLM model: $LLM_MODEL for provider: $llm_provider"
+fi
+
+if [ -n "$EMBEDDING_MODEL" ]; then
+    # Determine which embedding provider is being used
+    IFS=':' read -r llm_provider embedding_provider <<< "$MATRIX_SPEC"
+    embedding_provider=$(echo "$embedding_provider" | cut -d',' -f1 | xargs)
+    
+    case "$embedding_provider" in
+        openai)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-model=$EMBEDDING_MODEL"
+            ;;
+        gemini)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.gemini.embedding-model=$EMBEDDING_MODEL"
+            ;;
+        cohere)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.cohere.embedding-model=$EMBEDDING_MODEL"
+            ;;
+        azure)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.azure.embedding-deployment-name=$EMBEDDING_MODEL"
+            ;;
+    esac
+    print_info "Using custom Embedding model: $EMBEDDING_MODEL for provider: $embedding_provider"
+fi
+
+# Add any additional Maven options from environment (set by workflow)
+if [ -n "$MAVEN_OPTS" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND $MAVEN_OPTS"
+fi
+
 # Add vector database as system property if specified
 if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.vector-db.type=$AI_INFRASTRUCTURE_VECTOR_DATABASE"
