@@ -60,26 +60,76 @@ abstract class AbstractProviderMatrixIntegrationTest {
             .as("Provider matrix should not be empty")
             .isNotEmpty();
 
+        // Filter combinations based on provider-specific rules
+        List<ProviderCombination> filteredCombinations = filterProviderCombinations(combinations);
+        
+        if (filteredCombinations.size() < combinations.size()) {
+            log.info("Filtered {} combinations down to {} based on provider-specific rules",
+                combinations.size(), filteredCombinations.size());
+        }
+
         log.info("═══════════════════════════════════════════════════════════════");
         log.info("{} - Starting", suiteDisplayName());
-        log.info("Total combinations to test: {}", combinations.size());
+        log.info("Total combinations to test: {}", filteredCombinations.size());
         log.info("─────────────────────────────────────────────────────────────");
-        combinations.forEach(combo -> log.info("  • {}", combo.displayName()));
+        filteredCombinations.forEach(combo -> log.info("  • {}", combo.displayName()));
         log.info("═══════════════════════════════════════════════════════════════");
 
         testCount.set(0);
         successCount.set(0);
 
-        return combinations.stream()
+        return filteredCombinations.stream()
             .map(combo -> DynamicTest.dynamicTest(
                 combo.displayName(),
-                () -> executeCombination(combinations.size(), combo)
+                () -> executeCombination(filteredCombinations.size(), combo)
             ));
+    }
+    
+    /**
+     * Filter provider combinations based on provider-specific rules.
+     * Override this method in subclasses to implement custom filtering.
+     */
+    protected List<ProviderCombination> filterProviderCombinations(List<ProviderCombination> combinations) {
+        List<ProviderCombination> filtered = new ArrayList<>();
+        
+        for (ProviderCombination combo : combinations) {
+            if (shouldIncludeCombination(combo)) {
+                filtered.add(combo);
+            } else {
+                log.debug("Filtered out combination: {} (provider-specific rule)", combo.displayName());
+            }
+        }
+        
+        return filtered;
+    }
+    
+    /**
+     * Determine if a provider combination should be included in tests.
+     * Override this method to implement custom filtering logic.
+     */
+    protected boolean shouldIncludeCombination(ProviderCombination combo) {
+        // Default: include all combinations
+        // Override in subclasses for provider-specific filtering
+        
+        // Example: Skip ONNX as LLM (it's only for embeddings)
+        if ("onnx".equals(combo.llmProvider())) {
+            return false;
+        }
+        
+        return true;
     }
 
     private void executeCombination(int total, ProviderCombination combo) {
         testCount.incrementAndGet();
         log.info("[{}/{}] Running tests for: {}", testCount.get(), total, combo.displayName());
+
+        // Validate provider combination before execution
+        try {
+            validateProviderCombination(combo);
+        } catch (IllegalArgumentException e) {
+            log.error("❌ Provider combination validation failed: {}", e.getMessage());
+            throw e;
+        }
 
         long startTime = System.currentTimeMillis();
         configureProviderProperties(combo);
@@ -101,10 +151,23 @@ abstract class AbstractProviderMatrixIntegrationTest {
 
             if (summary.getTotalFailureCount() > 0) {
                 String failures = summary.getFailures().stream()
-                    .map(failure -> failure.getTestIdentifier().getDisplayName() + " -> " +
-                        (failure.getException() != null ? failure.getException().getMessage() : "Unknown error"))
+                    .map(failure -> {
+                        String testName = failure.getTestIdentifier().getDisplayName();
+                        String errorMsg = failure.getException() != null ? failure.getException().getMessage() : "Unknown error";
+                        // Truncate very long error messages
+                        if (errorMsg != null && errorMsg.length() > 200) {
+                            errorMsg = errorMsg.substring(0, 197) + "...";
+                        }
+                        return testName + " -> " + errorMsg;
+                    })
                     .collect(Collectors.joining(System.lineSeparator()));
+                
                 log.error("✗ FAILED: {} ({} ms)", combo.displayName(), duration);
+                log.error("Provider combination: LLM={}, Embedding={}, VectorDB={}, Storage={}",
+                    combo.llmProvider(), combo.embeddingProvider(), 
+                    combo.vectorDbProvider() != null ? combo.vectorDbProvider() : "default",
+                    combo.storageStrategy());
+                
                 throw new AssertionError("Failures detected for " + combo.displayName() + " (" +
                     summary.getTotalFailureCount() + " failures)" + System.lineSeparator() + failures);
             }
@@ -121,6 +184,13 @@ abstract class AbstractProviderMatrixIntegrationTest {
 
     protected List<ProviderCombination> resolveProviderMatrix() {
         List<ProviderCombination> availableCombinations = availableProviderCombinations();
+        
+        // Log available combinations for debugging
+        if (log.isDebugEnabled()) {
+            log.debug("Available provider combinations ({}):", availableCombinations.size());
+            availableCombinations.forEach(combo -> 
+                log.debug("  - {}", combo.displayName()));
+        }
 
         String matrixSpec = System.getProperty(matrixPropertyKey());
         if (!StringUtils.hasText(matrixSpec)) {
@@ -128,10 +198,24 @@ abstract class AbstractProviderMatrixIntegrationTest {
         }
 
         if (!StringUtils.hasText(matrixSpec)) {
+            log.info("No matrix spec provided, using all {} available combinations", availableCombinations.size());
             return availableCombinations;
         }
 
+        log.info("Parsing matrix spec: {}", matrixSpec);
         List<ProviderCombination> requestedCombinations = parseMatrixSpec(matrixSpec);
+        
+        // Validate each combination individually for better error messages
+        for (ProviderCombination combo : requestedCombinations) {
+            try {
+                validateProviderCombination(combo);
+            } catch (IllegalArgumentException e) {
+                log.error("Invalid provider combination: {} - {}", combo.displayName(), e.getMessage());
+                throw new IllegalArgumentException(
+                    "Invalid provider combination in matrix spec: " + combo.displayName() + "\n" + e.getMessage(), e);
+            }
+        }
+        
         validateRequestedCombinations(requestedCombinations, availableCombinations);
         return requestedCombinations;
     }
@@ -305,15 +389,109 @@ abstract class AbstractProviderMatrixIntegrationTest {
             .toList();
 
         if (!missing.isEmpty()) {
-            String availableSummary = available.stream()
-                .map(ProviderCombination::toString)
-                .collect(Collectors.joining(", "));
-            String missingSummary = missing.stream()
-                .map(ProviderCombination::toString)
-                .collect(Collectors.joining(", "));
-            throw new IllegalArgumentException(
-                "Requested provider combinations are not available. Missing: [" + missingSummary + "] "
-                    + "Available combinations: [" + availableSummary + "]");
+            // Enhanced error message with registry information
+            StringBuilder errorMsg = new StringBuilder();
+            errorMsg.append("Requested provider combinations are not available.\n\n");
+            errorMsg.append("Missing combinations (").append(missing.size()).append("):\n");
+            
+            for (ProviderCombination combo : missing) {
+                errorMsg.append("  ❌ ").append(combo.displayName()).append("\n");
+                
+                // Check individual providers and provide helpful messages
+                String llmIssue = validateProvider(combo.llmProvider(), ProviderType.LLM);
+                String embeddingIssue = validateProvider(combo.embeddingProvider(), ProviderType.EMBEDDING);
+                
+                if (llmIssue != null) {
+                    errorMsg.append("     LLM Provider Issue: ").append(llmIssue).append("\n");
+                }
+                if (embeddingIssue != null) {
+                    errorMsg.append("     Embedding Provider Issue: ").append(embeddingIssue).append("\n");
+                }
+            }
+            
+            errorMsg.append("\nAvailable combinations (").append(available.size()).append("):\n");
+            available.stream()
+                .limit(10) // Limit to first 10 to avoid overwhelming output
+                .forEach(combo -> errorMsg.append("  ✅ ").append(combo.displayName()).append("\n"));
+            if (available.size() > 10) {
+                errorMsg.append("  ... and ").append(available.size() - 10).append(" more\n");
+            }
+            
+            throw new IllegalArgumentException(errorMsg.toString());
+        }
+    }
+    
+    /**
+     * Validate a single provider and return error message if invalid
+     */
+    private String validateProvider(String providerName, ProviderType type) {
+        if (providerName == null || providerName.trim().isEmpty()) {
+            return "Provider name is empty";
+        }
+        
+        try {
+            ProviderRegistryService registry = ProviderRegistryService.getInstance();
+            ProviderDefinition def = registry.getProvider(providerName, type);
+            
+            if (def == null) {
+                List<String> available = registry.getProviderNames(type);
+                return String.format("Provider '%s' not found in registry. Available %s providers: %s",
+                    providerName, type.name().toLowerCase(), String.join(", ", available));
+            }
+            
+            if (!def.isEnabled()) {
+                return String.format("Provider '%s' is disabled in registry", providerName);
+            }
+            
+            if (!def.isAvailable()) {
+                List<String> requiredVars = def.getRequiredEnvVars();
+                if (!requiredVars.isEmpty()) {
+                    List<String> missingVars = requiredVars.stream()
+                        .filter(var -> System.getenv(var) == null || System.getenv(var).trim().isEmpty())
+                        .toList();
+                    
+                    if (!missingVars.isEmpty()) {
+                        return String.format("Missing required environment variables: %s. " +
+                            "Set these variables to use provider '%s'",
+                            String.join(", ", missingVars), providerName);
+                    }
+                }
+                return String.format("Provider '%s' is not available. Check configuration and environment variables",
+                    providerName);
+            }
+            
+            return null; // Provider is valid
+        } catch (Exception e) {
+            log.warn("Error validating provider {}: {}", providerName, e.getMessage());
+            return "Error checking provider: " + e.getMessage();
+        }
+    }
+    
+    /**
+     * Validate provider combination compatibility
+     */
+    private void validateProviderCombination(ProviderCombination combo) {
+        List<String> issues = new ArrayList<>();
+        
+        // Check if providers exist in registry
+        String llmIssue = validateProvider(combo.llmProvider(), ProviderType.LLM);
+        if (llmIssue != null) {
+            issues.add("LLM: " + llmIssue);
+        }
+        
+        String embeddingIssue = validateProvider(combo.embeddingProvider(), ProviderType.EMBEDDING);
+        if (embeddingIssue != null) {
+            issues.add("Embedding: " + embeddingIssue);
+        }
+        
+        // Check for known incompatibilities
+        if (combo.llmProvider().equals("onnx") && combo.embeddingProvider().equals("onnx")) {
+            // ONNX as LLM doesn't exist, but this is handled by validateProvider
+        }
+        
+        if (!issues.isEmpty()) {
+            throw new IllegalArgumentException("Provider combination validation failed for " + combo.displayName() + ":\n" +
+                String.join("\n", issues));
         }
     }
 

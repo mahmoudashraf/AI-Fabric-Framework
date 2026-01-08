@@ -85,16 +85,62 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     public Stream<DynamicTest> providerMatrix() {
-        Assumptions.assumeTrue(hasProviderKey(),
-            "No provider API key (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, COHERE_API_KEY, or AZURE_API_KEY) configured; skipping Real API provider matrix.");
+        // Enhanced provider key check with detailed messages
+        if (!hasProviderKey()) {
+            StringBuilder message = new StringBuilder();
+            message.append("No provider API key configured. Please set one of the following:\n");
+            message.append("  - OPENAI_API_KEY (for OpenAI)\n");
+            message.append("  - ANTHROPIC_API_KEY (for Anthropic)\n");
+            message.append("  - GEMINI_API_KEY (for Gemini)\n");
+            message.append("  - COHERE_API_KEY (for Cohere)\n");
+            message.append("  - AZURE_API_KEY + AZURE_ENDPOINT (for Azure)\n");
+            message.append("\nSkipping Real API provider matrix.");
+            Assumptions.assumeTrue(false, message.toString());
+        }
         return super.providerMatrix();
     }
 
     @Override
     protected void beforeMatrixExecution() {
         RealAPITestSupport.ensureOpenAIConfigured();
-        Assumptions.assumeTrue(hasProviderKey(),
-            "No provider API key (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, COHERE_API_KEY, or AZURE_API_KEY) configured; skipping Real API provider matrix.");
+        
+        // Enhanced provider key check
+        if (!hasProviderKey()) {
+            StringBuilder message = new StringBuilder();
+            message.append("No provider API key configured. Available providers:\n");
+            
+            try {
+                com.ai.infrastructure.provider.registry.ProviderRegistryService registry = 
+                    com.ai.infrastructure.provider.registry.ProviderRegistryService.getInstance();
+                
+                List<com.ai.infrastructure.provider.registry.ProviderDefinition> availableLLM = 
+                    registry.getAvailableLLMProviders();
+                List<com.ai.infrastructure.provider.registry.ProviderDefinition> availableEmbedding = 
+                    registry.getAvailableEmbeddingProviders();
+                
+                if (!availableLLM.isEmpty()) {
+                    message.append("  Available LLM providers:\n");
+                    availableLLM.forEach(p -> 
+                        message.append("    - ").append(p.getDisplayName())
+                            .append(" (requires: ").append(p.getApiKeyEnvVar() != null ? p.getApiKeyEnvVar() : "none")
+                            .append(")\n"));
+                }
+                
+                if (!availableEmbedding.isEmpty()) {
+                    message.append("  Available Embedding providers:\n");
+                    availableEmbedding.forEach(p -> 
+                        message.append("    - ").append(p.getDisplayName())
+                            .append(" (requires: ").append(p.getApiKeyEnvVar() != null ? p.getApiKeyEnvVar() : "none")
+                            .append(")\n"));
+                }
+            } catch (Exception e) {
+                // Fallback if registry not available
+                message.append("  Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, COHERE_API_KEY, or AZURE_API_KEY\n");
+            }
+            
+            message.append("\nSkipping Real API provider matrix.");
+            Assumptions.assumeTrue(false, message.toString());
+        }
     }
 
     @Override
