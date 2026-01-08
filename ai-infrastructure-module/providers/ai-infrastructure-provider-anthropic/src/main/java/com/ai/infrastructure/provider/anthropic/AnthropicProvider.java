@@ -70,8 +70,9 @@ public class AnthropicProvider implements AIProvider {
         totalRequests.incrementAndGet();
         
         try {
-            log.debug("Generating content with Anthropic: model={}, prompt={}", 
-                     request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
+            log.debug("Generating content with Anthropic: model={}, generationType={}, prompt={}", 
+                     request.getModel(), request.getGenerationType(), 
+                     request.getPrompt() != null ? request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())) : "null");
             
             String url = ANTHROPIC_BASE_URL + "/messages";
             
@@ -87,17 +88,31 @@ public class AnthropicProvider implements AIProvider {
             
             // Build messages list - if system prompt is present, add it; otherwise just user message
             List<Map<String, Object>> messages = new java.util.ArrayList<>();
-            if (request.getSystemPrompt() != null && !request.getSystemPrompt().trim().isEmpty()) {
-                messages.add(Map.of("role", "system", "content", request.getSystemPrompt()));
-            }
-            // Add explicit JSON instruction for intent extraction
+            
+            // For intent extraction, enhance the system prompt to be very explicit about JSON-only responses
             if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
-                String enhancedPrompt = request.getPrompt();
-                if (!enhancedPrompt.contains("JSON only") && !enhancedPrompt.contains("valid JSON")) {
-                    enhancedPrompt = "IMPORTANT: You MUST respond with valid JSON only. No additional text, explanations, or commentary. Just the JSON object.\n\n" + enhancedPrompt;
-                }
-                messages.add(Map.of("role", "user", "content", enhancedPrompt));
+                String baseSystemPrompt = request.getSystemPrompt() != null ? request.getSystemPrompt() : "";
+                
+                // Always prepend explicit JSON-only instruction at the beginning of system prompt
+                // This ensures Anthropic understands it must return pure JSON
+                String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
+                    "You MUST respond with ONLY valid JSON. No markdown code blocks (no ```json or ```), " +
+                    "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
+                    "Just the raw JSON object. If you include any text other than JSON, the response will fail to parse.\n\n";
+                
+                String enhancedSystemPrompt = jsonInstruction + baseSystemPrompt;
+                
+                log.info("Enhanced system prompt for intent extraction with JSON-only requirement (length: {})", enhancedSystemPrompt.length());
+                log.debug("Enhanced system prompt preview: {}", enhancedSystemPrompt.substring(0, Math.min(200, enhancedSystemPrompt.length())));
+                messages.add(Map.of("role", "system", "content", enhancedSystemPrompt));
+                
+                // Keep user prompt as-is (it already references the system prompt format)
+                messages.add(Map.of("role", "user", "content", request.getPrompt()));
             } else {
+                // For non-intent-extraction requests, use system prompt as-is
+                if (request.getSystemPrompt() != null && !request.getSystemPrompt().trim().isEmpty()) {
+                    messages.add(Map.of("role", "system", "content", request.getSystemPrompt()));
+                }
                 messages.add(Map.of("role", "user", "content", request.getPrompt()));
             }
             requestBody.put("messages", messages);

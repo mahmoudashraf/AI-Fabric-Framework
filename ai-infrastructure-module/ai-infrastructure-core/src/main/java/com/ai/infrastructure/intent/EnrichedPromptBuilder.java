@@ -160,6 +160,11 @@ public class EnrichedPromptBuilder {
               "metadata": {}
             }
             """);
-        prompt.append("\nEnsure the response is valid JSON with double quotes and no additional commentary.\n");
+        prompt.append("\nCRITICAL JSON REQUIREMENTS:\n");
+        prompt.append("- Respond with ONLY valid JSON. No markdown, no code blocks, no explanations.\n");
+        prompt.append("- Use double quotes for all strings and keys.\n");
+        prompt.append("- Do not wrap the JSON in markdown code blocks (no ```json or ```).\n");
+        prompt.append("- Do not include any text before or after the JSON object.\n");
+        prompt.append("- The response must be parseable as JSON without any preprocessing.\n");
     }
 }
