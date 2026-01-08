@@ -4,6 +4,9 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.it.TestApplication;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.AIProviderManager;
+import com.ai.infrastructure.provider.registry.ProviderDefinition;
+import com.ai.infrastructure.provider.registry.ProviderRegistryService;
+import com.ai.infrastructure.provider.registry.ProviderType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -138,6 +141,43 @@ abstract class AbstractProviderMatrixIntegrationTest {
     }
 
     private List<ProviderCombination> discoverAvailableCombinations() {
+        // Try to use provider registry first (new approach)
+        try {
+            ProviderRegistryService registry = ProviderRegistryService.getInstance();
+            List<ProviderDefinition> availableLLM = registry.getAvailableLLMProviders();
+            List<ProviderDefinition> availableEmbedding = registry.getAvailableEmbeddingProviders();
+            
+            if (!availableLLM.isEmpty() && !availableEmbedding.isEmpty()) {
+                log.info("Using provider registry for discovery: {} LLM, {} embedding providers",
+                    availableLLM.size(), availableEmbedding.size());
+                
+                List<String> llmProviders = availableLLM.stream()
+                    .map(ProviderDefinition::getName)
+                    .sorted()
+                    .toList();
+                
+                List<String> embeddingProviders = availableEmbedding.stream()
+                    .map(ProviderDefinition::getName)
+                    .sorted()
+                    .toList();
+                
+                List<String> vectorDbProviders = vectorDbProviders();
+                
+                List<ProviderCombination> combinations = new ArrayList<>();
+                for (String llm : llmProviders) {
+                    for (String embedding : embeddingProviders) {
+                        for (String vector : vectorDbProviders) {
+                            combinations.add(new ProviderCombination(llm, embedding, vector, defaultStorageStrategy()));
+                        }
+                    }
+                }
+                return combinations;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to use provider registry, falling back to Spring context discovery: {}", e.getMessage());
+        }
+        
+        // Fallback to original Spring context discovery (backward compatibility)
         ProviderCombination defaultCombo = new ProviderCombination(defaultLlmProvider(), defaultEmbeddingProvider(), null, defaultStorageStrategy());
         configureProviderProperties(defaultCombo);
 

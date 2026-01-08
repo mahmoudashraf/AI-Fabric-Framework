@@ -14,8 +14,36 @@ on:
           - relationship-query
           - behavior
       openai_api_key:
-        description: 'OpenAI API Key'
-        required: true
+        description: 'OpenAI API Key (required for OpenAI LLM/Embedding)'
+        required: false
+        type: string
+      anthropic_api_key:
+        description: 'Anthropic API Key (required for Anthropic LLM/Embedding)'
+        required: false
+        type: string
+      gemini_api_key:
+        description: 'Gemini API Key (required for Gemini LLM/Embedding)'
+        required: false
+        type: string
+      cohere_api_key:
+        description: 'Cohere API Key (required for Cohere LLM/Embedding)'
+        required: false
+        type: string
+      azure_api_key:
+        description: 'Azure API Key (required for Azure LLM/Embedding)'
+        required: false
+        type: string
+      azure_endpoint:
+        description: 'Azure Endpoint URL (required for Azure)'
+        required: false
+        type: string
+      azure_deployment_name:
+        description: 'Azure Deployment Name (required for Azure LLM)'
+        required: false
+        type: string
+      azure_embedding_deployment_name:
+        description: 'Azure Embedding Deployment Name (required for Azure Embedding)'
+        required: false
         type: string
       llm_provider:
         description: 'LLM Provider'
@@ -24,9 +52,10 @@ on:
         type: choice
         options:
           - openai
-          - azure-openai
-          - cohere
           - anthropic
+          - gemini
+          - cohere
+          - azure
           - rest
       embedding_provider:
         description: 'Embedding Provider'
@@ -36,7 +65,11 @@ on:
         options:
           - onnx
           - openai
-          - azure-openai
+          - anthropic
+          - gemini
+          - cohere
+          - azure
+          - rest
       vector_database:
         description: 'Vector Database'
         required: true
@@ -161,6 +194,13 @@ jobs:
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
+          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
+          AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
+          AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
+          AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
 
@@ -245,6 +285,13 @@ jobs:
           bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
+          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
+          AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
+          AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
+          AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
 
       - name: Upload test reports
@@ -311,6 +358,13 @@ jobs:
           bash run-behavior-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
+          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
+          AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
+          AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
+          AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
 
       - name: Upload test reports
