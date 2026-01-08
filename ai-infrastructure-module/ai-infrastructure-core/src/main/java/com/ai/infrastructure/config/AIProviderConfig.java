@@ -84,6 +84,7 @@ public class AIProviderConfig {
             case "openai" -> openai.toEmbeddingDefaults("openai");
             case "azure" -> azure.toEmbeddingDefaults("azure");
             case "gemini" -> gemini.toEmbeddingDefaults("gemini");
+            case "cohere" -> cohere.toEmbeddingDefaults("cohere");
             case "rest" -> rest.toEmbeddingDefaults("rest");
             case "onnx" ->
                 onnx.toEmbeddingDefaults("onnx");
