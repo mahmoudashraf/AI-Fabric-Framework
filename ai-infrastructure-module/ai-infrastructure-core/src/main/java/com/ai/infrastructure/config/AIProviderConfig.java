@@ -133,6 +133,13 @@ public class AIProviderConfig {
         private Integer timeout;
         private Integer priority;
         private String embeddingModel;
+        /**
+         * Optional dimension reduction for text-embedding-3 models.
+         * For text-embedding-3-small: can reduce from 1536 to 512-1536
+         * For text-embedding-3-large: can reduce from 3072 to 256-3072
+         * If null, uses model's default dimensions.
+         */
+        private Integer embeddingDimensions;
 
         GenerationDefaults toGenerationDefaults(String providerName) {
             return new GenerationDefaults(
