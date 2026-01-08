@@ -124,6 +124,15 @@ ai:
       timeout: 30
       priority: 100
 
+    anthropic:
+      enabled: ${ANTHROPIC_ENABLED:true}
+      api-key: ${ANTHROPIC_API_KEY:}
+      model: ${ANTHROPIC_MODEL:claude-3-5-sonnet-20241022}
+      max-tokens: 4096
+      temperature: 0.3
+      timeout: 60
+      priority: 95
+
   service:
     enabled: true
     auto-configuration: true
