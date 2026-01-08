@@ -229,9 +229,9 @@ This plan restructures the Real API test execution system to be fully extensible
 4. Extension guide for adding new providers
 
 **Files to Create**:
-- `docs/PROVIDER_REGISTRY_GUIDE.md`
-- `docs/GITHUB_ACTIONS_PROVIDER_GUIDE.md`
-- `docs/ADDING_NEW_PROVIDER.md`
+- `docs/ProviderRegistry/PROVIDER_REGISTRY_GUIDE.md`
+- `docs/ProviderRegistry/GITHUB_ACTIONS_PROVIDER_GUIDE.md`
+- `docs/ProviderRegistry/ADDING_NEW_PROVIDER.md`
 
 ---
 
