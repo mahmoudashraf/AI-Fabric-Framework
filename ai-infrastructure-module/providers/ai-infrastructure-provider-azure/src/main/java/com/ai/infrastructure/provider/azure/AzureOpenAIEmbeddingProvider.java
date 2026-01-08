@@ -49,10 +49,21 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             return;
         }
 
-        if (!hasText(azure.getApiKey()) || !hasText(azure.getEndpoint()) || !hasText(azure.getEmbeddingDeploymentName())) {
-            log.warn("Azure embedding provider incomplete configuration. Required: api-key, endpoint, embedding deployment name");
+        if (!hasText(azure.getApiKey()) || !hasText(azure.getEndpoint())) {
+            log.warn("Azure embedding provider incomplete configuration. Required: api-key, endpoint");
             available = false;
             return;
+        }
+        
+        // For Azure AI Services (Foundry), embedding deployment name is not required in URL
+        String endpoint = azure.getEndpoint();
+        if (!endpoint.contains("/models") && !endpoint.contains("services.ai.azure.com")) {
+            // Azure OpenAI format requires deployment name
+            if (!hasText(azure.getEmbeddingDeploymentName())) {
+                log.warn("Azure OpenAI embedding provider requires embedding deployment name");
+                available = false;
+                return;
+            }
         }
 
         restTemplate = Optional.ofNullable(restTemplate).orElseGet(() -> buildRestTemplate(azure));
@@ -235,7 +246,28 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
 
     private String buildEmbeddingsUrl(String endpoint, String deployment, String apiVersion) {
         String normalized = endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
-        return String.format("%s/openai/deployments/%s/embeddings?api-version=%s", normalized, deployment, apiVersion);
+        String defaultApiVersion = apiVersion != null ? apiVersion : "2024-02-15-preview";
+        
+        // Check if endpoint already contains /models/embeddings (Azure AI Services/Foundry format)
+        if (normalized.contains("/models/embeddings")) {
+            // Azure AI Services (Foundry) format - endpoint already includes the path
+            if (normalized.contains("?")) {
+                return normalized; // Already has query params
+            }
+            return String.format("%s?api-version=%s", normalized, defaultApiVersion);
+        }
+        
+        // Check if endpoint contains /models (Azure AI Services/Foundry base format)
+        if (normalized.contains("/models")) {
+            // Azure AI Services (Foundry) format - add embeddings
+            return String.format("%s/embeddings?api-version=%s", normalized, defaultApiVersion);
+        }
+        
+        // Azure OpenAI format - traditional deployment-based
+        if (deployment == null || deployment.isEmpty()) {
+            throw new AIServiceException("Azure OpenAI embedding deployment name is required");
+        }
+        return String.format("%s/openai/deployments/%s/embeddings?api-version=%s", normalized, deployment, defaultApiVersion);
     }
 
     private boolean hasText(String value) {
