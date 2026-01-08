@@ -1,7 +1,7 @@
 # AI Chat Session Module - Complete Implementation Specification
 ## Production-Ready, Framework-Compliant Design (Pipeline Architecture)
 
-**Version:** 5.1 - Pipeline Architecture + Action Confirmation
+**Version:** 5.2 - Pipeline Architecture + Defensive Confirmation Workflow
 **Date:** January 2026
 **Status:** ✅ Implementation Ready
 **Compliance:** 100% AI Fabric Framework Standards
@@ -2392,6 +2392,948 @@ public abstract class AbstractConfirmationResolver implements IntentResolver {
 
 ---
 
+#### 10.7.6 Defensive Architecture (Preventing Metadata Corruption) 🆕
+
+**Problem Statement:**
+
+Current architecture has several vulnerabilities:
+
+1. **❌ Type-Unsafe Metadata:** `Map<String, Object>` allows any data corruption
+2. **❌ Mutable Shared State:** Resolvers get direct mutable access to metadata
+3. **❌ No Contracts:** Resolvers can return anything, modify anything
+4. **❌ Magic Strings:** Metadata keys are hardcoded strings (typo-prone)
+5. **❌ No Validation:** Invalid data can be stored without detection
+6. **❌ Exposed Stack:** ConfirmationStack operations callable by anyone
+
+**Solution: Defensive Boundaries + Type Safety**
+
+##### 10.7.6.1 Constants (Eliminates Magic Strings)
+
+**File:** `ai-infrastructure-chat-session/.../constants/ConfirmationConstants.java`
+
+```java
+package com.ai.infrastructure.chat.constants;
+
+/**
+ * Constants for confirmation workflow to eliminate magic strings/numbers.
+ *
+ * <p><strong>Benefits:</strong></p>
+ * <ul>
+ *   <li>Compile-time safety (typos caught by IDE)</li>
+ *   <li>Single source of truth for all keys/values</li>
+ *   <li>Easy refactoring (rename in one place)</li>
+ *   <li>Self-documenting code</li>
+ * </ul>
+ *
+ * @since 5.2
+ */
+public final class ConfirmationConstants {
+
+    private ConfirmationConstants() {
+        throw new UnsupportedOperationException("Constants class cannot be instantiated");
+    }
+
+    // =========================================================================
+    // Metadata Keys
+    // =========================================================================
+
+    /**
+     * Metadata key for confirmation stack.
+     * Value type: List&lt;Map&lt;String, Object&gt;&gt;
+     */
+    public static final String METADATA_KEY_CONFIRMATION_STACK = "confirmationStack";
+
+    /**
+     * Metadata key for legacy pending action (deprecated, use stack).
+     * Value type: Map&lt;String, Object&gt;
+     * @deprecated Use METADATA_KEY_CONFIRMATION_STACK instead
+     */
+    @Deprecated
+    public static final String METADATA_KEY_PENDING_ACTION = "pendingAction";
+
+    /**
+     * Metadata key for pending action timestamp.
+     * Value type: String (ISO-8601 format)
+     */
+    public static final String METADATA_KEY_TIMESTAMP = "timestamp";
+
+    /**
+     * Metadata key for action name.
+     * Value type: String
+     */
+    public static final String METADATA_KEY_ACTION = "action";
+
+    /**
+     * Metadata key for action parameters.
+     * Value type: Map&lt;String, Object&gt;
+     */
+    public static final String METADATA_KEY_PARAMS = "params";
+
+    /**
+     * Metadata key for action description (human-readable).
+     * Value type: String
+     */
+    public static final String METADATA_KEY_DESCRIPTION = "description";
+
+    // =========================================================================
+    // Resolver Priorities
+    // =========================================================================
+
+    /**
+     * Priority for critical resolvers (timeouts, security).
+     * Lower priority = executes first.
+     */
+    public static final int PRIORITY_CRITICAL = 5;
+
+    /**
+     * Priority for high-importance resolvers (compound confirmations).
+     */
+    public static final int PRIORITY_HIGH = 10;
+
+    /**
+     * Priority for normal resolvers (single positive confirmation).
+     */
+    public static final int PRIORITY_NORMAL = 50;
+
+    /**
+     * Priority for low-priority resolvers (single negative confirmation).
+     */
+    public static final int PRIORITY_LOW = 51;
+
+    /**
+     * Priority for fallback resolvers (catch-all handlers).
+     */
+    public static final int PRIORITY_FALLBACK = 100;
+
+    // =========================================================================
+    // Configuration Values
+    // =========================================================================
+
+    /**
+     * Timeout in minutes for pending confirmations.
+     * After this time, pending actions are considered expired.
+     */
+    public static final long TIMEOUT_MINUTES = 5;
+
+    /**
+     * Maximum depth of confirmation stack.
+     * Prevents stack overflow from malicious/buggy resolvers.
+     */
+    public static final int MAX_STACK_DEPTH = 10;
+
+    /**
+     * Default empty string for missing descriptions.
+     */
+    public static final String DEFAULT_DESCRIPTION = "pending action";
+
+    // =========================================================================
+    // Response Metadata Keys
+    // =========================================================================
+
+    /**
+     * Response metadata key for cancellation message.
+     */
+    public static final String RESPONSE_KEY_CANCELLATION_MESSAGE = "cancellationMessage";
+
+    /**
+     * Response metadata key indicating action restored from stack.
+     */
+    public static final String RESPONSE_KEY_RESTORED_FROM_STACK = "restoredFromStack";
+
+    /**
+     * Response metadata key for restored action name.
+     */
+    public static final String RESPONSE_KEY_RESTORED_ACTION = "restoredAction";
+
+    /**
+     * Response metadata key for current stack depth.
+     */
+    public static final String RESPONSE_KEY_STACK_DEPTH = "stackDepth";
+}
+```
+
+---
+
+##### 10.7.6.2 Immutable Resolver Context (Read-Only Metadata)
+
+**File:** `ai-infrastructure-chat-session/.../spi/ResolverContext.java`
+
+```java
+package com.ai.infrastructure.chat.spi;
+
+import com.ai.infrastructure.chat.util.ConfirmationStack;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import lombok.Builder;
+import lombok.Value;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Immutable context passed to resolvers (read-only view).
+ *
+ * <p><strong>Design Goals:</strong></p>
+ * <ul>
+ *   <li>Prevent resolvers from corrupting metadata</li>
+ *   <li>Provide type-safe accessors (no raw Map operations)</li>
+ *   <li>Enforce immutability (no setters)</li>
+ *   <li>Hide internal metadata structure</li>
+ * </ul>
+ *
+ * <p><strong>Usage:</strong> Resolvers receive this instead of mutable metadata.</p>
+ *
+ * @since 5.2
+ */
+@Value
+@Builder(toBuilder = true)
+public class ResolverContext {
+
+    /**
+     * Detected intents from IntentExtractionStep.
+     */
+    MultiIntentResponse intentResponse;
+
+    /**
+     * Current pipeline context.
+     */
+    PipelineContext pipelineContext;
+
+    /**
+     * Conversation ID (null if no conversation).
+     */
+    String conversationId;
+
+    /**
+     * Owner ID.
+     */
+    String ownerId;
+
+    /**
+     * Immutable snapshot of session metadata.
+     */
+    Map<String, Object> metadataSnapshot;
+
+    // =========================================================================
+    // Type-Safe Accessors (No Raw Map Operations)
+    // =========================================================================
+
+    /**
+     * Get current pending action from stack.
+     *
+     * @return pending action, or empty if no pending actions
+     */
+    public Optional<ConfirmationStack.PendingAction> getCurrentPendingAction() {
+        return Optional.ofNullable(ConfirmationStack.peek(metadataSnapshot));
+    }
+
+    /**
+     * Check if confirmation stack has pending actions.
+     *
+     * @return true if stack not empty
+     */
+    public boolean hasPendingActions() {
+        return !ConfirmationStack.isEmpty(metadataSnapshot);
+    }
+
+    /**
+     * Get confirmation stack depth.
+     *
+     * @return number of pending actions
+     */
+    public int getStackDepth() {
+        return ConfirmationStack.size(metadataSnapshot);
+    }
+
+    /**
+     * Get immutable metadata snapshot.
+     *
+     * <p><strong>WARNING:</strong> Direct metadata access discouraged.
+     * Use type-safe methods instead.</p>
+     *
+     * @return unmodifiable map
+     */
+    public Map<String, Object> getMetadataSnapshot() {
+        return Collections.unmodifiableMap(metadataSnapshot);
+    }
+
+    /**
+     * Check if in conversational context.
+     *
+     * @return true if conversation ID present
+     */
+    public boolean hasConversation() {
+        return conversationId != null && !conversationId.isBlank();
+    }
+}
+```
+
+---
+
+##### 10.7.6.3 Resolution Result (What Changed)
+
+**File:** `ai-infrastructure-chat-session/.../spi/ResolutionResult.java`
+
+```java
+package com.ai.infrastructure.chat.spi;
+
+import com.ai.infrastructure.chat.util.ConfirmationStack;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import lombok.Builder;
+import lombok.Value;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Immutable result returned by resolvers (declares what should change).
+ *
+ * <p><strong>Design Goals:</strong></p>
+ * <ul>
+ *   <li>Resolvers declare changes, don't mutate directly</li>
+ *   <li>Coordinator validates and applies changes</li>
+ *   <li>Type-safe operations (no raw map manipulation)</li>
+ *   <li>Explicit about what changed (clear intent)</li>
+ * </ul>
+ *
+ * <p><strong>Architecture:</strong></p>
+ * <pre>
+ * Resolver.resolve(context) → ResolutionResult
+ *     ↓
+ * Coordinator validates result
+ *     ↓
+ * Coordinator applies changes safely
+ * </pre>
+ *
+ * @since 5.2
+ */
+@Value
+@Builder(toBuilder = true)
+public class ResolutionResult {
+
+    /**
+     * Resolution type (what happened).
+     */
+    ResolutionType type;
+
+    /**
+     * Modified intent response (if intents changed).
+     * Null means no modification.
+     */
+    MultiIntentResponse modifiedIntentResponse;
+
+    /**
+     * Modified pipeline context (if context changed).
+     * Null means no modification.
+     */
+    PipelineContext modifiedPipelineContext;
+
+    /**
+     * Stack operation to perform (validated by coordinator).
+     */
+    StackOperation stackOperation;
+
+    /**
+     * Human-readable message for logging/debugging.
+     */
+    String message;
+
+    /**
+     * Additional response metadata for user feedback.
+     */
+    Map<String, Object> responseMetadata;
+
+    // =========================================================================
+    // Factory Methods
+    // =========================================================================
+
+    /**
+     * No changes needed (pass-through).
+     */
+    public static ResolutionResult noChange(String message) {
+        return ResolutionResult.builder()
+            .type(ResolutionType.NO_CHANGE)
+            .message(message)
+            .responseMetadata(Collections.emptyMap())
+            .build();
+    }
+
+    /**
+     * Intent modified (e.g., replaced confirmation with action).
+     */
+    public static ResolutionResult intentModified(
+        MultiIntentResponse modifiedResponse,
+        String message
+    ) {
+        return ResolutionResult.builder()
+            .type(ResolutionType.INTENT_MODIFIED)
+            .modifiedIntentResponse(modifiedResponse)
+            .message(message)
+            .responseMetadata(Collections.emptyMap())
+            .build();
+    }
+
+    /**
+     * Intent modified + stack operation.
+     */
+    public static ResolutionResult intentModifiedWithStackOp(
+        MultiIntentResponse modifiedResponse,
+        StackOperation stackOp,
+        String message
+    ) {
+        return ResolutionResult.builder()
+            .type(ResolutionType.INTENT_MODIFIED_WITH_STACK_OP)
+            .modifiedIntentResponse(modifiedResponse)
+            .stackOperation(stackOp)
+            .message(message)
+            .responseMetadata(Collections.emptyMap())
+            .build();
+    }
+
+    /**
+     * Stack operation only (no intent change).
+     */
+    public static ResolutionResult stackOperationOnly(
+        StackOperation stackOp,
+        String message
+    ) {
+        return ResolutionResult.builder()
+            .type(ResolutionType.STACK_OPERATION_ONLY)
+            .stackOperation(stackOp)
+            .message(message)
+            .responseMetadata(Collections.emptyMap())
+            .build();
+    }
+
+    /**
+     * Pipeline terminated early (resolver handled completely).
+     */
+    public static ResolutionResult terminated(
+        PipelineContext modifiedContext,
+        String message
+    ) {
+        return ResolutionResult.builder()
+            .type(ResolutionType.PIPELINE_TERMINATED)
+            .modifiedPipelineContext(modifiedContext)
+            .message(message)
+            .responseMetadata(Collections.emptyMap())
+            .build();
+    }
+
+    // =========================================================================
+    // Enums
+    // =========================================================================
+
+    public enum ResolutionType {
+        /**
+         * No changes needed (pass-through).
+         */
+        NO_CHANGE,
+
+        /**
+         * Intent response modified only.
+         */
+        INTENT_MODIFIED,
+
+        /**
+         * Intent modified + stack operation.
+         */
+        INTENT_MODIFIED_WITH_STACK_OP,
+
+        /**
+         * Stack operation only (no intent change).
+         */
+        STACK_OPERATION_ONLY,
+
+        /**
+         * Pipeline terminated early (resolver fully handled).
+         */
+        PIPELINE_TERMINATED
+    }
+
+    /**
+     * Stack operations (validated before execution).
+     */
+    @Value
+    @Builder
+    public static class StackOperation {
+        StackOperationType type;
+        ConfirmationStack.PendingAction actionToPush;  // For PUSH operations
+
+        public static StackOperation push(ConfirmationStack.PendingAction action) {
+            return StackOperation.builder()
+                .type(StackOperationType.PUSH)
+                .actionToPush(action)
+                .build();
+        }
+
+        public static StackOperation pop() {
+            return StackOperation.builder()
+                .type(StackOperationType.POP)
+                .build();
+        }
+
+        public static StackOperation clear() {
+            return StackOperation.builder()
+                .type(StackOperationType.CLEAR)
+                .build();
+        }
+    }
+
+    public enum StackOperationType {
+        PUSH,
+        POP,
+        CLEAR
+    }
+}
+```
+
+---
+
+##### 10.7.6.4 Updated IntentResolver Interface
+
+**Replace current interface with defensive version:**
+
+```java
+package com.ai.infrastructure.chat.spi;
+
+/**
+ * SPI for resolving specific intent scenarios in conversations.
+ *
+ * <p><strong>Defensive Architecture (v5.2):</strong></p>
+ * <ul>
+ *   <li>Receives immutable {@link ResolverContext} (read-only)</li>
+ *   <li>Returns {@link ResolutionResult} (declares changes)</li>
+ *   <li>Cannot corrupt metadata directly</li>
+ *   <li>Coordinator validates and applies changes</li>
+ * </ul>
+ *
+ * @since 5.1 (v5.2: defensive boundaries added)
+ */
+public interface IntentResolver {
+
+    /**
+     * Check if this resolver can handle the current context.
+     *
+     * <p><strong>MUST NOT</strong> have side effects (pure function).</p>
+     *
+     * @param context immutable resolver context
+     * @return true if this resolver should handle this scenario
+     */
+    boolean canResolve(ResolverContext context);
+
+    /**
+     * Resolve the intent and return what should change.
+     *
+     * <p><strong>Contract:</strong></p>
+     * <ul>
+     *   <li>MUST return non-null result</li>
+     *   <li>MUST NOT mutate context (immutable)</li>
+     *   <li>MUST NOT perform stack operations (declare them in result)</li>
+     *   <li>MUST be idempotent (same input → same output)</li>
+     * </ul>
+     *
+     * @param context immutable resolver context
+     * @return resolution result (what should change)
+     */
+    ResolutionResult resolve(ResolverContext context);
+
+    /**
+     * Priority for resolver ordering (lower = higher priority).
+     *
+     * <p><strong>Use constants from {@link ConfirmationConstants}:</strong></p>
+     * <ul>
+     *   <li>{@link ConfirmationConstants#PRIORITY_CRITICAL} (5) - Timeouts, security</li>
+     *   <li>{@link ConfirmationConstants#PRIORITY_HIGH} (10) - Compound confirmations</li>
+     *   <li>{@link ConfirmationConstants#PRIORITY_NORMAL} (50) - Single confirmation</li>
+     *   <li>{@link ConfirmationConstants#PRIORITY_LOW} (51) - Negative confirmation</li>
+     *   <li>{@link ConfirmationConstants#PRIORITY_FALLBACK} (100) - Catch-all</li>
+     * </ul>
+     *
+     * @return priority value
+     */
+    default int getPriority() {
+        return ConfirmationConstants.PRIORITY_FALLBACK;
+    }
+
+    /**
+     * Resolver name for debugging/logging.
+     *
+     * @return human-readable resolver name
+     */
+    String getResolverName();
+}
+```
+
+---
+
+##### 10.7.6.5 ConfirmationStackManager (Validated Mutations)
+
+**File:** `ai-infrastructure-chat-session/.../util/ConfirmationStackManager.java`
+
+```java
+package com.ai.infrastructure.chat.util;
+
+import com.ai.infrastructure.chat.constants.ConfirmationConstants;
+import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.chat.spi.ResolutionResult;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+
+/**
+ * Centralized manager for confirmation stack operations with validation.
+ *
+ * <p><strong>Design Goals:</strong></p>
+ * <ul>
+ *   <li>Single point of mutation (no direct ConfirmationStack calls from resolvers)</li>
+ *   <li>Validates all operations before applying</li>
+ *   <li>Enforces invariants (max depth, data integrity)</li>
+ *   <li>Atomic operations (all-or-nothing)</li>
+ * </ul>
+ *
+ * @since 5.2
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class ConfirmationStackManager {
+
+    private final ChatSessionService chatSessionService;
+
+    /**
+     * Apply stack operation from resolution result (validated).
+     *
+     * @param stackOp the stack operation to apply
+     * @param conversationId conversation ID
+     * @param ownerId owner ID
+     * @param metadata session metadata (will be modified)
+     * @throws IllegalStateException if operation invalid
+     */
+    public void applyStackOperation(
+        ResolutionResult.StackOperation stackOp,
+        String conversationId,
+        String ownerId,
+        Map<String, Object> metadata
+    ) {
+        if (stackOp == null) {
+            return;  // No operation
+        }
+
+        switch (stackOp.getType()) {
+            case PUSH:
+                validateAndPush(stackOp.getActionToPush(), conversationId, ownerId, metadata);
+                break;
+
+            case POP:
+                validateAndPop(conversationId, ownerId, metadata);
+                break;
+
+            case CLEAR:
+                validateAndClear(conversationId, ownerId, metadata);
+                break;
+
+            default:
+                throw new IllegalStateException("Unknown stack operation type: " + stackOp.getType());
+        }
+    }
+
+    /**
+     * Validate and push action onto stack.
+     */
+    private void validateAndPush(
+        ConfirmationStack.PendingAction action,
+        String conversationId,
+        String ownerId,
+        Map<String, Object> metadata
+    ) {
+        // Validation 1: Action must be non-null
+        if (action == null) {
+            throw new IllegalStateException("Cannot push null action onto confirmation stack");
+        }
+
+        // Validation 2: Action must have required fields
+        if (action.getAction() == null || action.getAction().isBlank()) {
+            throw new IllegalStateException("Pending action must have non-blank action name");
+        }
+
+        // Validation 3: Check stack depth limit
+        int currentDepth = ConfirmationStack.size(metadata);
+        if (currentDepth >= ConfirmationConstants.MAX_STACK_DEPTH) {
+            throw new IllegalStateException(String.format(
+                "Confirmation stack depth limit exceeded (%d >= %d). " +
+                "Possible malicious/buggy resolver.",
+                currentDepth, ConfirmationConstants.MAX_STACK_DEPTH
+            ));
+        }
+
+        // Apply operation
+        ConfirmationStack.push(
+            metadata,
+            action.getAction(),
+            action.getParams(),
+            action.getDescription()
+        );
+
+        // Persist
+        chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
+
+        log.debug("✅ Validated and pushed action '{}' (depth: {}/{})",
+            action.getAction(),
+            ConfirmationStack.size(metadata),
+            ConfirmationConstants.MAX_STACK_DEPTH);
+    }
+
+    /**
+     * Validate and pop action from stack.
+     */
+    private void validateAndPop(
+        String conversationId,
+        String ownerId,
+        Map<String, Object> metadata
+    ) {
+        // Validation: Stack must not be empty
+        if (ConfirmationStack.isEmpty(metadata)) {
+            log.warn("Attempted to pop from empty confirmation stack (conversation: {})", conversationId);
+            return;  // Graceful degradation
+        }
+
+        // Apply operation
+        ConfirmationStack.PendingAction popped = ConfirmationStack.pop(metadata);
+
+        // Persist
+        chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
+
+        log.debug("✅ Validated and popped action '{}' (remaining depth: {})",
+            popped != null ? popped.getAction() : "null",
+            ConfirmationStack.size(metadata));
+    }
+
+    /**
+     * Validate and clear entire stack.
+     */
+    private void validateAndClear(
+        String conversationId,
+        String ownerId,
+        Map<String, Object> metadata
+    ) {
+        int depth = ConfirmationStack.size(metadata);
+
+        if (depth == 0) {
+            log.debug("Stack already empty, no clear needed (conversation: {})", conversationId);
+            return;
+        }
+
+        // Apply operation
+        ConfirmationStack.clear(metadata);
+
+        // Persist
+        chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
+
+        log.debug("✅ Validated and cleared stack ({} actions removed)", depth);
+    }
+}
+```
+
+---
+
+##### 10.7.6.6 Updated ConfirmationResolutionStep (Coordinator)
+
+**Replace process() method with defensive version:**
+
+```java
+@Override
+public PipelineContext process(PipelineContext context) {
+    // Skip if no conversation or service not available
+    if (!context.getOrchestrationContext().hasConversation() ||
+        chatSessionService.isEmpty()) {
+        return context;
+    }
+
+    try {
+        String conversationId = context.getOrchestrationContext().getConversationId();
+        String ownerId = context.getIdentifier();
+
+        // Load session metadata
+        ChatSession session = chatSessionService.get().getSession(conversationId, ownerId);
+        Map<String, Object> metadata = new HashMap<>(session.getSessionMetadata());
+
+        // Extract intent response
+        MultiIntentResponse intentResponse = context.getIntentResponse();
+        if (intentResponse == null) {
+            return context;  // No intents to resolve
+        }
+
+        // ✅ Create immutable resolver context (read-only)
+        ResolverContext resolverContext = ResolverContext.builder()
+            .intentResponse(intentResponse)
+            .pipelineContext(context)
+            .conversationId(conversationId)
+            .ownerId(ownerId)
+            .metadataSnapshot(Collections.unmodifiableMap(new HashMap<>(metadata)))
+            .build();
+
+        // Sort resolvers by priority
+        List<IntentResolver> sortedResolvers = resolvers.stream()
+            .sorted(Comparator.comparingInt(IntentResolver::getPriority))
+            .collect(Collectors.toList());
+
+        // Find first resolver that can handle
+        for (IntentResolver resolver : sortedResolvers) {
+            if (resolver.canResolve(resolverContext)) {
+                log.debug("Resolver '{}' matched (priority {})",
+                    resolver.getResolverName(), resolver.getPriority());
+
+                // ✅ Resolver returns ResolutionResult (doesn't mutate)
+                ResolutionResult result = resolver.resolve(resolverContext);
+
+                // ✅ Validate result
+                if (result == null) {
+                    log.error("Resolver '{}' returned null result (contract violation)",
+                        resolver.getResolverName());
+                    continue;  // Skip to next resolver
+                }
+
+                // ✅ Apply changes through validated manager
+                return applyResolutionResult(result, context, conversationId, ownerId, metadata);
+            }
+        }
+
+        // No resolver matched
+        return context;
+
+    } catch (Exception ex) {
+        log.error("Error in confirmation resolution: {}", ex.getMessage(), ex);
+        return context;  // Graceful degradation
+    }
+}
+
+/**
+ * Apply resolution result (validates and applies changes).
+ */
+private PipelineContext applyResolutionResult(
+    ResolutionResult result,
+    PipelineContext originalContext,
+    String conversationId,
+    String ownerId,
+    Map<String, Object> metadata
+) {
+    log.info("Applying resolution: {} - {}", result.getType(), result.getMessage());
+
+    PipelineContext modifiedContext = originalContext;
+
+    // Apply intent modifications
+    if (result.getModifiedIntentResponse() != null) {
+        modifiedContext = modifiedContext.toBuilder()
+            .intentResponse(result.getModifiedIntentResponse())
+            .build();
+    }
+
+    // Apply stack operations (validated)
+    if (result.getStackOperation() != null) {
+        try {
+            stackManager.applyStackOperation(
+                result.getStackOperation(),
+                conversationId,
+                ownerId,
+                metadata
+            );
+        } catch (IllegalStateException ex) {
+            log.error("Stack operation validation failed: {}", ex.getMessage());
+            // Continue with other changes
+        }
+    }
+
+    // Apply pipeline modifications
+    if (result.getModifiedPipelineContext() != null) {
+        modifiedContext = result.getModifiedPipelineContext();
+    }
+
+    // Add response metadata
+    if (result.getResponseMetadata() != null && !result.getResponseMetadata().isEmpty()) {
+        Map<String, Object> currentMetadata = new HashMap<>(
+            modifiedContext.getOrchestrationContext().getResponseMetadata()
+        );
+        currentMetadata.putAll(result.getResponseMetadata());
+
+        modifiedContext = modifiedContext.toBuilder()
+            .orchestrationContext(
+                modifiedContext.getOrchestrationContext().toBuilder()
+                    .responseMetadata(currentMetadata)
+                    .build()
+            )
+            .build();
+    }
+
+    return modifiedContext;
+}
+```
+
+---
+
+##### 10.7.6.7 Migration Guide
+
+**For Existing Resolvers:**
+
+```java
+// ❌ OLD (v5.1): Mutable metadata, direct mutation
+@Override
+public boolean canResolve(MultiIntentResponse intentResponse,
+                          Map<String, Object> sessionMetadata,
+                          PipelineContext context) {
+    ConfirmationStack.PendingAction pending = ConfirmationStack.peek(sessionMetadata);
+    return pending != null && isExpired(pending);
+}
+
+@Override
+public PipelineContext resolve(MultiIntentResponse intentResponse,
+                               Map<String, Object> sessionMetadata,
+                               PipelineContext context) {
+    ConfirmationStack.clear(sessionMetadata);  // Direct mutation!
+    chatSessionService.updateSessionMetadata(...);  // Direct DB write!
+
+    return context.toBuilder()
+        .intentResponse(modifiedResponse)
+        .build();
+}
+```
+
+```java
+// ✅ NEW (v5.2): Immutable context, declared changes
+@Override
+public boolean canResolve(ResolverContext context) {
+    return context.getCurrentPendingAction()
+        .map(this::isExpired)
+        .orElse(false);
+}
+
+@Override
+public ResolutionResult resolve(ResolverContext context) {
+    // Just return what should change - coordinator applies it
+    return ResolutionResult.intentModifiedWithStackOp(
+        modifiedResponse,
+        ResolutionResult.StackOperation.clear(),
+        "Expired confirmation cleared"
+    );
+}
+```
+
+**Benefits:**
+
+1. ✅ **Type-Safe:** No more `Map<String, Object>` in business logic
+2. ✅ **Testable:** Easy to mock immutable context
+3. ✅ **Traceable:** All mutations logged by manager
+4. ✅ **Protected:** Resolvers cannot corrupt metadata
+5. ✅ **Validated:** All operations checked before applying
+6. ✅ **No Magic Strings:** All keys in constants class
+
+---
+
 ### 10.8 Enhanced IntentHandlingStep
 
 **File:** `ai-infrastructure-core/.../pipeline/steps/IntentHandlingStep.java`
@@ -3874,6 +4816,52 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 - [ ] Test compound confirmation scenarios (confirmation + new requests)
 - [ ] **Test stack chaining scenarios** (nested confirmations, rollback) 🆕
 
+### Phase 7.5: Defensive Architecture (v5.2) 🆕 **NEW**
+- [ ] **Create ConfirmationConstants class** (eliminates magic strings/numbers)
+  - [ ] METADATA_KEY_* constants for all metadata keys
+  - [ ] PRIORITY_* constants for resolver priorities
+  - [ ] Configuration constants (TIMEOUT_MINUTES, MAX_STACK_DEPTH)
+  - [ ] RESPONSE_KEY_* constants for response metadata
+- [ ] **Create ResolverContext (immutable)** - Read-only view for resolvers
+  - [ ] getCurrentPendingAction(), hasPendingActions(), getStackDepth()
+  - [ ] Type-safe accessors (no raw Map operations)
+  - [ ] Unmodifiable metadata snapshot
+- [ ] **Create ResolutionResult** - What resolvers return (declares changes)
+  - [ ] ResolutionType enum (NO_CHANGE, INTENT_MODIFIED, etc.)
+  - [ ] StackOperation with validation
+  - [ ] Factory methods (noChange(), intentModified(), etc.)
+- [ ] **Update IntentResolver interface** - Use defensive signatures
+  - [ ] canResolve(ResolverContext) instead of mutable params
+  - [ ] resolve(ResolverContext) returns ResolutionResult
+  - [ ] Document contracts (immutability, idempotence)
+- [ ] **Create ConfirmationStackManager** - Validated mutations only
+  - [ ] applyStackOperation() with validation
+  - [ ] validateAndPush() - checks depth limit, required fields
+  - [ ] validateAndPop() - checks empty stack
+  - [ ] validateAndClear() - atomic operation
+- [ ] **Update ConfirmationResolutionStep** - Apply defensive pattern
+  - [ ] Create immutable ResolverContext for resolvers
+  - [ ] Validate ResolutionResult from resolvers
+  - [ ] Apply changes through ConfirmationStackManager
+  - [ ] Graceful degradation on validation failures
+- [ ] **Update ConfirmationStack utility** - Use constants
+  - [ ] Replace hardcoded "confirmationStack" with METADATA_KEY_CONFIRMATION_STACK
+  - [ ] Replace hardcoded field names with constants
+- [ ] **Migrate all resolvers** to defensive pattern
+  - [ ] Update ExpiredConfirmationResolver
+  - [ ] Update CompoundConfirmationResolver
+  - [ ] Update SingleConfirmationPositiveResolver
+  - [ ] Update SingleConfirmationNegativeResolver
+- [ ] **Update AbstractConfirmationResolver** - Return ResolutionResult
+  - [ ] Remove direct metadata mutation methods
+  - [ ] Add helper methods for building ResolutionResult
+- [ ] **Test defensive boundaries**
+  - [ ] Test stack depth limit enforcement
+  - [ ] Test invalid action validation
+  - [ ] Test immutability (resolvers cannot corrupt)
+  - [ ] Test null result handling
+  - [ ] Test validation failures
+
 ### Phase 8: Testing
 - [ ] Unit tests for ConversationEnrichmentStep (7+ tests)
 - [ ] Unit tests for ConfirmationResolutionStep (10+ tests)
@@ -3890,15 +4878,17 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 
 ### Key Changes from v4.0
 
-| Aspect | v4.0 (Old) | v5.1 (New) |
+| Aspect | v4.0 (Old) | v5.2 (New) |
 |--------|------------|-------------|
 | **Integration** | Modify RAGOrchestrator | PipelineSteps |
 | **Core Changes** | ~40 lines | ~7 lines |
 | **Pipeline Steps** | 2 (Enrich + Record) | 3 (Enrich + Confirm + Record) |
 | **Architecture** | Monolithic | Pipeline-based |
 | **Testability** | Hard (monolithic) | Easy (isolated steps) |
-| **Extensibility** | Limited | High (composable) |
-| **Confirmations** | Not supported | Two-step conversational |
+| **Extensibility** | Limited | High (composable + SPI) |
+| **Confirmations** | Not supported | Defensive two-step workflow |
+| **Type Safety** | N/A | Immutable contexts + validation |
+| **Metadata Access** | N/A | Protected (no direct mutation) |
 
 ### Benefits of Pipeline Approach
 
@@ -3909,25 +4899,41 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 ✅ **Auto-Discovery:** Spring automatically includes steps
 ✅ **Framework Aligned:** Follows current codebase patterns
 
-### New in v5.2: Action Confirmation Workflow with Stack Pattern 🆕
+### New in v5.2: Defensive Confirmation Workflow with Stack Pattern 🆕
 
+**Core Workflow Features:**
 ✅ **Conversational Confirmations:** Natural "are you sure?" → "yes" flow
 ✅ **LLM-Based Detection:** NO hardcoded keywords - respects intelligence
-✅ **Confirmation Stack Pattern:** Preserves original intent when resolvers intercept 🆕
-✅ **Chained/Nested Confirmations:** Support unlimited depth with clean rollback 🆕
-✅ **Extensible Resolver Pattern:** Add edge cases via @Component resolvers (no framework changes) 🆕
-✅ **Open/Closed Principle:** Zero conditionals - each scenario is a separate resolver 🆕
+✅ **Confirmation Stack Pattern:** Preserves original intent when resolvers intercept
+✅ **Chained/Nested Confirmations:** Support unlimited depth with clean rollback
 ✅ **Context-Aware:** Enriches query with stack top for LLM analysis
 ✅ **Nuanced Understanding:** LLM handles "no, wait, I changed my mind" correctly
 ✅ **Compound Intent Support:** Handles "yes and show me laptops" naturally
 ✅ **Multi-Request Handling:** Execute confirmed action + process additional requests
-✅ **Intelligent Response Combining:** Special formatting for confirmation + requests
-✅ **Stack Restoration:** Automatically restores previous intent when user rejects offer 🆕
-✅ **Secure:** Ownership verification + timeout protection + stack isolation 🆕
+✅ **Stack Restoration:** Automatically restores previous intent when user rejects offer
+
+**Extensibility & Architecture:**
+✅ **Extensible Resolver Pattern:** Add edge cases via @Component resolvers (no framework changes)
+✅ **Open/Closed Principle:** Zero conditionals - each scenario is a separate resolver
+✅ **User Extensible:** Framework users can inject custom resolvers for domain-specific logic
 ✅ **Flexible:** Action handlers opt-in via `requiresConfirmation()`
-✅ **User Extensible:** Framework users can inject custom resolvers for domain-specific logic 🆕
+
+**Defensive Architecture (v5.2):** 🆕
+✅ **Immutable Contexts:** Resolvers get read-only ResolverContext (cannot corrupt)
+✅ **Type-Safe:** No raw `Map<String, Object>` in resolver APIs
+✅ **Validated Mutations:** ConfirmationStackManager enforces all invariants
+✅ **Contract Enforcement:** Resolvers must return non-null ResolutionResult
+✅ **No Magic Strings:** All metadata keys in ConfirmationConstants
+✅ **Stack Depth Limit:** MAX_STACK_DEPTH prevents malicious/buggy resolvers
+✅ **Pure Functions:** canResolve() must be side-effect free
+✅ **Idempotent:** Same input → same output (testable, predictable)
+✅ **Traceable:** All mutations logged by central manager
+
+**Safety & Reliability:**
+✅ **Secure:** Ownership verification + timeout protection + stack isolation
 ✅ **Backward Compatible:** Actions without confirmation work as before
 ✅ **Graceful Degradation:** Storage failures fall back to immediate execution
+✅ **Fail-Safe:** Invalid operations logged and skipped (system continues)
 
 ### Implementation Summary
 
@@ -3940,14 +4946,18 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 - `IntentHandlingStep`: Add confirmation detection logic (~85 lines)
 
 **Module Changes (v5.2):**
-- `ConfirmationStack` utility class: ~150 lines 🆕
-- `IntentResolver` SPI interface: ~40 lines 🆕
-- `AbstractConfirmationResolver` base class: ~180 lines 🆕
-- `ExpiredConfirmationResolver`: ~50 lines 🆕
-- `CompoundConfirmationResolver`: ~110 lines (with stack restoration) 🆕
-- `SingleConfirmationPositiveResolver`: ~45 lines 🆕
-- `SingleConfirmationNegativeResolver`: ~50 lines 🆕
-- `ConfirmationResolutionStep` (coordinator): ~80 lines 🆕
+- `ConfirmationConstants`: ~140 lines (eliminates magic strings) 🆕
+- `ResolverContext` (immutable): ~80 lines (type-safe read-only) 🆕
+- `ResolutionResult`: ~180 lines (declares changes) 🆕
+- `ConfirmationStackManager`: ~140 lines (validated mutations) 🆕
+- `ConfirmationStack` utility class: ~150 lines
+- `IntentResolver` SPI interface: ~50 lines (defensive signatures) 🆕
+- `AbstractConfirmationResolver` base class: ~180 lines
+- `ExpiredConfirmationResolver`: ~50 lines
+- `CompoundConfirmationResolver`: ~110 lines (with stack restoration)
+- `SingleConfirmationPositiveResolver`: ~45 lines
+- `SingleConfirmationNegativeResolver`: ~50 lines
+- `ConfirmationResolutionStep` (coordinator): ~110 lines (with validation) 🆕
 - `ConversationEnrichmentStep`: ~120 lines
 - `ConversationRecordingStep`: ~100 lines
 - `ChatSessionService.updateSessionMetadata()`: ~20 lines
@@ -3956,29 +4966,37 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 
 **Total Lines of Code (v5.2):**
 - Core changes: ~100 lines
-- Resolver pattern + stack: ~705 lines 🆕
+- Defensive architecture: ~540 lines (constants, validation, immutability) 🆕
+- Resolver pattern + stack: ~705 lines
 - Conversation + session support: ~1,130 lines
-- **Total:** ~1,935 lines
+- **Total:** ~2,475 lines
 
 **Key Architectural Components:**
-1. **ConfirmationStack** - Command Pattern with History (stack data structure)
-2. **IntentResolver SPI** - Strategy Pattern (pluggable resolvers)
-3. **4 Built-in Resolvers** - Priority-based execution
-4. **AbstractConfirmationResolver** - Template Method Pattern (shared stack operations)
-5. **ConfirmationResolutionStep** - Coordinator (delegates to resolvers)
+1. **Defensive Boundaries (v5.2):** 🆕
+   - ResolverContext (immutable) - Read-only view
+   - ResolutionResult - Declared changes
+   - ConfirmationStackManager - Validated mutations
+   - ConfirmationConstants - Zero magic strings
+2. **ConfirmationStack** - Command Pattern with History (stack data structure)
+3. **IntentResolver SPI** - Strategy Pattern (pluggable resolvers)
+4. **4 Built-in Resolvers** - Priority-based execution
+5. **AbstractConfirmationResolver** - Template Method Pattern (shared operations)
+6. **ConfirmationResolutionStep** - Coordinator (validates & delegates)
 
-**Key Architectural Decision:**
+**Key Architectural Decisions:**
 - ✅ **NO Hardcoded Keywords** - All confirmation detection via LLM
 - ✅ **Respects Intelligence** - Framework philosophy maintained
+- ✅ **Immutable by Default** - Resolvers cannot corrupt state (v5.2) 🆕
+- ✅ **Fail-Safe** - Validation prevents malicious/buggy resolvers (v5.2) 🆕
 
 **Breaking Changes:** ZERO ✅
 
 ---
 
-**Document Version:** 5.1 - Pipeline Architecture + Action Confirmation
+**Document Version:** 5.2 - Pipeline Architecture + Defensive Confirmation Workflow
 **Status:** ✅ Ready for Implementation
 **Compliance:** 100% AI Fabric Framework Standards
-**Architecture:** Pipeline-Based (Current Codebase)
+**Architecture:** Pipeline-Based + Defensive Boundaries (v5.2)
 
 **Implement exactly as specified in this document.** 🎯
 
