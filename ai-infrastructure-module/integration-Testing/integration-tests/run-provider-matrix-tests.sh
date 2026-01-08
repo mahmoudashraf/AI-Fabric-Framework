@@ -138,13 +138,31 @@ check_provider_api_keys() {
     local matrix_spec="$1"
     local missing_keys=()
     local providers_checked=()
+    local providers_needed_llm=()
+    local providers_needed_embedding=()
     
-    # Extract providers from matrix spec (format: llm:embedding or llm:embedding:vectordb:storage)
-    IFS=':' read -r llm_provider embedding_provider <<< "$matrix_spec"
+    # Handle comma-separated combinations - check all unique providers needed
+    IFS=',' read -ra COMBINATIONS <<< "$matrix_spec"
     
-    # Remove any additional parts (vectordb, storage) if present
-    llm_provider=$(echo "$llm_provider" | cut -d',' -f1 | xargs)
-    embedding_provider=$(echo "$embedding_provider" | cut -d',' -f1 | xargs)
+    for combo in "${COMBINATIONS[@]}"; do
+        # Extract providers from each combination (format: llm:embedding or llm:embedding:vectordb:storage)
+        IFS=':' read -r llm_provider embedding_provider <<< "$combo"
+        
+        # Trim whitespace
+        llm_provider=$(echo "$llm_provider" | xargs)
+        embedding_provider=$(echo "$embedding_provider" | xargs)
+        
+        # Collect unique providers needed
+        if [[ ! " ${providers_needed_llm[@]} " =~ " ${llm_provider} " ]]; then
+            providers_needed_llm+=("$llm_provider")
+        fi
+        if [[ ! " ${providers_needed_embedding[@]} " =~ " ${embedding_provider} " ]]; then
+            providers_needed_embedding+=("$embedding_provider")
+        fi
+    done
+    
+    # Check API keys for all unique LLM providers needed
+    for llm_provider in "${providers_needed_llm[@]}"; do
     
     # Check LLM provider API key
     case "$llm_provider" in
@@ -194,8 +212,8 @@ check_provider_api_keys() {
             ;;
     esac
     
-    # Check Embedding provider API key
-    case "$embedding_provider" in
+    # Check API keys for all unique Embedding providers needed
+    for embedding_provider in "${providers_needed_embedding[@]}"; do
         openai)
             if [ -z "$OPENAI_API_KEY" ]; then
                 missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)")
@@ -241,6 +259,7 @@ check_provider_api_keys() {
             print_warning "Unknown Embedding provider: $embedding_provider (skipping API key check)"
             ;;
     esac
+    done
     
     # Report results
     if [ ${#missing_keys[@]} -gt 0 ]; then
