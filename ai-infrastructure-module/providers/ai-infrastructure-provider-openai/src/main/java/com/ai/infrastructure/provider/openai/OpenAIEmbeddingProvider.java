@@ -44,6 +44,12 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             log.info("Initializing OpenAI Embedding Provider");
             
             AIProviderConfig.OpenAIConfig openai = config.getOpenai();
+            
+            // Debug: Log all OpenAI config values
+            log.info("OpenAI Config - embeddingModel: {}, embeddingDimensions: {}, apiKey: {}", 
+                openai.getEmbeddingModel(), 
+                openai.getEmbeddingDimensions(),
+                openai.getApiKey() != null ? "***" : "null");
 
             if (openai.getApiKey() == null || openai.getApiKey().trim().isEmpty()) {
                 log.warn("OpenAI API key not configured. Provider will not be available.");
@@ -73,7 +79,16 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                         log.info("Using dimension reduction: {} dimensions", requestedDimensions);
                         embeddingDimension = requestedDimensions;
                     } catch (NoSuchMethodException e) {
-                        log.warn("Dimension reduction not supported by OpenAI library version. Using default dimensions.");
+                        // Library doesn't support dimensions() method, try setting field directly via reflection
+                        try {
+                            java.lang.reflect.Field dimensionsField = builder.getClass().getDeclaredField("dimensions");
+                            dimensionsField.setAccessible(true);
+                            dimensionsField.set(builder, requestedDimensions);
+                            log.info("Using dimension reduction via reflection: {} dimensions", requestedDimensions);
+                            embeddingDimension = requestedDimensions;
+                        } catch (NoSuchFieldException | IllegalAccessException ex) {
+                            log.warn("Dimension reduction not supported by OpenAI library version. Library may need update. Using default dimensions.");
+                        }
                     } catch (Exception e) {
                         log.warn("Failed to apply dimension reduction: {}", e.getMessage(), e);
                     }
@@ -135,7 +150,14 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                 try {
                     builder.getClass().getMethod("dimensions", Integer.class).invoke(builder, requestedDimensions);
                 } catch (NoSuchMethodException e) {
-                    // Dimension reduction not supported, will use default
+                    // Try setting field directly via reflection
+                    try {
+                        java.lang.reflect.Field dimensionsField = builder.getClass().getDeclaredField("dimensions");
+                        dimensionsField.setAccessible(true);
+                        dimensionsField.set(builder, requestedDimensions);
+                    } catch (NoSuchFieldException | IllegalAccessException ex) {
+                        // Dimension reduction not supported, will use default
+                    }
                 } catch (Exception e) {
                     log.warn("Failed to apply dimension reduction: {}", e.getMessage());
                 }
@@ -186,7 +208,14 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                 try {
                     builder.getClass().getMethod("dimensions", Integer.class).invoke(builder, requestedDimensions);
                 } catch (NoSuchMethodException e) {
-                    // Dimension reduction not supported, will use default
+                    // Try setting field directly via reflection
+                    try {
+                        java.lang.reflect.Field dimensionsField = builder.getClass().getDeclaredField("dimensions");
+                        dimensionsField.setAccessible(true);
+                        dimensionsField.set(builder, requestedDimensions);
+                    } catch (NoSuchFieldException | IllegalAccessException ex) {
+                        // Dimension reduction not supported, will use default
+                    }
                 } catch (Exception e) {
                     log.warn("Failed to apply dimension reduction: {}", e.getMessage());
                 }
