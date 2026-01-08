@@ -43,6 +43,13 @@ ai-entities:
     embeddable-fields:
       - name: body
       - name: title
+    metadata-fields:
+      - name: author
+        type: STRING
+      - name: publishDate
+        type: DATE
+      - name: published
+        type: BOOLEAN
   test-user:
     features: ["embedding", "search"]
     enable-search: true
