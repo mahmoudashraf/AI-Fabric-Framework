@@ -199,6 +199,13 @@ abstract class AbstractProviderMatrixIntegrationTest {
             props.put("ai.providers.openai.enabled", true); // Use boolean, not string
         }
         
+        String geminiKey = System.getenv("GEMINI_API_KEY");
+        if (geminiKey != null && !geminiKey.trim().isEmpty()) {
+            props.put("ai.providers.gemini.api-key", geminiKey);
+            props.put("ai.providers.gemini.apiKey", geminiKey); // Also set camelCase
+            props.put("ai.providers.gemini.enabled", true); // Use boolean, not string
+        }
+        
         return props;
     }
 

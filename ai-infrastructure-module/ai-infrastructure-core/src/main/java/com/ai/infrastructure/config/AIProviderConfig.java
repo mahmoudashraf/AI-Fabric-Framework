@@ -47,6 +47,7 @@ public class AIProviderConfig {
     private final AzureConfig azure = new AzureConfig();
     private final AnthropicConfig anthropic = new AnthropicConfig();
     private final CohereConfig cohere = new CohereConfig();
+    private final GeminiConfig gemini = new GeminiConfig();
     private final ONNXConfig onnx = new ONNXConfig();
     private final RestConfig rest = new RestConfig();
     private final PineconeConfig pinecone = new PineconeConfig();
@@ -64,6 +65,7 @@ public class AIProviderConfig {
         return switch (provider) {
             case "anthropic" -> anthropic.toGenerationDefaults("anthropic");
             case "cohere" -> cohere.toGenerationDefaults("cohere");
+            case "gemini" -> gemini.toGenerationDefaults("gemini");
             case "azure" -> azure.toGenerationDefaults("azure");
             case "openai" ->
                 openai.toGenerationDefaults("openai");
@@ -81,6 +83,7 @@ public class AIProviderConfig {
         return switch (provider) {
             case "openai" -> openai.toEmbeddingDefaults("openai");
             case "azure" -> azure.toEmbeddingDefaults("azure");
+            case "gemini" -> gemini.toEmbeddingDefaults("gemini");
             case "rest" -> rest.toEmbeddingDefaults("rest");
             case "onnx" ->
                 onnx.toEmbeddingDefaults("onnx");
@@ -204,6 +207,34 @@ public class AIProviderConfig {
                 timeout,
                 priority
             );
+        }
+    }
+
+    @Data
+    public static class GeminiConfig {
+        private boolean enabled;
+        private String apiKey;
+        private String baseUrl;
+        private String model;
+        private String embeddingModel;
+        private Integer maxTokens;
+        private Double temperature;
+        private Integer timeout;
+        private Integer priority;
+
+        GenerationDefaults toGenerationDefaults(String providerName) {
+            return new GenerationDefaults(
+                providerName,
+                model,
+                maxTokens,
+                temperature,
+                timeout,
+                priority
+            );
+        }
+
+        EmbeddingDefaults toEmbeddingDefaults(String providerName) {
+            return new EmbeddingDefaults(providerName, embeddingModel);
         }
     }
 
