@@ -201,6 +201,131 @@ jobs:
           azure_deployment_name: ${{ github.event.inputs.azure_deployment_name }}
           azure_embedding_deployment_name: ${{ github.event.inputs.azure_embedding_deployment_name }}
 
+      - name: Gather Test Execution Evidence
+        id: gather_evidence
+        run: |
+          mkdir -p test-evidence
+          
+          # Create evidence file with timestamp and configuration
+          EVIDENCE_FILE="test-evidence/execution-evidence-$(date +%Y%m%d-%H%M%S).json"
+          
+          cat > "$EVIDENCE_FILE" << EOF
+          {
+            "execution": {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "workflow_run_id": "${{ github.run_id }}",
+              "workflow_run_number": "${{ github.run_number }}",
+              "triggered_by": "${{ github.actor }}",
+              "commit_sha": "${{ github.sha }}",
+              "branch": "${{ github.ref_name }}"
+            },
+            "modules": {
+              "selected": "${{ github.event.inputs.modules }}",
+              "tested": []
+            },
+            "providers": {
+              "llm": {
+                "name": "${{ github.event.inputs.llm_provider }}",
+                "configured": true
+              },
+              "embedding": {
+                "name": "${{ github.event.inputs.embedding_provider }}",
+                "configured": true
+              },
+              "vector_database": "${{ github.event.inputs.vector_database }}",
+              "persistence_database": "${{ github.event.inputs.persistence_database }}",
+              "storage_strategy": "${{ github.event.inputs.storage_strategy }}"
+            },
+            "test_configuration": {
+              "test_chunk": "${{ github.event.inputs.test_chunk }}",
+              "timeout_minutes": "${{ github.event.inputs.timeout_minutes }}",
+              "logging_level": "${{ github.event.inputs.logging_level }}"
+            },
+            "api_keys_provided": {
+              "openai": ${{ github.event.inputs.openai_api_key != '' && 'true' || 'false' }},
+              "anthropic": ${{ github.event.inputs.anthropic_api_key != '' && 'true' || 'false' }},
+              "gemini": ${{ github.event.inputs.gemini_api_key != '' && 'true' || 'false' }},
+              "cohere": ${{ github.event.inputs.cohere_api_key != '' && 'true' || 'false' }},
+              "azure": ${{ github.event.inputs.azure_api_key != '' && 'true' || 'false' }}
+            },
+            "azure_configuration": {
+              "endpoint_provided": ${{ github.event.inputs.azure_endpoint != '' && 'true' || 'false' }},
+              "deployment_name_provided": ${{ github.event.inputs.azure_deployment_name != '' && 'true' || 'false' }},
+              "embedding_deployment_name_provided": ${{ github.event.inputs.azure_embedding_deployment_name != '' && 'true' || 'false' }}
+            }
+          }
+          EOF
+          
+          # Also create human-readable summary
+          SUMMARY_FILE="test-evidence/execution-summary-$(date +%Y%m%d-%H%M%S).md"
+          
+          cat > "$SUMMARY_FILE" << EOF
+          # Test Execution Evidence
+          
+          **Execution Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Workflow Run**: #${{ github.run_number }} ([View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))
+          **Triggered By**: @${{ github.actor }}
+          **Commit**: \`${{ github.sha }}\`
+          **Branch**: \`${{ github.ref_name }}\`
+          
+          ## Modules Tested
+          
+          - **Selected**: \`${{ github.event.inputs.modules }}\`
+          
+          ## Provider Configuration
+          
+          ### LLM Provider
+          - **Provider**: \`${{ github.event.inputs.llm_provider }}\`
+          - **Configured**: ✅ Yes
+          
+          ### Embedding Provider
+          - **Provider**: \`${{ github.event.inputs.embedding_provider }}\`
+          - **Configured**: ✅ Yes
+          
+          ### Vector Database
+          - **Type**: \`${{ github.event.inputs.vector_database }}\`
+          
+          ### Persistence Database
+          - **Type**: \`${{ github.event.inputs.persistence_database }}\`
+          
+          ### Storage Strategy
+          - **Strategy**: \`${{ github.event.inputs.storage_strategy }}\`
+          
+          ## Test Configuration
+          
+          - **Test Chunk**: \`${{ github.event.inputs.test_chunk }}\`
+          - **Timeout**: \`${{ github.event.inputs.timeout_minutes }}\` minutes
+          - **Logging Level**: \`${{ github.event.inputs.logging_level }}\`
+          
+          ## API Keys Provided
+          
+          | Provider | API Key Provided |
+          |----------|------------------|
+          | OpenAI | ${{ github.event.inputs.openai_api_key != '' && '✅ Yes' || '❌ No' }} |
+          | Anthropic | ${{ github.event.inputs.anthropic_api_key != '' && '✅ Yes' || '❌ No' }} |
+          | Gemini | ${{ github.event.inputs.gemini_api_key != '' && '✅ Yes' || '❌ No' }} |
+          | Cohere | ${{ github.event.inputs.cohere_api_key != '' && '✅ Yes' || '❌ No' }} |
+          | Azure | ${{ github.event.inputs.azure_api_key != '' && '✅ Yes' || '❌ No' }} |
+          
+          ## Azure Configuration (if applicable)
+          
+          ${{ github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure' && '### Azure Settings' || 'N/A' }}
+          ${{ github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure' && '- **Endpoint Provided**: ' || '' }}${{ github.event.inputs.azure_endpoint != '' && github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure' && '✅ Yes' || '' }}
+          ${{ github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure' && '- **Deployment Name Provided**: ' || '' }}${{ github.event.inputs.azure_deployment_name != '' && github.event.inputs.llm_provider == 'azure' && '✅ Yes' || '' }}
+          ${{ github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure' && '- **Embedding Deployment Name Provided**: ' || '' }}${{ github.event.inputs.azure_embedding_deployment_name != '' && github.event.inputs.embedding_provider == 'azure' && '✅ Yes' || '' }}
+          
+          ---
+          
+          *This evidence file was automatically generated by the GitHub Actions workflow.*
+          EOF
+          
+          echo "evidence_file=$EVIDENCE_FILE" >> $GITHUB_OUTPUT
+          echo "summary_file=$SUMMARY_FILE" >> $GITHUB_OUTPUT
+          echo "Evidence files created: $EVIDENCE_FILE and $SUMMARY_FILE"
+          
+          # Display summary
+          cat "$SUMMARY_FILE"
+
       - name: Run Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/integration-tests
@@ -218,6 +343,37 @@ jobs:
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
 
+      - name: Update Evidence with Test Results
+        if: always()
+        run: |
+          EVIDENCE_FILE=$(find test-evidence -name "execution-evidence-*.json" | head -1)
+          if [ -f "$EVIDENCE_FILE" ]; then
+            # Update evidence with test results
+            if [ -d "ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports" ]; then
+              TEST_RESULTS=$(find ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports -name "*.xml" | wc -l)
+              echo "Test result files found: $TEST_RESULTS"
+            fi
+            
+            # Mark module as tested
+            python3 << 'PYTHON_SCRIPT'
+          import json
+          import sys
+          import os
+          
+          evidence_file = os.environ.get('EVIDENCE_FILE')
+          if evidence_file and os.path.exists(evidence_file):
+              with open(evidence_file, 'r') as f:
+                  evidence = json.load(f)
+              
+              # Mark module as tested
+              if "${{ github.event.inputs.modules }}" == "all" or "${{ github.event.inputs.modules }}" == "ai-infrastructure":
+                  evidence["modules"]["tested"].append("ai-infrastructure")
+              
+              with open(evidence_file, 'w') as f:
+                  json.dump(evidence, f, indent=2)
+          PYTHON_SCRIPT
+          fi
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -227,6 +383,15 @@ jobs:
             ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/
             ai-infrastructure-module/integration-Testing/integration-tests/target/failsafe-reports/
           retention-days: 30
+
+      - name: Upload test execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-execution-evidence
+          path: test-evidence/
+          retention-days: 90
+          if-no-files-found: warn
 
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
@@ -292,6 +457,32 @@ jobs:
         run: |
           cd ai-infrastructure-module
           mvn clean install -DskipTests -B -V
+
+      - name: Gather Test Execution Evidence
+        id: gather_evidence_rq
+        run: |
+          mkdir -p test-evidence
+          
+          # Create evidence file for relationship-query module
+          EVIDENCE_FILE="test-evidence/relationship-query-evidence-$(date +%Y%m%d-%H%M%S).json"
+          
+          cat > "$EVIDENCE_FILE" << EOF
+          {
+            "module": "relationship-query",
+            "execution": {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "workflow_run_id": "${{ github.run_id }}",
+              "triggered_by": "${{ github.actor }}"
+            },
+            "providers": {
+              "llm": "${{ github.event.inputs.llm_provider }}",
+              "embedding": "${{ github.event.inputs.embedding_provider }}",
+              "vector_database": "${{ github.event.inputs.vector_database }}"
+            }
+          }
+          EOF
+          
+          echo "evidence_file=$EVIDENCE_FILE" >> $GITHUB_OUTPUT
 
       - name: Run Relationship Query Integration Tests (Real API)
         run: |
@@ -366,6 +557,32 @@ jobs:
           cd ai-infrastructure-module
           mvn clean install -DskipTests -B -V
 
+      - name: Gather Test Execution Evidence
+        id: gather_evidence_behavior
+        run: |
+          mkdir -p test-evidence
+          
+          # Create evidence file for behavior module
+          EVIDENCE_FILE="test-evidence/behavior-evidence-$(date +%Y%m%d-%H%M%S).json"
+          
+          cat > "$EVIDENCE_FILE" << EOF
+          {
+            "module": "behavior",
+            "execution": {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "workflow_run_id": "${{ github.run_id }}",
+              "triggered_by": "${{ github.actor }}"
+            },
+            "providers": {
+              "llm": "${{ github.event.inputs.llm_provider }}",
+              "embedding": "${{ github.event.inputs.embedding_provider }}",
+              "vector_database": "${{ github.event.inputs.vector_database }}"
+            }
+          }
+          EOF
+          
+          echo "evidence_file=$EVIDENCE_FILE" >> $GITHUB_OUTPUT
+
       - name: Run Behavior Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/behavior-integration-tests
@@ -415,11 +632,92 @@ jobs:
         with:
           path: test-reports
 
+      - name: Aggregate Test Execution Evidence
+        run: |
+          # Aggregate evidence from all modules
+          AGGREGATED_EVIDENCE="test-evidence/aggregated-evidence-$(date +%Y%m%d-%H%M%S).json"
+          
+          python3 << 'PYTHON_SCRIPT'
+          import json
+          import os
+          from pathlib import Path
+          from datetime import datetime
+          
+          evidence_dir = Path("test-evidence")
+          aggregated = {
+              "workflow_run": {
+                  "id": "${{ github.run_id }}",
+                  "number": "${{ github.run_number }}",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                  "triggered_by": "${{ github.actor }}",
+                  "commit_sha": "${{ github.sha }}",
+                  "branch": "${{ github.ref_name }}",
+                  "timestamp": datetime.utcnow().isoformat() + "Z"
+              },
+              "modules_tested": [],
+              "providers_used": {
+                  "llm": "${{ github.event.inputs.llm_provider }}",
+                  "embedding": "${{ github.event.inputs.embedding_provider }}",
+                  "vector_database": "${{ github.event.inputs.vector_database }}",
+                  "persistence_database": "${{ github.event.inputs.persistence_database }}",
+                  "storage_strategy": "${{ github.event.inputs.storage_strategy }}"
+              },
+              "test_configuration": {
+                  "test_chunk": "${{ github.event.inputs.test_chunk }}",
+                  "timeout_minutes": "${{ github.event.inputs.timeout_minutes }}",
+                  "logging_level": "${{ github.event.inputs.logging_level }}"
+              },
+              "api_keys_provided": {
+                  "openai": ${{ github.event.inputs.openai_api_key != '' && 'true' || 'false' }},
+                  "anthropic": ${{ github.event.inputs.anthropic_api_key != '' && 'true' || 'false' }},
+                  "gemini": ${{ github.event.inputs.gemini_api_key != '' && 'true' || 'false' }},
+                  "cohere": ${{ github.event.inputs.cohere_api_key != '' && 'true' || 'false' }},
+                  "azure": ${{ github.event.inputs.azure_api_key != '' && 'true' || 'false' }}
+              },
+              "test_results": {
+                  "ai_infrastructure": "${{ needs.ai-infrastructure-tests.result }}",
+                  "relationship_query": "${{ needs.relationship-query-tests.result }}",
+                  "behavior": "${{ needs.behavior-tests.result }}"
+              }
+          }
+          
+          # Collect evidence from individual module files
+          if evidence_dir.exists():
+              for evidence_file in evidence_dir.glob("*-evidence-*.json"):
+                  try:
+                      with open(evidence_file, 'r') as f:
+                          module_evidence = json.load(f)
+                          if "module" in module_evidence:
+                              aggregated["modules_tested"].append(module_evidence["module"])
+                  except Exception as e:
+                      print(f"Error reading {evidence_file}: {e}")
+          
+          # Add modules based on workflow inputs
+          if "${{ github.event.inputs.modules }}" == "all" or "${{ github.event.inputs.modules }}" == "ai-infrastructure":
+              if "ai-infrastructure" not in aggregated["modules_tested"]:
+                  aggregated["modules_tested"].append("ai-infrastructure")
+          if "${{ github.event.inputs.modules }}" == "all" or "${{ github.event.inputs.modules }}" == "relationship-query":
+              if "relationship-query" not in aggregated["modules_tested"]:
+                  aggregated["modules_tested"].append("relationship-query")
+          if "${{ github.event.inputs.modules }}" == "all" or "${{ github.event.inputs.modules }}" == "behavior":
+              if "behavior" not in aggregated["modules_tested"]:
+                  aggregated["modules_tested"].append("behavior")
+          
+          # Write aggregated evidence
+          with open("test-evidence/aggregated-evidence.json", 'w') as f:
+              json.dump(aggregated, f, indent=2)
+          
+          print("Aggregated evidence created: test-evidence/aggregated-evidence.json")
+          print(json.dumps(aggregated, indent=2))
+          PYTHON_SCRIPT
+
       - name: Create Test Summary
         run: |
           echo "# 🧪 Integration Tests Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Modules tested:** ${{ github.event.inputs.modules }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Configuration" >> $GITHUB_STEP_SUMMARY
@@ -427,6 +725,17 @@ jobs:
           echo "- **Embedding Provider:** ${{ github.event.inputs.embedding_provider }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Vector Database:** ${{ github.event.inputs.vector_database }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Persistence Database:** ${{ github.event.inputs.persistence_database }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Storage Strategy:** ${{ github.event.inputs.storage_strategy }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Chunk:** ${{ github.event.inputs.test_chunk }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### API Keys Provided" >> $GITHUB_STEP_SUMMARY
+          echo "| Provider | Provided |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| OpenAI | ${{ github.event.inputs.openai_api_key != '' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Anthropic | ${{ github.event.inputs.anthropic_api_key != '' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gemini | ${{ github.event.inputs.gemini_api_key != '' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cohere | ${{ github.event.inputs.cohere_api_key != '' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Azure | ${{ github.event.inputs.azure_api_key != '' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -465,6 +774,17 @@ jobs:
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📊 **View detailed reports in the artifacts section**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📋 **Test execution evidence available in artifacts** (test-execution-evidence)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload aggregated test execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-execution-evidence-aggregated
+          path: test-evidence/aggregated-evidence.json
+          retention-days: 90
+          if-no-files-found: warn
 
       - name: Check overall test status
         run: |
@@ -479,4 +799,30 @@ jobs:
             exit 1
           else
             echo "✅ All test jobs passed or were skipped"
+          fi
+          
+          # Display evidence summary
+          if [ -f "test-evidence/aggregated-evidence.json" ]; then
+            echo ""
+            echo "📋 Test Execution Evidence Summary:"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            python3 << 'PYTHON_SCRIPT'
+          import json
+          import sys
+          
+          try:
+              with open("test-evidence/aggregated-evidence.json", 'r') as f:
+                  evidence = json.load(f)
+              
+              print(f"Modules Tested: {', '.join(evidence.get('modules_tested', []))}")
+              print(f"LLM Provider: {evidence.get('providers_used', {}).get('llm', 'N/A')}")
+              print(f"Embedding Provider: {evidence.get('providers_used', {}).get('embedding', 'N/A')}")
+              print(f"Vector Database: {evidence.get('providers_used', {}).get('vector_database', 'N/A')}")
+              print(f"Test Results: AI Infrastructure={evidence.get('test_results', {}).get('ai_infrastructure', 'N/A')}, "
+                    f"Relationship Query={evidence.get('test_results', {}).get('relationship_query', 'N/A')}, "
+                    f"Behavior={evidence.get('test_results', {}).get('behavior', 'N/A')}")
+          except Exception as e:
+              print(f"Error reading evidence: {e}")
+          PYTHON_SCRIPT
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           fi
