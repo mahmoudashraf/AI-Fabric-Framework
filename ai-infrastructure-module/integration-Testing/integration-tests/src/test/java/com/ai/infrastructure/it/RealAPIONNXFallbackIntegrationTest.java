@@ -148,16 +148,6 @@ public class RealAPIONNXFallbackIntegrationTest {
         
         OrchestrationResult result1 = orchestrator.orchestrate(query1, userId1);
         assertNotNull(result1);
-        // Some LLM providers (e.g., Anthropic) may return non-JSON responses causing intent extraction to fail
-        // This is a known compatibility issue - log a warning but allow test to continue with partial validation
-        if (!result1.isSuccess()) {
-            System.out.println("WARNING: Orchestration not successful. This may be due to provider-specific issues " +
-                "(e.g., Anthropic returning non-JSON responses for intent extraction). " +
-                "Result type: " + result1.getType() + ", Message: " + result1.getMessage());
-            // For provider compatibility, we'll skip the strict success check but continue with other validations
-            // This allows the test to validate ONNX embedding functionality even if LLM intent extraction fails
-            return;
-        }
         assertThat(result1.isSuccess()).isTrue();
         
         System.out.println("✅ Orchestration completed successfully");

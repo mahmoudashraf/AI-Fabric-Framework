@@ -86,13 +86,11 @@ public class AnthropicProvider implements AIProvider {
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
             
-            // Build messages list - if system prompt is present, add it; otherwise just user message
-            List<Map<String, Object>> messages = new java.util.ArrayList<>();
+            // Anthropic API requires system prompt as a top-level "system" parameter, not as a message role
+            String systemPrompt = request.getSystemPrompt() != null ? request.getSystemPrompt() : "";
             
             // For intent extraction, enhance the system prompt to be very explicit about JSON-only responses
             if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
-                String baseSystemPrompt = request.getSystemPrompt() != null ? request.getSystemPrompt() : "";
-                
                 // Always prepend explicit JSON-only instruction at the beginning of system prompt
                 // This ensures Anthropic understands it must return pure JSON
                 String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
@@ -100,21 +98,20 @@ public class AnthropicProvider implements AIProvider {
                     "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
                     "Just the raw JSON object. If you include any text other than JSON, the response will fail to parse.\n\n";
                 
-                String enhancedSystemPrompt = jsonInstruction + baseSystemPrompt;
+                systemPrompt = jsonInstruction + systemPrompt;
                 
-                log.info("Enhanced system prompt for intent extraction with JSON-only requirement (length: {})", enhancedSystemPrompt.length());
-                log.debug("Enhanced system prompt preview: {}", enhancedSystemPrompt.substring(0, Math.min(200, enhancedSystemPrompt.length())));
-                messages.add(Map.of("role", "system", "content", enhancedSystemPrompt));
-                
-                // Keep user prompt as-is (it already references the system prompt format)
-                messages.add(Map.of("role", "user", "content", request.getPrompt()));
-            } else {
-                // For non-intent-extraction requests, use system prompt as-is
-                if (request.getSystemPrompt() != null && !request.getSystemPrompt().trim().isEmpty()) {
-                    messages.add(Map.of("role", "system", "content", request.getSystemPrompt()));
-                }
-                messages.add(Map.of("role", "user", "content", request.getPrompt()));
+                log.info("Enhanced system prompt for intent extraction with JSON-only requirement (length: {})", systemPrompt.length());
+                log.debug("Enhanced system prompt preview: {}", systemPrompt.substring(0, Math.min(200, systemPrompt.length())));
             }
+            
+            // Set system prompt as top-level parameter (Anthropic API requirement)
+            if (!systemPrompt.trim().isEmpty()) {
+                requestBody.put("system", systemPrompt);
+            }
+            
+            // Build messages list - only user messages, no system role (Anthropic doesn't allow system role in messages)
+            List<Map<String, Object>> messages = new java.util.ArrayList<>();
+            messages.add(Map.of("role", "user", "content", request.getPrompt()));
             requestBody.put("messages", messages);
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
