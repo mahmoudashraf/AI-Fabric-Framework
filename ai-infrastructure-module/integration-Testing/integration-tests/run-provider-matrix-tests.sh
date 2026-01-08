@@ -210,9 +210,12 @@ check_provider_api_keys() {
             print_warning "Unknown LLM provider: $llm_provider (skipping API key check)"
             ;;
     esac
+    done
     
     # Check API keys for all unique Embedding providers needed
     for embedding_provider in "${providers_needed_embedding[@]}"; do
+        # Check Embedding provider API key
+        case "$embedding_provider" in
         openai)
             if [ -z "$OPENAI_API_KEY" ]; then
                 missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)")
