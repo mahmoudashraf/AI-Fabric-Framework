@@ -128,6 +128,18 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
     @Override
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
         try {
+            AIProviderConfig.OpenAIConfig openai = config.getOpenai();
+            Integer requestedDimensions = openai.getEmbeddingDimensions();
+            
+            // Use direct HTTP call if dimension reduction is needed (library doesn't support it)
+            // Skip availability check for HTTP calls as they don't need the library service
+            if (useDirectHttp && requestedDimensions != null) {
+                long startTime = System.currentTimeMillis();
+                log.debug("Generating embedding using OpenAI via HTTP for text: {}", request.getText());
+                return generateEmbeddingViaHttp(request, requestedDimensions, startTime);
+            }
+            
+            // For library-based calls, check availability
             if (!isAvailable()) {
                 throw new AIServiceException("OpenAI Embedding Provider is not available");
             }
@@ -135,14 +147,6 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             log.debug("Generating embedding using OpenAI for text: {}", request.getText());
             
             long startTime = System.currentTimeMillis();
-            
-            AIProviderConfig.OpenAIConfig openai = config.getOpenai();
-            Integer requestedDimensions = openai.getEmbeddingDimensions();
-            
-            // Use direct HTTP call if dimension reduction is needed (library doesn't support it)
-            if (useDirectHttp && requestedDimensions != null) {
-                return generateEmbeddingViaHttp(request, requestedDimensions, startTime);
-            }
             
             // Use library for standard requests
             EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
