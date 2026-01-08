@@ -187,6 +187,20 @@ jobs:
           # This workflow focuses on integration tests with real APIs
           mvn clean install -DskipTests -B -V
 
+      - name: Validate Provider Availability
+        uses: ./.github/actions/configure-providers
+        with:
+          llm_provider: ${{ github.event.inputs.llm_provider }}
+          embedding_provider: ${{ github.event.inputs.embedding_provider }}
+          openai_api_key: ${{ github.event.inputs.openai_api_key }}
+          anthropic_api_key: ${{ github.event.inputs.anthropic_api_key }}
+          gemini_api_key: ${{ github.event.inputs.gemini_api_key }}
+          cohere_api_key: ${{ github.event.inputs.cohere_api_key }}
+          azure_api_key: ${{ github.event.inputs.azure_api_key }}
+          azure_endpoint: ${{ github.event.inputs.azure_endpoint }}
+          azure_deployment_name: ${{ github.event.inputs.azure_deployment_name }}
+          azure_embedding_deployment_name: ${{ github.event.inputs.azure_embedding_deployment_name }}
+
       - name: Run Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/integration-tests

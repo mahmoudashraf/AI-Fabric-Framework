@@ -1,0 +1,146 @@
+name: 'Configure Providers'
+description: 'Configure provider environment variables from workflow inputs'
+
+inputs:
+  llm_provider:
+    description: 'LLM Provider name'
+    required: true
+  embedding_provider:
+    description: 'Embedding Provider name'
+    required: true
+  openai_api_key:
+    description: 'OpenAI API Key'
+    required: false
+  anthropic_api_key:
+    description: 'Anthropic API Key'
+    required: false
+  gemini_api_key:
+    description: 'Gemini API Key'
+    required: false
+  cohere_api_key:
+    description: 'Cohere API Key'
+    required: false
+  azure_api_key:
+    description: 'Azure API Key'
+    required: false
+  azure_endpoint:
+    description: 'Azure Endpoint URL'
+    required: false
+  azure_deployment_name:
+    description: 'Azure Deployment Name'
+    required: false
+  azure_embedding_deployment_name:
+    description: 'Azure Embedding Deployment Name'
+    required: false
+
+outputs:
+  llm_provider:
+    description: 'Configured LLM provider'
+    value: ${{ inputs.llm_provider }}
+  embedding_provider:
+    description: 'Configured embedding provider'
+    value: ${{ inputs.embedding_provider }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set LLM Provider
+      shell: bash
+      run: |
+        echo "LLM_PROVIDER=${{ inputs.llm_provider }}" >> $GITHUB_ENV
+        echo "ai.providers.llm-provider=${{ inputs.llm_provider }}" >> $GITHUB_ENV
+        echo "✅ Configured LLM provider: ${{ inputs.llm_provider }}"
+    
+    - name: Set Embedding Provider
+      shell: bash
+      run: |
+        echo "EMBEDDING_PROVIDER=${{ inputs.embedding_provider }}" >> $GITHUB_ENV
+        echo "ai.providers.embedding-provider=${{ inputs.embedding_provider }}" >> $GITHUB_ENV
+        echo "✅ Configured Embedding provider: ${{ inputs.embedding_provider }}"
+    
+    - name: Configure OpenAI
+      if: inputs.llm_provider == 'openai' || inputs.embedding_provider == 'openai'
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.openai_api_key }}" ]; then
+          echo "OPENAI_API_KEY=${{ inputs.openai_api_key }}" >> $GITHUB_ENV
+          echo "✅ Configured OpenAI API key"
+        else
+          echo "⚠️  WARNING: OpenAI selected but no API key provided"
+        fi
+    
+    - name: Configure Anthropic
+      if: inputs.llm_provider == 'anthropic' || inputs.embedding_provider == 'anthropic'
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.anthropic_api_key }}" ]; then
+          echo "ANTHROPIC_API_KEY=${{ inputs.anthropic_api_key }}" >> $GITHUB_ENV
+          echo "✅ Configured Anthropic API key"
+        else
+          echo "⚠️  WARNING: Anthropic selected but no API key provided"
+        fi
+    
+    - name: Configure Gemini
+      if: inputs.llm_provider == 'gemini' || inputs.embedding_provider == 'gemini'
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.gemini_api_key }}" ]; then
+          echo "GEMINI_API_KEY=${{ inputs.gemini_api_key }}" >> $GITHUB_ENV
+          echo "✅ Configured Gemini API key"
+        else
+          echo "⚠️  WARNING: Gemini selected but no API key provided"
+        fi
+    
+    - name: Configure Cohere
+      if: inputs.llm_provider == 'cohere' || inputs.embedding_provider == 'cohere'
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.cohere_api_key }}" ]; then
+          echo "COHERE_API_KEY=${{ inputs.cohere_api_key }}" >> $GITHUB_ENV
+          echo "✅ Configured Cohere API key"
+        else
+          echo "⚠️  WARNING: Cohere selected but no API key provided"
+        fi
+    
+    - name: Configure Azure
+      if: inputs.llm_provider == 'azure' || inputs.embedding_provider == 'azure'
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.azure_api_key }}" ]; then
+          echo "AZURE_API_KEY=${{ inputs.azure_api_key }}" >> $GITHUB_ENV
+          echo "✅ Configured Azure API key"
+        else
+          echo "⚠️  WARNING: Azure selected but no API key provided"
+        fi
+        
+        if [ -n "${{ inputs.azure_endpoint }}" ]; then
+          echo "AZURE_ENDPOINT=${{ inputs.azure_endpoint }}" >> $GITHUB_ENV
+          echo "✅ Configured Azure endpoint"
+        else
+          echo "⚠️  WARNING: Azure selected but no endpoint provided"
+        fi
+        
+        if [ "${{ inputs.llm_provider }}" == "azure" ] && [ -n "${{ inputs.azure_deployment_name }}" ]; then
+          echo "AZURE_DEPLOYMENT_NAME=${{ inputs.azure_deployment_name }}" >> $GITHUB_ENV
+          echo "✅ Configured Azure LLM deployment name"
+        fi
+        
+        if [ "${{ inputs.embedding_provider }}" == "azure" ] && [ -n "${{ inputs.azure_embedding_deployment_name }}" ]; then
+          echo "AZURE_EMBEDDING_DEPLOYMENT_NAME=${{ inputs.azure_embedding_deployment_name }}" >> $GITHUB_ENV
+          echo "✅ Configured Azure embedding deployment name"
+        fi
+    
+    - name: Validate Provider Configuration
+      shell: bash
+      run: |
+        echo "📋 Provider Configuration Summary:"
+        echo "  LLM Provider: ${{ inputs.llm_provider }}"
+        echo "  Embedding Provider: ${{ inputs.embedding_provider }}"
+        echo ""
+        echo "Environment variables set:"
+        [ -n "$OPENAI_API_KEY" ] && echo "  ✅ OPENAI_API_KEY" || echo "  ⏭️  OPENAI_API_KEY (not set)"
+        [ -n "$ANTHROPIC_API_KEY" ] && echo "  ✅ ANTHROPIC_API_KEY" || echo "  ⏭️  ANTHROPIC_API_KEY (not set)"
+        [ -n "$GEMINI_API_KEY" ] && echo "  ✅ GEMINI_API_KEY" || echo "  ⏭️  GEMINI_API_KEY (not set)"
+        [ -n "$COHERE_API_KEY" ] && echo "  ✅ COHERE_API_KEY" || echo "  ⏭️  COHERE_API_KEY (not set)"
+        [ -n "$AZURE_API_KEY" ] && echo "  ✅ AZURE_API_KEY" || echo "  ⏭️  AZURE_API_KEY (not set)"
+        [ -n "$AZURE_ENDPOINT" ] && echo "  ✅ AZURE_ENDPOINT" || echo "  ⏭️  AZURE_ENDPOINT (not set)"
