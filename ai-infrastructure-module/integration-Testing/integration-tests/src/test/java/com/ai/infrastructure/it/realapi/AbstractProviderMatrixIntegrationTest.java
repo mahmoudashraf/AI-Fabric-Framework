@@ -45,7 +45,7 @@ import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
  */
 abstract class AbstractProviderMatrixIntegrationTest {
 
-    private static final Logger log = LoggerFactory.getLogger(AbstractProviderMatrixIntegrationTest.class);
+    protected static final Logger log = LoggerFactory.getLogger(AbstractProviderMatrixIntegrationTest.class);
 
     private static final String VECTORDB_PROPERTY = "ai.vector-db.type";
     private static final String STORAGE_STRATEGY_PROPERTY = "ai-infrastructure.storage.strategy";
