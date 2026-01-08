@@ -161,6 +161,15 @@ cd "$SCRIPT_DIR"
 MAVEN_COMMAND="mvn -P${MAVEN_PROFILE}"
 MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
 MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
+
+# Auto-configure OpenAI embedding dimensions for Lucene compatibility
+# OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
+# Check if we're using OpenAI embeddings with Lucene vector database
+if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-dimensions=512"
+    print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility"
+fi
+
 MAVEN_COMMAND="$MAVEN_COMMAND failsafe:integration-test failsafe:verify"
 
 # Optional debug flag

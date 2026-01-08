@@ -215,6 +215,25 @@ if [ -n "$AI_INFRASTRUCTURE_STORAGE_STRATEGY" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai-infrastructure.storage.strategy=$AI_INFRASTRUCTURE_STORAGE_STRATEGY"
 fi
 
+# Auto-configure OpenAI embedding dimensions for Lucene compatibility
+# OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
+# Check if we're using OpenAI embeddings with Lucene vector database
+# Matrix spec format: "llm:embedding" or "llm:embedding:vectordb" or "llm:embedding:vectordb:storage"
+# Check if embedding provider is "openai" (second field in colon-separated spec)
+if [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
+    # Check if EMBEDDING_PROVIDER is explicitly set to "openai"
+    if [ "$EMBEDDING_PROVIDER" == "openai" ]; then
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-dimensions=512"
+        print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility"
+    # Otherwise, check matrix spec for any combination with "openai" as embedding provider (2nd field)
+    # Format: "something:openai" or "something:openai:something" (embedding is 2nd field)
+    # Pattern matches: start or comma, then any chars, then colon, then "openai" as whole word, then colon/comma/end
+    elif echo "$MATRIX_SPEC" | grep -qE "(^|,)([^:]+:)\bopenai\b(:|,|$)"; then
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-dimensions=512"
+        print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility (detected in matrix spec)"
+    fi
+fi
+
 # Add test chunk as system property if specified
 if [ -n "$TEST_CHUNK" ] && [ "$TEST_CHUNK" != "all" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.test-chunk=$TEST_CHUNK"

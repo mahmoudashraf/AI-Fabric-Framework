@@ -99,7 +99,19 @@ fi
 
 print_header "Executing Tests"
 cd "$SCRIPT_DIR"
-CMD="mvn -P${MAVEN_PROFILE} -DforkCount=1 -DreuseForks=false failsafe:integration-test failsafe:verify"
+
+# Build Maven command
+CMD="mvn -P${MAVEN_PROFILE} -DforkCount=1 -DreuseForks=false"
+
+# Auto-configure OpenAI embedding dimensions for Lucene compatibility
+# OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
+# Check if we're using OpenAI embeddings with Lucene vector database
+if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
+    CMD="$CMD -Dai.providers.openai.embedding-dimensions=512"
+    print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility"
+fi
+
+CMD="$CMD failsafe:integration-test failsafe:verify"
 echo -e "${BLUE}Command:${NC} $CMD"
 
 start_time=$(date +%s)
