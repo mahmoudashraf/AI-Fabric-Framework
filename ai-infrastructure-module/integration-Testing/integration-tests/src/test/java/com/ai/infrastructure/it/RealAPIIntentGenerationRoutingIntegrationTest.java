@@ -47,11 +47,10 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
 
     static {
         // Ensure provider configuration is present for real API calls
-        RealAPITestSupport.ensureOpenAIConfigured();
-        System.setProperty("LLM_PROVIDER", System.getProperty("LLM_PROVIDER", "openai"));
-        System.setProperty("ai.providers.llm-provider", System.getProperty("ai.providers.llm-provider", "openai"));
-        System.setProperty("EMBEDDING_PROVIDER", System.getProperty("EMBEDDING_PROVIDER", "onnx"));
-        System.setProperty("ai.providers.embedding-provider", System.getProperty("ai.providers.embedding-provider", "onnx"));
+        RealAPITestSupport.ensureProviderConfigured();
+        RealAPITestSupport.ensureLLMProviderSet();
+        System.setProperty("EMBEDDING_PROVIDER", System.getProperty("EMBEDDING_PROVIDER", System.getenv("EMBEDDING_PROVIDER") != null ? System.getenv("EMBEDDING_PROVIDER") : "onnx"));
+        System.setProperty("ai.providers.embedding-provider", System.getProperty("ai.providers.embedding-provider", System.getenv("EMBEDDING_PROVIDER") != null ? System.getenv("EMBEDDING_PROVIDER") : "onnx"));
     }
 
     @Autowired

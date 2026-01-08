@@ -102,7 +102,7 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     protected void beforeMatrixExecution() {
-        RealAPITestSupport.ensureOpenAIConfigured();
+        RealAPITestSupport.ensureProviderConfigured();
         
         // Enhanced provider key check
         if (!hasProviderKey()) {

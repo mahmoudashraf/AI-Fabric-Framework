@@ -42,12 +42,8 @@ public class RealAPIActionFlowIntegrationTest {
     private static final String OPENAI_KEY_PROPERTY = "OPENAI_API_KEY";
 
     static {
-        RealAPITestSupport.ensureOpenAIConfigured();
-
-        System.setProperty("LLM_PROVIDER",
-            System.getProperty("LLM_PROVIDER", "openai"));
-        System.setProperty("ai.providers.llm-provider",
-            System.getProperty("ai.providers.llm-provider", "openai"));
+        RealAPITestSupport.ensureProviderConfigured();
+        RealAPITestSupport.ensureLLMProviderSet();
         System.setProperty("EMBEDDING_PROVIDER",
             System.getProperty("EMBEDDING_PROVIDER", "onnx"));
         System.setProperty("ai.providers.embedding-provider",
@@ -386,9 +382,19 @@ public class RealAPIActionFlowIntegrationTest {
     }
 
     private void assumeOpenAIConfigured() {
+        boolean hasOpenAI = StringUtils.hasText(System.getProperty(OPENAI_KEY_PROPERTY)) ||
+                           StringUtils.hasText(System.getenv(OPENAI_KEY_PROPERTY));
+        boolean hasAnthropic = StringUtils.hasText(System.getProperty("ANTHROPIC_API_KEY")) ||
+                              StringUtils.hasText(System.getenv("ANTHROPIC_API_KEY"));
+        boolean hasGemini = StringUtils.hasText(System.getProperty("GEMINI_API_KEY")) ||
+                           StringUtils.hasText(System.getenv("GEMINI_API_KEY"));
+        boolean hasCohere = StringUtils.hasText(System.getProperty("COHERE_API_KEY")) ||
+                           StringUtils.hasText(System.getenv("COHERE_API_KEY"));
+        boolean hasAzure = StringUtils.hasText(System.getProperty("AZURE_API_KEY")) ||
+                          StringUtils.hasText(System.getenv("AZURE_API_KEY"));
         Assumptions.assumeTrue(
-            StringUtils.hasText(System.getProperty(OPENAI_KEY_PROPERTY)),
-            "OPENAI_API_KEY not configured; skipping real API action flow tests."
+            hasOpenAI || hasAnthropic || hasGemini || hasCohere || hasAzure,
+            "OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, COHERE_API_KEY, or AZURE_API_KEY not configured; skipping real API action flow tests."
         );
     }
 
