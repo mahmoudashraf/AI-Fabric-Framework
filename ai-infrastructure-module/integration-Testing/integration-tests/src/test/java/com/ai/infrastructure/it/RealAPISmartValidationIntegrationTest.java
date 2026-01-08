@@ -272,9 +272,11 @@ public class RealAPISmartValidationIntegrationTest {
                               StringUtils.hasText(System.getenv("ANTHROPIC_API_KEY"));
         boolean hasGemini = StringUtils.hasText(System.getProperty("GEMINI_API_KEY")) ||
                            StringUtils.hasText(System.getenv("GEMINI_API_KEY"));
+        boolean hasCohere = StringUtils.hasText(System.getProperty("COHERE_API_KEY")) ||
+                           StringUtils.hasText(System.getenv("COHERE_API_KEY"));
         Assumptions.assumeTrue(
-            hasOpenAI || hasAnthropic || hasGemini,
-            "OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY not configured; skipping smart validation tests."
+            hasOpenAI || hasAnthropic || hasGemini || hasCohere,
+            "OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or COHERE_API_KEY not configured; skipping smart validation tests."
         );
     }
 

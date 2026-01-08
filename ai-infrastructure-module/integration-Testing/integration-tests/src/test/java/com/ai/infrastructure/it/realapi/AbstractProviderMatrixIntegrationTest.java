@@ -206,6 +206,13 @@ abstract class AbstractProviderMatrixIntegrationTest {
             props.put("ai.providers.gemini.enabled", true); // Use boolean, not string
         }
         
+        String cohereKey = System.getenv("COHERE_API_KEY");
+        if (cohereKey != null && !cohereKey.trim().isEmpty()) {
+            props.put("ai.providers.cohere.api-key", cohereKey);
+            props.put("ai.providers.cohere.apiKey", cohereKey); // Also set camelCase
+            props.put("ai.providers.cohere.enabled", true); // Use boolean, not string
+        }
+        
         return props;
     }
 

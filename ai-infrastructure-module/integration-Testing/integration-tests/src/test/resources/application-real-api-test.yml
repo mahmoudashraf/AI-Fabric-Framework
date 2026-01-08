@@ -145,6 +145,17 @@ ai:
       timeout: 60
       priority: 90
 
+    cohere:
+      enabled: ${COHERE_ENABLED:true}
+      api-key: ${COHERE_API_KEY:}
+      base-url: ${COHERE_BASE_URL:https://api.cohere.ai/v1}
+      model: ${COHERE_MODEL:command-r7b-12-2024}
+      embedding-model: ${COHERE_EMBEDDING_MODEL:embed-english-v3.0}
+      max-tokens: 4096
+      temperature: 0.3
+      timeout: 60
+      priority: 85
+
   service:
     enabled: true
     auto-configuration: true
