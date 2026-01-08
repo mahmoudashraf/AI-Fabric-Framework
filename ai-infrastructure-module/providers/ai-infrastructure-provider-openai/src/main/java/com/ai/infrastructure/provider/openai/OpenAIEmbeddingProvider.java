@@ -64,6 +64,8 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                 
                 // Apply dimension reduction if configured and supported
                 Integer requestedDimensions = openai.getEmbeddingDimensions();
+                log.info("Checking dimension reduction: requestedDimensions={}, embeddingModel={}", 
+                    requestedDimensions, openai.getEmbeddingModel());
                 if (requestedDimensions != null) {
                     try {
                         // Try to use dimensions() method if available (for text-embedding-3 models)
@@ -72,7 +74,11 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                         embeddingDimension = requestedDimensions;
                     } catch (NoSuchMethodException e) {
                         log.warn("Dimension reduction not supported by OpenAI library version. Using default dimensions.");
+                    } catch (Exception e) {
+                        log.warn("Failed to apply dimension reduction: {}", e.getMessage(), e);
                     }
+                } else {
+                    log.info("No dimension reduction configured, using model default");
                 }
                 
                 EmbeddingRequest testRequest = builder.build();
