@@ -783,11 +783,14 @@ jobs:
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
           GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
           COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
+          COHERE_ENABLED: ${{ github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere' && 'true' || '' }}
           AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
+          COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && (github.event.inputs.llm_model || 'command-r7b-12-2024') || '' }}
+          COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && (github.event.inputs.embedding_model || 'embed-english-v3.0') || '' }}
 
       - name: Upload test reports
         if: always()

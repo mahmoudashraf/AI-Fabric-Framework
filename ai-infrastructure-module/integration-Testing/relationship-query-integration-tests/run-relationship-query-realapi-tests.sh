@@ -294,6 +294,7 @@ print_header "Building Maven Command"
 cd "$SCRIPT_DIR"
 
 MAVEN_COMMAND="mvn -P${MAVEN_PROFILE}"
+MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=${MAVEN_PROFILE}"
 MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
 MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 

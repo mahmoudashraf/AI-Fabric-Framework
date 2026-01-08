@@ -193,7 +193,7 @@ print_header "Executing Tests"
 cd "$SCRIPT_DIR"
 
 # Build Maven command
-CMD="mvn -P${MAVEN_PROFILE} -DforkCount=1 -DreuseForks=false"
+CMD="mvn -P${MAVEN_PROFILE} -Dspring.profiles.active=${MAVEN_PROFILE} -DforkCount=1 -DreuseForks=false"
 
 # Pass embedding provider as system property (more reliable than environment variables)
 # This ensures the selected provider from GitHub Actions UI is actually used
@@ -206,6 +206,45 @@ fi
 if [ -n "$AI_INFRASTRUCTURE_LLM_PROVIDER" ]; then
     CMD="$CMD -Dai.providers.llm-provider=$AI_INFRASTRUCTURE_LLM_PROVIDER"
 fi
+
+# Enable providers based on selection
+case "$AI_INFRASTRUCTURE_LLM_PROVIDER" in
+    openai)
+        CMD="$CMD -Dai.providers.openai.enabled=true"
+        CMD="$CMD -DOPENAI_ENABLED=true"
+        ;;
+    anthropic)
+        CMD="$CMD -Dai.providers.anthropic.enabled=true"
+        CMD="$CMD -DANTHROPIC_ENABLED=true"
+        ;;
+    gemini)
+        CMD="$CMD -Dai.providers.gemini.enabled=true"
+        CMD="$CMD -DGEMINI_ENABLED=true"
+        ;;
+    cohere)
+        CMD="$CMD -Dai.providers.cohere.enabled=true"
+        CMD="$CMD -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        CMD="$CMD -Dai.providers.azure.enabled=true"
+        CMD="$CMD -DAZURE_ENABLED=true"
+        ;;
+esac
+
+case "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" in
+    openai)
+        CMD="$CMD -Dai.providers.openai.enabled=true"
+        CMD="$CMD -DOPENAI_ENABLED=true"
+        ;;
+    cohere)
+        CMD="$CMD -Dai.providers.cohere.enabled=true"
+        CMD="$CMD -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        CMD="$CMD -Dai.providers.azure.enabled=true"
+        CMD="$CMD -DAZURE_ENABLED=true"
+        ;;
+esac
 
 # Auto-configure OpenAI embedding dimensions for Lucene compatibility
 # OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
