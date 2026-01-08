@@ -85,16 +85,16 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     public Stream<DynamicTest> providerMatrix() {
-        Assumptions.assumeTrue(hasOpenAIKey(),
-            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
+        Assumptions.assumeTrue(hasProviderKey(),
+            "No provider API key (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or COHERE_API_KEY) configured; skipping Real API provider matrix.");
         return super.providerMatrix();
     }
 
     @Override
     protected void beforeMatrixExecution() {
         RealAPITestSupport.ensureOpenAIConfigured();
-        Assumptions.assumeTrue(hasOpenAIKey(),
-            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
+        Assumptions.assumeTrue(hasProviderKey(),
+            "No provider API key (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or COHERE_API_KEY) configured; skipping Real API provider matrix.");
     }
 
     @Override
@@ -212,5 +212,15 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             apiKey = System.getenv("OPENAI_API_KEY");
         }
         return StringUtils.hasText(apiKey);
+    }
+
+    private boolean hasProviderKey() {
+        return hasOpenAIKey() || 
+               StringUtils.hasText(System.getProperty("ANTHROPIC_API_KEY")) ||
+               StringUtils.hasText(System.getenv("ANTHROPIC_API_KEY")) ||
+               StringUtils.hasText(System.getProperty("GEMINI_API_KEY")) ||
+               StringUtils.hasText(System.getenv("GEMINI_API_KEY")) ||
+               StringUtils.hasText(System.getProperty("COHERE_API_KEY")) ||
+               StringUtils.hasText(System.getenv("COHERE_API_KEY"));
     }
 }
