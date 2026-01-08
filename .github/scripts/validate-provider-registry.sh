@@ -45,7 +45,7 @@ if command -v python3 &> /dev/null; then
     echo ""
     echo "📋 Providers in Registry:"
     
-    python3 << 'PYTHON_SCRIPT'
+    python3 - "$REGISTRY_FILE" << 'PYTHON_SCRIPT'
 import yaml
 import sys
 
@@ -71,7 +71,6 @@ for name, provider in embedding_providers.items():
     status = "✅" if enabled else "⚠️"
     print(f"    {status} {name} ({display_name})")
 PYTHON_SCRIPT
-    "$REGISTRY_FILE"
 fi
 
 # Check if workflow includes all providers from registry
