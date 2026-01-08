@@ -451,6 +451,7 @@ fi
 case "$LOGGING_LEVEL" in
     quiet)
         # Quiet mode: Only WARN and ERROR (suppress all DEBUG/INFO)
+        # But keep INFO for test execution logging to see which test classes are running
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.root=WARN"
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure=WARN"
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.provider=WARN"
@@ -458,6 +459,8 @@ case "$LOGGING_LEVEL" in
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.embedding=WARN"
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.springframework=WARN"
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.hibernate=WARN"
+        # Keep INFO level for test execution logging
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.it.realapi=INFO"
         ;;
     normal)
         # Normal mode: INFO level (suppress DEBUG)

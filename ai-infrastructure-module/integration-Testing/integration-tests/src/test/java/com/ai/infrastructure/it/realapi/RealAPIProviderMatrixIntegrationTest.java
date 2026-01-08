@@ -198,6 +198,14 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             };
         }
         
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        System.out.println("Selected Test Classes for Execution: " + selectedClasses.length);
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        for (int i = 0; i < selectedClasses.length; i++) {
+            System.out.println(String.format("  [%d/%d] %s", i + 1, selectedClasses.length, selectedClasses[i].getSimpleName()));
+        }
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        
         log.info("Selected test classes for execution:");
         for (int i = 0; i < selectedClasses.length; i++) {
             log.info("  [{}/{}] {}", i + 1, selectedClasses.length, selectedClasses[i].getSimpleName());

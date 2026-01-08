@@ -139,6 +139,14 @@ abstract class AbstractProviderMatrixIntegrationTest {
             Launcher launcher = LauncherFactory.create();
 
             Class<?>[] testClasses = suiteTestClasses();
+            System.out.println("═══════════════════════════════════════════════════════════════");
+            System.out.println("Executing " + testClasses.length + " test classes for: " + combo.displayName());
+            System.out.println("═══════════════════════════════════════════════════════════════");
+            for (int i = 0; i < testClasses.length; i++) {
+                System.out.println(String.format("  [%d/%d] %s", i + 1, testClasses.length, testClasses[i].getSimpleName()));
+            }
+            System.out.println("═══════════════════════════════════════════════════════════════");
+            
             log.info("Executing {} test classes for combination: {}", testClasses.length, combo.displayName());
             for (int i = 0; i < testClasses.length; i++) {
                 log.info("  [{}/{}] {}", i + 1, testClasses.length, testClasses[i].getSimpleName());
@@ -154,6 +162,15 @@ abstract class AbstractProviderMatrixIntegrationTest {
 
             TestExecutionSummary summary = listener.getSummary();
             long duration = System.currentTimeMillis() - startTime;
+            
+            System.out.println("═══════════════════════════════════════════════════════════════");
+            System.out.println("Test Execution Summary:");
+            System.out.println("  Tests Found: " + summary.getTestsFoundCount());
+            System.out.println("  Tests Failed: " + summary.getTotalFailureCount());
+            System.out.println("  Tests Skipped: " + summary.getTestsSkippedCount());
+            System.out.println("  Tests Aborted: " + summary.getTestsAbortedCount());
+            System.out.println("  Duration: " + duration + " ms");
+            System.out.println("═══════════════════════════════════════════════════════════════");
             
             log.info("Test execution summary: {} tests found, {} failures, {} skipped, {} aborted",
                 summary.getTestsFoundCount(), summary.getTotalFailureCount(), 
