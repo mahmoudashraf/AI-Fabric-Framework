@@ -240,13 +240,32 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
 
             // Perform k-NN search (Lucene handles similarity internally)
             TopDocs topDocs;
-            if (filterQuery != null) {
-                BooleanQuery.Builder boolQueryBuilder = new BooleanQuery.Builder();
-                boolQueryBuilder.add(vectorQuery, BooleanClause.Occur.MUST);
-                boolQueryBuilder.add(filterQuery, BooleanClause.Occur.FILTER);
-                topDocs = indexSearcher.search(boolQueryBuilder.build(), k);
-            } else {
-                topDocs = indexSearcher.search(vectorQuery, k);
+            try {
+                if (filterQuery != null) {
+                    BooleanQuery.Builder boolQueryBuilder = new BooleanQuery.Builder();
+                    boolQueryBuilder.add(vectorQuery, BooleanClause.Occur.MUST);
+                    boolQueryBuilder.add(filterQuery, BooleanClause.Occur.FILTER);
+                    topDocs = indexSearcher.search(boolQueryBuilder.build(), k);
+                } else {
+                    topDocs = indexSearcher.search(vectorQuery, k);
+                }
+            } catch (org.apache.lucene.store.AlreadyClosedException e) {
+                // IndexReader was closed during search (concurrency issue) - refresh and retry once
+                log.debug("IndexReader closed during search, refreshing and retrying");
+                synchronized (this) {
+                    refreshReader();
+                    if (indexSearcher == null) {
+                        throw new AIServiceException("IndexSearcher not available after refresh");
+                    }
+                    if (filterQuery != null) {
+                        BooleanQuery.Builder boolQueryBuilder = new BooleanQuery.Builder();
+                        boolQueryBuilder.add(vectorQuery, BooleanClause.Occur.MUST);
+                        boolQueryBuilder.add(filterQuery, BooleanClause.Occur.FILTER);
+                        topDocs = indexSearcher.search(boolQueryBuilder.build(), k);
+                    } else {
+                        topDocs = indexSearcher.search(vectorQuery, k);
+                    }
+                }
             }
             
             ScoreDoc[] hits = topDocs.scoreDocs;
@@ -254,7 +273,20 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             // Process results - Lucene has already calculated similarity scores
             List<Map<String, Object>> results = new ArrayList<>();
             for (ScoreDoc hit : hits) {
-                Document doc = indexSearcher.doc(hit.doc);
+                Document doc;
+                try {
+                    doc = indexSearcher.doc(hit.doc);
+                } catch (org.apache.lucene.store.AlreadyClosedException e) {
+                    // IndexReader was closed during doc retrieval - refresh and retry once
+                    log.debug("IndexReader closed during doc retrieval, refreshing and retrying");
+                    synchronized (this) {
+                        refreshReader();
+                        if (indexSearcher == null) {
+                            continue; // Skip this result if searcher unavailable
+                        }
+                        doc = indexSearcher.doc(hit.doc);
+                    }
+                }
                 
                 // Lucene's k-NN search already provides similarity scores
                 // The score from Lucene is the cosine similarity
@@ -651,8 +683,21 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             builder.add(new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType)), BooleanClause.Occur.MUST);
             builder.add(new TermQuery(new Term(ENTITY_ID_FIELD, entityId)), BooleanClause.Occur.MUST);
 
-            TopDocs topDocs = indexSearcher.search(builder.build(), 1);
-            return topDocs.totalHits.value > 0;
+            try {
+                TopDocs topDocs = indexSearcher.search(builder.build(), 1);
+                return topDocs.totalHits.value > 0;
+            } catch (org.apache.lucene.store.AlreadyClosedException e) {
+                // IndexReader was closed during search (concurrency issue) - refresh and retry once
+                log.debug("IndexReader closed during search, refreshing and retrying for entity {} of type {}", entityId, entityType);
+                synchronized (this) {
+                    refreshReader();
+                    if (indexSearcher == null) {
+                        return false;
+                    }
+                    TopDocs topDocs = indexSearcher.search(builder.build(), 1);
+                    return topDocs.totalHits.value > 0;
+                }
+            }
             
         } catch (Exception e) {
             log.error("Error checking if vector exists in Lucene", e);
@@ -758,11 +803,14 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     /**
      * Refresh the index reader and searcher
      */
-    private void refreshReader() {
+    /**
+     * Refresh the IndexReader to see latest changes.
+     * This should be called after any write operations.
+     * Synchronized to prevent concurrent refreshes that could cause AlreadyClosedException.
+     */
+    private synchronized void refreshReader() {
         try {
-            if (indexReader != null) {
-                indexReader.close();
-            }
+            IndexReader oldReader = indexReader;
             
             // Check if index exists before trying to open it
             if (DirectoryReader.indexExists(directory)) {
@@ -774,6 +822,15 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                 indexReader = DirectoryReader.open(directory);
             }
             indexSearcher = new IndexSearcher(indexReader);
+            
+            // Close old reader after new one is created to minimize race conditions
+            if (oldReader != null) {
+                try {
+                    oldReader.close();
+                } catch (IOException e) {
+                    log.warn("Error closing old IndexReader during refresh", e);
+                }
+            }
             
         } catch (Exception e) {
             log.error("Error refreshing Lucene reader", e);
