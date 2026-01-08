@@ -103,6 +103,18 @@ cd "$SCRIPT_DIR"
 # Build Maven command
 CMD="mvn -P${MAVEN_PROFILE} -DforkCount=1 -DreuseForks=false"
 
+# Pass embedding provider as system property (more reliable than environment variables)
+# This ensures the selected provider from GitHub Actions UI is actually used
+if [ -n "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" ]; then
+    CMD="$CMD -Dai.providers.embedding-provider=$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER"
+    print_info "Configured embedding provider via system property: $AI_INFRASTRUCTURE_EMBEDDING_PROVIDER"
+fi
+
+# Pass LLM provider as system property for consistency
+if [ -n "$AI_INFRASTRUCTURE_LLM_PROVIDER" ]; then
+    CMD="$CMD -Dai.providers.llm-provider=$AI_INFRASTRUCTURE_LLM_PROVIDER"
+fi
+
 # Auto-configure OpenAI embedding dimensions for Lucene compatibility
 # OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
 # Check if we're using OpenAI embeddings with Lucene vector database
