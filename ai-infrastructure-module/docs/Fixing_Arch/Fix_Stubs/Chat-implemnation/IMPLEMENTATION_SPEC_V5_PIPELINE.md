@@ -1762,7 +1762,7 @@ public class CompoundConfirmationResolver extends AbstractConfirmationResolver {
         return intentResponse.isCompound() &&
                intentResponse.getIntents().size() > 1 &&
                hasConfirmationIntent(intentResponse.getIntents()) &&
-               metadata.containsKey(METADATA_KEY_PENDING_ACTION);
+               !ConfirmationStack.isEmpty(metadata);  // ✅ Stack-based check
     }
 
     @Override
@@ -1771,7 +1771,13 @@ public class CompoundConfirmationResolver extends AbstractConfirmationResolver {
                                    PipelineContext context) {
         String conversationId = context.getOrchestrationContext().getConversationId();
         String ownerId = context.getIdentifier();
-        String pendingAction = (String) metadata.get(METADATA_KEY_PENDING_ACTION);
+
+        // ✅ Get current pending action from stack
+        ConfirmationStack.PendingAction pendingAction = getCurrentPendingAction(metadata);
+
+        if (pendingAction == null) {
+            return context;
+        }
 
         List<Intent> intents = new ArrayList<>(intentResponse.getIntents());
 
@@ -1783,7 +1789,6 @@ public class CompoundConfirmationResolver extends AbstractConfirmationResolver {
             .orElse(null);
 
         if (confirmationIntent == null) {
-            // Should never happen due to canResolve(), but safety check
             return context;
         }
 
@@ -1792,25 +1797,31 @@ public class CompoundConfirmationResolver extends AbstractConfirmationResolver {
 
         if (confirmationIntent.getType() == IntentType.CONFIRMATION_POSITIVE) {
             log.info("Compound confirmation: confirmed '{}', {} additional intents",
-                pendingAction, intents.size());
+                pendingAction.getAction(), intents.size());
 
-            // Create ACTION from pending
-            Intent confirmedIntent = createConfirmedActionIntent(metadata,
-                "(confirmed: " + pendingAction + ")");
+            // Create ACTION from current pending (on top of stack)
+            Intent confirmedIntent = Intent.builder()
+                .type(IntentType.ACTION)
+                .action(pendingAction.getAction())
+                .actionParams(pendingAction.getParams())
+                .confidence(1.0)
+                .originalText("(confirmed: " + pendingAction.getAction() + ")")
+                .build();
 
             // Add confirmed action as FIRST intent
             intents.add(0, confirmedIntent);
 
-            // Clear pending action
-            clearPendingAction(conversationId, ownerId, metadata);
+            // ✅ Pop from stack (clears current, may restore previous)
+            clearCurrentPendingAction(conversationId, ownerId, metadata);
 
             // Build modified response
             MultiIntentResponse modifiedResponse = MultiIntentResponse.builder()
                 .intents(intents)
                 .compound(intents.size() > 1)
                 .metadata(Map.of(
-                    "confirmedAction", pendingAction,
-                    "originalCompound", true
+                    "confirmedAction", pendingAction.getAction(),
+                    "originalCompound", true,
+                    "stackDepth", ConfirmationStack.size(metadata)  // For debugging
                 ))
                 .build();
 
@@ -1820,16 +1831,33 @@ public class CompoundConfirmationResolver extends AbstractConfirmationResolver {
 
         } else {  // CONFIRMATION_NEGATIVE
             log.info("Compound cancellation: cancelled '{}', {} additional intents",
-                pendingAction, intents.size());
+                pendingAction.getAction(), intents.size());
 
-            // Clear pending action
-            clearPendingAction(conversationId, ownerId, metadata);
+            // ✅ Pop cancelled action from stack
+            clearCurrentPendingAction(conversationId, ownerId, metadata);
 
-            // Build modified response with cancellation message
+            // ✅ Check if there's a previous action restored from stack
+            ConfirmationStack.PendingAction restoredAction = getCurrentPendingAction(metadata);
+
             Map<String, Object> responseMetadata = new HashMap<>(intentResponse.getMetadata());
-            responseMetadata.put("cancellationMessage",
-                "Action '" + pendingAction + "' was cancelled.");
+
+            if (restoredAction != null) {
+                // Previous action restored - inform user
+                log.info("Previous action '{}' restored from stack", restoredAction.getAction());
+
+                responseMetadata.put("cancellationMessage",
+                    "Action '" + pendingAction.getAction() + "' cancelled. " +
+                    "Still want to " + restoredAction.getDescription() + "?");
+                responseMetadata.put("restoredFromStack", true);
+                responseMetadata.put("restoredAction", restoredAction.getAction());
+            } else {
+                // Stack empty - normal cancellation
+                responseMetadata.put("cancellationMessage",
+                    "Action '" + pendingAction.getAction() + "' cancelled.");
+            }
+
             responseMetadata.put("originalCompound", true);
+            responseMetadata.put("stackDepth", ConfirmationStack.size(metadata));
 
             MultiIntentResponse modifiedResponse = MultiIntentResponse.builder()
                 .intents(intents)
@@ -2033,6 +2061,337 @@ public class SingleConfirmationNegativeResolver extends AbstractConfirmationReso
 
 ---
 
+#### 10.7.4 ConfirmationStack Utility (Chaining Support) 🆕
+
+**Problem:** When custom resolver replaces pending action with another action requiring confirmation, original intent is lost.
+
+**Solution:** Use a **stack data structure** to preserve confirmation chain.
+
+**Pattern:** Command Pattern with History Stack (undo/redo)
+
+**File:** `ai-infrastructure-chat-session/.../util/ConfirmationStack.java`
+
+```java
+package com.ai.infrastructure.chat.util;
+
+import lombok.Data;
+import lombok.Builder;
+import java.time.LocalDateTime;
+import java.util.*;
+
+/**
+ * Manages stack of pending confirmation actions.
+ *
+ * <p><strong>Purpose:</strong> Enables chained/nested confirmations where resolvers
+ * can replace pending actions while preserving original intent.</p>
+ *
+ * <p><strong>Pattern:</strong> Command Pattern with History Stack</p>
+ *
+ * <p><strong>Operations:</strong></p>
+ * <ul>
+ *   <li>{@code push()} - Add new pending action on top</li>
+ *   <li>{@code pop()} - Remove top, restore previous</li>
+ *   <li>{@code peek()} - Get current pending without removing</li>
+ *   <li>{@code clear()} - Clear entire stack</li>
+ * </ul>
+ *
+ * <p><strong>Use Cases:</strong></p>
+ * <ul>
+ *   <li>User confirms action A, resolver offers alternative action B requiring confirmation</li>
+ *   <li>User rejects B → Stack pops → A is restored as pending</li>
+ *   <li>User confirms B → Stack clears → B executes, A is discarded</li>
+ * </ul>
+ *
+ * @since 5.2
+ */
+public class ConfirmationStack {
+
+    private static final String METADATA_KEY_STACK = "confirmationStack";
+
+    /**
+     * Represents a pending action in the stack.
+     */
+    @Data
+    @Builder
+    public static class PendingAction {
+        private String action;
+        private Map<String, Object> params;
+        private String description;
+        private String timestamp;
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("action", action);
+            map.put("params", params != null ? params : new HashMap<>());
+            map.put("description", description);
+            map.put("timestamp", timestamp);
+            return map;
+        }
+
+        public static PendingAction fromMap(Map<String, Object> map) {
+            return PendingAction.builder()
+                .action((String) map.get("action"))
+                .params((Map<String, Object>) map.get("params"))
+                .description((String) map.get("description"))
+                .timestamp((String) map.get("timestamp"))
+                .build();
+        }
+    }
+
+    /**
+     * Push new pending action onto stack.
+     *
+     * <p>Previous action is preserved and can be restored if new action is cancelled.</p>
+     *
+     * @param metadata conversation session metadata
+     * @param action action name
+     * @param params action parameters
+     * @param description human-readable action description
+     */
+    public static void push(Map<String, Object> metadata,
+                           String action,
+                           Map<String, Object> params,
+                           String description) {
+        List<Map<String, Object>> stack = getStack(metadata);
+
+        PendingAction pendingAction = PendingAction.builder()
+            .action(action)
+            .params(params)
+            .description(description)
+            .timestamp(LocalDateTime.now().toString())
+            .build();
+
+        stack.add(pendingAction.toMap());
+        metadata.put(METADATA_KEY_STACK, stack);
+    }
+
+    /**
+     * Pop top action from stack and return it.
+     *
+     * <p>Previous action (if any) becomes current pending action.</p>
+     *
+     * @param metadata conversation session metadata
+     * @return popped action, or null if stack is empty
+     */
+    public static PendingAction pop(Map<String, Object> metadata) {
+        List<Map<String, Object>> stack = getStack(metadata);
+
+        if (stack.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Object> topMap = stack.remove(stack.size() - 1);
+        metadata.put(METADATA_KEY_STACK, stack);
+
+        return PendingAction.fromMap(topMap);
+    }
+
+    /**
+     * Get current pending action without removing it.
+     *
+     * @param metadata conversation session metadata
+     * @return current action, or null if stack is empty
+     */
+    public static PendingAction peek(Map<String, Object> metadata) {
+        List<Map<String, Object>> stack = getStack(metadata);
+
+        if (stack.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Object> topMap = stack.get(stack.size() - 1);
+        return PendingAction.fromMap(topMap);
+    }
+
+    /**
+     * Clear entire stack.
+     *
+     * @param metadata conversation session metadata
+     */
+    public static void clear(Map<String, Object> metadata) {
+        metadata.remove(METADATA_KEY_STACK);
+    }
+
+    /**
+     * Check if stack has pending actions.
+     *
+     * @param metadata conversation session metadata
+     * @return true if stack is empty
+     */
+    public static boolean isEmpty(Map<String, Object> metadata) {
+        return getStack(metadata).isEmpty();
+    }
+
+    /**
+     * Get stack depth.
+     *
+     * @param metadata conversation session metadata
+     * @return number of pending actions in stack
+     */
+    public static int size(Map<String, Object> metadata) {
+        return getStack(metadata).size();
+    }
+
+    /**
+     * Get stack as list.
+     */
+    private static List<Map<String, Object>> getStack(Map<String, Object> metadata) {
+        Object stackObj = metadata.get(METADATA_KEY_STACK);
+
+        if (stackObj == null) {
+            return new ArrayList<>();
+        }
+
+        if (stackObj instanceof List) {
+            return new ArrayList<>((List<Map<String, Object>>) stackObj);
+        }
+
+        return new ArrayList<>();
+    }
+}
+```
+
+**Example Stack State:**
+
+```json
+{
+  "confirmationStack": [
+    {
+      "action": "cancel_order",
+      "params": {"orderId": "12345"},
+      "description": "cancel your order",
+      "timestamp": "2026-01-08T10:00:00"
+    },
+    {
+      "action": "offer_loyalty_conversion",
+      "params": {"points": 5000},
+      "description": "convert loyalty points",
+      "timestamp": "2026-01-08T10:05:00"
+    }
+  ]
+}
+```
+
+**Stack Operations:**
+- `peek()` → Returns "offer_loyalty_conversion" (top, current pending)
+- `pop()` → Removes "offer_loyalty_conversion", "cancel_order" becomes current
+- `size()` → Returns 2
+- `clear()` → Empties entire stack
+
+---
+
+#### 10.7.5 Updated AbstractConfirmationResolver (Stack Support)
+
+**Add stack operation methods to base class:**
+
+```java
+public abstract class AbstractConfirmationResolver implements IntentResolver {
+
+    // ... existing code ...
+
+    /**
+     * Store pending action on confirmation stack.
+     *
+     * <p>Use this instead of direct metadata manipulation to support chaining.</p>
+     *
+     * @param conversationId conversation ID
+     * @param ownerId owner ID
+     * @param metadata session metadata
+     * @param action action name
+     * @param params action parameters
+     * @param description human-readable description
+     */
+    protected void storePendingAction(String conversationId,
+                                      String ownerId,
+                                      Map<String, Object> metadata,
+                                      String action,
+                                      Map<String, Object> params,
+                                      String description) {
+        // Push onto stack
+        ConfirmationStack.push(metadata, action, params, description);
+
+        try {
+            chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
+            log.debug("Pushed action '{}' onto confirmation stack (depth: {})",
+                action, ConfirmationStack.size(metadata));
+        } catch (Exception ex) {
+            log.error("Failed to push pending action: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Get current pending action from stack.
+     *
+     * @param metadata session metadata
+     * @return current pending action, or null if stack is empty
+     */
+    protected ConfirmationStack.PendingAction getCurrentPendingAction(Map<String, Object> metadata) {
+        return ConfirmationStack.peek(metadata);
+    }
+
+    /**
+     * Clear current pending action (pop from stack).
+     *
+     * <p>If stack has more actions, previous one becomes current.</p>
+     *
+     * @param conversationId conversation ID
+     * @param ownerId owner ID
+     * @param metadata session metadata
+     */
+    protected void clearCurrentPendingAction(String conversationId,
+                                            String ownerId,
+                                            Map<String, Object> metadata) {
+        ConfirmationStack.PendingAction popped = ConfirmationStack.pop(metadata);
+
+        try {
+            chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
+
+            if (popped != null) {
+                log.debug("Popped action '{}' from stack (remaining depth: {})",
+                    popped.getAction(), ConfirmationStack.size(metadata));
+
+                // Log if previous action restored
+                ConfirmationStack.PendingAction restored = ConfirmationStack.peek(metadata);
+                if (restored != null) {
+                    log.debug("Previous action '{}' restored as current pending",
+                        restored.getAction());
+                }
+            }
+        } catch (Exception ex) {
+            log.error("Failed to pop pending action: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Clear entire confirmation stack.
+     *
+     * <p>Use when all pending actions should be discarded (e.g., timeout, explicit cancel all).</p>
+     *
+     * @param conversationId conversation ID
+     * @param ownerId owner ID
+     * @param metadata session metadata
+     */
+    protected void clearAllPendingActions(String conversationId,
+                                         String ownerId,
+                                         Map<String, Object> metadata) {
+        int depth = ConfirmationStack.size(metadata);
+        ConfirmationStack.clear(metadata);
+
+        try {
+            chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
+            log.debug("Cleared entire confirmation stack ({} actions) for conversation {}",
+                depth, conversationId);
+        } catch (Exception ex) {
+            log.error("Failed to clear confirmation stack: {}", ex.getMessage());
+        }
+    }
+
+    // ... keep existing helper methods (isConfirmationExpired, createConfirmedActionIntent, etc.) ...
+}
+```
+
+---
+
 ### 10.8 Enhanced IntentHandlingStep
 
 **File:** `ai-infrastructure-core/.../pipeline/steps/IntentHandlingStep.java`
@@ -2072,6 +2431,8 @@ private OrchestrationResult handleAction(
 
 /**
  * Request user confirmation for high-risk action.
+ *
+ * <p>Uses ConfirmationStack to support chaining/nesting of confirmations.</p>
  */
 private OrchestrationResult requestConfirmation(
     ActionHandler handler,
@@ -2090,18 +2451,23 @@ private OrchestrationResult requestConfirmation(
     }
 
     try {
-        // Store pending action in conversation metadata
+        // Load session
         ChatSession session = chatSessionService.getSession(conversationId, ownerId);
         Map<String, Object> metadata = new HashMap<>(session.getSessionMetadata());
 
-        metadata.put("pendingAction", actionName);
-        metadata.put("pendingActionParams", params);
-        metadata.put("pendingActionTimestamp", LocalDateTime.now().toString());
-        metadata.put("pendingActionDescription", actionDescription);  // ← For LLM enrichment
+        // ✅ Push onto confirmation stack (supports chaining!)
+        ConfirmationStack.push(
+            metadata,
+            actionName,
+            params,
+            actionDescription
+        );
 
         chatSessionService.updateSessionMetadata(conversationId, ownerId, metadata);
 
-        log.info("Stored pending action '{}' for conversation {}", actionName, conversationId);
+        int stackDepth = ConfirmationStack.size(metadata);
+        log.info("Pushed action '{}' onto confirmation stack (depth: {})",
+            actionName, stackDepth);
 
         // Return confirmation request result
         return OrchestrationResult.builder()
@@ -2112,6 +2478,7 @@ private OrchestrationResult requestConfirmation(
                 "action", actionName,
                 "requiresConfirmation", true,
                 "confirmationMessage", confirmationMessage,
+                "stackDepth", stackDepth,  // For debugging
                 "metadata", handler.getActionMetadata()
             ))
             .build();
@@ -3011,11 +3378,240 @@ Result:
 
 ---
 
-### 10.13 Security Considerations
+### 10.14 Confirmation Stack Pattern (Complete Flow) 🆕 **CRITICAL**
 
-1. **Ownership Verification:** Pending actions tied to conversation owner
-2. **Timeout:** Confirmations expire after 5 minutes (configurable)
-3. **Single Use:** Pending action cleared after confirmation/cancellation
+**This pattern solves nested/chained confirmations where resolvers replace pending actions.**
+
+---
+
+#### 10.14.1 The Problem
+
+**Scenario:** User confirms action A, resolver intercepts and offers alternative action B (which also requires confirmation).
+
+```
+User: "cancel my order"
+→ Stored: "cancel_order" (requires confirmation)
+
+User: "yes"
+→ Resolver intercepts, offers "offer_loyalty_conversion" (also requires confirmation)
+→ PROBLEM: Original "cancel_order" is lost!
+
+User: "no" (rejects offer)
+→ What now? Original cancellation intent is GONE!
+```
+
+---
+
+#### 10.14.2 The Solution: Confirmation Stack
+
+**Use stack data structure to preserve confirmation chain:**
+
+```
+confirmationStack: [
+  {action: "cancel_order", ...},           ← Bottom (original)
+  {action: "offer_loyalty_conversion", ...} ← Top (current)
+]
+```
+
+**Operations:**
+- **Push:** Add new pending action on top (original preserved)
+- **Pop:** Remove top, previous action restored
+- **Peek:** Get current pending without removing
+
+---
+
+#### 10.14.3 Complete Flow Example
+
+##### Turn 1: Initial Request
+
+```
+User: "cancel my order"
+
+IntentHandlingStep:
+  - ACTION detected: "cancel_order"
+  - requiresConfirmation() → true
+  - Pushes onto stack
+
+Stack: [{action: "cancel_order", params: {...}, description: "cancel your order"}]
+Stack depth: 1
+
+Response: "You are about to cancel your order. Reply 'yes' to confirm or 'no' to cancel."
+```
+
+##### Turn 2: User Confirms, Resolver Intercepts
+
+```
+User: "yes"
+
+ConversationEnrichmentStep (25):
+  - Peek stack → "cancel_order"
+  - Enriches query with confirmation context
+
+IntentExtractionStep (50):
+  - LLM detects: CONFIRMATION_POSITIVE
+
+ConfirmationResolutionStep (55):
+  - Checks resolvers in priority order...
+
+LoyaltyPointsConfirmationResolver (Priority 8):
+  - canResolve() → TRUE! (user has 5000 points)
+  - Creates ACTION intent: "offer_loyalty_conversion"
+  - Does NOT pop stack (keeps original)
+  - Returns modified context
+
+IntentHandlingStep (60):
+  - Receives ACTION: "offer_loyalty_conversion"
+  - requiresConfirmation() → true
+  - Pushes onto stack
+
+Stack: [
+  {action: "cancel_order", ...},           ← Original preserved!
+  {action: "offer_loyalty_conversion", ...} ← New top
+]
+Stack depth: 2
+
+Response: "You have 5000 loyalty points worth $50. Would you like to convert them to store credit instead of canceling? Reply 'yes' to proceed or 'no' to cancel offer."
+```
+
+##### Turn 3a: User Accepts Offer
+
+```
+User: "yes"
+
+ConfirmationResolutionStep (55):
+  - SingleConfirmationPositiveResolver (Priority 50) matches
+  - Peek stack → "offer_loyalty_conversion"
+  - Creates ACTION from top of stack
+  - Pops stack
+
+Stack: [
+  {action: "cancel_order", ...}  ← Restored as current!
+]
+Stack depth: 1
+
+IntentHandlingStep (60):
+  - Executes "offer_loyalty_conversion"
+  - Success!
+
+Response: "Converted 5000 points to $50 store credit!"
+
+Note: "cancel_order" STILL pending at stack depth 1!
+      (User could be prompted later to confirm/cancel the original order)
+```
+
+##### Turn 3b: User Rejects Offer
+
+```
+User: "no"
+
+ConfirmationResolutionStep (55):
+  - SingleConfirmationNegativeResolver matches
+  - Peek stack → "offer_loyalty_conversion"
+  - Pops stack
+
+Stack: [
+  {action: "cancel_order", ...}  ← Automatically restored!
+]
+Stack depth: 1
+
+  - Peek again → "cancel_order" (previous action)
+  - Detects restoration from stack
+  - Builds response with restoration message
+
+Response: "Offer cancelled. Still want to cancel your order? Reply 'yes' or 'no'."
+
+User still has original intent - NO DATA LOSS! ✅
+```
+
+##### Turn 4: User Confirms Original
+
+```
+User: "yes"
+
+SingleConfirmationPositiveResolver:
+  - Peek stack → "cancel_order"
+  - Creates ACTION from pending
+  - Pops stack
+
+Stack: []  ← Empty!
+Stack depth: 0
+
+IntentHandlingStep:
+  - Executes "cancel_order"
+  - Order cancelled
+
+Response: "Order #12345 has been cancelled successfully."
+
+Stack empty - all confirmations resolved! ✅
+```
+
+---
+
+#### 10.14.4 Stack Behavior Summary
+
+| Operation | Stack Before | Action | Stack After | Result |
+|-----------|-------------|--------|-------------|--------|
+| **Initial Request** | `[]` | Push "cancel_order" | `[cancel_order]` | User prompted for confirmation |
+| **Resolver Intercepts** | `[cancel_order]` | Push "offer_loyalty" | `[cancel_order, offer_loyalty]` | New confirmation requested |
+| **Accept Offer** | `[cancel_order, offer_loyalty]` | Pop | `[cancel_order]` | Offer executed, original pending |
+| **Reject Offer** | `[cancel_order, offer_loyalty]` | Pop | `[cancel_order]` | Original restored, user re-prompted |
+| **Confirm Original** | `[cancel_order]` | Pop | `[]` | Original executed, stack empty |
+
+---
+
+#### 10.14.5 Benefits
+
+✅ **No Data Loss:** Original intent always preserved
+✅ **Unlimited Depth:** Can chain multiple confirmations
+✅ **Clean Rollback:** Pop automatically restores previous
+✅ **User-Friendly:** Seamless "changed my mind" flow
+✅ **Debuggable:** Stack depth in metadata
+✅ **Atomic:** All operations are transaction-safe
+
+---
+
+#### 10.14.6 Edge Cases Handled
+
+**Case 1: User confirms all the way down**
+```
+Stack: [A, B, C]
+User: "yes" → C executes, stack: [A, B]
+User: "yes" → B executes, stack: [A]
+User: "yes" → A executes, stack: []
+```
+
+**Case 2: User rejects at any level**
+```
+Stack: [A, B, C]
+User: "no" → C cancelled, stack: [A, B], B restored
+User: "yes" → B executes, stack: [A]
+User: "no" → B cancelled, stack: [A], A restored
+```
+
+**Case 3: Timeout clears entire stack**
+```
+Stack: [A, B, C]
+Timeout (> 5 min) → ExpiredConfirmationResolver clears ALL
+Stack: []
+```
+
+**Case 4: Multiple rejects navigate back**
+```
+Stack: [A, B, C]
+User: "no" → Stack: [A, B], user sees "Still want B?"
+User: "no" → Stack: [A], user sees "Still want A?"
+User: "no" → Stack: [], all cancelled
+```
+
+---
+
+### 10.13 Security Considerations (Updated for Stack)
+
+1. **Ownership Verification:** All stack operations tied to conversation owner
+2. **Timeout:** Entire stack cleared after 5 minutes (configurable)
+3. **Stack Depth Limit:** Consider max depth (e.g., 10) to prevent stack overflow
+4. **Atomic Stack Operations:** Push/pop are transaction-safe
+5. **Stack Isolation:** Each conversation has independent stack
 4. **Access Control:** Full access control checks on metadata updates
 5. **Audit Trail:** All confirmations logged with user ID and timestamp
 6. **LLM-Based Detection:** No bypass via hardcoded keywords - LLM analyzes full intent
@@ -3258,13 +3854,25 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 - [ ] Add requiresConfirmation() method to ActionHandler interface
 - [ ] Add CONFIRMATION_REQUIRED to OrchestrationResultType enum
 - [ ] Add updateSessionMetadata() to ChatSessionService
-- [ ] Update ConversationEnrichmentStep to enrich with pending action context
-- [ ] Update IntentHandlingStep with confirmation detection and storage
+- [ ] **Implement ConfirmationStack utility class** 🆕
+  - [ ] PendingAction inner class with toMap/fromMap
+  - [ ] push(), pop(), peek(), clear(), isEmpty(), size() operations
+  - [ ] Stack stored in conversation metadata
+- [ ] **Implement IntentResolver SPI** 🆕
+  - [ ] IntentResolver interface with canResolve(), resolve(), getPriority()
+  - [ ] AbstractConfirmationResolver base class with stack operations
+  - [ ] ExpiredConfirmationResolver (Priority 5)
+  - [ ] CompoundConfirmationResolver (Priority 10) with stack restoration
+  - [ ] SingleConfirmationPositiveResolver (Priority 50)
+  - [ ] SingleConfirmationNegativeResolver (Priority 51)
+- [ ] Update ConfirmationResolutionStep as resolver coordinator
+- [ ] Update ConversationEnrichmentStep to enrich with stack top
+- [ ] Update IntentHandlingStep to push onto stack (not direct metadata)
 - [ ] Implement LLM-based confirmation detection (NO hardcoded keywords!)
-- [ ] Add handleCompoundIntentWithConfirmation() to ConfirmationResolutionStep
 - [ ] Add combineConfirmationWithAdditionalRequests() to IntentHandlingStep
 - [ ] Test confirmation flow (positive, negative, ambiguous, timeout)
 - [ ] Test compound confirmation scenarios (confirmation + new requests)
+- [ ] **Test stack chaining scenarios** (nested confirmations, rollback) 🆕
 
 ### Phase 8: Testing
 - [ ] Unit tests for ConversationEnrichmentStep (7+ tests)
@@ -3301,18 +3909,23 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 ✅ **Auto-Discovery:** Spring automatically includes steps
 ✅ **Framework Aligned:** Follows current codebase patterns
 
-### New in v5.1: Action Confirmation Workflow
+### New in v5.2: Action Confirmation Workflow with Stack Pattern 🆕
 
 ✅ **Conversational Confirmations:** Natural "are you sure?" → "yes" flow
 ✅ **LLM-Based Detection:** NO hardcoded keywords - respects intelligence
-✅ **Stateful Tracking:** Pending actions in conversation metadata
-✅ **Context-Aware:** Enriches query with pending action for LLM analysis
+✅ **Confirmation Stack Pattern:** Preserves original intent when resolvers intercept 🆕
+✅ **Chained/Nested Confirmations:** Support unlimited depth with clean rollback 🆕
+✅ **Extensible Resolver Pattern:** Add edge cases via @Component resolvers (no framework changes) 🆕
+✅ **Open/Closed Principle:** Zero conditionals - each scenario is a separate resolver 🆕
+✅ **Context-Aware:** Enriches query with stack top for LLM analysis
 ✅ **Nuanced Understanding:** LLM handles "no, wait, I changed my mind" correctly
 ✅ **Compound Intent Support:** Handles "yes and show me laptops" naturally
 ✅ **Multi-Request Handling:** Execute confirmed action + process additional requests
 ✅ **Intelligent Response Combining:** Special formatting for confirmation + requests
-✅ **Secure:** Ownership verification + timeout protection
+✅ **Stack Restoration:** Automatically restores previous intent when user rejects offer 🆕
+✅ **Secure:** Ownership verification + timeout protection + stack isolation 🆕
 ✅ **Flexible:** Action handlers opt-in via `requiresConfirmation()`
+✅ **User Extensible:** Framework users can inject custom resolvers for domain-specific logic 🆕
 ✅ **Backward Compatible:** Actions without confirmation work as before
 ✅ **Graceful Degradation:** Storage failures fall back to immediate execution
 
@@ -3326,18 +3939,33 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 - `MetadataBuildingStep`: Include conversationId in metadata (+1 line)
 - `IntentHandlingStep`: Add confirmation detection logic (~85 lines)
 
-**Module Changes:**
+**Module Changes (v5.2):**
+- `ConfirmationStack` utility class: ~150 lines 🆕
+- `IntentResolver` SPI interface: ~40 lines 🆕
+- `AbstractConfirmationResolver` base class: ~180 lines 🆕
+- `ExpiredConfirmationResolver`: ~50 lines 🆕
+- `CompoundConfirmationResolver`: ~110 lines (with stack restoration) 🆕
+- `SingleConfirmationPositiveResolver`: ~45 lines 🆕
+- `SingleConfirmationNegativeResolver`: ~50 lines 🆕
+- `ConfirmationResolutionStep` (coordinator): ~80 lines 🆕
 - `ConversationEnrichmentStep`: ~120 lines
-- `ConfirmationResolutionStep`: ~230 lines (includes compound confirmation handling)
 - `ConversationRecordingStep`: ~100 lines
 - `ChatSessionService.updateSessionMetadata()`: ~20 lines
-- `IntentHandlingStep.combineConfirmationWithAdditionalRequests()`: ~50 lines
+- `IntentHandlingStep` updates: ~90 lines (stack push + combine methods)
 - Support infrastructure (domain, storage, strategies): ~800 lines
 
-**Total Lines of Code:**
+**Total Lines of Code (v5.2):**
 - Core changes: ~100 lines
-- Module changes: ~1,320 lines
-- **Total:** ~1,420 lines
+- Resolver pattern + stack: ~705 lines 🆕
+- Conversation + session support: ~1,130 lines
+- **Total:** ~1,935 lines
+
+**Key Architectural Components:**
+1. **ConfirmationStack** - Command Pattern with History (stack data structure)
+2. **IntentResolver SPI** - Strategy Pattern (pluggable resolvers)
+3. **4 Built-in Resolvers** - Priority-based execution
+4. **AbstractConfirmationResolver** - Template Method Pattern (shared stack operations)
+5. **ConfirmationResolutionStep** - Coordinator (delegates to resolvers)
 
 **Key Architectural Decision:**
 - ✅ **NO Hardcoded Keywords** - All confirmation detection via LLM
