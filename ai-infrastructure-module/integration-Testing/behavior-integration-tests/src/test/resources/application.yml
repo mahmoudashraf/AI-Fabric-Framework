@@ -27,8 +27,9 @@ ai:
     enable-fallback: false
 
     # OpenAI configuration - enable when selected as provider
+    # Default to false to avoid initialization errors when API key is not set
     openai:
-      enabled: ${AI_INFRASTRUCTURE_OPENAI_ENABLED:true}
+      enabled: ${AI_INFRASTRUCTURE_OPENAI_ENABLED:false}
       api-key: ${OPENAI_API_KEY:}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
       model: ${OPENAI_MODEL:gpt-4o-mini}
