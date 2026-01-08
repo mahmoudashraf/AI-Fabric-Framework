@@ -34,7 +34,7 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
     private final AIProviderConfig aiProviderConfig;
     private RestTemplate restTemplate;
     private boolean available = false;
-    private int embeddingDimension = 768; // Default for embedding-001
+    private int embeddingDimension = 768; // Default for text-embedding-004 (actual dimension will be determined at runtime)
     
     private static final String GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
     
@@ -57,7 +57,7 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
             try {
                 AIEmbeddingRequest testRequest = AIEmbeddingRequest.builder()
                     .text("test")
-                    .model(gemini.getEmbeddingModel() != null ? gemini.getEmbeddingModel() : "embedding-001")
+                    .model(gemini.getEmbeddingModel() != null ? gemini.getEmbeddingModel() : "text-embedding-004")
                     .build();
                 
                 AIEmbeddingResponse testResponse = generateEmbedding(testRequest);
@@ -98,7 +98,7 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
         try {
             AIProviderConfig.GeminiConfig gemini = aiProviderConfig.getGemini();
             String model = request.getModel() != null ? request.getModel() : 
-                          (gemini.getEmbeddingModel() != null ? gemini.getEmbeddingModel() : "embedding-001");
+                          (gemini.getEmbeddingModel() != null ? gemini.getEmbeddingModel() : "text-embedding-004");
             
             log.debug("Generating embedding using Gemini for text: {}", request.getText());
             

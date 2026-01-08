@@ -77,7 +77,7 @@ public class GeminiProvider implements AIProvider {
             
             String model = request.getModel() != null ? request.getModel() : config.getDefaultModel();
             if (model == null || model.trim().isEmpty()) {
-                model = "gemini-pro"; // Default Gemini model
+                model = "gemini-2.5-flash"; // Default Gemini model
             }
             
             String url = GEMINI_BASE_URL + "/models/" + model + ":generateContent?key=" + config.getApiKey();
@@ -204,7 +204,7 @@ public class GeminiProvider implements AIProvider {
             
             String model = request.getModel() != null ? request.getModel() : config.getDefaultEmbeddingModel();
             if (model == null || model.trim().isEmpty()) {
-                model = "embedding-001"; // Default Gemini embedding model
+                model = "text-embedding-004"; // Default Gemini embedding model
             }
             
             String url = GEMINI_BASE_URL + "/models/" + model + ":embedContent?key=" + config.getApiKey();
