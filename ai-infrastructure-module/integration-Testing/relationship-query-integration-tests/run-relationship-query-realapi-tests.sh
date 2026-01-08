@@ -16,7 +16,13 @@
 # Prerequisites:
 #   - Java 21+
 #   - Maven 3.8+
-#   - OPENAI_API_KEY (and other provider keys as needed) set in the environment
+#   - API key environment variable set based on selected providers:
+#     * OPENAI_API_KEY (for OpenAI)
+#     * ANTHROPIC_API_KEY (for Anthropic)
+#     * GEMINI_API_KEY (for Gemini)
+#     * COHERE_API_KEY (for Cohere)
+#     * AZURE_API_KEY + AZURE_ENDPOINT (for Azure)
+#   - ONNX and REST providers don't require API keys
 #   - Local: Dependencies built (script auto-builds if missing)
 #   - CI/CD: Dependencies must be pre-built by workflow (script skips build check)
 #
@@ -87,12 +93,141 @@ if ! command -v mvn &> /dev/null; then
 fi
 print_success "Maven found: $(mvn -v 2>&1 | head -n 1)"
 
-if [ -z "$OPENAI_API_KEY" ]; then
-    print_error "OPENAI_API_KEY environment variable is not set"
-    echo "Please set: export OPENAI_API_KEY='your-api-key'"
+# Dynamic API key check based on selected providers
+check_provider_api_keys() {
+    local llm_provider="$1"
+    local embedding_provider="$2"
+    local missing_keys=()
+    local providers_checked=()
+    
+    # Check LLM provider API key
+    case "$llm_provider" in
+        openai)
+            if [ -z "$OPENAI_API_KEY" ]; then
+                missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)")
+            else
+                providers_checked+=("OpenAI LLM")
+            fi
+            ;;
+        anthropic)
+            if [ -z "$ANTHROPIC_API_KEY" ]; then
+                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)")
+            else
+                providers_checked+=("Anthropic LLM")
+            fi
+            ;;
+        gemini)
+            if [ -z "$GEMINI_API_KEY" ]; then
+                missing_keys+=("GEMINI_API_KEY (for Gemini LLM)")
+            else
+                providers_checked+=("Gemini LLM")
+            fi
+            ;;
+        cohere)
+            if [ -z "$COHERE_API_KEY" ]; then
+                missing_keys+=("COHERE_API_KEY (for Cohere LLM)")
+            else
+                providers_checked+=("Cohere LLM")
+            fi
+            ;;
+        azure)
+            if [ -z "$AZURE_API_KEY" ]; then
+                missing_keys+=("AZURE_API_KEY (for Azure LLM)")
+            elif [ -z "$AZURE_ENDPOINT" ]; then
+                missing_keys+=("AZURE_ENDPOINT (for Azure LLM)")
+            else
+                providers_checked+=("Azure LLM")
+            fi
+            ;;
+        onnx|rest)
+            providers_checked+=("$llm_provider LLM (no API key required)")
+            ;;
+        *)
+            print_warning "Unknown LLM provider: $llm_provider (skipping API key check)"
+            ;;
+    esac
+    
+    # Check Embedding provider API key
+    case "$embedding_provider" in
+        openai)
+            if [ -z "$OPENAI_API_KEY" ]; then
+                missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)")
+            else
+                providers_checked+=("OpenAI Embedding")
+            fi
+            ;;
+        anthropic)
+            if [ -z "$ANTHROPIC_API_KEY" ]; then
+                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)")
+            else
+                providers_checked+=("Anthropic Embedding")
+            fi
+            ;;
+        gemini)
+            if [ -z "$GEMINI_API_KEY" ]; then
+                missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)")
+            else
+                providers_checked+=("Gemini Embedding")
+            fi
+            ;;
+        cohere)
+            if [ -z "$COHERE_API_KEY" ]; then
+                missing_keys+=("COHERE_API_KEY (for Cohere Embedding)")
+            else
+                providers_checked+=("Cohere Embedding")
+            fi
+            ;;
+        azure)
+            if [ -z "$AZURE_API_KEY" ]; then
+                missing_keys+=("AZURE_API_KEY (for Azure Embedding)")
+            elif [ -z "$AZURE_ENDPOINT" ]; then
+                missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)")
+            else
+                providers_checked+=("Azure Embedding")
+            fi
+            ;;
+        onnx|rest)
+            providers_checked+=("$embedding_provider Embedding (no API key required)")
+            ;;
+        *)
+            print_warning "Unknown Embedding provider: $embedding_provider (skipping API key check)"
+            ;;
+    esac
+    
+    # Report results
+    if [ ${#missing_keys[@]} -gt 0 ]; then
+        print_error "Missing required API keys for selected providers:"
+        for key in "${missing_keys[@]}"; do
+            echo "  - $key"
+        done
+        echo ""
+        echo "Please set the required environment variables before running tests."
+        return 1
+    else
+        print_success "API keys configured for: ${providers_checked[*]}"
+        return 0
+    fi
+}
+
+# Parse matrix spec first to determine providers
+LLM_PROVIDER_TEMP=""
+EMBEDDING_PROVIDER_TEMP=""
+
+if [[ "$MATRIX_SPEC" =~ ^([^:]+):([^:]+):(.+)$ ]]; then
+    LLM_PROVIDER_TEMP="${BASH_REMATCH[1]}"
+    EMBEDDING_PROVIDER_TEMP="${BASH_REMATCH[2]}"
+elif [[ "$MATRIX_SPEC" =~ ^([^:]+):([^:]+)$ ]]; then
+    LLM_PROVIDER_TEMP="${BASH_REMATCH[1]}"
+    EMBEDDING_PROVIDER_TEMP="${BASH_REMATCH[2]}"
+else
+    LLM_PROVIDER_TEMP="openai"
+    EMBEDDING_PROVIDER_TEMP="onnx"
+fi
+
+# Check API keys based on providers
+if ! check_provider_api_keys "$LLM_PROVIDER_TEMP" "$EMBEDDING_PROVIDER_TEMP"; then
     exit 1
 fi
-print_success "OpenAI API key is configured"
 
 # Parse provider matrix (LLM:EMBEDDING[:VECTOR_DB])
 LLM_PROVIDER=""
