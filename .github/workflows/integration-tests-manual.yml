@@ -379,6 +379,14 @@ jobs:
             echo "✅ Using custom LLM model: ${{ github.event.inputs.llm_model }}"
           else
             echo "ℹ️  Using provider default LLM model"
+            # Set default models for providers that require explicit model configuration
+            case "${{ github.event.inputs.llm_provider }}" in
+              cohere)
+                echo "COHERE_MODEL=command-r7b-12-2024" >> $GITHUB_ENV
+                echo "ai.providers.cohere.model=command-r7b-12-2024" >> $GITHUB_ENV
+                echo "✅ Set Cohere default model: command-r7b-12-2024"
+                ;;
+            esac
           fi
           
           if [ -n "${{ github.event.inputs.embedding_model }}" ]; then
@@ -405,6 +413,14 @@ jobs:
             echo "✅ Using custom Embedding model: ${{ github.event.inputs.embedding_model }}"
           else
             echo "ℹ️  Using provider default Embedding model"
+            # Set default embedding models for providers that require explicit model configuration
+            case "${{ github.event.inputs.embedding_provider }}" in
+              cohere)
+                echo "COHERE_EMBEDDING_MODEL=embed-english-v3.0" >> $GITHUB_ENV
+                echo "ai.providers.cohere.embedding-model=embed-english-v3.0" >> $GITHUB_ENV
+                echo "✅ Set Cohere default embedding model: embed-english-v3.0"
+                ;;
+            esac
           fi
 
       - name: Run Integration Tests (Real API)
@@ -431,6 +447,13 @@ jobs:
                 MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.azure.deployment-name=${{ github.event.inputs.llm_model }}"
                 ;;
             esac
+          else
+            # Set default models for providers that require explicit model configuration
+            case "${{ github.event.inputs.llm_provider }}" in
+              cohere)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.cohere.model=command-r7b-12-2024"
+                ;;
+            esac
           fi
           
           if [ -n "${{ github.event.inputs.embedding_model }}" ]; then
@@ -446,6 +469,13 @@ jobs:
                 ;;
               azure)
                 MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.azure.embedding-deployment-name=${{ github.event.inputs.embedding_model }}"
+                ;;
+            esac
+          else
+            # Set default embedding models for providers that require explicit model configuration
+            case "${{ github.event.inputs.embedding_provider }}" in
+              cohere)
+                MAVEN_OPTS="$MAVEN_OPTS -Dai.providers.cohere.embedding-model=embed-english-v3.0"
                 ;;
             esac
           fi
