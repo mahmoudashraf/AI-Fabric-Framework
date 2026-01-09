@@ -351,7 +351,26 @@ cd "$TEST_DIR"
 
 # Note: This assumes dependencies are already built and installed.
 # The workflow should run 'mvn clean install -DskipTests' from the parent module first.
-MAVEN_COMMAND="mvn test"
+#
+# Maven CLI verbosity is separate from Spring logging. Map MAVEN_LOGGING_LEVEL to
+# Maven flags so providers (including OpenAI) respect quiet/verbose consistently.
+MAVEN_CLI_FLAGS="--no-transfer-progress"
+case "$LOGGING_LEVEL" in
+    quiet)
+        MAVEN_CLI_FLAGS="-q $MAVEN_CLI_FLAGS"
+        ;;
+    normal)
+        # default flags only
+        ;;
+    verbose)
+        MAVEN_CLI_FLAGS="-e $MAVEN_CLI_FLAGS"
+        ;;
+    debug)
+        MAVEN_CLI_FLAGS="-X -e $MAVEN_CLI_FLAGS"
+        ;;
+esac
+
+MAVEN_COMMAND="mvn $MAVEN_CLI_FLAGS test"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dtest=$TEST_CLASS"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=$PROFILE"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.matrix='$MATRIX_SPEC'"
@@ -480,7 +499,7 @@ if [ "$SKIP_TESTS" == "true" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -DskipTests"
 fi
 
-if [ "${DEBUG:-false}" == "true" ]; then
+if [ "${DEBUG:-false}" == "true" ] && [ "$LOGGING_LEVEL" != "debug" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -X"
 fi
 
