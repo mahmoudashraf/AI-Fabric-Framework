@@ -105,26 +105,35 @@ public class OpenAIProvider implements AIProvider {
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
             requestBody.put("top_p", 0.1);  // Lower top_p for more deterministic responses
             
-            // Log the complete request for debugging
-            System.out.println("\n=== OPENAI API REQUEST ===");
-            System.out.println("URL: " + url);
-            System.out.println("Model: " + requestBody.get("model"));
-            System.out.println("Temperature: " + requestBody.get("temperature"));
-            System.out.println("Top-P: " + requestBody.get("top_p"));
-            System.out.println("Max Tokens: " + requestBody.get("max_tokens"));
-            System.out.println("Messages count: " + messages.size());
-            for (int i = 0; i < messages.size(); i++) {
-                Map<String, String> msg = messages.get(i);
-                System.out.println("\nMessage " + i + ": role=" + msg.get("role"));
-                String content = msg.get("content");
-                if (content.length() > 1000) {
-                    System.out.println("  content (first 1000 chars): " + content.substring(0, 1000));
-                    System.out.println("  content (total length): " + content.length() + " chars");
-                } else {
-                    System.out.println("  content: " + content);
+            // IMPORTANT: Never use System.out for provider logging; it bypasses log levels and makes CI noisy.
+            // Keep request/response metadata at DEBUG and only include content at TRACE.
+            if (log.isDebugEnabled()) {
+                log.debug(
+                    "OpenAI API request: url={}, model={}, temperature={}, topP={}, maxTokens={}, messages={}",
+                    url,
+                    requestBody.get("model"),
+                    requestBody.get("temperature"),
+                    requestBody.get("top_p"),
+                    requestBody.get("max_tokens"),
+                    messages.size()
+                );
+                if (log.isTraceEnabled()) {
+                    for (int i = 0; i < messages.size(); i++) {
+                        Map<String, String> msg = messages.get(i);
+                        String role = msg.get("role");
+                        String content = msg.get("content");
+                        int len = content != null ? content.length() : 0;
+                        String snippet = content == null ? "" : content.substring(0, Math.min(500, len));
+                        log.trace(
+                            "OpenAI API request message[{}]: role={}, contentLength={}, contentSnippet={}",
+                            i,
+                            role,
+                            len,
+                            snippet
+                        );
+                    }
                 }
             }
-            System.out.println("=== END REQUEST ===\n");
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -142,18 +151,23 @@ public class OpenAIProvider implements AIProvider {
             Map<String, String> message = (Map<String, String>) choices.get(0).get("message");
             String content = message.get("content");
             
-            // Log the response for debugging
-            System.out.println("=== OPENAI API RESPONSE ===");
-            System.out.println("Response Time: " + responseTime + "ms");
-            System.out.println("Model: " + responseBody.get("model"));
-            System.out.println("Finish Reason: " + choices.get(0).get("finish_reason"));
-            System.out.println("Response Content Length: " + content.length() + " chars");
-            if (content.length() > 500) {
-                System.out.println("Content (first 500 chars):\n" + content.substring(0, 500));
-            } else {
-                System.out.println("Content:\n" + content);
+            if (log.isDebugEnabled()) {
+                Object finishReason = choices.get(0).get("finish_reason");
+                int contentLength = content != null ? content.length() : 0;
+                log.debug(
+                    "OpenAI API response: responseTimeMs={}, model={}, finishReason={}, contentLength={}",
+                    responseTime,
+                    responseBody.get("model"),
+                    finishReason,
+                    contentLength
+                );
+                if (log.isTraceEnabled() && content != null) {
+                    log.trace(
+                        "OpenAI API response contentSnippet={}",
+                        content.substring(0, Math.min(500, content.length()))
+                    );
+                }
             }
-            System.out.println("=== END RESPONSE ===\n");
             
             log.debug("OpenAI content generation completed in {}ms", responseTime);
             
