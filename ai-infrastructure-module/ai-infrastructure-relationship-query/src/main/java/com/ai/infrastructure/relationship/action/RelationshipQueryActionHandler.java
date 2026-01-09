@@ -8,12 +8,14 @@ import com.ai.infrastructure.relationship.model.QueryMode;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
+import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
 import com.ai.infrastructure.relationship.spi.RelationshipQueryAccessControlPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.lang.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -89,6 +91,8 @@ public class RelationshipQueryActionHandler implements ActionHandler {
     // REQUIRED - enforced via @ConditionalOnBean above
     // Users must provide their own implementation of RelationshipQueryAccessControlPolicy
     private final RelationshipQueryAccessControlPolicy accessControlPolicy;
+    @Nullable
+    private final RelationshipSchemaProvider schemaProvider;
 
     @Override
     public AIActionMetaData getActionMetadata() {
@@ -280,6 +284,22 @@ public class RelationshipQueryActionHandler implements ActionHandler {
         if (requestedEntityTypes == null || requestedEntityTypes.isEmpty()) {
             // If no entity types specified, get allowed entity types from policy
             List<String> allowed = accessControlPolicy.getAllowedEntityTypesForUser(userId);
+            if (allowed == null || allowed.isEmpty()) {
+                // Some policies (including our test policies) express "unrestricted" by returning an empty list.
+                // To remain safe, we expand to all known entity types and then filter each via canUserQueryEntityType.
+                List<String> known = schemaProvider != null && schemaProvider.getSchema() != null
+                    ? new ArrayList<>(schemaProvider.getSchema().entities().keySet())
+                    : List.of();
+                if (!known.isEmpty()) {
+                    List<String> filtered = new ArrayList<>();
+                    for (String entityType : known) {
+                        if (accessControlPolicy.canUserQueryEntityType(userId, entityType)) {
+                            filtered.add(entityType);
+                        }
+                    }
+                    return filtered;
+                }
+            }
             if (log.isDebugEnabled()) {
                 log.debug("No entity types specified - using policy allowed types: {} for user {}", allowed, userId);
             }
