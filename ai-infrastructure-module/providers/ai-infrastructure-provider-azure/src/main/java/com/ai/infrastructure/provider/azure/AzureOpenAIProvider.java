@@ -139,6 +139,25 @@ public class AzureOpenAIProvider implements AIProvider {
                 }
             }
 
+            if (log.isDebugEnabled()) {
+                log.debug("=== AZURE OPENAI API REQUEST ===");
+                log.debug(
+                    "Azure OpenAI request: url={}, messages={}, temperature={}, maxTokens={}, hasModelField={}",
+                    url,
+                    messages.size(),
+                    body.get("temperature"),
+                    body.get("max_tokens"),
+                    body.containsKey("model")
+                );
+                if (log.isTraceEnabled()) {
+                    String prompt = request.getPrompt();
+                    int len = prompt != null ? prompt.length() : 0;
+                    String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                    log.trace("Azure OpenAI request promptLength={}, promptSnippet={}", len, snippet);
+                }
+                log.debug("=== END AZURE OPENAI API REQUEST ===");
+            }
+
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
 
@@ -159,6 +178,24 @@ public class AzureOpenAIProvider implements AIProvider {
             @SuppressWarnings("unchecked")
             Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
             String content = message != null ? (String) message.get("content") : "";
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== AZURE OPENAI API RESPONSE ===");
+                Object model = responseBody.get("model");
+                Object finishReason = choices.get(0).get("finish_reason");
+                int contentLength = content != null ? content.length() : 0;
+                log.debug(
+                    "Azure OpenAI response: responseTimeMs={}, model={}, finishReason={}, contentLength={}",
+                    responseTime,
+                    model,
+                    finishReason,
+                    contentLength
+                );
+                if (log.isTraceEnabled() && content != null) {
+                    log.trace("Azure OpenAI response contentSnippet={}", content.substring(0, Math.min(500, content.length())));
+                }
+                log.debug("=== END AZURE OPENAI API RESPONSE ===");
+            }
 
             return AIGenerationResponse.builder()
                 .content(content)
@@ -203,6 +240,23 @@ public class AzureOpenAIProvider implements AIProvider {
             Map<String, Object> body = new HashMap<>();
             body.put("input", List.of(request.getText()));
 
+            if (log.isDebugEnabled()) {
+                log.debug("=== AZURE OPENAI EMBEDDING API REQUEST ===");
+                log.debug(
+                    "Azure OpenAI embedding request: url={}, inputCount={}, textLength={}",
+                    url,
+                    1,
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                if (log.isTraceEnabled()) {
+                    String text = request.getText();
+                    int len = text != null ? text.length() : 0;
+                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                    log.trace("Azure OpenAI embedding request textSnippet={}", snippet);
+                }
+                log.debug("=== END AZURE OPENAI EMBEDDING API REQUEST ===");
+            }
+
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
 
@@ -224,6 +278,16 @@ public class AzureOpenAIProvider implements AIProvider {
             List<Double> embedding = (List<Double>) data.get(0).get("embedding");
             if (embedding == null) {
                 throw new AIServiceException("Azure embedding data missing");
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== AZURE OPENAI EMBEDDING API RESPONSE ===");
+                log.debug(
+                    "Azure OpenAI embedding response: responseTimeMs={}, dimensions={}",
+                    processingTime,
+                    embedding.size()
+                );
+                log.debug("=== END AZURE OPENAI EMBEDDING API RESPONSE ===");
             }
 
             return AIEmbeddingResponse.builder()

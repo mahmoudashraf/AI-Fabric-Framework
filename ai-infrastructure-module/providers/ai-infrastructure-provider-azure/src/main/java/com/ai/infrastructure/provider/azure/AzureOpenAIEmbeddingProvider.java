@@ -107,6 +107,23 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             Map<String, Object> body = new HashMap<>();
             body.put("input", List.of(request.getText()));
 
+            if (log.isDebugEnabled()) {
+                log.debug("=== AZURE OPENAI EMBEDDING API REQUEST ===");
+                log.debug(
+                    "Azure OpenAI embedding request: url={}, inputCount={}, textLength={}",
+                    url,
+                    1,
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                if (log.isTraceEnabled()) {
+                    String text = request.getText();
+                    int len = text != null ? text.length() : 0;
+                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                    log.trace("Azure OpenAI embedding request textSnippet={}", snippet);
+                }
+                log.debug("=== END AZURE OPENAI EMBEDDING API REQUEST ===");
+            }
+
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             long start = System.currentTimeMillis();
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
@@ -127,6 +144,16 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             List<Double> embedding = (List<Double>) data.get(0).get("embedding");
             if (embedding == null) {
                 throw new AIServiceException("Azure embedding vector missing");
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== AZURE OPENAI EMBEDDING API RESPONSE ===");
+                log.debug(
+                    "Azure OpenAI embedding response: responseTimeMs={}, dimensions={}",
+                    elapsed,
+                    embedding.size()
+                );
+                log.debug("=== END AZURE OPENAI EMBEDDING API RESPONSE ===");
             }
 
             embeddingDimension = embedding.size();
@@ -160,6 +187,16 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             Map<String, Object> body = new HashMap<>();
             body.put("input", texts);
 
+            if (log.isDebugEnabled()) {
+                log.debug("=== AZURE OPENAI EMBEDDING API REQUEST ===");
+                log.debug(
+                    "Azure OpenAI embedding batch request: url={}, inputCount={}",
+                    url,
+                    texts != null ? texts.size() : 0
+                );
+                log.debug("=== END AZURE OPENAI EMBEDDING API REQUEST ===");
+            }
+
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             long start = System.currentTimeMillis();
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
@@ -174,6 +211,16 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
             if (data == null || data.isEmpty()) {
                 throw new AIServiceException("Azure embedding response missing data");
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== AZURE OPENAI EMBEDDING API RESPONSE ===");
+                log.debug(
+                    "Azure OpenAI embedding batch response: responseTimeMs={}, embeddings={}",
+                    elapsed,
+                    data.size()
+                );
+                log.debug("=== END AZURE OPENAI EMBEDDING API RESPONSE ===");
             }
 
             return data.stream()

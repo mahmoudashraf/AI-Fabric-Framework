@@ -81,6 +81,7 @@ public class GeminiProvider implements AIProvider {
             }
             
             String url = GEMINI_BASE_URL + "/models/" + model + ":generateContent?key=" + config.getApiKey();
+            String safeUrl = url.replaceAll("([?&]key=)[^&]+", "$1***");
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -137,6 +138,28 @@ public class GeminiProvider implements AIProvider {
             if (!generationConfig.isEmpty()) {
                 requestBody.put("generationConfig", generationConfig);
             }
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== GEMINI API REQUEST ===");
+                Object temperature = generationConfig.get("temperature");
+                Object maxOutputTokens = generationConfig.get("maxOutputTokens");
+                log.debug(
+                    "Gemini API request: url={}, model={}, temperature={}, maxOutputTokens={}, hasSystemInstruction={}, promptLength={}",
+                    safeUrl,
+                    model,
+                    temperature,
+                    maxOutputTokens,
+                    requestBody.containsKey("systemInstruction"),
+                    request.getPrompt() != null ? request.getPrompt().length() : 0
+                );
+                if (log.isTraceEnabled()) {
+                    String prompt = request.getPrompt();
+                    int len = prompt != null ? prompt.length() : 0;
+                    String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                    log.trace("Gemini API request promptSnippet={}", snippet);
+                }
+                log.debug("=== END GEMINI API REQUEST ===");
+            }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -157,6 +180,27 @@ public class GeminiProvider implements AIProvider {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> partsResponse = (List<Map<String, Object>>) contentResponse.get("parts");
             String generatedText = (String) partsResponse.get(0).get("text");
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== GEMINI API RESPONSE ===");
+                Object finishReason = candidate.get("finishReason");
+                int contentLength = generatedText != null ? generatedText.length() : 0;
+                log.debug(
+                    "Gemini API response: responseTimeMs={}, model={}, finishReason={}, contentLength={}, candidates={}",
+                    responseTime,
+                    model,
+                    finishReason,
+                    contentLength,
+                    candidates != null ? candidates.size() : 0
+                );
+                if (log.isTraceEnabled() && generatedText != null) {
+                    log.trace(
+                        "Gemini API response contentSnippet={}",
+                        generatedText.substring(0, Math.min(500, generatedText.length()))
+                    );
+                }
+                log.debug("=== END GEMINI API RESPONSE ===");
+            }
             
             log.debug("Gemini content generation completed in {}ms", responseTime);
             
@@ -208,6 +252,7 @@ public class GeminiProvider implements AIProvider {
             }
             
             String url = GEMINI_BASE_URL + "/models/" + model + ":embedContent?key=" + config.getApiKey();
+            String safeUrl = url.replaceAll("([?&]key=)[^&]+", "$1***");
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -220,6 +265,23 @@ public class GeminiProvider implements AIProvider {
             part.put("text", request.getText());
             content.put("parts", List.of(part));
             requestBody.put("content", content);
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== GEMINI EMBEDDING API REQUEST ===");
+                log.debug(
+                    "Gemini embedding request: url={}, model={}, textLength={}",
+                    safeUrl,
+                    model,
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                if (log.isTraceEnabled()) {
+                    String text = request.getText();
+                    int len = text != null ? text.length() : 0;
+                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                    log.trace("Gemini embedding request textSnippet={}", snippet);
+                }
+                log.debug("=== END GEMINI EMBEDDING API REQUEST ===");
+            }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -238,6 +300,17 @@ public class GeminiProvider implements AIProvider {
             
             // Keep as List<Double> for embedding
             List<Double> embedding = new ArrayList<>(values);
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== GEMINI EMBEDDING API RESPONSE ===");
+                log.debug(
+                    "Gemini embedding response: responseTimeMs={}, model={}, dimensions={}",
+                    responseTime,
+                    model,
+                    embedding != null ? embedding.size() : 0
+                );
+                log.debug("=== END GEMINI EMBEDDING API RESPONSE ===");
+            }
             
             log.debug("Gemini embedding generation completed in {}ms, dimension: {}", responseTime, embedding.size());
             

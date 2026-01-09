@@ -108,6 +108,7 @@ public class OpenAIProvider implements AIProvider {
             // IMPORTANT: Never use System.out for provider logging; it bypasses log levels and makes CI noisy.
             // Keep request/response metadata at DEBUG and only include content at TRACE.
             if (log.isDebugEnabled()) {
+                log.debug("=== OPENAI API REQUEST ===");
                 log.debug(
                     "OpenAI API request: url={}, model={}, temperature={}, topP={}, maxTokens={}, messages={}",
                     url,
@@ -133,6 +134,7 @@ public class OpenAIProvider implements AIProvider {
                         );
                     }
                 }
+                log.debug("=== END OPENAI API REQUEST ===");
             }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -152,6 +154,7 @@ public class OpenAIProvider implements AIProvider {
             String content = message.get("content");
             
             if (log.isDebugEnabled()) {
+                log.debug("=== OPENAI API RESPONSE ===");
                 Object finishReason = choices.get(0).get("finish_reason");
                 int contentLength = content != null ? content.length() : 0;
                 log.debug(
@@ -167,6 +170,7 @@ public class OpenAIProvider implements AIProvider {
                         content.substring(0, Math.min(500, content.length()))
                     );
                 }
+                log.debug("=== END OPENAI API RESPONSE ===");
             }
             
             log.debug("OpenAI content generation completed in {}ms", responseTime);

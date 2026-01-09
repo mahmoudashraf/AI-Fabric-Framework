@@ -108,6 +108,7 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
             long startTime = System.currentTimeMillis();
             
             String url = GEMINI_BASE_URL + "/models/" + model + ":embedContent?key=" + gemini.getApiKey();
+            String safeUrl = url.replaceAll("([?&]key=)[^&]+", "$1***");
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -120,6 +121,23 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
             part.put("text", request.getText());
             content.put("parts", List.of(part));
             requestBody.put("content", content);
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== GEMINI EMBEDDING API REQUEST ===");
+                log.debug(
+                    "Gemini embedding request: url={}, model={}, textLength={}",
+                    safeUrl,
+                    model,
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                if (log.isTraceEnabled()) {
+                    String text = request.getText();
+                    int len = text != null ? text.length() : 0;
+                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                    log.trace("Gemini embedding request textSnippet={}", snippet);
+                }
+                log.debug("=== END GEMINI EMBEDDING API REQUEST ===");
+            }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -137,6 +155,17 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
             
             // Keep as List<Double> for embedding
             List<Double> embedding = new ArrayList<>(values);
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== GEMINI EMBEDDING API RESPONSE ===");
+                log.debug(
+                    "Gemini embedding response: responseTimeMs={}, model={}, dimensions={}",
+                    processingTime,
+                    model,
+                    embedding != null ? embedding.size() : 0
+                );
+                log.debug("=== END GEMINI EMBEDDING API RESPONSE ===");
+            }
             
             log.debug("Successfully generated Gemini embedding with {} dimensions in {}ms", 
                      embedding.size(), processingTime);

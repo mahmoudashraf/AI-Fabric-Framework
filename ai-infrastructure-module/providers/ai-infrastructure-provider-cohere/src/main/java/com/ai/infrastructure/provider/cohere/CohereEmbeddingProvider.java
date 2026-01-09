@@ -117,6 +117,24 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
             requestBody.put("model", model);
             requestBody.put("texts", List.of(request.getText()));
             requestBody.put("input_type", "search_document");
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== COHERE EMBEDDING API REQUEST ===");
+                log.debug(
+                    "Cohere embedding request: url={}, model={}, inputType={}, textLength={}",
+                    url,
+                    model,
+                    requestBody.get("input_type"),
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                if (log.isTraceEnabled()) {
+                    String text = request.getText();
+                    int len = text != null ? text.length() : 0;
+                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                    log.trace("Cohere embedding request textSnippet={}", snippet);
+                }
+                log.debug("=== END COHERE EMBEDDING API REQUEST ===");
+            }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -130,6 +148,17 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
             @SuppressWarnings("unchecked")
             List<List<Double>> embeddings = (List<List<Double>>) responseBody.get("embeddings");
             List<Double> embedding = embeddings.get(0);
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== COHERE EMBEDDING API RESPONSE ===");
+                log.debug(
+                    "Cohere embedding response: responseTimeMs={}, model={}, dimensions={}",
+                    processingTime,
+                    responseBody != null ? responseBody.get("model") : null,
+                    embedding != null ? embedding.size() : 0
+                );
+                log.debug("=== END COHERE EMBEDDING API RESPONSE ===");
+            }
             
             log.debug("Successfully generated Cohere embedding with {} dimensions in {}ms", 
                      embedding.size(), processingTime);

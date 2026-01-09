@@ -113,6 +113,26 @@ public class AnthropicProvider implements AIProvider {
             List<Map<String, Object>> messages = new java.util.ArrayList<>();
             messages.add(Map.of("role", "user", "content", request.getPrompt()));
             requestBody.put("messages", messages);
+
+            if (log.isDebugEnabled()) {
+                log.debug("=== ANTHROPIC API REQUEST ===");
+                log.debug(
+                    "Anthropic API request: url={}, model={}, temperature={}, maxTokens={}, hasSystem={}, messages={}",
+                    url,
+                    requestBody.get("model"),
+                    requestBody.get("temperature"),
+                    requestBody.get("max_tokens"),
+                    requestBody.containsKey("system"),
+                    messages.size()
+                );
+                if (log.isTraceEnabled()) {
+                    String prompt = request.getPrompt();
+                    int len = prompt != null ? prompt.length() : 0;
+                    String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                    log.trace("Anthropic API request promptLength={}, promptSnippet={}", len, snippet);
+                }
+                log.debug("=== END ANTHROPIC API REQUEST ===");
+            }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -128,6 +148,24 @@ public class AnthropicProvider implements AIProvider {
             List<Map<String, Object>> content = (List<Map<String, Object>>) responseBody.get("content");
             String generatedText = (String) content.get(0).get("text");
             
+            if (log.isDebugEnabled()) {
+                log.debug("=== ANTHROPIC API RESPONSE ===");
+                int contentLength = generatedText != null ? generatedText.length() : 0;
+                log.debug(
+                    "Anthropic API response: responseTimeMs={}, model={}, contentLength={}",
+                    responseTime,
+                    responseBody.get("model"),
+                    contentLength
+                );
+                if (log.isTraceEnabled() && generatedText != null) {
+                    log.trace(
+                        "Anthropic API response contentSnippet={}",
+                        generatedText.substring(0, Math.min(500, generatedText.length()))
+                    );
+                }
+                log.debug("=== END ANTHROPIC API RESPONSE ===");
+            }
+
             log.debug("Anthropic content generation completed in {}ms", responseTime);
             
             return AIGenerationResponse.builder()
