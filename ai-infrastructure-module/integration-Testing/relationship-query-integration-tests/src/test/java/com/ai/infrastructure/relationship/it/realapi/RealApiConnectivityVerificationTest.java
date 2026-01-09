@@ -1,8 +1,7 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.core.AICoreService;
-import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
+import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.testing.RealApiConnectivityVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -18,21 +17,21 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @EnabledIfSystemProperty(named = "ai.realapi.connectivity.check", matches = "true")
 @SpringBootTest(
-    classes = RelationshipQueryIntegrationTestApplication.class,
+    classes = RelationshipQueryConnectivityTestApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.NONE
 )
 @ActiveProfiles("realapi")
 class RealApiConnectivityVerificationTest {
 
     @Autowired
-    private AICoreService aiCoreService;
+    private AIProviderManager providerManager;
 
     @Autowired
     private AIProviderConfig providerConfig;
 
     @Test
     void shouldReachConfiguredLlmProvider() {
-        RealApiConnectivityVerifier.verifyLlmOrThrow(aiCoreService, providerConfig);
+        RealApiConnectivityVerifier.verifyLlmOrThrow(providerManager, providerConfig);
     }
 }
 

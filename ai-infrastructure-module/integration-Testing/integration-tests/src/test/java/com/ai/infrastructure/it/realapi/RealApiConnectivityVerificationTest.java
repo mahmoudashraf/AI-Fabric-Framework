@@ -1,8 +1,8 @@
 package com.ai.infrastructure.it.realapi;
 
 import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.it.TestApplication;
+import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.testing.RealApiConnectivityVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -22,14 +22,14 @@ import org.springframework.test.context.ActiveProfiles;
 class RealApiConnectivityVerificationTest {
 
     @Autowired
-    private AICoreService aiCoreService;
+    private AIProviderManager providerManager;
 
     @Autowired
     private AIProviderConfig providerConfig;
 
     @Test
     void shouldReachConfiguredLlmProvider() {
-        RealApiConnectivityVerifier.verifyLlmOrThrow(aiCoreService, providerConfig);
+        RealApiConnectivityVerifier.verifyLlmOrThrow(providerManager, providerConfig);
     }
 }
 

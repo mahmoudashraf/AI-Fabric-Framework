@@ -1,10 +1,10 @@
 package com.ai.infrastructure.testing;
 
 import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.provider.AIProviderManager;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
@@ -24,19 +24,29 @@ public final class RealApiConnectivityVerifier {
     private RealApiConnectivityVerifier() {
     }
 
-    public static void verifyLlmOrThrow(AICoreService aiCoreService, AIProviderConfig providerConfig) {
-        Objects.requireNonNull(aiCoreService, "aiCoreService");
+    public static void verifyLlmOrThrow(AIProviderManager providerManager, AIProviderConfig providerConfig) {
+        Objects.requireNonNull(providerManager, "providerManager");
         Objects.requireNonNull(providerConfig, "providerConfig");
 
-        VerificationResult result = verifyLlm(aiCoreService, providerConfig);
+        VerificationResult result = verifyLlm(providerManager, providerConfig);
         if (result.ok()) {
             return;
         }
         throw new IllegalStateException(result.summary(), result.error());
     }
 
-    public static VerificationResult verifyLlm(AICoreService aiCoreService, AIProviderConfig providerConfig) {
+    public static VerificationResult verifyLlm(AIProviderManager providerManager, AIProviderConfig providerConfig) {
         String llmProvider = normalize(providerConfig.getLlmProvider());
+        AIProviderConfig.GenerationDefaults defaults = providerConfig.resolveLlmDefaults();
+
+        if (defaults == null || defaults.model() == null || defaults.model().isBlank()) {
+            ClassifiedFailure failure = new ClassifiedFailure(
+                FailureType.CONFIG_ERROR,
+                null,
+                "Missing model for LLM provider '" + llmProvider + "'. Check provider model env vars."
+            );
+            return VerificationResult.failed(llmProvider, failure, new IllegalStateException(failure.responseSnippet()));
+        }
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("connectivity-" + UUID.randomUUID())
@@ -45,12 +55,13 @@ public final class RealApiConnectivityVerifier {
             .userId("connectivity-check")
             .systemPrompt("You are a connectivity check. Reply with a single word: OK")
             .prompt("Reply with: OK")
+            .model(defaults.model())
             .temperature(0.0)
             .maxTokens(5)
             .build();
 
         try {
-            AIGenerationResponse response = aiCoreService.generateContent(request);
+            AIGenerationResponse response = providerManager.generateContent(request);
             String content = response != null ? response.getContent() : null;
             return VerificationResult.ok(llmProvider, content);
         } catch (AIServiceException ex) {
