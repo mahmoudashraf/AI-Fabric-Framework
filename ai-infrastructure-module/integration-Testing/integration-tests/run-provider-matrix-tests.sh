@@ -90,6 +90,7 @@ TEST_CHUNK="${3:-all}"
 LOGGING_LEVEL="${MAVEN_LOGGING_LEVEL:-quiet}"
 PROFILE="real-api-test"
 TEST_CLASS="RealAPIProviderMatrixIntegrationTest"
+CONNECTIVITY_TEST_CLASS="RealApiConnectivityVerificationTest"
 SKIP_TESTS="${SKIP_TESTS:-false}"
 
 # Functions
@@ -520,6 +521,66 @@ fi
 print_info "Working Directory: $(pwd)"
 print_info "Maven Profile: $PROFILE"
 print_info "Test Class: $TEST_CLASS"
+
+# ---------------------------------------------------------------------------
+# Connectivity pre-check (fail fast on invalid credentials / unreachable provider)
+# ---------------------------------------------------------------------------
+print_header "Connectivity Verification"
+
+# Use the first provider pair from the matrix spec for the connectivity check.
+# (Most manual runs use a single combination.)
+CONNECTIVITY_LLM_PROVIDER=""
+CONNECTIVITY_EMBEDDING_PROVIDER=""
+FIRST_COMBO=$(echo "$MATRIX_SPEC" | awk -F',' '{print $1}' | xargs)
+if [[ "$FIRST_COMBO" =~ ^([^:]+):([^:]+) ]]; then
+    CONNECTIVITY_LLM_PROVIDER="${BASH_REMATCH[1]}"
+    CONNECTIVITY_EMBEDDING_PROVIDER="${BASH_REMATCH[2]}"
+fi
+
+CONNECTIVITY_COMMAND="mvn $MAVEN_CLI_FLAGS test"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dtest=$CONNECTIVITY_TEST_CLASS"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dspring.profiles.active=$PROFILE"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DforkCount=1"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DreuseForks=false"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.realapi.connectivity.check=true"
+
+if [ -n "$CONNECTIVITY_LLM_PROVIDER" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.llm-provider=$CONNECTIVITY_LLM_PROVIDER"
+fi
+if [ -n "$CONNECTIVITY_EMBEDDING_PROVIDER" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.embedding-provider=$CONNECTIVITY_EMBEDDING_PROVIDER"
+fi
+
+# Enable providers explicitly for the check (helps local runs where *_ENABLED isn't set).
+case "$CONNECTIVITY_LLM_PROVIDER" in
+    openai)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.enabled=true -DOPENAI_ENABLED=true"
+        ;;
+    anthropic)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.anthropic.enabled=true -DANTHROPIC_ENABLED=true"
+        ;;
+    gemini)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.gemini.enabled=true -DGEMINI_ENABLED=true"
+        ;;
+    cohere)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.cohere.enabled=true -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.azure.enabled=true -DAZURE_ENABLED=true"
+        ;;
+esac
+
+print_info "Connectivity check provider: LLM=${CONNECTIVITY_LLM_PROVIDER:-unknown} Embedding=${CONNECTIVITY_EMBEDDING_PROVIDER:-unknown}"
+print_info "Command:"
+echo "  $CONNECTIVITY_COMMAND"
+echo ""
+
+if eval "$CONNECTIVITY_COMMAND"; then
+    print_success "Connectivity verification passed"
+else
+    print_error "Connectivity verification failed - aborting test run"
+    exit 1
+fi
 
 # Display the command
 print_header "Executing Tests"

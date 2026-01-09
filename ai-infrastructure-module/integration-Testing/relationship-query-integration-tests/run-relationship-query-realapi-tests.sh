@@ -359,6 +359,67 @@ fi
 
 MAVEN_COMMAND="$MAVEN_COMMAND failsafe:integration-test failsafe:verify"
 
+# ---------------------------------------------------------------------------
+# Connectivity pre-check (fail fast on invalid credentials / unreachable provider)
+# ---------------------------------------------------------------------------
+print_header "Connectivity Verification"
+
+CONNECTIVITY_COMMAND="mvn -P${MAVEN_PROFILE}"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dspring.profiles.active=${MAVEN_PROFILE}"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DforkCount=1"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DreuseForks=false"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.realapi.connectivity.check=true"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dtest=RealApiConnectivityVerificationTest"
+
+# Use the same provider selection + enablement flags as the main run.
+if [ -n "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.embedding-provider=$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER"
+fi
+if [ -n "$AI_INFRASTRUCTURE_LLM_PROVIDER" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.llm-provider=$AI_INFRASTRUCTURE_LLM_PROVIDER"
+fi
+
+case "$AI_INFRASTRUCTURE_LLM_PROVIDER" in
+    openai)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.enabled=true -DOPENAI_ENABLED=true"
+        ;;
+    anthropic)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.anthropic.enabled=true -DANTHROPIC_ENABLED=true"
+        ;;
+    gemini)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.gemini.enabled=true -DGEMINI_ENABLED=true"
+        ;;
+    cohere)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.cohere.enabled=true -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.azure.enabled=true -DAZURE_ENABLED=true"
+        ;;
+esac
+
+case "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" in
+    openai)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.enabled=true -DOPENAI_ENABLED=true"
+        ;;
+    cohere)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.cohere.enabled=true -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.azure.enabled=true -DAZURE_ENABLED=true"
+        ;;
+esac
+
+print_info "Connectivity check command:"
+echo "  $CONNECTIVITY_COMMAND"
+echo ""
+
+if eval "$CONNECTIVITY_COMMAND test"; then
+    print_success "Connectivity verification passed"
+else
+    print_error "Connectivity verification failed - aborting test run"
+    exit 1
+fi
+
 # Optional debug flag
 if [ "${DEBUG:-false}" == "true" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -X"
