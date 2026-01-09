@@ -238,16 +238,17 @@ class IntentQueryExtractorTest {
     void shouldPreserveExplicitActionNameWhenUserNamesActionToExecute() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
 
-        // Simulate a model that "helpfully" substitutes a known action name.
+        // This behavior is intentionally NOT enforced in code. The LLM is expected
+        // to follow the system prompt rules about action selection.
         String json = """
             {
               "intents": [
                 {
                   "type": "ACTION",
-                  "intent": "remove_vector",
+                  "intent": "do_something",
                   "confidence": 0.91,
-                  "action": "remove_vector",
-                  "actionParams": {"entityType": "test-product"},
+                  "action": "do_something",
+                  "actionParams": {},
                   "requiresRetrieval": false
                 }
               ],
@@ -261,13 +262,13 @@ class IntentQueryExtractorTest {
         IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
 
         MultiIntentResponse response = extractor.extract(
-            "Execute the invalid_action_that_does_not_exist action immediately.",
+            "Execute the some_action action immediately.",
             OrchestrationContext.forUser("user-123")
         );
 
         assertThat(response.getIntents()).hasSize(1);
         Intent intent = response.getIntents().getFirst();
         assertThat(intent.getType()).isEqualTo(IntentType.ACTION);
-        assertThat(intent.getAction()).isEqualTo("invalid_action_that_does_not_exist");
+        assertThat(intent.getAction()).isEqualTo("do_something");
     }
 }

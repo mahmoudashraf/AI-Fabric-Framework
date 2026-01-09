@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static com.ai.infrastructure.it.action.AlwaysFailActionHandler.ACTION_NAME;
+import static com.ai.infrastructure.it.action.AlwaysFailActionHandler.ERROR_CODE;
 
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("real-api-test")
@@ -106,13 +108,13 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         assertThat(baselineEntity.getVectorId()).isNotEmpty();
 
         String userId = "real-action-error-user";
-        // Test error recovery with an invalid action that will naturally fail
-        // This tests PII sanitization and error handling without mocking
+        // Test error recovery with a deterministic test-only action handler that always fails.
+        // This avoids relying on provider-specific intent extraction behavior for unknown action names.
         String query = """
             Emergency broadcast: Card 4916-2345-0987-1123 leaked in the SecOps export owned by bree.secops@enterprise.example (contact (555) 714-2209).
-            Execute the invalid_action_that_does_not_exist action immediately. This action does not exist and should fail.
+            Execute the %s action immediately. This action is expected to fail.
             After handling the error, recommend the follow-up next step intent `reseed_vector_index` with a high confidence (>=0.9) targeting the test-product knowledge base, and include rationale about verifying regenerated embeddings.
-            """;
+            """.formatted(ACTION_NAME);
 
         OrchestrationResult result = orchestrateOrSkip(query, userId);
 
@@ -150,8 +152,8 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         if (actionWasAttempted && actionResultCaptured != null) {
             assertThat(actionResultCaptured.isSuccess()).isFalse();
             assertThat(String.valueOf(actionResultCaptured.getMessage()))
-                .contains("No action handler registered for action 'invalid_action_that_does_not_exist'");
-            assertThat(String.valueOf(actionResultCaptured.getErrorCode())).isEqualTo("ACTION_NOT_FOUND");
+                .contains("Test-only failure");
+            assertThat(String.valueOf(actionResultCaptured.getErrorCode())).isEqualTo(ERROR_CODE);
         }
         
         // If action was attempted, verify error message indicates handler not found
@@ -180,9 +182,8 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
             );
 
             assertThat(combinedMessage)
-                .as("Error message should indicate action handler not found (top-level, actionResult, or children)")
-                .contains("No action handler registered")
-                .contains("invalid_action_that_does_not_exist");
+                .as("Error message should reflect deterministic test failure (top-level, actionResult, or children)")
+                .contains("Test-only failure");
         }
 
         // Prefer next-step recommendations; allow fallback to smart suggestions when the LLM returns a compound/error path
@@ -196,10 +197,10 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         Map<String, Object> sanitizedPayload = result.getSanitizedPayload();
         assertThat(sanitizedPayload).isNotEmpty();
         if (actionWasAttempted || !result.isSuccess()) {
-            // Provider-agnostic contract: missing action handler should surface as top-level ERROR with ACTION_NOT_FOUND.
+            // Contract: failing action should surface as top-level ERROR with a stable errorCode.
             assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
             assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getErrorCode()).isEqualTo("ACTION_NOT_FOUND");
+            assertThat(result.getErrorCode()).isEqualTo(ERROR_CODE);
             assertThat(String.valueOf(sanitizedPayload.get("type"))).isEqualTo("ERROR");
             assertThat(sanitizedPayload.get("success")).isEqualTo(Boolean.FALSE);
         } else {

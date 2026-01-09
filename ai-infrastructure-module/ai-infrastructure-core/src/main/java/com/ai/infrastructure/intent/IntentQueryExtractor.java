@@ -20,8 +20,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.UUID;
 
 /**
@@ -30,14 +28,6 @@ import java.util.UUID;
 @Slf4j
 @Service
 public class IntentQueryExtractor {
-
-    /**
-     * When users explicitly name an action, some models may "helpfully" substitute a different
-     * action from the AVAILABLE ACTIONS list. This guardrail preserves the explicitly named
-     * action string so the runtime can deterministically return ACTION_NOT_FOUND when appropriate.
-     */
-    private static final Pattern EXPLICIT_ACTION_PATTERN =
-        Pattern.compile("(?is)\\bexecute\\s+the\\s+([a-zA-Z0-9_.-]+)\\s+action\\b");
 
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
@@ -93,55 +83,10 @@ public class IntentQueryExtractor {
 
         response.normalize();
         validateResponse(response);
-        applyExplicitActionOverride(query, response);
         if (!response.hasIntents()) {
             log.warn("Intent extractor returned no intents for query '{}'", query);
         }
         return response;
-    }
-
-    private void applyExplicitActionOverride(String query, MultiIntentResponse response) {
-        if (!StringUtils.hasText(query) || response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
-            return;
-        }
-
-        String explicitAction = extractExplicitActionName(query);
-        if (!StringUtils.hasText(explicitAction)) {
-            return;
-        }
-
-        Intent actionable = response.getIntents().stream()
-            .filter(intent -> intent != null && intent.getType() == IntentType.ACTION)
-            .findFirst()
-            .orElse(null);
-        if (actionable == null) {
-            return;
-        }
-
-        String current = actionable.getAction();
-        if (StringUtils.hasText(current) && current.trim().equalsIgnoreCase(explicitAction)) {
-            return;
-        }
-
-        log.debug("Overriding extracted action '{}' -> '{}' based on explicit user instruction",
-            current, explicitAction);
-        actionable.setAction(explicitAction);
-        if (!StringUtils.hasText(actionable.getIntent())) {
-            actionable.setIntent(explicitAction);
-        }
-    }
-
-    private String extractExplicitActionName(String query) {
-        Matcher matcher = EXPLICIT_ACTION_PATTERN.matcher(query);
-        if (!matcher.find()) {
-            return null;
-        }
-        String name = matcher.group(1);
-        if (!StringUtils.hasText(name)) {
-            return null;
-        }
-        String trimmed = name.trim();
-        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private MultiIntentResponse parseResponse(String rawJson) {
