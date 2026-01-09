@@ -163,11 +163,11 @@ jobs:
       - name: Mask provider API keys
         if: always()
         run: |
-          echo "::add-mask::${{ github.event.inputs.openai_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.gemini_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.cohere_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.azure_api_key }}"
+          [ -n "${{ github.event.inputs.openai_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.openai_api_key }}" || true
+          [ -n "${{ github.event.inputs.anthropic_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}" || true
+          [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
+          [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
+          [ -n "${{ github.event.inputs.azure_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.azure_api_key }}" || true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -627,11 +627,11 @@ jobs:
       - name: Mask provider API keys
         if: always()
         run: |
-          echo "::add-mask::${{ github.event.inputs.openai_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.gemini_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.cohere_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.azure_api_key }}"
+          [ -n "${{ github.event.inputs.openai_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.openai_api_key }}" || true
+          [ -n "${{ github.event.inputs.anthropic_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}" || true
+          [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
+          [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
+          [ -n "${{ github.event.inputs.azure_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.azure_api_key }}" || true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -701,7 +701,8 @@ jobs:
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
           GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
           COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
-          COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || '' }}
+          # IMPORTANT: do not set empty string for booleans; Spring binds empty -> null -> crash for primitive boolean fields.
+          COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || 'false' }}
           AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
@@ -750,11 +751,11 @@ jobs:
       - name: Mask provider API keys
         if: always()
         run: |
-          echo "::add-mask::${{ github.event.inputs.openai_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.gemini_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.cohere_api_key }}"
-          echo "::add-mask::${{ github.event.inputs.azure_api_key }}"
+          [ -n "${{ github.event.inputs.openai_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.openai_api_key }}" || true
+          [ -n "${{ github.event.inputs.anthropic_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}" || true
+          [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
+          [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
+          [ -n "${{ github.event.inputs.azure_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.azure_api_key }}" || true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -812,7 +813,8 @@ jobs:
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
           GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
           COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
-          COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || '' }}
+          # IMPORTANT: do not set empty string for booleans; Spring binds empty -> null -> crash for primitive boolean fields.
+          COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || 'false' }}
           AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
