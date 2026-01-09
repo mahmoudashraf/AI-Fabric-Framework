@@ -123,6 +123,7 @@ on:
         type: choice
         options:
           - quiet
+          - error
           - normal
           - verbose
           - debug

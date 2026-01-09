@@ -359,6 +359,9 @@ case "$LOGGING_LEVEL" in
     quiet)
         MAVEN_CLI_FLAGS="-q $MAVEN_CLI_FLAGS"
         ;;
+    error)
+        MAVEN_CLI_FLAGS="-q $MAVEN_CLI_FLAGS"
+        ;;
     normal)
         # default flags only
         ;;
@@ -468,6 +471,17 @@ fi
 # Map Maven logging levels to Spring Boot logging levels
 # These override the DEBUG settings in application-test.yml
 case "$LOGGING_LEVEL" in
+    error)
+        # Error mode: Only ERROR logs (suppress WARN/INFO/DEBUG)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.root=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.provider=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.core=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.embedding=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.springframework=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.hibernate=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.it.realapi=ERROR"
+        ;;
     quiet)
         # Quiet mode: Only WARN and ERROR (suppress all DEBUG/INFO)
         # But keep INFO for test execution logging to see which test classes are running
