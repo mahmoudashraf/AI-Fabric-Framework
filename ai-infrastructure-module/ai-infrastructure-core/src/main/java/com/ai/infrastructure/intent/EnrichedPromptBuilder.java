@@ -108,8 +108,10 @@ public class EnrichedPromptBuilder {
         prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
         prompt.append("6. For INFORMATION intents decide if LLM generation is needed (requiresGeneration = true for opinions/recommendations, false for data lookup).\n");
         prompt.append("7. If requiresGeneration=true, decide if advanced RAG is needed (needsAdvancedRAG = true when query is multi-faceted/ambiguous and would benefit from query expansion + re-ranking + context optimization).\n");
-        prompt.append("8. If the user explicitly names an action to execute (e.g., \"Execute the foo_bar action\" or `foo_bar`), use that exact string for intent.action. Do NOT substitute a different action name.\n");
-        prompt.append("   - If the named action is not in AVAILABLE ACTIONS, still return it. The runtime will return a deterministic ACTION_NOT_FOUND error.\n");
+        prompt.append("8. Action selection MUST be grounded in AVAILABLE ACTIONS and the user's request:\n");
+        prompt.append("   - Only return intent.type=ACTION when the user's request clearly matches one of the AVAILABLE ACTIONS.\n");
+        prompt.append("   - Choose the closest matching action by meaning; never pick an unrelated action just because it's available.\n");
+        prompt.append("   - If no AVAILABLE ACTION matches the user's request, return intent.type=OUT_OF_SCOPE (do not invent new actions).\n");
         // Add entity types information - always include, even if empty
         prompt.append("9. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
         if (context.getAvailableEntityTypes() != null && !context.getAvailableEntityTypes().isEmpty()) {
