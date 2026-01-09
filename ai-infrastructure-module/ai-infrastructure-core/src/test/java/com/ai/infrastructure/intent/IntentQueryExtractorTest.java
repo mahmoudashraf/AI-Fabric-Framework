@@ -233,4 +233,41 @@ class IntentQueryExtractorTest {
         assertThat(response.getIntents().getFirst().getIntent()).isEqualTo("cancel_subscription");
         assertThat(response.getOrchestrationStrategy()).isEqualTo("DIRECT_ACTION");
     }
+
+    @Test
+    void shouldPreserveExplicitActionNameWhenUserNamesActionToExecute() {
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
+
+        // Simulate a model that "helpfully" substitutes a known action name.
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "ACTION",
+                  "intent": "remove_vector",
+                  "confidence": 0.91,
+                  "action": "remove_vector",
+                  "actionParams": {"entityType": "test-product"},
+                  "requiresRetrieval": false
+                }
+              ],
+              "isCompound": false
+            }
+            """;
+
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+
+        MultiIntentResponse response = extractor.extract(
+            "Execute the invalid_action_that_does_not_exist action immediately.",
+            OrchestrationContext.forUser("user-123")
+        );
+
+        assertThat(response.getIntents()).hasSize(1);
+        Intent intent = response.getIntents().getFirst();
+        assertThat(intent.getType()).isEqualTo(IntentType.ACTION);
+        assertThat(intent.getAction()).isEqualTo("invalid_action_that_does_not_exist");
+    }
 }

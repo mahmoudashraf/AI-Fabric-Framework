@@ -36,8 +36,8 @@ class EnrichedPromptBuilderEntityTypesTest {
         
         // Assert
         assertThat(prompt)
-            .as("Prompt should contain rule 8 for relationship_query")
-            .contains("8. When action == \"relationship_query\"");
+            .as("Prompt should contain relationship_query entityTypes rule")
+            .contains("When action == \"relationship_query\"");
         
         assertThat(prompt)
             .as("Prompt should list available entity types")
@@ -67,8 +67,8 @@ class EnrichedPromptBuilderEntityTypesTest {
         
         // Assert
         assertThat(prompt)
-            .as("Prompt should contain rule 8")
-            .contains("8. When action == \"relationship_query\"");
+            .as("Prompt should contain relationship_query entityTypes rule")
+            .contains("When action == \"relationship_query\"");
         
         assertThat(prompt)
             .as("Prompt should indicate no entity types registered")
