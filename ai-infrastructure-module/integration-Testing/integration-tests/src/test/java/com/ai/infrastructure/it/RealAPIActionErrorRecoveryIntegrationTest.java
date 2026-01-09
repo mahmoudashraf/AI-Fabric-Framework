@@ -142,8 +142,31 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         
         // If action was attempted, verify error message indicates handler not found
         if (actionWasAttempted || !result.isSuccess()) {
-            assertThat(result.getMessage())
-                .as("Error message should indicate action handler not found")
+            // Different LLMs can return different top-level orchestration wrappers (single ERROR vs COMPOUND_HANDLED).
+            // The stable contract is that the underlying action error is recorded (either in actionResult or children).
+            String actionResultMessage = Optional.ofNullable(result.getData())
+                .map(dataMap -> dataMap.get("actionResult"))
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(actionResult -> actionResult.get("message"))
+                .map(String::valueOf)
+                .orElse("");
+
+            String childrenMessages = Optional.ofNullable(result.getChildren())
+                .orElse(List.of())
+                .stream()
+                .map(OrchestrationResult::getMessage)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.joining(" | "));
+
+            String combinedMessage = String.join(" | ",
+                Optional.ofNullable(result.getMessage()).orElse(""),
+                actionResultMessage,
+                childrenMessages
+            );
+
+            assertThat(combinedMessage)
+                .as("Error message should indicate action handler not found (top-level, actionResult, or children)")
                 .contains("No action handler registered")
                 .contains("invalid_action_that_does_not_exist");
         }
