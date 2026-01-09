@@ -5,14 +5,16 @@
 **Goal:** Enable flexible pipeline configurations without separating the orchestrator into a separate module. Instead of module separation, we introduce **Pipeline Templates** - pre-configured pipeline variants optimized for different use cases.
 
 **Current State:**
-- Single `DefaultOrchestrationPipeline` with all 10 steps
-- All steps always execute (unless terminated early)
+- `RAGOrchestrator` with single `DefaultOrchestrationPipeline`
+- All 10 steps always execute (unless terminated early)
 - No way to run partial pipelines for specific use cases
 
 **Proposed State:**
+- Rename `RAGOrchestrator` to `Orchestrator` (cleaner, more generic)
 - Multiple pipeline templates (Security, Compliance, Batch, Full, etc.)
 - Configuration-driven step inclusion/exclusion
 - `PipelineFactory` to create appropriate pipelines
+- **Default = FULL pipeline (all steps)** - same behavior as current
 - Runtime selection of pipeline based on use case
 
 **Key Benefits:**
@@ -742,11 +744,13 @@ public class ConfigurablePipeline implements Pipeline {
 
 ---
 
-## Phase 3: Multi-Pipeline Orchestrator
+## Phase 3: Orchestrator (Replaces RAGOrchestrator)
 
-### 3.1 Create ConfigurableOrchestrator
+### 3.1 Create Orchestrator
 
-**Location:** `ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/ConfigurableOrchestrator.java`
+**Location:** `ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/Orchestrator.java`
+
+> **Note:** This replaces `RAGOrchestrator`. Delete the old class after creating this one.
 
 ```java
 package com.ai.infrastructure.intent.orchestration;
@@ -762,14 +766,12 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Configurable orchestrator that supports multiple pipeline templates.
+ * Main orchestrator for processing queries through configurable pipelines.
  *
- * <p>Unlike {@link RAGOrchestrator} which uses a single pipeline, this
- * orchestrator can execute different pipelines based on the use case:</p>
- *
+ * <p>The orchestrator supports multiple pipeline templates for different use cases:</p>
  * <ul>
- *   <li>{@link #orchestrate} - Uses default pipeline (configurable)</li>
- *   <li>{@link #orchestrateWith} - Uses specific template</li>
+ *   <li>{@link #orchestrate(String, OrchestrationContext)} - Default FULL pipeline (all steps)</li>
+ *   <li>{@link #orchestrate(String, OrchestrationContext, PipelineTemplate)} - Specific template</li>
  *   <li>{@link #orchestrateSecurityOnly} - Fast security screening</li>
  *   <li>{@link #orchestrateBatch} - Batch processing without history</li>
  *   <li>{@link #orchestrateIntentOnly} - Intent extraction without execution</li>
@@ -777,16 +779,14 @@ import java.util.Set;
  *
  * <p><strong>Usage:</strong></p>
  * <pre>{@code
- * // Standard orchestration (uses default template)
+ * // Standard orchestration (FULL pipeline - all steps)
  * OrchestrationResult result = orchestrator.orchestrate(query, context);
  *
- * // Security screening only
+ * // Security screening only (fast)
  * OrchestrationResult security = orchestrator.orchestrateSecurityOnly(query, context);
  *
  * // Specific template
- * OrchestrationResult batch = orchestrator.orchestrateWith(
- *     query, context, PipelineTemplate.BATCH
- * );
+ * OrchestrationResult batch = orchestrator.orchestrate(query, context, PipelineTemplate.BATCH);
  * }</pre>
  *
  * @see PipelineTemplate
@@ -796,7 +796,7 @@ import java.util.Set;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ConfigurableOrchestrator {
+public class Orchestrator {
 
     private static final String ERROR_NULL_QUERY = "query must not be null";
     private static final String ERROR_NULL_CONTEXT = "context must not be null";
@@ -805,28 +805,21 @@ public class ConfigurableOrchestrator {
     private final PipelineFactory pipelineFactory;
 
     // =========================================================================
-    // Standard Orchestration (Default Pipeline)
+    // Core Orchestration Methods
     // =========================================================================
 
     /**
-     * Orchestrate using the default pipeline template.
+     * Orchestrate using the FULL pipeline (all steps).
+     *
+     * <p>This is the default method - executes all 10 pipeline steps.</p>
      *
      * @param query the user's query
      * @param context the orchestration context
      * @return the orchestration result
      */
     public OrchestrationResult orchestrate(String query, OrchestrationContext context) {
-        validateInputs(query, context);
-
-        Pipeline pipeline = pipelineFactory.getDefaultPipeline();
-        log.debug("Orchestrating with default pipeline for user: {}", context.getIdentifier());
-
-        return pipeline.execute(query, context);
+        return orchestrate(query, context, PipelineTemplate.FULL);
     }
-
-    // =========================================================================
-    // Template-Based Orchestration
-    // =========================================================================
 
     /**
      * Orchestrate using a specific pipeline template.
@@ -836,7 +829,7 @@ public class ConfigurableOrchestrator {
      * @param template the pipeline template to use
      * @return the orchestration result
      */
-    public OrchestrationResult orchestrateWith(
+    public OrchestrationResult orchestrate(
             String query,
             OrchestrationContext context,
             PipelineTemplate template) {
@@ -858,7 +851,7 @@ public class ConfigurableOrchestrator {
      * @param pipelineName the configured pipeline name
      * @return the orchestration result
      */
-    public OrchestrationResult orchestrateWithNamed(
+    public OrchestrationResult orchestrate(
             String query,
             OrchestrationContext context,
             String pipelineName) {
@@ -887,7 +880,7 @@ public class ConfigurableOrchestrator {
      * @return security screening result
      */
     public OrchestrationResult orchestrateSecurityOnly(String query, OrchestrationContext context) {
-        return orchestrateWith(query, context, PipelineTemplate.SECURITY_ONLY);
+        return orchestrate(query, context, PipelineTemplate.SECURITY_ONLY);
     }
 
     /**
@@ -901,7 +894,7 @@ public class ConfigurableOrchestrator {
      * @return intent extraction result
      */
     public OrchestrationResult orchestrateIntentOnly(String query, OrchestrationContext context) {
-        return orchestrateWith(query, context, PipelineTemplate.INTENT_ANALYSIS);
+        return orchestrate(query, context, PipelineTemplate.INTENT_ANALYSIS);
     }
 
     /**
@@ -915,7 +908,7 @@ public class ConfigurableOrchestrator {
      * @return processing result
      */
     public OrchestrationResult orchestrateBatch(String query, OrchestrationContext context) {
-        return orchestrateWith(query, context, PipelineTemplate.BATCH);
+        return orchestrate(query, context, PipelineTemplate.BATCH);
     }
 
     /**
@@ -929,7 +922,7 @@ public class ConfigurableOrchestrator {
      * @return RAG result
      */
     public OrchestrationResult orchestrateLightweight(String query, OrchestrationContext context) {
-        return orchestrateWith(query, context, PipelineTemplate.LIGHTWEIGHT);
+        return orchestrate(query, context, PipelineTemplate.LIGHTWEIGHT);
     }
 
     /**
@@ -943,7 +936,7 @@ public class ConfigurableOrchestrator {
      * @return compliance audit result
      */
     public OrchestrationResult orchestrateComplianceAudit(String query, OrchestrationContext context) {
-        return orchestrateWith(query, context, PipelineTemplate.COMPLIANCE_AUDIT);
+        return orchestrate(query, context, PipelineTemplate.COMPLIANCE_AUDIT);
     }
 
     // =========================================================================
@@ -1251,9 +1244,9 @@ class PipelineFactoryTest {
 }
 ```
 
-### 5.2 ConfigurableOrchestratorTest
+### 5.2 OrchestratorTest
 
-**Location:** `ai-infrastructure-core/src/test/java/com/ai/infrastructure/intent/orchestration/ConfigurableOrchestratorTest.java`
+**Location:** `ai-infrastructure-core/src/test/java/com/ai/infrastructure/intent/orchestration/OrchestratorTest.java`
 
 ```java
 package com.ai.infrastructure.intent.orchestration;
@@ -1273,43 +1266,43 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class ConfigurableOrchestratorTest {
+class OrchestratorTest {
 
     @Mock private PipelineFactory pipelineFactory;
-    @Mock private Pipeline defaultPipeline;
+    @Mock private Pipeline fullPipeline;
     @Mock private Pipeline securityPipeline;
     @Mock private Pipeline batchPipeline;
 
-    private ConfigurableOrchestrator orchestrator;
+    private Orchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
-        orchestrator = new ConfigurableOrchestrator(pipelineFactory);
+        orchestrator = new Orchestrator(pipelineFactory);
 
-        when(pipelineFactory.getDefaultPipeline()).thenReturn(defaultPipeline);
+        when(pipelineFactory.getPipeline(PipelineTemplate.FULL)).thenReturn(fullPipeline);
         when(pipelineFactory.getPipeline(PipelineTemplate.SECURITY_ONLY)).thenReturn(securityPipeline);
         when(pipelineFactory.getPipeline(PipelineTemplate.BATCH)).thenReturn(batchPipeline);
     }
 
     @Test
-    void orchestrate_usesDefaultPipeline() {
+    void orchestrate_default_usesFullPipeline() {
         OrchestrationContext context = OrchestrationContext.forUser("user-1");
         OrchestrationResult expected = OrchestrationResult.success("test");
-        when(defaultPipeline.execute(anyString(), any())).thenReturn(expected);
+        when(fullPipeline.execute(anyString(), any())).thenReturn(expected);
 
         OrchestrationResult result = orchestrator.orchestrate("test query", context);
 
         assertThat(result).isEqualTo(expected);
-        verify(pipelineFactory).getDefaultPipeline();
+        verify(pipelineFactory).getPipeline(PipelineTemplate.FULL);
     }
 
     @Test
-    void orchestrateWith_usesSpecifiedTemplate() {
+    void orchestrate_withTemplate_usesSpecifiedTemplate() {
         OrchestrationContext context = OrchestrationContext.forUser("user-1");
         OrchestrationResult expected = OrchestrationResult.success("security");
         when(securityPipeline.execute(anyString(), any())).thenReturn(expected);
 
-        OrchestrationResult result = orchestrator.orchestrateWith(
+        OrchestrationResult result = orchestrator.orchestrate(
             "test query", context, PipelineTemplate.SECURITY_ONLY
         );
 
@@ -1399,7 +1392,7 @@ import static org.assertj.core.api.Assertions.*;
 class PipelineTemplatesIntegrationTest {
 
     @Autowired
-    private ConfigurableOrchestrator orchestrator;
+    private Orchestrator orchestrator;
 
     @Autowired
     private PipelineFactory pipelineFactory;
@@ -1411,10 +1404,10 @@ class PipelineTemplatesIntegrationTest {
             .sessionId("test-session")
             .build();
 
-        OrchestrationResult result = orchestrator.orchestrateWith(
+        // Default orchestrate() uses FULL pipeline
+        OrchestrationResult result = orchestrator.orchestrate(
             "What is the refund policy?",
-            context,
-            PipelineTemplate.FULL
+            context
         );
 
         assertThat(result).isNotNull();
@@ -1479,55 +1472,51 @@ class PipelineTemplatesIntegrationTest {
 
 ---
 
-## Phase 6: Migration Guide
+## Phase 6: Refactoring Tasks
 
-### 6.1 Migrating from RAGOrchestrator
+### 6.1 Replace RAGOrchestrator with Orchestrator
 
-**Before (Single Pipeline):**
+**Steps:**
+1. Create new `Orchestrator.java` with the code from Phase 3
+2. Update all imports from `RAGOrchestrator` to `Orchestrator`
+3. Delete `RAGOrchestrator.java`
+4. Update test classes accordingly
+
+**Find & Replace:**
+```
+RAGOrchestrator -> Orchestrator
+```
+
+**Files to Update:**
+- All files importing `RAGOrchestrator`
+- All test files using `RAGOrchestrator`
+- Any configuration referencing the bean name
+
+### 6.2 Usage Examples
+
 ```java
 @Autowired
-private RAGOrchestrator orchestrator;
+private Orchestrator orchestrator;
 
 public void process(String query, OrchestrationContext context) {
+    // Default: FULL pipeline (all 10 steps)
     OrchestrationResult result = orchestrator.orchestrate(query, context);
+
+    // Specific template
+    OrchestrationResult batch = orchestrator.orchestrate(query, context, PipelineTemplate.BATCH);
+
+    // Convenience methods
+    OrchestrationResult security = orchestrator.orchestrateSecurityOnly(query, context);
 }
 ```
 
-**After (Configurable Pipeline):**
-```java
-@Autowired
-private ConfigurableOrchestrator orchestrator;
+### 6.3 New Configuration
 
-public void process(String query, OrchestrationContext context) {
-    // Option 1: Use default pipeline (same behavior as before)
-    OrchestrationResult result = orchestrator.orchestrate(query, context);
-
-    // Option 2: Use specific template for use case
-    OrchestrationResult batchResult = orchestrator.orchestrateBatch(query, context);
-
-    // Option 3: Use template explicitly
-    OrchestrationResult securityResult = orchestrator.orchestrateWith(
-        query, context, PipelineTemplate.SECURITY_ONLY
-    );
-}
-```
-
-### 6.2 Configuration Migration
-
-**Before:**
-```yaml
-# No pipeline configuration - all steps always run
-ai:
-  pii-detection:
-    enabled: true
-```
-
-**After:**
 ```yaml
 ai:
   orchestration:
     pipeline:
-      default-template: FULL
+      default-template: FULL  # All steps by default
       steps:
         pii-detection:
           enabled: true
@@ -1552,11 +1541,14 @@ ai:
 - [ ] Implement caching for pipeline instances
 - [ ] Write unit tests for `PipelineFactory`
 
-### Phase 3: Multi-Pipeline Orchestrator
-- [ ] Create `ConfigurableOrchestrator` service
-- [ ] Implement convenience methods (securityOnly, batch, etc.)
+### Phase 3: Orchestrator (Replace RAGOrchestrator)
+- [ ] Create new `Orchestrator` class
+- [ ] Implement overloaded `orchestrate()` methods
+- [ ] Add convenience methods (securityOnly, batch, etc.)
 - [ ] Add custom pipeline support
-- [ ] Write unit tests for `ConfigurableOrchestrator`
+- [ ] Delete old `RAGOrchestrator` class
+- [ ] Update all imports/references
+- [ ] Write unit tests for `Orchestrator`
 
 ### Phase 4: Profile Configuration
 - [ ] Update `application-dev.yml` with pipeline config
@@ -1568,11 +1560,9 @@ ai:
 - [ ] Unit tests for all new classes
 - [ ] Integration tests for pipeline templates
 - [ ] Performance tests for different templates
-- [ ] Backward compatibility tests
 
 ### Phase 6: Documentation
 - [ ] Update README with new usage examples
-- [ ] Create migration guide
 - [ ] Document configuration options
 - [ ] Add JavaDoc to all public APIs
 
@@ -1580,12 +1570,12 @@ ai:
 
 ## Success Criteria
 
-- [ ] All existing tests continue to pass
-- [ ] New `ConfigurableOrchestrator` works with all templates
+- [ ] New `Orchestrator` works with all templates
+- [ ] Default `orchestrate()` uses FULL pipeline (all 10 steps)
 - [ ] Security-only pipeline executes in <100ms
 - [ ] Configuration changes take effect without code changes
 - [ ] Named pipelines can be defined via configuration
-- [ ] Default behavior unchanged (backward compatible)
+- [ ] All tests updated and passing
 - [ ] Documentation complete and clear
 
 ---
@@ -1594,10 +1584,10 @@ ai:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    ConfigurableOrchestrator                      │
+│                         Orchestrator                             │
 │  ┌─────────────┬─────────────┬─────────────┬─────────────────┐  │
 │  │ orchestrate │ orchestrate │ orchestrate │ orchestrate     │  │
-│  │   (default) │ SecurityOnly│    Batch    │    Custom       │  │
+│  │   (FULL)    │ (template)  │  (named)    │    Custom       │  │
 │  └──────┬──────┴──────┬──────┴──────┬──────┴───────┬─────────┘  │
 │         │             │             │              │             │
 │         ▼             ▼             ▼              ▼             │
@@ -1640,7 +1630,7 @@ Templates:
 | **Performance Optimization** | Use lightweight pipelines for fast operations |
 | **Cost Optimization** | Skip expensive LLM calls when not needed |
 | **Testability** | Test individual pipeline configurations in isolation |
-| **Backward Compatible** | Default behavior unchanged |
+| **Cleaner API** | Simple `Orchestrator` class with overloaded methods |
 | **Profile Support** | Different defaults for dev/prod/batch environments |
 
 ---
