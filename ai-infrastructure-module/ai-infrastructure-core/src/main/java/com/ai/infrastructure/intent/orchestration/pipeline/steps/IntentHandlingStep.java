@@ -718,13 +718,19 @@ public class IntentHandlingStep implements PipelineStep {
             nextSteps.addAll(child.getNextSteps());
         }
         
-        boolean success = childResults.stream().allMatch(OrchestrationResult::isSuccess);
+        // Compound requests often include a primary action plus optional follow-up intents (ex: confirmation/help text).
+        // Treat the compound as successful if at least one child succeeded and we did not hit a hard ERROR.
+        // This prevents "action succeeded but follow-up failed" scenarios from being recorded as a total failure.
+        boolean anySuccess = childResults.stream().anyMatch(OrchestrationResult::isSuccess);
+        boolean anyError = childResults.stream().anyMatch(result -> result.getType() == OrchestrationResultType.ERROR);
+        boolean allSuccess = !childResults.isEmpty() && childResults.stream().allMatch(OrchestrationResult::isSuccess);
+        boolean success = anySuccess && !anyError;
         Map<String, Object> data = Map.of(DATA_KEY_RESULTS, childResults);
         
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.COMPOUND_HANDLED)
             .success(success)
-            .message(success ? MSG_ALL_PROCESSED : MSG_SOME_FAILED)
+            .message(allSuccess ? MSG_ALL_PROCESSED : MSG_SOME_FAILED)
             .children(Collections.unmodifiableList(childResults))
             .nextSteps(Collections.unmodifiableList(nextSteps))
             .data(data)

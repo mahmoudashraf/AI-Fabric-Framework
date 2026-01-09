@@ -157,6 +157,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      # workflow_dispatch inputs are NOT treated as secrets by GitHub.
+      # Mask them explicitly to avoid leaking API keys in logs (including "with:" and "env:" sections).
+      - name: Mask provider API keys
+        if: always()
+        run: |
+          echo "::add-mask::${{ github.event.inputs.openai_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.gemini_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.cohere_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.azure_api_key }}"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -612,6 +623,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Mask provider API keys
+        if: always()
+        run: |
+          echo "::add-mask::${{ github.event.inputs.openai_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.gemini_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.cohere_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.azure_api_key }}"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -726,6 +746,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Mask provider API keys
+        if: always()
+        run: |
+          echo "::add-mask::${{ github.event.inputs.openai_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.gemini_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.cohere_api_key }}"
+          echo "::add-mask::${{ github.event.inputs.azure_api_key }}"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4

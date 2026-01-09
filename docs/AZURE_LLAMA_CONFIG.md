@@ -7,12 +7,12 @@ Your Azure AI Services setup uses:
 - **LLM Model**: `Llama-4-Maverick-17B-128E-Instruct-FP8`
 - **LLM Endpoint**: `https://mahan-mk5op536-eastus2.services.ai.azure.com/openai/v1`
 - **Embedding Endpoint**: `https://mahan-mk5op536-eastus2.services.ai.azure.com/models`
-- **API Key**: `F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb`
+- **API Key**: `YOUR_AZURE_API_KEY`
 
 ## Environment Variables
 
 ```bash
-export AZURE_API_KEY="F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb"
+export AZURE_API_KEY="YOUR_AZURE_API_KEY"
 export AZURE_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/openai/v1"
 export AZURE_DEPLOYMENT_NAME="Llama-4-Maverick-17B-128E-Instruct-FP8"
 export AZURE_EMBEDDING_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/models"
@@ -45,7 +45,7 @@ Or manually:
 ```bash
 cd /workspace/ai-infrastructure-module/integration-Testing/integration-tests
 
-export AZURE_API_KEY="F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb"
+export AZURE_API_KEY="YOUR_AZURE_API_KEY"
 export AZURE_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/openai/v1"
 export AZURE_DEPLOYMENT_NAME="Llama-4-Maverick-17B-128E-Instruct-FP8"
 export AZURE_EMBEDDING_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/models"
@@ -67,7 +67,7 @@ For the Llama model (OpenAI-compatible format), the provider sends:
 **Headers**:
 ```
 Content-Type: application/json
-api-key: F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb
+api-key: YOUR_AZURE_API_KEY
 ```
 
 **Body**:

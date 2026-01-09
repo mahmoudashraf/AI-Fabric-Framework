@@ -4,9 +4,9 @@ This guide shows how to configure Azure AI Services (Foundry) with the AI Infras
 
 ## Your Azure AI Services (Foundry) Credentials
 
-Based on your provided information:
+**Never commit real credentials to git.** Use the placeholders below and supply secrets via environment variables or your CI secret store.
 
-- **API Key**: `F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb`
+- **API Key**: `YOUR_AZURE_API_KEY`
 - **Endpoint**: `https://mahan-mk5op536-eastus2.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview`
 - **Base Endpoint**: `https://mahan-mk5op536-eastus2.services.ai.azure.com/models`
 - **Deployment Name**: `DeepSeek-V3.2` (informational, not used in URL for Foundry)
@@ -21,7 +21,7 @@ Azure AI Services (Foundry) uses a different endpoint format than Azure OpenAI. 
 If your endpoint already includes the full path (`/models/chat/completions`), use it as-is:
 
 ```bash
-export AZURE_API_KEY="F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb"
+export AZURE_API_KEY="YOUR_AZURE_API_KEY"
 export AZURE_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview"
 export AZURE_DEPLOYMENT_NAME="DeepSeek-V3.2"  # Optional for Foundry, but good to set
 export AZURE_ENABLED="true"
@@ -32,7 +32,7 @@ export AZURE_ENABLED="true"
 If you want to use the base endpoint and let the provider add the path:
 
 ```bash
-export AZURE_API_KEY="F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb"
+export AZURE_API_KEY="YOUR_AZURE_API_KEY"
 export AZURE_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/models"
 export AZURE_API_VERSION="2024-05-01-preview"
 export AZURE_DEPLOYMENT_NAME="DeepSeek-V3.2"  # Optional for Foundry
@@ -76,7 +76,7 @@ Create a file `setup-azure-foundry.sh`:
 #!/bin/bash
 
 # Azure AI Services (Foundry) Configuration
-export AZURE_API_KEY="F93lTwneGCESqP6mxDGwonakvrsMzBBJpYmA8w0Rkf2kYcVu3nyCJQQJ99CAACHYHv6XJ3w3AAAAACOGgWJb"
+export AZURE_API_KEY="YOUR_AZURE_API_KEY"
 export AZURE_ENDPOINT="https://mahan-mk5op536-eastus2.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview"
 export AZURE_DEPLOYMENT_NAME="DeepSeek-V3.2"
 export AZURE_API_VERSION="2024-05-01-preview"

@@ -33,6 +33,31 @@
             <artifactId>ai-fabric-provider-openai</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-provider-anthropic</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-provider-gemini</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-provider-cohere</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-provider-azure</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-provider-rest</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
