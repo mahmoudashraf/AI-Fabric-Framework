@@ -139,11 +139,11 @@ public class GeminiProvider implements AIProvider {
                 requestBody.put("generationConfig", generationConfig);
             }
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== GEMINI API REQUEST ===");
+            if (log.isInfoEnabled()) {
+                log.info("=== GEMINI API REQUEST ===");
                 Object temperature = generationConfig.get("temperature");
                 Object maxOutputTokens = generationConfig.get("maxOutputTokens");
-                log.debug(
+                log.info(
                     "Gemini API request: url={}, model={}, temperature={}, maxOutputTokens={}, hasSystemInstruction={}, promptLength={}",
                     safeUrl,
                     model,
@@ -158,7 +158,7 @@ public class GeminiProvider implements AIProvider {
                     String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
                     log.trace("Gemini API request promptSnippet={}", snippet);
                 }
-                log.debug("=== END GEMINI API REQUEST ===");
+                log.info("=== END GEMINI API REQUEST ===");
             }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -181,11 +181,11 @@ public class GeminiProvider implements AIProvider {
             List<Map<String, Object>> partsResponse = (List<Map<String, Object>>) contentResponse.get("parts");
             String generatedText = (String) partsResponse.get(0).get("text");
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== GEMINI API RESPONSE ===");
+            if (log.isInfoEnabled()) {
+                log.info("=== GEMINI API RESPONSE ===");
                 Object finishReason = candidate.get("finishReason");
                 int contentLength = generatedText != null ? generatedText.length() : 0;
-                log.debug(
+                log.info(
                     "Gemini API response: responseTimeMs={}, model={}, finishReason={}, contentLength={}, candidates={}",
                     responseTime,
                     model,
@@ -199,7 +199,7 @@ public class GeminiProvider implements AIProvider {
                         generatedText.substring(0, Math.min(500, generatedText.length()))
                     );
                 }
-                log.debug("=== END GEMINI API RESPONSE ===");
+                log.info("=== END GEMINI API RESPONSE ===");
             }
             
             log.debug("Gemini content generation completed in {}ms", responseTime);
@@ -266,9 +266,9 @@ public class GeminiProvider implements AIProvider {
             content.put("parts", List.of(part));
             requestBody.put("content", content);
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== GEMINI EMBEDDING API REQUEST ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== GEMINI EMBEDDING API REQUEST ===");
+                log.info(
                     "Gemini embedding request: url={}, model={}, textLength={}",
                     safeUrl,
                     model,
@@ -280,7 +280,7 @@ public class GeminiProvider implements AIProvider {
                     String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
                     log.trace("Gemini embedding request textSnippet={}", snippet);
                 }
-                log.debug("=== END GEMINI EMBEDDING API REQUEST ===");
+                log.info("=== END GEMINI EMBEDDING API REQUEST ===");
             }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -301,15 +301,15 @@ public class GeminiProvider implements AIProvider {
             // Keep as List<Double> for embedding
             List<Double> embedding = new ArrayList<>(values);
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== GEMINI EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== GEMINI EMBEDDING API RESPONSE ===");
+                log.info(
                     "Gemini embedding response: responseTimeMs={}, model={}, dimensions={}",
                     responseTime,
                     model,
                     embedding != null ? embedding.size() : 0
                 );
-                log.debug("=== END GEMINI EMBEDDING API RESPONSE ===");
+                log.info("=== END GEMINI EMBEDDING API RESPONSE ===");
             }
             
             log.debug("Gemini embedding generation completed in {}ms, dimension: {}", responseTime, embedding.size());

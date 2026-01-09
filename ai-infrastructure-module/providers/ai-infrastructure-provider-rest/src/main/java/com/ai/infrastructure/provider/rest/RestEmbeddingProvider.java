@@ -141,9 +141,9 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
             
             // Make REST API call
             String url = baseUrl() + endpoint();
-            if (log.isDebugEnabled()) {
-                log.debug("=== REST EMBEDDING API REQUEST ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== REST EMBEDDING API REQUEST ===");
+                log.info(
                     "REST embedding request: url={}, model={}, textLength={}",
                     url,
                     model(),
@@ -155,7 +155,7 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
                     String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
                     log.trace("REST embedding request textSnippet={}", snippet);
                 }
-                log.debug("=== END REST EMBEDDING API REQUEST ===");
+                log.info("=== END REST EMBEDDING API REQUEST ===");
             }
             ResponseEntity<Map> response = restTemplate.exchange(
                 url,
@@ -199,14 +199,14 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
             
             long processingTime = System.currentTimeMillis() - startTime;
             
-            if (log.isDebugEnabled()) {
-                log.debug("=== REST EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== REST EMBEDDING API RESPONSE ===");
+                log.info(
                     "REST embedding response: responseTimeMs={}, dimensions={}",
                     processingTime,
                     embedding != null ? embedding.size() : 0
                 );
-                log.debug("=== END REST EMBEDDING API RESPONSE ===");
+                log.info("=== END REST EMBEDDING API RESPONSE ===");
             }
 
             log.debug("Successfully generated REST embedding with {} dimensions in {}ms", 
@@ -253,15 +253,15 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
             
             // Make REST API call
             String url = baseUrl() + batchEndpoint();
-            if (log.isDebugEnabled()) {
-                log.debug("=== REST EMBEDDING API REQUEST ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== REST EMBEDDING API REQUEST ===");
+                log.info(
                     "REST embedding batch request: url={}, model={}, inputCount={}",
                     url,
                     model(),
                     texts != null ? texts.size() : 0
                 );
-                log.debug("=== END REST EMBEDDING API REQUEST ===");
+                log.info("=== END REST EMBEDDING API REQUEST ===");
             }
             ResponseEntity<Map> response = restTemplate.exchange(
                 url,
@@ -322,14 +322,14 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
                 }
             }
             
-            if (log.isDebugEnabled()) {
-                log.debug("=== REST EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== REST EMBEDDING API RESPONSE ===");
+                log.info(
                     "REST embedding batch response: responseTimeMs={}, embeddings={}",
                     (System.currentTimeMillis() - startTime),
                     responses.size()
                 );
-                log.debug("=== END REST EMBEDDING API RESPONSE ===");
+                log.info("=== END REST EMBEDDING API RESPONSE ===");
             }
 
             log.debug("Successfully generated {} REST embeddings", responses.size());

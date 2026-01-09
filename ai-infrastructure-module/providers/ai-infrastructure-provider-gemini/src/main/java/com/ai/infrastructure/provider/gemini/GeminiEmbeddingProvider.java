@@ -122,9 +122,9 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
             content.put("parts", List.of(part));
             requestBody.put("content", content);
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== GEMINI EMBEDDING API REQUEST ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== GEMINI EMBEDDING API REQUEST ===");
+                log.info(
                     "Gemini embedding request: url={}, model={}, textLength={}",
                     safeUrl,
                     model,
@@ -136,7 +136,7 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
                     String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
                     log.trace("Gemini embedding request textSnippet={}", snippet);
                 }
-                log.debug("=== END GEMINI EMBEDDING API REQUEST ===");
+                log.info("=== END GEMINI EMBEDDING API REQUEST ===");
             }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -156,15 +156,15 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
             // Keep as List<Double> for embedding
             List<Double> embedding = new ArrayList<>(values);
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== GEMINI EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== GEMINI EMBEDDING API RESPONSE ===");
+                log.info(
                     "Gemini embedding response: responseTimeMs={}, model={}, dimensions={}",
                     processingTime,
                     model,
                     embedding != null ? embedding.size() : 0
                 );
-                log.debug("=== END GEMINI EMBEDDING API RESPONSE ===");
+                log.info("=== END GEMINI EMBEDDING API RESPONSE ===");
             }
             
             log.debug("Successfully generated Gemini embedding with {} dimensions in {}ms", 

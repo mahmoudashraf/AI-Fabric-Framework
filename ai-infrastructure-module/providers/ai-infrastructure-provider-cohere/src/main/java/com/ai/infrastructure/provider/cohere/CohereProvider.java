@@ -111,9 +111,9 @@ public class CohereProvider implements AIProvider {
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== COHERE API REQUEST ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE API REQUEST ===");
+                log.info(
                     "Cohere API request: url={}, model={}, temperature={}, maxTokens={}, hasPreamble={}, promptLength={}",
                     url,
                     requestBody.get("model"),
@@ -128,7 +128,7 @@ public class CohereProvider implements AIProvider {
                     String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
                     log.trace("Cohere API request promptSnippet={}", snippet);
                 }
-                log.debug("=== END COHERE API REQUEST ===");
+                log.info("=== END COHERE API REQUEST ===");
             }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -143,10 +143,10 @@ public class CohereProvider implements AIProvider {
             Map<String, Object> responseBody = response.getBody();
             String generatedText = (String) responseBody.get("text");
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== COHERE API RESPONSE ===");
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE API RESPONSE ===");
                 int contentLength = generatedText != null ? generatedText.length() : 0;
-                log.debug(
+                log.info(
                     "Cohere API response: responseTimeMs={}, model={}, contentLength={}",
                     responseTime,
                     responseBody != null ? responseBody.get("model") : null,
@@ -158,7 +158,7 @@ public class CohereProvider implements AIProvider {
                         generatedText.substring(0, Math.min(500, generatedText.length()))
                     );
                 }
-                log.debug("=== END COHERE API RESPONSE ===");
+                log.info("=== END COHERE API RESPONSE ===");
             }
             
             log.debug("Cohere content generation completed in {}ms", responseTime);
@@ -209,9 +209,9 @@ public class CohereProvider implements AIProvider {
             requestBody.put("texts", List.of(request.getText()));
             requestBody.put("input_type", "search_document");
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== COHERE EMBEDDING API REQUEST ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE EMBEDDING API REQUEST ===");
+                log.info(
                     "Cohere embedding request: url={}, model={}, inputType={}, textLength={}",
                     url,
                     requestBody.get("model"),
@@ -224,7 +224,7 @@ public class CohereProvider implements AIProvider {
                     String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
                     log.trace("Cohere embedding request textSnippet={}", snippet);
                 }
-                log.debug("=== END COHERE EMBEDDING API REQUEST ===");
+                log.info("=== END COHERE EMBEDDING API REQUEST ===");
             }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -241,15 +241,15 @@ public class CohereProvider implements AIProvider {
             List<List<Double>> embeddings = (List<List<Double>>) responseBody.get("embeddings");
             List<Double> embedding = embeddings.get(0);
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== COHERE EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE EMBEDDING API RESPONSE ===");
+                log.info(
                     "Cohere embedding response: responseTimeMs={}, model={}, dimensions={}",
                     responseTime,
                     responseBody != null ? responseBody.get("model") : null,
                     embedding != null ? embedding.size() : 0
                 );
-                log.debug("=== END COHERE EMBEDDING API RESPONSE ===");
+                log.info("=== END COHERE EMBEDDING API RESPONSE ===");
             }
             
             log.debug("Cohere embedding generation completed in {}ms", responseTime);

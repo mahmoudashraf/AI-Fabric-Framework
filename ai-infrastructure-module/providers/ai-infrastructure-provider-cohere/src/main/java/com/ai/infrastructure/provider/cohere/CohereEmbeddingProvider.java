@@ -118,9 +118,9 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
             requestBody.put("texts", List.of(request.getText()));
             requestBody.put("input_type", "search_document");
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== COHERE EMBEDDING API REQUEST ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE EMBEDDING API REQUEST ===");
+                log.info(
                     "Cohere embedding request: url={}, model={}, inputType={}, textLength={}",
                     url,
                     model,
@@ -133,7 +133,7 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
                     String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
                     log.trace("Cohere embedding request textSnippet={}", snippet);
                 }
-                log.debug("=== END COHERE EMBEDDING API REQUEST ===");
+                log.info("=== END COHERE EMBEDDING API REQUEST ===");
             }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -149,15 +149,15 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
             List<List<Double>> embeddings = (List<List<Double>>) responseBody.get("embeddings");
             List<Double> embedding = embeddings.get(0);
 
-            if (log.isDebugEnabled()) {
-                log.debug("=== COHERE EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE EMBEDDING API RESPONSE ===");
+                log.info(
                     "Cohere embedding response: responseTimeMs={}, model={}, dimensions={}",
                     processingTime,
                     responseBody != null ? responseBody.get("model") : null,
                     embedding != null ? embedding.size() : 0
                 );
-                log.debug("=== END COHERE EMBEDDING API RESPONSE ===");
+                log.info("=== END COHERE EMBEDDING API RESPONSE ===");
             }
             
             log.debug("Successfully generated Cohere embedding with {} dimensions in {}ms", 

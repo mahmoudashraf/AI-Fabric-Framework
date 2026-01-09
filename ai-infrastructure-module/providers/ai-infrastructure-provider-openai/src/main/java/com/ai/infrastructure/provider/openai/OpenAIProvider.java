@@ -106,10 +106,10 @@ public class OpenAIProvider implements AIProvider {
             requestBody.put("top_p", 0.1);  // Lower top_p for more deterministic responses
             
             // IMPORTANT: Never use System.out for provider logging; it bypasses log levels and makes CI noisy.
-            // Keep request/response metadata at DEBUG and only include content at TRACE.
-            if (log.isDebugEnabled()) {
-                log.debug("=== OPENAI API REQUEST ===");
-                log.debug(
+            // Emit request/response summaries at INFO (visible at "normal"), and snippets at TRACE.
+            if (log.isInfoEnabled()) {
+                log.info("=== OPENAI API REQUEST ===");
+                log.info(
                     "OpenAI API request: url={}, model={}, temperature={}, topP={}, maxTokens={}, messages={}",
                     url,
                     requestBody.get("model"),
@@ -134,7 +134,7 @@ public class OpenAIProvider implements AIProvider {
                         );
                     }
                 }
-                log.debug("=== END OPENAI API REQUEST ===");
+                log.info("=== END OPENAI API REQUEST ===");
             }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -153,11 +153,11 @@ public class OpenAIProvider implements AIProvider {
             Map<String, String> message = (Map<String, String>) choices.get(0).get("message");
             String content = message.get("content");
             
-            if (log.isDebugEnabled()) {
-                log.debug("=== OPENAI API RESPONSE ===");
+            if (log.isInfoEnabled()) {
+                log.info("=== OPENAI API RESPONSE ===");
                 Object finishReason = choices.get(0).get("finish_reason");
                 int contentLength = content != null ? content.length() : 0;
-                log.debug(
+                log.info(
                     "OpenAI API response: responseTimeMs={}, model={}, finishReason={}, contentLength={}",
                     responseTime,
                     responseBody.get("model"),
@@ -170,7 +170,7 @@ public class OpenAIProvider implements AIProvider {
                         content.substring(0, Math.min(500, content.length()))
                     );
                 }
-                log.debug("=== END OPENAI API RESPONSE ===");
+                log.info("=== END OPENAI API RESPONSE ===");
             }
             
             log.debug("OpenAI content generation completed in {}ms", responseTime);

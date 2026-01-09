@@ -141,9 +141,9 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             // Skip availability check for HTTP calls as they don't need the library service
             if (useDirectHttp && requestedDimensions != null) {
                 long startTime = System.currentTimeMillis();
-                if (log.isDebugEnabled()) {
-                    log.debug("=== OPENAI EMBEDDING API REQUEST ===");
-                    log.debug(
+                if (log.isInfoEnabled()) {
+                    log.info("=== OPENAI EMBEDDING API REQUEST ===");
+                    log.info(
                         "OpenAI embedding request (http): model={}, dimensions={}, textLength={}",
                         request.getModel() != null ? request.getModel() : openai.getEmbeddingModel(),
                         requestedDimensions,
@@ -155,7 +155,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                         String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
                         log.trace("OpenAI embedding request textSnippet={}", snippet);
                     }
-                    log.debug("=== END OPENAI EMBEDDING API REQUEST ===");
+                    log.info("=== END OPENAI EMBEDDING API REQUEST ===");
                 }
                 log.debug("Generating embedding using OpenAI via HTTP for text: {}", request.getText());
                 return generateEmbeddingViaHttp(request, requestedDimensions, startTime);
@@ -181,15 +181,15 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             
             long processingTime = System.currentTimeMillis() - startTime;
             
-            if (log.isDebugEnabled()) {
-                log.debug("=== OPENAI EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== OPENAI EMBEDDING API RESPONSE ===");
+                log.info(
                     "OpenAI embedding response (library): responseTimeMs={}, model={}, dimensions={}",
                     processingTime,
                     request.getModel() != null ? request.getModel() : openai.getEmbeddingModel(),
                     embedding != null ? embedding.size() : 0
                 );
-                log.debug("=== END OPENAI EMBEDDING API RESPONSE ===");
+                log.info("=== END OPENAI EMBEDDING API RESPONSE ===");
             }
 
             log.debug("Successfully generated OpenAI embedding with {} dimensions in {}ms", 
@@ -250,15 +250,15 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             
             long processingTime = System.currentTimeMillis() - startTime;
             
-            if (log.isDebugEnabled()) {
-                log.debug("=== OPENAI EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== OPENAI EMBEDDING API RESPONSE ===");
+                log.info(
                     "OpenAI embedding response (http): responseTimeMs={}, model={}, dimensions={}",
                     processingTime,
                     responseBody.get("model"),
                     embedding != null ? embedding.size() : 0
                 );
-                log.debug("=== END OPENAI EMBEDDING API RESPONSE ===");
+                log.info("=== END OPENAI EMBEDDING API RESPONSE ===");
             }
 
             log.debug("Successfully generated OpenAI embedding with {} dimensions via HTTP in {}ms", 
@@ -376,16 +376,16 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                 })
                 .collect(Collectors.toList());
             
-            if (log.isDebugEnabled()) {
-                log.debug("=== OPENAI EMBEDDING API RESPONSE ===");
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info("=== OPENAI EMBEDDING API RESPONSE ===");
+                log.info(
                     "OpenAI embedding batch response (http): responseTimeMs={}, model={}, embeddings={}, dimensions={}",
                     processingTime,
                     responseBody.get("model"),
                     responses.size(),
                     dimensions != null ? dimensions : -1
                 );
-                log.debug("=== END OPENAI EMBEDDING API RESPONSE ===");
+                log.info("=== END OPENAI EMBEDDING API RESPONSE ===");
             }
 
             log.debug("Successfully generated {} OpenAI embeddings via HTTP in {}ms", 
