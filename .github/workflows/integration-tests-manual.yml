@@ -910,11 +910,12 @@ jobs:
                   "logging_level": "${{ github.event.inputs.logging_level }}"
               },
               "api_keys_provided": {
-                  "openai": ${{ github.event.inputs.openai_api_key != '' && 'true' || 'false' }},
-                  "anthropic": ${{ github.event.inputs.anthropic_api_key != '' && 'true' || 'false' }},
-                  "gemini": ${{ github.event.inputs.gemini_api_key != '' && 'true' || 'false' }},
-                  "cohere": ${{ github.event.inputs.cohere_api_key != '' && 'true' || 'false' }},
-                  "azure": ${{ github.event.inputs.azure_api_key != '' && 'true' || 'false' }}
+                  # NOTE: This Python heredoc needs Python booleans (True/False), not JSON booleans (true/false).
+                  "openai": ${{ github.event.inputs.openai_api_key != '' && 'True' || 'False' }},
+                  "anthropic": ${{ github.event.inputs.anthropic_api_key != '' && 'True' || 'False' }},
+                  "gemini": ${{ github.event.inputs.gemini_api_key != '' && 'True' || 'False' }},
+                  "cohere": ${{ github.event.inputs.cohere_api_key != '' && 'True' || 'False' }},
+                  "azure": ${{ github.event.inputs.azure_api_key != '' && 'True' || 'False' }}
               },
               "test_results": {
                   "ai_infrastructure": "${{ needs.ai-infrastructure-tests.result }}",
