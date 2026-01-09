@@ -542,16 +542,10 @@ jobs:
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           # Allow run step to override the effective level (e.g. for Anthropic).
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
-          # Model names (if specified) - also set as provider-specific env vars
-          LLM_MODEL: ${{ github.event.inputs.llm_model }}
-          EMBEDDING_MODEL: ${{ github.event.inputs.embedding_model }}
-          OPENAI_MODEL: ${{ github.event.inputs.llm_provider == 'openai' && github.event.inputs.llm_model || '' }}
-          OPENAI_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'openai' && github.event.inputs.embedding_model || '' }}
-          ANTHROPIC_MODEL: ${{ github.event.inputs.llm_provider == 'anthropic' && github.event.inputs.llm_model || '' }}
-          GEMINI_MODEL: ${{ github.event.inputs.llm_provider == 'gemini' && github.event.inputs.llm_model || '' }}
-          GEMINI_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'gemini' && github.event.inputs.embedding_model || '' }}
-          COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && github.event.inputs.llm_model || '' }}
-          COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && github.event.inputs.embedding_model || '' }}
+          # NOTE:
+          # Do NOT pass empty-string model env vars here; empty overrides break Spring placeholders like
+          # ${OPENAI_MODEL:${LLM_MODEL:gpt-4o-mini}} and cause startup validation failures.
+          # Model env vars are set (with defaults) by the "Set Model Names" step via $GITHUB_ENV.
 
       - name: Update Evidence with Test Results
         if: always()

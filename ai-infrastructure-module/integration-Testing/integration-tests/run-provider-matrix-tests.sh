@@ -551,6 +551,37 @@ if [ -n "$CONNECTIVITY_EMBEDDING_PROVIDER" ]; then
     CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.embedding-provider=$CONNECTIVITY_EMBEDDING_PROVIDER"
 fi
 
+# Ensure required model properties exist for fail-fast config validation.
+# IMPORTANT: treat empty env vars as "unset" and fall back to safe defaults.
+if [ "$CONNECTIVITY_LLM_PROVIDER" = "openai" ]; then
+    OPENAI_MODEL_EFFECTIVE="${OPENAI_MODEL:-${LLM_MODEL:-gpt-4o-mini}}"
+    if [ -z "$OPENAI_MODEL_EFFECTIVE" ]; then
+        OPENAI_MODEL_EFFECTIVE="gpt-4o-mini"
+    fi
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.model=$OPENAI_MODEL_EFFECTIVE"
+fi
+if [ "$CONNECTIVITY_EMBEDDING_PROVIDER" = "openai" ]; then
+    OPENAI_EMBEDDING_MODEL_EFFECTIVE="${OPENAI_EMBEDDING_MODEL:-${EMBEDDING_MODEL:-text-embedding-3-small}}"
+    if [ -z "$OPENAI_EMBEDDING_MODEL_EFFECTIVE" ]; then
+        OPENAI_EMBEDDING_MODEL_EFFECTIVE="text-embedding-3-small"
+    fi
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.embedding-model=$OPENAI_EMBEDDING_MODEL_EFFECTIVE"
+fi
+if [ "$CONNECTIVITY_LLM_PROVIDER" = "anthropic" ]; then
+    ANTHROPIC_MODEL_EFFECTIVE="${ANTHROPIC_MODEL:-${LLM_MODEL:-claude-3-haiku-20240307}}"
+    if [ -z "$ANTHROPIC_MODEL_EFFECTIVE" ]; then
+        ANTHROPIC_MODEL_EFFECTIVE="claude-3-haiku-20240307"
+    fi
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.anthropic.model=$ANTHROPIC_MODEL_EFFECTIVE"
+fi
+if [ "$CONNECTIVITY_LLM_PROVIDER" = "cohere" ]; then
+    COHERE_MODEL_EFFECTIVE="${COHERE_MODEL:-${LLM_MODEL:-command-r7b-12-2024}}"
+    if [ -z "$COHERE_MODEL_EFFECTIVE" ]; then
+        COHERE_MODEL_EFFECTIVE="command-r7b-12-2024"
+    fi
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.cohere.model=$COHERE_MODEL_EFFECTIVE"
+fi
+
 # Enable providers explicitly for the check (helps local runs where *_ENABLED isn't set).
 case "$CONNECTIVITY_LLM_PROVIDER" in
     openai)
