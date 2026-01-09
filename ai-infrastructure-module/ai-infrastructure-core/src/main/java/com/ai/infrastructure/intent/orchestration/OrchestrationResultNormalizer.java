@@ -4,9 +4,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Normalize {@link OrchestrationResult} into a provider-agnostic, deterministic contract.
@@ -45,6 +45,7 @@ public class OrchestrationResultNormalizer {
                 ? childError.getMessage()
                 : (StringUtils.hasText(raw.getMessage()) ? raw.getMessage() : "An error occurred.");
 
+            Map<String, Object> metadata = withErrorCodeMetadata(raw.getMetadata(), errorCode);
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.ERROR)
                 .success(false)
@@ -54,9 +55,40 @@ public class OrchestrationResultNormalizer {
                 .data(raw.getData())
                 .children(raw.getChildren())
                 .nextSteps(raw.getNextSteps())
-                .metadata(raw.getMetadata())
+                .metadata(metadata)
                 .smartSuggestion(raw.getSmartSuggestion())
                 .build();
+        }
+
+        // Rule: normalize compound wrappers with no hard errors into a stable top-level type.
+        if (raw.getType() == OrchestrationResultType.COMPOUND_HANDLED) {
+            OrchestrationResult primary = choosePrimaryChild(raw.getChildren());
+            if (primary != null && primary.getType() != null) {
+                OrchestrationResultType normalizedType = primary.getType();
+                boolean normalizedSuccess = switch (normalizedType) {
+                    case ACTION_EXECUTED, INFORMATION_PROVIDED -> primary.isSuccess();
+                    case OUT_OF_SCOPE -> true;
+                    case ACTION_DENIED -> false;
+                    default -> raw.isSuccess();
+                };
+
+                String message = StringUtils.hasText(primary.getMessage()) ? primary.getMessage() : raw.getMessage();
+                Map<String, Object> data = (primary.getData() != null && !primary.getData().isEmpty())
+                    ? primary.getData()
+                    : raw.getData();
+
+                return OrchestrationResult.builder()
+                    .type(normalizedType)
+                    .success(normalizedSuccess)
+                    .message(message)
+                    .errorCode(raw.getErrorCode())
+                    .data(data)
+                    .children(raw.getChildren())
+                    .nextSteps(raw.getNextSteps())
+                    .metadata(raw.getMetadata())
+                    .smartSuggestion(raw.getSmartSuggestion())
+                    .build();
+            }
         }
 
         // Rule: if the result is already an ERROR but lacks errorCode, try to derive.
@@ -64,6 +96,7 @@ public class OrchestrationResultNormalizer {
             String derived = deriveErrorCodeFromDataOrMessage(raw.getData(), raw.getMessage());
             if (StringUtils.hasText(derived)) {
                 raw.setErrorCode(derived);
+                raw.setMetadata(withErrorCodeMetadata(raw.getMetadata(), derived));
             }
         }
 
@@ -78,6 +111,30 @@ public class OrchestrationResultNormalizer {
             .filter(child -> child != null && child.getType() == OrchestrationResultType.ERROR)
             .findFirst()
             .orElse(null);
+    }
+
+    private OrchestrationResult choosePrimaryChild(List<OrchestrationResult> children) {
+        if (children == null || children.isEmpty()) {
+            return null;
+        }
+
+        // Priority order: actions > information > scope (provider-agnostic and stable).
+        return firstByType(children, OrchestrationResultType.ACTION_EXECUTED,
+            OrchestrationResultType.ACTION_DENIED,
+            OrchestrationResultType.INFORMATION_PROVIDED,
+            OrchestrationResultType.OUT_OF_SCOPE,
+            OrchestrationResultType.COMPOUND_HANDLED);
+    }
+
+    private OrchestrationResult firstByType(List<OrchestrationResult> children, OrchestrationResultType... types) {
+        for (OrchestrationResultType type : types) {
+            for (OrchestrationResult child : children) {
+                if (child != null && child.getType() == type) {
+                    return child;
+                }
+            }
+        }
+        return null;
     }
 
     private String deriveErrorCodeFromDataOrMessage(Map<String, Object> data, String message) {
@@ -112,6 +169,15 @@ public class OrchestrationResultNormalizer {
             return ERROR_CODE_ACTION_NOT_FOUND;
         }
         return null;
+    }
+
+    private Map<String, Object> withErrorCodeMetadata(Map<String, Object> existing, String errorCode) {
+        if (!StringUtils.hasText(errorCode)) {
+            return existing;
+        }
+        Map<String, Object> merged = new LinkedHashMap<>(existing != null ? existing : Map.of());
+        merged.put("errorCode", errorCode);
+        return Map.copyOf(merged);
     }
 }
 

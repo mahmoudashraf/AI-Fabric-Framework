@@ -3,6 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -122,22 +123,35 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         // Verify that error information is captured (if action was attempted)
         Map<String, Object> data = result.getData();
         boolean actionWasAttempted = false;
+        ActionResult actionResultCaptured = null;
         if (data != null && !data.isEmpty()) {
             Object actionResultObj = data.get("actionResult");
             if (actionResultObj != null) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> actionResult = actionResultObj instanceof Map<?, ?> map
-                    ? (Map<String, Object>) map
-                    : Map.of();
-                
-                if (!actionResult.isEmpty()) {
+                if (actionResultObj instanceof ActionResult ar) {
                     actionWasAttempted = true;
-                    // Verify error was captured properly
-                    assertThat(actionResult.get("success")).isEqualTo(Boolean.FALSE);
-                    assertThat(String.valueOf(actionResult.get("message"))).contains("No action handler registered for action 'invalid_action_that_does_not_exist'");
-                    assertThat(String.valueOf(actionResult.get("errorCode"))).isEqualTo("ACTION_NOT_FOUND");
+                    actionResultCaptured = ar;
+                } else if (actionResultObj instanceof Map<?, ?> map) {
+                    // Some code paths may serialize ActionResult into a map
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> actionResult = (Map<String, Object>) map;
+                    if (!actionResult.isEmpty()) {
+                        actionWasAttempted = true;
+                        actionResultCaptured = ActionResult.builder()
+                            .success(Boolean.TRUE.equals(actionResult.get("success")))
+                            .message(actionResult.get("message") != null ? String.valueOf(actionResult.get("message")) : null)
+                            .errorCode(actionResult.get("errorCode") != null ? String.valueOf(actionResult.get("errorCode")) : null)
+                            .data(actionResult.get("data"))
+                            .build();
+                    }
                 }
             }
+        }
+
+        if (actionWasAttempted && actionResultCaptured != null) {
+            assertThat(actionResultCaptured.isSuccess()).isFalse();
+            assertThat(String.valueOf(actionResultCaptured.getMessage()))
+                .contains("No action handler registered for action 'invalid_action_that_does_not_exist'");
+            assertThat(String.valueOf(actionResultCaptured.getErrorCode())).isEqualTo("ACTION_NOT_FOUND");
         }
         
         // If action was attempted, verify error message indicates handler not found
@@ -181,14 +195,13 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
 
         Map<String, Object> sanitizedPayload = result.getSanitizedPayload();
         assertThat(sanitizedPayload).isNotEmpty();
-        // Different LLMs may wrap the same underlying failure differently (ERROR vs COMPOUND_HANDLED with children).
-        // The stable contract is: (a) actionResult captures ACTION_NOT_FOUND when attempted, and (b) payload is sanitized.
         if (actionWasAttempted || !result.isSuccess()) {
-            assertThat(String.valueOf(sanitizedPayload.get("type")))
-                .as("Error recovery can be surfaced as ERROR or COMPOUND_HANDLED depending on orchestration wrapping")
-                .isIn("ERROR", "COMPOUND_HANDLED");
-            // 'success' may vary for compound flows; do not hard-require false here.
-            assertThat(sanitizedPayload.get("success")).isIn(Boolean.TRUE, Boolean.FALSE);
+            // Provider-agnostic contract: missing action handler should surface as top-level ERROR with ACTION_NOT_FOUND.
+            assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getErrorCode()).isEqualTo("ACTION_NOT_FOUND");
+            assertThat(String.valueOf(sanitizedPayload.get("type"))).isEqualTo("ERROR");
+            assertThat(sanitizedPayload.get("success")).isEqualTo(Boolean.FALSE);
         } else {
             // If LLM correctly identified as OUT_OF_SCOPE, result is success but sanitization should still be present
             assertThat(sanitizedPayload.get("success")).isIn(Boolean.TRUE, Boolean.FALSE);
