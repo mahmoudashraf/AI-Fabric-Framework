@@ -871,6 +871,7 @@ jobs:
       - name: Aggregate Test Execution Evidence
         run: |
           # Aggregate evidence from all modules
+          mkdir -p test-evidence
           AGGREGATED_EVIDENCE="test-evidence/aggregated-evidence-$(date +%Y%m%d-%H%M%S).json"
           
           python3 << 'PYTHON_SCRIPT'
