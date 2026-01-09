@@ -1,0 +1,17 @@
+-------------------------------------------------------------------------------
+Test set: com.ai.infrastructure.it.realapi.RealAPIProviderMatrixIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 696.482 s <<< FAILURE! - in com.ai.infrastructure.it.realapi.RealAPIProviderMatrixIntegrationTest
+com.ai.infrastructure.it.realapi.RealAPIProviderMatrixIntegrationTest.providerMatrix  Time elapsed: 696.297 s  <<< FAILURE!
+java.lang.AssertionError: 
+Failures detected for LLM=openai | Embedding=onnx | VectorDB=lucene | Storage=SINGLE_TABLE (1 failures)
+Last normalized result snapshot: Snapshot{requestId=rag-70160de7-82cf-41bb-bab3-7c2de5c0cd86, type=OUT_OF_SCOPE, success=true, errorCode=null, recordedAt=2026-01-09T15:37:14.681798888Z}
+testRealActionHandlerRemovesVectorWithPIIRedaction() -> [Action should be executed] 
+expected: ACTION_EXECUTED
+ but was: ERROR
+	at com.ai.infrastructure.it.realapi.AbstractProviderMatrixIntegrationTest.executeCombination(AbstractProviderMatrixIntegrationTest.java:213)
+	at com.ai.infrastructure.it.realapi.AbstractProviderMatrixIntegrationTest.lambda$providerMatrix$1(AbstractProviderMatrixIntegrationTest.java:85)
+	at java.base/java.util.Optional.ifPresent(Optional.java:178)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+

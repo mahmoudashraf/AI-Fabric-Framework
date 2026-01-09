@@ -9,18 +9,22 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -49,6 +53,7 @@ public class OpenAIProvider implements AIProvider {
     
     private static final String PATH_CHAT_COMPLETIONS = "/chat/completions";
     private static final String PATH_EMBEDDINGS = "/embeddings";
+    private static final int MAX_RETRY_ATTEMPTS = 3;
     
     @Override
     public String getProviderName() {
@@ -137,8 +142,7 @@ public class OpenAIProvider implements AIProvider {
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "chat.completions");
             
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(true, responseTime);
@@ -214,8 +218,7 @@ public class OpenAIProvider implements AIProvider {
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "embeddings");
             
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(true, responseTime);
@@ -246,6 +249,68 @@ public class OpenAIProvider implements AIProvider {
             lastErrorMessage.set(e.getMessage());
             
             throw new RuntimeException("OpenAI embedding generation failed: " + e.getMessage(), e);
+        }
+    }
+
+    private <T> ResponseEntity<T> exchangeWithRetry(String url,
+                                                    HttpMethod method,
+                                                    HttpEntity<?> entity,
+                                                    Class<T> responseType,
+                                                    String operation) {
+        long backoffMs = 400;
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                return restTemplate.exchange(url, method, entity, responseType);
+            } catch (HttpStatusCodeException ex) {
+                HttpStatusCode statusCode = ex.getStatusCode();
+                int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();
+                if (attempt < MAX_RETRY_ATTEMPTS && isRetryableStatus(rawStatus)) {
+                    log.warn(
+                        "OpenAI {} call failed with HTTP {} (attempt {}/{}). Retrying after {}ms.",
+                        operation,
+                        rawStatus,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            } catch (ResourceAccessException ex) {
+                if (attempt < MAX_RETRY_ATTEMPTS) {
+                    log.warn(
+                        "OpenAI {} call failed due to network/timeout (attempt {}/{}). Retrying after {}ms. Cause: {}",
+                        operation,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs,
+                        ex.getMessage()
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            }
+        }
+        // defensive; loop always returns/throws
+        throw new RuntimeException("OpenAI " + operation + " call failed after retries");
+    }
+
+    private boolean isRetryableStatus(int status) {
+        // Common transient failures: rate limiting and upstream 5xx from edge/network.
+        return status == 408 || status == 425 || status == 429 || status == 500 || status == 502 || status == 503 || status == 504;
+    }
+
+    private void sleepWithJitter(long baseBackoffMs) {
+        long jitter = ThreadLocalRandom.current().nextLong(0, 200);
+        long sleepMs = baseBackoffMs + jitter;
+        try {
+            Thread.sleep(sleepMs);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
     
