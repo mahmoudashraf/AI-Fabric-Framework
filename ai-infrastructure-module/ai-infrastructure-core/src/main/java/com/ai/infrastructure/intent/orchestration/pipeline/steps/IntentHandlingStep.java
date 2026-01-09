@@ -112,6 +112,9 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String MSG_OUT_OF_SCOPE = "I'm not able to help with that request. Please contact support for further assistance.";
     private static final String MSG_ALL_PROCESSED = "All intents processed successfully.";
     private static final String MSG_SOME_FAILED = "Some intents failed. See results for details.";
+    
+    // Provider-agnostic error codes (for deterministic client handling)
+    private static final String ERROR_CODE_ACTION_NOT_FOUND = "ACTION_NOT_FOUND";
 
     private static final String ERROR_MSG_RAG_NULL_RESPONSE = "RAG retrieval returned null response.";
 
@@ -230,7 +233,23 @@ public class IntentHandlingStep implements PipelineStep {
         
         Optional<ActionHandler> maybeHandler = actionHandlerRegistry.findHandler(actionName);
         if (maybeHandler.isEmpty()) {
-            return OrchestrationResult.error(ERROR_MSG_NO_HANDLER + actionName + "'");
+            // Deterministic contract: missing handler is a canonical ERROR with ACTION_NOT_FOUND.
+            String message = ERROR_MSG_NO_HANDLER + actionName + "'";
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_ACTION, actionName);
+            data.put(DATA_KEY_ACTION_RESULT, ActionResult.builder()
+                .success(false)
+                .message(message)
+                .errorCode(ERROR_CODE_ACTION_NOT_FOUND)
+                .build());
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ERROR)
+                .success(false)
+                .message(message)
+                .errorCode(ERROR_CODE_ACTION_NOT_FOUND)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
         }
         
         ActionHandler handler = maybeHandler.get();
@@ -718,13 +737,19 @@ public class IntentHandlingStep implements PipelineStep {
             nextSteps.addAll(child.getNextSteps());
         }
         
-        boolean success = childResults.stream().allMatch(OrchestrationResult::isSuccess);
+        // Compound requests often include a primary action plus optional follow-up intents (ex: confirmation/help text).
+        // Treat the compound as successful if at least one child succeeded and we did not hit a hard ERROR.
+        // This prevents "action succeeded but follow-up failed" scenarios from being recorded as a total failure.
+        boolean anySuccess = childResults.stream().anyMatch(OrchestrationResult::isSuccess);
+        boolean anyError = childResults.stream().anyMatch(result -> result.getType() == OrchestrationResultType.ERROR);
+        boolean allSuccess = !childResults.isEmpty() && childResults.stream().allMatch(OrchestrationResult::isSuccess);
+        boolean success = anySuccess && !anyError;
         Map<String, Object> data = Map.of(DATA_KEY_RESULTS, childResults);
         
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.COMPOUND_HANDLED)
             .success(success)
-            .message(success ? MSG_ALL_PROCESSED : MSG_SOME_FAILED)
+            .message(allSuccess ? MSG_ALL_PROCESSED : MSG_SOME_FAILED)
             .children(Collections.unmodifiableList(childResults))
             .nextSteps(Collections.unmodifiableList(nextSteps))
             .data(data)

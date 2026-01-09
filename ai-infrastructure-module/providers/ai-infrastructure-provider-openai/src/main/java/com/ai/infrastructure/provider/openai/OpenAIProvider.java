@@ -9,18 +9,22 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -49,6 +53,7 @@ public class OpenAIProvider implements AIProvider {
     
     private static final String PATH_CHAT_COMPLETIONS = "/chat/completions";
     private static final String PATH_EMBEDDINGS = "/embeddings";
+    private static final int MAX_RETRY_ATTEMPTS = 3;
     
     @Override
     public String getProviderName() {
@@ -105,31 +110,39 @@ public class OpenAIProvider implements AIProvider {
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
             requestBody.put("top_p", 0.1);  // Lower top_p for more deterministic responses
             
-            // Log the complete request for debugging
-            System.out.println("\n=== OPENAI API REQUEST ===");
-            System.out.println("URL: " + url);
-            System.out.println("Model: " + requestBody.get("model"));
-            System.out.println("Temperature: " + requestBody.get("temperature"));
-            System.out.println("Top-P: " + requestBody.get("top_p"));
-            System.out.println("Max Tokens: " + requestBody.get("max_tokens"));
-            System.out.println("Messages count: " + messages.size());
-            for (int i = 0; i < messages.size(); i++) {
-                Map<String, String> msg = messages.get(i);
-                System.out.println("\nMessage " + i + ": role=" + msg.get("role"));
-                String content = msg.get("content");
-                if (content.length() > 1000) {
-                    System.out.println("  content (first 1000 chars): " + content.substring(0, 1000));
-                    System.out.println("  content (total length): " + content.length() + " chars");
-                } else {
-                    System.out.println("  content: " + content);
+            // IMPORTANT: Never use System.out for provider logging; it bypasses log levels and makes CI noisy.
+            // Emit request/response summaries + payload snippets at INFO (visible at "normal").
+            if (log.isInfoEnabled()) {
+                log.info("=== OPENAI API REQUEST ===");
+                log.info(
+                    "OpenAI API request: url={}, model={}, temperature={}, topP={}, maxTokens={}, messages={}",
+                    url,
+                    requestBody.get("model"),
+                    requestBody.get("temperature"),
+                    requestBody.get("top_p"),
+                    requestBody.get("max_tokens"),
+                    messages.size()
+                );
+                for (int i = 0; i < messages.size(); i++) {
+                    Map<String, String> msg = messages.get(i);
+                    String role = msg.get("role");
+                    String content = msg.get("content");
+                    int len = content != null ? content.length() : 0;
+                    String snippet = content == null ? "" : content.substring(0, Math.min(500, len));
+                    log.info(
+                        "OpenAI API request message[{}]: role={}, contentLength={}, contentSnippet={}",
+                        i,
+                        role,
+                        len,
+                        snippet
+                    );
                 }
+                log.info("=== END OPENAI API REQUEST ===");
             }
-            System.out.println("=== END REQUEST ===\n");
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "chat.completions");
             
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(true, responseTime);
@@ -142,18 +155,25 @@ public class OpenAIProvider implements AIProvider {
             Map<String, String> message = (Map<String, String>) choices.get(0).get("message");
             String content = message.get("content");
             
-            // Log the response for debugging
-            System.out.println("=== OPENAI API RESPONSE ===");
-            System.out.println("Response Time: " + responseTime + "ms");
-            System.out.println("Model: " + responseBody.get("model"));
-            System.out.println("Finish Reason: " + choices.get(0).get("finish_reason"));
-            System.out.println("Response Content Length: " + content.length() + " chars");
-            if (content.length() > 500) {
-                System.out.println("Content (first 500 chars):\n" + content.substring(0, 500));
-            } else {
-                System.out.println("Content:\n" + content);
+            if (log.isInfoEnabled()) {
+                log.info("=== OPENAI API RESPONSE ===");
+                Object finishReason = choices.get(0).get("finish_reason");
+                int contentLength = content != null ? content.length() : 0;
+                log.info(
+                    "OpenAI API response: responseTimeMs={}, model={}, finishReason={}, contentLength={}",
+                    responseTime,
+                    responseBody.get("model"),
+                    finishReason,
+                    contentLength
+                );
+                if (content != null) {
+                    log.info(
+                        "OpenAI API response contentSnippet={}",
+                        content.substring(0, Math.min(500, content.length()))
+                    );
+                }
+                log.info("=== END OPENAI API RESPONSE ===");
             }
-            System.out.println("=== END RESPONSE ===\n");
             
             log.debug("OpenAI content generation completed in {}ms", responseTime);
             
@@ -198,8 +218,7 @@ public class OpenAIProvider implements AIProvider {
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "embeddings");
             
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(true, responseTime);
@@ -230,6 +249,68 @@ public class OpenAIProvider implements AIProvider {
             lastErrorMessage.set(e.getMessage());
             
             throw new RuntimeException("OpenAI embedding generation failed: " + e.getMessage(), e);
+        }
+    }
+
+    private <T> ResponseEntity<T> exchangeWithRetry(String url,
+                                                    HttpMethod method,
+                                                    HttpEntity<?> entity,
+                                                    Class<T> responseType,
+                                                    String operation) {
+        long backoffMs = 400;
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                return restTemplate.exchange(url, method, entity, responseType);
+            } catch (HttpStatusCodeException ex) {
+                HttpStatusCode statusCode = ex.getStatusCode();
+                int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();
+                if (attempt < MAX_RETRY_ATTEMPTS && isRetryableStatus(rawStatus)) {
+                    log.warn(
+                        "OpenAI {} call failed with HTTP {} (attempt {}/{}). Retrying after {}ms.",
+                        operation,
+                        rawStatus,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            } catch (ResourceAccessException ex) {
+                if (attempt < MAX_RETRY_ATTEMPTS) {
+                    log.warn(
+                        "OpenAI {} call failed due to network/timeout (attempt {}/{}). Retrying after {}ms. Cause: {}",
+                        operation,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs,
+                        ex.getMessage()
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            }
+        }
+        // defensive; loop always returns/throws
+        throw new RuntimeException("OpenAI " + operation + " call failed after retries");
+    }
+
+    private boolean isRetryableStatus(int status) {
+        // Common transient failures: rate limiting and upstream 5xx from edge/network.
+        return status == 408 || status == 425 || status == 429 || status == 500 || status == 502 || status == 503 || status == 504;
+    }
+
+    private void sleepWithJitter(long baseBackoffMs) {
+        long jitter = ThreadLocalRandom.current().nextLong(0, 200);
+        long sleepMs = baseBackoffMs + jitter;
+        try {
+            Thread.sleep(sleepMs);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
     

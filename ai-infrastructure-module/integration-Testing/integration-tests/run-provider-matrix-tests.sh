@@ -37,17 +37,26 @@
 #   - Java 21+
 #   - Maven 3.8+
 #   - Dependencies must be built and installed (run 'mvn clean install -DskipTests' from parent)
-#   - OPENAI_API_KEY environment variable set (minimum)
-#   - Optional: ANTHROPIC_API_KEY, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT
+#   - API key environment variable set based on selected providers:
+#     * OPENAI_API_KEY (for OpenAI)
+#     * ANTHROPIC_API_KEY (for Anthropic)
+#     * GEMINI_API_KEY (for Gemini)
+#     * COHERE_API_KEY (for Cohere)
+#     * AZURE_API_KEY + AZURE_ENDPOINT (for Azure)
+#   - ONNX and REST providers don't require API keys
 #
 # Note: This script assumes dependencies are already built. In CI/CD workflows,
 #       the build step should run 'mvn clean install -DskipTests' first.
 #
 # Environment Variables:
-#   OPENAI_API_KEY           - OpenAI API key (required)
-#   ANTHROPIC_API_KEY        - Anthropic API key (optional)
-#   AZURE_OPENAI_API_KEY     - Azure OpenAI API key (optional)
-#   AZURE_OPENAI_ENDPOINT    - Azure OpenAI endpoint (optional)
+#   OPENAI_API_KEY           - OpenAI API key (required if using OpenAI)
+#   ANTHROPIC_API_KEY        - Anthropic API key (required if using Anthropic)
+#   GEMINI_API_KEY           - Gemini API key (required if using Gemini)
+#   COHERE_API_KEY           - Cohere API key (required if using Cohere)
+#   AZURE_API_KEY            - Azure API key (required if using Azure)
+#   AZURE_ENDPOINT            - Azure endpoint URL (required if using Azure)
+#   AZURE_DEPLOYMENT_NAME     - Azure deployment name (required if using Azure for LLM)
+#   AZURE_EMBEDDING_DEPLOYMENT_NAME - Azure embedding deployment (required if using Azure for Embedding)
 #   SKIP_TESTS               - Set to skip tests (default: false)
 #   MAVEN_LOGGING_LEVEL      - Maven logging level: quiet, normal, verbose, debug (default: quiet)
 #   AI_PROVIDERS_REAL_API_TEST_CHUNK - Test chunk: core, vector, intent-actions, advanced, all (default: all)
@@ -81,6 +90,7 @@ TEST_CHUNK="${3:-all}"
 LOGGING_LEVEL="${MAVEN_LOGGING_LEVEL:-quiet}"
 PROFILE="real-api-test"
 TEST_CLASS="RealAPIProviderMatrixIntegrationTest"
+CONNECTIVITY_TEST_CLASS="RealApiConnectivityVerificationTest"
 SKIP_TESTS="${SKIP_TESTS:-false}"
 
 # Functions
@@ -123,12 +133,156 @@ if ! command -v mvn &> /dev/null; then
 fi
 print_success "Maven found: $(mvn -v 2>&1 | head -n 1)"
 
-if [ -z "$OPENAI_API_KEY" ]; then
-    print_error "OPENAI_API_KEY environment variable is not set"
-    echo "Please set: export OPENAI_API_KEY='your-api-key'"
+# Dynamic API key check based on selected providers
+# Parse matrix spec to determine which providers are being used
+check_provider_api_keys() {
+    local matrix_spec="$1"
+    local missing_keys=()
+    local providers_checked=()
+    local providers_needed_llm=()
+    local providers_needed_embedding=()
+    
+    # Handle comma-separated combinations - check all unique providers needed
+    IFS=',' read -ra COMBINATIONS <<< "$matrix_spec"
+    
+    for combo in "${COMBINATIONS[@]}"; do
+        # Extract providers from each combination (format: llm:embedding or llm:embedding:vectordb:storage)
+        IFS=':' read -r llm_provider embedding_provider <<< "$combo"
+        
+        # Trim whitespace
+        llm_provider=$(echo "$llm_provider" | xargs)
+        embedding_provider=$(echo "$embedding_provider" | xargs)
+        
+        # Collect unique providers needed
+        if [[ ! " ${providers_needed_llm[@]} " =~ " ${llm_provider} " ]]; then
+            providers_needed_llm+=("$llm_provider")
+        fi
+        if [[ ! " ${providers_needed_embedding[@]} " =~ " ${embedding_provider} " ]]; then
+            providers_needed_embedding+=("$embedding_provider")
+        fi
+    done
+    
+    # Check API keys for all unique LLM providers needed
+    for llm_provider in "${providers_needed_llm[@]}"; do
+        # Check LLM provider API key
+        case "$llm_provider" in
+        openai)
+            if [ -z "$OPENAI_API_KEY" ]; then
+                missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)")
+            else
+                providers_checked+=("OpenAI LLM")
+            fi
+            ;;
+        anthropic)
+            if [ -z "$ANTHROPIC_API_KEY" ]; then
+                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)")
+            else
+                providers_checked+=("Anthropic LLM")
+            fi
+            ;;
+        gemini)
+            if [ -z "$GEMINI_API_KEY" ]; then
+                missing_keys+=("GEMINI_API_KEY (for Gemini LLM)")
+            else
+                providers_checked+=("Gemini LLM")
+            fi
+            ;;
+        cohere)
+            if [ -z "$COHERE_API_KEY" ]; then
+                missing_keys+=("COHERE_API_KEY (for Cohere LLM)")
+            else
+                providers_checked+=("Cohere LLM")
+            fi
+            ;;
+        azure)
+            if [ -z "$AZURE_API_KEY" ]; then
+                missing_keys+=("AZURE_API_KEY (for Azure LLM)")
+            elif [ -z "$AZURE_ENDPOINT" ]; then
+                missing_keys+=("AZURE_ENDPOINT (for Azure LLM)")
+            else
+                providers_checked+=("Azure LLM")
+            fi
+            ;;
+        onnx|rest)
+            # ONNX and REST don't require API keys
+            providers_checked+=("$llm_provider LLM (no API key required)")
+            ;;
+        *)
+            print_warning "Unknown LLM provider: $llm_provider (skipping API key check)"
+            ;;
+    esac
+    done
+    
+    # Check API keys for all unique Embedding providers needed
+    for embedding_provider in "${providers_needed_embedding[@]}"; do
+        # Check Embedding provider API key
+        case "$embedding_provider" in
+        openai)
+            if [ -z "$OPENAI_API_KEY" ]; then
+                missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)")
+            else
+                providers_checked+=("OpenAI Embedding")
+            fi
+            ;;
+        anthropic)
+            if [ -z "$ANTHROPIC_API_KEY" ]; then
+                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)")
+            else
+                providers_checked+=("Anthropic Embedding")
+            fi
+            ;;
+        gemini)
+            if [ -z "$GEMINI_API_KEY" ]; then
+                missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)")
+            else
+                providers_checked+=("Gemini Embedding")
+            fi
+            ;;
+        cohere)
+            if [ -z "$COHERE_API_KEY" ]; then
+                missing_keys+=("COHERE_API_KEY (for Cohere Embedding)")
+            else
+                providers_checked+=("Cohere Embedding")
+            fi
+            ;;
+        azure)
+            if [ -z "$AZURE_API_KEY" ]; then
+                missing_keys+=("AZURE_API_KEY (for Azure Embedding)")
+            elif [ -z "$AZURE_ENDPOINT" ]; then
+                missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)")
+            else
+                providers_checked+=("Azure Embedding")
+            fi
+            ;;
+        onnx|rest)
+            # ONNX and REST don't require API keys
+            providers_checked+=("$embedding_provider Embedding (no API key required)")
+            ;;
+        *)
+            print_warning "Unknown Embedding provider: $embedding_provider (skipping API key check)"
+            ;;
+    esac
+    done
+    
+    # Report results
+    if [ ${#missing_keys[@]} -gt 0 ]; then
+        print_error "Missing required API keys for selected providers:"
+        for key in "${missing_keys[@]}"; do
+            echo "  - $key"
+        done
+        echo ""
+        echo "Please set the required environment variables before running tests."
+        return 1
+    else
+        print_success "API keys configured for: ${providers_checked[*]}"
+        return 0
+    fi
+}
+
+# Check API keys based on matrix spec
+if ! check_provider_api_keys "$MATRIX_SPEC"; then
     exit 1
 fi
-print_success "OpenAI API key is configured"
 
 # Check if dependencies are built (skip in CI/CD - already built by workflow)
 if [ "${CI:-false}" == "true" ] || [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
@@ -198,12 +352,87 @@ cd "$TEST_DIR"
 
 # Note: This assumes dependencies are already built and installed.
 # The workflow should run 'mvn clean install -DskipTests' from the parent module first.
-MAVEN_COMMAND="mvn test"
+#
+# Maven CLI verbosity is separate from Spring logging. Map MAVEN_LOGGING_LEVEL to
+# Maven flags so providers (including OpenAI) respect quiet/verbose consistently.
+MAVEN_CLI_FLAGS="--no-transfer-progress"
+case "$LOGGING_LEVEL" in
+    quiet)
+        MAVEN_CLI_FLAGS="-q $MAVEN_CLI_FLAGS"
+        ;;
+    error)
+        MAVEN_CLI_FLAGS="-q $MAVEN_CLI_FLAGS"
+        ;;
+    normal)
+        # default flags only
+        ;;
+    verbose)
+        MAVEN_CLI_FLAGS="-e $MAVEN_CLI_FLAGS"
+        ;;
+    debug)
+        MAVEN_CLI_FLAGS="-X -e $MAVEN_CLI_FLAGS"
+        ;;
+esac
+
+MAVEN_COMMAND="mvn $MAVEN_CLI_FLAGS test"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dtest=$TEST_CLASS"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=$PROFILE"
 MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.matrix='$MATRIX_SPEC'"
 MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
 MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
+
+# Add model name properties from environment variables if set
+if [ -n "$LLM_MODEL" ]; then
+    # Determine which provider is being used and set appropriate property
+    IFS=':' read -r llm_provider embedding_provider <<< "$MATRIX_SPEC"
+    llm_provider=$(echo "$llm_provider" | cut -d',' -f1 | xargs)
+    
+    case "$llm_provider" in
+        openai)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.model=$LLM_MODEL"
+            ;;
+        anthropic)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.anthropic.model=$LLM_MODEL"
+            ;;
+        gemini)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.gemini.model=$LLM_MODEL"
+            ;;
+        cohere)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.cohere.model=$LLM_MODEL"
+            ;;
+        azure)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.azure.deployment-name=$LLM_MODEL"
+            ;;
+    esac
+    print_info "Using custom LLM model: $LLM_MODEL for provider: $llm_provider"
+fi
+
+if [ -n "$EMBEDDING_MODEL" ]; then
+    # Determine which embedding provider is being used
+    IFS=':' read -r llm_provider embedding_provider <<< "$MATRIX_SPEC"
+    embedding_provider=$(echo "$embedding_provider" | cut -d',' -f1 | xargs)
+    
+    case "$embedding_provider" in
+        openai)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-model=$EMBEDDING_MODEL"
+            ;;
+        gemini)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.gemini.embedding-model=$EMBEDDING_MODEL"
+            ;;
+        cohere)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.cohere.embedding-model=$EMBEDDING_MODEL"
+            ;;
+        azure)
+            MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.azure.embedding-deployment-name=$EMBEDDING_MODEL"
+            ;;
+    esac
+    print_info "Using custom Embedding model: $EMBEDDING_MODEL for provider: $embedding_provider"
+fi
+
+# Add any additional Maven options from environment (set by workflow)
+if [ -n "$MAVEN_OPTS" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND $MAVEN_OPTS"
+fi
 
 # Add vector database as system property if specified
 if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
@@ -215,6 +444,25 @@ if [ -n "$AI_INFRASTRUCTURE_STORAGE_STRATEGY" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai-infrastructure.storage.strategy=$AI_INFRASTRUCTURE_STORAGE_STRATEGY"
 fi
 
+# Auto-configure OpenAI embedding dimensions for Lucene compatibility
+# OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
+# Check if we're using OpenAI embeddings with Lucene vector database
+# Matrix spec format: "llm:embedding" or "llm:embedding:vectordb" or "llm:embedding:vectordb:storage"
+# Check if embedding provider is "openai" (second field in colon-separated spec)
+if [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
+    # Check if EMBEDDING_PROVIDER is explicitly set to "openai"
+    if [ "$EMBEDDING_PROVIDER" == "openai" ]; then
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-dimensions=512"
+        print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility"
+    # Otherwise, check matrix spec for any combination with "openai" as embedding provider (2nd field)
+    # Format: "something:openai" or "something:openai:something" (embedding is 2nd field)
+    # Pattern matches: start or comma, then any chars, then colon, then "openai" as whole word, then colon/comma/end
+    elif echo "$MATRIX_SPEC" | grep -qE "(^|,)([^:]+:)\bopenai\b(:|,|$)"; then
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-dimensions=512"
+        print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility (detected in matrix spec)"
+    fi
+fi
+
 # Add test chunk as system property if specified
 if [ -n "$TEST_CHUNK" ] && [ "$TEST_CHUNK" != "all" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.real-api.test-chunk=$TEST_CHUNK"
@@ -224,8 +472,20 @@ fi
 # Map Maven logging levels to Spring Boot logging levels
 # These override the DEBUG settings in application-test.yml
 case "$LOGGING_LEVEL" in
+    error)
+        # Error mode: Only ERROR logs (suppress WARN/INFO/DEBUG)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.root=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.provider=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.core=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.embedding=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.springframework=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.hibernate=ERROR"
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.it.realapi=ERROR"
+        ;;
     quiet)
         # Quiet mode: Only WARN and ERROR (suppress all DEBUG/INFO)
+        # But keep INFO for test execution logging to see which test classes are running
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.root=WARN"
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure=WARN"
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.provider=WARN"
@@ -233,6 +493,8 @@ case "$LOGGING_LEVEL" in
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.embedding=WARN"
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.springframework=WARN"
         MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.org.hibernate=WARN"
+        # Keep INFO level for test execution logging
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dlogging.level.com.ai.infrastructure.it.realapi=INFO"
         ;;
     normal)
         # Normal mode: INFO level (suppress DEBUG)
@@ -252,13 +514,104 @@ if [ "$SKIP_TESTS" == "true" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -DskipTests"
 fi
 
-if [ "${DEBUG:-false}" == "true" ]; then
+if [ "${DEBUG:-false}" == "true" ] && [ "$LOGGING_LEVEL" != "debug" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -X"
 fi
 
 print_info "Working Directory: $(pwd)"
 print_info "Maven Profile: $PROFILE"
 print_info "Test Class: $TEST_CLASS"
+
+# ---------------------------------------------------------------------------
+# Connectivity pre-check (fail fast on invalid credentials / unreachable provider)
+# ---------------------------------------------------------------------------
+print_header "Connectivity Verification"
+
+# Use the first provider pair from the matrix spec for the connectivity check.
+# (Most manual runs use a single combination.)
+CONNECTIVITY_LLM_PROVIDER=""
+CONNECTIVITY_EMBEDDING_PROVIDER=""
+FIRST_COMBO=$(echo "$MATRIX_SPEC" | awk -F',' '{print $1}' | xargs)
+if [[ "$FIRST_COMBO" =~ ^([^:]+):([^:]+) ]]; then
+    CONNECTIVITY_LLM_PROVIDER="${BASH_REMATCH[1]}"
+    CONNECTIVITY_EMBEDDING_PROVIDER="${BASH_REMATCH[2]}"
+fi
+
+CONNECTIVITY_COMMAND="mvn $MAVEN_CLI_FLAGS test"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dtest=$CONNECTIVITY_TEST_CLASS"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dspring.profiles.active=$PROFILE"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DforkCount=1"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DreuseForks=false"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.realapi.connectivity.check=true"
+
+if [ -n "$CONNECTIVITY_LLM_PROVIDER" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.llm-provider=$CONNECTIVITY_LLM_PROVIDER"
+fi
+if [ -n "$CONNECTIVITY_EMBEDDING_PROVIDER" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.embedding-provider=$CONNECTIVITY_EMBEDDING_PROVIDER"
+fi
+
+# Ensure required model properties exist for fail-fast config validation.
+# IMPORTANT: treat empty env vars as "unset" and fall back to safe defaults.
+if [ "$CONNECTIVITY_LLM_PROVIDER" = "openai" ]; then
+    OPENAI_MODEL_EFFECTIVE="${OPENAI_MODEL:-${LLM_MODEL:-gpt-4o-mini}}"
+    if [ -z "$OPENAI_MODEL_EFFECTIVE" ]; then
+        OPENAI_MODEL_EFFECTIVE="gpt-4o-mini"
+    fi
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.model=$OPENAI_MODEL_EFFECTIVE"
+fi
+if [ "$CONNECTIVITY_EMBEDDING_PROVIDER" = "openai" ]; then
+    OPENAI_EMBEDDING_MODEL_EFFECTIVE="${OPENAI_EMBEDDING_MODEL:-${EMBEDDING_MODEL:-text-embedding-3-small}}"
+    if [ -z "$OPENAI_EMBEDDING_MODEL_EFFECTIVE" ]; then
+        OPENAI_EMBEDDING_MODEL_EFFECTIVE="text-embedding-3-small"
+    fi
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.embedding-model=$OPENAI_EMBEDDING_MODEL_EFFECTIVE"
+fi
+if [ "$CONNECTIVITY_LLM_PROVIDER" = "anthropic" ]; then
+    ANTHROPIC_MODEL_EFFECTIVE="${ANTHROPIC_MODEL:-${LLM_MODEL:-claude-3-haiku-20240307}}"
+    if [ -z "$ANTHROPIC_MODEL_EFFECTIVE" ]; then
+        ANTHROPIC_MODEL_EFFECTIVE="claude-3-haiku-20240307"
+    fi
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.anthropic.model=$ANTHROPIC_MODEL_EFFECTIVE"
+fi
+if [ "$CONNECTIVITY_LLM_PROVIDER" = "cohere" ]; then
+    COHERE_MODEL_EFFECTIVE="${COHERE_MODEL:-${LLM_MODEL:-command-r7b-12-2024}}"
+    if [ -z "$COHERE_MODEL_EFFECTIVE" ]; then
+        COHERE_MODEL_EFFECTIVE="command-r7b-12-2024"
+    fi
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.cohere.model=$COHERE_MODEL_EFFECTIVE"
+fi
+
+# Enable providers explicitly for the check (helps local runs where *_ENABLED isn't set).
+case "$CONNECTIVITY_LLM_PROVIDER" in
+    openai)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.enabled=true -DOPENAI_ENABLED=true"
+        ;;
+    anthropic)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.anthropic.enabled=true -DANTHROPIC_ENABLED=true"
+        ;;
+    gemini)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.gemini.enabled=true -DGEMINI_ENABLED=true"
+        ;;
+    cohere)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.cohere.enabled=true -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.azure.enabled=true -DAZURE_ENABLED=true"
+        ;;
+esac
+
+print_info "Connectivity check provider: LLM=${CONNECTIVITY_LLM_PROVIDER:-unknown} Embedding=${CONNECTIVITY_EMBEDDING_PROVIDER:-unknown}"
+print_info "Command:"
+echo "  $CONNECTIVITY_COMMAND"
+echo ""
+
+if eval "$CONNECTIVITY_COMMAND"; then
+    print_success "Connectivity verification passed"
+else
+    print_error "Connectivity verification failed - aborting test run"
+    exit 1
+fi
 
 # Display the command
 print_header "Executing Tests"

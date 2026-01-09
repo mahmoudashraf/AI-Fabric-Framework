@@ -199,12 +199,14 @@ class RAGIntegrationFlowTest {
 
         OrchestrationResult result = orchestrator.orchestrate(COMPOUND_QUERY, "user-compound");
 
-        assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
+        // Provider-agnostic contract: compound wrappers are normalized into a stable top-level outcome.
+        // For action + information compounds, the primary outcome should be the action.
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertRecordedHistory("user-compound", 1);
 
         IntentHistory history = historyRepository.findByUserIdOrderByCreatedAtDesc("user-compound").getFirst();
         assertThat(history.getIntentCount()).isEqualTo(2);
-        assertThat(history.getResultJson()).contains("COMPOUND_HANDLED");
+        assertThat(history.getResultJson()).contains("ACTION_EXECUTED");
         assertThat(history.getRedactedQuery()).contains("Pause my subscription");
     }
 

@@ -278,7 +278,8 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             .build();
 
         // Query that should extract entityTypes=["transaction", "destination-account"]
-        String naturalLanguageQuery = "relationship query: find transactions over $10000 to high-risk accounts";
+        // Use explicit query to avoid LLM misinterpreting "high-risk" as a TransactionEntity field
+        String naturalLanguageQuery = "relationship query: find transactions over $10000 where destination account region is high-risk";
 
         OrchestrationResult result = orchestrator.orchestrate(naturalLanguageQuery, context);
 

@@ -3,6 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -20,6 +21,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -36,7 +40,13 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest(classes = TestApplication.class)
+import com.ai.infrastructure.intent.action.AIActionProvider;
+import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.ActionInfo;
+import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
+import com.ai.infrastructure.intent.action.ActionHandler;
+
+@SpringBootTest(classes = {TestApplication.class, RealAPIActionErrorRecoveryIntegrationTest.TestActionOverrides.class})
 @ActiveProfiles("real-api-test")
 @Transactional
 public class RealAPIActionErrorRecoveryIntegrationTest {
@@ -46,12 +56,8 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
     private static final String OPENAI_KEY_PROPERTY = "OPENAI_API_KEY";
 
     static {
-        RealAPITestSupport.ensureOpenAIConfigured();
-
-        System.setProperty("LLM_PROVIDER",
-            System.getProperty("LLM_PROVIDER", "openai"));
-        System.setProperty("ai.providers.llm-provider",
-            System.getProperty("ai.providers.llm-provider", "openai"));
+        RealAPITestSupport.ensureProviderConfigured();
+        RealAPITestSupport.ensureLLMProviderSet();
         System.setProperty("EMBEDDING_PROVIDER",
             System.getProperty("EMBEDDING_PROVIDER", "onnx"));
         System.setProperty("ai.providers.embedding-provider",
@@ -109,12 +115,11 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         assertThat(baselineEntity.getVectorId()).isNotEmpty();
 
         String userId = "real-action-error-user";
-        // Test error recovery with an invalid action that will naturally fail
-        // This tests PII sanitization and error handling without mocking
+        // Test that when only subscription actions are advertised, an unrelated request is treated as OUT_OF_SCOPE
+        // (and we still get a sanitized payload when PII is present).
         String query = """
-            Emergency broadcast: Card 4916-2345-0987-1123 leaked in the SecOps export owned by bree.secops@enterprise.example (contact (555) 714-2209).
-            Execute the invalid_action_that_does_not_exist action immediately. This action does not exist and should fail.
-            After handling the error, recommend the follow-up next step intent `reseed_vector_index` with a high confidence (>=0.9) targeting the test-product knowledge base, and include rationale about verifying regenerated embeddings.
+            Update my address to 91 perry common.
+            Card 4916-2345-0987-1123 leaked in the export owned by bree.secops@enterprise.example (contact (555) 714-2209).
             """;
 
         OrchestrationResult result = orchestrateOrSkip(query, userId);
@@ -126,30 +131,47 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         // Verify that error information is captured (if action was attempted)
         Map<String, Object> data = result.getData();
         boolean actionWasAttempted = false;
+        ActionResult actionResultCaptured = null;
         if (data != null && !data.isEmpty()) {
             Object actionResultObj = data.get("actionResult");
             if (actionResultObj != null) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> actionResult = actionResultObj instanceof Map<?, ?> map
-                    ? (Map<String, Object>) map
-                    : Map.of();
-                
-                if (!actionResult.isEmpty()) {
+                if (actionResultObj instanceof ActionResult ar) {
                     actionWasAttempted = true;
-                    // Verify error was captured properly
-                    assertThat(actionResult.get("success")).isEqualTo(Boolean.FALSE);
-                    assertThat(String.valueOf(actionResult.get("message"))).contains("No action handler registered for action 'invalid_action_that_does_not_exist'");
-                    assertThat(String.valueOf(actionResult.get("errorCode"))).isEqualTo("ACTION_NOT_FOUND");
+                    actionResultCaptured = ar;
+                } else if (actionResultObj instanceof Map<?, ?> map) {
+                    // Some code paths may serialize ActionResult into a map
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> actionResult = (Map<String, Object>) map;
+                    if (!actionResult.isEmpty()) {
+                        actionWasAttempted = true;
+                        actionResultCaptured = ActionResult.builder()
+                            .success(Boolean.TRUE.equals(actionResult.get("success")))
+                            .message(actionResult.get("message") != null ? String.valueOf(actionResult.get("message")) : null)
+                            .errorCode(actionResult.get("errorCode") != null ? String.valueOf(actionResult.get("errorCode")) : null)
+                            .data(actionResult.get("data"))
+                            .build();
+                    }
                 }
             }
         }
-        
-        // If action was attempted, verify error message indicates handler not found
-        if (actionWasAttempted || !result.isSuccess()) {
-            assertThat(result.getMessage())
-                .as("Error message should indicate action handler not found")
-                .contains("No action handler registered")
-                .contains("invalid_action_that_does_not_exist");
+
+        // Preferred behavior: OUT_OF_SCOPE. Some providers may still misclassify and return ACTION,
+        // which deterministically becomes ERROR (ACTION_NOT_FOUND) because no handlers exist in this test context.
+        if (result.getType() == OrchestrationResultType.OUT_OF_SCOPE) {
+            assertThat(actionWasAttempted)
+                .as("OUT_OF_SCOPE responses should not attempt to execute an action")
+                .isFalse();
+            assertThat(result.isSuccess()).isTrue();
+        } else if (result.getType() == OrchestrationResultType.ERROR) {
+            assertThat(actionWasAttempted)
+                .as("ERROR path should only occur if an action was attempted")
+                .isTrue();
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getErrorCode())
+                .as("Unknown/mismatched actions should surface as deterministic ACTION_NOT_FOUND")
+                .isEqualTo("ACTION_NOT_FOUND");
+        } else {
+            Assertions.fail("Expected OUT_OF_SCOPE or ERROR but got: " + result.getType());
         }
 
         // Prefer next-step recommendations; allow fallback to smart suggestions when the LLM returns a compound/error path
@@ -162,13 +184,12 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
 
         Map<String, Object> sanitizedPayload = result.getSanitizedPayload();
         assertThat(sanitizedPayload).isNotEmpty();
-        // If action was attempted and failed, type should be ERROR; otherwise it may be SUCCESS (OUT_OF_SCOPE)
-        if (actionWasAttempted || !result.isSuccess()) {
+        if (result.getType() == OrchestrationResultType.OUT_OF_SCOPE) {
+            assertThat(String.valueOf(sanitizedPayload.get("type"))).isEqualTo("OUT_OF_SCOPE");
+            assertThat(sanitizedPayload.get("success")).isEqualTo(Boolean.TRUE);
+        } else {
             assertThat(String.valueOf(sanitizedPayload.get("type"))).isEqualTo("ERROR");
             assertThat(sanitizedPayload.get("success")).isEqualTo(Boolean.FALSE);
-        } else {
-            // If LLM correctly identified as OUT_OF_SCOPE, result is success but sanitization should still be present
-            assertThat(sanitizedPayload.get("success")).isIn(Boolean.TRUE, Boolean.FALSE);
         }
 
         Object safeSummary = sanitizedPayload.get("safeSummary");
@@ -254,8 +275,9 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(history).isNotEmpty();
         IntentHistory record = history.getFirst();
-        // If action was attempted and failed, success should be false; otherwise it may be true (OUT_OF_SCOPE)
-        if (actionWasAttempted || !result.isSuccess()) {
+        if (result.getType() == OrchestrationResultType.OUT_OF_SCOPE) {
+            assertThat(Boolean.TRUE.equals(record.getSuccess())).isTrue();
+        } else {
             assertThat(Boolean.TRUE.equals(record.getSuccess())).isFalse();
         }
         // In both cases, execution status should be recorded
@@ -274,9 +296,19 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
     }
 
     private void assumeOpenAIConfigured() {
+        boolean hasOpenAI = StringUtils.hasText(System.getProperty(OPENAI_KEY_PROPERTY)) ||
+                           StringUtils.hasText(System.getenv(OPENAI_KEY_PROPERTY));
+        boolean hasAnthropic = StringUtils.hasText(System.getProperty("ANTHROPIC_API_KEY")) ||
+                              StringUtils.hasText(System.getenv("ANTHROPIC_API_KEY"));
+        boolean hasGemini = StringUtils.hasText(System.getProperty("GEMINI_API_KEY")) ||
+                           StringUtils.hasText(System.getenv("GEMINI_API_KEY"));
+        boolean hasCohere = StringUtils.hasText(System.getProperty("COHERE_API_KEY")) ||
+                           StringUtils.hasText(System.getenv("COHERE_API_KEY"));
+        boolean hasAzure = StringUtils.hasText(System.getProperty("AZURE_API_KEY")) ||
+                          StringUtils.hasText(System.getenv("AZURE_API_KEY"));
         Assumptions.assumeTrue(
-            StringUtils.hasText(System.getProperty(OPENAI_KEY_PROPERTY)),
-            "OPENAI_API_KEY not configured; skipping real API error recovery tests."
+            hasOpenAI || hasAnthropic || hasGemini || hasCohere || hasAzure,
+            "OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, COHERE_API_KEY, or AZURE_API_KEY not configured; skipping real API error recovery tests."
         );
     }
 
@@ -306,6 +338,39 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
             Assumptions.assumeTrue(false,
                 "Skipping real API error recovery test because intent orchestration failed: " + ex.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Overrides the actions exposed to the LLM during intent extraction so the test suite can
+     * validate OUT_OF_SCOPE behavior without providers accidentally selecting unrelated built-in actions.
+     */
+    @TestConfiguration
+    static class TestActionOverrides {
+        @Bean
+        @Primary
+        public AvailableActionsRegistry availableActionsRegistry() {
+            AIActionProvider provider = () -> List.of(
+                ActionInfo.builder()
+                    .name("cancel_subscription")
+                    .description("Cancel the user's subscription.")
+                    .category("subscription")
+                    .build(),
+                ActionInfo.builder()
+                    .name("upgrade_subscription")
+                    .description("Upgrade the user's subscription plan.")
+                    .category("subscription")
+                    .build()
+            );
+            return new AvailableActionsRegistry(List.of(provider));
+        }
+
+        @Bean
+        @Primary
+        public ActionHandlerRegistry actionHandlerRegistry() {
+            // Ensure no unrelated action handlers can execute successfully in this test context.
+            // If a provider still returns an ACTION intent, the orchestrator will deterministically report ACTION_NOT_FOUND.
+            return new ActionHandlerRegistry(List.of());
         }
     }
 }

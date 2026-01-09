@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Locale;
 
 /**
  * Uses the LLM via {@link AICoreService} to transform natural language queries into structured plans.
@@ -239,6 +240,7 @@ public class RelationshipQueryPlanner {
         AIGenerationResponse response = aiCoreService.generateContent(buildRequest(query, prompt));
         RelationshipQueryPlan plan = parsePlan(response.getContent());
         applyDefaults(plan, fallback);
+        sanitizeHallucinatedFilters(plan, query);
         validator.validate(plan);
         return plan;
     }
@@ -346,6 +348,127 @@ public class RelationshipQueryPlanner {
         if (plan.getQueryStrategy() == null) {
             plan.setQueryStrategy(QueryStrategy.RELATIONSHIP);
         }
+    }
+
+    /**
+     * Provider-agnostic guardrails: remove filters that are likely copied from examples or hallucinated
+     * when the user's query does not mention them.
+     *
+     * <p>This is intentionally conservative and only targets a few high-impact patterns that cause
+     * false negatives (empty results) in real API runs across providers.</p>
+     */
+    private void sanitizeHallucinatedFilters(RelationshipQueryPlan plan, String query) {
+        if (plan == null || query == null) {
+            return;
+        }
+
+        String normalizedQuery = query.toLowerCase(Locale.ROOT);
+
+        boolean mentionsTime = mentionsTimeConstraint(normalizedQuery);
+        boolean mentionsExplicitRiskScore = normalizedQuery.contains("risk score") || normalizedQuery.contains("riskscore");
+        boolean mentionsCrossEntityMatch = normalizedQuery.contains("same ")
+            || normalizedQuery.contains("same-")
+            || normalizedQuery.contains("same counterparty")
+            || normalizedQuery.contains("counterparty")
+            || normalizedQuery.contains("matches")
+            || normalizedQuery.contains("match ")
+            || normalizedQuery.contains("equal ")
+            || normalizedQuery.contains("equals ")
+            || normalizedQuery.contains("matching");
+
+        // 1) Date/time filters: keep only if query mentions a timeframe.
+        if (!mentionsTime && plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().forEach((entity, filters) -> {
+                if (filters == null || filters.isEmpty()) {
+                    return;
+                }
+                filters.removeIf(filter ->
+                    filter != null
+                        && isTemporalField(filter.getField())
+                        && isTemporalOperator(filter.getOperator())
+                        && looksLikeIsoTimestamp(filter.getValue())
+                );
+            });
+        }
+
+        // 2) Relationship path conditions guardrails.
+        if (plan.getRelationshipPaths() != null && !plan.getRelationshipPaths().isEmpty()) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path == null || path.getConditions() == null || path.getConditions().isEmpty()) {
+                    return;
+                }
+                path.getConditions().removeIf(condition -> {
+                    if (condition == null) {
+                        return false;
+                    }
+                    String field = condition.getField() != null ? condition.getField().toLowerCase(Locale.ROOT) : "";
+                    Object valueObj = condition.getValue();
+                    String value = valueObj != null ? valueObj.toString() : "";
+
+                    // Remove hallucinated riskScore constraints unless query explicitly asks for it.
+                    if (!mentionsExplicitRiskScore && field.contains("riskscore")) {
+                        return true;
+                    }
+
+                    // Remove cross-entity comparisons (value like "destination-account.ownerName") unless query asks for "same/matching".
+                    if (!mentionsCrossEntityMatch && value.contains(".")) {
+                        return true;
+                    }
+
+                    return false;
+                });
+            });
+        }
+    }
+
+    private boolean mentionsTimeConstraint(String normalizedQuery) {
+        // Obvious time/date signals. Keep this broad but simple.
+        if (normalizedQuery.contains(" q1") || normalizedQuery.contains(" q2") || normalizedQuery.contains(" q3") || normalizedQuery.contains(" q4")) {
+            return true;
+        }
+        if (normalizedQuery.matches(".*\\b(19|20)\\d{2}\\b.*")) {
+            return true;
+        }
+        return normalizedQuery.contains("last ")
+            || normalizedQuery.contains("this ")
+            || normalizedQuery.contains("yesterday")
+            || normalizedQuery.contains("today")
+            || normalizedQuery.contains("tomorrow")
+            || normalizedQuery.contains("before ")
+            || normalizedQuery.contains("after ")
+            || normalizedQuery.contains("since ")
+            || normalizedQuery.contains("between ");
+    }
+
+    private boolean isTemporalField(String field) {
+        if (field == null) {
+            return false;
+        }
+        String normalized = field.toLowerCase(Locale.ROOT);
+        return normalized.contains("creationdate")
+            || normalized.contains("createdat")
+            || normalized.contains("occurredat")
+            || normalized.endsWith(".date")
+            || normalized.endsWith("date");
+    }
+
+    private boolean looksLikeIsoTimestamp(Object value) {
+        if (value == null) {
+            return false;
+        }
+        String text = value.toString();
+        // Very lightweight ISO-ish check: "2023-10-01" or "2023-10-01T00:00:00"
+        return text.matches("\\d{4}-\\d{2}-\\d{2}.*");
+    }
+
+    private boolean isTemporalOperator(com.ai.infrastructure.relationship.dto.FilterOperator operator) {
+        if (operator == null) {
+            return false;
+        }
+        return switch (operator) {
+            case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, BETWEEN -> true;
+            default -> false;
+        };
     }
 
     private RelationshipQueryPlan createFallbackPlan(String query, List<String> entityTypes) {

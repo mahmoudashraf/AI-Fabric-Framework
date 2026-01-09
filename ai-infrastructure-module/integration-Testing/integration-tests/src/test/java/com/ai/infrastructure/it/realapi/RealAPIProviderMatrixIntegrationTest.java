@@ -85,16 +85,62 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
 
     @Override
     public Stream<DynamicTest> providerMatrix() {
-        Assumptions.assumeTrue(hasOpenAIKey(),
-            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
+        // Enhanced provider key check with detailed messages
+        if (!hasProviderKey()) {
+            StringBuilder message = new StringBuilder();
+            message.append("No provider API key configured. Please set one of the following:\n");
+            message.append("  - OPENAI_API_KEY (for OpenAI)\n");
+            message.append("  - ANTHROPIC_API_KEY (for Anthropic)\n");
+            message.append("  - GEMINI_API_KEY (for Gemini)\n");
+            message.append("  - COHERE_API_KEY (for Cohere)\n");
+            message.append("  - AZURE_API_KEY + AZURE_ENDPOINT (for Azure)\n");
+            message.append("\nSkipping Real API provider matrix.");
+            Assumptions.assumeTrue(false, message.toString());
+        }
         return super.providerMatrix();
     }
 
     @Override
     protected void beforeMatrixExecution() {
-        RealAPITestSupport.ensureOpenAIConfigured();
-        Assumptions.assumeTrue(hasOpenAIKey(),
-            "OPENAI_API_KEY not configured; skipping Real API provider matrix.");
+        RealAPITestSupport.ensureProviderConfigured();
+        
+        // Enhanced provider key check
+        if (!hasProviderKey()) {
+            StringBuilder message = new StringBuilder();
+            message.append("No provider API key configured. Available providers:\n");
+            
+            try {
+                com.ai.infrastructure.provider.registry.ProviderRegistryService registry = 
+                    com.ai.infrastructure.provider.registry.ProviderRegistryService.getInstance();
+                
+                List<com.ai.infrastructure.provider.registry.ProviderDefinition> availableLLM = 
+                    registry.getAvailableLLMProviders();
+                List<com.ai.infrastructure.provider.registry.ProviderDefinition> availableEmbedding = 
+                    registry.getAvailableEmbeddingProviders();
+                
+                if (!availableLLM.isEmpty()) {
+                    message.append("  Available LLM providers:\n");
+                    availableLLM.forEach(p -> 
+                        message.append("    - ").append(p.getDisplayName())
+                            .append(" (requires: ").append(p.getApiKeyEnvVar() != null ? p.getApiKeyEnvVar() : "none")
+                            .append(")\n"));
+                }
+                
+                if (!availableEmbedding.isEmpty()) {
+                    message.append("  Available Embedding providers:\n");
+                    availableEmbedding.forEach(p -> 
+                        message.append("    - ").append(p.getDisplayName())
+                            .append(" (requires: ").append(p.getApiKeyEnvVar() != null ? p.getApiKeyEnvVar() : "none")
+                            .append(")\n"));
+                }
+            } catch (Exception e) {
+                // Fallback if registry not available
+                message.append("  Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, COHERE_API_KEY, or AZURE_API_KEY\n");
+            }
+            
+            message.append("\nSkipping Real API provider matrix.");
+            Assumptions.assumeTrue(false, message.toString());
+        }
     }
 
     @Override
@@ -104,33 +150,68 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             chunk = System.getenv("AI_PROVIDERS_REAL_API_TEST_CHUNK");
         }
         
+        Class<?>[] selectedClasses;
         if (!StringUtils.hasText(chunk) || "all".equalsIgnoreCase(chunk)) {
-            return REAL_API_TEST_CLASSES;
+            selectedClasses = REAL_API_TEST_CLASSES;
+            log.info("Using all test classes ({} total)", selectedClasses.length);
+        } else {
+            selectedClasses = switch (chunk.toLowerCase()) {
+                case "core" -> {
+                    log.info("Using core test chunk ({} classes)", CHUNK_CORE.length);
+                    yield CHUNK_CORE;
+                }
+                case "vector" -> {
+                    log.info("Using vector test chunk ({} classes)", CHUNK_VECTOR.length);
+                    yield CHUNK_VECTOR;
+                }
+                case "intent-actions", "intent_actions" -> {
+                    log.info("Using intent-actions test chunk ({} classes)", CHUNK_INTENT_ACTIONS.length);
+                    yield CHUNK_INTENT_ACTIONS;
+                }
+                case "advanced" -> {
+                    log.info("Using advanced test chunk ({} classes)", CHUNK_ADVANCED.length);
+                    yield CHUNK_ADVANCED;
+                }
+                default -> {
+                    // Support comma-separated chunk names
+                    String[] chunks = chunk.split(",");
+                    Class<?>[] selected = Arrays.stream(chunks)
+                        .map(String::trim)
+                        .flatMap(c -> switch (c.toLowerCase()) {
+                            case "core" -> Arrays.stream(CHUNK_CORE);
+                            case "vector" -> Arrays.stream(CHUNK_VECTOR);
+                            case "intent-actions", "intent_actions" -> Arrays.stream(CHUNK_INTENT_ACTIONS);
+                            case "advanced" -> Arrays.stream(CHUNK_ADVANCED);
+                            default -> Arrays.stream(new Class<?>[0]);
+                        })
+                        .distinct()
+                        .collect(Collectors.toList())
+                        .toArray(new Class<?>[0]);
+                    if (selected.length > 0) {
+                        log.info("Using custom test chunks: {} ({} classes)", chunk, selected.length);
+                        yield selected;
+                    } else {
+                        log.warn("Unknown test chunk '{}', falling back to all test classes", chunk);
+                        yield REAL_API_TEST_CLASSES;
+                    }
+                }
+            };
         }
-
-        return switch (chunk.toLowerCase()) {
-            case "core" -> CHUNK_CORE;
-            case "vector" -> CHUNK_VECTOR;
-            case "intent-actions", "intent_actions" -> CHUNK_INTENT_ACTIONS;
-            case "advanced" -> CHUNK_ADVANCED;
-            default -> {
-                // Support comma-separated chunk names
-                String[] chunks = chunk.split(",");
-                Class<?>[] selected = Arrays.stream(chunks)
-                    .map(String::trim)
-                    .flatMap(c -> switch (c.toLowerCase()) {
-                        case "core" -> Arrays.stream(CHUNK_CORE);
-                        case "vector" -> Arrays.stream(CHUNK_VECTOR);
-                        case "intent-actions", "intent_actions" -> Arrays.stream(CHUNK_INTENT_ACTIONS);
-                        case "advanced" -> Arrays.stream(CHUNK_ADVANCED);
-                        default -> Arrays.stream(new Class<?>[0]);
-                    })
-                    .distinct()
-                    .collect(Collectors.toList())
-                    .toArray(new Class<?>[0]);
-                yield selected.length > 0 ? selected : REAL_API_TEST_CLASSES;
-            }
-        };
+        
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        System.out.println("Selected Test Classes for Execution: " + selectedClasses.length);
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        for (int i = 0; i < selectedClasses.length; i++) {
+            System.out.println(String.format("  [%d/%d] %s", i + 1, selectedClasses.length, selectedClasses[i].getSimpleName()));
+        }
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        
+        log.info("Selected test classes for execution:");
+        for (int i = 0; i < selectedClasses.length; i++) {
+            log.info("  [{}/{}] {}", i + 1, selectedClasses.length, selectedClasses[i].getSimpleName());
+        }
+        
+        return selectedClasses;
     }
 
     @Override
@@ -169,6 +250,15 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             .filter(availableSet::contains)
             .toList();
 
+        // If requested combinations are not in available set, still use them
+        // This allows testing providers that may not be available during discovery
+        // but are configured via system properties/environment variables
+        if (accepted.isEmpty() && !requested.isEmpty()) {
+            System.out.println("WARNING: Requested provider combinations not found in available set, but will attempt to use them anyway: " + 
+                     requested.stream().map(ProviderCombination::displayName).collect(java.util.stream.Collectors.joining(", ")));
+            return requested;
+        }
+
         return accepted.isEmpty() ? available : accepted;
     }
 
@@ -203,5 +293,17 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             apiKey = System.getenv("OPENAI_API_KEY");
         }
         return StringUtils.hasText(apiKey);
+    }
+
+    private boolean hasProviderKey() {
+        return hasOpenAIKey() || 
+               StringUtils.hasText(System.getProperty("ANTHROPIC_API_KEY")) ||
+               StringUtils.hasText(System.getenv("ANTHROPIC_API_KEY")) ||
+               StringUtils.hasText(System.getProperty("GEMINI_API_KEY")) ||
+               StringUtils.hasText(System.getenv("GEMINI_API_KEY")) ||
+               StringUtils.hasText(System.getProperty("COHERE_API_KEY")) ||
+               StringUtils.hasText(System.getenv("COHERE_API_KEY")) ||
+               StringUtils.hasText(System.getProperty("AZURE_API_KEY")) ||
+               StringUtils.hasText(System.getenv("AZURE_API_KEY"));
     }
 }

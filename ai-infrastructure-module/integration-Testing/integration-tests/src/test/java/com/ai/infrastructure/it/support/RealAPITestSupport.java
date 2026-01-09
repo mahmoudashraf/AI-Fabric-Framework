@@ -20,21 +20,31 @@ public final class RealAPITestSupport {
     }
 
     /**
-     * Ensure the OpenAI API key is available via {@link System#getProperty(String)}.
+     * Ensure a provider API key is available via {@link System#getProperty(String)}.
+     * This method is provider-agnostic and configures whichever provider is available.
+     * 
+     * @deprecated Use ensureProviderConfigured() for provider-agnostic configuration.
+     * This method is kept for backward compatibility but now supports all providers.
      */
+    @Deprecated
     public static synchronized void ensureOpenAIConfigured() {
+        ensureProviderConfigured();
+    }
+
+    /**
+     * Ensure a provider API key is available via {@link System#getProperty(String)}.
+     * Configures whichever provider is available (OpenAI, Anthropic, Gemini, Cohere, or Azure).
+     */
+    public static synchronized void ensureProviderConfigured() {
         if (configured) {
             return;
         }
 
-        // Prefer explicit JVM system property (e.g., mvn test -DOPENAI_API_KEY=...)
+        // Check for OpenAI
         String apiKey = System.getProperty(OPENAI_KEY_PROPERTY);
-        // Fall back to environment variable (e.g., CI secret)
         if (!StringUtils.hasText(apiKey)) {
             apiKey = System.getenv(OPENAI_KEY_PROPERTY);
         }
-
-        // Set as system property if found
         if (StringUtils.hasText(apiKey)) {
             System.setProperty(OPENAI_KEY_PROPERTY, apiKey);
             System.setProperty("ai.providers.openai.api-key", apiKey);
@@ -43,6 +53,115 @@ public final class RealAPITestSupport {
             System.setProperty("ai.providers.openai.base-url",
                 System.getProperty("ai.providers.openai.base-url", "https://api.openai.com/v1"));
             configured = true;
+            return;
         }
+
+        // Check for Anthropic
+        String anthropicKey = System.getProperty("ANTHROPIC_API_KEY");
+        if (!StringUtils.hasText(anthropicKey)) {
+            anthropicKey = System.getenv("ANTHROPIC_API_KEY");
+        }
+        if (StringUtils.hasText(anthropicKey)) {
+            System.setProperty("ANTHROPIC_API_KEY", anthropicKey);
+            System.setProperty("ai.providers.anthropic.api-key", anthropicKey);
+            System.setProperty("ANTHROPIC_ENABLED", "true");
+            System.setProperty("ai.providers.anthropic.enabled", "true");
+            configured = true;
+            return;
+        }
+
+        // Check for Gemini
+        String geminiKey = System.getProperty("GEMINI_API_KEY");
+        if (!StringUtils.hasText(geminiKey)) {
+            geminiKey = System.getenv("GEMINI_API_KEY");
+        }
+        if (StringUtils.hasText(geminiKey)) {
+            System.setProperty("GEMINI_API_KEY", geminiKey);
+            System.setProperty("ai.providers.gemini.api-key", geminiKey);
+            System.setProperty("GEMINI_ENABLED", "true");
+            System.setProperty("ai.providers.gemini.enabled", "true");
+            configured = true;
+            return;
+        }
+
+        // Check for Cohere
+        String cohereKey = System.getProperty("COHERE_API_KEY");
+        if (!StringUtils.hasText(cohereKey)) {
+            cohereKey = System.getenv("COHERE_API_KEY");
+        }
+        if (StringUtils.hasText(cohereKey)) {
+            System.setProperty("COHERE_API_KEY", cohereKey);
+            System.setProperty("ai.providers.cohere.api-key", cohereKey);
+            System.setProperty("COHERE_ENABLED", "true");
+            System.setProperty("ai.providers.cohere.enabled", "true");
+            configured = true;
+            return;
+        }
+
+        // Check for Azure
+        String azureKey = System.getProperty("AZURE_API_KEY");
+        if (!StringUtils.hasText(azureKey)) {
+            azureKey = System.getenv("AZURE_API_KEY");
+        }
+        String azureEndpoint = System.getProperty("AZURE_ENDPOINT");
+        if (!StringUtils.hasText(azureEndpoint)) {
+            azureEndpoint = System.getenv("AZURE_ENDPOINT");
+        }
+        if (StringUtils.hasText(azureKey) && StringUtils.hasText(azureEndpoint)) {
+            System.setProperty("AZURE_API_KEY", azureKey);
+            System.setProperty("ai.providers.azure.api-key", azureKey);
+            System.setProperty("AZURE_ENDPOINT", azureEndpoint);
+            System.setProperty("ai.providers.azure.endpoint", azureEndpoint);
+            System.setProperty("AZURE_ENABLED", "true");
+            System.setProperty("ai.providers.azure.enabled", "true");
+            configured = true;
+            return;
+        }
+
+        // No provider configured - this is OK for ONNX/REST providers
+        configured = true;
+    }
+
+    /**
+     * Set LLM_PROVIDER system property based on available API keys.
+     * Only sets if not already configured.
+     */
+    public static synchronized void ensureLLMProviderSet() {
+        // Don't override if already set
+        if (System.getProperty("LLM_PROVIDER") != null || System.getenv("LLM_PROVIDER") != null) {
+            String llmProvider = System.getProperty("LLM_PROVIDER");
+            if (llmProvider == null) {
+                llmProvider = System.getenv("LLM_PROVIDER");
+            }
+            if (llmProvider != null) {
+                System.setProperty("LLM_PROVIDER", llmProvider);
+                System.setProperty("ai.providers.llm-provider", llmProvider);
+            }
+            return;
+        }
+
+        // Auto-detect from available API keys
+        if (StringUtils.hasText(System.getProperty("OPENAI_API_KEY")) ||
+            StringUtils.hasText(System.getenv("OPENAI_API_KEY"))) {
+            System.setProperty("LLM_PROVIDER", "openai");
+            System.setProperty("ai.providers.llm-provider", "openai");
+        } else if (StringUtils.hasText(System.getProperty("ANTHROPIC_API_KEY")) ||
+                   StringUtils.hasText(System.getenv("ANTHROPIC_API_KEY"))) {
+            System.setProperty("LLM_PROVIDER", "anthropic");
+            System.setProperty("ai.providers.llm-provider", "anthropic");
+        } else if (StringUtils.hasText(System.getProperty("GEMINI_API_KEY")) ||
+                   StringUtils.hasText(System.getenv("GEMINI_API_KEY"))) {
+            System.setProperty("LLM_PROVIDER", "gemini");
+            System.setProperty("ai.providers.llm-provider", "gemini");
+        } else if (StringUtils.hasText(System.getProperty("COHERE_API_KEY")) ||
+                   StringUtils.hasText(System.getenv("COHERE_API_KEY"))) {
+            System.setProperty("LLM_PROVIDER", "cohere");
+            System.setProperty("ai.providers.llm-provider", "cohere");
+        } else if (StringUtils.hasText(System.getProperty("AZURE_API_KEY")) ||
+                   StringUtils.hasText(System.getenv("AZURE_API_KEY"))) {
+            System.setProperty("LLM_PROVIDER", "azure");
+            System.setProperty("ai.providers.llm-provider", "azure");
+        }
+        // If no provider found, leave unset (ONNX/REST don't need LLM provider)
     }
 }

@@ -108,8 +108,12 @@ public class EnrichedPromptBuilder {
         prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
         prompt.append("6. For INFORMATION intents decide if LLM generation is needed (requiresGeneration = true for opinions/recommendations, false for data lookup).\n");
         prompt.append("7. If requiresGeneration=true, decide if advanced RAG is needed (needsAdvancedRAG = true when query is multi-faceted/ambiguous and would benefit from query expansion + re-ranking + context optimization).\n");
+        prompt.append("8. Action selection MUST be grounded in AVAILABLE ACTIONS and the user's request:\n");
+        prompt.append("   - Only return intent.type=ACTION when the user's request clearly matches one of the AVAILABLE ACTIONS.\n");
+        prompt.append("   - Choose the closest matching action by meaning; never pick an unrelated action just because it's available.\n");
+        prompt.append("   - If no AVAILABLE ACTION matches the user's request, return intent.type=OUT_OF_SCOPE (do not invent new actions).\n");
         // Add entity types information - always include, even if empty
-        prompt.append("8. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
+        prompt.append("9. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
         if (context.getAvailableEntityTypes() != null && !context.getAvailableEntityTypes().isEmpty()) {
             prompt.append("Available entity types: ").append(String.join(", ", context.getAvailableEntityTypes())).append(". ");
             prompt.append("Only use entity types from this list. ");
@@ -119,7 +123,7 @@ public class EnrichedPromptBuilder {
         prompt.append("Use [] when unknown or when no entity types match. ");
         prompt.append("Example: {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find premium customers who ordered this month\",\"entityTypes\":[\"customer\",\"order\"],\"limit\":20}}.\n\n");
 
-        prompt.append("9. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
+        prompt.append("10. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
     }
 
     private void appendNextStepGuidance(StringBuilder prompt) {
@@ -160,6 +164,11 @@ public class EnrichedPromptBuilder {
               "metadata": {}
             }
             """);
-        prompt.append("\nEnsure the response is valid JSON with double quotes and no additional commentary.\n");
+        prompt.append("\nCRITICAL JSON REQUIREMENTS:\n");
+        prompt.append("- Respond with ONLY valid JSON. No markdown, no code blocks, no explanations.\n");
+        prompt.append("- Use double quotes for all strings and keys.\n");
+        prompt.append("- Do not wrap the JSON in markdown code blocks (no ```json or ```).\n");
+        prompt.append("- Do not include any text before or after the JSON object.\n");
+        prompt.append("- The response must be parseable as JSON without any preprocessing.\n");
     }
 }

@@ -40,6 +40,16 @@ ai-entities:
     searchable-fields:
       - name: title
       - name: body
+    embeddable-fields:
+      - name: body
+      - name: title
+    metadata-fields:
+      - name: author
+        type: STRING
+      - name: publishDate
+        type: DATE
+      - name: published
+        type: BOOLEAN
   test-user:
     features: ["embedding", "search"]
     enable-search: true
@@ -48,3 +58,17 @@ ai-entities:
     searchable-fields:
       - name: displayName
       - name: bio
+      - name: firstName
+      - name: lastName
+      - name: email
+    embeddable-fields:
+      - name: bio
+      - name: firstName
+      - name: lastName
+    metadata-fields:
+      - name: email
+        type: STRING
+      - name: age
+        type: INTEGER
+      - name: location
+        type: STRING

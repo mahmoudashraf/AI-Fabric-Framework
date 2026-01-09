@@ -80,6 +80,9 @@ public class ResponseSanitizer {
         }
         payload.put("success", result.isSuccess());
         payload.put("message", messageOutcome.value());
+        if (properties.isIncludeErrorCodes() && StringUtils.hasText(result.getErrorCode())) {
+            payload.put("errorCode", result.getErrorCode());
+        }
         payload.put("data", normalizeData(dataOutcome.value()));
         if (!suggestionOutcome.value().isEmpty()) {
             payload.put("suggestions", Collections.unmodifiableList(suggestionOutcome.value()));

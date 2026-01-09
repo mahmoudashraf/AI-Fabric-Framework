@@ -47,11 +47,10 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
 
     static {
         // Ensure provider configuration is present for real API calls
-        RealAPITestSupport.ensureOpenAIConfigured();
-        System.setProperty("LLM_PROVIDER", System.getProperty("LLM_PROVIDER", "openai"));
-        System.setProperty("ai.providers.llm-provider", System.getProperty("ai.providers.llm-provider", "openai"));
-        System.setProperty("EMBEDDING_PROVIDER", System.getProperty("EMBEDDING_PROVIDER", "onnx"));
-        System.setProperty("ai.providers.embedding-provider", System.getProperty("ai.providers.embedding-provider", "onnx"));
+        RealAPITestSupport.ensureProviderConfigured();
+        RealAPITestSupport.ensureLLMProviderSet();
+        System.setProperty("EMBEDDING_PROVIDER", System.getProperty("EMBEDDING_PROVIDER", System.getenv("EMBEDDING_PROVIDER") != null ? System.getenv("EMBEDDING_PROVIDER") : "onnx"));
+        System.setProperty("ai.providers.embedding-provider", System.getProperty("ai.providers.embedding-provider", System.getenv("EMBEDDING_PROVIDER") != null ? System.getenv("EMBEDDING_PROVIDER") : "onnx"));
     }
 
     @Autowired
@@ -134,9 +133,45 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
     }
 
     private void assumeRealApiConfigured() {
-        boolean hasKey = StringUtils.hasText(System.getenv("OPENAI_API_KEY"))
-            || StringUtils.hasText(System.getProperty("OPENAI_API_KEY"));
-        Assumptions.assumeTrue(hasKey, "OPENAI_API_KEY must be configured for real API tests");
+        // Check for any configured LLM provider API key
+        String llmProvider = System.getProperty("ai.providers.llm-provider", 
+            System.getenv("LLM_PROVIDER"));
+        if (llmProvider == null || llmProvider.isEmpty()) {
+            llmProvider = "openai"; // default
+        }
+        
+        boolean hasKey = false;
+        switch (llmProvider.toLowerCase()) {
+            case "openai":
+                hasKey = StringUtils.hasText(System.getenv("OPENAI_API_KEY"))
+                    || StringUtils.hasText(System.getProperty("OPENAI_API_KEY"));
+                break;
+            case "anthropic":
+                hasKey = StringUtils.hasText(System.getenv("ANTHROPIC_API_KEY"))
+                    || StringUtils.hasText(System.getProperty("ANTHROPIC_API_KEY"));
+                break;
+            case "gemini":
+                hasKey = StringUtils.hasText(System.getenv("GEMINI_API_KEY"))
+                    || StringUtils.hasText(System.getProperty("GEMINI_API_KEY"));
+                break;
+            case "cohere":
+                hasKey = StringUtils.hasText(System.getenv("COHERE_API_KEY"))
+                    || StringUtils.hasText(System.getProperty("COHERE_API_KEY"));
+                break;
+            case "azure":
+                hasKey = (StringUtils.hasText(System.getenv("AZURE_API_KEY"))
+                    || StringUtils.hasText(System.getProperty("AZURE_API_KEY")))
+                    && (StringUtils.hasText(System.getenv("AZURE_ENDPOINT"))
+                    || StringUtils.hasText(System.getProperty("AZURE_ENDPOINT")));
+                break;
+            default:
+                // For ONNX/REST, no API key is required
+                hasKey = true;
+                break;
+        }
+        
+        Assumptions.assumeTrue(hasKey, 
+            String.format("%s API key must be configured for real API tests", llmProvider.toUpperCase()));
     }
 
     private TestProduct persistProduct(String name, String description, String category, String brand, BigDecimal price) {

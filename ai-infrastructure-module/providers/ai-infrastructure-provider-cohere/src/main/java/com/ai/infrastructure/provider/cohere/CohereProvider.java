@@ -73,18 +73,61 @@ public class CohereProvider implements AIProvider {
             log.debug("Generating content with Cohere: model={}, prompt={}", 
                      request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
             
-            String url = COHERE_BASE_URL + "/generate";
+            String url = COHERE_BASE_URL + "/chat";
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "Bearer " + config.getApiKey());
             
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultModel());
-            requestBody.put("prompt", request.getPrompt());
+            requestBody.put("model", request.getModel() != null ? request.getModel() : 
+                          (config.getDefaultModel() != null ? config.getDefaultModel() : "command-r7b-12-2024"));
+            
+            // Cohere Chat API uses messages array
+            List<Map<String, Object>> messages = new java.util.ArrayList<>();
+            
+            // Add system prompt if present
+            if (request.getSystemPrompt() != null && !request.getSystemPrompt().trim().isEmpty()) {
+                // For intent extraction, enhance the system prompt to be very explicit about JSON-only responses
+                String systemPrompt = request.getSystemPrompt();
+                if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
+                    String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
+                        "You MUST respond with ONLY valid JSON. No markdown code blocks (no ```json or ```), " +
+                        "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
+                        "Just the raw JSON object. If you include any text other than JSON, the response will fail to parse.\n\n";
+                    
+                    systemPrompt = jsonInstruction + systemPrompt;
+                    
+                    log.info("Enhanced system prompt for intent extraction with JSON-only requirement (length: {})", systemPrompt.length());
+                    log.debug("Enhanced system prompt preview: {}", systemPrompt.substring(0, Math.min(200, systemPrompt.length())));
+                }
+                requestBody.put("preamble", systemPrompt);
+            }
+            
+            // Add user message
+            messages.add(Map.of("role", "user", "content", request.getPrompt()));
+            requestBody.put("message", request.getPrompt());
+            
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
-            requestBody.put("stop_sequences", List.of("Human:", "Assistant:"));
+
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE API REQUEST ===");
+                log.info(
+                    "Cohere API request: url={}, model={}, temperature={}, maxTokens={}, hasPreamble={}, promptLength={}",
+                    url,
+                    requestBody.get("model"),
+                    requestBody.get("temperature"),
+                    requestBody.get("max_tokens"),
+                    requestBody.containsKey("preamble"),
+                    request.getPrompt() != null ? request.getPrompt().length() : 0
+                );
+                String prompt = request.getPrompt();
+                int len = prompt != null ? prompt.length() : 0;
+                String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                log.info("Cohere API request promptSnippet={}", snippet);
+                log.info("=== END COHERE API REQUEST ===");
+            }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -96,15 +139,37 @@ public class CohereProvider implements AIProvider {
             
             @SuppressWarnings("unchecked")
             Map<String, Object> responseBody = response.getBody();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> generations = (List<Map<String, Object>>) responseBody.get("generations");
-            String generatedText = (String) generations.get(0).get("text");
+            String generatedText = (String) responseBody.get("text");
+
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE API RESPONSE ===");
+                int contentLength = generatedText != null ? generatedText.length() : 0;
+                log.info(
+                    "Cohere API response: responseTimeMs={}, model={}, contentLength={}",
+                    responseTime,
+                    responseBody != null ? responseBody.get("model") : null,
+                    contentLength
+                );
+                if (generatedText != null) {
+                    log.info(
+                        "Cohere API response contentSnippet={}",
+                        generatedText.substring(0, Math.min(500, generatedText.length()))
+                    );
+                }
+                log.info("=== END COHERE API RESPONSE ===");
+            }
             
             log.debug("Cohere content generation completed in {}ms", responseTime);
             
+            // Extract model from response or use request model
+            String model = (String) responseBody.get("model");
+            if (model == null) {
+                model = request.getModel() != null ? request.getModel() : config.getDefaultModel();
+            }
+            
             return AIGenerationResponse.builder()
                 .content(generatedText)
-                .model((String) responseBody.get("model"))
+                .model(model)
                 .usage(createUsageFromResponse(responseBody))
                 .processingTimeMs(responseTime)
                 .requestId(java.util.UUID.randomUUID().toString())
@@ -141,6 +206,22 @@ public class CohereProvider implements AIProvider {
             requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultEmbeddingModel());
             requestBody.put("texts", List.of(request.getText()));
             requestBody.put("input_type", "search_document");
+
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE EMBEDDING API REQUEST ===");
+                log.info(
+                    "Cohere embedding request: url={}, model={}, inputType={}, textLength={}",
+                    url,
+                    requestBody.get("model"),
+                    requestBody.get("input_type"),
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("Cohere embedding request textSnippet={}", snippet);
+                log.info("=== END COHERE EMBEDDING API REQUEST ===");
+            }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -155,6 +236,17 @@ public class CohereProvider implements AIProvider {
             @SuppressWarnings("unchecked")
             List<List<Double>> embeddings = (List<List<Double>>) responseBody.get("embeddings");
             List<Double> embedding = embeddings.get(0);
+
+            if (log.isInfoEnabled()) {
+                log.info("=== COHERE EMBEDDING API RESPONSE ===");
+                log.info(
+                    "Cohere embedding response: responseTimeMs={}, model={}, dimensions={}",
+                    responseTime,
+                    responseBody != null ? responseBody.get("model") : null,
+                    embedding != null ? embedding.size() : 0
+                );
+                log.info("=== END COHERE EMBEDDING API RESPONSE ===");
+            }
             
             log.debug("Cohere embedding generation completed in {}ms", responseTime);
             
@@ -270,13 +362,35 @@ public class CohereProvider implements AIProvider {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) responseBody.get("meta");
         if (meta != null) {
+            // Cohere Chat API uses different structure
             @SuppressWarnings("unchecked")
             Map<String, Object> tokens = (Map<String, Object>) meta.get("tokens");
             if (tokens != null) {
-                usage.put("prompt_tokens", tokens.get("input_tokens"));
-                usage.put("completion_tokens", tokens.get("output_tokens"));
-                usage.put("total_tokens", ((Number) tokens.get("input_tokens")).intValue() + 
-                                         ((Number) tokens.get("output_tokens")).intValue());
+                Object inputTokens = tokens.get("input_tokens");
+                Object outputTokens = tokens.get("output_tokens");
+                if (inputTokens != null && outputTokens != null) {
+                    usage.put("prompt_tokens", inputTokens);
+                    usage.put("completion_tokens", outputTokens);
+                    int total = ((Number) inputTokens).intValue() + ((Number) outputTokens).intValue();
+                    usage.put("total_tokens", total);
+                }
+            }
+            // Also check for billed_units (newer API format)
+            @SuppressWarnings("unchecked")
+            Map<String, Object> billedUnits = (Map<String, Object>) meta.get("billed_units");
+            if (billedUnits != null && tokens == null) {
+                Object inputTokens = billedUnits.get("input_tokens");
+                Object outputTokens = billedUnits.get("output_tokens");
+                if (inputTokens != null) {
+                    usage.put("prompt_tokens", inputTokens);
+                }
+                if (outputTokens != null) {
+                    usage.put("completion_tokens", outputTokens);
+                }
+                if (inputTokens != null && outputTokens != null) {
+                    int total = ((Number) inputTokens).intValue() + ((Number) outputTokens).intValue();
+                    usage.put("total_tokens", total);
+                }
             }
         }
         

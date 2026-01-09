@@ -45,12 +45,8 @@ public class RealAPIMultiProviderFailoverIntegrationTest {
     private static final String OPENAI_KEY_PROPERTY = "OPENAI_API_KEY";
 
     static {
-        RealAPITestSupport.ensureOpenAIConfigured();
-
-        System.setProperty("LLM_PROVIDER",
-            System.getProperty("LLM_PROVIDER", "openai"));
-        System.setProperty("ai.providers.llm-provider",
-            System.getProperty("ai.providers.llm-provider", "openai"));
+        RealAPITestSupport.ensureProviderConfigured();
+        RealAPITestSupport.ensureLLMProviderSet();
         System.setProperty("EMBEDDING_PROVIDER",
             System.getProperty("EMBEDDING_PROVIDER", "onnx"));
         System.setProperty("ai.providers.embedding-provider",

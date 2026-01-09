@@ -66,11 +66,20 @@ public class AzureOpenAIProvider implements AIProvider {
     @Override
     public boolean isAvailable() {
         try {
-            return config.isValid()
-                && azureConfig.isEnabled()
-                && hasText(config.getApiKey())
-                && hasText(azureConfig.getEndpoint())
-                && hasText(azureConfig.getDeploymentName());
+            if (!config.isValid() || !azureConfig.isEnabled() || !hasText(config.getApiKey()) || !hasText(azureConfig.getEndpoint())) {
+                return false;
+            }
+            
+            // For Azure AI Services (Foundry) or OpenAI-compatible format, deployment name is not required in URL
+            // Check if endpoint contains /models or /openai/v1 (Foundry/OpenAI-compatible format)
+            String endpoint = azureConfig.getEndpoint();
+            if (endpoint.contains("/models") || endpoint.contains("/openai/v1") || endpoint.contains("services.ai.azure.com")) {
+                // Deployment name is still needed for the model field in request body
+                return hasText(azureConfig.getDeploymentName()) || hasText(config.getDefaultModel());
+            }
+            
+            // For Azure OpenAI, deployment name is required
+            return hasText(azureConfig.getDeploymentName());
         } catch (Exception ex) {
             log.warn("Azure provider validation failed: {}", ex.getMessage());
             return false;
@@ -91,8 +100,23 @@ public class AzureOpenAIProvider implements AIProvider {
             headers.set(HEADER_API_KEY, config.getApiKey());
 
             List<Map<String, String>> messages = new ArrayList<>();
-            if (hasText(request.getSystemPrompt())) {
-                messages.add(Map.of("role", "system", "content", request.getSystemPrompt()));
+            
+            // Handle system prompt and enhance for intent extraction
+            String systemPrompt = request.getSystemPrompt();
+            if (hasText(systemPrompt)) {
+                // For intent extraction, enhance the system prompt to be very explicit about JSON-only responses
+                if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
+                    String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
+                        "You MUST respond with ONLY valid JSON. No markdown code blocks (no ```json or ```), " +
+                        "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
+                        "Just the raw JSON object. If you include any text other than JSON, the response will fail to parse.\n\n";
+                    
+                    systemPrompt = jsonInstruction + systemPrompt;
+                    
+                    log.info("Enhanced system prompt for intent extraction with JSON-only requirement (length: {})", systemPrompt.length());
+                    log.debug("Enhanced system prompt preview: {}", systemPrompt.substring(0, Math.min(200, systemPrompt.length())));
+                }
+                messages.add(Map.of("role", "system", "content", systemPrompt));
             }
             if (hasText(request.getPrompt())) {
                 messages.add(Map.of("role", "user", "content", request.getPrompt()));
@@ -102,6 +126,35 @@ public class AzureOpenAIProvider implements AIProvider {
             body.put("messages", messages);
             body.put("temperature", Optional.ofNullable(request.getTemperature()).orElse(config.getTemperature()));
             body.put("max_tokens", Optional.ofNullable(request.getMaxTokens()).orElse(config.getMaxTokens()));
+            
+            // For OpenAI-compatible format (/openai/v1), include model in request body
+            String endpoint = azureConfig.getEndpoint();
+            if (endpoint != null && endpoint.contains("/openai/v1")) {
+                String deployment = config.getDefaultModel();
+                if (deployment == null || deployment.isEmpty()) {
+                    deployment = azureConfig.getDeploymentName();
+                }
+                if (deployment != null && !deployment.isEmpty()) {
+                    body.put("model", deployment);
+                }
+            }
+
+            if (log.isInfoEnabled()) {
+                log.info("=== AZURE OPENAI API REQUEST ===");
+                log.info(
+                    "Azure OpenAI request: url={}, messages={}, temperature={}, maxTokens={}, hasModelField={}",
+                    url,
+                    messages.size(),
+                    body.get("temperature"),
+                    body.get("max_tokens"),
+                    body.containsKey("model")
+                );
+                String prompt = request.getPrompt();
+                int len = prompt != null ? prompt.length() : 0;
+                String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                log.info("Azure OpenAI request promptLength={}, promptSnippet={}", len, snippet);
+                log.info("=== END AZURE OPENAI API REQUEST ===");
+            }
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
@@ -123,6 +176,24 @@ public class AzureOpenAIProvider implements AIProvider {
             @SuppressWarnings("unchecked")
             Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
             String content = message != null ? (String) message.get("content") : "";
+
+            if (log.isInfoEnabled()) {
+                log.info("=== AZURE OPENAI API RESPONSE ===");
+                Object model = responseBody.get("model");
+                Object finishReason = choices.get(0).get("finish_reason");
+                int contentLength = content != null ? content.length() : 0;
+                log.info(
+                    "Azure OpenAI response: responseTimeMs={}, model={}, finishReason={}, contentLength={}",
+                    responseTime,
+                    model,
+                    finishReason,
+                    contentLength
+                );
+                if (content != null) {
+                    log.info("Azure OpenAI response contentSnippet={}", content.substring(0, Math.min(500, content.length())));
+                }
+                log.info("=== END AZURE OPENAI API RESPONSE ===");
+            }
 
             return AIGenerationResponse.builder()
                 .content(content)
@@ -149,7 +220,12 @@ public class AzureOpenAIProvider implements AIProvider {
 
         try {
             String deployment = azureConfig.getEmbeddingDeploymentName();
-            if (!hasText(deployment)) {
+            // For Azure AI Services (Foundry), deployment name is not required in URL
+            String endpoint = azureConfig.getEndpoint();
+            if ((endpoint.contains("/models") || endpoint.contains("services.ai.azure.com")) && !hasText(deployment)) {
+                // Foundry format - deployment name not needed in URL
+                deployment = null;
+            } else if (!hasText(deployment)) {
                 throw new AIServiceException("Azure embedding deployment name is not configured");
             }
 
@@ -161,6 +237,21 @@ public class AzureOpenAIProvider implements AIProvider {
 
             Map<String, Object> body = new HashMap<>();
             body.put("input", List.of(request.getText()));
+
+            if (log.isInfoEnabled()) {
+                log.info("=== AZURE OPENAI EMBEDDING API REQUEST ===");
+                log.info(
+                    "Azure OpenAI embedding request: url={}, inputCount={}, textLength={}",
+                    url,
+                    1,
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("Azure OpenAI embedding request textSnippet={}", snippet);
+                log.info("=== END AZURE OPENAI EMBEDDING API REQUEST ===");
+            }
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
@@ -183,6 +274,16 @@ public class AzureOpenAIProvider implements AIProvider {
             List<Double> embedding = (List<Double>) data.get(0).get("embedding");
             if (embedding == null) {
                 throw new AIServiceException("Azure embedding data missing");
+            }
+
+            if (log.isInfoEnabled()) {
+                log.info("=== AZURE OPENAI EMBEDDING API RESPONSE ===");
+                log.info(
+                    "Azure OpenAI embedding response: responseTimeMs={}, dimensions={}",
+                    processingTime,
+                    embedding.size()
+                );
+                log.info("=== END AZURE OPENAI EMBEDDING API RESPONSE ===");
             }
 
             return AIEmbeddingResponse.builder()
@@ -242,17 +343,69 @@ public class AzureOpenAIProvider implements AIProvider {
     }
 
     private String buildChatCompletionsUrl() {
+        String endpoint = normalizeEndpoint(azureConfig.getEndpoint());
+        String apiVersion = azureConfig.getApiVersion() != null ? azureConfig.getApiVersion() : "2024-02-15-preview";
+        
+        // Check if endpoint already contains /models/chat/completions (Azure AI Services/Foundry format)
+        if (endpoint.contains("/models/chat/completions")) {
+            // Azure AI Services (Foundry) format - endpoint already includes the path
+            if (endpoint.contains("?")) {
+                return endpoint; // Already has query params
+            }
+            return String.format("%s?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Check if endpoint contains /openai/v1 (OpenAI-compatible format on Azure AI Services)
+        if (endpoint.contains("/openai/v1")) {
+            // OpenAI-compatible format - use /chat/completions endpoint
+            String deployment = config.getDefaultModel();
+            if (deployment == null || deployment.isEmpty()) {
+                deployment = azureConfig.getDeploymentName();
+            }
+            // For OpenAI-compatible format, model is passed in the request body, not URL
+            return String.format("%s/chat/completions", endpoint);
+        }
+        
+        // Check if endpoint contains /models (Azure AI Services/Foundry base format)
+        if (endpoint.contains("/models")) {
+            // Azure AI Services (Foundry) format - add chat/completions
+            return String.format("%s/chat/completions?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Azure OpenAI format - traditional deployment-based
+        String deployment = config.getDefaultModel();
+        if (deployment == null || deployment.isEmpty()) {
+            deployment = azureConfig.getDeploymentName();
+        }
         return String.format("%s/openai/deployments/%s/chat/completions?api-version=%s",
-            normalizeEndpoint(azureConfig.getEndpoint()),
-            config.getDefaultModel(),
-            azureConfig.getApiVersion());
+            endpoint, deployment, apiVersion);
     }
 
     private String buildEmbeddingsUrl(String deployment) {
+        String endpoint = normalizeEndpoint(azureConfig.getEndpoint());
+        String apiVersion = azureConfig.getApiVersion() != null ? azureConfig.getApiVersion() : "2024-02-15-preview";
+        
+        // Check if endpoint already contains /models/embeddings (Azure AI Services/Foundry format)
+        if (endpoint.contains("/models/embeddings")) {
+            // Azure AI Services (Foundry) format - endpoint already includes the path
+            if (endpoint.contains("?")) {
+                return endpoint; // Already has query params
+            }
+            return String.format("%s?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Check if endpoint contains /models (Azure AI Services/Foundry base format)
+        if (endpoint.contains("/models")) {
+            // Azure AI Services (Foundry) format - add embeddings
+            return String.format("%s/embeddings?api-version=%s", endpoint, apiVersion);
+        }
+        
+        // Azure OpenAI format - traditional deployment-based
+        if (deployment == null || deployment.isEmpty()) {
+            deployment = azureConfig.getEmbeddingDeploymentName();
+        }
         return String.format("%s/openai/deployments/%s/embeddings?api-version=%s",
-            normalizeEndpoint(azureConfig.getEndpoint()),
-            deployment,
-            azureConfig.getApiVersion());
+            endpoint, deployment, apiVersion);
     }
 
     private String normalizeEndpoint(String endpoint) {

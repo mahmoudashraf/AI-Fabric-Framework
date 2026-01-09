@@ -79,6 +79,7 @@ import java.util.stream.Collectors;
         PIIDetectionProperties.class,
         SmartSuggestionsProperties.class,
         ResponseSanitizationProperties.class,
+        OrchestrationResultNormalizationProperties.class,
         IntentHistoryProperties.class,
         SecurityProperties.class,
         AIIndexingProperties.class,

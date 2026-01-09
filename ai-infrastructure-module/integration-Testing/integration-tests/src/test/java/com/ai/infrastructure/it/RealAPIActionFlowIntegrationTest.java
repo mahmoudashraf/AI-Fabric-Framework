@@ -42,12 +42,8 @@ public class RealAPIActionFlowIntegrationTest {
     private static final String OPENAI_KEY_PROPERTY = "OPENAI_API_KEY";
 
     static {
-        RealAPITestSupport.ensureOpenAIConfigured();
-
-        System.setProperty("LLM_PROVIDER",
-            System.getProperty("LLM_PROVIDER", "openai"));
-        System.setProperty("ai.providers.llm-provider",
-            System.getProperty("ai.providers.llm-provider", "openai"));
+        RealAPITestSupport.ensureProviderConfigured();
+        RealAPITestSupport.ensureLLMProviderSet();
         System.setProperty("EMBEDDING_PROVIDER",
             System.getProperty("EMBEDDING_PROVIDER", "onnx"));
         System.setProperty("ai.providers.embedding-provider",
@@ -105,18 +101,11 @@ public class RealAPIActionFlowIntegrationTest {
 
         OrchestrationResult result = orchestrateOrSkip(query, userId);
         assertNotNull(result, "Orchestrator should return a result");
+        // Provider-agnostic contract: compound wrappers are normalized into the primary intent type.
         assertThat(result.getType())
-            .as("Action should be executed; compound is acceptable if it contains the action")
-            .isIn(OrchestrationResultType.ACTION_EXECUTED, OrchestrationResultType.COMPOUND_HANDLED);
-
-        // If the LLM emitted a compound, ensure the action child succeeded
-        if (result.getType() == OrchestrationResultType.COMPOUND_HANDLED) {
-            OrchestrationResult actionChild = result.getChildren().stream()
-                .filter(child -> child.getType() == OrchestrationResultType.ACTION_EXECUTED)
-                .findFirst()
-                .orElse(null);
-            assertNotNull(actionChild, "Compound result should include executed action child");
-        }
+            .as("Action should be executed")
+            .isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
 
         Map<String, Object> payload = result.getSanitizedPayload();
         assertThat(payload).isNotEmpty();
@@ -278,7 +267,8 @@ public class RealAPIActionFlowIntegrationTest {
 
         OrchestrationResult result = orchestrateOrSkip(query, userId);
         assertNotNull(result, "Orchestrator should return a result");
-        assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
+        // Provider-agnostic contract: compound wrappers are normalized into the primary intent type.
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         List<OrchestrationResult> children = result.getChildren();
         assertThat(children).hasSizeGreaterThanOrEqualTo(2);
@@ -386,9 +376,19 @@ public class RealAPIActionFlowIntegrationTest {
     }
 
     private void assumeOpenAIConfigured() {
+        boolean hasOpenAI = StringUtils.hasText(System.getProperty(OPENAI_KEY_PROPERTY)) ||
+                           StringUtils.hasText(System.getenv(OPENAI_KEY_PROPERTY));
+        boolean hasAnthropic = StringUtils.hasText(System.getProperty("ANTHROPIC_API_KEY")) ||
+                              StringUtils.hasText(System.getenv("ANTHROPIC_API_KEY"));
+        boolean hasGemini = StringUtils.hasText(System.getProperty("GEMINI_API_KEY")) ||
+                           StringUtils.hasText(System.getenv("GEMINI_API_KEY"));
+        boolean hasCohere = StringUtils.hasText(System.getProperty("COHERE_API_KEY")) ||
+                           StringUtils.hasText(System.getenv("COHERE_API_KEY"));
+        boolean hasAzure = StringUtils.hasText(System.getProperty("AZURE_API_KEY")) ||
+                          StringUtils.hasText(System.getenv("AZURE_API_KEY"));
         Assumptions.assumeTrue(
-            StringUtils.hasText(System.getProperty(OPENAI_KEY_PROPERTY)),
-            "OPENAI_API_KEY not configured; skipping real API action flow tests."
+            hasOpenAI || hasAnthropic || hasGemini || hasCohere || hasAzure,
+            "OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, COHERE_API_KEY, or AZURE_API_KEY not configured; skipping real API action flow tests."
         );
     }
 

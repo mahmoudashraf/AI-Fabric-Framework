@@ -70,8 +70,9 @@ public class AnthropicProvider implements AIProvider {
         totalRequests.incrementAndGet();
         
         try {
-            log.debug("Generating content with Anthropic: model={}, prompt={}", 
-                     request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
+            log.debug("Generating content with Anthropic: model={}, generationType={}, prompt={}", 
+                     request.getModel(), request.getGenerationType(), 
+                     request.getPrompt() != null ? request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())) : "null");
             
             String url = ANTHROPIC_BASE_URL + "/messages";
             
@@ -84,10 +85,52 @@ public class AnthropicProvider implements AIProvider {
             requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultModel());
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
-            requestBody.put("messages", List.of(Map.of(
-                "role", "user",
-                "content", request.getPrompt()
-            )));
+            
+            // Anthropic API requires system prompt as a top-level "system" parameter, not as a message role
+            String systemPrompt = request.getSystemPrompt() != null ? request.getSystemPrompt() : "";
+            
+            // For intent extraction, enhance the system prompt to be very explicit about JSON-only responses
+            if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
+                // Always prepend explicit JSON-only instruction at the beginning of system prompt
+                // This ensures Anthropic understands it must return pure JSON
+                String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
+                    "You MUST respond with ONLY valid JSON. No markdown code blocks (no ```json or ```), " +
+                    "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
+                    "Just the raw JSON object. If you include any text other than JSON, the response will fail to parse.\n\n";
+                
+                systemPrompt = jsonInstruction + systemPrompt;
+                
+                log.info("Enhanced system prompt for intent extraction with JSON-only requirement (length: {})", systemPrompt.length());
+                log.debug("Enhanced system prompt preview: {}", systemPrompt.substring(0, Math.min(200, systemPrompt.length())));
+            }
+            
+            // Set system prompt as top-level parameter (Anthropic API requirement)
+            if (!systemPrompt.trim().isEmpty()) {
+                requestBody.put("system", systemPrompt);
+            }
+            
+            // Build messages list - only user messages, no system role (Anthropic doesn't allow system role in messages)
+            List<Map<String, Object>> messages = new java.util.ArrayList<>();
+            messages.add(Map.of("role", "user", "content", request.getPrompt()));
+            requestBody.put("messages", messages);
+
+            if (log.isInfoEnabled()) {
+                log.info("=== ANTHROPIC API REQUEST ===");
+                log.info(
+                    "Anthropic API request: url={}, model={}, temperature={}, maxTokens={}, hasSystem={}, messages={}",
+                    url,
+                    requestBody.get("model"),
+                    requestBody.get("temperature"),
+                    requestBody.get("max_tokens"),
+                    requestBody.containsKey("system"),
+                    messages.size()
+                );
+                String prompt = request.getPrompt();
+                int len = prompt != null ? prompt.length() : 0;
+                String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                log.info("Anthropic API request promptLength={}, promptSnippet={}", len, snippet);
+                log.info("=== END ANTHROPIC API REQUEST ===");
+            }
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
@@ -103,6 +146,24 @@ public class AnthropicProvider implements AIProvider {
             List<Map<String, Object>> content = (List<Map<String, Object>>) responseBody.get("content");
             String generatedText = (String) content.get(0).get("text");
             
+            if (log.isInfoEnabled()) {
+                log.info("=== ANTHROPIC API RESPONSE ===");
+                int contentLength = generatedText != null ? generatedText.length() : 0;
+                log.info(
+                    "Anthropic API response: responseTimeMs={}, model={}, contentLength={}",
+                    responseTime,
+                    responseBody.get("model"),
+                    contentLength
+                );
+                if (generatedText != null) {
+                    log.info(
+                        "Anthropic API response contentSnippet={}",
+                        generatedText.substring(0, Math.min(500, generatedText.length()))
+                    );
+                }
+                log.info("=== END ANTHROPIC API RESPONSE ===");
+            }
+
             log.debug("Anthropic content generation completed in {}ms", responseTime);
             
             return AIGenerationResponse.builder()

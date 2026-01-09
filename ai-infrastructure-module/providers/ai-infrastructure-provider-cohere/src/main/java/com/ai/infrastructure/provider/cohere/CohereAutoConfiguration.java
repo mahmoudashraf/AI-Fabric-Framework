@@ -1,6 +1,7 @@
 package com.ai.infrastructure.provider.cohere;
 
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -52,5 +53,12 @@ public class CohereAutoConfiguration {
                                          ObjectProvider<RestTemplate> restTemplateProvider) {
         RestTemplate restTemplate = restTemplateProvider.getIfAvailable(RestTemplate::new);
         return new CohereProvider(providerConfig, restTemplate);
+    }
+
+    @Bean
+    @ConditionalOnBean(name = "cohereProviderConfig")
+    @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "cohere")
+    public EmbeddingProvider cohereEmbeddingProvider(AIProviderConfig aiProviderConfig) {
+        return new CohereEmbeddingProvider(aiProviderConfig);
     }
 }

@@ -49,10 +49,21 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             return;
         }
 
-        if (!hasText(azure.getApiKey()) || !hasText(azure.getEndpoint()) || !hasText(azure.getEmbeddingDeploymentName())) {
-            log.warn("Azure embedding provider incomplete configuration. Required: api-key, endpoint, embedding deployment name");
+        if (!hasText(azure.getApiKey()) || !hasText(azure.getEndpoint())) {
+            log.warn("Azure embedding provider incomplete configuration. Required: api-key, endpoint");
             available = false;
             return;
+        }
+        
+        // For Azure AI Services (Foundry), embedding deployment name is not required in URL
+        String endpoint = azure.getEndpoint();
+        if (!endpoint.contains("/models") && !endpoint.contains("services.ai.azure.com")) {
+            // Azure OpenAI format requires deployment name
+            if (!hasText(azure.getEmbeddingDeploymentName())) {
+                log.warn("Azure OpenAI embedding provider requires embedding deployment name");
+                available = false;
+                return;
+            }
         }
 
         restTemplate = Optional.ofNullable(restTemplate).orElseGet(() -> buildRestTemplate(azure));
@@ -96,6 +107,21 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             Map<String, Object> body = new HashMap<>();
             body.put("input", List.of(request.getText()));
 
+            if (log.isInfoEnabled()) {
+                log.info("=== AZURE OPENAI EMBEDDING API REQUEST ===");
+                log.info(
+                    "Azure OpenAI embedding request: url={}, inputCount={}, textLength={}",
+                    url,
+                    1,
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("Azure OpenAI embedding request textSnippet={}", snippet);
+                log.info("=== END AZURE OPENAI EMBEDDING API REQUEST ===");
+            }
+
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             long start = System.currentTimeMillis();
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
@@ -116,6 +142,16 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             List<Double> embedding = (List<Double>) data.get(0).get("embedding");
             if (embedding == null) {
                 throw new AIServiceException("Azure embedding vector missing");
+            }
+
+            if (log.isInfoEnabled()) {
+                log.info("=== AZURE OPENAI EMBEDDING API RESPONSE ===");
+                log.info(
+                    "Azure OpenAI embedding response: responseTimeMs={}, dimensions={}",
+                    elapsed,
+                    embedding.size()
+                );
+                log.info("=== END AZURE OPENAI EMBEDDING API RESPONSE ===");
             }
 
             embeddingDimension = embedding.size();
@@ -149,6 +185,16 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             Map<String, Object> body = new HashMap<>();
             body.put("input", texts);
 
+            if (log.isInfoEnabled()) {
+                log.info("=== AZURE OPENAI EMBEDDING API REQUEST ===");
+                log.info(
+                    "Azure OpenAI embedding batch request: url={}, inputCount={}",
+                    url,
+                    texts != null ? texts.size() : 0
+                );
+                log.info("=== END AZURE OPENAI EMBEDDING API REQUEST ===");
+            }
+
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             long start = System.currentTimeMillis();
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
@@ -163,6 +209,16 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             List<Map<String, Object>> data = (List<Map<String, Object>>) responseBody.get("data");
             if (data == null || data.isEmpty()) {
                 throw new AIServiceException("Azure embedding response missing data");
+            }
+
+            if (log.isInfoEnabled()) {
+                log.info("=== AZURE OPENAI EMBEDDING API RESPONSE ===");
+                log.info(
+                    "Azure OpenAI embedding batch response: responseTimeMs={}, embeddings={}",
+                    elapsed,
+                    data.size()
+                );
+                log.info("=== END AZURE OPENAI EMBEDDING API RESPONSE ===");
             }
 
             return data.stream()
@@ -235,7 +291,28 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
 
     private String buildEmbeddingsUrl(String endpoint, String deployment, String apiVersion) {
         String normalized = endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
-        return String.format("%s/openai/deployments/%s/embeddings?api-version=%s", normalized, deployment, apiVersion);
+        String defaultApiVersion = apiVersion != null ? apiVersion : "2024-02-15-preview";
+        
+        // Check if endpoint already contains /models/embeddings (Azure AI Services/Foundry format)
+        if (normalized.contains("/models/embeddings")) {
+            // Azure AI Services (Foundry) format - endpoint already includes the path
+            if (normalized.contains("?")) {
+                return normalized; // Already has query params
+            }
+            return String.format("%s?api-version=%s", normalized, defaultApiVersion);
+        }
+        
+        // Check if endpoint contains /models (Azure AI Services/Foundry base format)
+        if (normalized.contains("/models")) {
+            // Azure AI Services (Foundry) format - add embeddings
+            return String.format("%s/embeddings?api-version=%s", normalized, defaultApiVersion);
+        }
+        
+        // Azure OpenAI format - traditional deployment-based
+        if (deployment == null || deployment.isEmpty()) {
+            throw new AIServiceException("Azure OpenAI embedding deployment name is required");
+        }
+        return String.format("%s/openai/deployments/%s/embeddings?api-version=%s", normalized, deployment, defaultApiVersion);
     }
 
     private boolean hasText(String value) {

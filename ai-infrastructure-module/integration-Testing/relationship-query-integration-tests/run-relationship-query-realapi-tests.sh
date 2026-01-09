@@ -16,7 +16,13 @@
 # Prerequisites:
 #   - Java 21+
 #   - Maven 3.8+
-#   - OPENAI_API_KEY (and other provider keys as needed) set in the environment
+#   - API key environment variable set based on selected providers:
+#     * OPENAI_API_KEY (for OpenAI)
+#     * ANTHROPIC_API_KEY (for Anthropic)
+#     * GEMINI_API_KEY (for Gemini)
+#     * COHERE_API_KEY (for Cohere)
+#     * AZURE_API_KEY + AZURE_ENDPOINT (for Azure)
+#   - ONNX and REST providers don't require API keys
 #   - Local: Dependencies built (script auto-builds if missing)
 #   - CI/CD: Dependencies must be pre-built by workflow (script skips build check)
 #
@@ -87,12 +93,141 @@ if ! command -v mvn &> /dev/null; then
 fi
 print_success "Maven found: $(mvn -v 2>&1 | head -n 1)"
 
-if [ -z "$OPENAI_API_KEY" ]; then
-    print_error "OPENAI_API_KEY environment variable is not set"
-    echo "Please set: export OPENAI_API_KEY='your-api-key'"
+# Dynamic API key check based on selected providers
+check_provider_api_keys() {
+    local llm_provider="$1"
+    local embedding_provider="$2"
+    local missing_keys=()
+    local providers_checked=()
+    
+    # Check LLM provider API key
+    case "$llm_provider" in
+        openai)
+            if [ -z "$OPENAI_API_KEY" ]; then
+                missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)")
+            else
+                providers_checked+=("OpenAI LLM")
+            fi
+            ;;
+        anthropic)
+            if [ -z "$ANTHROPIC_API_KEY" ]; then
+                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)")
+            else
+                providers_checked+=("Anthropic LLM")
+            fi
+            ;;
+        gemini)
+            if [ -z "$GEMINI_API_KEY" ]; then
+                missing_keys+=("GEMINI_API_KEY (for Gemini LLM)")
+            else
+                providers_checked+=("Gemini LLM")
+            fi
+            ;;
+        cohere)
+            if [ -z "$COHERE_API_KEY" ]; then
+                missing_keys+=("COHERE_API_KEY (for Cohere LLM)")
+            else
+                providers_checked+=("Cohere LLM")
+            fi
+            ;;
+        azure)
+            if [ -z "$AZURE_API_KEY" ]; then
+                missing_keys+=("AZURE_API_KEY (for Azure LLM)")
+            elif [ -z "$AZURE_ENDPOINT" ]; then
+                missing_keys+=("AZURE_ENDPOINT (for Azure LLM)")
+            else
+                providers_checked+=("Azure LLM")
+            fi
+            ;;
+        onnx|rest)
+            providers_checked+=("$llm_provider LLM (no API key required)")
+            ;;
+        *)
+            print_warning "Unknown LLM provider: $llm_provider (skipping API key check)"
+            ;;
+    esac
+    
+    # Check Embedding provider API key
+    case "$embedding_provider" in
+        openai)
+            if [ -z "$OPENAI_API_KEY" ]; then
+                missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)")
+            else
+                providers_checked+=("OpenAI Embedding")
+            fi
+            ;;
+        anthropic)
+            if [ -z "$ANTHROPIC_API_KEY" ]; then
+                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)")
+            else
+                providers_checked+=("Anthropic Embedding")
+            fi
+            ;;
+        gemini)
+            if [ -z "$GEMINI_API_KEY" ]; then
+                missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)")
+            else
+                providers_checked+=("Gemini Embedding")
+            fi
+            ;;
+        cohere)
+            if [ -z "$COHERE_API_KEY" ]; then
+                missing_keys+=("COHERE_API_KEY (for Cohere Embedding)")
+            else
+                providers_checked+=("Cohere Embedding")
+            fi
+            ;;
+        azure)
+            if [ -z "$AZURE_API_KEY" ]; then
+                missing_keys+=("AZURE_API_KEY (for Azure Embedding)")
+            elif [ -z "$AZURE_ENDPOINT" ]; then
+                missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)")
+            else
+                providers_checked+=("Azure Embedding")
+            fi
+            ;;
+        onnx|rest)
+            providers_checked+=("$embedding_provider Embedding (no API key required)")
+            ;;
+        *)
+            print_warning "Unknown Embedding provider: $embedding_provider (skipping API key check)"
+            ;;
+    esac
+    
+    # Report results
+    if [ ${#missing_keys[@]} -gt 0 ]; then
+        print_error "Missing required API keys for selected providers:"
+        for key in "${missing_keys[@]}"; do
+            echo "  - $key"
+        done
+        echo ""
+        echo "Please set the required environment variables before running tests."
+        return 1
+    else
+        print_success "API keys configured for: ${providers_checked[*]}"
+        return 0
+    fi
+}
+
+# Parse matrix spec first to determine providers
+LLM_PROVIDER_TEMP=""
+EMBEDDING_PROVIDER_TEMP=""
+
+if [[ "$MATRIX_SPEC" =~ ^([^:]+):([^:]+):(.+)$ ]]; then
+    LLM_PROVIDER_TEMP="${BASH_REMATCH[1]}"
+    EMBEDDING_PROVIDER_TEMP="${BASH_REMATCH[2]}"
+elif [[ "$MATRIX_SPEC" =~ ^([^:]+):([^:]+)$ ]]; then
+    LLM_PROVIDER_TEMP="${BASH_REMATCH[1]}"
+    EMBEDDING_PROVIDER_TEMP="${BASH_REMATCH[2]}"
+else
+    LLM_PROVIDER_TEMP="openai"
+    EMBEDDING_PROVIDER_TEMP="onnx"
+fi
+
+# Check API keys based on providers
+if ! check_provider_api_keys "$LLM_PROVIDER_TEMP" "$EMBEDDING_PROVIDER_TEMP"; then
     exit 1
 fi
-print_success "OpenAI API key is configured"
 
 # Parse provider matrix (LLM:EMBEDDING[:VECTOR_DB])
 LLM_PROVIDER=""
@@ -159,9 +294,131 @@ print_header "Building Maven Command"
 cd "$SCRIPT_DIR"
 
 MAVEN_COMMAND="mvn -P${MAVEN_PROFILE}"
+MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=${MAVEN_PROFILE}"
 MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
 MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
+
+# Pass embedding provider as system property (more reliable than environment variables)
+# This ensures the selected provider from GitHub Actions UI is actually used
+if [ -n "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.embedding-provider=$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER"
+    print_info "Configured embedding provider via system property: $AI_INFRASTRUCTURE_EMBEDDING_PROVIDER"
+fi
+
+# Pass LLM provider as system property for consistency
+if [ -n "$AI_INFRASTRUCTURE_LLM_PROVIDER" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.llm-provider=$AI_INFRASTRUCTURE_LLM_PROVIDER"
+fi
+
+# Enable providers based on selection
+case "$AI_INFRASTRUCTURE_LLM_PROVIDER" in
+    openai)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DOPENAI_ENABLED=true"
+        ;;
+    anthropic)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.anthropic.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DANTHROPIC_ENABLED=true"
+        ;;
+    gemini)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.gemini.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DGEMINI_ENABLED=true"
+        ;;
+    cohere)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.cohere.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.azure.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DAZURE_ENABLED=true"
+        ;;
+esac
+
+case "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" in
+    openai)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DOPENAI_ENABLED=true"
+        ;;
+    cohere)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.cohere.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.azure.enabled=true"
+        MAVEN_COMMAND="$MAVEN_COMMAND -DAZURE_ENABLED=true"
+        ;;
+esac
+
+# Auto-configure OpenAI embedding dimensions for Lucene compatibility
+# OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
+# Check if we're using OpenAI embeddings with Lucene vector database
+if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-dimensions=512"
+    print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility"
+fi
+
 MAVEN_COMMAND="$MAVEN_COMMAND failsafe:integration-test failsafe:verify"
+
+# ---------------------------------------------------------------------------
+# Connectivity pre-check (fail fast on invalid credentials / unreachable provider)
+# ---------------------------------------------------------------------------
+print_header "Connectivity Verification"
+
+CONNECTIVITY_COMMAND="mvn -P${MAVEN_PROFILE}"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dspring.profiles.active=${MAVEN_PROFILE}"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DforkCount=1"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DreuseForks=false"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.realapi.connectivity.check=true"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dtest=RealApiConnectivityVerificationTest"
+
+# Use the same provider selection + enablement flags as the main run.
+if [ -n "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.embedding-provider=$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER"
+fi
+if [ -n "$AI_INFRASTRUCTURE_LLM_PROVIDER" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.llm-provider=$AI_INFRASTRUCTURE_LLM_PROVIDER"
+fi
+
+case "$AI_INFRASTRUCTURE_LLM_PROVIDER" in
+    openai)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.enabled=true -DOPENAI_ENABLED=true"
+        ;;
+    anthropic)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.anthropic.enabled=true -DANTHROPIC_ENABLED=true"
+        ;;
+    gemini)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.gemini.enabled=true -DGEMINI_ENABLED=true"
+        ;;
+    cohere)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.cohere.enabled=true -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.azure.enabled=true -DAZURE_ENABLED=true"
+        ;;
+esac
+
+case "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" in
+    openai)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.openai.enabled=true -DOPENAI_ENABLED=true"
+        ;;
+    cohere)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.cohere.enabled=true -DCOHERE_ENABLED=true"
+        ;;
+    azure)
+        CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.azure.enabled=true -DAZURE_ENABLED=true"
+        ;;
+esac
+
+print_info "Connectivity check command:"
+echo "  $CONNECTIVITY_COMMAND"
+echo ""
+
+if eval "$CONNECTIVITY_COMMAND test"; then
+    print_success "Connectivity verification passed"
+else
+    print_error "Connectivity verification failed - aborting test run"
+    exit 1
+fi
 
 # Optional debug flag
 if [ "${DEBUG:-false}" == "true" ]; then
