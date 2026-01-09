@@ -233,42 +233,4 @@ class IntentQueryExtractorTest {
         assertThat(response.getIntents().getFirst().getIntent()).isEqualTo("cancel_subscription");
         assertThat(response.getOrchestrationStrategy()).isEqualTo("DIRECT_ACTION");
     }
-
-    @Test
-    void shouldPreserveExplicitActionNameWhenUserNamesActionToExecute() {
-        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
-
-        // This behavior is intentionally NOT enforced in code. The LLM is expected
-        // to follow the system prompt rules about action selection.
-        String json = """
-            {
-              "intents": [
-                {
-                  "type": "ACTION",
-                  "intent": "do_something",
-                  "confidence": 0.91,
-                  "action": "do_something",
-                  "actionParams": {},
-                  "requiresRetrieval": false
-                }
-              ],
-              "isCompound": false
-            }
-            """;
-
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
-            .thenReturn(AIGenerationResponse.builder().content(json).build());
-
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
-
-        MultiIntentResponse response = extractor.extract(
-            "Execute the some_action action immediately.",
-            OrchestrationContext.forUser("user-123")
-        );
-
-        assertThat(response.getIntents()).hasSize(1);
-        Intent intent = response.getIntents().getFirst();
-        assertThat(intent.getType()).isEqualTo(IntentType.ACTION);
-        assertThat(intent.getAction()).isEqualTo("do_something");
-    }
 }

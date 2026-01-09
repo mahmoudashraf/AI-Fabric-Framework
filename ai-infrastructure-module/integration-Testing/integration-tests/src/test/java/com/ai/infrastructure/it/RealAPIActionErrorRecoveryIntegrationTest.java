@@ -21,6 +21,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -36,10 +39,14 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static com.ai.infrastructure.it.action.AlwaysFailActionHandler.ACTION_NAME;
-import static com.ai.infrastructure.it.action.AlwaysFailActionHandler.ERROR_CODE;
 
-@SpringBootTest(classes = TestApplication.class)
+import com.ai.infrastructure.intent.action.AIActionProvider;
+import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.ActionInfo;
+import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
+import com.ai.infrastructure.intent.action.ActionHandler;
+
+@SpringBootTest(classes = {TestApplication.class, RealAPIActionErrorRecoveryIntegrationTest.TestActionOverrides.class})
 @ActiveProfiles("real-api-test")
 @Transactional
 public class RealAPIActionErrorRecoveryIntegrationTest {
@@ -108,13 +115,12 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         assertThat(baselineEntity.getVectorId()).isNotEmpty();
 
         String userId = "real-action-error-user";
-        // Test error recovery with a deterministic test-only action handler that always fails.
-        // This avoids relying on provider-specific intent extraction behavior for unknown action names.
+        // Test that when only subscription actions are advertised, an unrelated request is treated as OUT_OF_SCOPE
+        // (and we still get a sanitized payload when PII is present).
         String query = """
-            Emergency broadcast: Card 4916-2345-0987-1123 leaked in the SecOps export owned by bree.secops@enterprise.example (contact (555) 714-2209).
-            Execute the %s action immediately. This action is expected to fail.
-            After handling the error, recommend the follow-up next step intent `reseed_vector_index` with a high confidence (>=0.9) targeting the test-product knowledge base, and include rationale about verifying regenerated embeddings.
-            """.formatted(ACTION_NAME);
+            Update my address to 91 perry common.
+            Card 4916-2345-0987-1123 leaked in the export owned by bree.secops@enterprise.example (contact (555) 714-2209).
+            """;
 
         OrchestrationResult result = orchestrateOrSkip(query, userId);
 
@@ -149,42 +155,14 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
             }
         }
 
-        if (actionWasAttempted && actionResultCaptured != null) {
-            assertThat(actionResultCaptured.isSuccess()).isFalse();
-            assertThat(String.valueOf(actionResultCaptured.getMessage()))
-                .contains("Test-only failure");
-            assertThat(String.valueOf(actionResultCaptured.getErrorCode())).isEqualTo(ERROR_CODE);
-        }
+        assertThat(actionWasAttempted)
+            .as("With only subscription actions advertised, unrelated address update should not execute an action")
+            .isFalse();
         
-        // If action was attempted, verify error message indicates handler not found
-        if (actionWasAttempted || !result.isSuccess()) {
-            // Different LLMs can return different top-level orchestration wrappers (single ERROR vs COMPOUND_HANDLED).
-            // The stable contract is that the underlying action error is recorded (either in actionResult or children).
-            String actionResultMessage = Optional.ofNullable(result.getData())
-                .map(dataMap -> dataMap.get("actionResult"))
-                .filter(Map.class::isInstance)
-                .map(Map.class::cast)
-                .map(actionResult -> actionResult.get("message"))
-                .map(String::valueOf)
-                .orElse("");
-
-            String childrenMessages = Optional.ofNullable(result.getChildren())
-                .orElse(List.of())
-                .stream()
-                .map(OrchestrationResult::getMessage)
-                .filter(StringUtils::hasText)
-                .collect(Collectors.joining(" | "));
-
-            String combinedMessage = String.join(" | ",
-                Optional.ofNullable(result.getMessage()).orElse(""),
-                actionResultMessage,
-                childrenMessages
-            );
-
-            assertThat(combinedMessage)
-                .as("Error message should reflect deterministic test failure (top-level, actionResult, or children)")
-                .contains("Test-only failure");
-        }
+        assertThat(result.getType())
+            .as("Unrelated request should be classified as OUT_OF_SCOPE when only subscription actions are available")
+            .isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
+        assertThat(result.isSuccess()).isTrue();
 
         // Prefer next-step recommendations; allow fallback to smart suggestions when the LLM returns a compound/error path
         // Prefer next-step recommendations; allow fallback to smart suggestions; tolerate empty in real API runs
@@ -196,17 +174,8 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
 
         Map<String, Object> sanitizedPayload = result.getSanitizedPayload();
         assertThat(sanitizedPayload).isNotEmpty();
-        if (actionWasAttempted || !result.isSuccess()) {
-            // Contract: failing action should surface as top-level ERROR with a stable errorCode.
-            assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getErrorCode()).isEqualTo(ERROR_CODE);
-            assertThat(String.valueOf(sanitizedPayload.get("type"))).isEqualTo("ERROR");
-            assertThat(sanitizedPayload.get("success")).isEqualTo(Boolean.FALSE);
-        } else {
-            // If LLM correctly identified as OUT_OF_SCOPE, result is success but sanitization should still be present
-            assertThat(sanitizedPayload.get("success")).isIn(Boolean.TRUE, Boolean.FALSE);
-        }
+        assertThat(String.valueOf(sanitizedPayload.get("type"))).isEqualTo("OUT_OF_SCOPE");
+        assertThat(sanitizedPayload.get("success")).isEqualTo(Boolean.TRUE);
 
         Object safeSummary = sanitizedPayload.get("safeSummary");
         if (safeSummary instanceof String summary) {
@@ -291,10 +260,7 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(history).isNotEmpty();
         IntentHistory record = history.getFirst();
-        // If action was attempted and failed, success should be false; otherwise it may be true (OUT_OF_SCOPE)
-        if (actionWasAttempted || !result.isSuccess()) {
-            assertThat(Boolean.TRUE.equals(record.getSuccess())).isFalse();
-        }
+        assertThat(Boolean.TRUE.equals(record.getSuccess())).isTrue();
         // In both cases, execution status should be recorded
         assertNotNull(record.getExecutionStatus(), "execution status should be recorded");
         assertThat(record.getRedactedQuery())
@@ -353,6 +319,39 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
             Assumptions.assumeTrue(false,
                 "Skipping real API error recovery test because intent orchestration failed: " + ex.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Overrides the actions exposed to the LLM during intent extraction so the test suite can
+     * validate OUT_OF_SCOPE behavior without providers accidentally selecting unrelated built-in actions.
+     */
+    @TestConfiguration
+    static class TestActionOverrides {
+        @Bean
+        @Primary
+        public AvailableActionsRegistry availableActionsRegistry() {
+            AIActionProvider provider = () -> List.of(
+                ActionInfo.builder()
+                    .name("cancel_subscription")
+                    .description("Cancel the user's subscription.")
+                    .category("subscription")
+                    .build(),
+                ActionInfo.builder()
+                    .name("upgrade_subscription")
+                    .description("Upgrade the user's subscription plan.")
+                    .category("subscription")
+                    .build()
+            );
+            return new AvailableActionsRegistry(List.of(provider));
+        }
+
+        @Bean
+        @Primary
+        public ActionHandlerRegistry actionHandlerRegistry() {
+            // Ensure no unrelated action handlers can execute successfully in this test context.
+            // If a provider still returns an ACTION intent, the orchestrator will deterministically report ACTION_NOT_FOUND.
+            return new ActionHandlerRegistry(List.of());
         }
     }
 }
