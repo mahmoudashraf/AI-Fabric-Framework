@@ -517,6 +517,15 @@ jobs:
           
           # Export MAVEN_OPTS for the script to use
           export MAVEN_OPTS
+
+          # Anthropic runs often finish faster (shorter logs). If the user left Maven logging at "quiet",
+          # bump to "normal" for Anthropic to emit more diagnostic context (without forcing DEBUG).
+          EFFECTIVE_MAVEN_LOGGING_LEVEL="${{ github.event.inputs.logging_level }}"
+          if [ "${{ github.event.inputs.llm_provider }}" = "anthropic" ] && [ "$EFFECTIVE_MAVEN_LOGGING_LEVEL" = "quiet" ]; then
+            EFFECTIVE_MAVEN_LOGGING_LEVEL="normal"
+          fi
+          export MAVEN_LOGGING_LEVEL="$EFFECTIVE_MAVEN_LOGGING_LEVEL"
+          echo "Using MAVEN_LOGGING_LEVEL=$MAVEN_LOGGING_LEVEL"
           
           bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}:${{ github.event.inputs.storage_strategy }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
@@ -530,6 +539,7 @@ jobs:
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
+          # Allow run step to override the effective level (e.g. for Anthropic).
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
           # Model names (if specified) - also set as provider-specific env vars
           LLM_MODEL: ${{ github.event.inputs.llm_model }}

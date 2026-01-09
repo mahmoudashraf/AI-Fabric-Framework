@@ -65,8 +65,6 @@ runs:
         if [ -n "${{ inputs.openai_api_key }}" ]; then
           echo "OPENAI_API_KEY=${{ inputs.openai_api_key }}" >> $GITHUB_ENV
           echo "✅ Configured OpenAI API key"
-        else
-          echo "⚠️  WARNING: OpenAI selected but no API key provided"
         fi
     
     - name: Configure Anthropic
@@ -76,8 +74,6 @@ runs:
         if [ -n "${{ inputs.anthropic_api_key }}" ]; then
           echo "ANTHROPIC_API_KEY=${{ inputs.anthropic_api_key }}" >> $GITHUB_ENV
           echo "✅ Configured Anthropic API key"
-        else
-          echo "⚠️  WARNING: Anthropic selected but no API key provided"
         fi
     
     - name: Configure Gemini
@@ -87,8 +83,6 @@ runs:
         if [ -n "${{ inputs.gemini_api_key }}" ]; then
           echo "GEMINI_API_KEY=${{ inputs.gemini_api_key }}" >> $GITHUB_ENV
           echo "✅ Configured Gemini API key"
-        else
-          echo "⚠️  WARNING: Gemini selected but no API key provided"
         fi
     
     - name: Configure Cohere
@@ -100,8 +94,6 @@ runs:
           echo "COHERE_ENABLED=true" >> $GITHUB_ENV
           echo "ai.providers.cohere.enabled=true" >> $GITHUB_ENV
           echo "✅ Configured Cohere API key and enabled provider"
-        else
-          echo "⚠️  WARNING: Cohere selected but no API key provided"
         fi
     
     - name: Configure Azure
@@ -111,15 +103,11 @@ runs:
         if [ -n "${{ inputs.azure_api_key }}" ]; then
           echo "AZURE_API_KEY=${{ inputs.azure_api_key }}" >> $GITHUB_ENV
           echo "✅ Configured Azure API key"
-        else
-          echo "⚠️  WARNING: Azure selected but no API key provided"
         fi
         
         if [ -n "${{ inputs.azure_endpoint }}" ]; then
           echo "AZURE_ENDPOINT=${{ inputs.azure_endpoint }}" >> $GITHUB_ENV
           echo "✅ Configured Azure endpoint"
-        else
-          echo "⚠️  WARNING: Azure selected but no endpoint provided"
         fi
         
         if [ "${{ inputs.llm_provider }}" == "azure" ] && [ -n "${{ inputs.azure_deployment_name }}" ]; then
