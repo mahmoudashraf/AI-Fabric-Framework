@@ -26,6 +26,13 @@ public class OrchestrationResult {
 
     private String message;
 
+    /**
+     * Provider-agnostic error code for deterministic client handling.
+     *
+     * <p>Unlike LLM-generated messages, this value should be stable across providers and runs.</p>
+     */
+    private String errorCode;
+
     @Builder.Default
     private Map<String, Object> data = Collections.emptyMap();
 
