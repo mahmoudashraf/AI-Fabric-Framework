@@ -1,13 +1,13 @@
 package com.ai.infrastructure.relationship.it.config;
 
 import com.ai.infrastructure.relationship.spi.RelationshipQueryAccessControlPolicy;
+import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Test implementation of RelationshipQueryAccessControlPolicy for integration tests.
@@ -19,8 +19,8 @@ import java.util.Set;
 public class TestRelationshipQueryAccessControlPolicy {
 
     @Bean
-    public RelationshipQueryAccessControlPolicy relationshipQueryAccessControlPolicy() {
-        return new AllowAllAccessControlPolicy();
+    public RelationshipQueryAccessControlPolicy relationshipQueryAccessControlPolicy(RelationshipSchemaProvider schemaProvider) {
+        return new AllowAllAccessControlPolicy(schemaProvider);
     }
 
     /**
@@ -28,6 +28,11 @@ public class TestRelationshipQueryAccessControlPolicy {
      * Tests can override this bean to test access control scenarios.
      */
     private static class AllowAllAccessControlPolicy implements RelationshipQueryAccessControlPolicy {
+        private final RelationshipSchemaProvider schemaProvider;
+
+        private AllowAllAccessControlPolicy(RelationshipSchemaProvider schemaProvider) {
+            this.schemaProvider = schemaProvider;
+        }
 
         @Override
         public boolean canUserExecuteRelationshipQueries(String userId) {
@@ -43,9 +48,13 @@ public class TestRelationshipQueryAccessControlPolicy {
 
         @Override
         public List<String> getAllowedEntityTypesForUser(String userId) {
-            log.debug("Test policy: returning empty list (all entity types allowed) for user: {}", userId);
-            // Return empty list to allow auto-detection of all entity types
-            return List.of();
+            // IMPORTANT: Keep contract semantics consistent:
+            // - empty list means "no entity types allowed"
+            // - allow-all should be expressed as an explicit allow-list (derived from schema)
+            List<String> types = new ArrayList<>(schemaProvider.getSchema().entities().keySet());
+            types.sort(String::compareToIgnoreCase);
+            log.debug("Test policy: allowing all schema entity types {} for user {}", types, userId);
+            return types;
         }
     }
 }
