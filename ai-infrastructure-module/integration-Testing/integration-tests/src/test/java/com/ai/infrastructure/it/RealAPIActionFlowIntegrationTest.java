@@ -101,18 +101,11 @@ public class RealAPIActionFlowIntegrationTest {
 
         OrchestrationResult result = orchestrateOrSkip(query, userId);
         assertNotNull(result, "Orchestrator should return a result");
+        // Provider-agnostic contract: compound wrappers are normalized into the primary intent type.
         assertThat(result.getType())
-            .as("Action should be executed; compound is acceptable if it contains the action")
-            .isIn(OrchestrationResultType.ACTION_EXECUTED, OrchestrationResultType.COMPOUND_HANDLED);
-
-        // If the LLM emitted a compound, ensure the action child succeeded
-        if (result.getType() == OrchestrationResultType.COMPOUND_HANDLED) {
-            OrchestrationResult actionChild = result.getChildren().stream()
-                .filter(child -> child.getType() == OrchestrationResultType.ACTION_EXECUTED)
-                .findFirst()
-                .orElse(null);
-            assertNotNull(actionChild, "Compound result should include executed action child");
-        }
+            .as("Action should be executed")
+            .isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
 
         Map<String, Object> payload = result.getSanitizedPayload();
         assertThat(payload).isNotEmpty();
@@ -154,15 +147,7 @@ public class RealAPIActionFlowIntegrationTest {
         // Verify action was executed through alternate means if data is null
         if (data == null) {
             log.warn("Sanitized payload 'data' is null - using alternate verification");
-            // For compound results, check the action child's success instead of the compound result's success
-            boolean actionSuccess = result.getType() == OrchestrationResultType.COMPOUND_HANDLED
-                ? result.getChildren().stream()
-                    .filter(child -> child.getType() == OrchestrationResultType.ACTION_EXECUTED)
-                    .findFirst()
-                    .map(OrchestrationResult::isSuccess)
-                    .orElse(result.isSuccess())
-                : result.isSuccess();
-            assertThat(actionSuccess)
+            assertThat(result.isSuccess())
                 .as("Action should be marked as successful")
                 .isTrue();
             // Verify the primary action result: vector should be removed
@@ -183,15 +168,7 @@ public class RealAPIActionFlowIntegrationTest {
             // result is structured differently. Verify action success through alternate means.
             if (actionResult == null) {
                 log.warn("Sanitized payload 'actionResult' is null - using alternate verification");
-                // For compound results, check the action child's success instead of the compound result's success
-                boolean actionSuccess = result.getType() == OrchestrationResultType.COMPOUND_HANDLED
-                    ? result.getChildren().stream()
-                        .filter(child -> child.getType() == OrchestrationResultType.ACTION_EXECUTED)
-                        .findFirst()
-                        .map(OrchestrationResult::isSuccess)
-                        .orElse(result.isSuccess())
-                    : result.isSuccess();
-                assertThat(actionSuccess)
+                assertThat(result.isSuccess())
                     .as("Action should be marked as successful")
                     .isTrue();
                 // Verify the primary action result: vector should be removed
@@ -290,7 +267,8 @@ public class RealAPIActionFlowIntegrationTest {
 
         OrchestrationResult result = orchestrateOrSkip(query, userId);
         assertNotNull(result, "Orchestrator should return a result");
-        assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
+        // Provider-agnostic contract: compound wrappers are normalized into the primary intent type.
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         List<OrchestrationResult> children = result.getChildren();
         assertThat(children).hasSizeGreaterThanOrEqualTo(2);

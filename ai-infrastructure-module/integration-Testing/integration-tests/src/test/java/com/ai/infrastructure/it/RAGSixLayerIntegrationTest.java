@@ -304,7 +304,8 @@ class RAGSixLayerIntegrationTest {
             "user-compound"
         );
 
-        assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
+        // Provider-agnostic contract: compound wrappers are normalized into the primary intent type.
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.getChildren()).hasSize(2);
 
         Map<String, Object> payload = result.getSanitizedPayload();
