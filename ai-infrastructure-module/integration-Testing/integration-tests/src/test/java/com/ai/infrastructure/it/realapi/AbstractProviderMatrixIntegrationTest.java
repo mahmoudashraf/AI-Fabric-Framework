@@ -136,6 +136,9 @@ abstract class AbstractProviderMatrixIntegrationTest {
         configureProviderProperties(combo);
 
         try {
+            // Ensure snapshots printed on failure belong to this run, not a previous combo.
+            OrchestrationResultDebugSnapshotStore.clear();
+
             SummaryGeneratingListener listener = new SummaryGeneratingListener();
             Launcher launcher = LauncherFactory.create();
 
@@ -181,12 +184,31 @@ abstract class AbstractProviderMatrixIntegrationTest {
                 String failures = summary.getFailures().stream()
                     .map(failure -> {
                         String testName = failure.getTestIdentifier().getDisplayName();
-                        String errorMsg = failure.getException() != null ? failure.getException().getMessage() : "Unknown error";
+                        Throwable ex = failure.getException();
+                        String errorMsg = ex != null ? ex.getMessage() : "Unknown error";
+                        String errorType = ex != null ? ex.getClass().getSimpleName() : "UnknownException";
+
+                        String location = "";
+                        if (ex != null) {
+                            StackTraceElement[] stack = ex.getStackTrace();
+                            if (stack != null) {
+                                for (StackTraceElement el : stack) {
+                                    if (el == null) {
+                                        continue;
+                                    }
+                                    String cn = el.getClassName();
+                                    if (cn != null && cn.startsWith("com.ai.infrastructure")) {
+                                        location = " @ " + el.getFileName() + ":" + el.getLineNumber();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         // Truncate very long error messages
                         if (errorMsg != null && errorMsg.length() > 200) {
                             errorMsg = errorMsg.substring(0, 197) + "...";
                         }
-                        return testName + " -> " + errorMsg;
+                        return testName + " -> " + errorType + ": " + errorMsg + location;
                     })
                     .collect(Collectors.joining(System.lineSeparator()));
                 
@@ -201,6 +223,13 @@ abstract class AbstractProviderMatrixIntegrationTest {
                     log.error("Last normalized result snapshot: {}", snapshot);
                 } else {
                     log.error("Last normalized result snapshot: (none captured)");
+                }
+
+                List<OrchestrationResultDebugSnapshotStore.Snapshot> recent = OrchestrationResultDebugSnapshotStore.getRecent();
+                if (!recent.isEmpty()) {
+                    int from = Math.max(0, recent.size() - 5);
+                    log.error("Recent normalized result snapshots (last {}): {}", (recent.size() - from),
+                        recent.subList(from, recent.size()));
                 }
                 
                 String snapshotLine = snapshot != null

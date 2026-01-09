@@ -1,8 +1,11 @@
 package com.ai.infrastructure.intent.orchestration;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Stores a minimal snapshot of the most recently produced orchestration result.
@@ -13,7 +16,11 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class OrchestrationResultDebugSnapshotStore {
 
-    private static final AtomicReference<Snapshot> LAST = new AtomicReference<>();
+    private static final int MAX_RECENT = 25;
+
+    private static final Object LOCK = new Object();
+    private static final Deque<Snapshot> RECENT = new ArrayDeque<>(MAX_RECENT);
+    private static volatile Snapshot last;
 
     private OrchestrationResultDebugSnapshotStore() {}
 
@@ -21,17 +28,43 @@ public final class OrchestrationResultDebugSnapshotStore {
         if (result == null) {
             return;
         }
-        LAST.set(new Snapshot(
+        Snapshot snapshot = new Snapshot(
             requestId,
             result.getType() != null ? result.getType().name() : null,
             result.isSuccess(),
             result.getErrorCode(),
             Instant.now().toString()
-        ));
+        );
+        synchronized (LOCK) {
+            last = snapshot;
+            RECENT.addLast(snapshot);
+            while (RECENT.size() > MAX_RECENT) {
+                RECENT.removeFirst();
+            }
+        }
     }
 
     public static Snapshot getLast() {
-        return LAST.get();
+        return last;
+    }
+
+    /**
+     * Returns a defensive copy of the most recent snapshots (oldest -> newest).
+     */
+    public static List<Snapshot> getRecent() {
+        synchronized (LOCK) {
+            return new ArrayList<>(RECENT);
+        }
+    }
+
+    /**
+     * Clears stored snapshots (useful for isolating test output).
+     */
+    public static void clear() {
+        synchronized (LOCK) {
+            last = null;
+            RECENT.clear();
+        }
     }
 
     public record Snapshot(
