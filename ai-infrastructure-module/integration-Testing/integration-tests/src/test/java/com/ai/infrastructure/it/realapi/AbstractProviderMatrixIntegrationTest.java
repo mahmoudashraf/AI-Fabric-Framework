@@ -7,6 +7,7 @@ import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.provider.registry.ProviderDefinition;
 import com.ai.infrastructure.provider.registry.ProviderRegistryService;
 import com.ai.infrastructure.provider.registry.ProviderType;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResultDebugSnapshotStore;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -194,9 +195,22 @@ abstract class AbstractProviderMatrixIntegrationTest {
                     combo.llmProvider(), combo.embeddingProvider(), 
                     combo.vectorDbProvider() != null ? combo.vectorDbProvider() : "default",
                     combo.storageStrategy());
+
+                OrchestrationResultDebugSnapshotStore.Snapshot snapshot = OrchestrationResultDebugSnapshotStore.getLast();
+                if (snapshot != null) {
+                    log.error("Last normalized result snapshot: {}", snapshot);
+                } else {
+                    log.error("Last normalized result snapshot: (none captured)");
+                }
                 
+                String snapshotLine = snapshot != null
+                    ? "Last normalized result snapshot: " + snapshot
+                    : "Last normalized result snapshot: (none captured)";
+
                 throw new AssertionError("Failures detected for " + combo.displayName() + " (" +
-                    summary.getTotalFailureCount() + " failures)" + System.lineSeparator() + failures);
+                    summary.getTotalFailureCount() + " failures)" +
+                    System.lineSeparator() + snapshotLine +
+                    System.lineSeparator() + failures);
             }
 
             log.info("✓ Combination completed successfully in {} ms. Tests: {}, Failures: {}, Skipped: {}",

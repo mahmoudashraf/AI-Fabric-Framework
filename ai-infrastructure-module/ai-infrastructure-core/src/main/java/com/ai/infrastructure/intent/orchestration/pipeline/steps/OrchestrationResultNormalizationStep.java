@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.OrchestrationResultNormalizationProperties;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResultDebugSnapshotStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultNormalizer;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -37,17 +38,26 @@ public class OrchestrationResultNormalizationStep implements PipelineStep {
 
     @Override
     public PipelineContext process(PipelineContext context) {
-        if (properties != null && !properties.isEnabled()) {
-            return context;
-        }
+        boolean enabled = properties == null || properties.isEnabled();
+        boolean snapshotEnabled = properties != null && properties.isDebugSnapshotEnabled();
 
         OrchestrationResult raw = context.getIntentResult();
         if (raw == null) {
             return context;
         }
 
+        if (!enabled) {
+            if (snapshotEnabled) {
+                OrchestrationResultDebugSnapshotStore.record(context.getRequestId(), raw);
+            }
+            return context;
+        }
+
         OrchestrationResult normalized = normalizer.normalize(raw);
         if (normalized == raw) {
+            if (snapshotEnabled) {
+                OrchestrationResultDebugSnapshotStore.record(context.getRequestId(), raw);
+            }
             return context;
         }
 
@@ -55,6 +65,10 @@ public class OrchestrationResultNormalizationStep implements PipelineStep {
             context.getRequestId(),
             raw.getType(),
             normalized != null ? normalized.getType() : null);
+
+        if (snapshotEnabled) {
+            OrchestrationResultDebugSnapshotStore.record(context.getRequestId(), normalized);
+        }
 
         return context.toBuilder()
             .intentResult(normalized)

@@ -15,5 +15,13 @@ public class OrchestrationResultNormalizationProperties {
      * system facts (action registry, child ERRORs) rather than LLM-dependent wrapper shapes.
      */
     private boolean enabled = true;
+
+    /**
+     * When enabled, capture a minimal "last result" snapshot (type/success/errorCode only)
+     * to help CI logs surface canonical error codes on failures.
+     *
+     * <p>Intentionally excludes message/data to avoid leaking PII or provider content.</p>
+     */
+    private boolean debugSnapshotEnabled = false;
 }
 

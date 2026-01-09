@@ -40,6 +40,10 @@ test:
 # AI Configuration for Real API Testing
 ai:
   enabled: true
+  orchestration:
+    result-normalization:
+      enabled: true
+      debug-snapshot-enabled: true
   config:
     default-file: ai-entity-config-realapi.yml
   indexing:
