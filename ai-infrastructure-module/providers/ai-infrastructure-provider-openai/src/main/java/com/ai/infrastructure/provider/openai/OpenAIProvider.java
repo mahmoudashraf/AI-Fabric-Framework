@@ -106,7 +106,7 @@ public class OpenAIProvider implements AIProvider {
             requestBody.put("top_p", 0.1);  // Lower top_p for more deterministic responses
             
             // IMPORTANT: Never use System.out for provider logging; it bypasses log levels and makes CI noisy.
-            // Emit request/response summaries at INFO (visible at "normal"), and snippets at TRACE.
+            // Emit request/response summaries + payload snippets at INFO (visible at "normal").
             if (log.isInfoEnabled()) {
                 log.info("=== OPENAI API REQUEST ===");
                 log.info(
@@ -118,21 +118,19 @@ public class OpenAIProvider implements AIProvider {
                     requestBody.get("max_tokens"),
                     messages.size()
                 );
-                if (log.isTraceEnabled()) {
-                    for (int i = 0; i < messages.size(); i++) {
-                        Map<String, String> msg = messages.get(i);
-                        String role = msg.get("role");
-                        String content = msg.get("content");
-                        int len = content != null ? content.length() : 0;
-                        String snippet = content == null ? "" : content.substring(0, Math.min(500, len));
-                        log.trace(
-                            "OpenAI API request message[{}]: role={}, contentLength={}, contentSnippet={}",
-                            i,
-                            role,
-                            len,
-                            snippet
-                        );
-                    }
+                for (int i = 0; i < messages.size(); i++) {
+                    Map<String, String> msg = messages.get(i);
+                    String role = msg.get("role");
+                    String content = msg.get("content");
+                    int len = content != null ? content.length() : 0;
+                    String snippet = content == null ? "" : content.substring(0, Math.min(500, len));
+                    log.info(
+                        "OpenAI API request message[{}]: role={}, contentLength={}, contentSnippet={}",
+                        i,
+                        role,
+                        len,
+                        snippet
+                    );
                 }
                 log.info("=== END OPENAI API REQUEST ===");
             }
@@ -164,8 +162,8 @@ public class OpenAIProvider implements AIProvider {
                     finishReason,
                     contentLength
                 );
-                if (log.isTraceEnabled() && content != null) {
-                    log.trace(
+                if (content != null) {
+                    log.info(
                         "OpenAI API response contentSnippet={}",
                         content.substring(0, Math.min(500, content.length()))
                     );

@@ -149,12 +149,10 @@ public class AzureOpenAIProvider implements AIProvider {
                     body.get("max_tokens"),
                     body.containsKey("model")
                 );
-                if (log.isTraceEnabled()) {
-                    String prompt = request.getPrompt();
-                    int len = prompt != null ? prompt.length() : 0;
-                    String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
-                    log.trace("Azure OpenAI request promptLength={}, promptSnippet={}", len, snippet);
-                }
+                String prompt = request.getPrompt();
+                int len = prompt != null ? prompt.length() : 0;
+                String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                log.info("Azure OpenAI request promptLength={}, promptSnippet={}", len, snippet);
                 log.info("=== END AZURE OPENAI API REQUEST ===");
             }
 
@@ -191,8 +189,8 @@ public class AzureOpenAIProvider implements AIProvider {
                     finishReason,
                     contentLength
                 );
-                if (log.isTraceEnabled() && content != null) {
-                    log.trace("Azure OpenAI response contentSnippet={}", content.substring(0, Math.min(500, content.length())));
+                if (content != null) {
+                    log.info("Azure OpenAI response contentSnippet={}", content.substring(0, Math.min(500, content.length())));
                 }
                 log.info("=== END AZURE OPENAI API RESPONSE ===");
             }
@@ -248,12 +246,10 @@ public class AzureOpenAIProvider implements AIProvider {
                     1,
                     request.getText() != null ? request.getText().length() : 0
                 );
-                if (log.isTraceEnabled()) {
-                    String text = request.getText();
-                    int len = text != null ? text.length() : 0;
-                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
-                    log.trace("Azure OpenAI embedding request textSnippet={}", snippet);
-                }
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("Azure OpenAI embedding request textSnippet={}", snippet);
                 log.info("=== END AZURE OPENAI EMBEDDING API REQUEST ===");
             }
 

@@ -152,12 +152,10 @@ public class GeminiProvider implements AIProvider {
                     requestBody.containsKey("systemInstruction"),
                     request.getPrompt() != null ? request.getPrompt().length() : 0
                 );
-                if (log.isTraceEnabled()) {
-                    String prompt = request.getPrompt();
-                    int len = prompt != null ? prompt.length() : 0;
-                    String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
-                    log.trace("Gemini API request promptSnippet={}", snippet);
-                }
+                String prompt = request.getPrompt();
+                int len = prompt != null ? prompt.length() : 0;
+                String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                log.info("Gemini API request promptSnippet={}", snippet);
                 log.info("=== END GEMINI API REQUEST ===");
             }
             
@@ -193,8 +191,8 @@ public class GeminiProvider implements AIProvider {
                     contentLength,
                     candidates != null ? candidates.size() : 0
                 );
-                if (log.isTraceEnabled() && generatedText != null) {
-                    log.trace(
+                if (generatedText != null) {
+                    log.info(
                         "Gemini API response contentSnippet={}",
                         generatedText.substring(0, Math.min(500, generatedText.length()))
                     );
@@ -274,12 +272,10 @@ public class GeminiProvider implements AIProvider {
                     model,
                     request.getText() != null ? request.getText().length() : 0
                 );
-                if (log.isTraceEnabled()) {
-                    String text = request.getText();
-                    int len = text != null ? text.length() : 0;
-                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
-                    log.trace("Gemini embedding request textSnippet={}", snippet);
-                }
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("Gemini embedding request textSnippet={}", snippet);
                 log.info("=== END GEMINI EMBEDDING API REQUEST ===");
             }
             

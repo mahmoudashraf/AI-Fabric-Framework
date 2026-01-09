@@ -115,12 +115,10 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
                     1,
                     request.getText() != null ? request.getText().length() : 0
                 );
-                if (log.isTraceEnabled()) {
-                    String text = request.getText();
-                    int len = text != null ? text.length() : 0;
-                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
-                    log.trace("Azure OpenAI embedding request textSnippet={}", snippet);
-                }
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("Azure OpenAI embedding request textSnippet={}", snippet);
                 log.info("=== END AZURE OPENAI EMBEDDING API REQUEST ===");
             }
 

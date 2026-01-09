@@ -125,12 +125,10 @@ public class AnthropicProvider implements AIProvider {
                     requestBody.containsKey("system"),
                     messages.size()
                 );
-                if (log.isTraceEnabled()) {
-                    String prompt = request.getPrompt();
-                    int len = prompt != null ? prompt.length() : 0;
-                    String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
-                    log.trace("Anthropic API request promptLength={}, promptSnippet={}", len, snippet);
-                }
+                String prompt = request.getPrompt();
+                int len = prompt != null ? prompt.length() : 0;
+                String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                log.info("Anthropic API request promptLength={}, promptSnippet={}", len, snippet);
                 log.info("=== END ANTHROPIC API REQUEST ===");
             }
             
@@ -157,8 +155,8 @@ public class AnthropicProvider implements AIProvider {
                     responseBody.get("model"),
                     contentLength
                 );
-                if (log.isTraceEnabled() && generatedText != null) {
-                    log.trace(
+                if (generatedText != null) {
+                    log.info(
                         "Anthropic API response contentSnippet={}",
                         generatedText.substring(0, Math.min(500, generatedText.length()))
                     );

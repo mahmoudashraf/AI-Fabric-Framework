@@ -149,12 +149,10 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                         requestedDimensions,
                         request.getText() != null ? request.getText().length() : 0
                     );
-                    if (log.isTraceEnabled()) {
-                        String text = request.getText();
-                        int len = text != null ? text.length() : 0;
-                        String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
-                        log.trace("OpenAI embedding request textSnippet={}", snippet);
-                    }
+                    String text = request.getText();
+                    int len = text != null ? text.length() : 0;
+                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                    log.info("OpenAI embedding request textSnippet={}", snippet);
                     log.info("=== END OPENAI EMBEDDING API REQUEST ===");
                 }
                 log.debug("Generating embedding using OpenAI via HTTP for text: {}", request.getText());
@@ -171,6 +169,20 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
             long startTime = System.currentTimeMillis();
             
             // Use library for standard requests
+            if (log.isInfoEnabled()) {
+                log.info("=== OPENAI EMBEDDING API REQUEST ===");
+                String model = request.getModel() != null ? request.getModel() : openai.getEmbeddingModel();
+                log.info(
+                    "OpenAI embedding request (library): model={}, textLength={}",
+                    model,
+                    request.getText() != null ? request.getText().length() : 0
+                );
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("OpenAI embedding request textSnippet={}", snippet);
+                log.info("=== END OPENAI EMBEDDING API REQUEST ===");
+            }
             EmbeddingRequest embeddingRequest = EmbeddingRequest.builder()
                   .model(request.getModel() != null ? request.getModel() : openai.getEmbeddingModel())
                 .input(List.of(request.getText()))

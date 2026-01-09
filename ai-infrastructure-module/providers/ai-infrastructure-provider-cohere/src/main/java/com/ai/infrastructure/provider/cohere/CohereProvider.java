@@ -122,12 +122,10 @@ public class CohereProvider implements AIProvider {
                     requestBody.containsKey("preamble"),
                     request.getPrompt() != null ? request.getPrompt().length() : 0
                 );
-                if (log.isTraceEnabled()) {
-                    String prompt = request.getPrompt();
-                    int len = prompt != null ? prompt.length() : 0;
-                    String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
-                    log.trace("Cohere API request promptSnippet={}", snippet);
-                }
+                String prompt = request.getPrompt();
+                int len = prompt != null ? prompt.length() : 0;
+                String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
+                log.info("Cohere API request promptSnippet={}", snippet);
                 log.info("=== END COHERE API REQUEST ===");
             }
             
@@ -152,8 +150,8 @@ public class CohereProvider implements AIProvider {
                     responseBody != null ? responseBody.get("model") : null,
                     contentLength
                 );
-                if (log.isTraceEnabled() && generatedText != null) {
-                    log.trace(
+                if (generatedText != null) {
+                    log.info(
                         "Cohere API response contentSnippet={}",
                         generatedText.substring(0, Math.min(500, generatedText.length()))
                     );
@@ -218,12 +216,10 @@ public class CohereProvider implements AIProvider {
                     requestBody.get("input_type"),
                     request.getText() != null ? request.getText().length() : 0
                 );
-                if (log.isTraceEnabled()) {
-                    String text = request.getText();
-                    int len = text != null ? text.length() : 0;
-                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
-                    log.trace("Cohere embedding request textSnippet={}", snippet);
-                }
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("Cohere embedding request textSnippet={}", snippet);
                 log.info("=== END COHERE EMBEDDING API REQUEST ===");
             }
             

@@ -149,12 +149,10 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
                     model(),
                     request.getText() != null ? request.getText().length() : 0
                 );
-                if (log.isTraceEnabled()) {
-                    String text = request.getText();
-                    int len = text != null ? text.length() : 0;
-                    String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
-                    log.trace("REST embedding request textSnippet={}", snippet);
-                }
+                String text = request.getText();
+                int len = text != null ? text.length() : 0;
+                String snippet = text == null ? "" : text.substring(0, Math.min(300, len));
+                log.info("REST embedding request textSnippet={}", snippet);
                 log.info("=== END REST EMBEDDING API REQUEST ===");
             }
             ResponseEntity<Map> response = restTemplate.exchange(
