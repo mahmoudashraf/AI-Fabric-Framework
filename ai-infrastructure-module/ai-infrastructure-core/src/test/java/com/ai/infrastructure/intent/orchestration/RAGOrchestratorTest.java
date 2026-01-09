@@ -27,6 +27,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.steps.HistoryPersiste
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.IntentExtractionStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.IntentHandlingStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.MetadataBuildingStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.OrchestrationResultNormalizationStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.PIIDetectionStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.ResponseSanitizationStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SecurityAnalysisStep;
@@ -146,6 +147,11 @@ class RAGOrchestratorTest {
      * Creates a pipeline with all required steps for testing.
      */
     private Pipeline createPipeline() {
+        var normalizationProperties = new com.ai.infrastructure.config.OrchestrationResultNormalizationProperties();
+        normalizationProperties.setEnabled(true);
+        normalizationProperties.setDebugSnapshotEnabled(false);
+        var normalizer = new OrchestrationResultNormalizer();
+
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
@@ -153,6 +159,7 @@ class RAGOrchestratorTest {
             new ComplianceCheckStep(complianceService),
             new IntentExtractionStep(intentQueryExtractor),
             new IntentHandlingStep(actionHandlerRegistry, ragProvider, aiCoreService, aiServiceConfig, advancedRagProvider),
+            new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
             new MetadataBuildingStep(),
             new SmartSuggestionsStep(smartSuggestionsProperties, ragProvider),
             new ResponseSanitizationStep(responseSanitizer, piiDetectionProperties),
@@ -523,7 +530,8 @@ class RAGOrchestratorTest {
 
         OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", "user");
 
-        assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
+        // Provider-agnostic contract: compound wrappers are normalized into the primary intent type.
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.getChildren()).hasSize(2);
     }
 
