@@ -56,10 +56,10 @@ public class RelationshipQueryPlanner {
         }
         """,
         """
-        Example plan for query "Show me blue shoes under $100 from Nike":
+        Example plan for query "Show me blue shoes under $100 from <BRAND_NAME>":
         {
           "primaryEntityType": "product",
-          "candidateEntityTypes": ["product"],
+          "candidateEntityTypes": ["product", "brand"],
           "relationshipPaths": [
             {
               "fromEntityType": "product",
@@ -68,13 +68,13 @@ public class RelationshipQueryPlanner {
               "direction": "FORWARD",
               "optional": false,
               "conditions": [
-                {"field": "name", "operator": "EQUALS", "value": "Nike", "entityType": "brand"}
+                {"field": "name", "operator": "EQUALS", "value": "<BRAND_NAME_FROM_USER_QUERY>", "entityType": "brand"}
               ]
             }
           ],
           "directFilters": {
             "product": [
-              {"field": "color", "operator": "LIKE", "value": "%blue%", "entityType": "product"},
+              {"field": "color", "operator": "LIKE", "value": "%<COLOR_FROM_USER_QUERY>%", "entityType": "product"},
               {"field": "price", "operator": "LESS_THAN", "value": 100, "entityType": "product"}
             ]
           },
@@ -144,10 +144,10 @@ public class RelationshipQueryPlanner {
         }
         """,
         """
-        Example plan for query "Show active runner shoes from Nike or Adidas priced between $80 and $120 available in red or blue":
+        Example plan for query "Show active runner shoes from <BRAND_A> or <BRAND_B> priced between $80 and $120 available in red or blue":
         {
           "primaryEntityType": "product",
-          "candidateEntityTypes": ["product"],
+          "candidateEntityTypes": ["product", "brand"],
           "relationshipPaths": [
             {
               "fromEntityType": "product",
@@ -156,7 +156,7 @@ public class RelationshipQueryPlanner {
               "direction": "FORWARD",
               "optional": false,
               "conditions": [
-                {"field": "name", "operator": "IN", "value": ["Nike", "Adidas"], "entityType": "brand"}
+                {"field": "name", "operator": "IN", "value": ["<BRAND_A_FROM_USER_QUERY>", "<BRAND_B_FROM_USER_QUERY>"], "entityType": "brand"}
               ]
             }
           ],
@@ -438,82 +438,6 @@ public class RelationshipQueryPlanner {
             });
         }
 
-        // 3) Example-leakage guardrail for brand names: some providers copy example literals (e.g., Nike/Adidas)
-        // into filters even when the user mentioned only one (or none). This causes incorrect broadening or empty results.
-        //
-        // Keep this intentionally narrow: apply only to brand.name predicates and only drop values not present in user query.
-        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
-            plan.getDirectFilters().forEach((entity, filters) -> sanitizeBrandNameFilters(filters, normalizedQuery));
-        }
-        if (plan.getRelationshipPaths() != null && !plan.getRelationshipPaths().isEmpty()) {
-            plan.getRelationshipPaths().forEach(path -> {
-                if (path == null) {
-                    return;
-                }
-                sanitizeBrandNameFilters(path.getConditions(), normalizedQuery);
-            });
-        }
-    }
-
-    private void sanitizeBrandNameFilters(java.util.List<com.ai.infrastructure.relationship.dto.FilterCondition> filters,
-                                          String normalizedQuery) {
-        if (filters == null || filters.isEmpty() || !StringUtils.hasText(normalizedQuery)) {
-            return;
-        }
-        filters.removeIf(filter -> {
-            if (filter == null || !isBrandNameFilter(filter)) {
-                return false;
-            }
-            com.ai.infrastructure.relationship.dto.FilterOperator operator = filter.getOperator();
-            Object value = filter.getValue();
-            if (value == null) {
-                return true;
-            }
-
-            // IN: drop list values not mentioned; remove entire filter if no values remain.
-            if (operator == com.ai.infrastructure.relationship.dto.FilterOperator.IN && value instanceof java.util.List<?> list) {
-                java.util.List<String> kept = list.stream()
-                    .filter(java.util.Objects::nonNull)
-                    .map(Object::toString)
-                    .map(String::trim)
-                    .filter(v -> !v.isBlank())
-                    .filter(v -> mentionsLiteral(normalizedQuery, v))
-                    .toList();
-                if (kept.isEmpty()) {
-                    return true;
-                }
-                filter.setValue(kept);
-                return false;
-            }
-
-            // LIKE/EQUALS/etc: drop predicate if its literal isn't mentioned in the user query.
-            String literal = value.toString();
-            return !mentionsLiteral(normalizedQuery, literal);
-        });
-    }
-
-    private boolean isBrandNameFilter(com.ai.infrastructure.relationship.dto.FilterCondition filter) {
-        if (filter == null) {
-            return false;
-        }
-        String entityType = filter.getEntityType() != null ? filter.getEntityType().toLowerCase(Locale.ROOT) : "";
-        String field = filter.getField() != null ? filter.getField().toLowerCase(Locale.ROOT) : "";
-        boolean entityIsBrand = entityType.contains("brand") || field.startsWith("brand.");
-        boolean fieldIsName = field.equals("name") || field.endsWith(".name");
-        return entityIsBrand && fieldIsName;
-    }
-
-    private boolean mentionsLiteral(String normalizedQuery, String literal) {
-        if (!StringUtils.hasText(normalizedQuery) || !StringUtils.hasText(literal)) {
-            return false;
-        }
-        String probe = literal.toLowerCase(Locale.ROOT).trim();
-        // Handle common LIKE patterns such as "%nike%".
-        probe = probe.replace("%", "").trim();
-        if (probe.isBlank()) {
-            return false;
-        }
-        return normalizedQuery.contains(probe);
     }
 
     private boolean mentionsTimeConstraint(String normalizedQuery) {
