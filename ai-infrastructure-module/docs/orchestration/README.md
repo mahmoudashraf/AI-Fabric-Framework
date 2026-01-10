@@ -12,6 +12,7 @@ This folder contains documentation for the RAG Orchestrator pipeline architectur
 | [PIPELINE_STEPS_REFERENCE.md](PIPELINE_STEPS_REFERENCE.md) | Reference documentation for all pipeline steps |
 | [RAG_EXTRACTION_ASSESSMENT.md](RAG_EXTRACTION_ASSESSMENT.md) | Assessment for extracting RAG into a separate module |
 | [PROGRESSIVE_INTENT_EXTRACTION_FALLBACK_PLAN.md](PROGRESSIVE_INTENT_EXTRACTION_FALLBACK_PLAN.md) | Plan for compound-first intent extraction with bounded repair and multi-step fallback (plus orchestration vs generation provider config) |
+| [NORMALIZATION_AND_ORCHESTRATION_GUIDE.md](NORMALIZATION_AND_ORCHESTRATION_GUIDE.md) | Developer + user guide for the orchestration pipeline and normalization layer (config, extension, debugging, testing) |
 
 ## Quick Links
 
