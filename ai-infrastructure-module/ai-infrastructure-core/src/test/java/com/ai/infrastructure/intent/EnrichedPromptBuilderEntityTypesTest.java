@@ -109,8 +109,8 @@ class EnrichedPromptBuilderEntityTypesTest {
             .contains("actionParams.query is REQUIRED");
 
         assertThat(prompt)
-            .as("Should instruct to strip the 'relationship query:' hint prefix into actionParams.query")
-            .contains("starts with the hint prefix \"relationship query:\"");
+            .as("Should instruct to strip the 'relationship_query:' hint prefix into actionParams.query")
+            .contains("starts with the hint prefix \"relationship_query:\"");
     }
 
     private SystemContextBuilder createContextBuilderWithEntityTypes(Set<String> entityTypes) {

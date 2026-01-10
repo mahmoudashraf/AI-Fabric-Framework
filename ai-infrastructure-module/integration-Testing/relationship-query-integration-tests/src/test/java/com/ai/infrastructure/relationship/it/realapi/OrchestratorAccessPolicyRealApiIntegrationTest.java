@@ -128,7 +128,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             .build();
 
         OrchestrationResult result = orchestrator.orchestrate(
-            "relationship query: find blue running shoes under $120 from Nike",
+            "relationship_query: find blue running shoes under $120 from Nike",
             context
         );
 
@@ -171,8 +171,8 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
 
         // Query that should extract entityTypes=["product"] based on the prompt enhancement
         // The prompt instructs: "When action == 'relationship_query', extract entityTypes from the user request"
-        // Note: Query must explicitly mention "relationship query" for LLM to recognize it as an action
-        String naturalLanguageQuery = "relationship query: find products from Nike";
+        // Note: We use an explicit action hint to ensure the LLM selects the relationship_query action deterministically.
+        String naturalLanguageQuery = "relationship_query: find products from Nike";
         
         OrchestrationResult result = orchestrator.orchestrate(
             naturalLanguageQuery,
@@ -246,7 +246,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             .build();
 
         // Query that should extract entityTypes=["document", "user"]
-        String naturalLanguageQuery = "relationship query: find documents authored by John Smith";
+        String naturalLanguageQuery = "relationship_query: find documents authored by John Smith";
 
         OrchestrationResult result = orchestrator.orchestrate(naturalLanguageQuery, context);
 
@@ -279,7 +279,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
 
         // Query that should extract entityTypes=["transaction", "destination-account"]
         // Use explicit query to avoid LLM misinterpreting "high-risk" as a TransactionEntity field
-        String naturalLanguageQuery = "relationship query: find transactions over $10000 where destination account region is high-risk";
+        String naturalLanguageQuery = "relationship_query: find transactions over $10000 where destination account region is high-risk";
 
         OrchestrationResult result = orchestrator.orchestrate(naturalLanguageQuery, context);
 
@@ -310,7 +310,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             .build();
 
         // Query that should extract entityTypes=["brand"]
-        String naturalLanguageQuery = "relationship query: find all brands";
+        String naturalLanguageQuery = "relationship_query: find all brands";
 
         OrchestrationResult result = orchestrator.orchestrate(naturalLanguageQuery, context);
 
@@ -344,7 +344,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             .metadata(Map.of("channel", "test"))
             .build();
 
-        OrchestrationResult result = orchestrator.orchestrate("relationship query: " + query, context);
+        OrchestrationResult result = orchestrator.orchestrate("relationship_query: " + query, context);
 
         assertThat(result.getType())
             .as("Should execute relationship_query action without throwing (query=%s)", query)
@@ -424,7 +424,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             .metadata(Map.of("channel", "test"))
             .build();
 
-        OrchestrationResult result = orchestrator.orchestrate("relationship query: find all brands", context);
+        OrchestrationResult result = orchestrator.orchestrate("relationship_query: find all brands", context);
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
@@ -487,14 +487,14 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
     static Stream<Arguments> compoundRelationshipQueryProvider() {
         return Stream.of(
             Arguments.of(
-                "relationship query: find all brands and then summarize them",
+                "relationship_query: find all brands and then summarize them",
                 "find all brands",
                 new String[]{"summarize"},
                 "brand",
                 new String[]{"brand"}
             ),
             Arguments.of(
-                "relationship query: find products under $100 and then explain why they are good options",
+                "relationship_query: find products under $100 and then explain why they are good options",
                 "find products under",
                 new String[]{"explain", "why"},
                 "product",

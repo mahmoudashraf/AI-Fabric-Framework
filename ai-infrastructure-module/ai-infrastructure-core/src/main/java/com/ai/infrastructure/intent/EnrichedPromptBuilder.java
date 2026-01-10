@@ -125,12 +125,12 @@ public class EnrichedPromptBuilder {
         }
         prompt.append("Use [] when unknown or when no entity types match.\n");
         prompt.append("   - actionParams.query is REQUIRED and MUST contain the natural-language relationship query to execute.\n");
-        prompt.append("     * If the user's message starts with the hint prefix \"relationship query:\", actionParams.query MUST be the text after that prefix.\n");
+        prompt.append("     * If the user's message starts with the hint prefix \"relationship_query:\", actionParams.query MUST be the text after that prefix.\n");
         prompt.append("     * If the user's message is compound, actionParams.query MUST contain ONLY the relational part (exclude unrelated tasks like summarization or other actions).\n");
         prompt.append("     * Do NOT rewrite the user's query or add constraints that the user did not ask for.\n");
         prompt.append("   - Examples:\n");
         prompt.append("     * {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find all brands\",\"entityTypes\":[\"brand\"],\"limit\":20}}\n");
-        prompt.append("     * For user message \"relationship query: find all brands and then summarize\": set actionParams.query=\"find all brands\".\n\n");
+        prompt.append("     * For user message \"relationship_query: find all brands and then summarize\": set actionParams.query=\"find all brands\".\n\n");
 
         prompt.append("10. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
     }
