@@ -1,0 +1,34 @@
+# Testcontainers Profile Configuration
+# Activated with: -Dspring.profiles.active=testcontainers
+#
+# This profile enables automatic Testcontainers-based vector database setup
+# for integration tests. Containers are started automatically and connection
+# properties are injected into the Spring environment.
+
+testcontainers:
+  enabled: true
+
+# Vector database type must be specified via system property
+# Example: -Dai.vector-db.type=milvus
+ai:
+  vector-db:
+    type: ${VECTOR_DB_TYPE:memory}
+
+    # Timeouts adjusted for container startup
+    milvus:
+      timeout: 60000
+    qdrant:
+      timeout: 60000
+    weaviate:
+      timeout: 60000
+    chroma:
+      timeout: 60000
+    pgvector:
+      timeout: 60000
+
+# Logging for Testcontainers
+logging:
+  level:
+    org.testcontainers: INFO
+    com.github.dockerjava: WARN
+    com.ai.infrastructure.it.config: DEBUG

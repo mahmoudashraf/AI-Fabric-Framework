@@ -528,6 +528,22 @@ jobs:
           export MAVEN_LOGGING_LEVEL="$EFFECTIVE_MAVEN_LOGGING_LEVEL"
           echo "Using MAVEN_LOGGING_LEVEL=$MAVEN_LOGGING_LEVEL"
           
+          # Determine if Testcontainers should be enabled based on vector database selection
+          # Testcontainers-supported databases: milvus, qdrant, weaviate, chroma, pgvector
+          VECTOR_DB="${{ github.event.inputs.vector_database }}"
+          SPRING_PROFILES="real-api-test"
+          if [[ "$VECTOR_DB" == "milvus" ]] || \
+             [[ "$VECTOR_DB" == "qdrant" ]] || \
+             [[ "$VECTOR_DB" == "weaviate" ]] || \
+             [[ "$VECTOR_DB" == "chroma" ]] || \
+             [[ "$VECTOR_DB" == "pgvector" ]]; then
+            SPRING_PROFILES="real-api-test,testcontainers"
+            echo "✅ Testcontainers enabled for vector database: $VECTOR_DB"
+          else
+            echo "ℹ️  Testcontainers not needed for vector database: $VECTOR_DB (using: lucene, memory, or pinecone)"
+          fi
+          export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
+          
           bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}:${{ github.event.inputs.storage_strategy }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
@@ -714,8 +730,25 @@ jobs:
       - name: Run Relationship Query Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
+          
+          # Determine if Testcontainers should be enabled based on vector database selection
+          VECTOR_DB="${{ github.event.inputs.vector_database }}"
+          SPRING_PROFILES="realapi"
+          if [[ "$VECTOR_DB" == "milvus" ]] || \
+             [[ "$VECTOR_DB" == "qdrant" ]] || \
+             [[ "$VECTOR_DB" == "weaviate" ]] || \
+             [[ "$VECTOR_DB" == "chroma" ]] || \
+             [[ "$VECTOR_DB" == "pgvector" ]]; then
+            SPRING_PROFILES="realapi,testcontainers"
+            echo "✅ Testcontainers enabled for vector database: $VECTOR_DB"
+          else
+            echo "ℹ️  Testcontainers not needed for vector database: $VECTOR_DB"
+          fi
+          export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
+          
           bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
+          TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           # Needed when embedding_provider=openai to satisfy startup validation.
           OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
@@ -1000,8 +1033,25 @@ jobs:
       - name: Run Behavior Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/behavior-integration-tests
+          
+          # Determine if Testcontainers should be enabled based on vector database selection
+          VECTOR_DB="${{ github.event.inputs.vector_database }}"
+          SPRING_PROFILES="realapi"
+          if [[ "$VECTOR_DB" == "milvus" ]] || \
+             [[ "$VECTOR_DB" == "qdrant" ]] || \
+             [[ "$VECTOR_DB" == "weaviate" ]] || \
+             [[ "$VECTOR_DB" == "chroma" ]] || \
+             [[ "$VECTOR_DB" == "pgvector" ]]; then
+            SPRING_PROFILES="realapi,testcontainers"
+            echo "✅ Testcontainers enabled for vector database: $VECTOR_DB"
+          else
+            echo "ℹ️  Testcontainers not needed for vector database: $VECTOR_DB"
+          fi
+          export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
+          
           bash run-behavior-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
+          TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
