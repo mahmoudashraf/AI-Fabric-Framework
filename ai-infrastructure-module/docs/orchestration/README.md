@@ -6,10 +6,12 @@ This folder contains documentation for the RAG Orchestrator pipeline architectur
 
 | Document | Description |
 |----------|-------------|
+| [ORCHESTRATION_RESULT_NORMALIZATION.md](ORCHESTRATION_RESULT_NORMALIZATION.md) | Provider-agnostic contract and normalization rules for final orchestration results |
 | [ORCHESTRATOR_PIPELINE_REFACTORING.md](ORCHESTRATOR_PIPELINE_REFACTORING.md) | Overview of the refactoring from monolithic to pipeline architecture |
 | [PIPELINE_ARCHITECTURE.md](PIPELINE_ARCHITECTURE.md) | Detailed architecture guide for the pipeline pattern |
 | [PIPELINE_STEPS_REFERENCE.md](PIPELINE_STEPS_REFERENCE.md) | Reference documentation for all pipeline steps |
 | [RAG_EXTRACTION_ASSESSMENT.md](RAG_EXTRACTION_ASSESSMENT.md) | Assessment for extracting RAG into a separate module |
+| [PROGRESSIVE_INTENT_EXTRACTION_FALLBACK_PLAN.md](PROGRESSIVE_INTENT_EXTRACTION_FALLBACK_PLAN.md) | Plan for compound-first intent extraction with bounded repair and multi-step fallback (plus orchestration vs generation provider config) |
 
 ## Quick Links
 
