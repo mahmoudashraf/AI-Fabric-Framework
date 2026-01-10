@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Uses the LLM via {@link AICoreService} to transform natural language queries into structured plans.
@@ -363,6 +364,7 @@ public class RelationshipQueryPlanner {
         }
 
         String normalizedQuery = query.toLowerCase(Locale.ROOT);
+        boolean broadListQuery = isBroadListQuery(normalizedQuery);
 
         boolean mentionsTime = mentionsTimeConstraint(normalizedQuery);
         boolean mentionsExplicitRiskScore = normalizedQuery.contains("risk score") || normalizedQuery.contains("riskscore");
@@ -419,6 +421,117 @@ public class RelationshipQueryPlanner {
                 });
             });
         }
+
+        // 3) Broad "find/list all X" queries: remove string constraints that the user did not mention.
+        //    This prevents providers from copying example values like "Nike"/"Adidas" into generic queries.
+        if (broadListQuery) {
+            sanitizeStringValueFiltersNotMentionedInQuery(plan, normalizedQuery);
+        }
+    }
+
+    private void sanitizeStringValueFiltersNotMentionedInQuery(RelationshipQueryPlan plan, String normalizedQuery) {
+        if (plan == null || normalizedQuery == null) {
+            return;
+        }
+
+        // Direct filters.
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            List<String> keysToRemove = new ArrayList<>();
+            plan.getDirectFilters().forEach((entity, filters) -> {
+                if (filters == null || filters.isEmpty()) {
+                    keysToRemove.add(entity);
+                    return;
+                }
+                filters.removeIf(filter -> shouldDropStringFilterNotMentioned(filter, normalizedQuery));
+                if (filters.isEmpty()) {
+                    keysToRemove.add(entity);
+                }
+            });
+            keysToRemove.forEach(plan.getDirectFilters()::remove);
+        }
+
+        // Relationship path conditions.
+        if (plan.getRelationshipPaths() != null && !plan.getRelationshipPaths().isEmpty()) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path == null || path.getConditions() == null || path.getConditions().isEmpty()) {
+                    return;
+                }
+                path.getConditions().removeIf(condition -> shouldDropStringFilterNotMentioned(condition, normalizedQuery));
+            });
+        }
+    }
+
+    private boolean shouldDropStringFilterNotMentioned(com.ai.infrastructure.relationship.dto.FilterCondition filter, String normalizedQuery) {
+        if (filter == null) {
+            return false;
+        }
+        Object valueObj = filter.getValue();
+        if (valueObj == null) {
+            return false;
+        }
+
+        // Only apply to string-valued constraints that are common sources of example-copy hallucinations.
+        com.ai.infrastructure.relationship.dto.FilterOperator operator = filter.getOperator();
+        boolean supportedOperator = operator == null
+            || operator == com.ai.infrastructure.relationship.dto.FilterOperator.EQUALS
+            || operator == com.ai.infrastructure.relationship.dto.FilterOperator.NOT_EQUALS
+            || operator == com.ai.infrastructure.relationship.dto.FilterOperator.LIKE
+            || operator == com.ai.infrastructure.relationship.dto.FilterOperator.ILIKE
+            || operator == com.ai.infrastructure.relationship.dto.FilterOperator.IN
+            || operator == com.ai.infrastructure.relationship.dto.FilterOperator.NOT_IN;
+        if (!supportedOperator) {
+            return false;
+        }
+
+        if (valueObj instanceof String text) {
+            String token = normalizeQueryToken(text);
+            return StringUtils.hasText(token) && !normalizedQuery.contains(token);
+        }
+
+        if (valueObj instanceof List<?> list) {
+            // Keep only string values that the user mentioned; drop the filter entirely if none remain.
+            List<String> kept = list.stream()
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .map(this::normalizeQueryToken)
+                .filter(StringUtils::hasText)
+                .filter(normalizedQuery::contains)
+                .toList();
+
+            if (kept.isEmpty()) {
+                return true;
+            }
+
+            // Update value in-place to the kept set (provider-agnostic tightening).
+            filter.setValue(kept);
+            return false;
+        }
+
+        return false;
+    }
+
+    private String normalizeQueryToken(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "";
+        }
+        // Strip wildcard characters often used in LIKE patterns and normalize casing.
+        String token = raw.trim().toLowerCase(Locale.ROOT);
+        token = token.replace("%", "");
+        token = token.replace("_", " ");
+        token = token.trim();
+        return token;
+    }
+
+    private boolean isBroadListQuery(String normalizedQuery) {
+        if (!StringUtils.hasText(normalizedQuery)) {
+            return false;
+        }
+        String q = normalizedQuery.trim();
+        // Broad listing queries are especially susceptible to providers copying example filter values.
+        return q.matches(".*\\b(find|list|show|get)\\s+all\\b.*")
+            || q.startsWith("all ")
+            || q.contains(" all brands")
+            || q.contains(" all brand");
     }
 
     private boolean mentionsTimeConstraint(String normalizedQuery) {

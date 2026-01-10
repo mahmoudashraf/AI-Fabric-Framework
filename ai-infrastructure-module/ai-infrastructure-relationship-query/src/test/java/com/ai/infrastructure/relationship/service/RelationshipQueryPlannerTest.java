@@ -116,6 +116,20 @@ class RelationshipQueryPlannerTest {
         assertThat(plan.getCandidateEntityTypes()).contains("user");
     }
 
+    @Test
+    void shouldDropExampleCopiedStringFiltersForBroadListQuery() {
+        when(queryCache.getPlan(anyString())).thenReturn(Optional.empty());
+        when(aiCoreService.generateContent(any()))
+            .thenReturn(AIGenerationResponse.builder().content(broadBrandQueryWithHallucinatedFilters()).build());
+
+        RelationshipQueryPlan plan = planner.planQuery("find all brands", List.of("brand"));
+
+        assertThat(plan.getPrimaryEntityType()).isEqualTo("brand");
+        assertThat(plan.getDirectFilters())
+            .as("Broad list query should not inherit example brand-name filters like Nike/Adidas")
+            .doesNotContainKey("brand");
+    }
+
     private String samplePlanJson() {
         return """
             {
@@ -127,6 +141,27 @@ class RelationshipQueryPlannerTest {
               "relationshipFilters": {},
               "needsSemanticSearch": false,
               "confidence": 0.8
+            }
+            """;
+    }
+
+    private String broadBrandQueryWithHallucinatedFilters() {
+        return """
+            {
+              "originalQuery": "find all brands",
+              "semanticQuery": "find all brands",
+              "primaryEntityType": "brand",
+              "candidateEntityTypes": ["brand"],
+              "relationshipPaths": [],
+              "directFilters": {
+                "brand": [
+                  {"field": "name", "operator": "LIKE", "value": "%Nike%"},
+                  {"field": "name", "operator": "LIKE", "value": "%Adidas%"}
+                ]
+              },
+              "relationshipFilters": {},
+              "needsSemanticSearch": false,
+              "confidence": 1.0
             }
             """;
     }
