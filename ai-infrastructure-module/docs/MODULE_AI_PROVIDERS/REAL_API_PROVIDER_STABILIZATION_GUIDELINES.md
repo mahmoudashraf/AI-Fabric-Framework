@@ -261,6 +261,22 @@ Do **not**:
 
 ---
 
+## Provider scorecards (non-gating performance indicator)
+
+### Why we track “correct rate” in addition to pass/fail
+Provider outputs are stochastic and drift over time. A single CI run is a noisy sample, so we track provider quality as a **rate over many runs**:
+- “How often was the plan/intents correct?” vs “did it fail once?”
+- This provides a stable signal for comparing providers and detecting regressions.
+
+### The two-lane rule (do not replace hard gates)
+- **Lane A (hard gates / CI)**: deterministic contract + safety invariants must not flap (JSON/shape, schema validity, normalization invariants, safe execution).
+- **Lane B (scorecards)**: rate-based metrics over repeated runs (constraint fidelity, schema validity rate, compound handling rate, etc.).
+
+### Where the detailed rubric + implementation plan lives
+- See: `PROVIDER_SCORECARDS_AND_EVALUATION.md`
+
+---
+
 ## Relationship-query module: stability + contract clarity
 
 ### Access policy semantics must be consistent

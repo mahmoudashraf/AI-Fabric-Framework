@@ -41,6 +41,13 @@ This index provides quick access to all documentation related to the modular pro
 - Retry/backoff + connectivity pre-checks
 - CI/workflow hygiene and safety invariants
 
+### 6. [Provider Scorecards & Evaluation Harness (Real API)](PROVIDER_SCORECARDS_AND_EVALUATION.md)
+**Rate-based provider quality tracking** - How we measure “correct vs incorrect” over time without flaky CI gates
+- Two-lane strategy: hard gates vs scorecards
+- Correctness rubrics (intent extraction + relationship planning)
+- Scenario catalog design + failure taxonomy
+- Runner/report/CI implementation design
+
 ### 6. [Developer Guide: Custom Providers](DEVELOPER_GUIDE_CUSTOM_PROVIDERS.md)
 **Create your own provider** - Step-by-step guide
 - Module structure
