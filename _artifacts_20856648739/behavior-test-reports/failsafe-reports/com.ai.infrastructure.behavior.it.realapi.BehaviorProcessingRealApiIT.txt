@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.ai.infrastructure.behavior.it.realapi.BehaviorProcessingRealApiIT
--------------------------------------------------------------------------------
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.977 s - in com.ai.infrastructure.behavior.it.realapi.BehaviorProcessingRealApiIT
