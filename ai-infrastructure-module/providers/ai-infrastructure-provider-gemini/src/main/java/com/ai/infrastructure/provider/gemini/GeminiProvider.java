@@ -24,9 +24,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Google Gemini Provider Implementation
@@ -181,7 +183,13 @@ public class GeminiProvider implements AIProvider {
             Map<String, Object> contentResponse = (Map<String, Object>) candidate.get("content");
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> partsResponse = (List<Map<String, Object>>) contentResponse.get("parts");
-            String generatedText = (String) partsResponse.get(0).get("text");
+            String generatedText = "";
+            if (partsResponse != null && !partsResponse.isEmpty()) {
+                generatedText = partsResponse.stream()
+                    .map(part -> part != null ? (String) part.get("text") : null)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining());
+            }
 
             if (log.isInfoEnabled()) {
                 log.info("=== GEMINI API RESPONSE ===");
