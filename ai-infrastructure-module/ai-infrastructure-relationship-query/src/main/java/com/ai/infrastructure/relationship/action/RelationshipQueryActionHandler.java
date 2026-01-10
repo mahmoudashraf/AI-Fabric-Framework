@@ -186,11 +186,40 @@ public class RelationshipQueryActionHandler implements ActionHandler {
     @Override
     public ActionResult handleError(Exception e, String userId) {
         log.error("Relationship query execution failed for user {}", userId, e);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put(DATA_KEY_ERROR_TYPE, e.getClass().getSimpleName());
+
+        // Best-effort: preserve the stable response contract by returning metadata (including a minimal plan)
+        // when the underlying exception carries structured context.
+        if (e instanceof com.ai.infrastructure.relationship.exception.RelationshipQueryException rqe) {
+            rqe.getContext().ifPresent(ctx -> {
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("executionStage", ctx.getExecutionStage());
+                metadata.put("timestamp", ctx.getTimestamp() != null ? ctx.getTimestamp().toString() : null);
+                metadata.put("fallbackUsed", ctx.isFallbackUsed());
+                metadata.put("errorAttributes", ctx.getAttributes());
+
+                // Minimal plan for callers/tests: primaryEntityType + candidates + strategy.
+                com.ai.infrastructure.relationship.dto.RelationshipQueryPlan plan = com.ai.infrastructure.relationship.dto.RelationshipQueryPlan.builder()
+                    .originalQuery(ctx.getOriginalQuery())
+                    .semanticQuery(ctx.getOriginalQuery())
+                    .primaryEntityType(ctx.getPrimaryEntityType())
+                    .candidateEntityTypes(ctx.getCandidateEntityTypes())
+                    .queryStrategy(com.ai.infrastructure.relationship.dto.QueryStrategy.RELATIONSHIP)
+                    .needsSemanticSearch(false)
+                    .confidenceScore(0.0)
+                    .build();
+                metadata.put("plan", plan);
+                data.put(DATA_KEY_METADATA, metadata);
+            });
+        }
+
         return ActionResult.builder()
             .success(false)
             .message("Relationship query failed: " + e.getMessage())
             .errorCode(ERROR_EXECUTION_FAILED)
-            .data(Map.of(DATA_KEY_ERROR_TYPE, e.getClass().getSimpleName()))
+            .data(data)
             .build();
     }
 

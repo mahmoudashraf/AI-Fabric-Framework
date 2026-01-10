@@ -535,6 +535,113 @@ public class RelationshipQueryPlanner {
             });
         }
 
+        // 3) Generic literal-value leakage guardrail:
+        // Remove string literal filter values that are NOT explicitly mentioned in the user's query.
+        // This is provider-agnostic and prevents common example leakage like "Nike" -> "Nike, Adidas".
+        sanitizeUnmentionedStringLiterals(plan, normalizedQuery);
+    }
+
+    private void sanitizeUnmentionedStringLiterals(RelationshipQueryPlan plan, String normalizedQuery) {
+        if (plan == null || !StringUtils.hasText(normalizedQuery)) {
+            return;
+        }
+
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().forEach((entity, filters) -> {
+                if (filters == null || filters.isEmpty()) {
+                    return;
+                }
+                filters.removeIf(filter -> shouldRemoveFilterForUnmentionedStringValue(filter, normalizedQuery));
+            });
+        }
+
+        if (plan.getRelationshipPaths() != null && !plan.getRelationshipPaths().isEmpty()) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path == null || path.getConditions() == null || path.getConditions().isEmpty()) {
+                    return;
+                }
+                path.getConditions().removeIf(condition -> shouldRemoveFilterForUnmentionedStringValue(condition, normalizedQuery));
+            });
+        }
+    }
+
+    private boolean shouldRemoveFilterForUnmentionedStringValue(com.ai.infrastructure.relationship.dto.FilterCondition condition,
+                                                                String normalizedQuery) {
+        if (condition == null || condition.getOperator() == null) {
+            return false;
+        }
+        Object value = condition.getValue();
+        if (value == null) {
+            return false;
+        }
+
+        // Skip cross-entity comparisons like "destination-account.ownerName"
+        if (value instanceof String s && s.contains(".")) {
+            return false;
+        }
+
+        return switch (condition.getOperator()) {
+            case EQUALS, NOT_EQUALS, LIKE, IN, ILIKE -> {
+                boolean changedOrEmpty = sanitizeConditionValueInPlace(condition, normalizedQuery);
+                yield changedOrEmpty;
+            }
+            default -> false;
+        };
+    }
+
+    /**
+     * Sanitizes condition.value for string literals:
+     * - For String values: remove filter if value not mentioned.
+     * - For List<String> values: drop unmentioned elements; remove filter if list becomes empty.
+     *
+     * @return true if the filter should be removed from the plan.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean sanitizeConditionValueInPlace(com.ai.infrastructure.relationship.dto.FilterCondition condition,
+                                                  String normalizedQuery) {
+        Object value = condition.getValue();
+        if (value instanceof String text) {
+            String normalizedValue = normalizeLiteralForQueryMatch(text);
+            if (!StringUtils.hasText(normalizedValue)) {
+                return false;
+            }
+            return !normalizedQuery.contains(normalizedValue);
+        }
+
+        if (value instanceof List<?> list) {
+            List<Object> mutable = new ArrayList<>(list);
+            mutable.removeIf(item -> {
+                if (!(item instanceof String s)) {
+                    return false;
+                }
+                String normalizedValue = normalizeLiteralForQueryMatch(s);
+                if (!StringUtils.hasText(normalizedValue)) {
+                    return false;
+                }
+                return !normalizedQuery.contains(normalizedValue);
+            });
+
+            if (mutable.isEmpty()) {
+                return true;
+            }
+            condition.setValue(mutable);
+            return false;
+        }
+
+        return false;
+    }
+
+    private String normalizeLiteralForQueryMatch(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        // remove common quoting / wildcard wrappers
+        value = value.replace("\"", "").replace("'", "");
+        value = value.replace("%", "").replace("*", "").trim();
+        // collapse whitespace
+        value = value.replaceAll("\\s+", " ").trim();
+        return value;
     }
 
     private boolean mentionsTimeConstraint(String normalizedQuery) {
