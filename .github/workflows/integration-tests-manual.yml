@@ -784,6 +784,97 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "_Raw scorecard artifacts are uploaded under relationship-query-test-reports._" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Publish Relationship Query RealAPI Test Evidence
+        if: always()
+        run: |
+          set -e
+          REPORT_DIR="ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Relationship Query RealAPI Tests (Evidence)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          
+          if [ ! -d "$REPORT_DIR" ]; then
+            echo "_No failsafe-reports directory found._" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          
+          python3 << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+          
+          report_dir = os.environ.get("REPORT_DIR", "ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports")
+          # Prefer TEST-*.xml JUnit reports; skip failsafe-summary.xml and other non-test XML.
+          files = sorted(glob.glob(os.path.join(report_dir, "TEST-*.xml")))
+          
+          if not files:
+              print("_No JUnit XML test reports found (expected TEST-*.xml)._")
+              raise SystemExit(0)
+          
+          total_tests = total_failures = total_errors = total_skipped = 0
+          failing_cases = []
+          
+          for path in files:
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception:
+                  continue
+          
+              # JUnit XML may have testsuite as root or testsuites wrapper.
+              suites = []
+              if root.tag == "testsuite":
+                  suites = [root]
+              elif root.tag == "testsuites":
+                  suites = list(root.findall("testsuite"))
+          
+              for suite in suites:
+                  def as_int(name):
+                      try:
+                          return int(float(suite.attrib.get(name, "0")))
+                      except Exception:
+                          return 0
+          
+                  total_tests += as_int("tests")
+                  total_failures += as_int("failures")
+                  total_errors += as_int("errors")
+                  total_skipped += as_int("skipped")
+          
+                  for tc in suite.findall("testcase"):
+                      classname = tc.attrib.get("classname", "")
+                      name = tc.attrib.get("name", "")
+                      failure = tc.find("failure")
+                      error = tc.find("error")
+                      if failure is not None:
+                          msg = (failure.attrib.get("message") or "").strip()
+                          failing_cases.append((f"{classname}.{name}".strip("."), "FAILURE", msg))
+                      elif error is not None:
+                          msg = (error.attrib.get("message") or "").strip()
+                          failing_cases.append((f"{classname}.{name}".strip("."), "ERROR", msg))
+          
+          print("| Metric | Value |")
+          print("|---|---:|")
+          print(f"| Tests | {total_tests} |")
+          print(f"| Failures | {total_failures} |")
+          print(f"| Errors | {total_errors} |")
+          print(f"| Skipped | {total_skipped} |")
+          print("")
+          
+          if failing_cases:
+              print("### Failing tests")
+              # Cap to avoid huge summaries.
+              for case, kind, msg in failing_cases[:25]:
+                  if msg:
+                      print(f"- **{kind}**: `{case}` — {msg}")
+                  else:
+                      print(f"- **{kind}**: `{case}`")
+              if len(failing_cases) > 25:
+                  print(f"- _…and {len(failing_cases) - 25} more_")
+          else:
+              print("✅ No failing testcases found in JUnit reports.")
+          PY
+        env:
+          REPORT_DIR: ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
