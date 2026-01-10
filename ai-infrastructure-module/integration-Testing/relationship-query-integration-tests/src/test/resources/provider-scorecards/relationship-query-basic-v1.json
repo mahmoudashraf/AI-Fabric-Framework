@@ -40,6 +40,19 @@
       }
     },
     {
+      "id": "rq_plan_mirror_counterparty_owner_match",
+      "target": "RELATIONSHIP_QUERY_API",
+      "category": "relationship_plan",
+      "userQuery": "Find high-risk wire transfers above $30k where the destination account owner matches the source account owner",
+      "entityTypes": ["transaction"],
+      "expected": {
+        "mustHaveNumericConstraints": [
+          { "field": "amount", "op": ">", "value": 30000 }
+        ],
+        "mustHaveCrossEntityComparison": true
+      }
+    },
+    {
       "id": "orch_compound_relational_only",
       "target": "ORCHESTRATOR",
       "category": "compound_handling",

@@ -280,6 +280,12 @@ class ProviderScorecardRealApiIntegrationTest {
             }
         }
 
+        if (Boolean.TRUE.equals(expected.mustHaveCrossEntityComparison)) {
+            if (!hasCrossEntityComparison(plan)) {
+                failures.add(FailureCategory.UNDER_CONSTRAINT_RANGE.name());
+            }
+        }
+
         if (expected.relationalQueryMustContain != null) {
             String original = plan.getOriginalQuery() != null ? plan.getOriginalQuery() : "";
             String normalized = original.toLowerCase(Locale.ROOT);
@@ -302,6 +308,36 @@ class ProviderScorecardRealApiIntegrationTest {
         }
 
         return failures.isEmpty() ? JudgeResult.ok() : new JudgeResult(false, failures);
+    }
+
+    private boolean hasCrossEntityComparison(RelationshipQueryPlan plan) {
+        if (plan == null) {
+            return false;
+        }
+        List<FilterCondition> all = new ArrayList<>();
+        if (plan.getDirectFilters() != null) {
+            plan.getDirectFilters().values().forEach(list -> {
+                if (list != null) {
+                    all.addAll(list);
+                }
+            });
+        }
+        if (plan.getRelationshipPaths() != null) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path != null && path.getConditions() != null) {
+                    all.addAll(path.getConditions());
+                }
+            });
+        }
+        for (FilterCondition cond : all) {
+            if (cond == null) {
+                continue;
+            }
+            if (cond.getValue() instanceof String s && s.contains(".")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean matchesNumericConstraint(RelationshipQueryPlan plan, NumericConstraint c) {
@@ -339,6 +375,10 @@ class ProviderScorecardRealApiIntegrationTest {
 
             if ("<".equals(op)) {
                 if (cond.getOperator() == FilterOperator.LESS_THAN || cond.getOperator() == FilterOperator.LESS_THAN_OR_EQUAL) {
+                    return Objects.equals(asInt(cond.getValue()), c.value);
+                }
+            } else if (">".equals(op)) {
+                if (cond.getOperator() == FilterOperator.GREATER_THAN || cond.getOperator() == FilterOperator.GREATER_THAN_OR_EQUAL) {
                     return Objects.equals(asInt(cond.getValue()), c.value);
                 }
             } else if ("between".equals(op)) {
@@ -601,6 +641,7 @@ class ProviderScorecardRealApiIntegrationTest {
         private List<String> mustIncludeLiterals;
         private List<String> mustNotIncludeLiterals;
         private List<NumericConstraint> mustHaveNumericConstraints;
+        private Boolean mustHaveCrossEntityComparison;
         private List<String> relationalQueryMustContain;
         private List<String> relationalQueryMustNotContain;
     }

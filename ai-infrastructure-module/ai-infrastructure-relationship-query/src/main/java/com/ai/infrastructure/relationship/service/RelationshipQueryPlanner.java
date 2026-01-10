@@ -258,9 +258,210 @@ public class RelationshipQueryPlanner {
         RelationshipQueryPlan plan = parsePlan(response.getContent());
         applyDefaults(plan, fallback);
         sanitizeHallucinatedFilters(plan, query);
+        normalizeCrossEntityValueReferences(plan);
+        validateCrossEntityReferences(plan);
         validateFilterFields(plan);
         validator.validate(plan);
         return plan;
+    }
+
+    /**
+     * Provider-agnostic normalization for cross-entity comparisons.
+     *
+     * <p>The planner prompt asks models to express cross-entity comparisons using
+     * "<entity-slug>.<field>" (e.g., "destination-account.ownerName"). Some providers instead emit
+     * the relationship field name (e.g., "destinationAccount.ownerName"). We normalize those cases
+     * to the entity slug when the mapping is available from relationshipPaths.</p>
+     *
+     * <p>This improves stability without introducing provider-specific behavior.</p>
+     */
+    private void normalizeCrossEntityValueReferences(RelationshipQueryPlan plan) {
+        if (plan == null || CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
+            return;
+        }
+
+        Map<String, String> relationshipFieldToEntityType = new java.util.LinkedHashMap<>();
+        plan.getRelationshipPaths().forEach(path -> {
+            if (path == null) {
+                return;
+            }
+            if (StringUtils.hasText(path.getRelationshipType()) && StringUtils.hasText(path.getToEntityType())) {
+                relationshipFieldToEntityType.put(path.getRelationshipType().trim(), path.getToEntityType().trim());
+            }
+        });
+        if (relationshipFieldToEntityType.isEmpty()) {
+            return;
+        }
+
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().values().forEach(filters ->
+                normalizeCrossEntityValueReferences(filters, relationshipFieldToEntityType));
+        }
+        if (plan.getRelationshipFilters() != null && !plan.getRelationshipFilters().isEmpty()) {
+            plan.getRelationshipFilters().values().forEach(filters ->
+                normalizeCrossEntityValueReferences(filters, relationshipFieldToEntityType));
+        }
+        if (!CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path != null) {
+                    normalizeCrossEntityValueReferences(path.getConditions(), relationshipFieldToEntityType);
+                }
+            });
+        }
+    }
+
+    private void normalizeCrossEntityValueReferences(List<com.ai.infrastructure.relationship.dto.FilterCondition> filters,
+                                                     Map<String, String> relationshipFieldToEntityType) {
+        if (CollectionUtils.isEmpty(filters) || relationshipFieldToEntityType == null || relationshipFieldToEntityType.isEmpty()) {
+            return;
+        }
+        for (var filter : filters) {
+            if (filter == null) {
+                continue;
+            }
+            filter.setValue(normalizeReferenceValue(filter.getValue(), relationshipFieldToEntityType));
+            filter.setSecondaryValue(normalizeReferenceValue(filter.getSecondaryValue(), relationshipFieldToEntityType));
+        }
+    }
+
+    private Object normalizeReferenceValue(Object raw, Map<String, String> relationshipFieldToEntityType) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof List<?> list) {
+            List<Object> normalized = new ArrayList<>(list.size());
+            for (Object item : list) {
+                normalized.add(normalizeReferenceValue(item, relationshipFieldToEntityType));
+            }
+            return normalized;
+        }
+        if (!(raw instanceof String text)) {
+            return raw;
+        }
+        String trimmed = text.trim();
+        if (!trimmed.contains(".")) {
+            return raw;
+        }
+        String[] parts = trimmed.split("\\.", 2);
+        if (parts.length != 2) {
+            return raw;
+        }
+
+        String head = parts[0].trim();
+        String tail = parts[1].trim();
+        if (!StringUtils.hasText(head) || !StringUtils.hasText(tail)) {
+            return raw;
+        }
+
+        // If it is already a known entity type, leave it untouched.
+        if (schemaProvider.getEntitySchema(head).isPresent()) {
+            return raw;
+        }
+
+        // If it's a relationship field name, rewrite to the target entity type slug.
+        String mapped = relationshipFieldToEntityType.get(head);
+        if (StringUtils.hasText(mapped)) {
+            return mapped + "." + tail;
+        }
+
+        return raw;
+    }
+
+    /**
+     * Validate that any cross-entity reference "<entity-type>.<field>" points to an entity type that is actually
+     * present in the plan (primary/candidates/relationshipPaths). If not, fail planning deterministically so the
+     * retry loop can ask the model to include the required relationship path(s).
+     */
+    private void validateCrossEntityReferences(RelationshipQueryPlan plan) {
+        if (plan == null) {
+            return;
+        }
+
+        List<String> errors = new ArrayList<>();
+        Set<String> presentEntityTypes = new HashSet<>();
+        if (StringUtils.hasText(plan.getPrimaryEntityType())) {
+            presentEntityTypes.add(plan.getPrimaryEntityType().trim());
+        }
+        if (!CollectionUtils.isEmpty(plan.getCandidateEntityTypes())) {
+            presentEntityTypes.addAll(plan.getCandidateEntityTypes().stream().filter(StringUtils::hasText).map(String::trim).toList());
+        }
+        if (!CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path == null) {
+                    return;
+                }
+                if (StringUtils.hasText(path.getFromEntityType())) {
+                    presentEntityTypes.add(path.getFromEntityType().trim());
+                }
+                if (StringUtils.hasText(path.getToEntityType())) {
+                    presentEntityTypes.add(path.getToEntityType().trim());
+                }
+            });
+        }
+
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().values().forEach(filters -> collectCrossEntityReferenceErrors(filters, presentEntityTypes, errors));
+        }
+        if (plan.getRelationshipFilters() != null && !plan.getRelationshipFilters().isEmpty()) {
+            plan.getRelationshipFilters().values().forEach(filters -> collectCrossEntityReferenceErrors(filters, presentEntityTypes, errors));
+        }
+        if (!CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path != null) {
+                    collectCrossEntityReferenceErrors(path.getConditions(), presentEntityTypes, errors);
+                }
+            });
+        }
+
+        if (!errors.isEmpty()) {
+            throw new RelationshipQueryValidationException("Planner emitted invalid cross-entity reference(s): " + String.join("; ", errors));
+        }
+    }
+
+    private void collectCrossEntityReferenceErrors(List<com.ai.infrastructure.relationship.dto.FilterCondition> filters,
+                                                   Set<String> presentEntityTypes,
+                                                   List<String> errors) {
+        if (CollectionUtils.isEmpty(filters)) {
+            return;
+        }
+        for (var filter : filters) {
+            if (filter == null) {
+                continue;
+            }
+            collectCrossEntityReferenceErrors(filter.getValue(), presentEntityTypes, errors);
+            collectCrossEntityReferenceErrors(filter.getSecondaryValue(), presentEntityTypes, errors);
+        }
+    }
+
+    private void collectCrossEntityReferenceErrors(Object raw, Set<String> presentEntityTypes, List<String> errors) {
+        if (raw == null) {
+            return;
+        }
+        if (raw instanceof List<?> list) {
+            list.forEach(item -> collectCrossEntityReferenceErrors(item, presentEntityTypes, errors));
+            return;
+        }
+        if (!(raw instanceof String text)) {
+            return;
+        }
+        String trimmed = text.trim();
+        if (!trimmed.contains(".")) {
+            return;
+        }
+        String[] parts = trimmed.split("\\.", 2);
+        if (parts.length != 2) {
+            return;
+        }
+        String head = parts[0].trim();
+        if (!StringUtils.hasText(head)) {
+            return;
+        }
+        if (schemaProvider.getEntitySchema(head).isEmpty()) {
+            return; // not an entity type reference
+        }
+        if (presentEntityTypes == null || !presentEntityTypes.contains(head)) {
+            errors.add("referencedEntityType='%s' value='%s'".formatted(head, trimmed));
+        }
     }
 
     /**
