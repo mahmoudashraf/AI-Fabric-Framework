@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -31,13 +32,16 @@ public class IntentQueryExtractor {
 
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
+    private final ActionHandlerRegistry actionHandlerRegistry;
     private final ObjectMapper objectMapper;
 
     public IntentQueryExtractor(AICoreService aiCoreService,
                                 EnrichedPromptBuilder enrichedPromptBuilder,
+                                ActionHandlerRegistry actionHandlerRegistry,
                                 ObjectMapper objectMapper) {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;
+        this.actionHandlerRegistry = actionHandlerRegistry;
         this.objectMapper = objectMapper.copy()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
@@ -82,11 +86,55 @@ public class IntentQueryExtractor {
         }
 
         response.normalize();
+        coerceMisclassifiedActionIntents(response);
         validateResponse(response);
         if (!response.hasIntents()) {
             log.warn("Intent extractor returned no intents for query '{}'", query);
         }
         return response;
+    }
+
+    /**
+     * Provider-agnostic guardrail: some models mislabel "summarize / explain" requests as ACTION intents
+     * with an unregistered action name (e.g., "summarize"). When the intent also clearly requests RAG
+     * (requiresRetrieval + requiresGeneration + vectorSpace), treat it as INFORMATION instead so the
+     * pipeline can satisfy it via retrieval/generation rather than failing with ACTION_NOT_FOUND.
+     */
+    private void coerceMisclassifiedActionIntents(MultiIntentResponse response) {
+        if (response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
+            return;
+        }
+
+        for (Intent intent : response.getIntents()) {
+            if (intent == null || intent.getType() != IntentType.ACTION) {
+                continue;
+            }
+
+            String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
+            if (!StringUtils.hasText(actionName)) {
+                continue;
+            }
+
+            // If we already have a handler, keep it actionable.
+            if (actionHandlerRegistry != null && actionHandlerRegistry.findHandler(actionName).isPresent()) {
+                continue;
+            }
+
+            boolean looksLikeRagRequest =
+                Boolean.TRUE.equals(intent.getRequiresRetrieval())
+                    && Boolean.TRUE.equals(intent.getRequiresGeneration())
+                    && StringUtils.hasText(intent.getVectorSpace());
+
+            if (looksLikeRagRequest) {
+                log.warn(
+                    "Intent extractor misclassified a RAG request as ACTION (action='{}', vectorSpace='{}'). Treating as INFORMATION.",
+                    actionName,
+                    intent.getVectorSpace()
+                );
+                intent.setType(IntentType.INFORMATION);
+                intent.setAction(null);
+            }
+        }
     }
 
     private MultiIntentResponse parseResponse(String rawJson) {
