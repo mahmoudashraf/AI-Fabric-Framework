@@ -21,6 +21,7 @@ public class OrchestrationResultNormalizer {
     // Canonical error codes (kept as strings to avoid leaking new public enums)
     public static final String ERROR_CODE_ACTION_NOT_FOUND = "ACTION_NOT_FOUND";
     public static final String ERROR_CODE_CHILD_ERROR = "CHILD_ERROR";
+    public static final String ERROR_CODE_GENERATION_FAILED = "GENERATION_FAILED";
 
     /**
      * Normalize the given result. If no normalization is applicable, returns the original result.
@@ -47,8 +48,11 @@ public class OrchestrationResultNormalizer {
                     }
 
                     // Soft child error: do not sink the compound when primary succeeded.
-                    if (ERROR_CODE_ACTION_NOT_FOUND.equals(errorCode)) {
-                        Map<String, Object> metadata = withSoftChildErrorMetadata(raw.getMetadata(), errorCode);
+                    if (ERROR_CODE_ACTION_NOT_FOUND.equals(errorCode) || isGenerationFailure(childError)) {
+                        String softCode = ERROR_CODE_ACTION_NOT_FOUND.equals(errorCode)
+                            ? errorCode
+                            : ERROR_CODE_GENERATION_FAILED;
+                        Map<String, Object> metadata = withSoftChildErrorMetadata(raw.getMetadata(), softCode);
                         return promoteCompoundPrimary(raw, primary, metadata);
                     }
 
@@ -219,6 +223,15 @@ public class OrchestrationResultNormalizer {
         Map<String, Object> merged = new LinkedHashMap<>(existing != null ? existing : Map.of());
         merged.put("softChildErrorCode", errorCode);
         return Map.copyOf(merged);
+    }
+
+    private boolean isGenerationFailure(OrchestrationResult childError) {
+        if (childError == null || childError.getType() != OrchestrationResultType.ERROR) {
+            return false;
+        }
+        // Signal emitted by IntentHandlingStep.handleInformationBasic() when LLM generation fails.
+        Map<String, Object> data = childError.getData();
+        return data != null && data.containsKey("generationError");
     }
 }
 

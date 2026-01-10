@@ -263,7 +263,22 @@ public class IntentQueryExtractor {
         if (intent.getType() != IntentType.ACTION) {
             return;
         }
-        if (!"relationship_query".equalsIgnoreCase(intent.getAction())) {
+
+        // Provider-agnostic: some models emit action="relationship query" / "relationship-query" etc.
+        // Treat anything that resolves to the registered relationship_query action as relationship_query
+        // for deterministic parameter normalization (especially actionParams.query).
+        String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
+        String canonicalActionName = actionName;
+        if (actionHandlerRegistry != null && StringUtils.hasText(actionName)) {
+            // Be defensive: mocks can return null instead of Optional.empty().
+            var metadataOpt = actionHandlerRegistry.findMetadata(actionName);
+            if (metadataOpt != null) {
+                canonicalActionName = metadataOpt
+                    .map(com.ai.infrastructure.intent.action.AIActionMetaData::getName)
+                    .orElse(actionName);
+            }
+        }
+        if (!"relationship_query".equalsIgnoreCase(canonicalActionName)) {
             return;
         }
 
@@ -322,10 +337,56 @@ public class IntentQueryExtractor {
         String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
         for (String prefix : prefixes) {
             if (lower.startsWith(prefix)) {
-                return trimmed.substring(prefix.length()).trim();
+                String withoutPrefix = trimmed.substring(prefix.length()).trim();
+                return stripTrailingNonRelationalDirective(withoutPrefix);
             }
         }
-        return trimmed;
+        return stripTrailingNonRelationalDirective(trimmed);
+    }
+
+    /**
+     * Provider-agnostic normalization: when a user explicitly uses the "relationship query:" hint,
+     * they often append a non-relational follow-up request (e.g., "and then summarize/explain").
+     * The relationship_query action handler expects only the relational query text.
+     *
+     * <p>This is intentionally conservative: it only strips when a clear non-relational directive
+     * follows a "then/and then" boundary.</p>
+     */
+    private String stripTrailingNonRelationalDirective(String text) {
+        if (!StringUtils.hasText(text)) {
+            return text;
+        }
+        String trimmed = text.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+
+        int idx = lower.indexOf(" and then ");
+        int boundaryLen = " and then ".length();
+        if (idx < 0) {
+            idx = lower.indexOf(" then ");
+            boundaryLen = " then ".length();
+        }
+        if (idx < 0) {
+            return trimmed;
+        }
+
+        String after = lower.substring(idx + boundaryLen);
+        boolean looksNonRelational =
+            after.contains("summariz")
+                || after.contains("explain")
+                || after.contains(" why ")
+                || after.startsWith("why ")
+                || after.contains("describe")
+                || after.contains("analyz")
+                || after.contains("recommend")
+                || after.contains("write ")
+                || after.contains("generate ")
+                || after.contains("tell me");
+
+        if (!looksNonRelational) {
+            return trimmed;
+        }
+
+        return trimmed.substring(0, idx).trim();
     }
 
     @Deprecated(forRemoval = true)

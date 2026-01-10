@@ -68,6 +68,37 @@ class OrchestrationResultNormalizerTest {
     }
 
     @Test
+    void normalize_compoundWithPrimarySuccessAndGenerationFailure_promotesPrimaryType() {
+        OrchestrationResult action = OrchestrationResult.builder()
+            .type(OrchestrationResultType.ACTION_EXECUTED)
+            .success(true)
+            .message("Action succeeded")
+            .data(Map.of("action", "relationship_query"))
+            .build();
+
+        OrchestrationResult generationError = OrchestrationResult.builder()
+            .type(OrchestrationResultType.ERROR)
+            .success(false)
+            .message("Failed to generate response: provider unavailable")
+            .data(Map.of("generationError", "provider unavailable", "requiresGeneration", true))
+            .build();
+
+        OrchestrationResult raw = OrchestrationResult.builder()
+            .type(OrchestrationResultType.COMPOUND_HANDLED)
+            .success(false)
+            .message("Some intents failed. See results for details.")
+            .children(List.of(action, generationError))
+            .metadata(Map.of("sessionId", "s1"))
+            .build();
+
+        OrchestrationResult normalized = normalizer.normalize(raw);
+        assertThat(normalized.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(normalized.isSuccess()).isTrue();
+        assertThat(normalized.getData()).containsEntry("action", "relationship_query");
+        assertThat(normalized.getMetadata()).containsEntry("softChildErrorCode", OrchestrationResultNormalizer.ERROR_CODE_GENERATION_FAILED);
+    }
+
+    @Test
     void normalize_compoundWithoutErrors_promotesPrimaryChildType() {
         OrchestrationResult info = OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
