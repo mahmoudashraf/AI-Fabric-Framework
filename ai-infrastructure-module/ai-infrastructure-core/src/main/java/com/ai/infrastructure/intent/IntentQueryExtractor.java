@@ -270,14 +270,19 @@ public class IntentQueryExtractor {
         Map<String, Object> params = intent.getActionParams();
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
-        // Some providers omit the required 'query' parameter. This parameter is deterministically known:
-        // it should be the user's relationship query (without the leading "relationship query:" hint if present).
+        // The relationship_query action handler requires actionParams.query.
+        // Some providers omit it, and some include the hint prefix inside it. We normalize deterministically:
+        // - If present: strip known hint prefixes and trim.
+        // - If missing/blank: derive from the original user query (also stripping hint prefixes).
         Object rawQuery = mutable.get("query");
-        if (!(rawQuery instanceof String text) || !StringUtils.hasText(text)) {
-            String fallbackQuery = normalizeRelationshipQueryText(originalQuery);
-            if (StringUtils.hasText(fallbackQuery)) {
-                mutable.put("query", fallbackQuery);
-            }
+        String normalizedQuery = null;
+        if (rawQuery instanceof String text && StringUtils.hasText(text)) {
+            normalizedQuery = normalizeRelationshipQueryText(text);
+        } else {
+            normalizedQuery = normalizeRelationshipQueryText(originalQuery);
+        }
+        if (StringUtils.hasText(normalizedQuery)) {
+            mutable.put("query", normalizedQuery);
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");

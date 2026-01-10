@@ -241,6 +241,41 @@ class IntentQueryExtractorRelationshipValidationTest {
     }
 
     @Test
+    @DisplayName("Should strip relationship_query hint prefix even when LLM provides query")
+    void shouldStripHintPrefixWhenProvidedByLLM() {
+        // Arrange
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "ACTION",
+                  "intent": "relationship_query",
+                  "action": "relationship_query",
+                  "actionParams": {
+                    "query": "relationship query: find all brands",
+                    "entityTypes": ["brand"],
+                    "limit": 20
+                  }
+                }
+              ]
+            }
+            """;
+
+        when(aiCoreService.generateContent(any()))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        // Act
+        MultiIntentResponse response = extractor.extract(
+            "relationship query: find all brands",
+            OrchestrationContext.forUser("user-123")
+        );
+
+        // Assert
+        Intent intent = response.getIntents().get(0);
+        assertThat(intent.getActionParams()).containsEntry("query", "find all brands");
+    }
+
+    @Test
     @DisplayName("Should not validate non-relationship-query actions")
     void shouldNotValidateNonRelationshipQueryActions() {
         // Arrange

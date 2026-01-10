@@ -51,8 +51,10 @@ class EnrichedPromptBuilderEntityTypesTest {
             .contains("Only use entity types from this list");
         
         assertThat(prompt)
-            .as("Prompt should include example with entityTypes")
-            .contains("\"entityTypes\":[\"customer\",\"order\"]");
+            .as("Prompt should include an example with relationship_query + entityTypes + query")
+            .contains("\"action\":\"relationship_query\"")
+            .contains("\"entityTypes\"")
+            .contains("\"query\"");
     }
 
     @Test
@@ -92,7 +94,7 @@ class EnrichedPromptBuilderEntityTypesTest {
         // Assert
         assertThat(prompt)
             .as("Should instruct to extract entityTypes")
-            .contains("extract entityTypes from the user request");
+            .containsIgnoringCase("extract entityTypes from the user request");
         
         assertThat(prompt)
             .as("Should specify array of lower-case strings")
@@ -101,6 +103,14 @@ class EnrichedPromptBuilderEntityTypesTest {
         assertThat(prompt)
             .as("Should provide example")
             .contains("\"entityTypes\":");
+
+        assertThat(prompt)
+            .as("Should require relationship_query actionParams.query")
+            .contains("actionParams.query is REQUIRED");
+
+        assertThat(prompt)
+            .as("Should instruct to strip the 'relationship query:' hint prefix into actionParams.query")
+            .contains("starts with the hint prefix \"relationship query:\"");
     }
 
     private SystemContextBuilder createContextBuilderWithEntityTypes(Set<String> entityTypes) {
