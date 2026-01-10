@@ -741,11 +741,12 @@ jobs:
             exit 0
           fi
           
-          python3 << 'PY'
+          SUMMARY_JSON="$SUMMARY_JSON" python3 << 'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
+          import os
           from pathlib import Path
           
-          p = Path(r"""'"$SUMMARY_JSON"'""")
+          p = Path(os.environ["SUMMARY_JSON"])
           data = json.loads(p.read_text())
           
           provider = data.get("provider", "unknown")
@@ -759,27 +760,21 @@ jobs:
           p50 = data.get("latencyP50Ms", 0)
           p95 = data.get("latencyP95Ms", 0)
           
-          # Write to GitHub Step Summary.
-          summary_path = Path(Path.cwd() / Path(".github_step_summary_tmp.md"))
-          out = []
-          out.append(f"- **Provider**: `{provider}`")
-          out.append(f"- **Scenario set**: `{scenario_set}`")
-          out.append(f"- **Run ID**: `{run_id}`")
-          out.append("")
-          out.append("| Metric | Value |")
-          out.append("|---|---:|")
-          out.append(f"| Attempts | {attempts} |")
-          out.append(f"| Correct | {correct} |")
-          out.append(f"| Correct rate | {correct_rate:.2%} |")
-          out.append(f"| Unexpected 0 results | {unexpected_zero} |")
-          out.append(f"| Error attempts | {error_attempts} |")
-          out.append(f"| Latency p50 (ms) | {p50} |")
-          out.append(f"| Latency p95 (ms) | {p95} |")
-          out.append("")
-          
-          summary_path.write_text("\n".join(out))
-          print(summary_path.read_text())
-          PY >> "$GITHUB_STEP_SUMMARY"
+          print(f"- **Provider**: `{provider}`")
+          print(f"- **Scenario set**: `{scenario_set}`")
+          print(f"- **Run ID**: `{run_id}`")
+          print("")
+          print("| Metric | Value |")
+          print("|---|---:|")
+          print(f"| Attempts | {attempts} |")
+          print(f"| Correct | {correct} |")
+          print(f"| Correct rate | {correct_rate:.2%} |")
+          print(f"| Unexpected 0 results | {unexpected_zero} |")
+          print(f"| Error attempts | {error_attempts} |")
+          print(f"| Latency p50 (ms) | {p50} |")
+          print(f"| Latency p95 (ms) | {p95} |")
+          print("")
+          PY
           
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "_Raw scorecard artifacts are uploaded under relationship-query-test-reports._" >> "$GITHUB_STEP_SUMMARY"
