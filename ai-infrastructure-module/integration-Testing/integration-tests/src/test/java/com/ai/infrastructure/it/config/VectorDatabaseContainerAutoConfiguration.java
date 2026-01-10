@@ -25,12 +25,33 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code ai.vector-db.type} property and injects connection properties
  * into the Spring environment.</p>
  *
- * <p><strong>Usage:</strong></p>
+ * <p><strong>Activation:</strong> This configuration only activates when:
+ * <ul>
+ *   <li>{@code testcontainers.enabled=true} (set automatically by {@link TestcontainersInitializer}
+ *       when testcontainers profile is active AND a container type is specified)</li>
+ *   <li>{@code ai.vector-db.type} is set to a container-supported type</li>
+ * </ul>
+ * </p>
+ *
+ * <p><strong>Default Behavior:</strong> Unit tests default to Lucene (fast, no containers).
+ * Testcontainers only activates when explicitly requested via Maven parameters.</p>
+ *
+ * <p><strong>Usage Examples:</strong></p>
  * <pre>
- * mvn verify -Dai.vector-db.type=milvus -Dspring.profiles.active=testcontainers
+ * // Unit tests - uses Lucene by default (fast, no containers)
+ * mvn test
+ *
+ * // Use Testcontainers with Milvus
+ * mvn test -Dspring.profiles.active=testcontainers -Dai.vector-db.type=milvus
+ *
+ * // Use Testcontainers with Qdrant
+ * mvn test -Dspring.profiles.active=testcontainers -Dai.vector-db.type=qdrant
+ *
+ * // Use Lucene explicitly (no containers, even with testcontainers profile)
+ * mvn test -Dspring.profiles.active=testcontainers -Dai.vector-db.type=lucene
  * </pre>
  *
- * <p><strong>Supported Providers:</strong> milvus, qdrant, weaviate, chroma, pgvector</p>
+ * <p><strong>Supported Container Types:</strong> milvus, qdrant, weaviate, chroma, pgvector</p>
  *
  * <p><strong>Thread Safety:</strong> This configuration is thread-safe and supports
  * parallel test execution. Each provider type maintains its own container instance.</p>
@@ -39,7 +60,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * the test context initializes and stopped when the context is destroyed.</p>
  *
  * @author AI Infrastructure Team
- * @version 1.0.0
+ * @version 1.1.0
+ * @see TestcontainersInitializer
  */
 @TestConfiguration
 @ConditionalOnProperty(name = "testcontainers.enabled", havingValue = "true", matchIfMissing = false)

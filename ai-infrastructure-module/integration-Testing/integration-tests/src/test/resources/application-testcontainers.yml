@@ -8,11 +8,17 @@
 testcontainers:
   enabled: true
 
-# Vector database type must be specified via system property
-# Example: -Dai.vector-db.type=milvus
+# Vector database type - defaults to lucene if not specified
+# To use Testcontainers, specify a container type: -Dai.vector-db.type=milvus
+# Supported container types: milvus, qdrant, weaviate, chroma, pgvector
+# If not specified or set to lucene/memory, Testcontainers will not activate
 ai:
   vector-db:
-    type: ${VECTOR_DB_TYPE:memory}
+    type: ${VECTOR_DB_TYPE:lucene}
+    lucene:
+      index-path: ./data/test-lucene-index
+      similarity-threshold: 0.7
+      max-results: 100
 
     # Timeouts adjusted for container startup
     milvus:

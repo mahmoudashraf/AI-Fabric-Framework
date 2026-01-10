@@ -93,11 +93,15 @@ ai:
       timeout: 60
       priority: 100
     
-  # Vector Database Configuration - Memory for fast tests
+  # Vector Database Configuration - Lucene for fast unit tests (default)
+  # Override with -Dai.vector-db.type=<type> to use other implementations
+  # Use -Dspring.profiles.active=testcontainers with container types (milvus, qdrant, etc.) for Testcontainers
   vector-db:
-    type: memory
+    type: ${VECTOR_DB_TYPE:lucene}
     lucene:
       index-path: ./data/test-lucene-index
+      similarity-threshold: 0.7
+      max-results: 100
 
   response-sanitization:
     enabled: true
