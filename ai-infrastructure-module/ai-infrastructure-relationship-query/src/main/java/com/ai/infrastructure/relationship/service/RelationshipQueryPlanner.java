@@ -58,7 +58,7 @@ public class RelationshipQueryPlanner {
         }
         """,
         """
-        Example plan for query "Show me blue shoes under $100 from <BRAND_NAME>":
+        Example plan for query "Show me blue shoes under $100 from Nike":
         {
           "primaryEntityType": "product",
           "candidateEntityTypes": ["product", "brand"],
@@ -70,13 +70,13 @@ public class RelationshipQueryPlanner {
               "direction": "FORWARD",
               "optional": false,
               "conditions": [
-                {"field": "name", "operator": "EQUALS", "value": "<BRAND_NAME_FROM_USER_QUERY>", "entityType": "brand"}
+                {"field": "name", "operator": "EQUALS", "value": "Nike", "entityType": "brand"}
               ]
             }
           ],
           "directFilters": {
             "product": [
-              {"field": "color", "operator": "LIKE", "value": "%<COLOR_FROM_USER_QUERY>%", "entityType": "product"},
+              {"field": "color", "operator": "LIKE", "value": "%blue%", "entityType": "product"},
               {"field": "price", "operator": "LESS_THAN", "value": 100, "entityType": "product"}
             ]
           },
@@ -146,7 +146,7 @@ public class RelationshipQueryPlanner {
         }
         """,
         """
-        Example plan for query "Show active runner shoes from <BRAND_A> or <BRAND_B> priced between $80 and $120 available in red or blue":
+        Example plan for query "Show active Nike or Adidas running shoes priced between $80 and $120 available in red or blue":
         {
           "primaryEntityType": "product",
           "candidateEntityTypes": ["product", "brand"],
@@ -158,7 +158,7 @@ public class RelationshipQueryPlanner {
               "direction": "FORWARD",
               "optional": false,
               "conditions": [
-                {"field": "name", "operator": "IN", "value": ["<BRAND_A_FROM_USER_QUERY>", "<BRAND_B_FROM_USER_QUERY>"], "entityType": "brand"}
+                {"field": "name", "operator": "IN", "value": ["Nike", "Adidas"], "entityType": "brand"}
               ]
             }
           ],
@@ -396,13 +396,13 @@ public class RelationshipQueryPlanner {
             Guidelines:
             - candidateEntityTypes MUST always include the primaryEntityType.
             - Each element inside directFilters/relationshipFilters MUST be an array of objects shaped like {"field":"entity.field","operator":"GREATER_THAN","value":123}. Valid operators: EQUALS, NOT_EQUALS, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, BETWEEN, IN, LIKE.
+            - relationshipPaths[].relationshipType MUST be the relationship field name exactly as shown under "Relationships" in the schema (e.g., "brand", "destinationAccount", "sourceAccount", "author").
             - relationshipPaths[].conditions follows the exact same object structure (arrays of filter objects).
             - Use fully-qualified field names such as "transaction.amount" or "destinationAccount.region".
             - When a predicate needs to compare two entities (e.g., "same counterparty"), set the filter value to "<entity-slug>.<field>" (example: {"field":"ownerName","operator":"EQUALS","value":"destination-account.ownerName"}).
             - When the request lists multiple acceptable values for the same field (e.g., "Nike or Adidas"), prefer the IN operator with an array of values.
             - Use the exact field names shown in the schema (e.g., "creationDate", "author.fullName"); do not invent shorthand names like "date" or "author".
             - NEVER copy literal values from the example plans. Examples are illustrative only.
-            - Example tokens in angle brackets (e.g., "<BRAND_NAME_FROM_USER_QUERY>") are placeholders; NEVER output them literally.
             - Only include literal filter values that are explicitly stated in the user's query (except for enumerated constants defined in the schema, e.g., statuses).
             - For broad list queries like "find all <entity>" or "list all <entity>", return empty filters unless the user explicitly requests constraints.
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
