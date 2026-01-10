@@ -11,7 +11,6 @@ import org.springframework.core.env.MapPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.milvus.MilvusContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
@@ -177,13 +176,13 @@ public class VectorDatabaseContainerAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(name = PROP_VECTOR_DB_TYPE, havingValue = CONTAINER_TYPE_MILVUS)
-    public MilvusContainer milvusContainer(ConfigurableEnvironment environment) {
+    public GenericContainer<?> milvusContainer(ConfigurableEnvironment environment) {
         if (activeContainers.containsKey(CONTAINER_TYPE_MILVUS)) {
             GenericContainer<?> existing = activeContainers.get(CONTAINER_TYPE_MILVUS);
             if (existing != null && existing.isRunning()) {
                 log.info("Reusing existing Milvus container at {}:{}",
                     existing.getHost(), existing.getMappedPort(PORT_MILVUS));
-                return (MilvusContainer) existing;
+                return existing;
             }
         }
 
@@ -191,10 +190,12 @@ public class VectorDatabaseContainerAutoConfiguration {
 
         try {
             String image = getImageVersion(CONTAINER_TYPE_MILVUS, DEFAULT_IMAGE_MILVUS);
-            MilvusContainer container = new MilvusContainer(
+            GenericContainer<?> container = new GenericContainer<>(
                 DockerImageName.parse(image)
             )
-                .withStartupTimeout(EXTENDED_STARTUP_TIMEOUT);
+                .withExposedPorts(PORT_MILVUS)
+                .withStartupTimeout(EXTENDED_STARTUP_TIMEOUT)
+                .waitingFor(Wait.forListeningPort().withStartupTimeout(EXTENDED_STARTUP_TIMEOUT));
 
             container.start();
             activeContainers.put(CONTAINER_TYPE_MILVUS, container);
