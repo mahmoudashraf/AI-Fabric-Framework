@@ -12,8 +12,8 @@ class OrchestrationResultNormalizerTest {
     private final OrchestrationResultNormalizer normalizer = new OrchestrationResultNormalizer();
 
     @Test
-    void normalize_compoundWithChildError_bubblesToTopLevelError() {
-        OrchestrationResult child = OrchestrationResult.builder()
+    void normalize_compoundWithOnlyChildError_bubblesToTopLevelError() {
+        OrchestrationResult childError = OrchestrationResult.builder()
             .type(OrchestrationResultType.ERROR)
             .success(false)
             .message("No action handler registered for action 'invalid'")
@@ -24,7 +24,7 @@ class OrchestrationResultNormalizerTest {
             .type(OrchestrationResultType.COMPOUND_HANDLED)
             .success(true)
             .message("Some intents failed. See results for details.")
-            .children(List.of(child))
+            .children(List.of(childError))
             .metadata(Map.of("sessionId", "s1"))
             .build();
 
@@ -34,6 +34,37 @@ class OrchestrationResultNormalizerTest {
         assertThat(normalized.getErrorCode()).isEqualTo(OrchestrationResultNormalizer.ERROR_CODE_ACTION_NOT_FOUND);
         assertThat(normalized.getMessage()).contains("No action handler registered");
         assertThat(normalized.getMetadata()).containsEntry("errorCode", OrchestrationResultNormalizer.ERROR_CODE_ACTION_NOT_FOUND);
+    }
+
+    @Test
+    void normalize_compoundWithPrimarySuccessAndSoftChildError_promotesPrimaryType() {
+        OrchestrationResult action = OrchestrationResult.builder()
+            .type(OrchestrationResultType.ACTION_EXECUTED)
+            .success(true)
+            .message("Action succeeded")
+            .data(Map.of("action", "relationship_query"))
+            .build();
+
+        OrchestrationResult childError = OrchestrationResult.builder()
+            .type(OrchestrationResultType.ERROR)
+            .success(false)
+            .message("No action handler registered for action 'summarize'")
+            .errorCode(OrchestrationResultNormalizer.ERROR_CODE_ACTION_NOT_FOUND)
+            .build();
+
+        OrchestrationResult raw = OrchestrationResult.builder()
+            .type(OrchestrationResultType.COMPOUND_HANDLED)
+            .success(false)
+            .message("Some intents failed. See results for details.")
+            .children(List.of(action, childError))
+            .metadata(Map.of("sessionId", "s1"))
+            .build();
+
+        OrchestrationResult normalized = normalizer.normalize(raw);
+        assertThat(normalized.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(normalized.isSuccess()).isTrue();
+        assertThat(normalized.getData()).containsEntry("action", "relationship_query");
+        assertThat(normalized.getMetadata()).containsEntry("softChildErrorCode", OrchestrationResultNormalizer.ERROR_CODE_ACTION_NOT_FOUND);
     }
 
     @Test
