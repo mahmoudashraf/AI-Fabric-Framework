@@ -671,6 +671,20 @@ jobs:
           cd ai-infrastructure-module
           mvn clean install -DskipTests -B -V
 
+      - name: Validate Provider Availability
+        uses: ./.github/actions/configure-providers
+        with:
+          llm_provider: ${{ github.event.inputs.llm_provider }}
+          embedding_provider: ${{ github.event.inputs.embedding_provider }}
+          openai_api_key: ${{ github.event.inputs.openai_api_key }}
+          anthropic_api_key: ${{ github.event.inputs.anthropic_api_key }}
+          gemini_api_key: ${{ github.event.inputs.gemini_api_key }}
+          cohere_api_key: ${{ github.event.inputs.cohere_api_key }}
+          azure_api_key: ${{ github.event.inputs.azure_api_key }}
+          azure_endpoint: ${{ github.event.inputs.azure_endpoint }}
+          azure_deployment_name: ${{ github.event.inputs.azure_deployment_name }}
+          azure_embedding_deployment_name: ${{ github.event.inputs.azure_embedding_deployment_name }}
+
       - name: Gather Test Execution Evidence
         id: gather_evidence_rq
         run: |
@@ -703,8 +717,12 @@ jobs:
           bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          # Needed when embedding_provider=openai to satisfy startup validation.
+          OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          ANTHROPIC_ENABLED: ${{ (github.event.inputs.llm_provider == 'anthropic' || github.event.inputs.embedding_provider == 'anthropic') && 'true' || 'false' }}
           GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          GEMINI_ENABLED: ${{ (github.event.inputs.llm_provider == 'gemini' || github.event.inputs.embedding_provider == 'gemini') && 'true' || 'false' }}
           COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
           # IMPORTANT: do not set empty string for booleans; Spring binds empty -> null -> crash for primitive boolean fields.
           COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || 'false' }}
@@ -712,6 +730,7 @@ jobs:
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
+          AZURE_ENABLED: ${{ (github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure') && 'true' || 'false' }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && (github.event.inputs.llm_model || 'command-r7b-12-2024') || '' }}
           COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && (github.event.inputs.embedding_model || 'embed-english-v3.0') || '' }}
@@ -938,6 +957,20 @@ jobs:
           cd ai-infrastructure-module
           mvn clean install -DskipTests -B -V
 
+      - name: Validate Provider Availability
+        uses: ./.github/actions/configure-providers
+        with:
+          llm_provider: ${{ github.event.inputs.llm_provider }}
+          embedding_provider: ${{ github.event.inputs.embedding_provider }}
+          openai_api_key: ${{ github.event.inputs.openai_api_key }}
+          anthropic_api_key: ${{ github.event.inputs.anthropic_api_key }}
+          gemini_api_key: ${{ github.event.inputs.gemini_api_key }}
+          cohere_api_key: ${{ github.event.inputs.cohere_api_key }}
+          azure_api_key: ${{ github.event.inputs.azure_api_key }}
+          azure_endpoint: ${{ github.event.inputs.azure_endpoint }}
+          azure_deployment_name: ${{ github.event.inputs.azure_deployment_name }}
+          azure_embedding_deployment_name: ${{ github.event.inputs.azure_embedding_deployment_name }}
+
       - name: Gather Test Execution Evidence
         id: gather_evidence_behavior
         run: |
@@ -970,8 +1003,11 @@ jobs:
           bash run-behavior-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          ANTHROPIC_ENABLED: ${{ (github.event.inputs.llm_provider == 'anthropic' || github.event.inputs.embedding_provider == 'anthropic') && 'true' || 'false' }}
           GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          GEMINI_ENABLED: ${{ (github.event.inputs.llm_provider == 'gemini' || github.event.inputs.embedding_provider == 'gemini') && 'true' || 'false' }}
           COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
           # IMPORTANT: do not set empty string for booleans; Spring binds empty -> null -> crash for primitive boolean fields.
           COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || 'false' }}
@@ -979,6 +1015,7 @@ jobs:
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
+          AZURE_ENABLED: ${{ (github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure') && 'true' || 'false' }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && (github.event.inputs.llm_model || 'command-r7b-12-2024') || '' }}
           COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && (github.event.inputs.embedding_model || 'embed-english-v3.0') || '' }}
