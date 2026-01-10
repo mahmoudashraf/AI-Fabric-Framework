@@ -716,6 +716,74 @@ jobs:
           COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && (github.event.inputs.llm_model || 'command-r7b-12-2024') || '' }}
           COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && (github.event.inputs.embedding_model || 'embed-english-v3.0') || '' }}
 
+      - name: Publish Relationship Query Scorecard Evidence
+        if: always()
+        run: |
+          set -e
+          SCORECARD_ROOT="ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-scorecards"
+          echo "## Relationship Query Provider Scorecard (Evidence)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ ! -d "$SCORECARD_ROOT" ]; then
+            echo "_No scorecard output found (provider-scorecards directory missing)._ " >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          
+          # Pick the most recent run directory (best-effort).
+          LATEST_DIR="$(ls -td "$SCORECARD_ROOT"/* 2>/dev/null | head -n 1 || true)"
+          if [ -z "$LATEST_DIR" ] || [ ! -d "$LATEST_DIR" ]; then
+            echo "_No scorecard output found (no run directories)._ " >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          
+          SUMMARY_JSON="$LATEST_DIR/summary.json"
+          if [ ! -f "$SUMMARY_JSON" ]; then
+            echo "_No scorecard summary.json found at:_ \`$SUMMARY_JSON\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          
+          python3 << 'PY'
+          import json
+          from pathlib import Path
+          
+          p = Path(r"""'"$SUMMARY_JSON"'""")
+          data = json.loads(p.read_text())
+          
+          provider = data.get("provider", "unknown")
+          scenario_set = data.get("scenarioSetId", "unknown")
+          run_id = data.get("runId", p.parent.name)
+          attempts = data.get("totalAttempts", 0)
+          correct = data.get("correctAttempts", 0)
+          correct_rate = data.get("correctRate", 0.0)
+          unexpected_zero = data.get("unexpectedZeroResultsAttempts", 0)
+          error_attempts = data.get("errorAttempts", 0)
+          p50 = data.get("latencyP50Ms", 0)
+          p95 = data.get("latencyP95Ms", 0)
+          
+          # Write to GitHub Step Summary.
+          summary_path = Path(Path.cwd() / Path(".github_step_summary_tmp.md"))
+          out = []
+          out.append(f"- **Provider**: `{provider}`")
+          out.append(f"- **Scenario set**: `{scenario_set}`")
+          out.append(f"- **Run ID**: `{run_id}`")
+          out.append("")
+          out.append("| Metric | Value |")
+          out.append("|---|---:|")
+          out.append(f"| Attempts | {attempts} |")
+          out.append(f"| Correct | {correct} |")
+          out.append(f"| Correct rate | {correct_rate:.2%} |")
+          out.append(f"| Unexpected 0 results | {unexpected_zero} |")
+          out.append(f"| Error attempts | {error_attempts} |")
+          out.append(f"| Latency p50 (ms) | {p50} |")
+          out.append(f"| Latency p95 (ms) | {p95} |")
+          out.append("")
+          
+          summary_path.write_text("\n".join(out))
+          print(summary_path.read_text())
+          PY >> "$GITHUB_STEP_SUMMARY"
+          
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Raw scorecard artifacts are uploaded under relationship-query-test-reports._" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -724,6 +792,7 @@ jobs:
           path: |
             ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/
             ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports/
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-scorecards/
           retention-days: 30
 
       - name: Publish Test Results
