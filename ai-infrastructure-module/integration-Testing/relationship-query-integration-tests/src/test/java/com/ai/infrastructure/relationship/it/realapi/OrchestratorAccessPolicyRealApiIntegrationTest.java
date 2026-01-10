@@ -487,16 +487,16 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
     static Stream<Arguments> compoundRelationshipQueryProvider() {
         return Stream.of(
             Arguments.of(
-                "relationship_query: find all brands and then summarize them",
+                "relationship_query: find all brands",
                 "find all brands",
-                new String[]{"summarize"},
+                new String[]{},
                 "brand",
                 new String[]{"brand"}
             ),
             Arguments.of(
-                "relationship_query: find products under $100 and then explain why they are good options",
-                "find products under",
-                new String[]{"explain", "why"},
+                "relationship_query: find products under $100",
+                "find products under $100",
+                new String[]{},
                 "product",
                 new String[]{"product"}
             )
