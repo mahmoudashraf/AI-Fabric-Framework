@@ -6,13 +6,24 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
+import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.dto.FilterCondition;
 import com.ai.infrastructure.relationship.dto.FilterOperator;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
 import com.ai.infrastructure.relationship.it.api.RelationshipQueryRequest;
 import com.ai.infrastructure.relationship.it.config.BackendEnvTestConfiguration;
+import com.ai.infrastructure.relationship.it.entity.AccountEntity;
+import com.ai.infrastructure.relationship.it.entity.BrandEntity;
+import com.ai.infrastructure.relationship.it.entity.ProductEntity;
+import com.ai.infrastructure.relationship.it.entity.TransactionEntity;
+import com.ai.infrastructure.relationship.it.repository.AccountRepository;
+import com.ai.infrastructure.relationship.it.repository.BrandRepository;
+import com.ai.infrastructure.relationship.it.repository.ProductRepository;
+import com.ai.infrastructure.relationship.it.repository.TransactionRepository;
 import com.ai.infrastructure.relationship.model.ReturnMode;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
@@ -27,10 +38,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -75,6 +88,24 @@ class ProviderScorecardRealApiIntegrationTest {
     @Autowired(required = false)
     private RAGOrchestrator orchestrator;
 
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private BrandRepository brandRepository;
+
+    @Autowired
+    private TransactionRepository transactionRepository;
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private AISearchableEntityRepository searchableEntityRepository;
+
+    @Autowired(required = false)
+    private VectorDatabaseService vectorDatabaseService;
+
     @Test
     void shouldGenerateProviderScorecardMetricsWithoutFailingBuild() throws Exception {
         if (!isEnabled()) {
@@ -95,6 +126,9 @@ class ProviderScorecardRealApiIntegrationTest {
         String runId = "%s-%s".formatted(scenarioSet, Instant.now().toString().replace(":", ""));
         Path outDir = Paths.get("target", "provider-scorecards", runId);
         Files.createDirectories(outDir);
+
+        // Seed deterministic fixtures for scorecard scenarios (do NOT rely on test ordering).
+        seedFixtures();
 
         long startedAtMs = System.currentTimeMillis();
         List<AttemptEvent> events = new ArrayList<>();
@@ -170,10 +204,12 @@ class ProviderScorecardRealApiIntegrationTest {
         if (rag == null) {
             ev.correct = false;
             ev.failureCategories = List.of(FailureCategory.MISSING_RESPONSE_BODY.name());
+            ev.errorOutcome = true;
             return ev;
         }
 
         ev.success = rag.getSuccess();
+        ev.errorMessage = rag.getErrorMessage();
         ev.totalResults = rag.getTotalResults();
 
         RelationshipQueryPlan plan = extractPlan(rag);
@@ -182,6 +218,19 @@ class ProviderScorecardRealApiIntegrationTest {
         JudgeResult judge = judgePlanAndCompound(plan, scenario.expected);
         ev.correct = judge.correct;
         ev.failureCategories = judge.failureCategories;
+
+        // Evidence metric: count unexpected empty results separately from plan correctness.
+        Integer minResults = scenario.expected != null ? scenario.expected.minResults : null;
+        if (minResults != null && minResults > 0) {
+            int total = ev.totalResults != null ? ev.totalResults : 0;
+            ev.unexpectedZeroResults = (total == 0);
+        }
+
+        // Evidence metric: count error outcomes (should be rare after guardrails).
+        ev.errorOutcome = ev.httpStatus == null || ev.httpStatus != 200
+            || Boolean.FALSE.equals(ev.success)
+            || (ev.errorMessage != null && !ev.errorMessage.isBlank());
+
         return ev;
     }
 
@@ -561,6 +610,12 @@ class ProviderScorecardRealApiIntegrationTest {
             summary.correctRate,
             summary.durationMs
         );
+        log.info("[Scorecard] evidence: unexpectedZeroResults={} errorAttempts={} latencyP50Ms={} latencyP95Ms={}",
+            summary.unexpectedZeroResultsAttempts,
+            summary.errorAttempts,
+            summary.latencyP50Ms,
+            summary.latencyP95Ms
+        );
         if (summary.failureCounts != null && !summary.failureCounts.isEmpty()) {
             String failures = summary.failureCounts.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
@@ -642,6 +697,7 @@ class ProviderScorecardRealApiIntegrationTest {
         private List<String> mustNotIncludeLiterals;
         private List<NumericConstraint> mustHaveNumericConstraints;
         private Boolean mustHaveCrossEntityComparison;
+        private Integer minResults;
         private List<String> relationalQueryMustContain;
         private List<String> relationalQueryMustNotContain;
     }
@@ -666,11 +722,14 @@ class ProviderScorecardRealApiIntegrationTest {
         public String userQuery;
         public Integer httpStatus;
         public Boolean success;
+        public String errorMessage;
         public Integer totalResults;
         public String orchestrationType;
         public String planPrimaryEntityType;
         public String planOriginalQuery;
         public boolean correct;
+        public boolean unexpectedZeroResults;
+        public boolean errorOutcome;
         public List<String> failureCategories = List.of();
         public String notes;
         public long latencyMs;
@@ -703,6 +762,8 @@ class ProviderScorecardRealApiIntegrationTest {
         public int totalAttempts;
         public int correctAttempts;
         public double correctRate;
+        public int unexpectedZeroResultsAttempts;
+        public int errorAttempts;
         public Map<String, Integer> failureCounts;
         public long latencyP50Ms;
         public long latencyP95Ms;
@@ -720,6 +781,8 @@ class ProviderScorecardRealApiIntegrationTest {
             s.totalAttempts = events != null ? events.size() : 0;
             s.correctAttempts = events != null ? (int) events.stream().filter(e -> e != null && e.correct).count() : 0;
             s.correctRate = s.totalAttempts == 0 ? 0.0 : (double) s.correctAttempts / (double) s.totalAttempts;
+            s.unexpectedZeroResultsAttempts = events != null ? (int) events.stream().filter(e -> e != null && e.unexpectedZeroResults).count() : 0;
+            s.errorAttempts = events != null ? (int) events.stream().filter(e -> e != null && e.errorOutcome).count() : 0;
 
             Map<String, Integer> failures = new LinkedHashMap<>();
             if (events != null) {
@@ -755,6 +818,108 @@ class ProviderScorecardRealApiIntegrationTest {
             idx = Math.max(0, Math.min(idx, values.size() - 1));
             return values.get(idx);
         }
+    }
+
+    private void seedFixtures() {
+        searchableEntityRepository.deleteAllInBatch();
+        productRepository.deleteAllInBatch();
+        brandRepository.deleteAllInBatch();
+        transactionRepository.deleteAllInBatch();
+        accountRepository.deleteAllInBatch();
+        if (vectorDatabaseService != null) {
+            try {
+                vectorDatabaseService.clearVectors();
+            } catch (Exception ignored) {
+            }
+        }
+
+        // ECommerce fixtures
+        BrandEntity nike = new BrandEntity();
+        nike.setName("Nike");
+        BrandEntity adidas = new BrandEntity();
+        adidas.setName("Adidas");
+        nike = brandRepository.save(nike);
+        adidas = brandRepository.save(adidas);
+
+        ProductEntity nikeBlueRunner = product("Blue Runner", "blue", BigDecimal.valueOf(85), "ACTIVE", nike);
+        ProductEntity adidasBlue = product("Adidas Flex", "blue", BigDecimal.valueOf(95), "ACTIVE", adidas);
+        ProductEntity adidasRunner = product("Adidas Runner Elite", "red", BigDecimal.valueOf(110), "ACTIVE", adidas);
+        productRepository.saveAll(List.of(nikeBlueRunner, adidasBlue, adidasRunner));
+        indexProduct(nikeBlueRunner);
+        indexProduct(adidasBlue);
+        indexProduct(adidasRunner);
+
+        // Financial fraud fixtures (mirror counterparty)
+        AccountEntity origin = account("origin-account.ownerName", "high-risk region", BigDecimal.valueOf(0.83));
+        AccountEntity destination = account(origin.getOwnerName(), "high-risk corridor", BigDecimal.valueOf(0.22));
+        origin = accountRepository.save(origin);
+        destination = accountRepository.save(destination);
+
+        TransactionEntity suspiciousWire = new TransactionEntity();
+        suspiciousWire.setTitle("Pending Wire 40k");
+        suspiciousWire.setAmount(BigDecimal.valueOf(40_000));
+        suspiciousWire.setCurrency("USD");
+        suspiciousWire.setChannel("Wire");
+        suspiciousWire.setStatus("PENDING_REVIEW");
+        suspiciousWire.setOccurredAt(LocalDateTime.now().minusHours(4));
+        suspiciousWire.setSourceAccount(origin);
+        suspiciousWire.setDestinationAccount(destination);
+        suspiciousWire = transactionRepository.save(suspiciousWire);
+        indexTransaction(suspiciousWire);
+    }
+
+    private ProductEntity product(String name, String color, BigDecimal price, String status, BrandEntity brand) {
+        ProductEntity product = new ProductEntity();
+        product.setName(name);
+        product.setColor(color);
+        product.setPrice(price);
+        product.setStatus(status);
+        product.setBrand(brand);
+        brand.getProducts().add(product);
+        return product;
+    }
+
+    private AccountEntity account(String owner, String region, BigDecimal risk) {
+        AccountEntity account = new AccountEntity();
+        account.setOwnerName(owner);
+        account.setRegion(region);
+        account.setRiskScore(risk);
+        return account;
+    }
+
+    private void indexProduct(ProductEntity product) {
+        searchableEntityRepository.save(
+            AISearchableEntity.builder()
+                .entityType("product")
+                .entityId(product.getId())
+                .searchableContent("%s (%s) - $%s".formatted(product.getName(), product.getColor(), product.getPrice()))
+                .metadata("""
+                    {"brand":"%s","status":"%s"}
+                    """.formatted(product.getBrand().getName(), product.getStatus()))
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build()
+        );
+    }
+
+    private void indexTransaction(TransactionEntity transaction) {
+        searchableEntityRepository.save(
+            AISearchableEntity.builder()
+                .entityType("transaction")
+                .entityId(transaction.getId())
+                .searchableContent("%s - %s %s"
+                    .formatted(transaction.getTitle(), transaction.getChannel(), transaction.getAmount()))
+                .metadata("""
+                    {"status":"%s","destinationRegion":"%s","sourceRegion":"%s"}
+                    """.formatted(
+                        transaction.getStatus(),
+                        transaction.getDestinationAccount().getRegion(),
+                        transaction.getSourceAccount().getRegion()
+                    ))
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build()
+        );
     }
 }
 
