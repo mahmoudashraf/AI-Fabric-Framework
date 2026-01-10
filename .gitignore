@@ -28,6 +28,7 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+tmp/
 
 # Lucene Vector Database Index Files (generated at runtime)
 **/data/lucene-vector-index/
