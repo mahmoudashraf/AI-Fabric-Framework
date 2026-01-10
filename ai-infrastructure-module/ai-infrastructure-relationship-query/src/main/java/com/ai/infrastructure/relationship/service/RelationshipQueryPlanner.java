@@ -19,9 +19,11 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.Locale;
 
@@ -256,8 +258,101 @@ public class RelationshipQueryPlanner {
         RelationshipQueryPlan plan = parsePlan(response.getContent());
         applyDefaults(plan, fallback);
         sanitizeHallucinatedFilters(plan, query);
+        validateFilterFields(plan);
         validator.validate(plan);
         return plan;
+    }
+
+    /**
+     * Validates that every filter field emitted by the planner exists in the discovered schema.
+     * If unknown fields are present (e.g. "product.type" when Product has no such field), we fail planning
+     * deterministically so the retry/feedback loop can ask the LLM to correct the structure.
+     */
+    private void validateFilterFields(RelationshipQueryPlan plan) {
+        if (plan == null) {
+            return;
+        }
+
+        List<String> errors = new ArrayList<>();
+
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().forEach((entityKey, filters) -> {
+                if (filters == null || filters.isEmpty()) {
+                    return;
+                }
+                for (var filter : filters) {
+                    if (filter == null) {
+                        continue;
+                    }
+                    String entityType = filter.getEntityType() != null ? filter.getEntityType() : entityKey;
+                    validateFieldReference(entityType, filter.getField(), errors);
+                }
+            });
+        }
+
+        if (plan.getRelationshipPaths() != null && !plan.getRelationshipPaths().isEmpty()) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path == null || path.getConditions() == null || path.getConditions().isEmpty()) {
+                    return;
+                }
+                for (var condition : path.getConditions()) {
+                    if (condition == null) {
+                        continue;
+                    }
+                    String entityType = condition.getEntityType() != null
+                        ? condition.getEntityType()
+                        : (path.getToEntityType() != null ? path.getToEntityType() : path.getFromEntityType());
+                    validateFieldReference(entityType, condition.getField(), errors);
+                }
+            });
+        }
+
+        if (!errors.isEmpty()) {
+            throw new RelationshipQueryValidationException(
+                "Planner emitted unknown field(s): " + String.join("; ", errors)
+            );
+        }
+    }
+
+    private void validateFieldReference(String entityType, String field, List<String> errors) {
+        if (!StringUtils.hasText(entityType) || !StringUtils.hasText(field)) {
+            return;
+        }
+        Set<String> allowed = allowedFields(entityType);
+        if (allowed.isEmpty()) {
+            // Schema fields may be unavailable for some entity types; skip strict validation in that case.
+            return;
+        }
+
+        String raw = field.trim();
+        String fieldName = raw.contains(".") ? raw.substring(raw.lastIndexOf('.') + 1) : raw;
+        if (fieldName.isBlank()) {
+            return;
+        }
+
+        if (!allowed.contains(fieldName)) {
+            errors.add("entityType='" + entityType + "' field='" + fieldName + "' allowed=" + allowed);
+        }
+    }
+
+    private Set<String> allowedFields(String entityType) {
+        if (!StringUtils.hasText(entityType)) {
+            return Set.of();
+        }
+        return schemaProvider.getEntitySchema(entityType)
+            .map(schema -> {
+                if (schema.getFields() == null || schema.getFields().isEmpty()) {
+                    return Set.<String>of();
+                }
+                Set<String> allowed = new HashSet<>();
+                schema.getFields().forEach(field -> {
+                    if (field != null && StringUtils.hasText(field.getName())) {
+                        allowed.add(field.getName());
+                    }
+                });
+                return allowed;
+            })
+            .orElse(Set.of());
     }
 
     private AIGenerationRequest buildRequest(String query, String prompt) {
@@ -307,9 +402,11 @@ public class RelationshipQueryPlanner {
             - When the request lists multiple acceptable values for the same field (e.g., "Nike or Adidas"), prefer the IN operator with an array of values.
             - Use the exact field names shown in the schema (e.g., "creationDate", "author.fullName"); do not invent shorthand names like "date" or "author".
             - NEVER copy literal values from the example plans. Examples are illustrative only.
+            - Example tokens in angle brackets (e.g., "<BRAND_NAME_FROM_USER_QUERY>") are placeholders; NEVER output them literally.
             - Only include literal filter values that are explicitly stated in the user's query (except for enumerated constants defined in the schema, e.g., statuses).
             - For broad list queries like "find all <entity>" or "list all <entity>", return empty filters unless the user explicitly requests constraints.
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
+            - If the user mentions a concept that is not represented as a schema field, do NOT invent a new field. Either omit that constraint or map it to an existing field (commonly "name") if appropriate.
 
             Schema:
             """);
