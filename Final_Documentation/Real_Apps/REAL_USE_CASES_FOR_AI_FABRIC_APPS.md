@@ -69,11 +69,11 @@ These **6 focused example applications** are recommended as starting points. The
 | App | Primary AI Capability | Endpoints | Complexity | Business Value |
 |-----|----------------------|-----------|------------|----------------|
 | 1. Smart FAQ Assistant | RAG + Semantic Search | 8 | Medium | Customer support automation |
-| 2. Document Intelligence Hub | Entity Extraction + RAG | 12 | Medium-High | Document processing |
+| 2. Document Intelligence Hub | PII Detection + RAG + Semantic Search | 12 | Medium-High | Document processing |
 | 3. Product Discovery Engine | Vector Search + Recommendations | 10 | Medium | E-commerce conversion |
 | 4. Team Sentiment Tracker | Behavior Analytics + Sentiment | 9 | Medium | HR/Team management |
 | 5. Code Documentation Search | RAG + Code Understanding | 7 | Medium | Developer productivity |
-| 6. Meeting Notes Analyzer | Summarization + Action Items | 8 | Medium | Productivity tools |
+| 6. Meeting Notes Analyzer | RAG + Semantic Search | 8 | Medium | Productivity tools |
 | 7. Subscription Management Hub | Behavior Analytics + Churn Prediction | 10 | Medium-High | SaaS/Subscription platforms |
 
 ### App 1: Smart FAQ Assistant
@@ -146,10 +146,6 @@ public class FAQService {
 **⚠️ IMPORTANT: Framework Support Only**
 
 **AI Fabric Framework Provides:**
-<<<<<<< Updated upstream
-- ✅ **Document Chunking** - `EmbeddingProcessor.chunkText()` and `AIEmbeddingService.chunkText()` with multiple strategies
-=======
->>>>>>> Stashed changes
 - ✅ **PII Detection** - `PIIDetectionService.detectAndProcess()` with redaction capabilities
 - ✅ **Embedding Generation** - `AICoreService.generateEmbedding()` for vector creation
 - ✅ **Vector Indexing** - Automatic via `@AICapable` and `@AIProcess` annotations
@@ -167,21 +163,11 @@ public class FAQService {
    ↓
 3. PII Detection & Redaction (✅ Framework: PIIDetectionService.detectAndProcess())
    ↓
-<<<<<<< Updated upstream
-4. Document Chunking (✅ Framework: EmbeddingProcessor.chunkText())
-   ↓
-5. Embedding Generation (✅ Framework: AICoreService.generateEmbedding())
-   ↓
-6. Vector Indexing (✅ Framework: Automatic via @AICapable/@AIProcess)
-   ↓
-7. Ready for Search & Q&A (✅ Framework: RAGProvider)
-=======
 4. Embedding Generation (✅ Framework: AICoreService.generateEmbedding())
    ↓
 5. Vector Indexing (✅ Framework: Automatic via @AICapable/@AIProcess)
    ↓
 6. Ready for Search & Q&A (✅ Framework: RAGProvider)
->>>>>>> Stashed changes
 ```
 
 **Data Model:**
@@ -348,10 +334,6 @@ public class DocumentService {
 **Implementation Notes:**
 
 **✅ Framework Features (Ready to Use):**
-<<<<<<< Updated upstream
-- **Document Chunking:** Framework provides `EmbeddingProcessor.chunkText()` with sentence/word/character strategies
-=======
->>>>>>> Stashed changes
 - **PII Detection:** Framework provides `PIIDetectionService.detectAndProcess()` with detection and redaction
 - **Embedding Generation:** Framework provides `AICoreService.generateEmbedding()` for vector creation
 - **Vector Indexing:** Automatic via `@AICapable` and `@AIProcess` annotations
@@ -3512,6 +3494,89 @@ This document provides **22 comprehensive use case ideas** for building standalo
 
 ---
 
+## Intent Action Handling Demonstration
+
+### 🎯 Best Use Case for Intent Action Handling: **App 7 - Subscription Management Hub**
+
+**Why it's perfect:**
+- ✅ **Multiple clear actions** - Subscribe, Unsubscribe, Upgrade, Downgrade, Update Address
+- ✅ **Natural language friendly** - Users can say "cancel my subscription" or "upgrade to Pro plan"
+- ✅ **Requires confirmation** - Actions like cancellation need user confirmation
+- ✅ **Business logic complexity** - Each action has validation, permissions, and side effects
+- ✅ **Real-world scenario** - Common SaaS pattern that developers understand
+
+**Example Natural Language Queries:**
+- "I want to cancel my subscription"
+- "Upgrade me to the Enterprise plan"
+- "Change my billing address to 123 Main Street, New York"
+- "Downgrade to the Basic plan next month"
+- "Subscribe to the Pro plan with annual billing"
+
+**Intent Action Handler Implementation:**
+```java
+// Example: CancelSubscriptionActionHandler
+@Component
+public class CancelSubscriptionActionHandler implements ActionHandler {
+    
+    private final SubscriptionService subscriptionService;
+    
+    @Override
+    public AIActionMetaData getActionMetadata() {
+        return AIActionMetaData.builder()
+            .name("cancel_subscription")
+            .description("Cancel an active subscription")
+            .parameters(List.of("subscriptionId", "reason"))
+            .requiresConfirmation(true)
+            .build();
+    }
+    
+    @Override
+    public boolean validateActionAllowed(String userId) {
+        // Check if user has active subscription
+        return subscriptionService.hasActiveSubscription(userId);
+    }
+    
+    @Override
+    public String getConfirmationMessage(Map<String, Object> params) {
+        String subscriptionId = (String) params.get("subscriptionId");
+        return String.format("Are you sure you want to cancel subscription %s? This action cannot be undone.", subscriptionId);
+    }
+    
+    @Override
+    public ActionResult executeAction(Map<String, Object> params, String userId) {
+        String subscriptionId = (String) params.get("subscriptionId");
+        String reason = (String) params.getOrDefault("reason", "User requested");
+        
+        Subscription subscription = subscriptionService.unsubscribe(
+            UUID.fromString(subscriptionId), 
+            reason
+        );
+        
+        return ActionResult.builder()
+            .success(true)
+            .message("Your subscription has been cancelled successfully")
+            .data(Map.of("subscriptionId", subscriptionId, "status", subscription.getStatus()))
+            .build();
+    }
+    
+    @Override
+    public ActionResult handleError(Exception e, String userId) {
+        return ActionResult.builder()
+            .success(false)
+            .message("Failed to cancel subscription: " + e.getMessage())
+            .build();
+    }
+}
+```
+
+**Other Use Cases with Action Potential:**
+- **App 3: Product Discovery Engine** - Add to cart, Create wishlist, Set price alerts
+- **App 4: Team Sentiment Tracker** - Submit check-in, Create alert, Schedule follow-up
+- **E-Commerce use cases** - Place order, Request refund, Track shipment
+- **HR use cases** - Schedule interview, Approve leave, Update employee record
+
+---
+
 ## Summary
 
 This document provides **29 total use case ideas** for building standalone applications with AI Fabric Framework:
@@ -3520,11 +3585,11 @@ This document provides **29 total use case ideas** for building standalone appli
 
 These are the **best starting points** with complete implementation details:
 1. **Smart FAQ Assistant** - RAG + Semantic Search (2-3 weeks)
-2. **Document Intelligence Hub** - Entity Extraction + RAG (3-4 weeks)
+2. **Document Intelligence Hub** - PII Detection + RAG + Semantic Search (3-4 weeks)
 3. **Product Discovery Engine** - Vector Search + Recommendations (2-3 weeks)
 4. **Team Sentiment Tracker** - Behavior Analytics + Sentiment (2-3 weeks)
 5. **Code Documentation Search** - RAG + Code Understanding (2-3 weeks)
-6. **Meeting Notes Analyzer** - Summarization + Action Items (2-3 weeks)
+6. **Meeting Notes Analyzer** - RAG + Semantic Search (2-3 weeks)
 7. **Subscription Management Hub** - Behavior Analytics + Churn Prediction (3-4 weeks)
 
 **Why start here?**
