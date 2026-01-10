@@ -19,6 +19,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -87,7 +88,7 @@ public class IntentQueryExtractor {
 
         response.normalize();
         coerceMisclassifiedActionIntents(response);
-        validateResponse(response);
+        validateResponse(response, query);
         if (!response.hasIntents()) {
             log.warn("Intent extractor returned no intents for query '{}'", query);
         }
@@ -221,7 +222,7 @@ public class IntentQueryExtractor {
         return text;
     }
 
-    private void validateResponse(MultiIntentResponse response) {
+    private void validateResponse(MultiIntentResponse response, String originalQuery) {
         if (response.getIntents() == null) {
             response.setIntents(List.of());
         }
@@ -233,7 +234,7 @@ public class IntentQueryExtractor {
             if (!intent.hasMeaningfulName()) {
                 throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
             }
-            validateRelationshipActionParams(intent);
+            validateRelationshipActionParams(intent, originalQuery);
             if (intent.getRequiresRetrieval() == null) {
                 intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
             }
@@ -258,7 +259,7 @@ public class IntentQueryExtractor {
         return "ADMIT_UNKNOWN";
     }
 
-    private void validateRelationshipActionParams(Intent intent) {
+    private void validateRelationshipActionParams(Intent intent, String originalQuery) {
         if (intent.getType() != IntentType.ACTION) {
             return;
         }
@@ -268,6 +269,17 @@ public class IntentQueryExtractor {
 
         Map<String, Object> params = intent.getActionParams();
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
+
+        // Some providers omit the required 'query' parameter. This parameter is deterministically known:
+        // it should be the user's relationship query (without the leading "relationship query:" hint if present).
+        Object rawQuery = mutable.get("query");
+        if (!(rawQuery instanceof String text) || !StringUtils.hasText(text)) {
+            String fallbackQuery = normalizeRelationshipQueryText(originalQuery);
+            if (StringUtils.hasText(fallbackQuery)) {
+                mutable.put("query", fallbackQuery);
+            }
+        }
+
         Object rawEntityTypes = mutable.get("entityTypes");
 
         List<String> normalizedEntityTypes;
@@ -292,6 +304,23 @@ public class IntentQueryExtractor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
+    }
+
+    private String normalizeRelationshipQueryText(String query) {
+        if (!StringUtils.hasText(query)) {
+            return null;
+        }
+        String trimmed = query.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        // Common hint used by tests and some callers to guide intent extraction.
+        // We store the actual query without the hint prefix for the relationship_query action handler.
+        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
+        for (String prefix : prefixes) {
+            if (lower.startsWith(prefix)) {
+                return trimmed.substring(prefix.length()).trim();
+            }
+        }
+        return trimmed;
     }
 
     @Deprecated(forRemoval = true)

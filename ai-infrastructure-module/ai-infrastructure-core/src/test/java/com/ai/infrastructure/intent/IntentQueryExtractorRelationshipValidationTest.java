@@ -207,6 +207,40 @@ class IntentQueryExtractorRelationshipValidationTest {
     }
 
     @Test
+    @DisplayName("Should default relationship_query actionParams.query when missing (and strip hint prefix)")
+    void shouldDefaultRelationshipQueryWhenMissing() {
+        // Arrange
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "ACTION",
+                  "intent": "relationship_query",
+                  "action": "relationship_query",
+                  "actionParams": {
+                    "entityTypes": ["brand"],
+                    "limit": 20
+                  }
+                }
+              ]
+            }
+            """;
+
+        when(aiCoreService.generateContent(any()))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        // Act
+        MultiIntentResponse response = extractor.extract(
+            "relationship query: find all brands",
+            OrchestrationContext.forUser("user-123")
+        );
+
+        // Assert
+        Intent intent = response.getIntents().get(0);
+        assertThat(intent.getActionParams()).containsEntry("query", "find all brands");
+    }
+
+    @Test
     @DisplayName("Should not validate non-relationship-query actions")
     void shouldNotValidateNonRelationshipQueryActions() {
         // Arrange
