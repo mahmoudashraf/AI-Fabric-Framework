@@ -196,6 +196,10 @@ public class DynamicJPAQueryBuilder {
                 yield "%s <= :%s".formatted(fieldName, parameterName);
             }
             case LIKE -> {
+                if (value instanceof String str) {
+                    parameters.put(parameterName, str.toLowerCase(Locale.ROOT));
+                    yield "LOWER(%s) LIKE :%s".formatted(fieldName, parameterName);
+                }
                 parameters.put(parameterName, value);
                 yield "%s LIKE :%s".formatted(fieldName, parameterName);
             }
