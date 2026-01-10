@@ -7,15 +7,19 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.exception.AIServiceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +41,7 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
     private int embeddingDimension = 1024; // Default for embed-english-v3.0
     
     private static final String COHERE_BASE_URL = "https://api.cohere.ai/v1";
+    private static final int MAX_RETRY_ATTEMPTS = 3;
     
     @PostConstruct
     public void initialize() {
@@ -136,8 +141,7 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "embed");
             
             long processingTime = System.currentTimeMillis() - startTime;
             
@@ -172,6 +176,66 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
         } catch (Exception e) {
             log.error("Error generating Cohere embedding", e);
             throw new AIServiceException("Failed to generate Cohere embedding", e);
+        }
+    }
+
+    private <T> ResponseEntity<T> exchangeWithRetry(String url,
+                                                    HttpMethod method,
+                                                    HttpEntity<?> entity,
+                                                    Class<T> responseType,
+                                                    String operation) {
+        long backoffMs = 400;
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                return restTemplate.exchange(url, method, entity, responseType);
+            } catch (HttpStatusCodeException ex) {
+                HttpStatusCode statusCode = ex.getStatusCode();
+                int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();
+                if (attempt < MAX_RETRY_ATTEMPTS && isRetryableStatus(rawStatus)) {
+                    log.warn(
+                        "Cohere embedding {} call failed with HTTP {} (attempt {}/{}). Retrying after {}ms.",
+                        operation,
+                        rawStatus,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            } catch (ResourceAccessException ex) {
+                if (attempt < MAX_RETRY_ATTEMPTS) {
+                    log.warn(
+                        "Cohere embedding {} call failed due to network/timeout (attempt {}/{}). Retrying after {}ms. Cause: {}",
+                        operation,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs,
+                        ex.getMessage()
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            }
+        }
+        throw new AIServiceException("Cohere embedding " + operation + " call failed after retries");
+    }
+
+    private boolean isRetryableStatus(int status) {
+        return status == 408 || status == 425 || status == 429 || (status >= 500 && status < 600);
+    }
+
+    private void sleepWithJitter(long baseBackoffMs) {
+        long jitter = ThreadLocalRandom.current().nextLong(0, 200);
+        long sleepMs = baseBackoffMs + jitter;
+        try {
+            Thread.sleep(sleepMs);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
     

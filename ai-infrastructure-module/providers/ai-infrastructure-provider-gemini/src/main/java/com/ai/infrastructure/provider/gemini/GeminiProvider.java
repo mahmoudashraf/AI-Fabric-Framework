@@ -10,17 +10,21 @@ import com.ai.infrastructure.provider.ProviderStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -48,6 +52,7 @@ public class GeminiProvider implements AIProvider {
     private final AtomicReference<Double> averageResponseTime = new AtomicReference<>(0.0);
     
     private static final String GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+    private static final int MAX_RETRY_ATTEMPTS = 3;
     
     @Override
     public String getProviderName() {
@@ -161,8 +166,7 @@ public class GeminiProvider implements AIProvider {
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "generateContent");
             
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(true, responseTime);
@@ -281,8 +285,7 @@ public class GeminiProvider implements AIProvider {
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "embedContent");
             
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(true, responseTime);
@@ -327,6 +330,66 @@ public class GeminiProvider implements AIProvider {
             lastErrorMessage.set(e.getMessage());
             
             throw new RuntimeException("Gemini embedding generation failed: " + e.getMessage(), e);
+        }
+    }
+
+    private <T> ResponseEntity<T> exchangeWithRetry(String url,
+                                                    HttpMethod method,
+                                                    HttpEntity<?> entity,
+                                                    Class<T> responseType,
+                                                    String operation) {
+        long backoffMs = 400;
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                return restTemplate.exchange(url, method, entity, responseType);
+            } catch (HttpStatusCodeException ex) {
+                HttpStatusCode statusCode = ex.getStatusCode();
+                int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();
+                if (attempt < MAX_RETRY_ATTEMPTS && isRetryableStatus(rawStatus)) {
+                    log.warn(
+                        "Gemini {} call failed with HTTP {} (attempt {}/{}). Retrying after {}ms.",
+                        operation,
+                        rawStatus,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            } catch (ResourceAccessException ex) {
+                if (attempt < MAX_RETRY_ATTEMPTS) {
+                    log.warn(
+                        "Gemini {} call failed due to network/timeout (attempt {}/{}). Retrying after {}ms. Cause: {}",
+                        operation,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs,
+                        ex.getMessage()
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            }
+        }
+        throw new RuntimeException("Gemini " + operation + " call failed after retries");
+    }
+
+    private boolean isRetryableStatus(int status) {
+        return status == 408 || status == 425 || status == 429 || (status >= 500 && status < 600);
+    }
+
+    private void sleepWithJitter(long baseBackoffMs) {
+        long jitter = ThreadLocalRandom.current().nextLong(0, 200);
+        long sleepMs = baseBackoffMs + jitter;
+        try {
+            Thread.sleep(sleepMs);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
     

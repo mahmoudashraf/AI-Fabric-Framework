@@ -322,7 +322,7 @@ public class CohereProvider implements AIProvider {
 
     private boolean isRetryableStatus(int status) {
         // Common transient failures: rate limiting and upstream 5xx from edge/network.
-        return status == 408 || status == 425 || status == 429 || status == 500 || status == 502 || status == 503 || status == 504;
+        return status == 408 || status == 425 || status == 429 || (status >= 500 && status < 600);
     }
 
     private void sleepWithJitter(long baseBackoffMs) {
