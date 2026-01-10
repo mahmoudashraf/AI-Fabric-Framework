@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,9 @@ class IntentQueryExtractorTest {
 
     @Mock
     private EnrichedPromptBuilder enrichedPromptBuilder;
+
+    @Mock
+    private ActionHandlerRegistry actionHandlerRegistry;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -53,7 +57,7 @@ class IntentQueryExtractorTest {
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
 
         MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
 
@@ -88,7 +92,7 @@ class IntentQueryExtractorTest {
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
 
         MultiIntentResponse response = extractor.extract("What is your refund policy?", OrchestrationContext.forUser("user-456"));
 
@@ -123,7 +127,7 @@ class IntentQueryExtractorTest {
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
 
         MultiIntentResponse response = extractor.extract("Build me a spaceship", OrchestrationContext.forUser("user-789"));
 
@@ -161,7 +165,7 @@ class IntentQueryExtractorTest {
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
 
         MultiIntentResponse response = extractor.extract("Update my payment details", OrchestrationContext.forUser("user-321"));
 
@@ -173,7 +177,7 @@ class IntentQueryExtractorTest {
 
     @Test
     void shouldRejectBlankQuery() {
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
 
         assertThatThrownBy(() -> extractor.extract("   ", OrchestrationContext.forUser("user-123")))
             .isInstanceOf(AIServiceException.class)
@@ -192,7 +196,7 @@ class IntentQueryExtractorTest {
             req != null && req.getGenerationType().equals("intent_extraction_repair"))))
             .thenReturn(AIGenerationResponse.builder().content("still-not-json").build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
 
         assertThatThrownBy(() -> extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123")))
             .isInstanceOf(AIServiceException.class)
@@ -225,7 +229,7 @@ class IntentQueryExtractorTest {
             req != null && req.getGenerationType().equals("intent_extraction_repair"))))
             .thenReturn(AIGenerationResponse.builder().content(repairedJson).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
 
         MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
 

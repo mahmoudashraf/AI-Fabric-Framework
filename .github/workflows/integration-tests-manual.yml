@@ -671,6 +671,20 @@ jobs:
           cd ai-infrastructure-module
           mvn clean install -DskipTests -B -V
 
+      - name: Validate Provider Availability
+        uses: ./.github/actions/configure-providers
+        with:
+          llm_provider: ${{ github.event.inputs.llm_provider }}
+          embedding_provider: ${{ github.event.inputs.embedding_provider }}
+          openai_api_key: ${{ github.event.inputs.openai_api_key }}
+          anthropic_api_key: ${{ github.event.inputs.anthropic_api_key }}
+          gemini_api_key: ${{ github.event.inputs.gemini_api_key }}
+          cohere_api_key: ${{ github.event.inputs.cohere_api_key }}
+          azure_api_key: ${{ github.event.inputs.azure_api_key }}
+          azure_endpoint: ${{ github.event.inputs.azure_endpoint }}
+          azure_deployment_name: ${{ github.event.inputs.azure_deployment_name }}
+          azure_embedding_deployment_name: ${{ github.event.inputs.azure_embedding_deployment_name }}
+
       - name: Gather Test Execution Evidence
         id: gather_evidence_rq
         run: |
@@ -703,8 +717,12 @@ jobs:
           bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          # Needed when embedding_provider=openai to satisfy startup validation.
+          OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          ANTHROPIC_ENABLED: ${{ (github.event.inputs.llm_provider == 'anthropic' || github.event.inputs.embedding_provider == 'anthropic') && 'true' || 'false' }}
           GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          GEMINI_ENABLED: ${{ (github.event.inputs.llm_provider == 'gemini' || github.event.inputs.embedding_provider == 'gemini') && 'true' || 'false' }}
           COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
           # IMPORTANT: do not set empty string for booleans; Spring binds empty -> null -> crash for primitive boolean fields.
           COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || 'false' }}
@@ -712,9 +730,164 @@ jobs:
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
+          AZURE_ENABLED: ${{ (github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure') && 'true' || 'false' }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && (github.event.inputs.llm_model || 'command-r7b-12-2024') || '' }}
           COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && (github.event.inputs.embedding_model || 'embed-english-v3.0') || '' }}
+
+      - name: Publish Relationship Query Scorecard Evidence
+        if: always()
+        run: |
+          set -e
+          SCORECARD_ROOT="ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-scorecards"
+          echo "## Relationship Query Provider Scorecard (Evidence)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ ! -d "$SCORECARD_ROOT" ]; then
+            echo "_No scorecard output found (provider-scorecards directory missing)._ " >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          
+          # Pick the most recent run directory (best-effort).
+          LATEST_DIR="$(ls -td "$SCORECARD_ROOT"/* 2>/dev/null | head -n 1 || true)"
+          if [ -z "$LATEST_DIR" ] || [ ! -d "$LATEST_DIR" ]; then
+            echo "_No scorecard output found (no run directories)._ " >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          
+          SUMMARY_JSON="$LATEST_DIR/summary.json"
+          if [ ! -f "$SUMMARY_JSON" ]; then
+            echo "_No scorecard summary.json found at:_ \`$SUMMARY_JSON\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          
+          SUMMARY_JSON="$SUMMARY_JSON" python3 << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+          
+          p = Path(os.environ["SUMMARY_JSON"])
+          data = json.loads(p.read_text())
+          
+          provider = data.get("provider", "unknown")
+          scenario_set = data.get("scenarioSetId", "unknown")
+          run_id = data.get("runId", p.parent.name)
+          attempts = data.get("totalAttempts", 0)
+          correct = data.get("correctAttempts", 0)
+          correct_rate = data.get("correctRate", 0.0)
+          unexpected_zero = data.get("unexpectedZeroResultsAttempts", 0)
+          error_attempts = data.get("errorAttempts", 0)
+          p50 = data.get("latencyP50Ms", 0)
+          p95 = data.get("latencyP95Ms", 0)
+          
+          print(f"- **Provider**: `{provider}`")
+          print(f"- **Scenario set**: `{scenario_set}`")
+          print(f"- **Run ID**: `{run_id}`")
+          print("")
+          print("| Metric | Value |")
+          print("|---|---:|")
+          print(f"| Attempts | {attempts} |")
+          print(f"| Correct | {correct} |")
+          print(f"| Correct rate | {correct_rate:.2%} |")
+          print(f"| Unexpected 0 results | {unexpected_zero} |")
+          print(f"| Error attempts | {error_attempts} |")
+          print(f"| Latency p50 (ms) | {p50} |")
+          print(f"| Latency p95 (ms) | {p95} |")
+          print("")
+          PY
+          
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Raw scorecard artifacts are uploaded under relationship-query-test-reports._" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish Relationship Query RealAPI Test Evidence
+        if: always()
+        run: |
+          set -e
+          REPORT_DIR="ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Relationship Query RealAPI Tests (Evidence)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          
+          if [ ! -d "$REPORT_DIR" ]; then
+            echo "_No failsafe-reports directory found._" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          
+          python3 << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+          
+          report_dir = os.environ.get("REPORT_DIR", "ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports")
+          # Prefer TEST-*.xml JUnit reports; skip failsafe-summary.xml and other non-test XML.
+          files = sorted(glob.glob(os.path.join(report_dir, "TEST-*.xml")))
+          
+          if not files:
+              print("_No JUnit XML test reports found (expected TEST-*.xml)._")
+              raise SystemExit(0)
+          
+          total_tests = total_failures = total_errors = total_skipped = 0
+          failing_cases = []
+          
+          for path in files:
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception:
+                  continue
+          
+              # JUnit XML may have testsuite as root or testsuites wrapper.
+              suites = []
+              if root.tag == "testsuite":
+                  suites = [root]
+              elif root.tag == "testsuites":
+                  suites = list(root.findall("testsuite"))
+          
+              for suite in suites:
+                  def as_int(name):
+                      try:
+                          return int(float(suite.attrib.get(name, "0")))
+                      except Exception:
+                          return 0
+          
+                  total_tests += as_int("tests")
+                  total_failures += as_int("failures")
+                  total_errors += as_int("errors")
+                  total_skipped += as_int("skipped")
+          
+                  for tc in suite.findall("testcase"):
+                      classname = tc.attrib.get("classname", "")
+                      name = tc.attrib.get("name", "")
+                      failure = tc.find("failure")
+                      error = tc.find("error")
+                      if failure is not None:
+                          msg = (failure.attrib.get("message") or "").strip()
+                          failing_cases.append((f"{classname}.{name}".strip("."), "FAILURE", msg))
+                      elif error is not None:
+                          msg = (error.attrib.get("message") or "").strip()
+                          failing_cases.append((f"{classname}.{name}".strip("."), "ERROR", msg))
+          
+          print("| Metric | Value |")
+          print("|---|---:|")
+          print(f"| Tests | {total_tests} |")
+          print(f"| Failures | {total_failures} |")
+          print(f"| Errors | {total_errors} |")
+          print(f"| Skipped | {total_skipped} |")
+          print("")
+          
+          if failing_cases:
+              print("### Failing tests")
+              # Cap to avoid huge summaries.
+              for case, kind, msg in failing_cases[:25]:
+                  if msg:
+                      print(f"- **{kind}**: `{case}` — {msg}")
+                  else:
+                      print(f"- **{kind}**: `{case}`")
+              if len(failing_cases) > 25:
+                  print(f"- _…and {len(failing_cases) - 25} more_")
+          else:
+              print("✅ No failing testcases found in JUnit reports.")
+          PY
+        env:
+          REPORT_DIR: ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports
 
       - name: Upload test reports
         if: always()
@@ -724,6 +897,7 @@ jobs:
           path: |
             ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/
             ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports/
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-scorecards/
           retention-days: 30
 
       - name: Publish Test Results
@@ -783,6 +957,20 @@ jobs:
           cd ai-infrastructure-module
           mvn clean install -DskipTests -B -V
 
+      - name: Validate Provider Availability
+        uses: ./.github/actions/configure-providers
+        with:
+          llm_provider: ${{ github.event.inputs.llm_provider }}
+          embedding_provider: ${{ github.event.inputs.embedding_provider }}
+          openai_api_key: ${{ github.event.inputs.openai_api_key }}
+          anthropic_api_key: ${{ github.event.inputs.anthropic_api_key }}
+          gemini_api_key: ${{ github.event.inputs.gemini_api_key }}
+          cohere_api_key: ${{ github.event.inputs.cohere_api_key }}
+          azure_api_key: ${{ github.event.inputs.azure_api_key }}
+          azure_endpoint: ${{ github.event.inputs.azure_endpoint }}
+          azure_deployment_name: ${{ github.event.inputs.azure_deployment_name }}
+          azure_embedding_deployment_name: ${{ github.event.inputs.azure_embedding_deployment_name }}
+
       - name: Gather Test Execution Evidence
         id: gather_evidence_behavior
         run: |
@@ -815,8 +1003,11 @@ jobs:
           bash run-behavior-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          ANTHROPIC_ENABLED: ${{ (github.event.inputs.llm_provider == 'anthropic' || github.event.inputs.embedding_provider == 'anthropic') && 'true' || 'false' }}
           GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          GEMINI_ENABLED: ${{ (github.event.inputs.llm_provider == 'gemini' || github.event.inputs.embedding_provider == 'gemini') && 'true' || 'false' }}
           COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
           # IMPORTANT: do not set empty string for booleans; Spring binds empty -> null -> crash for primitive boolean fields.
           COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || 'false' }}
@@ -824,6 +1015,7 @@ jobs:
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
+          AZURE_ENABLED: ${{ (github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure') && 'true' || 'false' }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && (github.event.inputs.llm_model || 'command-r7b-12-2024') || '' }}
           COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && (github.event.inputs.embedding_model || 'embed-english-v3.0') || '' }}

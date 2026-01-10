@@ -272,7 +272,15 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
         
-        String confirmationMessage = handler.getConfirmationMessage(params);
+        // Never let confirmation-message formatting crash the pipeline.
+        // Some handlers validate required params inside getConfirmationMessage().
+        String confirmationMessage = null;
+        try {
+            confirmationMessage = handler.getConfirmationMessage(params);
+        } catch (Exception ex) {
+            log.debug("Action handler {} failed to build confirmation message for '{}': {}",
+                handler.getClass().getName(), actionName, ex.getMessage());
+        }
         try {
             ActionResult actionResult = handler.executeAction(params, identifier);
             boolean success = actionResult != null && actionResult.isSuccess();

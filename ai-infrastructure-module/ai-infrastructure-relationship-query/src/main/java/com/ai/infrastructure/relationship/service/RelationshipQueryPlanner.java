@@ -19,9 +19,11 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.Locale;
 
@@ -41,10 +43,25 @@ public class RelationshipQueryPlanner {
 
     private static final List<String> PLAN_EXAMPLES = List.of(
         """
+        Example plan for query "Find all brands":
+        {
+          "primaryEntityType": "brand",
+          "candidateEntityTypes": ["brand"],
+          "relationshipPaths": [],
+          "directFilters": {},
+          "relationshipFilters": {},
+          "metadataFilters": {},
+          "queryStrategy": "RELATIONSHIP",
+          "needsSemanticSearch": false,
+          "confidence": 0.9,
+          "context": {}
+        }
+        """,
+        """
         Example plan for query "Show me blue shoes under $100 from Nike":
         {
           "primaryEntityType": "product",
-          "candidateEntityTypes": ["product"],
+          "candidateEntityTypes": ["product", "brand"],
           "relationshipPaths": [
             {
               "fromEntityType": "product",
@@ -129,10 +146,10 @@ public class RelationshipQueryPlanner {
         }
         """,
         """
-        Example plan for query "Show active runner shoes from Nike or Adidas priced between $80 and $120 available in red or blue":
+        Example plan for query "Show active Nike or Adidas running shoes priced between $80 and $120 available in red or blue":
         {
           "primaryEntityType": "product",
-          "candidateEntityTypes": ["product"],
+          "candidateEntityTypes": ["product", "brand"],
           "relationshipPaths": [
             {
               "fromEntityType": "product",
@@ -241,8 +258,302 @@ public class RelationshipQueryPlanner {
         RelationshipQueryPlan plan = parsePlan(response.getContent());
         applyDefaults(plan, fallback);
         sanitizeHallucinatedFilters(plan, query);
+        normalizeCrossEntityValueReferences(plan);
+        validateCrossEntityReferences(plan);
+        validateFilterFields(plan);
         validator.validate(plan);
         return plan;
+    }
+
+    /**
+     * Provider-agnostic normalization for cross-entity comparisons.
+     *
+     * <p>The planner prompt asks models to express cross-entity comparisons using
+     * "<entity-slug>.<field>" (e.g., "destination-account.ownerName"). Some providers instead emit
+     * the relationship field name (e.g., "destinationAccount.ownerName"). We normalize those cases
+     * to the entity slug when the mapping is available from relationshipPaths.</p>
+     *
+     * <p>This improves stability without introducing provider-specific behavior.</p>
+     */
+    private void normalizeCrossEntityValueReferences(RelationshipQueryPlan plan) {
+        if (plan == null || CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
+            return;
+        }
+
+        Map<String, String> relationshipFieldToEntityType = new java.util.LinkedHashMap<>();
+        plan.getRelationshipPaths().forEach(path -> {
+            if (path == null) {
+                return;
+            }
+            if (StringUtils.hasText(path.getRelationshipType()) && StringUtils.hasText(path.getToEntityType())) {
+                relationshipFieldToEntityType.put(path.getRelationshipType().trim(), path.getToEntityType().trim());
+            }
+        });
+        if (relationshipFieldToEntityType.isEmpty()) {
+            return;
+        }
+
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().values().forEach(filters ->
+                normalizeCrossEntityValueReferences(filters, relationshipFieldToEntityType));
+        }
+        if (plan.getRelationshipFilters() != null && !plan.getRelationshipFilters().isEmpty()) {
+            plan.getRelationshipFilters().values().forEach(filters ->
+                normalizeCrossEntityValueReferences(filters, relationshipFieldToEntityType));
+        }
+        if (!CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path != null) {
+                    normalizeCrossEntityValueReferences(path.getConditions(), relationshipFieldToEntityType);
+                }
+            });
+        }
+    }
+
+    private void normalizeCrossEntityValueReferences(List<com.ai.infrastructure.relationship.dto.FilterCondition> filters,
+                                                     Map<String, String> relationshipFieldToEntityType) {
+        if (CollectionUtils.isEmpty(filters) || relationshipFieldToEntityType == null || relationshipFieldToEntityType.isEmpty()) {
+            return;
+        }
+        for (var filter : filters) {
+            if (filter == null) {
+                continue;
+            }
+            filter.setValue(normalizeReferenceValue(filter.getValue(), relationshipFieldToEntityType));
+            filter.setSecondaryValue(normalizeReferenceValue(filter.getSecondaryValue(), relationshipFieldToEntityType));
+        }
+    }
+
+    private Object normalizeReferenceValue(Object raw, Map<String, String> relationshipFieldToEntityType) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof List<?> list) {
+            List<Object> normalized = new ArrayList<>(list.size());
+            for (Object item : list) {
+                normalized.add(normalizeReferenceValue(item, relationshipFieldToEntityType));
+            }
+            return normalized;
+        }
+        if (!(raw instanceof String text)) {
+            return raw;
+        }
+        String trimmed = text.trim();
+        if (!trimmed.contains(".")) {
+            return raw;
+        }
+        String[] parts = trimmed.split("\\.", 2);
+        if (parts.length != 2) {
+            return raw;
+        }
+
+        String head = parts[0].trim();
+        String tail = parts[1].trim();
+        if (!StringUtils.hasText(head) || !StringUtils.hasText(tail)) {
+            return raw;
+        }
+
+        // If it is already a known entity type, leave it untouched.
+        if (schemaProvider.getEntitySchema(head).isPresent()) {
+            return raw;
+        }
+
+        // If it's a relationship field name, rewrite to the target entity type slug.
+        String mapped = relationshipFieldToEntityType.get(head);
+        if (StringUtils.hasText(mapped)) {
+            return mapped + "." + tail;
+        }
+
+        return raw;
+    }
+
+    /**
+     * Validate that any cross-entity reference "<entity-type>.<field>" points to an entity type that is actually
+     * present in the plan (primary/candidates/relationshipPaths). If not, fail planning deterministically so the
+     * retry loop can ask the model to include the required relationship path(s).
+     */
+    private void validateCrossEntityReferences(RelationshipQueryPlan plan) {
+        if (plan == null) {
+            return;
+        }
+
+        List<String> errors = new ArrayList<>();
+        Set<String> presentEntityTypes = new HashSet<>();
+        if (StringUtils.hasText(plan.getPrimaryEntityType())) {
+            presentEntityTypes.add(plan.getPrimaryEntityType().trim());
+        }
+        if (!CollectionUtils.isEmpty(plan.getCandidateEntityTypes())) {
+            presentEntityTypes.addAll(plan.getCandidateEntityTypes().stream().filter(StringUtils::hasText).map(String::trim).toList());
+        }
+        if (!CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path == null) {
+                    return;
+                }
+                if (StringUtils.hasText(path.getFromEntityType())) {
+                    presentEntityTypes.add(path.getFromEntityType().trim());
+                }
+                if (StringUtils.hasText(path.getToEntityType())) {
+                    presentEntityTypes.add(path.getToEntityType().trim());
+                }
+            });
+        }
+
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().values().forEach(filters -> collectCrossEntityReferenceErrors(filters, presentEntityTypes, errors));
+        }
+        if (plan.getRelationshipFilters() != null && !plan.getRelationshipFilters().isEmpty()) {
+            plan.getRelationshipFilters().values().forEach(filters -> collectCrossEntityReferenceErrors(filters, presentEntityTypes, errors));
+        }
+        if (!CollectionUtils.isEmpty(plan.getRelationshipPaths())) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path != null) {
+                    collectCrossEntityReferenceErrors(path.getConditions(), presentEntityTypes, errors);
+                }
+            });
+        }
+
+        if (!errors.isEmpty()) {
+            throw new RelationshipQueryValidationException("Planner emitted invalid cross-entity reference(s): " + String.join("; ", errors));
+        }
+    }
+
+    private void collectCrossEntityReferenceErrors(List<com.ai.infrastructure.relationship.dto.FilterCondition> filters,
+                                                   Set<String> presentEntityTypes,
+                                                   List<String> errors) {
+        if (CollectionUtils.isEmpty(filters)) {
+            return;
+        }
+        for (var filter : filters) {
+            if (filter == null) {
+                continue;
+            }
+            collectCrossEntityReferenceErrors(filter.getValue(), presentEntityTypes, errors);
+            collectCrossEntityReferenceErrors(filter.getSecondaryValue(), presentEntityTypes, errors);
+        }
+    }
+
+    private void collectCrossEntityReferenceErrors(Object raw, Set<String> presentEntityTypes, List<String> errors) {
+        if (raw == null) {
+            return;
+        }
+        if (raw instanceof List<?> list) {
+            list.forEach(item -> collectCrossEntityReferenceErrors(item, presentEntityTypes, errors));
+            return;
+        }
+        if (!(raw instanceof String text)) {
+            return;
+        }
+        String trimmed = text.trim();
+        if (!trimmed.contains(".")) {
+            return;
+        }
+        String[] parts = trimmed.split("\\.", 2);
+        if (parts.length != 2) {
+            return;
+        }
+        String head = parts[0].trim();
+        if (!StringUtils.hasText(head)) {
+            return;
+        }
+        if (schemaProvider.getEntitySchema(head).isEmpty()) {
+            return; // not an entity type reference
+        }
+        if (presentEntityTypes == null || !presentEntityTypes.contains(head)) {
+            errors.add("referencedEntityType='%s' value='%s'".formatted(head, trimmed));
+        }
+    }
+
+    /**
+     * Validates that every filter field emitted by the planner exists in the discovered schema.
+     * If unknown fields are present (e.g. "product.type" when Product has no such field), we fail planning
+     * deterministically so the retry/feedback loop can ask the LLM to correct the structure.
+     */
+    private void validateFilterFields(RelationshipQueryPlan plan) {
+        if (plan == null) {
+            return;
+        }
+
+        List<String> errors = new ArrayList<>();
+
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().forEach((entityKey, filters) -> {
+                if (filters == null || filters.isEmpty()) {
+                    return;
+                }
+                for (var filter : filters) {
+                    if (filter == null) {
+                        continue;
+                    }
+                    String entityType = filter.getEntityType() != null ? filter.getEntityType() : entityKey;
+                    validateFieldReference(entityType, filter.getField(), errors);
+                }
+            });
+        }
+
+        if (plan.getRelationshipPaths() != null && !plan.getRelationshipPaths().isEmpty()) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path == null || path.getConditions() == null || path.getConditions().isEmpty()) {
+                    return;
+                }
+                for (var condition : path.getConditions()) {
+                    if (condition == null) {
+                        continue;
+                    }
+                    String entityType = condition.getEntityType() != null
+                        ? condition.getEntityType()
+                        : (path.getToEntityType() != null ? path.getToEntityType() : path.getFromEntityType());
+                    validateFieldReference(entityType, condition.getField(), errors);
+                }
+            });
+        }
+
+        if (!errors.isEmpty()) {
+            throw new RelationshipQueryValidationException(
+                "Planner emitted unknown field(s): " + String.join("; ", errors)
+            );
+        }
+    }
+
+    private void validateFieldReference(String entityType, String field, List<String> errors) {
+        if (!StringUtils.hasText(entityType) || !StringUtils.hasText(field)) {
+            return;
+        }
+        Set<String> allowed = allowedFields(entityType);
+        if (allowed.isEmpty()) {
+            // Schema fields may be unavailable for some entity types; skip strict validation in that case.
+            return;
+        }
+
+        String raw = field.trim();
+        String fieldName = raw.contains(".") ? raw.substring(raw.lastIndexOf('.') + 1) : raw;
+        if (fieldName.isBlank()) {
+            return;
+        }
+
+        if (!allowed.contains(fieldName)) {
+            errors.add("entityType='" + entityType + "' field='" + fieldName + "' allowed=" + allowed);
+        }
+    }
+
+    private Set<String> allowedFields(String entityType) {
+        if (!StringUtils.hasText(entityType)) {
+            return Set.of();
+        }
+        return schemaProvider.getEntitySchema(entityType)
+            .map(schema -> {
+                if (schema.getFields() == null || schema.getFields().isEmpty()) {
+                    return Set.<String>of();
+                }
+                Set<String> allowed = new HashSet<>();
+                schema.getFields().forEach(field -> {
+                    if (field != null && StringUtils.hasText(field.getName())) {
+                        allowed.add(field.getName());
+                    }
+                });
+                return allowed;
+            })
+            .orElse(Set.of());
     }
 
     private AIGenerationRequest buildRequest(String query, String prompt) {
@@ -286,12 +597,17 @@ public class RelationshipQueryPlanner {
             Guidelines:
             - candidateEntityTypes MUST always include the primaryEntityType.
             - Each element inside directFilters/relationshipFilters MUST be an array of objects shaped like {"field":"entity.field","operator":"GREATER_THAN","value":123}. Valid operators: EQUALS, NOT_EQUALS, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, BETWEEN, IN, LIKE.
+            - relationshipPaths[].relationshipType MUST be the relationship field name exactly as shown under "Relationships" in the schema (e.g., "brand", "destinationAccount", "sourceAccount", "author").
             - relationshipPaths[].conditions follows the exact same object structure (arrays of filter objects).
             - Use fully-qualified field names such as "transaction.amount" or "destinationAccount.region".
             - When a predicate needs to compare two entities (e.g., "same counterparty"), set the filter value to "<entity-slug>.<field>" (example: {"field":"ownerName","operator":"EQUALS","value":"destination-account.ownerName"}).
             - When the request lists multiple acceptable values for the same field (e.g., "Nike or Adidas"), prefer the IN operator with an array of values.
             - Use the exact field names shown in the schema (e.g., "creationDate", "author.fullName"); do not invent shorthand names like "date" or "author".
+            - NEVER copy literal values from the example plans. Examples are illustrative only.
+            - Only include literal filter values that are explicitly stated in the user's query (except for enumerated constants defined in the schema, e.g., statuses).
+            - For broad list queries like "find all <entity>" or "list all <entity>", return empty filters unless the user explicitly requests constraints.
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
+            - If the user mentions a concept that is not represented as a schema field, do NOT invent a new field. Either omit that constraint or map it to an existing field (commonly "name") if appropriate.
 
             Schema:
             """);
@@ -419,6 +735,114 @@ public class RelationshipQueryPlanner {
                 });
             });
         }
+
+        // 3) Generic literal-value leakage guardrail:
+        // Remove string literal filter values that are NOT explicitly mentioned in the user's query.
+        // This is provider-agnostic and prevents common example leakage like "Nike" -> "Nike, Adidas".
+        sanitizeUnmentionedStringLiterals(plan, normalizedQuery);
+    }
+
+    private void sanitizeUnmentionedStringLiterals(RelationshipQueryPlan plan, String normalizedQuery) {
+        if (plan == null || !StringUtils.hasText(normalizedQuery)) {
+            return;
+        }
+
+        if (plan.getDirectFilters() != null && !plan.getDirectFilters().isEmpty()) {
+            plan.getDirectFilters().forEach((entity, filters) -> {
+                if (filters == null || filters.isEmpty()) {
+                    return;
+                }
+                filters.removeIf(filter -> shouldRemoveFilterForUnmentionedStringValue(filter, normalizedQuery));
+            });
+        }
+
+        if (plan.getRelationshipPaths() != null && !plan.getRelationshipPaths().isEmpty()) {
+            plan.getRelationshipPaths().forEach(path -> {
+                if (path == null || path.getConditions() == null || path.getConditions().isEmpty()) {
+                    return;
+                }
+                path.getConditions().removeIf(condition -> shouldRemoveFilterForUnmentionedStringValue(condition, normalizedQuery));
+            });
+        }
+    }
+
+    private boolean shouldRemoveFilterForUnmentionedStringValue(com.ai.infrastructure.relationship.dto.FilterCondition condition,
+                                                                String normalizedQuery) {
+        if (condition == null || condition.getOperator() == null) {
+            return false;
+        }
+        Object value = condition.getValue();
+        if (value == null) {
+            return false;
+        }
+
+        // Skip cross-entity comparisons like "destination-account.ownerName"
+        if (value instanceof String s && s.contains(".")) {
+            return false;
+        }
+
+        return switch (condition.getOperator()) {
+            case EQUALS, NOT_EQUALS, LIKE, IN, ILIKE -> {
+                boolean changedOrEmpty = sanitizeConditionValueInPlace(condition, normalizedQuery);
+                yield changedOrEmpty;
+            }
+            default -> false;
+        };
+    }
+
+    /**
+     * Sanitizes condition.value for string literals:
+     * - For String values: remove filter if value not mentioned.
+     * - For List<String> values: drop unmentioned elements; remove filter if list becomes empty.
+     *
+     * @return true if the filter should be removed from the plan.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean sanitizeConditionValueInPlace(com.ai.infrastructure.relationship.dto.FilterCondition condition,
+                                                  String normalizedQuery) {
+        Object value = condition.getValue();
+        if (value instanceof String text) {
+            String normalizedValue = normalizeLiteralForQueryMatch(text);
+            if (!StringUtils.hasText(normalizedValue)) {
+                return false;
+            }
+            return !normalizedQuery.contains(normalizedValue);
+        }
+
+        if (value instanceof List<?> list) {
+            List<Object> mutable = new ArrayList<>(list);
+            mutable.removeIf(item -> {
+                if (!(item instanceof String s)) {
+                    return false;
+                }
+                String normalizedValue = normalizeLiteralForQueryMatch(s);
+                if (!StringUtils.hasText(normalizedValue)) {
+                    return false;
+                }
+                return !normalizedQuery.contains(normalizedValue);
+            });
+
+            if (mutable.isEmpty()) {
+                return true;
+            }
+            condition.setValue(mutable);
+            return false;
+        }
+
+        return false;
+    }
+
+    private String normalizeLiteralForQueryMatch(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        // remove common quoting / wildcard wrappers
+        value = value.replace("\"", "").replace("'", "");
+        value = value.replace("%", "").replace("*", "").trim();
+        // collapse whitespace
+        value = value.replaceAll("\\s+", " ").trim();
+        return value;
     }
 
     private boolean mentionsTimeConstraint(String normalizedQuery) {

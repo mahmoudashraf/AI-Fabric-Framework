@@ -111,17 +111,26 @@ public class EnrichedPromptBuilder {
         prompt.append("8. Action selection MUST be grounded in AVAILABLE ACTIONS and the user's request:\n");
         prompt.append("   - Only return intent.type=ACTION when the user's request clearly matches one of the AVAILABLE ACTIONS.\n");
         prompt.append("   - Choose the closest matching action by meaning; never pick an unrelated action just because it's available.\n");
-        prompt.append("   - If no AVAILABLE ACTION matches the user's request, return intent.type=OUT_OF_SCOPE (do not invent new actions).\n");
+        prompt.append("   - Never invent actions that are not listed in AVAILABLE ACTIONS (examples of forbidden invented actions: \"summarize\", \"search\", \"lookup\", \"answer_question\").\n");
+        prompt.append("   - If the user asks to summarize / explain / answer using the knowledge base, that is INFORMATION (set vectorSpace + requiresRetrieval and requiresGeneration as appropriate) NOT an ACTION.\n");
+        prompt.append("   - If no AVAILABLE ACTION matches the user's request, return intent.type=OUT_OF_SCOPE.\n");
         // Add entity types information - always include, even if empty
-        prompt.append("9. When action == \"relationship_query\", extract entityTypes from the user request as an array of lower-case strings. ");
+        prompt.append("9. When action == \"relationship_query\":\n");
+        prompt.append("   - Extract entityTypes from the user request as an array of lower-case strings. ");
         if (context.getAvailableEntityTypes() != null && !context.getAvailableEntityTypes().isEmpty()) {
             prompt.append("Available entity types: ").append(String.join(", ", context.getAvailableEntityTypes())).append(". ");
             prompt.append("Only use entity types from this list. ");
         } else {
             prompt.append("No entity types are currently registered. ");
         }
-        prompt.append("Use [] when unknown or when no entity types match. ");
-        prompt.append("Example: {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find premium customers who ordered this month\",\"entityTypes\":[\"customer\",\"order\"],\"limit\":20}}.\n\n");
+        prompt.append("Use [] when unknown or when no entity types match.\n");
+        prompt.append("   - actionParams.query is REQUIRED and MUST contain the natural-language relationship query to execute.\n");
+        prompt.append("     * If the user's message starts with the hint prefix \"relationship_query:\", actionParams.query MUST be the text after that prefix.\n");
+        prompt.append("     * If the user's message is compound, actionParams.query MUST contain ONLY the relational part (exclude unrelated tasks like summarization or other actions).\n");
+        prompt.append("     * Do NOT rewrite the user's query or add constraints that the user did not ask for.\n");
+        prompt.append("   - Examples:\n");
+        prompt.append("     * {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find all brands\",\"entityTypes\":[\"brand\"],\"limit\":20}}\n");
+        prompt.append("     * For user message \"relationship_query: find all brands and then summarize\": set actionParams.query=\"find all brands\".\n\n");
 
         prompt.append("10. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
     }

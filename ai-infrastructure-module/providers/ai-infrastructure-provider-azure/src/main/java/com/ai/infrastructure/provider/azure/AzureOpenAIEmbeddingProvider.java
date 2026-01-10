@@ -12,8 +12,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
@@ -25,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Azure-specific embedding provider that calls Azure OpenAI deployments for embeddings.
@@ -39,6 +43,7 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
     private RestTemplate restTemplate;
     private boolean available = false;
     private int embeddingDimension = 1536;
+    private static final int MAX_RETRY_ATTEMPTS = 3;
 
     @PostConstruct
     public void initialize() {
@@ -124,7 +129,7 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             long start = System.currentTimeMillis();
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "embeddings");
             long elapsed = System.currentTimeMillis() - start;
 
             Map<String, Object> responseBody = response.getBody();
@@ -197,7 +202,7 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             long start = System.currentTimeMillis();
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "embeddings(batch)");
             long elapsed = System.currentTimeMillis() - start;
 
             Map<String, Object> responseBody = response.getBody();
@@ -323,5 +328,80 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
         return ex instanceof AIServiceException serviceException
             ? serviceException
             : new AIServiceException(message + ": " + ex.getMessage(), ex);
+    }
+
+    private <T> ResponseEntity<T> exchangeWithRetry(String url,
+                                                    HttpMethod method,
+                                                    HttpEntity<?> entity,
+                                                    Class<T> responseType,
+                                                    String operation) {
+        long backoffMs = 400;
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                return restTemplate.exchange(url, method, entity, responseType);
+            } catch (HttpStatusCodeException ex) {
+                HttpStatusCode statusCode = ex.getStatusCode();
+                int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();
+                if (attempt < MAX_RETRY_ATTEMPTS && isRetryableStatus(rawStatus)) {
+                    log.warn(
+                        "Azure embedding {} call failed with HTTP {} (attempt {}/{}). Retrying after {}ms.",
+                        operation,
+                        rawStatus,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            } catch (ResourceAccessException ex) {
+                if (attempt < MAX_RETRY_ATTEMPTS) {
+                    log.warn(
+                        "Azure embedding {} call failed due to network/timeout (attempt {}/{}). Retrying after {}ms. Cause: {}",
+                        operation,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs,
+                        ex.getMessage()
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            } catch (RestClientException ex) {
+                if (attempt < MAX_RETRY_ATTEMPTS) {
+                    log.warn(
+                        "Azure embedding {} call failed (attempt {}/{}). Retrying after {}ms. Cause: {}",
+                        operation,
+                        attempt,
+                        MAX_RETRY_ATTEMPTS,
+                        backoffMs,
+                        ex.getMessage()
+                    );
+                    sleepWithJitter(backoffMs);
+                    backoffMs = Math.min(3000, backoffMs * 2);
+                    continue;
+                }
+                throw ex;
+            }
+        }
+        throw new AIServiceException("Azure embedding " + operation + " call failed after retries");
+    }
+
+    private boolean isRetryableStatus(int status) {
+        return status == 408 || status == 425 || status == 429 || (status >= 500 && status < 600);
+    }
+
+    private void sleepWithJitter(long baseBackoffMs) {
+        long jitter = ThreadLocalRandom.current().nextLong(0, 200);
+        long sleepMs = baseBackoffMs + jitter;
+        try {
+            Thread.sleep(sleepMs);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

@@ -62,6 +62,8 @@ runs:
       if: inputs.llm_provider == 'openai' || inputs.embedding_provider == 'openai'
       shell: bash
       run: |
+        echo "OPENAI_ENABLED=true" >> $GITHUB_ENV
+        echo "ai.providers.openai.enabled=true" >> $GITHUB_ENV
         if [ -n "${{ inputs.openai_api_key }}" ]; then
           echo "OPENAI_API_KEY=${{ inputs.openai_api_key }}" >> $GITHUB_ENV
           echo "✅ Configured OpenAI API key"
@@ -71,6 +73,8 @@ runs:
       if: inputs.llm_provider == 'anthropic' || inputs.embedding_provider == 'anthropic'
       shell: bash
       run: |
+        echo "ANTHROPIC_ENABLED=true" >> $GITHUB_ENV
+        echo "ai.providers.anthropic.enabled=true" >> $GITHUB_ENV
         if [ -n "${{ inputs.anthropic_api_key }}" ]; then
           echo "ANTHROPIC_API_KEY=${{ inputs.anthropic_api_key }}" >> $GITHUB_ENV
           echo "✅ Configured Anthropic API key"
@@ -80,6 +84,8 @@ runs:
       if: inputs.llm_provider == 'gemini' || inputs.embedding_provider == 'gemini'
       shell: bash
       run: |
+        echo "GEMINI_ENABLED=true" >> $GITHUB_ENV
+        echo "ai.providers.gemini.enabled=true" >> $GITHUB_ENV
         if [ -n "${{ inputs.gemini_api_key }}" ]; then
           echo "GEMINI_API_KEY=${{ inputs.gemini_api_key }}" >> $GITHUB_ENV
           echo "✅ Configured Gemini API key"
@@ -89,17 +95,19 @@ runs:
       if: inputs.llm_provider == 'cohere' || inputs.embedding_provider == 'cohere'
       shell: bash
       run: |
+        echo "COHERE_ENABLED=true" >> $GITHUB_ENV
+        echo "ai.providers.cohere.enabled=true" >> $GITHUB_ENV
         if [ -n "${{ inputs.cohere_api_key }}" ]; then
           echo "COHERE_API_KEY=${{ inputs.cohere_api_key }}" >> $GITHUB_ENV
-          echo "COHERE_ENABLED=true" >> $GITHUB_ENV
-          echo "ai.providers.cohere.enabled=true" >> $GITHUB_ENV
-          echo "✅ Configured Cohere API key and enabled provider"
+          echo "✅ Configured Cohere API key"
         fi
     
     - name: Configure Azure
       if: inputs.llm_provider == 'azure' || inputs.embedding_provider == 'azure'
       shell: bash
       run: |
+        echo "AZURE_ENABLED=true" >> $GITHUB_ENV
+        echo "ai.providers.azure.enabled=true" >> $GITHUB_ENV
         if [ -n "${{ inputs.azure_api_key }}" ]; then
           echo "AZURE_API_KEY=${{ inputs.azure_api_key }}" >> $GITHUB_ENV
           echo "✅ Configured Azure API key"
@@ -128,9 +136,14 @@ runs:
         echo "  Embedding Provider: ${{ inputs.embedding_provider }}"
         echo ""
         echo "Environment variables set:"
+        [ -n "$OPENAI_ENABLED" ] && echo "  ✅ OPENAI_ENABLED=$OPENAI_ENABLED" || echo "  ⏭️  OPENAI_ENABLED (not set)"
         [ -n "$OPENAI_API_KEY" ] && echo "  ✅ OPENAI_API_KEY" || echo "  ⏭️  OPENAI_API_KEY (not set)"
+        [ -n "$ANTHROPIC_ENABLED" ] && echo "  ✅ ANTHROPIC_ENABLED=$ANTHROPIC_ENABLED" || echo "  ⏭️  ANTHROPIC_ENABLED (not set)"
         [ -n "$ANTHROPIC_API_KEY" ] && echo "  ✅ ANTHROPIC_API_KEY" || echo "  ⏭️  ANTHROPIC_API_KEY (not set)"
+        [ -n "$GEMINI_ENABLED" ] && echo "  ✅ GEMINI_ENABLED=$GEMINI_ENABLED" || echo "  ⏭️  GEMINI_ENABLED (not set)"
         [ -n "$GEMINI_API_KEY" ] && echo "  ✅ GEMINI_API_KEY" || echo "  ⏭️  GEMINI_API_KEY (not set)"
+        [ -n "$COHERE_ENABLED" ] && echo "  ✅ COHERE_ENABLED=$COHERE_ENABLED" || echo "  ⏭️  COHERE_ENABLED (not set)"
         [ -n "$COHERE_API_KEY" ] && echo "  ✅ COHERE_API_KEY" || echo "  ⏭️  COHERE_API_KEY (not set)"
+        [ -n "$AZURE_ENABLED" ] && echo "  ✅ AZURE_ENABLED=$AZURE_ENABLED" || echo "  ⏭️  AZURE_ENABLED (not set)"
         [ -n "$AZURE_API_KEY" ] && echo "  ✅ AZURE_API_KEY" || echo "  ⏭️  AZURE_API_KEY (not set)"
         [ -n "$AZURE_ENDPOINT" ] && echo "  ✅ AZURE_ENDPOINT" || echo "  ⏭️  AZURE_ENDPOINT (not set)"

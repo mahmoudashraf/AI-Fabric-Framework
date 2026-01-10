@@ -81,7 +81,17 @@ public class ActionHandlerRegistry {
     }
 
     private String normalize(String value) {
-        return value.trim().toLowerCase(Locale.ROOT);
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        // Be tolerant to provider / user formatting differences:
+        // - "clear-vector-index", "clear vector index", "clear_vector_index" should all resolve identically.
+        // - Some providers include a trailing "action" token (e.g., "clear_vector_index action").
+        normalized = normalized.replaceAll("[^a-z0-9_]+", "_");
+        normalized = normalized.replaceAll("_+", "_");
+        normalized = normalized.replaceAll("^_+|_+$", "");
+        if (normalized.endsWith("_action")) {
+            normalized = normalized.substring(0, normalized.length() - "_action".length());
+        }
+        return normalized;
     }
 
     private AIActionMetaData safeMetadata(ActionHandler handler) {

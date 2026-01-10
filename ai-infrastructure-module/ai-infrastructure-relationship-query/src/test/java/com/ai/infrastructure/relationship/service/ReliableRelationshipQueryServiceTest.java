@@ -9,7 +9,6 @@ import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
-import com.ai.infrastructure.relationship.exception.FallbackExhaustedException;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
@@ -178,7 +177,7 @@ class ReliableRelationshipQueryServiceTest {
     }
 
     @Test
-    void shouldSurfaceErrorContextWhenAllFallbacksFail() {
+    void shouldReturnEmptySuccessfulResponseWhenAllFallbacksProduceNoResults() {
         properties.setFallbackToMetadata(false);
         properties.setFallbackToVectorSearch(false);
         RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
@@ -191,9 +190,13 @@ class ReliableRelationshipQueryServiceTest {
         when(planner.planQuery(anyString(), anyList())).thenReturn(plan);
         when(entityRepository.findByEntityType("document")).thenReturn(List.of());
 
-        assertThatThrownBy(() -> service.execute("exhausted", List.of("document"), QueryOptions.defaults()))
-            .isInstanceOf(FallbackExhaustedException.class)
-            .extracting(ex -> ((FallbackExhaustedException) ex).getContext().orElseThrow().getExecutionStage())
-            .isEqualTo("FALLBACK_CHAIN_EXHAUSTED");
+        RAGResponse response = service.execute("exhausted", List.of("document"), QueryOptions.defaults());
+
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getDocuments()).isNotNull().isEmpty();
+        assertThat(response.getTotalResults()).isEqualTo(0);
+        assertThat(response.getReturnedResults()).isEqualTo(0);
+        assertThat(response.getMetadata()).containsEntry("executionStage", "FALLBACK_CHAIN_EXHAUSTED");
+        assertThat(response.getMetadata()).containsKey("plan");
     }
 }

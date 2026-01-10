@@ -2,6 +2,7 @@ package com.ai.infrastructure.relationship.validation;
 
 import com.ai.infrastructure.relationship.dto.RelationshipPath;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
+import com.ai.infrastructure.relationship.model.RelationshipMapping;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -104,6 +105,46 @@ public class RelationshipQueryValidator {
                     "Relationship path %s -> %s does not define a relationshipType"
                         .formatted(path.getFromEntityType(), path.getToEntityType())
                 );
+            }
+
+            if (mode != ValidateMode.LAX) {
+                if (!relationshipMapper.hasEntityType(path.getFromEntityType())) {
+                    throw new RelationshipQueryValidationException(
+                        "Relationship path fromEntityType '%s' is not registered".formatted(path.getFromEntityType())
+                    );
+                }
+                if (!relationshipMapper.hasEntityType(path.getToEntityType())) {
+                    throw new RelationshipQueryValidationException(
+                        "Relationship path toEntityType '%s' is not registered".formatted(path.getToEntityType())
+                    );
+                }
+
+                // relationshipType is the JPA relationship field name. Validate it matches the registered mapping.
+                if (StringUtils.hasText(path.getRelationshipType())) {
+                    try {
+                        RelationshipMapping mapping = relationshipMapper.getRelationshipMapping(
+                            path.getFromEntityType(),
+                            path.getToEntityType()
+                        );
+                        if (mapping != null && StringUtils.hasText(mapping.fieldName())
+                            && !mapping.fieldName().equals(path.getRelationshipType())) {
+                            throw new RelationshipQueryValidationException(
+                                "Relationship path %s -> %s must use relationshipType '%s' (got '%s')"
+                                    .formatted(
+                                        path.getFromEntityType(),
+                                        path.getToEntityType(),
+                                        mapping.fieldName(),
+                                        path.getRelationshipType()
+                                    )
+                            );
+                        }
+                    } catch (IllegalArgumentException ex) {
+                        throw new RelationshipQueryValidationException(
+                            "Relationship path %s -> %s is not registered"
+                                .formatted(path.getFromEntityType(), path.getToEntityType())
+                        );
+                    }
+                }
             }
         }
     }

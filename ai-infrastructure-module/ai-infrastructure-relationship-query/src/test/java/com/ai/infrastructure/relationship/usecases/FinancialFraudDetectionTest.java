@@ -294,7 +294,10 @@ class FinancialFraudDetectionTest {
         entityRelationshipMapper.registerEntityType("destination-account", AccountEntity.class);
         entityRelationshipMapper.registerEntityType("origin-account", AccountEntity.class);
         try {
-            entityRelationshipMapper.registerRelationship("transaction", "account", "destinationAccount", RelationshipDirection.FORWARD, false);
+            entityRelationshipMapper.registerRelationship("transaction", "destination-account", "destinationAccount", RelationshipDirection.FORWARD, false);
+        } catch (IllegalStateException ignored) { }
+        try {
+            entityRelationshipMapper.registerRelationship("transaction", "origin-account", "sourceAccount", RelationshipDirection.FORWARD, false);
         } catch (IllegalStateException ignored) { }
     }
 

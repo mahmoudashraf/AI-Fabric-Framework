@@ -21,6 +21,7 @@ public class OrchestrationResultNormalizer {
     // Canonical error codes (kept as strings to avoid leaking new public enums)
     public static final String ERROR_CODE_ACTION_NOT_FOUND = "ACTION_NOT_FOUND";
     public static final String ERROR_CODE_CHILD_ERROR = "CHILD_ERROR";
+    public static final String ERROR_CODE_GENERATION_FAILED = "GENERATION_FAILED";
 
     /**
      * Normalize the given result. If no normalization is applicable, returns the original result.
@@ -30,7 +31,40 @@ public class OrchestrationResultNormalizer {
             return null;
         }
 
-        // Rule: bubble any hard child error to a top-level ERROR deterministically.
+        // Rule: normalize compound wrappers into a stable top-level type.
+        // IMPORTANT: a compound request may contain a successful primary child plus a non-primary child ERROR
+        // (commonly ACTION_NOT_FOUND from a follow-up "summarize/explain" misclassified as ACTION).
+        // We must not sink the entire request to ERROR in that case.
+        if (raw.getType() == OrchestrationResultType.COMPOUND_HANDLED) {
+            OrchestrationResult primary = choosePrimaryChild(raw.getChildren());
+            if (primary != null && primary.getType() != null && primary.getType() != OrchestrationResultType.ERROR) {
+                OrchestrationResult childError = firstChildError(raw.getChildren());
+                if (childError != null) {
+                    String errorCode = StringUtils.hasText(childError.getErrorCode())
+                        ? childError.getErrorCode()
+                        : deriveErrorCodeFromMessage(childError.getMessage());
+                    if (!StringUtils.hasText(errorCode)) {
+                        errorCode = ERROR_CODE_CHILD_ERROR;
+                    }
+
+                    // Soft child error: do not sink the compound when primary succeeded.
+                    if (ERROR_CODE_ACTION_NOT_FOUND.equals(errorCode) || isGenerationFailure(childError)) {
+                        String softCode = ERROR_CODE_ACTION_NOT_FOUND.equals(errorCode)
+                            ? errorCode
+                            : ERROR_CODE_GENERATION_FAILED;
+                        Map<String, Object> metadata = withSoftChildErrorMetadata(raw.getMetadata(), softCode);
+                        return promoteCompoundPrimary(raw, primary, metadata);
+                    }
+
+                    // Hard child error: bubble deterministically.
+                    return bubbleChildError(raw, childError, errorCode);
+                }
+
+                return promoteCompoundPrimary(raw, primary, raw.getMetadata());
+            }
+        }
+
+        // Rule: bubble any remaining child error to a top-level ERROR deterministically.
         OrchestrationResult childError = firstChildError(raw.getChildren());
         if (childError != null) {
             String errorCode = StringUtils.hasText(childError.getErrorCode())
@@ -41,54 +75,7 @@ public class OrchestrationResultNormalizer {
                 errorCode = ERROR_CODE_CHILD_ERROR;
             }
 
-            String message = StringUtils.hasText(childError.getMessage())
-                ? childError.getMessage()
-                : (StringUtils.hasText(raw.getMessage()) ? raw.getMessage() : "An error occurred.");
-
-            Map<String, Object> metadata = withErrorCodeMetadata(raw.getMetadata(), errorCode);
-            return OrchestrationResult.builder()
-                .type(OrchestrationResultType.ERROR)
-                .success(false)
-                .message(message)
-                .errorCode(errorCode)
-                // preserve details for debugging/auditing
-                .data(raw.getData())
-                .children(raw.getChildren())
-                .nextSteps(raw.getNextSteps())
-                .metadata(metadata)
-                .smartSuggestion(raw.getSmartSuggestion())
-                .build();
-        }
-
-        // Rule: normalize compound wrappers with no hard errors into a stable top-level type.
-        if (raw.getType() == OrchestrationResultType.COMPOUND_HANDLED) {
-            OrchestrationResult primary = choosePrimaryChild(raw.getChildren());
-            if (primary != null && primary.getType() != null) {
-                OrchestrationResultType normalizedType = primary.getType();
-                boolean normalizedSuccess = switch (normalizedType) {
-                    case ACTION_EXECUTED, INFORMATION_PROVIDED -> primary.isSuccess();
-                    case OUT_OF_SCOPE -> true;
-                    case ACTION_DENIED -> false;
-                    default -> raw.isSuccess();
-                };
-
-                String message = StringUtils.hasText(primary.getMessage()) ? primary.getMessage() : raw.getMessage();
-                Map<String, Object> data = (primary.getData() != null && !primary.getData().isEmpty())
-                    ? primary.getData()
-                    : raw.getData();
-
-                return OrchestrationResult.builder()
-                    .type(normalizedType)
-                    .success(normalizedSuccess)
-                    .message(message)
-                    .errorCode(raw.getErrorCode())
-                    .data(data)
-                    .children(raw.getChildren())
-                    .nextSteps(raw.getNextSteps())
-                    .metadata(raw.getMetadata())
-                    .smartSuggestion(raw.getSmartSuggestion())
-                    .build();
-            }
+            return bubbleChildError(raw, childError, errorCode);
         }
 
         // Rule: if the result is already an ERROR but lacks errorCode, try to derive.
@@ -101,6 +88,55 @@ public class OrchestrationResultNormalizer {
         }
 
         return raw;
+    }
+
+    private OrchestrationResult bubbleChildError(OrchestrationResult raw, OrchestrationResult childError, String errorCode) {
+        String message = StringUtils.hasText(childError.getMessage())
+            ? childError.getMessage()
+            : (StringUtils.hasText(raw.getMessage()) ? raw.getMessage() : "An error occurred.");
+
+        Map<String, Object> metadata = withErrorCodeMetadata(raw.getMetadata(), errorCode);
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.ERROR)
+            .success(false)
+            .message(message)
+            .errorCode(errorCode)
+            // preserve details for debugging/auditing
+            .data(raw.getData())
+            .children(raw.getChildren())
+            .nextSteps(raw.getNextSteps())
+            .metadata(metadata)
+            .smartSuggestion(raw.getSmartSuggestion())
+            .build();
+    }
+
+    private OrchestrationResult promoteCompoundPrimary(OrchestrationResult raw,
+                                                       OrchestrationResult primary,
+                                                       Map<String, Object> metadata) {
+        OrchestrationResultType normalizedType = primary.getType();
+        boolean normalizedSuccess = switch (normalizedType) {
+            case ACTION_EXECUTED, INFORMATION_PROVIDED -> primary.isSuccess();
+            case OUT_OF_SCOPE -> true;
+            case ACTION_DENIED -> false;
+            default -> raw.isSuccess();
+        };
+
+        String message = StringUtils.hasText(primary.getMessage()) ? primary.getMessage() : raw.getMessage();
+        Map<String, Object> data = (primary.getData() != null && !primary.getData().isEmpty())
+            ? primary.getData()
+            : raw.getData();
+
+        return OrchestrationResult.builder()
+            .type(normalizedType)
+            .success(normalizedSuccess)
+            .message(message)
+            .errorCode(raw.getErrorCode())
+            .data(data)
+            .children(raw.getChildren())
+            .nextSteps(raw.getNextSteps())
+            .metadata(metadata)
+            .smartSuggestion(raw.getSmartSuggestion())
+            .build();
     }
 
     private OrchestrationResult firstChildError(List<OrchestrationResult> children) {
@@ -178,6 +214,24 @@ public class OrchestrationResultNormalizer {
         Map<String, Object> merged = new LinkedHashMap<>(existing != null ? existing : Map.of());
         merged.put("errorCode", errorCode);
         return Map.copyOf(merged);
+    }
+
+    private Map<String, Object> withSoftChildErrorMetadata(Map<String, Object> existing, String errorCode) {
+        if (!StringUtils.hasText(errorCode)) {
+            return existing;
+        }
+        Map<String, Object> merged = new LinkedHashMap<>(existing != null ? existing : Map.of());
+        merged.put("softChildErrorCode", errorCode);
+        return Map.copyOf(merged);
+    }
+
+    private boolean isGenerationFailure(OrchestrationResult childError) {
+        if (childError == null || childError.getType() != OrchestrationResultType.ERROR) {
+            return false;
+        }
+        // Signal emitted by IntentHandlingStep.handleInformationBasic() when LLM generation fails.
+        Map<String, Object> data = childError.getData();
+        return data != null && data.containsKey("generationError");
     }
 }
 

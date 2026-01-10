@@ -34,7 +34,21 @@ This index provides quick access to all documentation related to the modular pro
 - Parameterized tests
 - Test execution
 
-### 5. [Developer Guide: Custom Providers](DEVELOPER_GUIDE_CUSTOM_PROVIDERS.md)
+### 5. [Real API Provider Stabilization Guidelines](REAL_API_PROVIDER_STABILIZATION_GUIDELINES.md)
+**Provider-agnostic stability rules** - How we stabilize real-api tests without test shortcuts
+- Orchestration result contract + normalization layer
+- Provider-agnostic guardrails (actions, filters, parsing)
+- Retry/backoff + connectivity pre-checks
+- CI/workflow hygiene and safety invariants
+
+### 6. [Provider Scorecards & Evaluation Harness (Real API)](PROVIDER_SCORECARDS_AND_EVALUATION.md)
+**Rate-based provider quality tracking** - How we measure “correct vs incorrect” over time without flaky CI gates
+- Two-lane strategy: hard gates vs scorecards
+- Correctness rubrics (intent extraction + relationship planning)
+- Scenario catalog design + failure taxonomy
+- Runner/report/CI implementation design
+
+### 6. [Developer Guide: Custom Providers](DEVELOPER_GUIDE_CUSTOM_PROVIDERS.md)
 **Create your own provider** - Step-by-step guide
 - Module structure
 - Implementation examples
@@ -77,7 +91,8 @@ This index provides quick access to all documentation related to the modular pro
 
 ### For Testers
 1. Start with: [Integration Test Changes](INTEGRATION_TEST_CHANGES.md)
-2. Reference: [Configuration Reference](CONFIGURATION_REFERENCE.md)
+2. Read: [Real API Provider Stabilization Guidelines](REAL_API_PROVIDER_STABILIZATION_GUIDELINES.md)
+3. Reference: [Configuration Reference](CONFIGURATION_REFERENCE.md)
 
 ### For Architects
 1. Read: [AI Provider Modular Architecture Plan](AI_PROVIDER_MODULAR_ARCHITECTURE_PLAN.md)
@@ -100,6 +115,7 @@ This index provides quick access to all documentation related to the modular pro
 
 ### Testing
 - [Integration Test Changes](INTEGRATION_TEST_CHANGES.md) - Update tests
+- [Real API Provider Stabilization Guidelines](REAL_API_PROVIDER_STABILIZATION_GUIDELINES.md) - Provider-agnostic stability rules
 
 ### Vector Databases
 - [Vector Database Modular Architecture](VECTOR_DATABASE_MODULAR_ARCHITECTURE.md) - Vector DB modules

@@ -23,6 +23,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,19 +167,51 @@ public class RelationshipSchemaProvider {
         Map<String, EntitySchema> schemas = new LinkedHashMap<>();
         Map<String, EntityMapping> entityMappings = relationshipMapper.getAllEntityMappings();
         List<RelationshipMapping> relationshipMappings = relationshipMapper.getAllRelationshipMappings();
+        Metamodel metamodel = entityManager.getMetamodel();
 
         for (EntityMapping mapping : entityMappings.values()) {
             List<RelationshipInfo> relationships = buildRelationshipsFromMapper(mapping.entityType(), relationshipMappings);
+            List<FieldInfo> fields = resolveFieldsFromMetamodel(metamodel, mapping);
             EntitySchema schema = EntitySchema.builder()
                 .entityType(mapping.entityType())
                 .className(extractSimpleName(mapping.className()))
                 .fullClassName(mapping.className())
-                .fields(List.of())
+                .fields(fields)
                 .relationships(relationships)
                 .build();
             schemas.put(mapping.entityType(), schema);
         }
         return schemas;
+    }
+
+    private List<FieldInfo> resolveFieldsFromMetamodel(Metamodel metamodel, EntityMapping mapping) {
+        if (!properties.getSchema().isIncludeFields() || metamodel == null || mapping == null) {
+            return List.of();
+        }
+        Class<?> entityClass = null;
+        try {
+            entityClass = mapping.entityClass() != null ? mapping.entityClass() : Class.forName(mapping.className());
+        } catch (Exception ignored) {
+        }
+        if (entityClass == null) {
+            return List.of();
+        }
+        try {
+            EntityType<?> entityType = metamodel.entity(entityClass);
+            if (entityType == null) {
+                return List.of();
+            }
+            List<FieldInfo> fields = new ArrayList<>();
+            for (Attribute<?, ?> attribute : entityType.getAttributes()) {
+                if (!attribute.isAssociation()) {
+                    fields.add(buildFieldInfo(attribute));
+                }
+            }
+            return Collections.unmodifiableList(fields);
+        } catch (IllegalArgumentException ex) {
+            // Not a managed JPA entity type in this persistence unit.
+            return List.of();
+        }
     }
 
     private List<RelationshipInfo> buildRelationshipsFromMapper(String entityType,

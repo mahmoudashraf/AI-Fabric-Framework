@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -18,6 +19,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -31,13 +33,16 @@ public class IntentQueryExtractor {
 
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
+    private final ActionHandlerRegistry actionHandlerRegistry;
     private final ObjectMapper objectMapper;
 
     public IntentQueryExtractor(AICoreService aiCoreService,
                                 EnrichedPromptBuilder enrichedPromptBuilder,
+                                ActionHandlerRegistry actionHandlerRegistry,
                                 ObjectMapper objectMapper) {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;
+        this.actionHandlerRegistry = actionHandlerRegistry;
         this.objectMapper = objectMapper.copy()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
@@ -82,11 +87,55 @@ public class IntentQueryExtractor {
         }
 
         response.normalize();
-        validateResponse(response);
+        coerceMisclassifiedActionIntents(response);
+        validateResponse(response, query);
         if (!response.hasIntents()) {
             log.warn("Intent extractor returned no intents for query '{}'", query);
         }
         return response;
+    }
+
+    /**
+     * Provider-agnostic guardrail: some models mislabel "summarize / explain" requests as ACTION intents
+     * with an unregistered action name (e.g., "summarize"). When the intent also clearly requests RAG
+     * (requiresRetrieval + requiresGeneration + vectorSpace), treat it as INFORMATION instead so the
+     * pipeline can satisfy it via retrieval/generation rather than failing with ACTION_NOT_FOUND.
+     */
+    private void coerceMisclassifiedActionIntents(MultiIntentResponse response) {
+        if (response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
+            return;
+        }
+
+        for (Intent intent : response.getIntents()) {
+            if (intent == null || intent.getType() != IntentType.ACTION) {
+                continue;
+            }
+
+            String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
+            if (!StringUtils.hasText(actionName)) {
+                continue;
+            }
+
+            // If we already have a handler, keep it actionable.
+            if (actionHandlerRegistry != null && actionHandlerRegistry.findHandler(actionName).isPresent()) {
+                continue;
+            }
+
+            boolean looksLikeRagRequest =
+                Boolean.TRUE.equals(intent.getRequiresRetrieval())
+                    && Boolean.TRUE.equals(intent.getRequiresGeneration())
+                    && StringUtils.hasText(intent.getVectorSpace());
+
+            if (looksLikeRagRequest) {
+                log.warn(
+                    "Intent extractor misclassified a RAG request as ACTION (action='{}', vectorSpace='{}'). Treating as INFORMATION.",
+                    actionName,
+                    intent.getVectorSpace()
+                );
+                intent.setType(IntentType.INFORMATION);
+                intent.setAction(null);
+            }
+        }
     }
 
     private MultiIntentResponse parseResponse(String rawJson) {
@@ -173,7 +222,7 @@ public class IntentQueryExtractor {
         return text;
     }
 
-    private void validateResponse(MultiIntentResponse response) {
+    private void validateResponse(MultiIntentResponse response, String originalQuery) {
         if (response.getIntents() == null) {
             response.setIntents(List.of());
         }
@@ -185,7 +234,7 @@ public class IntentQueryExtractor {
             if (!intent.hasMeaningfulName()) {
                 throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
             }
-            validateRelationshipActionParams(intent);
+            validateRelationshipActionParams(intent, originalQuery);
             if (intent.getRequiresRetrieval() == null) {
                 intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
             }
@@ -210,16 +259,47 @@ public class IntentQueryExtractor {
         return "ADMIT_UNKNOWN";
     }
 
-    private void validateRelationshipActionParams(Intent intent) {
+    private void validateRelationshipActionParams(Intent intent, String originalQuery) {
         if (intent.getType() != IntentType.ACTION) {
             return;
         }
-        if (!"relationship_query".equalsIgnoreCase(intent.getAction())) {
+
+        // Provider-agnostic: some models emit action="relationship query" / "relationship-query" etc.
+        // Treat anything that resolves to the registered relationship_query action as relationship_query
+        // for deterministic parameter normalization (especially actionParams.query).
+        String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
+        String canonicalActionName = actionName;
+        if (actionHandlerRegistry != null && StringUtils.hasText(actionName)) {
+            // Be defensive: mocks can return null instead of Optional.empty().
+            var metadataOpt = actionHandlerRegistry.findMetadata(actionName);
+            if (metadataOpt != null) {
+                canonicalActionName = metadataOpt
+                    .map(com.ai.infrastructure.intent.action.AIActionMetaData::getName)
+                    .orElse(actionName);
+            }
+        }
+        if (!"relationship_query".equalsIgnoreCase(canonicalActionName)) {
             return;
         }
 
         Map<String, Object> params = intent.getActionParams();
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
+
+        // The relationship_query action handler requires actionParams.query.
+        // Some providers omit it, and some include the hint prefix inside it. We normalize deterministically:
+        // - If present: strip known hint prefixes and trim.
+        // - If missing/blank: derive from the original user query (also stripping hint prefixes).
+        Object rawQuery = mutable.get("query");
+        String normalizedQuery = null;
+        if (rawQuery instanceof String text && StringUtils.hasText(text)) {
+            normalizedQuery = normalizeRelationshipQueryText(text);
+        } else {
+            normalizedQuery = normalizeRelationshipQueryText(originalQuery);
+        }
+        if (StringUtils.hasText(normalizedQuery)) {
+            mutable.put("query", normalizedQuery);
+        }
+
         Object rawEntityTypes = mutable.get("entityTypes");
 
         List<String> normalizedEntityTypes;
@@ -244,6 +324,69 @@ public class IntentQueryExtractor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
+    }
+
+    private String normalizeRelationshipQueryText(String query) {
+        if (!StringUtils.hasText(query)) {
+            return null;
+        }
+        String trimmed = query.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        // Common hint used by tests and some callers to guide intent extraction.
+        // We store the actual query without the hint prefix for the relationship_query action handler.
+        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
+        for (String prefix : prefixes) {
+            if (lower.startsWith(prefix)) {
+                String withoutPrefix = trimmed.substring(prefix.length()).trim();
+                return stripTrailingNonRelationalDirective(withoutPrefix);
+            }
+        }
+        return stripTrailingNonRelationalDirective(trimmed);
+    }
+
+    /**
+     * Provider-agnostic normalization: when a user explicitly uses the "relationship query:" hint,
+     * they often append a non-relational follow-up request (e.g., "and then summarize/explain").
+     * The relationship_query action handler expects only the relational query text.
+     *
+     * <p>This is intentionally conservative: it only strips when a clear non-relational directive
+     * follows a "then/and then" boundary.</p>
+     */
+    private String stripTrailingNonRelationalDirective(String text) {
+        if (!StringUtils.hasText(text)) {
+            return text;
+        }
+        String trimmed = text.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+
+        int idx = lower.indexOf(" and then ");
+        int boundaryLen = " and then ".length();
+        if (idx < 0) {
+            idx = lower.indexOf(" then ");
+            boundaryLen = " then ".length();
+        }
+        if (idx < 0) {
+            return trimmed;
+        }
+
+        String after = lower.substring(idx + boundaryLen);
+        boolean looksNonRelational =
+            after.contains("summariz")
+                || after.contains("explain")
+                || after.contains(" why ")
+                || after.startsWith("why ")
+                || after.contains("describe")
+                || after.contains("analyz")
+                || after.contains("recommend")
+                || after.contains("write ")
+                || after.contains("generate ")
+                || after.contains("tell me");
+
+        if (!looksNonRelational) {
+            return trimmed;
+        }
+
+        return trimmed.substring(0, idx).trim();
     }
 
     @Deprecated(forRemoval = true)
