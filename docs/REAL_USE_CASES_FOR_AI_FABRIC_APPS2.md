@@ -146,7 +146,10 @@ public class FAQService {
 **⚠️ IMPORTANT: Framework Support Only**
 
 **AI Fabric Framework Provides:**
+<<<<<<< Updated upstream
 - ✅ **Document Chunking** - `EmbeddingProcessor.chunkText()` and `AIEmbeddingService.chunkText()` with multiple strategies
+=======
+>>>>>>> Stashed changes
 - ✅ **PII Detection** - `PIIDetectionService.detectAndProcess()` with redaction capabilities
 - ✅ **Embedding Generation** - `AICoreService.generateEmbedding()` for vector creation
 - ✅ **Vector Indexing** - Automatic via `@AICapable` and `@AIProcess` annotations
@@ -164,6 +167,7 @@ public class FAQService {
    ↓
 3. PII Detection & Redaction (✅ Framework: PIIDetectionService.detectAndProcess())
    ↓
+<<<<<<< Updated upstream
 4. Document Chunking (✅ Framework: EmbeddingProcessor.chunkText())
    ↓
 5. Embedding Generation (✅ Framework: AICoreService.generateEmbedding())
@@ -171,6 +175,13 @@ public class FAQService {
 6. Vector Indexing (✅ Framework: Automatic via @AICapable/@AIProcess)
    ↓
 7. Ready for Search & Q&A (✅ Framework: RAGProvider)
+=======
+4. Embedding Generation (✅ Framework: AICoreService.generateEmbedding())
+   ↓
+5. Vector Indexing (✅ Framework: Automatic via @AICapable/@AIProcess)
+   ↓
+6. Ready for Search & Q&A (✅ Framework: RAGProvider)
+>>>>>>> Stashed changes
 ```
 
 **Data Model:**
@@ -337,7 +348,10 @@ public class DocumentService {
 **Implementation Notes:**
 
 **✅ Framework Features (Ready to Use):**
+<<<<<<< Updated upstream
 - **Document Chunking:** Framework provides `EmbeddingProcessor.chunkText()` with sentence/word/character strategies
+=======
+>>>>>>> Stashed changes
 - **PII Detection:** Framework provides `PIIDetectionService.detectAndProcess()` with detection and redaction
 - **Embedding Generation:** Framework provides `AICoreService.generateEmbedding()` for vector creation
 - **Vector Indexing:** Automatic via `@AICapable` and `@AIProcess` annotations
