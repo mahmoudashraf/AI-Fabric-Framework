@@ -206,6 +206,9 @@ Every failure must be attributed to a stable category:
 ## 7) Implementation design (how to build the harness)
 
 ### 7.1 Where it lives (recommended)
+There are two supported implementation styles. The key requirement is: **the scorecard run MUST NOT fail the build**. It always produces metrics and artifacts, even when the provider is “wrong” or transiently failing.
+
+#### Option A (recommended): dedicated non-gating module
 Add a **non-gating evaluation module** under integration testing:
 
 - `ai-infrastructure-module/integration-Testing/provider-scorecard-tests/`
@@ -217,6 +220,24 @@ Add a **non-gating evaluation module** under integration testing:
     - judge functions
     - JSON report writer
 
+#### Option B (supported): always-pass RealAPI integration test(s)
+If you want “I run integration tests and they always pass, but still give metrics”, implement scorecards as one or more `*RealApiIntegrationTest` classes inside an existing RealAPI integration module (for example `relationship-query-integration-tests`).
+
+Rules for this style:
+- The scorecard test **never throws assertions** for provider mistakes.
+- Provider mistakes are recorded as **failure categories** and counted in the summary.
+- The test may still fail only for **harness bugs** (e.g., cannot write the report), but not for model output.
+
+This gives you:
+- stable green builds,
+- a detailed metrics summary,
+- trendable artifacts you can compare across providers.
+
+**Current implementation (this repo):**
+- `ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/src/test/java/com/ai/infrastructure/relationship/it/realapi/ProviderScorecardRealApiIntegrationTest.java`
+- Scenario set (JSON): `ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/src/test/resources/provider-scorecards/relationship-query-basic-v1.json`
+- Artifacts: `ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-scorecards/<runId>/{summary.json,events.json}`
+
 ### 7.2 Execution model
 Run a scorecard as:
 - for each `provider` in list:
@@ -226,6 +247,12 @@ Run a scorecard as:
   - aggregate into provider summary + breakdowns
 
 **Important:** keep Lane A tests separate; Lane B runs should not flake CI.
+
+### 7.2.1 “Always pass” behavior (explicit requirement)
+For the scorecard lane:
+- Build success/failure is **not** determined by correctness rate.
+- The run outputs a report like: “correct=87/100 (87%), over-constraint=9, under-constraint=4, parse errors=0, transient=0”.
+- Optional future step: add alerting thresholds in **scheduled** workflows, not per-PR.
 
 ### 7.3 Provider selection / purpose separation
 Scorecards must support testing providers by **purpose**:
