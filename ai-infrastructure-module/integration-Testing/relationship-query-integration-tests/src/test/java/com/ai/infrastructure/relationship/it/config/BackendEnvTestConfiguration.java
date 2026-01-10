@@ -19,8 +19,10 @@ import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.EntityManagerFactory;
@@ -36,7 +38,10 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.io.IOException;
 
 /**
  * Test configuration that mirrors real application behavior by loading the backend
@@ -147,9 +152,34 @@ public class BackendEnvTestConfiguration {
     Jackson2ObjectMapperBuilderCustomizer relationshipTestJacksonCustomizer() {
         return builder -> {
             JavaTimeModule module = new JavaTimeModule();
-            module.addDeserializer(LocalDateTime.class, new LocalDateTimeDeserializer(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            // RAGResponse.timestamp is LocalDateTime, but some responses may serialize as either:
+            // - ISO_LOCAL_DATE_TIME: 2026-01-10T02:49:47.518077778
+            // - ISO_OFFSET_DATE_TIME: 2026-01-10T02:49:47.518077778Z
+            // Accept both to avoid RestTemplate deserialization failures in real-api integration tests.
+            module.addDeserializer(LocalDateTime.class, new LenientLocalDateTimeDeserializer());
             builder.modulesToInstall(module);
         };
+    }
+
+    static class LenientLocalDateTimeDeserializer extends JsonDeserializer<LocalDateTime> {
+        @Override
+        public LocalDateTime deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+            String value = p.getValueAsString();
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            String text = value.trim();
+            try {
+                return LocalDateTime.parse(text, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            } catch (DateTimeParseException ignored) {
+                // fall through
+            }
+            try {
+                return OffsetDateTime.parse(text, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toLocalDateTime();
+            } catch (DateTimeParseException ex) {
+                throw ex;
+            }
+        }
     }
 
     @Bean
