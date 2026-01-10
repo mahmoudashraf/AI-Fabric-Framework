@@ -41,6 +41,21 @@ public class RelationshipQueryPlanner {
 
     private static final List<String> PLAN_EXAMPLES = List.of(
         """
+        Example plan for query "Find all brands":
+        {
+          "primaryEntityType": "brand",
+          "candidateEntityTypes": ["brand"],
+          "relationshipPaths": [],
+          "directFilters": {},
+          "relationshipFilters": {},
+          "metadataFilters": {},
+          "queryStrategy": "RELATIONSHIP",
+          "needsSemanticSearch": false,
+          "confidence": 0.9,
+          "context": {}
+        }
+        """,
+        """
         Example plan for query "Show me blue shoes under $100 from Nike":
         {
           "primaryEntityType": "product",
@@ -291,6 +306,9 @@ public class RelationshipQueryPlanner {
             - When a predicate needs to compare two entities (e.g., "same counterparty"), set the filter value to "<entity-slug>.<field>" (example: {"field":"ownerName","operator":"EQUALS","value":"destination-account.ownerName"}).
             - When the request lists multiple acceptable values for the same field (e.g., "Nike or Adidas"), prefer the IN operator with an array of values.
             - Use the exact field names shown in the schema (e.g., "creationDate", "author.fullName"); do not invent shorthand names like "date" or "author".
+            - NEVER copy literal values from the example plans. Examples are illustrative only.
+            - Only include literal filter values that are explicitly stated in the user's query (except for enumerated constants defined in the schema, e.g., statuses).
+            - For broad list queries like "find all <entity>" or "list all <entity>", return empty filters unless the user explicitly requests constraints.
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
 
             Schema:
