@@ -7,7 +7,6 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,11 +23,8 @@ import java.util.UUID;
 @Slf4j
 public class NaturalLanguageController {
     
-    @Autowired(required = false)
-    private RAGOrchestrator ragOrchestrator;
-    
-    @Autowired(required = false)
-    private ActionHandlerRegistry actionHandlerRegistry;
+    private final RAGOrchestrator ragOrchestrator;
+    private final ActionHandlerRegistry actionHandlerRegistry;
     
     @PostMapping
     public ResponseEntity<OrchestrationResult> query(
@@ -37,14 +33,6 @@ public class NaturalLanguageController {
         String query = (String) request.get("query");
         String userId = request.get("userId") != null ? request.get("userId").toString() : null;
         String sessionId = request.get("sessionId") != null ? request.get("sessionId").toString() : UUID.randomUUID().toString();
-        
-        if (ragOrchestrator == null) {
-            return ResponseEntity.status(503)
-                .body(OrchestrationResult.builder()
-                    .success(false)
-                    .message("RAG Orchestrator is not available")
-                    .build());
-        }
         
         OrchestrationContext context = userId != null
             ? OrchestrationContext.builder()
@@ -61,14 +49,6 @@ public class NaturalLanguageController {
     @PostMapping("/actions/execute")
     public ResponseEntity<ActionResult> executeAction(
             @RequestBody Map<String, Object> request) {
-        
-        if (actionHandlerRegistry == null) {
-            return ResponseEntity.status(503)
-                .body(ActionResult.builder()
-                    .success(false)
-                    .message("Action Handler Registry is not available")
-                    .build());
-        }
         
         String action = (String) request.get("action");
         Map<String, Object> params = (Map<String, Object>) request.get("params");
