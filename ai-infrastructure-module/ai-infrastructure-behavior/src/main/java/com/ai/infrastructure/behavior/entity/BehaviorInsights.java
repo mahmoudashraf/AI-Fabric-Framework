@@ -61,15 +61,15 @@ public class BehaviorInsights {
     @Column(name = "segment", length = 100)
     private String segment;
     
-    @Column(name = "patterns", columnDefinition = "jsonb")
+    @Column(name = "patterns", columnDefinition = "TEXT")
     @Convert(converter = JsonbListConverter.class)
     private List<String> patterns;
     
-    @Column(name = "recommendations", columnDefinition = "jsonb")
+    @Column(name = "recommendations", columnDefinition = "TEXT")
     @Convert(converter = JsonbListConverter.class)
     private List<String> recommendations;
     
-    @Column(name = "insights", columnDefinition = "jsonb")
+    @Column(name = "insights", columnDefinition = "TEXT")
     @Convert(converter = JsonbMapConverter.class)
     private Map<String, Object> insights;
     

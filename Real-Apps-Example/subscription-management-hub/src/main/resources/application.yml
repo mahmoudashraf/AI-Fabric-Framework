@@ -20,6 +20,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+        # Fix JSONB for H2 - use TEXT instead
+        globally_quoted_identifiers: true
 
 ai:
   enabled: true
@@ -28,16 +31,18 @@ ai:
   
   providers:
     embedding:
-      provider: onnx
+      provider: rest
     generation:
-      provider: openai
+      provider: rest
       model: gpt-4
       max-tokens: 1000
       temperature: 0.7
-  
-  openai:
-    api-key: ${OPENAI_API_KEY:}
-    base-url: https://api.openai.com/v1
+    openai:
+      enabled: false
+    rest:
+      enabled: true
+      base-url: http://localhost:8080
+      endpoint: /api/embeddings
   
   behavior:
     enabled: true

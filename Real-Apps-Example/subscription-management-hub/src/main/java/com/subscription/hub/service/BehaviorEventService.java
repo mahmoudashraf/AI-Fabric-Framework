@@ -1,7 +1,8 @@
 package com.subscription.hub.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -15,9 +16,9 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class BehaviorEventService {
     
+    private static final Logger log = LoggerFactory.getLogger(BehaviorEventService.class);
     private final SubscriptionExternalEventProvider eventProvider;
     
     /**

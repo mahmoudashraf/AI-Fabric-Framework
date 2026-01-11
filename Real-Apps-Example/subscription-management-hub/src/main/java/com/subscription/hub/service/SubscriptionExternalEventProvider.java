@@ -4,7 +4,8 @@ import com.ai.infrastructure.behavior.model.ExternalEvent;
 import com.ai.infrastructure.behavior.model.UserEventBatch;
 import com.ai.infrastructure.behavior.spi.ExternalEventProvider;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -20,8 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class SubscriptionExternalEventProvider implements ExternalEventProvider {
+    
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionExternalEventProvider.class);
     
     // In-memory event store for demo purposes
     // In production, this would be backed by a database or event stream
