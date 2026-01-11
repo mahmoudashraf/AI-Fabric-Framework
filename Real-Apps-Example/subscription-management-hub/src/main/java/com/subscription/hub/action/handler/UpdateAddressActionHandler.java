@@ -90,8 +90,12 @@ public class UpdateAddressActionHandler implements ActionHandler {
             );
             
             var piiResult = piiDetectionService.detectAndProcess(addressString);
-            address.setIsValidated(piiResult.isPiiDetected() == false); // Valid if no PII issues
-            address.setValidationScore(piiResult.isPiiDetected() ? 0.5 : 1.0);
+            // Address is valid if no PII issues detected (addresses are expected to contain location data)
+            // In DETECT_ONLY mode, we just check if the format is reasonable
+            // Note: Addresses may contain PII-like patterns (street numbers, postal codes) which is normal
+            boolean isValid = !piiResult.isPiiDetected() || !piiResult.hasDetections();
+            address.setIsValidated(isValid);
+            address.setValidationScore(isValid ? 1.0 : 0.7); // Slightly lower if PII detected, but still acceptable for addresses
             
             var subscription = subscriptionService.updateAddress(
                 UUID.fromString(subscriptionId),

@@ -1,30 +1,27 @@
 spring:
   application:
-    name: subscription-management-hub
+    name: subscription-management-hub-test
   
   datasource:
-    url: jdbc:h2:mem:subscriptiondb
+    url: jdbc:h2:mem:testdb
     driver-class-name: org.h2.Driver
     username: sa
     password: 
   
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-  
   jpa:
     hibernate:
       ddl-auto: create-drop
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
 ai:
   enabled: true
   config:
     default-file: ai-entity-config.yml
+  
+  default-embedding-model: text-embedding-3-small
   
   providers:
     embedding:
@@ -32,11 +29,11 @@ ai:
     generation:
       provider: openai
       model: gpt-4
-      max-tokens: 1000
+      max-tokens: 100
       temperature: 0.7
   
   openai:
-    api-key: ${OPENAI_API_KEY:}
+    api-key: ${OPENAI_API_KEY:test-key}
     base-url: https://api.openai.com/v1
   
   behavior:
@@ -52,5 +49,6 @@ ai:
 
 logging:
   level:
-    com.subscription.hub: DEBUG
-    com.ai.infrastructure: INFO
+    com.subscription.hub: INFO
+    com.ai.infrastructure: WARN
+    org.springframework: WARN
