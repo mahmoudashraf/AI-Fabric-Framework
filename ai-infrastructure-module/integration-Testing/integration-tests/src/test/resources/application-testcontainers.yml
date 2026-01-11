@@ -13,6 +13,20 @@ testcontainers:
 # Supported container types: milvus, qdrant, weaviate, chroma, pgvector
 # If not specified or set to lucene/memory, Testcontainers will not activate
 ai:
+  providers:
+    # Enable all vector database providers for integration tests
+    # This allows Testcontainers to use any provider without additional configuration
+    milvus:
+      enabled: true
+    qdrant:
+      enabled: true
+    weaviate:
+      enabled: true
+    chroma:
+      enabled: true
+    pgvector:
+      enabled: true
+  
   vector-db:
     type: ${VECTOR_DB_TYPE:lucene}
     lucene:

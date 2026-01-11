@@ -93,6 +93,19 @@ ai:
       timeout: 60
       priority: 100
     
+    # Enable all vector database providers for integration tests
+    # This allows tests to use any provider without additional configuration
+    milvus:
+      enabled: true
+    qdrant:
+      enabled: true
+    weaviate:
+      enabled: true
+    chroma:
+      enabled: true
+    pgvector:
+      enabled: true
+    
   # Vector Database Configuration - Lucene for fast unit tests (default)
   # Override with -Dai.vector-db.type=<type> to use other implementations
   # Use -Dspring.profiles.active=testcontainers with container types (milvus, qdrant, etc.) for Testcontainers

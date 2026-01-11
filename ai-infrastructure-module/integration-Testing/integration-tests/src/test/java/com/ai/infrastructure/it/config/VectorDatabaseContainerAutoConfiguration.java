@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -65,6 +67,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @TestConfiguration
 @ConditionalOnProperty(name = "testcontainers.enabled", havingValue = "true", matchIfMissing = false)
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class VectorDatabaseContainerAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(VectorDatabaseContainerAutoConfiguration.class);
@@ -199,6 +202,16 @@ public class VectorDatabaseContainerAutoConfiguration {
     @Bean
     @ConditionalOnProperty(name = PROP_VECTOR_DB_TYPE, havingValue = CONTAINER_TYPE_MILVUS)
     public GenericContainer<?> milvusContainer(ConfigurableEnvironment environment) {
+        // First check if container was started early by TestcontainersInitializer
+        GenericContainer<?> earlyStarted = TestcontainersInitializer.getEarlyStartedContainer(CONTAINER_TYPE_MILVUS);
+        if (earlyStarted != null && earlyStarted.isRunning()) {
+            log.info("Reusing Milvus container started early by TestcontainersInitializer at {}:{}",
+                earlyStarted.getHost(), earlyStarted.getMappedPort(PORT_MILVUS));
+            activeContainers.put(CONTAINER_TYPE_MILVUS, earlyStarted);
+            return earlyStarted;
+        }
+
+        // Fallback: check if already started by this bean method
         if (activeContainers.containsKey(CONTAINER_TYPE_MILVUS)) {
             GenericContainer<?> existing = activeContainers.get(CONTAINER_TYPE_MILVUS);
             if (existing != null && existing.isRunning()) {
@@ -208,7 +221,7 @@ public class VectorDatabaseContainerAutoConfiguration {
             }
         }
 
-        log.info("Starting Milvus container...");
+        log.info("Starting Milvus container (fallback - should not happen if initializer worked)...");
 
         try {
             String image = getImageVersion(CONTAINER_TYPE_MILVUS, DEFAULT_IMAGE_MILVUS);
