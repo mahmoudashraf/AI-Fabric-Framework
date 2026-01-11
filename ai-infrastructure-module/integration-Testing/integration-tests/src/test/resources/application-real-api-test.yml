@@ -171,6 +171,19 @@ ai:
       timeout: 60
       priority: 85
 
+    # Enable all vector database providers for integration tests
+    # This allows tests to use any provider without additional configuration
+    milvus:
+      enabled: true
+    qdrant:
+      enabled: true
+    weaviate:
+      enabled: true
+    chroma:
+      enabled: true
+    pgvector:
+      enabled: true
+
   service:
     enabled: true
     auto-configuration: true

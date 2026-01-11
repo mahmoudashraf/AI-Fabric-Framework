@@ -58,6 +58,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
         ensureCollection(entityType, embedding.size());
         String vectorId = buildVectorId(entityType, entityId);
 
+        // Qdrant v1.7+ API format - batch upsert with points array
         ObjectNode payload = MAPPER.createObjectNode();
         ArrayNode points = payload.putArray("points");
         ObjectNode point = points.addObject();
@@ -75,6 +76,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
             metadata.forEach((key, value) -> payloadNode.set(key, MAPPER.valueToTree(value)));
         }
 
+        // Qdrant v1.7+ uses PUT /collections/{name}/points for batch operations
+        // The payload format: {"points": [{"id": "...", "vector": [...], "payload": {...}}]}
+        // This format is compatible with both v1.6.x and v1.7+
         execute(HttpMethod.PUT, collectionPath(entityType, "/points"), payload, JsonNode.class);
         return vectorId;
     }

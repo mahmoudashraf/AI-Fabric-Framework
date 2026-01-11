@@ -48,7 +48,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # Configuration
-MAVEN_PROFILE="realapi"
+# Use SPRING_PROFILES_ACTIVE if set (e.g., from GitHub Actions), otherwise default to realapi
+MAVEN_PROFILE="${SPRING_PROFILES_ACTIVE:-realapi}"
 TEST_MODULE="relationship-query-integration-tests"
 MATRIX_SPEC="${1:-openai:onnx}"
 VECTOR_DB="${2:-}"

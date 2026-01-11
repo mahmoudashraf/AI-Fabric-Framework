@@ -125,6 +125,29 @@ ai:
       index-name: ${PINECONE_INDEX_NAME:relationship-query-test}
       dimensions: ${PINECONE_DIMENSIONS:384}
       metric: cosine
+    # Vector database providers (enabled by Testcontainers when testcontainers profile is active)
+    # These properties are injected by TestcontainersInitializer before Spring context initialization
+    qdrant:
+      enabled: true  # Will be overridden by Testcontainers if container is started
+      host: ${ai.providers.qdrant.host:localhost}
+      port: ${ai.providers.qdrant.port:6333}
+      grpc-port: ${ai.providers.qdrant.grpc-port:6334}
+      api-key: ${ai.providers.qdrant.api-key:}
+      prefer-grpc: ${ai.providers.qdrant.prefer-grpc:false}
+    milvus:
+      enabled: true  # Will be overridden by Testcontainers if container is started
+      host: ${ai.providers.milvus.host:localhost}
+      port: ${ai.providers.milvus.port:19530}
+      database-name: ${ai.providers.milvus.database-name:default}
+      username: ${ai.providers.milvus.username:}
+      password: ${ai.providers.milvus.password:}
+      secure: ${ai.providers.milvus.secure:false}
+    weaviate:
+      enabled: true  # Will be overridden by Testcontainers if container is started
+      scheme: ${ai.providers.weaviate.scheme:http}
+      host: ${ai.providers.weaviate.host:localhost}
+      port: ${ai.providers.weaviate.port:8080}
+      api-key: ${ai.providers.weaviate.api-key:}
   infrastructure:
     relationship:
       schema:
