@@ -71,7 +71,9 @@ public class TestcontainersInitializer
 
     // Container constants (shared with VectorDatabaseContainerAutoConfiguration)
     private static final String DEFAULT_IMAGE_MILVUS = "milvusdb/milvus:v2.4.0";
-    private static final String DEFAULT_IMAGE_QDRANT = "qdrant/qdrant:v1.7.4";
+    // Using v1.7.2 for compatibility with current REST API implementation
+    // v1.7.4+ changed the API format (PointInsertOperations enum) which requires code updates
+    private static final String DEFAULT_IMAGE_QDRANT = "qdrant/qdrant:v1.7.2";
     private static final String DEFAULT_IMAGE_WEAVIATE = "semitechnologies/weaviate:1.23.0";
     private static final int PORT_MILVUS = 19530;
     private static final int PORT_QDRANT_REST = 6333;

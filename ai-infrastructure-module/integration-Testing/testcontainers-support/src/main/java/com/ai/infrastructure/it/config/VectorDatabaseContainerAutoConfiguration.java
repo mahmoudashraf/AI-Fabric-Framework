@@ -86,7 +86,9 @@ public class VectorDatabaseContainerAutoConfiguration {
 
     // Default Docker images
     private static final String DEFAULT_IMAGE_MILVUS = "milvusdb/milvus:v2.4.0";
-    private static final String DEFAULT_IMAGE_QDRANT = "qdrant/qdrant:v1.7.4";
+    // Using v1.7.2 for compatibility with current REST API implementation
+    // v1.7.4+ changed the API format (PointInsertOperations enum) which requires code updates
+    private static final String DEFAULT_IMAGE_QDRANT = "qdrant/qdrant:v1.7.2";
     private static final String DEFAULT_IMAGE_WEAVIATE = "semitechnologies/weaviate:1.23.0";
     private static final String DEFAULT_IMAGE_CHROMA = "chromadb/chroma:0.4.22";
     private static final String DEFAULT_IMAGE_PGVECTOR = "pgvector/pgvector:pg16";
