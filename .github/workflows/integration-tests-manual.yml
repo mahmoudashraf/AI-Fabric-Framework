@@ -177,6 +177,13 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Verify Docker is available (required for Testcontainers)
+        run: |
+          echo "Verifying Docker availability for Testcontainers..."
+          docker --version
+          docker info | head -5
+          echo "✅ Docker is available and running"
+
       - name: Cache Maven packages
         uses: actions/cache@v3
         with:
@@ -661,6 +668,13 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Verify Docker is available (required for Testcontainers)
+        run: |
+          echo "Verifying Docker availability for Testcontainers..."
+          docker --version
+          docker info | head -5
+          echo "✅ Docker is available and running"
+
       - name: Cache Maven packages
         uses: actions/cache@v3
         with:
@@ -975,6 +989,13 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: Verify Docker is available (required for Testcontainers)
+        run: |
+          echo "Verifying Docker availability for Testcontainers..."
+          docker --version
+          docker info | head -5
+          echo "✅ Docker is available and running"
 
       - name: Cache Maven packages
         uses: actions/cache@v3
