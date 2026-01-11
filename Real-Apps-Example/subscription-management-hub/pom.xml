@@ -50,17 +50,22 @@
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-fabric-web</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-behavior</artifactId>
             <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-lucene</artifactId>
+            <artifactId>ai-infrastructure-relationship-query</artifactId>
             <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-onnx-starter</artifactId>
+            <artifactId>ai-infrastructure-vector-lucene</artifactId>
             <version>1.0.0</version>
         </dependency>
 

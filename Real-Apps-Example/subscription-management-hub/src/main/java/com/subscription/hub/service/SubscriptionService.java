@@ -12,6 +12,7 @@ import com.subscription.hub.repository.SubscriptionPlanRepository;
 import com.subscription.hub.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +31,9 @@ public class SubscriptionService {
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionPlanRepository planRepository;
     private final BehaviorEventService behaviorEventService;
-    private final AICoreService aiCoreService;
+    
+    @Autowired(required = false)
+    private AICoreService aiCoreService;
     
     /**
      * Subscribe to a plan
@@ -54,7 +57,7 @@ public class SubscriptionService {
         // Create subscription
         Subscription subscription = Subscription.builder()
             .userId(userId)
-            .planId(planId)
+            .plan(plan)
             .status(Subscription.SubscriptionStatus.ACTIVE)
             .startDate(LocalDateTime.now())
             .billingCycle(billingCycle)
@@ -121,8 +124,10 @@ public class SubscriptionService {
         Subscription subscription = subscriptionRepository.findById(subscriptionId)
             .orElseThrow(() -> new RuntimeException("Subscription not found"));
         
-        SubscriptionPlan oldPlan = planRepository.findById(subscription.getPlanId())
-            .orElseThrow(() -> new RuntimeException("Current plan not found"));
+        SubscriptionPlan oldPlan = subscription.getPlan();
+        if (oldPlan == null) {
+            throw new RuntimeException("Current plan not found");
+        }
         SubscriptionPlan newPlan = planRepository.findById(newPlanId)
             .orElseThrow(() -> new RuntimeException("New plan not found"));
         
@@ -131,7 +136,7 @@ public class SubscriptionService {
             throw new IllegalArgumentException("Invalid upgrade path from " + oldPlan.getTier() + " to " + newPlan.getTier());
         }
         
-        subscription.setPlanId(newPlanId);
+        subscription.setPlan(newPlan);
         subscription.setLastActivityDate(LocalDateTime.now());
         
         // @AIProcess ensures upgrade is synced
@@ -139,7 +144,7 @@ public class SubscriptionService {
         
         // Track event for behavior analysis
         behaviorEventService.trackEvent(subscription.getUserId(), "UPGRADE", Map.of(
-            "oldPlanId", subscription.getPlanId().toString(),
+            "oldPlanId", oldPlan.getId().toString(),
             "newPlanId", newPlanId.toString(),
             "oldTier", oldPlan.getTier().toString(),
             "newTier", newPlan.getTier().toString()
@@ -162,8 +167,10 @@ public class SubscriptionService {
         Subscription subscription = subscriptionRepository.findById(subscriptionId)
             .orElseThrow(() -> new RuntimeException("Subscription not found"));
         
-        SubscriptionPlan oldPlan = planRepository.findById(subscription.getPlanId())
-            .orElseThrow(() -> new RuntimeException("Current plan not found"));
+        SubscriptionPlan oldPlan = subscription.getPlan();
+        if (oldPlan == null) {
+            throw new RuntimeException("Current plan not found");
+        }
         SubscriptionPlan newPlan = planRepository.findById(newPlanId)
             .orElseThrow(() -> new RuntimeException("New plan not found"));
         
@@ -172,13 +179,13 @@ public class SubscriptionService {
             throw new IllegalArgumentException("Invalid downgrade path from " + oldPlan.getTier() + " to " + newPlan.getTier());
         }
         
-        subscription.setPlanId(newPlanId);
+        subscription.setPlan(newPlan);
         subscription.setLastActivityDate(LocalDateTime.now());
         
         Subscription saved = subscriptionRepository.save(subscription);
         
         behaviorEventService.trackEvent(subscription.getUserId(), "DOWNGRADE", Map.of(
-            "oldPlanId", subscription.getPlanId().toString(),
+            "oldPlanId", oldPlan.getId().toString(),
             "newPlanId", newPlanId.toString(),
             "oldTier", oldPlan.getTier().toString(),
             "newTier", newPlan.getTier().toString()
@@ -225,6 +232,14 @@ public class SubscriptionService {
      * Semantic search for subscription plans
      */
     public List<SubscriptionPlan> searchPlans(String query, int limit) {
+        if (aiCoreService == null) {
+            // Fallback to simple name search if AI service is not available
+            return planRepository.findAll().stream()
+                .filter(plan -> plan.getName().toLowerCase().contains(query.toLowerCase()))
+                .limit(limit)
+                .collect(Collectors.toList());
+        }
+        
         AISearchRequest searchRequest = AISearchRequest.builder()
             .query(query)
             .entityType("subscription-plan")

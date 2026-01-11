@@ -33,9 +33,6 @@ public class Subscription {
     @Column(nullable = false)
     private UUID userId;
     
-    @Column(nullable = false)
-    private UUID planId;
-    
     @AIContext(contextKey = "status")
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
@@ -69,7 +66,7 @@ public class Subscription {
     private Address shippingAddress;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "plan_id", insertable = false, updatable = false)
+    @JoinColumn(name = "plan_id", nullable = false)
     private SubscriptionPlan plan;
     
     public enum SubscriptionStatus {
