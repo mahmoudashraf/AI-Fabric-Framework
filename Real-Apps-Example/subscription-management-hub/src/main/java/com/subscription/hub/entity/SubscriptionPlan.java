@@ -3,7 +3,7 @@ package com.subscription.hub.entity;
 import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.annotation.AIContext;
 import com.ai.infrastructure.annotation.AISearchable;
-import com.ai.infrastructure.config.IndexingStrategy;
+import com.ai.infrastructure.indexing.IndexingStrategy;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

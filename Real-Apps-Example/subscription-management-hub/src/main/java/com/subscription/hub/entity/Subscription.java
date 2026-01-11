@@ -2,7 +2,7 @@ package com.subscription.hub.entity;
 
 import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.annotation.AIContext;
-import com.ai.infrastructure.config.IndexingStrategy;
+import com.ai.infrastructure.indexing.IndexingStrategy;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,7 +18,7 @@ import java.util.UUID;
     entityType = "subscription",
     autoEmbedding = false,
     indexable = true,
-    indexingStrategy = IndexingStrategy.ASYNC
+    indexingStrategy = com.ai.infrastructure.indexing.IndexingStrategy.ASYNC
 )
 @Data
 @Builder
@@ -32,9 +32,6 @@ public class Subscription {
     
     @Column(nullable = false)
     private UUID userId;
-    
-    @Column(nullable = false)
-    private UUID planId;
     
     @AIContext(contextKey = "status")
     @Column(nullable = false)
@@ -69,7 +66,7 @@ public class Subscription {
     private Address shippingAddress;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "plan_id", insertable = false, updatable = false)
+    @JoinColumn(name = "plan_id", nullable = false)
     private SubscriptionPlan plan;
     
     public enum SubscriptionStatus {

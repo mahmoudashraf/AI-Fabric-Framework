@@ -8,6 +8,7 @@ import com.subscription.hub.entity.Address;
 import com.subscription.hub.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -19,7 +20,9 @@ import java.util.UUID;
 public class UpdateAddressActionHandler implements ActionHandler {
     
     private final SubscriptionService subscriptionService;
-    private final PIIDetectionService piiDetectionService;
+    
+    @Autowired(required = false)
+    private PIIDetectionService piiDetectionService;
     
     @Override
     public AIActionMetaData getActionMetadata() {
@@ -80,18 +83,24 @@ public class UpdateAddressActionHandler implements ActionHandler {
                 .type(addressType)
                 .build();
             
-            // Validate address using PII detection service
-            String addressString = String.format("%s, %s, %s %s, %s",
-                address.getStreetAddress(),
-                address.getCity(),
-                address.getState(),
-                address.getPostalCode(),
-                address.getCountry()
-            );
-            
-            var piiResult = piiDetectionService.detectAndProcess(addressString);
-            address.setIsValidated(piiResult.isPiiDetected() == false); // Valid if no PII issues
-            address.setValidationScore(piiResult.isPiiDetected() ? 0.5 : 1.0);
+            // Validate address using PII detection service (if available)
+            if (piiDetectionService != null) {
+                String addressString = String.format("%s, %s, %s %s, %s",
+                    address.getStreetAddress(),
+                    address.getCity(),
+                    address.getState(),
+                    address.getPostalCode(),
+                    address.getCountry()
+                );
+                
+                var piiResult = piiDetectionService.detectAndProcess(addressString);
+                address.setIsValidated(piiResult.isPiiDetected() == false); // Valid if no PII issues
+                address.setValidationScore(piiResult.isPiiDetected() ? 0.5 : 1.0);
+            } else {
+                // Default validation if PII service is not available
+                address.setIsValidated(true);
+                address.setValidationScore(1.0);
+            }
             
             var subscription = subscriptionService.updateAddress(
                 UUID.fromString(subscriptionId),

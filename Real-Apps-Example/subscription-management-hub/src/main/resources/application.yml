@@ -20,6 +20,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
 
 ai:
   config:
@@ -27,7 +28,7 @@ ai:
   
   providers:
     embedding:
-      provider: onnx
+      provider: rest
     generation:
       provider: openai
       model: gpt-4
@@ -39,7 +40,7 @@ ai:
     base-url: https://api.openai.com/v1
   
   behavior:
-    enabled: true
+    enabled: false
     mode: LIGHT
   
   pii-detection:
