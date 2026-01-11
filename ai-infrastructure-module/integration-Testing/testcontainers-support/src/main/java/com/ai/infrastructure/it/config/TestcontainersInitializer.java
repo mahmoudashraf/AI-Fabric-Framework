@@ -70,10 +70,28 @@ public class TestcontainersInitializer
     private static final String TYPE_PGVECTOR = "pgvector";
 
     // Container constants (shared with VectorDatabaseContainerAutoConfiguration)
-    private static final String DEFAULT_IMAGE_MILVUS = "milvusdb/milvus:v2.4.1-latest";
+    private static final String DEFAULT_IMAGE_MILVUS = "milvusdb/milvus:v2.4.0";
+    private static final String DEFAULT_IMAGE_QDRANT = "qdrant/qdrant:v1.7.4";
+    private static final String DEFAULT_IMAGE_WEAVIATE = "semitechnologies/weaviate:1.23.0";
     private static final int PORT_MILVUS = 19530;
+    private static final int PORT_QDRANT_REST = 6333;
+    private static final int PORT_QDRANT_GRPC = 6334;
+    private static final int PORT_WEAVIATE = 8080;
     private static final Duration EXTENDED_STARTUP_TIMEOUT = Duration.ofMinutes(5);
     private static final String DEFAULT_DATABASE_MILVUS = "default";
+    private static final String HEALTH_PATH_QDRANT = "/readyz";
+    private static final String HEALTH_PATH_WEAVIATE = "/v1/.well-known/ready";
+    private static final String DEFAULT_SCHEME_WEAVIATE = "http";
+    
+    // Weaviate environment variables
+    private static final String ENV_WEAVIATE_AUTH_ANONYMOUS = "AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED";
+    private static final String ENV_WEAVIATE_PERSISTENCE_PATH = "PERSISTENCE_DATA_PATH";
+    private static final String ENV_WEAVIATE_VECTORIZER = "DEFAULT_VECTORIZER_MODULE";
+    private static final String ENV_WEAVIATE_CLUSTER_HOSTNAME = "CLUSTER_HOSTNAME";
+    private static final String ENV_VALUE_WEAVIATE_AUTH_ANONYMOUS = "true";
+    private static final String ENV_VALUE_WEAVIATE_PERSISTENCE_PATH = "/var/lib/weaviate";
+    private static final String ENV_VALUE_WEAVIATE_VECTORIZER = "none";
+    private static final String ENV_VALUE_WEAVIATE_CLUSTER_HOSTNAME = "node1";
 
     // Shared container storage (accessed by both initializer and bean methods)
     private static final Map<String, GenericContainer<?>> earlyStartedContainers = new ConcurrentHashMap<>();
@@ -136,6 +154,10 @@ public class TestcontainersInitializer
         
         if (TYPE_MILVUS.equals(normalizedType)) {
             startMilvusContainerEarly(env, props);
+        } else if (TYPE_QDRANT.equals(normalizedType)) {
+            startQdrantContainerEarly(env, props);
+        } else if (TYPE_WEAVIATE.equals(normalizedType)) {
+            startWeaviateContainerEarly(env, props);
         }
         // Add other container types as needed
     }
@@ -155,6 +177,16 @@ public class TestcontainersInitializer
 
         log.info("Starting Milvus container early (before Spring beans are created)...");
         try {
+            // Check if Docker is available before attempting to start container
+            try {
+                org.testcontainers.DockerClientFactory.instance().client();
+            } catch (Exception dockerCheckException) {
+                log.warn("Docker is not available. Skipping Milvus container startup. Error: {}", dockerCheckException.getMessage());
+                log.warn("Tests will fall back to Lucene vector database. To use Milvus, ensure Docker is running.");
+                // Don't throw - let tests run with default configuration
+                return;
+            }
+            
             // Wait a bit for Docker to be fully ready (especially on Windows)
             // This helps avoid connection issues when Docker Desktop is still initializing
             try {
@@ -163,10 +195,15 @@ public class TestcontainersInitializer
                 Thread.currentThread().interrupt();
             }
             
+            // Milvus standalone requires specific environment variables and command
             GenericContainer<?> container = new GenericContainer<>(
                 DockerImageName.parse(DEFAULT_IMAGE_MILVUS)
             )
                 .withExposedPorts(PORT_MILVUS)
+                .withCommand("milvus", "run", "standalone")
+                .withEnv("COMMON_STORAGETYPE", "local")
+                .withEnv("ETCD_USE_EMBED", "true")
+                .withEnv("MINIO_ADDRESS", "localhost")
                 .withStartupTimeout(EXTENDED_STARTUP_TIMEOUT)
                 .waitingFor(Wait.forListeningPort().withStartupTimeout(EXTENDED_STARTUP_TIMEOUT));
 
@@ -215,6 +252,54 @@ public class TestcontainersInitializer
     }
 
     /**
+     * Starts Qdrant container early and injects connection properties.
+     */
+    private void startQdrantContainerEarly(ConfigurableEnvironment env, Map<String, Object> props) {
+        if (earlyStartedContainers.containsKey(TYPE_QDRANT)) {
+            GenericContainer<?> existing = earlyStartedContainers.get(TYPE_QDRANT);
+            if (existing != null && existing.isRunning()) {
+                log.info("Reusing existing Qdrant container started early");
+                injectQdrantProperties(existing, props);
+                return;
+            }
+        }
+
+        log.info("Starting Qdrant container early (before Spring beans are created)...");
+        try {
+            try {
+                Thread.sleep(1000); // 1 second delay
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            
+            GenericContainer<?> container = new GenericContainer<>(
+                DockerImageName.parse(DEFAULT_IMAGE_QDRANT)
+            )
+                .withExposedPorts(PORT_QDRANT_REST, PORT_QDRANT_GRPC)
+                .withStartupTimeout(EXTENDED_STARTUP_TIMEOUT)
+                .waitingFor(Wait.forHttp(HEALTH_PATH_QDRANT)
+                    .forPort(PORT_QDRANT_REST)
+                    .forStatusCode(200)
+                    .withStartupTimeout(EXTENDED_STARTUP_TIMEOUT));
+
+            log.info("Starting Qdrant container (this may take a few minutes on first run)...");
+            container.start();
+            log.info("Qdrant container started successfully");
+            
+            earlyStartedContainers.put(TYPE_QDRANT, container);
+            
+            injectQdrantProperties(container, props);
+            
+            log.info("Qdrant container started early at {}:{}. Properties injected: {}", 
+                container.getHost(), container.getMappedPort(PORT_QDRANT_REST), props.keySet());
+        } catch (Exception e) {
+            log.error("Failed to start Qdrant container early", e);
+            throw new IllegalStateException("Failed to start Qdrant container early: " + e.getMessage() + 
+                ". If you see Docker connectivity issues, try using Lucene instead: -Dai.vector-db.type=lucene", e);
+        }
+    }
+
+    /**
      * Injects Milvus connection properties into the properties map.
      */
     private void injectMilvusProperties(GenericContainer<?> container, Map<String, Object> props) {
@@ -225,6 +310,81 @@ public class TestcontainersInitializer
         props.put("ai.providers.milvus.password", "");
         props.put("ai.providers.milvus.secure", false);
         props.put("ai.providers.milvus.enabled", true);
+    }
+
+    /**
+     * Starts Weaviate container early and injects connection properties.
+     */
+    private void startWeaviateContainerEarly(ConfigurableEnvironment env, Map<String, Object> props) {
+        if (earlyStartedContainers.containsKey(TYPE_WEAVIATE)) {
+            GenericContainer<?> existing = earlyStartedContainers.get(TYPE_WEAVIATE);
+            if (existing != null && existing.isRunning()) {
+                log.info("Reusing existing Weaviate container started early");
+                injectWeaviateProperties(existing, props);
+                return;
+            }
+        }
+
+        log.info("Starting Weaviate container early (before Spring beans are created)...");
+        try {
+            try {
+                Thread.sleep(1000); // 1 second delay
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            
+            GenericContainer<?> container = new GenericContainer<>(
+                DockerImageName.parse(DEFAULT_IMAGE_WEAVIATE)
+            )
+                .withExposedPorts(PORT_WEAVIATE)
+                .withEnv(ENV_WEAVIATE_AUTH_ANONYMOUS, ENV_VALUE_WEAVIATE_AUTH_ANONYMOUS)
+                .withEnv(ENV_WEAVIATE_PERSISTENCE_PATH, ENV_VALUE_WEAVIATE_PERSISTENCE_PATH)
+                .withEnv(ENV_WEAVIATE_VECTORIZER, ENV_VALUE_WEAVIATE_VECTORIZER)
+                .withEnv(ENV_WEAVIATE_CLUSTER_HOSTNAME, ENV_VALUE_WEAVIATE_CLUSTER_HOSTNAME)
+                .withStartupTimeout(EXTENDED_STARTUP_TIMEOUT)
+                .waitingFor(Wait.forHttp(HEALTH_PATH_WEAVIATE)
+                    .forPort(PORT_WEAVIATE)
+                    .forStatusCode(200)
+                    .withStartupTimeout(EXTENDED_STARTUP_TIMEOUT));
+
+            log.info("Starting Weaviate container (this may take a few minutes on first run)...");
+            container.start();
+            log.info("Weaviate container started successfully");
+            
+            earlyStartedContainers.put(TYPE_WEAVIATE, container);
+            
+            injectWeaviateProperties(container, props);
+            
+            log.info("Weaviate container started early at {}:{}. Properties injected: {}", 
+                container.getHost(), container.getMappedPort(PORT_WEAVIATE), props.keySet());
+        } catch (Exception e) {
+            log.error("Failed to start Weaviate container early", e);
+            throw new IllegalStateException("Failed to start Weaviate container early: " + e.getMessage() + 
+                ". If you see Docker connectivity issues, try using Lucene instead: -Dai.vector-db.type=lucene", e);
+        }
+    }
+
+    /**
+     * Injects Qdrant connection properties into the properties map.
+     */
+    private void injectQdrantProperties(GenericContainer<?> container, Map<String, Object> props) {
+        props.put("ai.providers.qdrant.host", container.getHost());
+        props.put("ai.providers.qdrant.port", container.getMappedPort(PORT_QDRANT_REST));
+        props.put("ai.providers.qdrant.grpc-port", container.getMappedPort(PORT_QDRANT_GRPC));
+        props.put("ai.providers.qdrant.api-key", "");
+        props.put("ai.providers.qdrant.prefer-grpc", false);
+        props.put("ai.providers.qdrant.enabled", true);
+    }
+
+    /**
+     * Injects Weaviate connection properties into the properties map.
+     */
+    private void injectWeaviateProperties(GenericContainer<?> container, Map<String, Object> props) {
+        props.put("ai.providers.weaviate.scheme", DEFAULT_SCHEME_WEAVIATE);
+        props.put("ai.providers.weaviate.host", container.getHost());
+        props.put("ai.providers.weaviate.port", container.getMappedPort(PORT_WEAVIATE));
+        props.put("ai.providers.weaviate.api-key", "");
+        props.put("ai.providers.weaviate.enabled", true);
     }
 
     /**
@@ -270,3 +430,4 @@ public class TestcontainersInitializer
             || TYPE_PGVECTOR.equals(normalizedType);
     }
 }
+

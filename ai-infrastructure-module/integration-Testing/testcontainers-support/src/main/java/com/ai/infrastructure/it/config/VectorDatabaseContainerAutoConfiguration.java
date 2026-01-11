@@ -85,7 +85,7 @@ public class VectorDatabaseContainerAutoConfiguration {
     private static final String PROP_IMAGE_VERSION_PREFIX = "testcontainers.";
 
     // Default Docker images
-    private static final String DEFAULT_IMAGE_MILVUS = "milvusdb/milvus:v2.4.1-latest";
+    private static final String DEFAULT_IMAGE_MILVUS = "milvusdb/milvus:v2.4.0";
     private static final String DEFAULT_IMAGE_QDRANT = "qdrant/qdrant:v1.7.4";
     private static final String DEFAULT_IMAGE_WEAVIATE = "semitechnologies/weaviate:1.23.0";
     private static final String DEFAULT_IMAGE_CHROMA = "chromadb/chroma:0.4.22";
@@ -229,6 +229,10 @@ public class VectorDatabaseContainerAutoConfiguration {
                 DockerImageName.parse(image)
             )
                 .withExposedPorts(PORT_MILVUS)
+                .withCommand("milvus", "run", "standalone")
+                .withEnv("COMMON_STORAGETYPE", "local")
+                .withEnv("ETCD_USE_EMBED", "true")
+                .withEnv("MINIO_ADDRESS", "localhost")
                 .withStartupTimeout(EXTENDED_STARTUP_TIMEOUT)
                 .waitingFor(Wait.forListeningPort().withStartupTimeout(EXTENDED_STARTUP_TIMEOUT));
 

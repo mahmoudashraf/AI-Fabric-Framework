@@ -21,6 +21,13 @@
     </properties>
 
     <dependencies>
+        <!-- Shared Testcontainers Support -->
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>testcontainers-support</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
         <dependency>
             <groupId>com.ai.fabric</groupId>
             <artifactId>ai-fabric-core</artifactId>
@@ -45,6 +52,37 @@
         <dependency>
             <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-lucene</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-milvus</artifactId>
+            <version>${project.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.testcontainers</groupId>
+                    <artifactId>milvus</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-chroma</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-pgvector</artifactId>
             <version>${project.version}</version>
         </dependency>
         
