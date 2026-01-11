@@ -1,6 +1,6 @@
 # AI Fabric Framework - Developer Experience Enhancement Guide
 
-> **Version:** 1.0.0
+> **Version:** 1.1.0
 > **Status:** Proposal
 > **Last Updated:** January 2026
 
@@ -8,11 +8,12 @@
 
 1. [Executive Summary](#executive-summary)
 2. [Problem Analysis](#problem-analysis)
-3. [Solution Architecture](#solution-architecture)
-4. [Implementation Guide](#implementation-guide)
-5. [Migration Guide](#migration-guide)
-6. [Best Practices](#best-practices)
-7. [Appendix](#appendix)
+3. [Architectural Coupling Audit](#architectural-coupling-audit)
+4. [Solution Architecture](#solution-architecture)
+5. [Implementation Guide](#implementation-guide)
+6. [Migration Guide](#migration-guide)
+7. [Best Practices](#best-practices)
+8. [Appendix](#appendix)
 
 ---
 
@@ -34,6 +35,10 @@ This document outlines comprehensive enhancements to the AI Fabric Framework to 
 | Hard dependencies on optional modules | Application fails to start | `ObjectProvider` + `@ConditionalOnBean` |
 | Missing provider configuration | Unclear errors | Validation with actionable messages |
 | Transitive dependencies not pulled | Runtime `ClassNotFoundException` | Starter POMs with sensible defaults |
+| JPA/Repository tight coupling | Cannot swap storage implementations | Port/Adapter pattern with interfaces |
+| HTTP client coupling | Inconsistent client configuration | `HttpClientFactory` abstraction |
+| Cross-module entity references | Brittle module boundaries | DTOs for inter-module communication |
+| Configuration direct instantiation | Cannot override implementations | Interface-based bean definitions |
 
 ---
 
@@ -94,6 +99,664 @@ ai:
 - No validation of required configuration
 - Silent fallbacks that may not work
 - No documentation of provider requirements
+
+---
+
+## Architectural Coupling Audit
+
+A comprehensive scan of the framework revealed **28 critical coupling issues** across **31 files**. This section documents all architectural problems and their solutions.
+
+### Summary of Issues Found
+
+| Category | Issue Count | High Severity | Medium Severity | Files Affected |
+|----------|-------------|--------------|-----------------|----------------|
+| HTTP Client Coupling | 7 | 7 | 0 | 7 |
+| Repository Coupling | 8 | 6 | 2 | 8 |
+| Missing Port/Adapter | 5 | 3 | 2 | 5 |
+| Cross-Module Entities | 5 | 2 | 3 | 6 |
+| Config Direct Instantiation | 12 | 9 | 3 | 4 |
+| Thread Pool Coupling | 1 | 1 | 0 | 1 |
+
+---
+
+### Issue 1: HTTP Client Tight Coupling
+
+**Severity:** HIGH
+**Affected Modules:** All provider modules, Vector database modules
+
+Every provider module directly instantiates `RestTemplate` without abstraction:
+
+| Module | File | Line | Issue |
+|--------|------|------|-------|
+| OpenAI | `OpenAIEmbeddingProvider.java` | 79 | `new RestTemplate()` |
+| Azure | `AzureOpenAIEmbeddingProvider.java` | 74 | `new RestTemplate(factory)` |
+| Cohere | `CohereEmbeddingProvider.java` | 59 | `new RestTemplate()` |
+| Gemini | `GeminiEmbeddingProvider.java` | 59 | `new RestTemplate()` |
+| REST | `RestEmbeddingProvider.java` | 54 | `new RestTemplate(requestFactory)` |
+| Weaviate | `WeaviateVectorDatabaseService.java` | 404 | `new RestTemplate()` |
+| Qdrant | `QdrantVectorDatabaseService.java` | - | `new RestTemplate()` |
+
+**Problems:**
+- Tight coupling to Spring's RestTemplate implementation
+- Cannot swap to WebClient or other HTTP clients
+- Inconsistent timeout/error handling across providers
+- Duplicated HTTP client configuration logic
+
+**Solution: HttpClientFactory Interface**
+
+```java
+// Port interface in core module
+package com.ai.infrastructure.http;
+
+public interface HttpClientFactory {
+
+    /**
+     * Creates an HTTP client with default configuration.
+     */
+    HttpClient createClient();
+
+    /**
+     * Creates an HTTP client with custom timeout.
+     */
+    HttpClient createClient(Duration connectTimeout, Duration readTimeout);
+
+    /**
+     * Creates an HTTP client for a specific provider with retry logic.
+     */
+    HttpClient createClientForProvider(String providerName, HttpClientConfig config);
+}
+
+// HTTP Client abstraction
+public interface HttpClient {
+    <T> T get(String url, Class<T> responseType, Map<String, String> headers);
+    <T> T post(String url, Object body, Class<T> responseType, Map<String, String> headers);
+    <T> T postForEntity(String url, Object body, ParameterizedTypeReference<T> responseType);
+}
+
+// RestTemplate adapter (default implementation)
+package com.ai.infrastructure.http.adapter;
+
+@Component
+@ConditionalOnClass(RestTemplate.class)
+public class RestTemplateHttpClient implements HttpClient {
+
+    private final RestTemplate restTemplate;
+
+    public RestTemplateHttpClient(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    @Override
+    public <T> T post(String url, Object body, Class<T> responseType,
+                      Map<String, String> headers) {
+        HttpHeaders httpHeaders = new HttpHeaders();
+        headers.forEach(httpHeaders::set);
+        HttpEntity<Object> entity = new HttpEntity<>(body, httpHeaders);
+        return restTemplate.postForObject(url, entity, responseType);
+    }
+    // ... other methods
+}
+
+// WebClient adapter (reactive alternative)
+@Component
+@ConditionalOnClass(WebClient.class)
+@ConditionalOnProperty(prefix = "ai.http", name = "client", havingValue = "webclient")
+public class WebClientHttpClient implements HttpClient {
+    // WebClient-based implementation
+}
+```
+
+**Provider After Refactoring:**
+
+```java
+// Before
+public class OpenAIEmbeddingProvider implements EmbeddingProvider {
+    private final RestTemplate restTemplate = new RestTemplate();  // BAD
+}
+
+// After
+public class OpenAIEmbeddingProvider implements EmbeddingProvider {
+    private final HttpClient httpClient;  // GOOD - injected abstraction
+
+    public OpenAIEmbeddingProvider(HttpClient httpClient, AIProviderConfig config) {
+        this.httpClient = httpClient;
+        this.config = config;
+    }
+}
+```
+
+---
+
+### Issue 2: JPA/Repository Tight Coupling
+
+**Severity:** HIGH
+**Affected Modules:** Core, Behavior, Relationship Query
+
+Multiple services directly depend on JPA repositories without abstraction:
+
+#### Core Module Issues
+
+| Service | Repository Dependency | Problem |
+|---------|----------------------|---------|
+| `IntentHistoryService` | `IntentHistoryRepository` | Direct JPA coupling |
+| `SingleTableStorageStrategy` | `AISearchableEntityRepository` | Cannot switch storage |
+| `PerTypeTableStorageStrategy` | `PerTypeRepositoryFactory` | Factory returns JPA repos |
+| `IndexingQueueService` | `IndexingQueueRepository` | Queue tied to JPA |
+
+#### Behavior Module Issues
+
+| Service | Repository Dependency | Problem |
+|---------|----------------------|---------|
+| `BehaviorStorageAdapter` | `BehaviorInsightsRepository` | Adapter breaks abstraction |
+| `BehaviorAnalyticsController` | `BehaviorInsightsRepository` | Controller uses repo directly |
+
+**Solution: Port/Adapter Pattern for Storage**
+
+**Step 1: Define Port Interfaces**
+
+```java
+// Core storage port
+package com.ai.infrastructure.storage.port;
+
+public interface SearchableEntityStore {
+    void save(AISearchableEntity entity);
+    Optional<AISearchableEntity> findById(String id);
+    List<AISearchableEntity> findByEntityType(String entityType);
+    void deleteById(String id);
+    void deleteByEntityType(String entityType);
+    Page<AISearchableEntity> findAll(Pageable pageable);
+}
+
+// Intent history port
+package com.ai.infrastructure.intent.port;
+
+public interface IntentHistoryStore {
+    void save(IntentHistory history);
+    List<IntentHistory> findBySessionId(String sessionId);
+    List<IntentHistory> findByUserId(String userId, int limit);
+    void deleteBySessionId(String sessionId);
+}
+
+// Behavior insights port
+package com.ai.infrastructure.behavior.port;
+
+public interface BehaviorInsightsStore {
+    void save(BehaviorInsights insights);
+    Optional<BehaviorInsights> findByUserId(String userId);
+    void deleteByUserId(String userId);
+    List<BehaviorInsights> findByTrend(BehaviorTrend trend);
+    List<BehaviorInsights> findRapidlyDecliningUsers();
+}
+
+// Indexing queue port
+package com.ai.infrastructure.indexing.port;
+
+public interface IndexingQueueStore {
+    void enqueue(IndexingQueueEntry entry);
+    List<IndexingQueueEntry> dequeue(int batchSize);
+    void markComplete(String entryId);
+    void markFailed(String entryId, String errorMessage);
+    int countPending();
+}
+```
+
+**Step 2: Create JPA Adapters (Separate Module)**
+
+```java
+// In new module: ai-infrastructure-persistence-jpa
+package com.ai.infrastructure.persistence.jpa;
+
+@Component
+@ConditionalOnClass(JpaRepository.class)
+public class JpaSearchableEntityStore implements SearchableEntityStore {
+
+    private final AISearchableEntityRepository repository;
+
+    public JpaSearchableEntityStore(AISearchableEntityRepository repository) {
+        this.repository = repository;
+    }
+
+    @Override
+    public void save(AISearchableEntity entity) {
+        repository.save(entity);
+    }
+
+    @Override
+    public Optional<AISearchableEntity> findById(String id) {
+        return repository.findById(id);
+    }
+    // ... other methods delegate to repository
+}
+
+@Component
+@ConditionalOnClass(JpaRepository.class)
+public class JpaBehaviorInsightsStore implements BehaviorInsightsStore {
+
+    private final BehaviorInsightsRepository repository;
+
+    // ... implementation
+}
+```
+
+**Step 3: Create In-Memory Adapters (for testing/simple use)**
+
+```java
+// In core module - default fallback
+package com.ai.infrastructure.storage.adapter;
+
+@Component
+@ConditionalOnMissingBean(SearchableEntityStore.class)
+public class InMemorySearchableEntityStore implements SearchableEntityStore {
+
+    private final ConcurrentMap<String, AISearchableEntity> store =
+        new ConcurrentHashMap<>();
+
+    @Override
+    public void save(AISearchableEntity entity) {
+        store.put(entity.getId(), entity);
+    }
+
+    @Override
+    public Optional<AISearchableEntity> findById(String id) {
+        return Optional.ofNullable(store.get(id));
+    }
+    // ... other methods
+}
+```
+
+**Module Structure After Refactoring:**
+
+```
+ai-infrastructure-core/                    # No JPA dependency!
+    ├── port/
+    │   ├── SearchableEntityStore.java
+    │   ├── IntentHistoryStore.java
+    │   └── IndexingQueueStore.java
+    └── adapter/
+        └── InMemorySearchableEntityStore.java  # Default
+
+ai-infrastructure-persistence-jpa/         # JPA implementation (optional)
+    ├── entity/
+    │   └── AISearchableEntity.java
+    ├── repository/
+    │   └── AISearchableEntityRepository.java
+    └── adapter/
+        └── JpaSearchableEntityStore.java
+
+ai-infrastructure-behavior/                # No JPA dependency!
+    ├── port/
+    │   └── BehaviorInsightsStore.java
+    └── adapter/
+        └── InMemoryBehaviorInsightsStore.java  # Default
+
+ai-infrastructure-behavior-jpa/            # JPA implementation (optional)
+    ├── entity/
+    │   └── BehaviorInsights.java
+    ├── repository/
+    │   └── BehaviorInsightsRepository.java
+    └── adapter/
+        └── JpaBehaviorInsightsStore.java
+```
+
+---
+
+### Issue 3: Configuration Direct Instantiation
+
+**Severity:** HIGH
+**Affected File:** `AIInfrastructureAutoConfiguration.java`
+
+All 15+ `@Bean` methods directly instantiate concrete classes:
+
+```java
+// Current - PROBLEMATIC
+@Bean
+public AIEmbeddingService aiEmbeddingService(...) {
+    return new AIEmbeddingService(...);  // Direct instantiation
+}
+
+@Bean
+public AISearchService aiSearchService(...) {
+    return new AISearchService(...);  // Cannot override
+}
+
+@Bean
+public PIIDetectionService piiDetectionService(...) {
+    return new PIIDetectionService(properties);  // Tight coupling
+}
+```
+
+**Problems:**
+- Cannot override implementations without replacing entire beans
+- No interface-based programming
+- Testing requires full context setup
+
+**Solution: Interface-Based Configuration**
+
+**Step 1: Define Service Interfaces**
+
+```java
+// Service interfaces
+public interface EmbeddingService {
+    EmbeddingResponse generateEmbedding(EmbeddingRequest request);
+    List<EmbeddingResponse> generateEmbeddings(List<String> texts);
+}
+
+public interface SearchService {
+    SearchResponse search(SearchRequest request);
+    List<SearchResult> similaritySearch(String query, int limit);
+}
+
+public interface PIIDetector {
+    PIIDetectionResult detect(String text);
+    String redact(String text);
+    boolean containsPII(String text);
+}
+```
+
+**Step 2: Update Configuration**
+
+```java
+@AutoConfiguration
+public class AIInfrastructureAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(EmbeddingService.class)  // Allows override
+    public EmbeddingService embeddingService(
+            EmbeddingProvider provider,
+            CacheManager cacheManager) {
+        return new DefaultEmbeddingService(provider, cacheManager);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(SearchService.class)
+    public SearchService searchService(
+            VectorDatabaseService vectorDb,
+            EmbeddingService embeddingService) {
+        return new DefaultSearchService(vectorDb, embeddingService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PIIDetector.class)
+    public PIIDetector piiDetector(PIIDetectionProperties properties) {
+        return new RegexPIIDetector(properties);
+    }
+}
+```
+
+**User Can Now Override:**
+
+```java
+@Configuration
+public class CustomAIConfiguration {
+
+    @Bean
+    public PIIDetector piiDetector() {
+        // Custom implementation using ML model
+        return new MLBasedPIIDetector();
+    }
+
+    @Bean
+    public EmbeddingService embeddingService() {
+        // Custom caching strategy
+        return new CachedEmbeddingService(customCache);
+    }
+}
+```
+
+---
+
+### Issue 4: Cross-Module Entity References
+
+**Severity:** MEDIUM
+**Affected Modules:** Relationship Query, Behavior
+
+Modules directly reference entities from other modules:
+
+```java
+// In relationship-query module - BAD
+import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.repository.AISearchableEntityRepository;
+
+// In behavior module - BAD
+import com.ai.infrastructure.behavior.entity.BehaviorInsights;
+relationshipMapper.registerEntityType(BehaviorInsights.class);
+```
+
+**Problems:**
+- Creates compile-time coupling between modules
+- Changes to entity in one module break other modules
+- Cannot evolve modules independently
+
+**Solution: DTOs for Inter-Module Communication**
+
+```java
+// Core module defines DTOs for cross-module use
+package com.ai.infrastructure.dto;
+
+public record SearchableEntityDTO(
+    String id,
+    String entityType,
+    String content,
+    Map<String, Object> metadata,
+    Instant createdAt
+) {}
+
+public record BehaviorSummaryDTO(
+    String userId,
+    String segment,
+    Double churnRisk,
+    String trend
+) {}
+
+// Mapper interface for conversion
+public interface EntityDTOMapper<E, D> {
+    D toDTO(E entity);
+    E toEntity(D dto);
+}
+```
+
+**Module Communication Pattern:**
+
+```java
+// Relationship query module uses DTOs, not entities
+public class RelationshipQueryService {
+
+    private final SearchableEntityPort entityPort;  // Port interface
+
+    public List<SearchableEntityDTO> findRelated(String entityId) {
+        // Works with DTOs, not JPA entities
+        return entityPort.findRelatedEntities(entityId);
+    }
+}
+```
+
+---
+
+### Issue 5: Thread Pool Coupling
+
+**Severity:** MEDIUM
+**Affected File:** `BehaviorProcessingManager.java`
+
+```java
+// Direct thread pool creation - BAD
+private final ExecutorService executor = Executors.newCachedThreadPool();
+```
+
+**Problems:**
+- Cannot configure thread pool externally
+- No monitoring/metrics integration
+- Resource management issues (unbounded pool)
+
+**Solution: ExecutorService Factory**
+
+```java
+// Port interface
+public interface TaskExecutorFactory {
+    ExecutorService createExecutor(String name, TaskExecutorConfig config);
+    ScheduledExecutorService createScheduledExecutor(String name, int corePoolSize);
+}
+
+// Configuration
+@ConfigurationProperties(prefix = "ai.executors")
+public class TaskExecutorConfig {
+    private int corePoolSize = 4;
+    private int maxPoolSize = 16;
+    private int queueCapacity = 100;
+    private Duration keepAlive = Duration.ofSeconds(60);
+    private String threadNamePrefix = "ai-task-";
+}
+
+// Default implementation with metrics
+@Component
+@ConditionalOnMissingBean(TaskExecutorFactory.class)
+public class MonitoredTaskExecutorFactory implements TaskExecutorFactory {
+
+    private final MeterRegistry meterRegistry;
+
+    @Override
+    public ExecutorService createExecutor(String name, TaskExecutorConfig config) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+            config.getCorePoolSize(),
+            config.getMaxPoolSize(),
+            config.getKeepAlive().toMillis(),
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(config.getQueueCapacity()),
+            new NamedThreadFactory(config.getThreadNamePrefix() + name)
+        );
+
+        // Add metrics
+        if (meterRegistry != null) {
+            monitorExecutor(executor, name);
+        }
+
+        return executor;
+    }
+}
+```
+
+---
+
+### Issue 6: Missing Service Interfaces in Behavior Module
+
+**Severity:** MEDIUM
+**Pattern Violation:** BehaviorStorageAdapter
+
+The adapter is supposed to abstract storage but directly uses JPA repository:
+
+```java
+// Current - breaks port/adapter pattern
+public class BehaviorStorageAdapter {
+    private final BehaviorInsightsRepository defaultRepository;  // JPA leak!
+    private final ObjectProvider<BehaviorInsightStore> spiStore;
+
+    public void save(BehaviorInsights insights) {
+        BehaviorInsightStore store = spiStore.getIfAvailable();
+        if (store != null) {
+            store.save(insights);
+        } else {
+            defaultRepository.save(insights);  // Fallback to JPA - BAD
+        }
+    }
+}
+```
+
+**Solution: Proper Adapter Pattern**
+
+```java
+// Clean adapter - no JPA in signature
+@Component
+public class BehaviorStorageAdapter {
+
+    private final BehaviorInsightsStore store;  // Interface only
+
+    public BehaviorStorageAdapter(BehaviorInsightsStore store) {
+        this.store = store;
+    }
+
+    public void save(BehaviorInsights insights) {
+        store.save(insights);  // Delegates to whatever implementation is configured
+    }
+}
+
+// Configuration provides the implementation
+@Configuration
+public class BehaviorStorageConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(BehaviorInsightsStore.class)
+    public BehaviorInsightsStore inMemoryBehaviorStore() {
+        return new InMemoryBehaviorInsightsStore();  // Default
+    }
+}
+
+// JPA module provides JPA implementation
+@Configuration
+@ConditionalOnClass(JpaRepository.class)
+public class BehaviorJpaConfiguration {
+
+    @Bean
+    public BehaviorInsightsStore jpaBehaviorStore(BehaviorInsightsRepository repo) {
+        return new JpaBehaviorInsightsStore(repo);  // JPA adapter
+    }
+}
+```
+
+---
+
+### Architectural Refactoring Roadmap
+
+#### Phase 1: HTTP Client Abstraction (Low Risk)
+- Create `HttpClientFactory` interface
+- Create `HttpClient` interface
+- Implement `RestTemplateHttpClient` adapter
+- Update all providers to use injected `HttpClient`
+- **Estimated Impact:** 7 provider files
+
+#### Phase 2: Storage Port Interfaces (Medium Risk)
+- Define port interfaces for all storage operations
+- Create in-memory default implementations
+- Move JPA adapters to separate module
+- **Estimated Impact:** 12 files, new module creation
+
+#### Phase 3: Service Interfaces (Medium Risk)
+- Extract interfaces from all service classes
+- Update configuration to use `@ConditionalOnMissingBean`
+- **Estimated Impact:** 15+ configuration changes
+
+#### Phase 4: Module Restructuring (High Risk)
+- Split behavior module into core + jpa
+- Split core persistence into separate module
+- Introduce DTOs for cross-module communication
+- **Estimated Impact:** Major refactoring, new modules
+
+---
+
+### Before/After Module Structure
+
+**Before (Current):**
+```
+ai-infrastructure-module/
+├── ai-infrastructure-core/           # Mixed: logic + JPA
+├── ai-infrastructure-behavior/       # Mixed: logic + JPA
+├── ai-infrastructure-rag/
+├── ai-infrastructure-web/
+└── providers/
+    └── ai-infrastructure-provider-*/  # Direct RestTemplate
+```
+
+**After (Proposed):**
+```
+ai-infrastructure-module/
+├── ai-infrastructure-core/           # Pure logic, port interfaces
+├── ai-infrastructure-persistence-jpa/ # JPA adapters (optional)
+├── ai-infrastructure-http/           # HTTP client abstraction
+├── ai-infrastructure-behavior/       # Pure logic, port interfaces
+├── ai-infrastructure-behavior-jpa/   # JPA adapters (optional)
+├── ai-infrastructure-rag/
+├── ai-infrastructure-web/
+└── providers/
+    └── ai-infrastructure-provider-*/  # Uses HttpClient interface
+```
 
 ---
 
