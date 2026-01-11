@@ -5,12 +5,14 @@ import com.ai.infrastructure.behavior.repository.BehaviorInsightsRepository;
 import com.ai.infrastructure.behavior.spi.BehaviorInsightStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
 @Slf4j
 @Component
+@ConditionalOnBean(BehaviorInsightsRepository.class)
 @RequiredArgsConstructor
 public class BehaviorStorageAdapter {
     

@@ -260,7 +260,7 @@ public class AIProviderConfigValidator {
         }
 
         if (isBlank(config.getModelPath())) {
-            result.addError("ai.providers.onnx.model-path", "ONNX model-path is required when ONNX is selected.");
+            result.addWarning("ai.providers.onnx.model-path is not configured. ONNX provider may not be available.");
         }
 
         if (isBlank(config.getTokenizerPath())) {

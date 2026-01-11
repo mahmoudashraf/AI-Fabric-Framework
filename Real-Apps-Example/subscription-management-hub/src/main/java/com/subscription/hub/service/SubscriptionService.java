@@ -1,7 +1,7 @@
 package com.subscription.hub.service;
 
 import com.ai.infrastructure.annotation.AIProcess;
-import com.ai.infrastructure.config.IndexingStrategy;
+import com.ai.infrastructure.indexing.IndexingStrategy;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
@@ -31,7 +31,6 @@ public class SubscriptionService {
     private final SubscriptionPlanRepository planRepository;
     private final BehaviorEventService behaviorEventService;
     private final AICoreService aiCoreService;
-    private final AISearchService searchService;
     
     /**
      * Subscribe to a plan

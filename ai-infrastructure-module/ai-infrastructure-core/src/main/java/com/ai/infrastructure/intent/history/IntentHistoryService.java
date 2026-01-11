@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@org.springframework.boot.autoconfigure.condition.ConditionalOnBean(IntentHistoryRepository.class)
 public class IntentHistoryService {
 
     private final IntentHistoryRepository repository;

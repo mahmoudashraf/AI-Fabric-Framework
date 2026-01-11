@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: subscription-management-hub-simple
+  
+  datasource:
+    url: jdbc:h2:mem:simpledb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+ai:
+  enabled: true
+  config:
+    default-file: ai-entity-config.yml
+  
+  providers:
+    embedding:
+      provider: rest
+    generation:
+      provider: rest
+      model: gpt-4
+      max-tokens: 1000
+      temperature: 0.7
+    openai:
+      enabled: false
+    rest:
+      enabled: true
+      base-url: http://localhost:8080
+      endpoint: /api/embeddings
+  
+  behavior:
+    enabled: false
+  
+  pii-detection:
+    enabled: true
+    mode: DETECT_ONLY
+  
+  vector-db:
+    provider: lucene
+
+logging:
+  level:
+    com.subscription.simple: INFO
+    com.ai.infrastructure: WARN
+    org.springframework: WARN

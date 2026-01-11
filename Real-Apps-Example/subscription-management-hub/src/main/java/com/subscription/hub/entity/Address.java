@@ -50,6 +50,26 @@ public class Address {
     @AIContext(contextKey = "validationScore", dataType = "decimal")
     private Double validationScore;  // 0.0-1.0 confidence in address validity
     
+    // Manual getters/setters for Lombok compatibility
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+    public String getStreetAddress() { return streetAddress; }
+    public void setStreetAddress(String streetAddress) { this.streetAddress = streetAddress; }
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+    public String getPostalCode() { return postalCode; }
+    public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
+    public String getCountry() { return country; }
+    public void setCountry(String country) { this.country = country; }
+    public AddressType getType() { return type; }
+    public void setType(AddressType type) { this.type = type; }
+    public Boolean getIsValidated() { return isValidated; }
+    public void setIsValidated(Boolean isValidated) { this.isValidated = isValidated; }
+    public Double getValidationScore() { return validationScore; }
+    public void setValidationScore(Double validationScore) { this.validationScore = validationScore; }
+    
     public enum AddressType {
         BILLING, SHIPPING
     }

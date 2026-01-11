@@ -2,7 +2,7 @@ package com.subscription.hub.entity;
 
 import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.annotation.AIContext;
-import com.ai.infrastructure.config.IndexingStrategy;
+import com.ai.infrastructure.indexing.IndexingStrategy;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -68,9 +68,32 @@ public class Subscription {
     @JoinColumn(name = "shipping_address_id")
     private Address shippingAddress;
     
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "plan_id", insertable = false, updatable = false)
-    private SubscriptionPlan plan;
+    // Note: plan relationship removed to avoid duplicate column mapping with planId
+    // Use planId to fetch plan via repository if needed
+    
+    // Manual getters/setters for Lombok compatibility
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+    public UUID getUserId() { return userId; }
+    public void setUserId(UUID userId) { this.userId = userId; }
+    public UUID getPlanId() { return planId; }
+    public void setPlanId(UUID planId) { this.planId = planId; }
+    public SubscriptionStatus getStatus() { return status; }
+    public void setStatus(SubscriptionStatus status) { this.status = status; }
+    public LocalDateTime getStartDate() { return startDate; }
+    public void setStartDate(LocalDateTime startDate) { this.startDate = startDate; }
+    public LocalDateTime getEndDate() { return endDate; }
+    public void setEndDate(LocalDateTime endDate) { this.endDate = endDate; }
+    public BillingCycle getBillingCycle() { return billingCycle; }
+    public void setBillingCycle(BillingCycle billingCycle) { this.billingCycle = billingCycle; }
+    public Double getChurnRiskScore() { return churnRiskScore; }
+    public void setChurnRiskScore(Double churnRiskScore) { this.churnRiskScore = churnRiskScore; }
+    public LocalDateTime getLastActivityDate() { return lastActivityDate; }
+    public void setLastActivityDate(LocalDateTime lastActivityDate) { this.lastActivityDate = lastActivityDate; }
+    public Address getBillingAddress() { return billingAddress; }
+    public void setBillingAddress(Address billingAddress) { this.billingAddress = billingAddress; }
+    public Address getShippingAddress() { return shippingAddress; }
+    public void setShippingAddress(Address shippingAddress) { this.shippingAddress = shippingAddress; }
     
     public enum SubscriptionStatus {
         ACTIVE, CANCELLED, PAST_DUE, EXPIRED

@@ -5,8 +5,8 @@ import com.ai.infrastructure.behavior.service.BehaviorStorageAdapter;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.spi.BehaviorContext;
 import com.ai.infrastructure.spi.BehaviorContextProvider;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -20,15 +20,24 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class BehaviorContextProviderImpl implements BehaviorContextProvider {
 
     private static final Duration MAX_INSIGHT_AGE = Duration.ofHours(24);
 
-    private final BehaviorStorageAdapter storageAdapter;
+    private final ObjectProvider<BehaviorStorageAdapter> storageAdapterProvider;
+    
+    public BehaviorContextProviderImpl(ObjectProvider<BehaviorStorageAdapter> storageAdapterProvider) {
+        this.storageAdapterProvider = storageAdapterProvider;
+    }
 
     @Override
     public Optional<BehaviorContext> getBehaviorContext(OrchestrationContext context) {
+        BehaviorStorageAdapter storageAdapter = storageAdapterProvider.getIfAvailable();
+        if (storageAdapter == null) {
+            log.trace("BehaviorStorageAdapter not available.");
+            return Optional.empty();
+        }
+        
         if (context == null || !context.isAuthenticated() || !StringUtils.hasText(context.getUserId())) {
             log.trace("Behavior context not available for anonymous or missing user.");
             return Optional.empty();

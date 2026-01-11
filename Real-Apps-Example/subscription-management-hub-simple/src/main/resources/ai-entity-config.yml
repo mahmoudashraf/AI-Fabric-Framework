@@ -1,0 +1,19 @@
+ai-entities:
+  plan:
+    entity-type: "plan"
+    auto-embedding: true
+    indexable: true
+    enable-search: true
+    enable-recommendations: true
+    indexing-strategy: ASYNC
+    searchable-fields:
+      - name: "name"
+        weight: 2.0
+      - name: "description"
+        weight: 1.5
+    metadata-fields:
+      - name: "price"
+        context-key: "price"
+        data-type: "decimal"
+      - name: "tier"
+        context-key: "tier"

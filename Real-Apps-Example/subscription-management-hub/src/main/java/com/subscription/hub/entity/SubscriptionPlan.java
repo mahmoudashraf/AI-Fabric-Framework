@@ -3,7 +3,7 @@ package com.subscription.hub.entity;
 import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.annotation.AIContext;
 import com.ai.infrastructure.annotation.AISearchable;
-import com.ai.infrastructure.config.IndexingStrategy;
+import com.ai.infrastructure.indexing.IndexingStrategy;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -69,6 +69,28 @@ public class SubscriptionPlan {
     @Column(nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+    
+    // Manual getters/setters for Lombok compatibility
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+    public BigDecimal getMonthlyPrice() { return monthlyPrice; }
+    public void setMonthlyPrice(BigDecimal monthlyPrice) { this.monthlyPrice = monthlyPrice; }
+    public BigDecimal getAnnualPrice() { return annualPrice; }
+    public void setAnnualPrice(BigDecimal annualPrice) { this.annualPrice = annualPrice; }
+    public PlanTier getTier() { return tier; }
+    public void setTier(PlanTier tier) { this.tier = tier; }
+    public List<String> getFeatures() { return features; }
+    public void setFeatures(List<String> features) { this.features = features; }
+    public Integer getMaxUsers() { return maxUsers; }
+    public void setMaxUsers(Integer maxUsers) { this.maxUsers = maxUsers; }
+    public Integer getStorageGB() { return storageGB; }
+    public void setStorageGB(Integer storageGB) { this.storageGB = storageGB; }
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     
     public enum PlanTier {
         BASIC, PRO, ENTERPRISE

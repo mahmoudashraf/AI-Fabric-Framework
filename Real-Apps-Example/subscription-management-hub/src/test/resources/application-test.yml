@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: subscription-management-hub-test
+  
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+ai:
+  enabled: true
+  config:
+    default-file: ai-entity-config.yml
+  
+  default-embedding-model: text-embedding-3-small
+  
+  providers:
+    embedding:
+      provider: onnx
+    generation:
+      provider: openai
+      model: gpt-4
+      max-tokens: 100
+      temperature: 0.7
+  
+  openai:
+    api-key: ${OPENAI_API_KEY:test-key}
+    base-url: https://api.openai.com/v1
+  
+  behavior:
+    enabled: true
+    mode: LIGHT
+  
+  pii-detection:
+    enabled: true
+    mode: DETECT_ONLY
+  
+  vector-db:
+    provider: lucene
+
+logging:
+  level:
+    com.subscription.hub: INFO
+    com.ai.infrastructure: WARN
+    org.springframework: WARN

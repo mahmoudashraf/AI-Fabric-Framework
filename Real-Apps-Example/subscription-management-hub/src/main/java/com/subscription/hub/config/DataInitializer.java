@@ -3,7 +3,8 @@ package com.subscription.hub.config;
 import com.subscription.hub.entity.SubscriptionPlan;
 import com.subscription.hub.repository.SubscriptionPlanRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -15,9 +16,9 @@ import java.util.List;
  */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class DataInitializer implements CommandLineRunner {
     
+    private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
     private final SubscriptionPlanRepository planRepository;
     
     @Override
@@ -25,41 +26,38 @@ public class DataInitializer implements CommandLineRunner {
         if (planRepository.count() == 0) {
             log.info("Initializing sample subscription plans...");
             
-            SubscriptionPlan basicPlan = SubscriptionPlan.builder()
-                .name("Basic Plan")
-                .description("Perfect for individuals getting started. Includes 10GB storage, basic support, and core features.")
-                .monthlyPrice(new BigDecimal("9.99"))
-                .annualPrice(new BigDecimal("99.99"))
-                .tier(SubscriptionPlan.PlanTier.BASIC)
-                .features(List.of("10GB storage", "Email support", "Core features", "Mobile app access"))
-                .maxUsers(1)
-                .storageGB(10)
-                .isActive(true)
-                .build();
+            SubscriptionPlan basicPlan = new SubscriptionPlan();
+            basicPlan.setName("Basic Plan");
+            basicPlan.setDescription("Perfect for individuals getting started. Includes 10GB storage, basic support, and core features.");
+            basicPlan.setMonthlyPrice(new BigDecimal("9.99"));
+            basicPlan.setAnnualPrice(new BigDecimal("99.99"));
+            basicPlan.setTier(SubscriptionPlan.PlanTier.BASIC);
+            basicPlan.setFeatures(List.of("10GB storage", "Email support", "Core features", "Mobile app access"));
+            basicPlan.setMaxUsers(1);
+            basicPlan.setStorageGB(10);
+            basicPlan.setIsActive(true);
             
-            SubscriptionPlan proPlan = SubscriptionPlan.builder()
-                .name("Pro Plan")
-                .description("For professionals and small teams. Includes 100GB storage, priority support, advanced features, and team collaboration tools.")
-                .monthlyPrice(new BigDecimal("49.99"))
-                .annualPrice(new BigDecimal("499.99"))
-                .tier(SubscriptionPlan.PlanTier.PRO)
-                .features(List.of("100GB storage", "Priority support", "Advanced features", "Team collaboration", "API access", "Analytics dashboard"))
-                .maxUsers(5)
-                .storageGB(100)
-                .isActive(true)
-                .build();
+            SubscriptionPlan proPlan = new SubscriptionPlan();
+            proPlan.setName("Pro Plan");
+            proPlan.setDescription("For professionals and small teams. Includes 100GB storage, priority support, advanced features, and team collaboration tools.");
+            proPlan.setMonthlyPrice(new BigDecimal("49.99"));
+            proPlan.setAnnualPrice(new BigDecimal("499.99"));
+            proPlan.setTier(SubscriptionPlan.PlanTier.PRO);
+            proPlan.setFeatures(List.of("100GB storage", "Priority support", "Advanced features", "Team collaboration", "API access", "Analytics dashboard"));
+            proPlan.setMaxUsers(5);
+            proPlan.setStorageGB(100);
+            proPlan.setIsActive(true);
             
-            SubscriptionPlan enterprisePlan = SubscriptionPlan.builder()
-                .name("Enterprise Plan")
-                .description("For large organizations. Includes unlimited storage, 24/7 dedicated support, all features, custom integrations, and enterprise security.")
-                .monthlyPrice(new BigDecimal("199.99"))
-                .annualPrice(new BigDecimal("1999.99"))
-                .tier(SubscriptionPlan.PlanTier.ENTERPRISE)
-                .features(List.of("Unlimited storage", "24/7 dedicated support", "All features", "Custom integrations", "Enterprise security", "SLA guarantee", "Dedicated account manager"))
-                .maxUsers(null) // Unlimited
-                .storageGB(null) // Unlimited
-                .isActive(true)
-                .build();
+            SubscriptionPlan enterprisePlan = new SubscriptionPlan();
+            enterprisePlan.setName("Enterprise Plan");
+            enterprisePlan.setDescription("For large organizations. Includes unlimited storage, 24/7 dedicated support, all features, custom integrations, and enterprise security.");
+            enterprisePlan.setMonthlyPrice(new BigDecimal("199.99"));
+            enterprisePlan.setAnnualPrice(new BigDecimal("1999.99"));
+            enterprisePlan.setTier(SubscriptionPlan.PlanTier.ENTERPRISE);
+            enterprisePlan.setFeatures(List.of("Unlimited storage", "24/7 dedicated support", "All features", "Custom integrations", "Enterprise security", "SLA guarantee", "Dedicated account manager"));
+            enterprisePlan.setMaxUsers(null);
+            enterprisePlan.setStorageGB(null);
+            enterprisePlan.setIsActive(true);
             
             planRepository.saveAll(List.of(basicPlan, proPlan, enterprisePlan));
             log.info("Initialized {} subscription plans", planRepository.count());

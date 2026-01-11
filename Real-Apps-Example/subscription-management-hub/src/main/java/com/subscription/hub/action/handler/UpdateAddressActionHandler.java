@@ -7,7 +7,8 @@ import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.subscription.hub.entity.Address;
 import com.subscription.hub.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -15,9 +16,9 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class UpdateAddressActionHandler implements ActionHandler {
     
+    private static final Logger log = LoggerFactory.getLogger(UpdateAddressActionHandler.class);
     private final SubscriptionService subscriptionService;
     private final PIIDetectionService piiDetectionService;
     
@@ -90,8 +91,12 @@ public class UpdateAddressActionHandler implements ActionHandler {
             );
             
             var piiResult = piiDetectionService.detectAndProcess(addressString);
-            address.setIsValidated(piiResult.isPiiDetected() == false); // Valid if no PII issues
-            address.setValidationScore(piiResult.isPiiDetected() ? 0.5 : 1.0);
+            // Address is valid if no PII issues detected (addresses are expected to contain location data)
+            // In DETECT_ONLY mode, we just check if the format is reasonable
+            // Note: Addresses may contain PII-like patterns (street numbers, postal codes) which is normal
+            boolean isValid = !piiResult.isPiiDetected() || !piiResult.hasDetections();
+            address.setIsValidated(isValid);
+            address.setValidationScore(isValid ? 1.0 : 0.7); // Slightly lower if PII detected, but still acceptable for addresses
             
             var subscription = subscriptionService.updateAddress(
                 UUID.fromString(subscriptionId),

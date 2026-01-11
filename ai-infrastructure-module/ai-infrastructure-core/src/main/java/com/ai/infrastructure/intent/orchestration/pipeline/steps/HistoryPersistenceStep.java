@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@org.springframework.boot.autoconfigure.condition.ConditionalOnBean(IntentHistoryService.class)
 public class HistoryPersistenceStep implements PipelineStep {
     
     // =========================================================================
