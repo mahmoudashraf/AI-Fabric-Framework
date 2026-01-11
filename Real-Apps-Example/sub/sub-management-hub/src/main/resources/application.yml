@@ -1,6 +1,9 @@
 spring:
   application:
     name: subscription-management-hub
+
+server:
+  port: 8081
   
   datasource:
     url: jdbc:h2:file:./data/subscriptiondb
