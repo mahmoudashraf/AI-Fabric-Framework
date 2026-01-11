@@ -31,7 +31,6 @@ public class SubscriptionService {
     private final SubscriptionPlanRepository planRepository;
     private final BehaviorEventService behaviorEventService;
     private final AICoreService aiCoreService;
-    private final AISearchService searchService;
     
     /**
      * Subscribe to a plan
