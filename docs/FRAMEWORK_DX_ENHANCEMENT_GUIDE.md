@@ -505,10 +505,12 @@ public class CustomAIConfiguration {
 
 ---
 
-### Issue 4: Cross-Module Entity References
+### Issue 4: Cross-Module Entity References & Registration
 
 **Severity:** MEDIUM
 **Affected Modules:** Relationship Query, Behavior
+
+#### Problem 4a: Direct Entity Imports
 
 Modules directly reference entities from other modules:
 
@@ -516,18 +518,45 @@ Modules directly reference entities from other modules:
 // In relationship-query module - BAD
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
-
-// In behavior module - BAD
-import com.ai.infrastructure.behavior.entity.BehaviorInsights;
-relationshipMapper.registerEntityType(BehaviorInsights.class);
 ```
 
-**Problems:**
-- Creates compile-time coupling between modules
-- Changes to entity in one module break other modules
-- Cannot evolve modules independently
+#### Problem 4b: Manual Entity Registration (Behavior → Relationship Query)
 
-**Solution: DTOs for Inter-Module Communication**
+The behavior module explicitly registers its entity with the relationship-query module:
+
+```java
+// File: BehaviorRelationshipRegistration.java
+// Behavior module IMPORTS from relationship-query module - BAD!
+import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
+
+@Component
+@ConditionalOnBean(EntityRelationshipMapper.class)
+public class BehaviorRelationshipRegistration {
+
+    private final EntityRelationshipMapper relationshipMapper;
+
+    @PostConstruct
+    public void registerRelationships() {
+        // Passes JPA entity class across module boundary
+        relationshipMapper.registerEntityType(BehaviorInsights.class);
+    }
+}
+```
+
+**Why this coupling exists:**
+- `EntityRelationshipMapper` is a central registry for NL query support
+- Behavior module wants its `BehaviorInsights` entity to be queryable
+- Current design requires explicit registration with entity class
+
+**Problems:**
+- Creates compile-time dependency: behavior → relationship-query
+- Leaks JPA entity class across module boundary
+- Each module needs its own registration boilerplate
+- Cannot deploy modules independently
+
+---
+
+#### Solution A: DTOs for Inter-Module Communication
 
 ```java
 // Core module defines DTOs for cross-module use
@@ -555,20 +584,138 @@ public interface EntityDTOMapper<E, D> {
 }
 ```
 
-**Module Communication Pattern:**
+---
+
+#### Solution B: Auto-Discovery via @AICapable Annotation (Recommended)
+
+**Key Insight:** The `@AICapable` annotation already exists on entities!
 
 ```java
-// Relationship query module uses DTOs, not entities
-public class RelationshipQueryService {
+@Entity
+@AICapable(
+    entityType = "behavior-insight",  // Already defines the type!
+    autoEmbedding = true,
+    indexable = true
+)
+public class BehaviorInsights { ... }
+```
 
-    private final SearchableEntityPort entityPort;  // Port interface
+**Solution:** Make `EntityRelationshipMapper` auto-discover entities via classpath scanning.
 
-    public List<SearchableEntityDTO> findRelated(String entityId) {
-        // Works with DTOs, not JPA entities
-        return entityPort.findRelatedEntities(entityId);
+**Step 1: Create Entity Scanner in relationship-query module**
+
+```java
+package com.ai.infrastructure.relationship.discovery;
+
+@Component
+public class AICapableEntityScanner implements BeanPostProcessor, PriorityOrdered {
+
+    private final EntityRelationshipMapper mapper;
+    private final Set<Class<?>> processedClasses = ConcurrentHashMap.newKeySet();
+
+    public AICapableEntityScanner(EntityRelationshipMapper mapper) {
+        this.mapper = mapper;
+    }
+
+    @Override
+    public Object postProcessAfterInitialization(Object bean, String beanName) {
+        // Skip if not a JPA entity or already processed
+        Class<?> beanClass = bean.getClass();
+        if (!beanClass.isAnnotationPresent(Entity.class)) {
+            return bean;
+        }
+        if (!processedClasses.add(beanClass)) {
+            return bean;
+        }
+
+        // Auto-register if @AICapable is present
+        AICapable aiCapable = beanClass.getAnnotation(AICapable.class);
+        if (aiCapable != null) {
+            String entityType = aiCapable.entityType();
+            if (entityType.isBlank()) {
+                entityType = inferEntityType(beanClass.getSimpleName());
+            }
+            mapper.registerEntityType(entityType, beanClass.getName(), beanClass);
+            log.info("Auto-registered @AICapable entity: {} -> {}",
+                entityType, beanClass.getName());
+        }
+
+        return bean;
+    }
+
+    @Override
+    public int getOrder() {
+        return Ordered.LOWEST_PRECEDENCE;  // Run after all beans initialized
+    }
+
+    private String inferEntityType(String simpleName) {
+        // Convert "BehaviorInsights" -> "behavior-insights"
+        return simpleName.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase();
     }
 }
 ```
+
+**Step 2: Alternative - Use Spring's ClassPathScanningCandidateComponentProvider**
+
+```java
+@Component
+public class AICapableEntityDiscovery implements SmartInitializingSingleton {
+
+    private final EntityRelationshipMapper mapper;
+    private final Environment environment;
+
+    @Override
+    public void afterSingletonsInstantiated() {
+        ClassPathScanningCandidateComponentProvider scanner =
+            new ClassPathScanningCandidateComponentProvider(false);
+
+        // Find all classes with @AICapable
+        scanner.addIncludeFilter(new AnnotationTypeFilter(AICapable.class));
+
+        // Scan known packages
+        List<String> packagesToScan = List.of(
+            "com.ai.infrastructure.entity",
+            "com.ai.infrastructure.behavior.entity"
+            // Add more as needed, or make configurable
+        );
+
+        for (String basePackage : packagesToScan) {
+            for (BeanDefinition bd : scanner.findCandidateComponents(basePackage)) {
+                try {
+                    Class<?> clazz = Class.forName(bd.getBeanClassName());
+                    AICapable annotation = clazz.getAnnotation(AICapable.class);
+                    if (annotation != null) {
+                        mapper.registerEntityType(clazz);
+                    }
+                } catch (ClassNotFoundException e) {
+                    log.warn("Could not load class: {}", bd.getBeanClassName());
+                }
+            }
+        }
+    }
+}
+```
+
+**Step 3: Delete the manual registration class**
+
+```java
+// DELETE this file entirely:
+// ai-infrastructure-behavior/.../BehaviorRelationshipRegistration.java
+```
+
+---
+
+#### Benefits of Auto-Discovery
+
+| Aspect | Before (Manual) | After (Auto-Discovery) |
+|--------|-----------------|------------------------|
+| Behavior module imports | `EntityRelationshipMapper` | None |
+| Registration code | One class per module | Zero |
+| Adding new entity | Create registration class | Just add `@AICapable` |
+| Module coupling | Behavior → Relationship Query | None |
+| Deployment | Must deploy together | Independent |
+
+**Result:** Any entity with `@AICapable` annotation is automatically registered for NL queries without any cross-module imports.
 
 ---
 
