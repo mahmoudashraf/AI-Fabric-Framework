@@ -27,7 +27,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnBean(ExternalEventProvider.class)
+@ConditionalOnBean({ExternalEventProvider.class, BehaviorStorageAdapter.class})
 public class BehaviorAnalysisService {
     
     private final ExternalEventProvider eventProvider;

@@ -1,6 +1,9 @@
 spring:
   application:
     name: subscription-management-hub
+
+server:
+  port: 8081
   
   datasource:
     url: jdbc:h2:mem:subscriptiondb
@@ -15,7 +18,7 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
