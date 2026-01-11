@@ -45,8 +45,10 @@ ai:
     use-gpu: false
   
   cohere:
+    enabled: true
     api-key: ${COHERE_API_KEY:}
     base-url: https://api.cohere.ai/v1
+    model: command-r-plus
   
   behavior:
     enabled: false

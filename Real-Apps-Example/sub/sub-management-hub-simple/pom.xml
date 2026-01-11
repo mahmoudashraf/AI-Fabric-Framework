@@ -58,6 +58,11 @@
             <artifactId>ai-infrastructure-vector-lucene</artifactId>
             <version>1.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-onnx-starter</artifactId>
+            <version>1.0.0</version>
+        </dependency>
 
         <!-- Database -->
         <dependency>

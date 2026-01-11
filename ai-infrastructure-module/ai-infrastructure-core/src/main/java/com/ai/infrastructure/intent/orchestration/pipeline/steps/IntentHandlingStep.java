@@ -58,7 +58,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class IntentHandlingStep implements PipelineStep {
     
     // =========================================================================
@@ -144,10 +143,22 @@ public class IntentHandlingStep implements PipelineStep {
     // =========================================================================
     
     private final ActionHandlerRegistry actionHandlerRegistry;
-    private final RAGProvider ragProvider;
+    private final ObjectProvider<RAGProvider> ragProvider;
     private final AICoreService aiCoreService;
     private final AIServiceConfig aiServiceConfig;
     private final ObjectProvider<AdvancedRAGProvider> advancedRagProvider;
+    
+    public IntentHandlingStep(ActionHandlerRegistry actionHandlerRegistry,
+                              ObjectProvider<RAGProvider> ragProvider,
+                              AICoreService aiCoreService,
+                              AIServiceConfig aiServiceConfig,
+                              ObjectProvider<AdvancedRAGProvider> advancedRagProvider) {
+        this.actionHandlerRegistry = actionHandlerRegistry;
+        this.ragProvider = ragProvider;
+        this.aiCoreService = aiCoreService;
+        this.aiServiceConfig = aiServiceConfig;
+        this.advancedRagProvider = advancedRagProvider;
+    }
     
     // =========================================================================
     // PipelineStep Implementation
@@ -368,9 +379,16 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
 
         // Use retrieval-only for search-only intents; use context-building query mode for generation flows.
+        RAGProvider provider = ragProvider.getIfAvailable();
+        if (provider == null) {
+            log.warn("RAGProvider not available for INFORMATION intent in request {}", 
+                pipelineContext != null ? pipelineContext.getRequestId() : "unknown");
+            return buildInformationResultWithoutRAG(intent, query, context);
+        }
+        
         RAGResponse ragResponse = needsGeneration
-            ? ragProvider.performRAGQuery(ragRequest)
-            : ragProvider.performRag(ragRequest);
+            ? provider.performRAGQuery(ragRequest)
+            : provider.performRag(ragRequest);
         if (ragResponse == null) {
             return OrchestrationResult.error(ERROR_MSG_RAG_NULL_RESPONSE);
         }
@@ -416,6 +434,21 @@ public class IntentHandlingStep implements PipelineStep {
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
             .success(Boolean.TRUE.equals(ragResponse.getSuccess()) || ragResponse.getSuccess() == null)
             .message(message)
+            .data(Collections.unmodifiableMap(data))
+            .nextSteps(extractNextSteps(intent))
+            .build();
+    }
+    
+    private OrchestrationResult buildInformationResultWithoutRAG(Intent intent, String query, OrchestrationContext context) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put(DATA_KEY_ANSWER, "RAG functionality is not available. Please configure a RAG provider.");
+        data.put(DATA_KEY_DOCUMENTS, Collections.emptyList());
+        data.put(DATA_KEY_REQUIRES_GENERATION, false);
+        
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(false)
+            .message("RAG provider not configured")
             .data(Collections.unmodifiableMap(data))
             .nextSteps(extractNextSteps(intent))
             .build();

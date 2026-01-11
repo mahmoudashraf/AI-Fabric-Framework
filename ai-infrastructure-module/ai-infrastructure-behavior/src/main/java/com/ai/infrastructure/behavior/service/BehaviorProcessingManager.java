@@ -12,8 +12,8 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -27,16 +27,25 @@ import java.util.concurrent.Future;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class BehaviorProcessingManager {
 
-    private final BehaviorAnalysisService analysisService;
+    private final ObjectProvider<BehaviorAnalysisService> analysisServiceProvider;
     private final BehaviorProcessingProperties properties;
     private final BehaviorProcessingState processingState;
     private final MeterRegistry meterRegistry;
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final ConcurrentHashMap<String, Future<?>> runningJobs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ContinuousJobStatus> jobStatuses = new ConcurrentHashMap<>();
+    
+    public BehaviorProcessingManager(ObjectProvider<BehaviorAnalysisService> analysisServiceProvider,
+                                     BehaviorProcessingProperties properties,
+                                     BehaviorProcessingState processingState,
+                                     MeterRegistry meterRegistry) {
+        this.analysisServiceProvider = analysisServiceProvider;
+        this.properties = properties;
+        this.processingState = processingState;
+        this.meterRegistry = meterRegistry;
+    }
 
     private Counter processedCounter() {
         return meterRegistry != null ? meterRegistry.counter("ai.behavior.processing.processed") : null;
@@ -47,6 +56,10 @@ public class BehaviorProcessingManager {
     }
 
     public BehaviorInsights analyzeUser(String userId) {
+        BehaviorAnalysisService analysisService = analysisServiceProvider.getIfAvailable();
+        if (analysisService == null) {
+            throw new IllegalStateException("BehaviorAnalysisService is not available");
+        }
         return analysisService.analyzeUser(userId);
     }
 
@@ -178,6 +191,10 @@ public class BehaviorProcessingManager {
                 break;
             }
             try {
+                BehaviorAnalysisService analysisService = analysisServiceProvider.getIfAvailable();
+                if (analysisService == null) {
+                    break;
+                }
                 BehaviorInsights insight = analysisService.processNextUser();
                 if (insight == null) {
                     break;

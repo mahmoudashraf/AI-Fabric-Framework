@@ -10,6 +10,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -46,6 +47,7 @@ import java.util.Objects;
  */
 @Slf4j
 @Component
+@ConditionalOnBean(RAGProvider.class)
 @RequiredArgsConstructor
 public class SmartSuggestionsStep implements PipelineStep {
     
