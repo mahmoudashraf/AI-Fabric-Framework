@@ -75,16 +75,7 @@
             <artifactId>ai-infrastructure-vector-weaviate</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-chroma</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-pgvector</artifactId>
-            <version>${project.version}</version>
-        </dependency>
+        <!-- Note: Chroma and pgvector modules don't exist yet - they're handled in testcontainers-support code but not as dependencies -->
         
         <!-- Provider modules (required when running Real API tests in this module) -->
         <dependency>
