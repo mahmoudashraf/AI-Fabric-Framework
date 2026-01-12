@@ -14,6 +14,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,6 +33,9 @@ class IntentQueryExtractorTest {
 
     @Mock
     private ActionHandlerRegistry actionHandlerRegistry;
+
+    @Mock
+    private KnowledgeBaseOverviewService knowledgeBaseOverviewService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -57,7 +63,13 @@ class IntentQueryExtractorTest {
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            objectMapper
+        );
 
         MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
 
@@ -92,7 +104,13 @@ class IntentQueryExtractorTest {
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            objectMapper
+        );
 
         MultiIntentResponse response = extractor.extract("What is your refund policy?", OrchestrationContext.forUser("user-456"));
 
@@ -127,7 +145,13 @@ class IntentQueryExtractorTest {
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            objectMapper
+        );
 
         MultiIntentResponse response = extractor.extract("Build me a spaceship", OrchestrationContext.forUser("user-789"));
 
@@ -165,7 +189,13 @@ class IntentQueryExtractorTest {
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            objectMapper
+        );
 
         MultiIntentResponse response = extractor.extract("Update my payment details", OrchestrationContext.forUser("user-321"));
 
@@ -177,7 +207,13 @@ class IntentQueryExtractorTest {
 
     @Test
     void shouldRejectBlankQuery() {
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            objectMapper
+        );
 
         assertThatThrownBy(() -> extractor.extract("   ", OrchestrationContext.forUser("user-123")))
             .isInstanceOf(AIServiceException.class)
@@ -196,7 +232,13 @@ class IntentQueryExtractorTest {
             req != null && req.getGenerationType().equals("intent_extraction_repair"))))
             .thenReturn(AIGenerationResponse.builder().content("still-not-json").build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            objectMapper
+        );
 
         assertThatThrownBy(() -> extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123")))
             .isInstanceOf(AIServiceException.class)
@@ -229,12 +271,57 @@ class IntentQueryExtractorTest {
             req != null && req.getGenerationType().equals("intent_extraction_repair"))))
             .thenReturn(AIGenerationResponse.builder().content(repairedJson).build());
 
-        IntentQueryExtractor extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, objectMapper);
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            objectMapper
+        );
 
         MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
 
         assertThat(response.getIntents()).hasSize(1);
         assertThat(response.getIntents().getFirst().getIntent()).isEqualTo("cancel_subscription");
         assertThat(response.getOrchestrationStrategy()).isEqualTo("DIRECT_ACTION");
+    }
+
+    @Test
+    void shouldInferVectorSpaceWhenMissingAndRetrievalRequired() {
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
+        when(knowledgeBaseOverviewService.getOverview()).thenReturn(KnowledgeBaseOverview.builder()
+            .documentsByType(Map.of("test-product", 10L))
+            .entityTypes(List.of("test-product"))
+            .totalIndexedDocuments(10L)
+            .build());
+
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "INFORMATION",
+                  "intent": "query about products",
+                  "requiresRetrieval": true
+                }
+              ],
+              "isCompound": false
+            }
+            """;
+
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            objectMapper
+        );
+
+        MultiIntentResponse response = extractor.extract("Find products", OrchestrationContext.forUser("user-123"));
+
+        assertThat(response.getIntents()).hasSize(1);
+        assertThat(response.getIntents().getFirst().getVectorSpace()).isEqualTo("test-product");
     }
 }

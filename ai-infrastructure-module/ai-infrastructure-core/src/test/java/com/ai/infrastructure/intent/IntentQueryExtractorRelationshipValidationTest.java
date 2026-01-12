@@ -40,13 +40,22 @@ class IntentQueryExtractorRelationshipValidationTest {
     @Mock
     private ActionHandlerRegistry actionHandlerRegistry;
 
+    @Mock
+    private KnowledgeBaseOverviewService knowledgeBaseOverviewService;
+
     private IntentQueryExtractor extractor;
 
     @BeforeEach
     void setUp() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class)))
             .thenReturn("system-prompt");
-        extractor = new IntentQueryExtractor(aiCoreService, enrichedPromptBuilder, actionHandlerRegistry, new ObjectMapper());
+        extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewService,
+            new ObjectMapper()
+        );
     }
 
     @Test
@@ -383,4 +392,3 @@ class IntentQueryExtractorRelationshipValidationTest {
             .doesNotContainKey("entityTypes");
     }
 }
-

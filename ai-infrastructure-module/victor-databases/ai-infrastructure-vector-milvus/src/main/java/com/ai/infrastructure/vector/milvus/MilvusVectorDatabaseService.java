@@ -252,7 +252,6 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             .withParams("{\"nprobe\":16}")
             .withVectors(Collections.singletonList(toFloatList(queryVector)))
             .withIgnoreGrowing(false)
-            .addOutField(FIELD_VECTOR_ID)
             .addOutField(FIELD_ENTITY_ID)
             .addOutField(FIELD_CONTENT)
             .addOutField(FIELD_METADATA)
@@ -263,17 +262,28 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         SearchResultsWrapper wrapper = new SearchResultsWrapper(response.getData().getResults());
         List<SearchResultsWrapper.IDScore> scores = wrapper.getIDScore(0);
 
-        List<?> vectorIds;
-        List<?> entityIds;
-        List<?> contents;
-        List<?> metadata;
+        if (scores == null || scores.isEmpty()) {
+            return AISearchResponse.builder()
+                .results(Collections.emptyList())
+                .totalResults(0)
+                .maxScore(0.0)
+                .query(request.getQuery())
+                .model(collection)
+                .build();
+        }
+
+        List<?> entityIds = null;
+        List<?> contents = null;
+        List<?> metadata = null;
+        boolean useFieldData = true;
         try {
-            vectorIds = wrapper.getFieldData(FIELD_VECTOR_ID, 0);
             entityIds = wrapper.getFieldData(FIELD_ENTITY_ID, 0);
             contents = wrapper.getFieldData(FIELD_CONTENT, 0);
             metadata = wrapper.getFieldData(FIELD_METADATA, 0);
         } catch (ParamException ex) {
-            throw new AIServiceException("Failed to parse Milvus search response", ex);
+            // Some Milvus responses omit output field data (especially when searching empty collections).
+            // Fall back to fetching per-hit documents via query-by-id.
+            useFieldData = false;
         }
 
         List<Map<String, Object>> results = new ArrayList<>();
@@ -284,8 +294,25 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
                 continue;
             }
 
+            String vectorId = score.getStrID();
+            if (!useFieldData) {
+                Optional<VectorRecord> record = getVector(vectorId);
+                if (record.isEmpty()) {
+                    continue;
+                }
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("vectorId", vectorId);
+                row.put("entityId", record.get().getEntityId());
+                row.put("entityType", requestedEntityType);
+                row.put("content", record.get().getContent());
+                row.put("metadata", record.get().getMetadata() != null ? record.get().getMetadata() : Collections.emptyMap());
+                row.put("score", similarity);
+                results.add(row);
+                continue;
+            }
+
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("vectorId", vectorIds != null && i < vectorIds.size() ? String.valueOf(vectorIds.get(i)) : null);
+            row.put("vectorId", vectorId);
             row.put("entityId", entityIds != null && i < entityIds.size() ? String.valueOf(entityIds.get(i)) : null);
             row.put("entityType", requestedEntityType);
             row.put("content", contents != null && i < contents.size() ? Objects.toString(contents.get(i), null) : null);

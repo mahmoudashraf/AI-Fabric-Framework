@@ -34,15 +34,18 @@ public class IntentQueryExtractor {
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
     private final ActionHandlerRegistry actionHandlerRegistry;
+    private final KnowledgeBaseOverviewService knowledgeBaseOverviewService;
     private final ObjectMapper objectMapper;
 
     public IntentQueryExtractor(AICoreService aiCoreService,
                                 EnrichedPromptBuilder enrichedPromptBuilder,
                                 ActionHandlerRegistry actionHandlerRegistry,
+                                KnowledgeBaseOverviewService knowledgeBaseOverviewService,
                                 ObjectMapper objectMapper) {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;
         this.actionHandlerRegistry = actionHandlerRegistry;
+        this.knowledgeBaseOverviewService = knowledgeBaseOverviewService;
         this.objectMapper = objectMapper.copy()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
@@ -170,20 +173,30 @@ public class IntentQueryExtractor {
                                               AIGenerationRequest originalRequest,
                                               String malformedContent,
                                               Exception rootCause) {
-        String repairSystemPrompt = """
-            You transform assistant responses so that they strictly comply with a JSON schema.
-            Respond with JSON only, using double quotes, matching the schema exactly as previously described.
-            Never wrap the JSON in markdown code fences or add commentary.
+        String originalSystemPrompt = originalRequest != null ? originalRequest.getSystemPrompt() : null;
+        String repairSystemPrompt = (StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "") + """
+            You are repairing a previously malformed assistant response.
+            Output MUST be a single JSON object that matches the schema above exactly.
+            Include ALL schema fields (use null/false/empty values where appropriate) so downstream systems can operate safely.
+            Never wrap the JSON in markdown code fences and never add commentary.
             """;
 
+        String originalUserPrompt = originalRequest != null ? originalRequest.getPrompt() : null;
         String repairPrompt = """
-            Convert the following assistant response into valid JSON using the exact schema supplied earlier for multi-intent extraction.
-            If any fields are missing, infer sensible defaults (e.g. OUT_OF_SCOPE intent with neutral confidence) while keeping the schema intact.
-            Assistant response:
-            ```
+            Convert the malformed assistant response into valid JSON that matches the schema in the system prompt.
+            Use the original user request to infer missing fields such as vectorSpace, requiresRetrieval, and requiresGeneration.
+            If a value cannot be inferred, choose a safe default (e.g., OUT_OF_SCOPE with neutral confidence) but keep the schema intact.
+
+            ORIGINAL USER REQUEST (for context):
+            ---BEGIN USER REQUEST---
             %s
-            ```
-            """.formatted(malformedContent);
+            ---END USER REQUEST---
+
+            MALFORMED ASSISTANT RESPONSE:
+            ---BEGIN MALFORMED---
+            %s
+            ---END MALFORMED---
+            """.formatted(originalUserPrompt, malformedContent);
 
         AIGenerationRequest repairRequest = AIGenerationRequest.builder()
             .entityId(originalRequest.getEntityId() + "-repair")
@@ -238,10 +251,96 @@ public class IntentQueryExtractor {
             if (intent.getRequiresRetrieval() == null) {
                 intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
             }
+            if (Boolean.TRUE.equals(intent.getRequiresRetrieval()) && !StringUtils.hasText(intent.getVectorSpace())) {
+                String inferred = inferVectorSpace(originalQuery);
+                if (StringUtils.hasText(inferred)) {
+                    intent.setVectorSpace(inferred);
+                }
+            }
         }
 
         if (response.getOrchestrationStrategy() == null) {
             response.setOrchestrationStrategy(deriveOrchestrationStrategy(response));
+        }
+    }
+
+    private String inferVectorSpace(String originalQuery) {
+        KnowledgeBaseOverview overview = safeKnowledgeBaseOverview();
+        if (overview == null || overview.getEntityTypes() == null || overview.getEntityTypes().isEmpty()) {
+            return null;
+        }
+
+        List<String> candidateTypes = overview.getEntityTypes();
+        if (candidateTypes.size() == 1) {
+            return candidateTypes.getFirst();
+        }
+
+        String query = StringUtils.hasText(originalQuery) ? originalQuery.toLowerCase(Locale.ROOT) : null;
+        if (query != null) {
+            for (String type : candidateTypes) {
+                if (!StringUtils.hasText(type)) {
+                    continue;
+                }
+                if (queryMentionsType(query, type)) {
+                    return type;
+                }
+            }
+        }
+
+        Map<String, Long> counts = overview.getDocumentsByType();
+        if (counts != null && !counts.isEmpty()) {
+            return counts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(candidateTypes.getFirst());
+        }
+
+        return candidateTypes.getFirst();
+    }
+
+    private boolean queryMentionsType(String queryLower, String type) {
+        String normalized = type.toLowerCase(Locale.ROOT);
+        if (queryLower.contains(normalized)) {
+            return true;
+        }
+
+        String[] tokens = normalized.split("[^a-z0-9]+");
+        for (String token : tokens) {
+            if (token == null) {
+                continue;
+            }
+            String trimmed = token.trim();
+            if (trimmed.length() < 3) {
+                continue;
+            }
+            if ("test".equals(trimmed) || "kb".equals(trimmed) || "doc".equals(trimmed) || "docs".equals(trimmed)) {
+                continue;
+            }
+            if (queryLower.contains(trimmed)) {
+                return true;
+            }
+            if (queryLower.contains(trimmed + "s")) {
+                return true;
+            }
+            if (trimmed.endsWith("y") && trimmed.length() > 3) {
+                String plural = trimmed.substring(0, trimmed.length() - 1) + "ies";
+                if (queryLower.contains(plural)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private KnowledgeBaseOverview safeKnowledgeBaseOverview() {
+        if (knowledgeBaseOverviewService == null) {
+            return null;
+        }
+        try {
+            return knowledgeBaseOverviewService.getOverview();
+        } catch (Exception ex) {
+            log.debug("Unable to infer vectorSpace from knowledge base overview", ex);
+            return null;
         }
     }
 
