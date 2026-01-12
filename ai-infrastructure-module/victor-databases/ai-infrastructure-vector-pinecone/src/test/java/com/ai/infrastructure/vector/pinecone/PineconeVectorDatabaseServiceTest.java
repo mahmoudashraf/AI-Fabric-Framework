@@ -43,7 +43,7 @@ class PineconeVectorDatabaseServiceTest {
         pinecone.setDimensions(3);
 
         index = mock(Index.class);
-        service = new PineconeVectorDatabaseService(config, index);
+        service = new PineconeVectorDatabaseService(config, (connection, indexName) -> index);
     }
 
     @Test

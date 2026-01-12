@@ -67,20 +67,18 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     private volatile Boolean sparseIndex;
 
     public PineconeVectorDatabaseService(AIProviderConfig providerConfig) {
+        this(providerConfig, Index::new);
+    }
+
+    public PineconeVectorDatabaseService(AIProviderConfig providerConfig, PineconeIndexFactory indexFactory) {
         this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
         this.indexName = resolveIndexName(this.config);
         this.connection = buildConnection(this.config, this.indexName);
-        this.index = new Index(connection, indexName);
+        this.index = Objects.requireNonNull(indexFactory, "Pinecone indexFactory must be provided")
+            .create(connection, indexName);
         log.info("Pinecone client configured for index '{}'", indexName);
     }
 
-    PineconeVectorDatabaseService(AIProviderConfig providerConfig, Index index) {
-        this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
-        this.indexName = resolveIndexName(this.config);
-        this.connection = null;
-        this.index = Objects.requireNonNull(index, "Pinecone index must be provided");
-    }
-    
     @Override
     public String storeVector(String entityType, String entityId, String content, 
                            List<Double> embedding, Map<String, Object> metadata) {
@@ -592,40 +590,16 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     }
 
     private void upsertSparse(String vectorId, String namespace, List<Double> embedding, Struct metadataStruct) {
-        List<Integer> indices = new ArrayList<>(embedding.size());
-        List<Float> values = new ArrayList<>(embedding.size());
-        for (int i = 0; i < embedding.size(); i++) {
-            indices.add(i);
-            Double value = embedding.get(i);
-            values.add(value != null ? value.floatValue() : 0.0f);
-        }
-
-        if (connection != null) {
-            io.pinecone.proto.Vector vector = io.pinecone.proto.Vector.newBuilder()
-                .setId(vectorId)
-                .setMetadata(metadataStruct)
-                .setSparseValues(SparseValues.newBuilder()
-                    .addAllIndices(indices)
-                    .addAllValues(values)
-                    .build())
-                .build();
-
-            UpsertRequest request = UpsertRequest.newBuilder()
-                .addVectors(vector)
-                .setNamespace(namespace)
-                .build();
-
-            connection.getBlockingStub().upsert(request);
-            return;
-        }
-
-        // Fallback path (primarily for unit tests that inject a mock Index).
         List<Float> denseValues = toFloatList(embedding);
-        List<Long> longIndices = new ArrayList<>(indices.size());
-        for (Integer idx : indices) {
-            longIndices.add((long) idx);
+        List<Long> sparseIndices = new ArrayList<>(embedding.size());
+        List<Float> sparseValues = new ArrayList<>(embedding.size());
+        for (int i = 0; i < embedding.size(); i++) {
+            sparseIndices.add((long) i);
+            Double value = embedding.get(i);
+            sparseValues.add(value != null ? value.floatValue() : 0.0f);
         }
-        index.upsert(vectorId, denseValues, longIndices, denseValues, metadataStruct, namespace);
+
+        index.upsert(vectorId, denseValues, sparseIndices, sparseValues, metadataStruct, namespace);
     }
 
     private boolean isSparseIndex() {
