@@ -53,12 +53,12 @@ on:
         required: false
         type: string
       pinecone_index_name:
-        description: 'Pinecone index name (optional when pinecone_host is provided; derived from host if blank)'
+        description: 'Pinecone index name (optional when pinecone_host is provided; derived from host if blank). If left blank, workflow will use repo variable PINECONE_INDEX_NAME (if set).'
         required: false
         type: string
         default: ''
       pinecone_host:
-        description: 'Pinecone index host URL (optional; recommended for serverless). Example: https://<index>.svc.<env>.pinecone.io'
+        description: 'Pinecone index host URL (optional; recommended for serverless). Example: https://<index>.svc.<env>.pinecone.io. If left blank, workflow will use repo variable PINECONE_API_HOST (if set).'
         required: false
         type: string
         default: ''
@@ -579,10 +579,14 @@ jobs:
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key }}
+          # Allow leaving workflow_dispatch inputs blank by falling back to GitHub repo variables.
+          # Configure these under: Settings → Secrets and variables → Actions → Variables
+          PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
+          PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_PROVIDERS_PINECONE_ENABLED: ${{ github.event.inputs.vector_database == 'pinecone' && 'true' || 'false' }}
           AI_PROVIDERS_PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key }}
-          AI_PROVIDERS_PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name }}
-          AI_PROVIDERS_PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host }}
+          AI_PROVIDERS_PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
+          AI_PROVIDERS_PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           # Allow run step to override the effective level (e.g. for Anthropic).
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
