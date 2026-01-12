@@ -93,6 +93,7 @@ jobs:
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
+          large_files: true
           files: |
             ai-infrastructure-module/**/target/surefire-reports/TEST-*.xml
             ai-infrastructure-module/**/target/failsafe-reports/TEST-*.xml
@@ -147,4 +148,3 @@ jobs:
               repo: context.repo.repo,
               body: testResults
             });
-

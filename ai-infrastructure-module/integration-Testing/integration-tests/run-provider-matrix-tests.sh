@@ -147,8 +147,8 @@ check_provider_api_keys() {
     IFS=',' read -ra COMBINATIONS <<< "$matrix_spec"
     
     for combo in "${COMBINATIONS[@]}"; do
-        # Extract providers from each combination (format: llm:embedding or llm:embedding:vectordb:storage)
-        IFS=':' read -r llm_provider embedding_provider <<< "$combo"
+        # Extract providers from each combination (format: llm:embedding[:vectordb[:storage]])
+        IFS=':' read -r llm_provider embedding_provider _vector_db _storage_strategy <<< "$combo"
         
         # Trim whitespace
         llm_provider=$(echo "$llm_provider" | xargs)
@@ -385,8 +385,9 @@ MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 # Add model name properties from environment variables if set
 if [ -n "$LLM_MODEL" ]; then
     # Determine which provider is being used and set appropriate property
-    IFS=':' read -r llm_provider embedding_provider <<< "$MATRIX_SPEC"
-    llm_provider=$(echo "$llm_provider" | cut -d',' -f1 | xargs)
+    first_combo=$(echo "$MATRIX_SPEC" | cut -d',' -f1)
+    IFS=':' read -r llm_provider _embedding_provider _vector_db _storage_strategy <<< "$first_combo"
+    llm_provider=$(echo "$llm_provider" | xargs)
     
     case "$llm_provider" in
         openai)
@@ -410,8 +411,9 @@ fi
 
 if [ -n "$EMBEDDING_MODEL" ]; then
     # Determine which embedding provider is being used
-    IFS=':' read -r llm_provider embedding_provider <<< "$MATRIX_SPEC"
-    embedding_provider=$(echo "$embedding_provider" | cut -d',' -f1 | xargs)
+    first_combo=$(echo "$MATRIX_SPEC" | cut -d',' -f1)
+    IFS=':' read -r _llm_provider embedding_provider _vector_db _storage_strategy <<< "$first_combo"
+    embedding_provider=$(echo "$embedding_provider" | xargs)
     
     case "$embedding_provider" in
         openai)

@@ -41,11 +41,14 @@ import io.milvus.response.QueryResultsWrapper;
 import io.milvus.response.SearchResultsWrapper;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -116,10 +119,11 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             throw new AIServiceException("Embedding vector must not be empty");
         }
 
-        String collection = entityType.toLowerCase();
+        String entityTypeToken = normalizeEntityTypeToken(entityType);
+        String collection = toCollectionName(entityTypeToken);
         ensureCollection(collection, embedding.size());
 
-        String vectorId = buildVectorId(entityType, entityId);
+        String vectorId = buildVectorId(entityTypeToken, entityId);
         removeVectorById(vectorId);
 
         List<InsertParam.Field> fields = new ArrayList<>();
@@ -150,7 +154,8 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
     @Override
     public Optional<VectorRecord> getVector(String vectorId) {
         Objects.requireNonNull(vectorId, "vectorId must not be null");
-        String collection = extractEntityType(vectorId);
+        String entityTypeToken = extractEntityTypeToken(vectorId);
+        String collection = toCollectionName(entityTypeToken);
         if (!collectionExists(collection)) {
             return Optional.empty();
         }
@@ -181,7 +186,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
     public Optional<VectorRecord> getVectorByEntity(String entityType, String entityId) {
         Objects.requireNonNull(entityType, "entityType must not be null");
         Objects.requireNonNull(entityId, "entityId must not be null");
-        String collection = entityType.toLowerCase();
+        String collection = toCollectionName(normalizeEntityTypeToken(entityType));
         if (!collectionExists(collection)) {
             return Optional.empty();
         }
@@ -217,7 +222,8 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             throw new AIServiceException("Query vector must not be empty");
         }
 
-        String collection = request.getEntityType().toLowerCase();
+        String requestedEntityType = request.getEntityType();
+        String collection = toCollectionName(normalizeEntityTypeToken(requestedEntityType));
         ensureCollection(collection, queryVector.size());
         ensureCollectionLoaded(collection);
 
@@ -266,7 +272,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("vectorId", vectorIds != null && i < vectorIds.size() ? String.valueOf(vectorIds.get(i)) : null);
             row.put("entityId", entityIds != null && i < entityIds.size() ? String.valueOf(entityIds.get(i)) : null);
-            row.put("entityType", collection);
+            row.put("entityType", requestedEntityType);
             row.put("content", contents != null && i < contents.size() ? Objects.toString(contents.get(i), null) : null);
             Object metadataRaw = metadata != null && i < metadata.size() ? metadata.get(i) : null;
             row.put("metadata", parseMetadata(metadataRaw));
@@ -298,7 +304,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         if (entityType == null || entityId == null) {
             return false;
         }
-        String collection = entityType.toLowerCase();
+        String collection = toCollectionName(normalizeEntityTypeToken(entityType));
         if (!collectionExists(collection)) {
             return false;
         }
@@ -317,7 +323,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         if (vectorId == null) {
             return false;
         }
-        String collection = extractEntityType(vectorId);
+        String collection = toCollectionName(extractEntityTypeToken(vectorId));
         if (!collectionExists(collection)) {
             return false;
         }
@@ -372,7 +378,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         if (entityType == null) {
             return Collections.emptyList();
         }
-        String collection = entityType.toLowerCase();
+        String collection = toCollectionName(normalizeEntityTypeToken(entityType));
         if (!collectionExists(collection)) {
             return Collections.emptyList();
         }
@@ -616,6 +622,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
 
             Object vectorIdValue = idWrapper.valueByIdx(index);
             String vectorId = vectorIdValue != null ? vectorIdValue.toString() : null;
+            String entityTypeToken = vectorId != null ? extractEntityTypeToken(vectorId) : collection;
 
             Object entityIdValue = entityWrapper.valueByIdx(index);
             String entityId = entityIdValue != null ? entityIdValue.toString() : null;
@@ -642,7 +649,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
 
             return VectorRecord.builder()
                 .vectorId(vectorId)
-                .entityType(collection)
+                .entityType(entityTypeToken)
                 .entityId(entityId)
                 .content(content)
                 .embedding(embedding)
@@ -750,11 +757,62 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         }
     }
 
-    private String buildVectorId(String entityType, String entityId) {
-        return entityType.toLowerCase() + "::" + entityId;
+    private String buildVectorId(String entityTypeToken, String entityId) {
+        return entityTypeToken + "::" + entityId;
     }
 
-    private String extractEntityType(String vectorId) {
+    static String normalizeEntityTypeToken(String entityType) {
+        String token = entityType == null ? "" : entityType.trim().toLowerCase(Locale.ROOT);
+        if (token.isEmpty()) {
+            throw new AIServiceException("Milvus entityType must not be blank");
+        }
+        return token;
+    }
+
+    static String toCollectionName(String entityTypeToken) {
+        String normalized = normalizeEntityTypeToken(entityTypeToken);
+        String basic = normalized
+            .replaceAll("[^a-z0-9_]", "_")
+            .replaceAll("_+", "_")
+            .replaceAll("^_+", "")
+            .replaceAll("_+$", "");
+
+        if (basic.isEmpty()) {
+            basic = "collection";
+        }
+
+        if (Character.isDigit(basic.charAt(0))) {
+            basic = "c_" + basic;
+        }
+
+        // If we had to sanitize characters, add a short stable hash suffix to avoid collisions
+        // (e.g. "test-product" vs "test_product").
+        if (!basic.equals(normalized)) {
+            basic = basic + "_h" + shortHash(normalized);
+        }
+
+        int maxLen = 255;
+        if (basic.length() > maxLen) {
+            basic = basic.substring(0, maxLen);
+        }
+        return basic;
+    }
+
+    private static String shortHash(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(16);
+            for (int i = 0; i < 8 && i < bytes.length; i++) {
+                sb.append(String.format("%02x", bytes[i]));
+            }
+            return sb.toString();
+        } catch (Exception ex) {
+            return Integer.toHexString(Objects.hashCode(value));
+        }
+    }
+
+    private String extractEntityTypeToken(String vectorId) {
         int idx = vectorId.indexOf("::");
         if (idx <= 0) {
             throw new AIServiceException("Invalid Milvus vector identifier: " + vectorId);

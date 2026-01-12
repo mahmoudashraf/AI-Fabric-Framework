@@ -649,6 +649,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
+          large_files: true
           files: |
             ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/*.xml
           check_name: AI Infrastructure Test Results
@@ -986,6 +987,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
+          large_files: true
           files: |
             ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/*.xml
           check_name: Relationship Query Test Results
@@ -1141,6 +1143,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
+          large_files: true
           files: |
             ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/surefire-reports/*.xml
             ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/failsafe-reports/*.xml
