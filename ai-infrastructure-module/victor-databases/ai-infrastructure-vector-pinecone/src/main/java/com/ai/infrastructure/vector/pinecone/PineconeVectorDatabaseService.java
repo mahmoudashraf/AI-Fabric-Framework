@@ -357,7 +357,15 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         for (Map.Entry<String, NamespaceSummary> entry : stats.getNamespacesMap().entrySet()) {
             int count = entry.getValue() != null ? entry.getValue().getVectorCount() : 0;
             cleared += count;
-            index.deleteAll(entry.getKey());
+            try {
+                index.deleteAll(entry.getKey());
+            } catch (Exception ex) {
+                // Pinecone can return NOT_FOUND when a namespace doesn't exist (race/empty namespace).
+                // Clearing is best-effort; ignore "namespace not found" and continue.
+                if (!isNamespaceNotFound(ex)) {
+                    throw new AIServiceException("Failed to clear all vectors", ex);
+                }
+            }
         }
         return cleared;
     }
@@ -585,18 +593,29 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         return lower.contains("sparse");
     }
 
-    private boolean isNamespaceNotFound(Exception ex) {
-        if (ex instanceof StatusRuntimeException statusEx) {
-            Status status = statusEx.getStatus();
-            if (status != null && status.getCode() == Status.Code.NOT_FOUND) {
-                return true;
-            }
-        }
-        String message = ex != null ? ex.getMessage() : null;
-        if (!StringUtils.hasText(message)) {
+    private boolean isNamespaceNotFound(Throwable ex) {
+        if (ex == null) {
             return false;
         }
-        return message.toLowerCase(Locale.ROOT).contains("namespace not found");
+
+        Throwable cursor = ex;
+        while (cursor != null) {
+            if (cursor instanceof StatusRuntimeException statusEx) {
+                Status status = statusEx.getStatus();
+                if (status != null && status.getCode() == Status.Code.NOT_FOUND) {
+                    return true;
+                }
+            }
+
+            String message = cursor.getMessage();
+            if (StringUtils.hasText(message) && message.toLowerCase(Locale.ROOT).contains("namespace not found")) {
+                return true;
+            }
+
+            cursor = cursor.getCause();
+        }
+
+        return false;
     }
 
     private QueryResponseWithUnsignedIndices querySparse(int topK, List<Double> queryVector, String namespace, Struct filter) {
