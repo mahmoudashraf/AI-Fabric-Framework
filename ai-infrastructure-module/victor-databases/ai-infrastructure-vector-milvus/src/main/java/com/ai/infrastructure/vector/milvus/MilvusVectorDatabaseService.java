@@ -23,9 +23,12 @@ import io.milvus.param.ConnectParam;
 import io.milvus.param.R;
 import io.milvus.param.collection.CreateCollectionParam;
 import io.milvus.param.collection.DescribeCollectionParam;
+import io.milvus.param.collection.DropCollectionParam;
 import io.milvus.param.collection.FlushParam;
+import io.milvus.param.collection.GetCollectionStatisticsParam;
 import io.milvus.param.collection.HasCollectionParam;
 import io.milvus.param.collection.LoadCollectionParam;
+import io.milvus.param.collection.ReleaseCollectionParam;
 import io.milvus.param.control.GetFlushStateParam;
 import io.milvus.param.dml.DeleteParam;
 import io.milvus.param.dml.QueryParam;
@@ -52,6 +55,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -469,9 +474,16 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public long clearVectors() {
+        // Prefer dropping collections over scanning and deleting every vector. This avoids forcing
+        // expensive/fragile loadCollection calls during test cleanup and keeps teardown fast.
+        Set<String> collections = new HashSet<>();
+        collections.addAll(collectionDimensions.keySet());
+        collections.addAll(loadedCollections.keySet());
+        collections.addAll(collectionLoadLocks.keySet());
+
         long removed = 0;
-        for (String collection : collectionDimensions.keySet()) {
-            removed += clearVectorsByEntityType(collection);
+        for (String collection : collections) {
+            removed += dropCollectionData(collection);
         }
         return removed;
     }
@@ -481,12 +493,8 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         if (entityType == null) {
             return 0;
         }
-        List<VectorRecord> records = getVectorsByEntityType(entityType);
-        List<String> ids = new ArrayList<>(records.size());
-        for (VectorRecord record : records) {
-            ids.add(record.getVectorId());
-        }
-        return batchRemoveVectors(ids);
+        String collection = toCollectionName(normalizeEntityTypeToken(entityType));
+        return dropCollectionData(collection);
     }
 
     @Override
@@ -523,6 +531,82 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             createCollectionIfNeeded(collection, dimension);
             collectionDimensions.put(collection, dimension);
         }
+    }
+
+    private long dropCollectionData(String collection) {
+        if (client == null || collection == null || collection.isBlank()) {
+            return 0;
+        }
+
+        boolean exists;
+        try {
+            R<Boolean> hasCollection = client.hasCollection(HasCollectionParam.newBuilder()
+                .withCollectionName(collection)
+                .build());
+            verifySuccess(hasCollection, "check collection existence");
+            exists = Boolean.TRUE.equals(hasCollection.getData());
+        } catch (Exception ex) {
+            // Cleanup must be best-effort: do not fail test runs because teardown could not confirm state.
+            log.debug("Milvus cleanup could not check collection existence for '{}': {}", collection, ex.getMessage());
+            exists = false;
+        }
+
+        long removed = exists ? bestEffortRowCount(collection) : 0;
+
+        // If Milvus believes the collection is loaded, release it first to reduce drop friction.
+        if (exists && Boolean.TRUE.equals(loadedCollections.get(collection))) {
+            try {
+                R<?> released = client.releaseCollection(ReleaseCollectionParam.newBuilder()
+                    .withCollectionName(collection)
+                    .build());
+                verifySuccess(released, "release collection " + collection);
+            } catch (Exception ex) {
+                log.debug("Milvus cleanup could not release collection '{}': {}", collection, ex.getMessage());
+            }
+        }
+
+        if (exists) {
+            try {
+                R<?> dropped = client.dropCollection(DropCollectionParam.newBuilder()
+                    .withCollectionName(collection)
+                    .build());
+                verifySuccess(dropped, "drop collection " + collection);
+            } catch (AIServiceException ex) {
+                // Treat races (already dropped) as success.
+                String message = ex.getMessage() != null ? ex.getMessage().toLowerCase(Locale.ROOT) : "";
+                if (!message.contains("not found") && !message.contains("does not exist")) {
+                    throw ex;
+                }
+            }
+        }
+
+        loadedCollections.remove(collection);
+        collectionDimensions.remove(collection);
+        collectionLoadLocks.remove(collection);
+
+        return removed;
+    }
+
+    private long bestEffortRowCount(String collection) {
+        try {
+            R<io.milvus.grpc.GetCollectionStatisticsResponse> stats = client.getCollectionStatistics(
+                GetCollectionStatisticsParam.newBuilder()
+                    .withCollectionName(collection)
+                    .build());
+            verifySuccess(stats, "get collection statistics for " + collection);
+            io.milvus.grpc.GetCollectionStatisticsResponse data = stats.getData();
+            if (data == null) {
+                return 0;
+            }
+            for (KeyValuePair kv : data.getStatsList()) {
+                if ("row_count".equalsIgnoreCase(kv.getKey())) {
+                    return Long.parseLong(kv.getValue());
+                }
+            }
+        } catch (Exception ex) {
+            log.debug("Milvus cleanup could not determine row count for '{}': {}", collection, ex.getMessage());
+        }
+        return 0;
     }
 
     private void createCollectionIfNeeded(String collection, int dimension) {
