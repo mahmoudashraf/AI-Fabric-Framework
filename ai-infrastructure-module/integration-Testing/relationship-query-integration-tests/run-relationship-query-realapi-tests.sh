@@ -272,6 +272,22 @@ if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
 fi
 print_info "Test Classes: All *RealApiIntegrationTest.java in realapi/ directory"
 
+# Fail fast on missing critical vector DB configuration (avoids long Spring stacktraces).
+if [ "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" = "pinecone" ]; then
+    if [ -z "${PINECONE_API_KEY:-}" ] && [ -z "${AI_PROVIDERS_PINECONE_API_KEY:-}" ]; then
+        print_error "Pinecone selected but API key is missing."
+        print_info "Set PINECONE_API_KEY (recommended: GitHub secret) or provide workflow input pinecone_api_key."
+        exit 1
+    fi
+
+    if [ -z "${PINECONE_INDEX_NAME:-}" ] && [ -z "${AI_PROVIDERS_PINECONE_INDEX_NAME:-}" ] && \
+       [ -z "${PINECONE_API_HOST:-}" ] && [ -z "${AI_PROVIDERS_PINECONE_API_HOST:-}" ]; then
+        print_error "Pinecone selected but both index name and host are missing."
+        print_info "Set PINECONE_INDEX_NAME or PINECONE_API_HOST (or their AI_PROVIDERS_* equivalents)."
+        exit 1
+    fi
+fi
+
 # Keep Spring's testcontainers support aligned with the selected vector database.
 # The shared `testcontainers-support` module's `application-testcontainers.yml` uses VECTOR_DB_TYPE.
 if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ] && [ -z "${VECTOR_DB_TYPE:-}" ]; then
@@ -314,6 +330,24 @@ MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.vector-db.type=${AI_INFRASTRUCTURE_VECTOR_DATABASE}"
 fi
+
+# Vector provider enablement:
+# Some vector implementations (notably pinecone/milvus) fail fast during bean creation when disabled.
+# Enable only the selected provider so real-api runs behave consistently across environments.
+case "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" in
+  pinecone)
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.pinecone.enabled=true"
+    ;;
+  weaviate)
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.weaviate.enabled=true"
+    ;;
+  qdrant)
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.qdrant.enabled=true"
+    ;;
+  milvus)
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.milvus.enabled=true"
+    ;;
+esac
 
 # Pass embedding provider as system property (more reliable than environment variables)
 # This ensures the selected provider from GitHub Actions UI is actually used
@@ -391,6 +425,21 @@ CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dtest=RealApiConnectivityVerificati
 if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
     CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.vector-db.type=${AI_INFRASTRUCTURE_VECTOR_DATABASE}"
 fi
+
+case "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" in
+  pinecone)
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.pinecone.enabled=true"
+    ;;
+  weaviate)
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.weaviate.enabled=true"
+    ;;
+  qdrant)
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.qdrant.enabled=true"
+    ;;
+  milvus)
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.providers.milvus.enabled=true"
+    ;;
+esac
 
 # Use the same provider selection + enablement flags as the main run.
 if [ -n "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" ]; then

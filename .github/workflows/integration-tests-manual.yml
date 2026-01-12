@@ -570,21 +570,21 @@ jobs:
           bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}:${{ github.event.inputs.storage_strategy }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
-          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
-          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
-          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
-          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
-          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
+          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY }}
+          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key || secrets.COHERE_API_KEY }}
+          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key || secrets.AZURE_API_KEY }}
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
-          PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key }}
+          PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
           # Allow leaving workflow_dispatch inputs blank by falling back to GitHub repo variables.
           # Configure these under: Settings → Secrets and variables → Actions → Variables
           PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
           PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_PROVIDERS_PINECONE_ENABLED: ${{ github.event.inputs.vector_database == 'pinecone' && 'true' || 'false' }}
-          AI_PROVIDERS_PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key }}
+          AI_PROVIDERS_PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
           AI_PROVIDERS_PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
           AI_PROVIDERS_PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
@@ -788,21 +788,30 @@ jobs:
           bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
-          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
           # Needed when embedding_provider=openai to satisfy startup validation.
           OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
-          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_ENABLED: ${{ (github.event.inputs.llm_provider == 'anthropic' || github.event.inputs.embedding_provider == 'anthropic') && 'true' || 'false' }}
-          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY }}
           GEMINI_ENABLED: ${{ (github.event.inputs.llm_provider == 'gemini' || github.event.inputs.embedding_provider == 'gemini') && 'true' || 'false' }}
-          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
+          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key || secrets.COHERE_API_KEY }}
           # IMPORTANT: do not set empty string for booleans; Spring binds empty -> null -> crash for primitive boolean fields.
           COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || 'false' }}
-          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
+          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key || secrets.AZURE_API_KEY }}
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           AZURE_ENABLED: ${{ (github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure') && 'true' || 'false' }}
+          # Pinecone is used when vector_database=pinecone. Allow leaving the API key blank (e.g., using repo secrets/vars)
+          # and fall back for host/index to workflow defaults/repo vars.
+          PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
+          PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
+          AI_PROVIDERS_PINECONE_ENABLED: ${{ github.event.inputs.vector_database == 'pinecone' && 'true' || 'false' }}
+          AI_PROVIDERS_PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+          AI_PROVIDERS_PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
+          AI_PROVIDERS_PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && (github.event.inputs.llm_model || 'command-r7b-12-2024') || '' }}
           COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && (github.event.inputs.embedding_model || 'embed-english-v3.0') || '' }}
