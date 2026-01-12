@@ -11,9 +11,7 @@ import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Field;
@@ -31,7 +29,6 @@ import java.util.stream.Collectors;
  * @version 1.0.0
  */
 @Slf4j
-@Service
 public class AICapabilityService {
     
     private final AIEmbeddingService embeddingService;

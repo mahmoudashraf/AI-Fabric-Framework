@@ -1,8 +1,10 @@
 package com.ai.infrastructure.provider.rest;
 
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -11,6 +13,7 @@ import org.springframework.context.annotation.Bean;
  * Auto-configuration for the REST embedding provider module.
  */
 @AutoConfiguration
+@AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @ConditionalOnClass(RestEmbeddingProvider.class)
 public class RestEmbeddingAutoConfiguration {
 

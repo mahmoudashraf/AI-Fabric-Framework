@@ -12,11 +12,8 @@ import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.spi.RAGProvider;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,10 +29,7 @@ import static org.mockito.Mockito.mock;
  * Test configuration supplying deterministic provider and vector service doubles
  * so core module tests can run without external modules.
  */
-@SpringBootApplication(scanBasePackages = "com.ai.infrastructure")
-@Import(AIInfrastructureAutoConfiguration.class)
-@EntityScan(basePackages = "com.ai.infrastructure.entity")
-@EnableJpaRepositories(basePackages = "com.ai.infrastructure.repository")
+@SpringBootApplication
 public class TestConfiguration {
 
     @Bean

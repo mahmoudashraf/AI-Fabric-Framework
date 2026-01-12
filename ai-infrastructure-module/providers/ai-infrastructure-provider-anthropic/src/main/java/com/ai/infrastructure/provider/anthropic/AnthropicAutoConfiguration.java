@@ -1,11 +1,13 @@
 package com.ai.infrastructure.provider.anthropic;
 
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.provider.ProviderConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -18,6 +20,7 @@ import org.springframework.web.client.RestTemplate;
  */
 @Slf4j
 @AutoConfiguration
+@AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @ConditionalOnClass(AnthropicProvider.class)
 public class AnthropicAutoConfiguration {
 

@@ -3,7 +3,6 @@ package com.ai.infrastructure.processor;
 import com.ai.infrastructure.config.AIProviderConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.regex.Pattern;
@@ -19,7 +18,6 @@ import java.util.stream.Collectors;
  * @version 1.0.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class EmbeddingProcessor {
     

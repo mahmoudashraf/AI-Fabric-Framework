@@ -43,16 +43,20 @@ import com.ai.infrastructure.validation.AIProviderConfigValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.core.io.ResourceLoader;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -72,7 +76,7 @@ import java.util.stream.Collectors;
  * @version 1.0.0
  */
 @Slf4j
-@Configuration
+@AutoConfiguration
     @EnableConfigurationProperties({
         AIProviderConfig.class,
         AIServiceConfig.class,
@@ -86,6 +90,22 @@ import java.util.stream.Collectors;
         AICleanupProperties.class,
         AIStorageProperties.class
     })
+@ComponentScan(
+    basePackages = "com.ai.infrastructure",
+    excludeFilters = @ComponentScan.Filter(
+        type = FilterType.REGEX,
+        pattern = {
+            "com\\.ai\\.infrastructure\\.behavior\\..*",
+            "com\\.ai\\.infrastructure\\.rag\\..*",
+            "com\\.ai\\.infrastructure\\.relationship\\..*",
+            "com\\.ai\\.infrastructure\\.web\\..*",
+            "com\\.ai\\.infrastructure\\.onnxstarter\\..*",
+            "com\\.ai\\.infrastructure\\.config\\..*"
+        }
+    )
+)
+@EntityScan(basePackages = "com.ai.infrastructure.entity")
+@EnableJpaRepositories(basePackages = "com.ai.infrastructure.repository")
 @Import({ProviderConfiguration.class, AISearchableStorageStrategyAutoConfiguration.class})
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy
@@ -206,8 +226,8 @@ public class AIInfrastructureAutoConfiguration {
     
     // Vector database implementations are provided by dedicated vector modules
 
-    @Bean
-    @ConditionalOnMissingBean
+    @Bean(name = "AIEntityConfigurationLoader")
+    @ConditionalOnMissingBean(name = "AIEntityConfigurationLoader")
     public AIEntityConfigurationLoader aiEntityConfigurationLoader(ResourceLoader resourceLoader) {
         return new AIEntityConfigurationLoader(resourceLoader);
     }

@@ -1,6 +1,7 @@
 package com.ai.infrastructure.rag.config;
 
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
@@ -11,6 +12,7 @@ import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -62,6 +64,7 @@ import org.springframework.context.annotation.Bean;
  */
 @Slf4j
 @AutoConfiguration
+@AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @EnableConfigurationProperties(RAGProperties.class)
 @ConditionalOnProperty(prefix = "ai.infrastructure.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class RAGAutoConfiguration {

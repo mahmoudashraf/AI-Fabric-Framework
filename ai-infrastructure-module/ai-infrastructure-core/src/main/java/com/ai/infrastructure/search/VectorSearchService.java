@@ -10,7 +10,6 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.lang.Nullable;
-import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +32,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @version 2.0.0
  */
 @Slf4j
-@Service
 public class VectorSearchService {
     
     private final AIProviderConfig config;

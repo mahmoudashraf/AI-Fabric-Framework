@@ -14,7 +14,6 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -36,7 +35,6 @@ import java.util.Optional;
  */
 @Slf4j
 @Aspect
-@Component
 @RequiredArgsConstructor
 public class AICapableAspect {
     
