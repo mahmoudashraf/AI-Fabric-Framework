@@ -75,9 +75,9 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
     private static final String FIELD_METADATA = "metadata";
     private static final String FIELD_VECTOR = "embedding";
 
-    private static final long COLLECTION_LOAD_INTERVAL_MILLIS = 500L;
-    private static final long COLLECTION_LOAD_TIMEOUT_SECONDS = 120L;
-    private static final int COLLECTION_LOAD_MAX_ATTEMPTS = 3;
+    // Milvus SDK (2.4.x) uses mixed units: interval in milliseconds, timeout in seconds.
+    private static final long COLLECTION_LOAD_INTERVAL_MILLIS = 500L; // max 2000ms per SDK constant
+    private static final long COLLECTION_LOAD_TIMEOUT_SECONDS = 120L; // max 300s per SDK constant
 
     private final AIProviderConfig.MilvusConfig config;
     private final MilvusServiceClient client;
@@ -152,7 +152,9 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
 
         R<MutationResult> response = client.upsert(upsertParam);
         verifySuccess(response, "upsert vector into Milvus");
-        flushCollection(collection);
+        if (Boolean.TRUE.equals(config.getFlushOnWrite())) {
+            flushCollection(collection);
+        }
         return vectorId;
     }
 
@@ -249,6 +251,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             .withMetricType(MetricType.IP)
             .withParams("{\"nprobe\":16}")
             .withVectors(Collections.singletonList(toFloatList(queryVector)))
+            .withIgnoreGrowing(false)
             .addOutField(FIELD_VECTOR_ID)
             .addOutField(FIELD_ENTITY_ID)
             .addOutField(FIELD_CONTENT)
@@ -706,43 +709,66 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
                 return;
             }
 
+            // Milvus' built-in sync-load path can still surface transient "collection not loaded" responses
+            // very quickly. Prefer issuing an async load and polling load state ourselves up to a bounded timeout.
+            try {
+                R<?> response = client.loadCollection(LoadCollectionParam.newBuilder()
+                    .withCollectionName(collection)
+                    .withSyncLoad(false)
+                    .build());
+                verifySuccess(response, "load collection " + collection);
+            } catch (AIServiceException ex) {
+                // If the collection is already loading/loaded we can proceed to polling.
+                log.debug("Milvus loadCollection request for '{}' returned: {}", collection, ex.getMessage());
+            }
+
+            io.milvus.param.collection.GetLoadStateParam stateParam =
+                io.milvus.param.collection.GetLoadStateParam.newBuilder()
+                    .withCollectionName(collection)
+                    .build();
+
+            long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(COLLECTION_LOAD_TIMEOUT_SECONDS);
             String lastMessage = null;
-            for (int attempt = 1; attempt <= COLLECTION_LOAD_MAX_ATTEMPTS; attempt++) {
-                R<?> response = null;
+            io.milvus.grpc.LoadState lastState = null;
+
+            while (System.currentTimeMillis() < deadline) {
+                R<io.milvus.grpc.GetLoadStateResponse> stateResponse = null;
                 try {
-                    response = client.loadCollection(LoadCollectionParam.newBuilder()
-                        .withCollectionName(collection)
-                        .withSyncLoad(true)
-                        .withSyncLoadWaitingInterval(COLLECTION_LOAD_INTERVAL_MILLIS)
-                        .withSyncLoadWaitingTimeout(COLLECTION_LOAD_TIMEOUT_SECONDS)
-                        .withRefresh(true)
-                        .build());
+                    stateResponse = client.getLoadState(stateParam);
                 } catch (Exception ex) {
                     lastMessage = ex.getMessage();
-                    if (!isCollectionNotLoaded(ex)) {
-                        throw new AIServiceException("Failed to load Milvus collection " + collection + ": " + ex.getMessage(), ex);
+                }
+
+                if (stateResponse != null && stateResponse.getStatus() == R.Status.Success.getCode()) {
+                    io.milvus.grpc.GetLoadStateResponse data = stateResponse.getData();
+                    if (data != null) {
+                        lastState = data.getState();
+                        if (lastState == io.milvus.grpc.LoadState.LoadStateLoaded) {
+                            loadedCollections.put(collection, Boolean.TRUE);
+                            return;
+                        }
+                        if (lastState == io.milvus.grpc.LoadState.LoadStateNotExist) {
+                            throw new AIServiceException("Milvus collection does not exist: " + collection);
+                        }
+                    }
+                } else if (stateResponse != null) {
+                    lastMessage = stateResponse.getMessage();
+                    if (stateResponse.getStatus() != R.Status.Success.getCode()
+                        && !isCollectionNotLoadedMessage(lastMessage)) {
+                        throw new AIServiceException("Milvus operation failed for get load state " + collection + ": " + lastMessage);
                     }
                 }
 
-                if (response != null && response.getStatus() == R.Status.Success.getCode()) {
-                    loadedCollections.put(collection, Boolean.TRUE);
-                    return;
-                }
-
-                lastMessage = response != null ? response.getMessage() : lastMessage;
-                if (!isCollectionNotLoadedMessage(lastMessage)) {
-                    throw new AIServiceException("Milvus operation failed for load collection " + collection + ": " + lastMessage);
-                }
-
                 try {
-                    Thread.sleep(Math.min(2000L, attempt * 250L));
+                    Thread.sleep(COLLECTION_LOAD_INTERVAL_MILLIS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new AIServiceException("Interrupted while waiting for Milvus collection to load: " + collection);
                 }
             }
 
-            throw new AIServiceException("Milvus operation failed for load collection " + collection + ": " + lastMessage);
+            String detail = lastState != null ? lastState.name() : String.valueOf(lastMessage);
+            throw new AIServiceException("Timed out waiting for Milvus collection to load: " + collection + " (" + detail + ")");
         }
     }
 

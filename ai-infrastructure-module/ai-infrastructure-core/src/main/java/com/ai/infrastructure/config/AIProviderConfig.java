@@ -313,6 +313,11 @@ public class AIProviderConfig {
         private String databaseName = "default";
         private Integer timeout = 30;
         private Boolean secure = false;
+        /**
+         * When enabled, forces a Milvus flush after every write. This makes writes immediately durable
+         * but is extremely expensive (and will drastically slow down integration tests).
+         */
+        private Boolean flushOnWrite = false;
     }
 
     @Data
