@@ -36,7 +36,9 @@ import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -501,18 +503,86 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
         boolean preferSparse = isSparseIndex();
         try {
-            if (preferSparse) {
-                upsertSparse(vectorId, namespace, embedding, metadataStruct);
-            } else {
-                upsertDense(vectorId, namespace, embedding, metadataStruct);
-            }
+            withPineconeRetry("upsert", () -> {
+                if (preferSparse) {
+                    upsertSparse(vectorId, namespace, embedding, metadataStruct);
+                } else {
+                    upsertDense(vectorId, namespace, embedding, metadataStruct);
+                }
+                return null;
+            });
         } catch (Exception ex) {
             if (!preferSparse && shouldRetryAsSparse(ex)) {
                 sparseIndex = true;
-                upsertSparse(vectorId, namespace, embedding, metadataStruct);
+                withPineconeRetry("upsertSparse", () -> {
+                    upsertSparse(vectorId, namespace, embedding, metadataStruct);
+                    return null;
+                });
                 return;
             }
             throw new AIServiceException("Failed to upsert vector into Pinecone", ex);
+        }
+    }
+
+    private <T> T withPineconeRetry(String operation, Supplier<T> supplier) {
+        int maxAttempts = 6;
+        long backoffMs = 250;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return supplier.get();
+            } catch (Exception ex) {
+                if (attempt >= maxAttempts || !isRetryablePineconeException(ex)) {
+                    throw ex;
+                }
+                long sleepMs = backoffMs + ThreadLocalRandom.current().nextLong(0, 200);
+                log.warn(
+                    "Pinecone {} failed due to rate/availability (attempt {}/{}). Retrying after {}ms. Cause: {}",
+                    operation,
+                    attempt,
+                    maxAttempts,
+                    sleepMs,
+                    ex.getMessage()
+                );
+                sleepQuietly(sleepMs);
+                backoffMs = Math.min(5000, backoffMs * 2);
+            }
+        }
+
+        // unreachable
+        return supplier.get();
+    }
+
+    private boolean isRetryablePineconeException(Throwable ex) {
+        Throwable cursor = ex;
+        while (cursor != null) {
+            if (cursor instanceof StatusRuntimeException statusEx) {
+                Status status = statusEx.getStatus();
+                Status.Code code = status != null ? status.getCode() : null;
+                if (code == Status.Code.UNAVAILABLE || code == Status.Code.RESOURCE_EXHAUSTED || code == Status.Code.DEADLINE_EXCEEDED) {
+                    return true;
+                }
+            }
+
+            String message = cursor.getMessage();
+            if (StringUtils.hasText(message)) {
+                String lower = message.toLowerCase(Locale.ROOT);
+                if (lower.contains("too many requests") || lower.contains("rate limit") || lower.contains("throttl")) {
+                    return true;
+                }
+            }
+
+            cursor = cursor.getCause();
+        }
+
+        return false;
+    }
+
+    private void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
 

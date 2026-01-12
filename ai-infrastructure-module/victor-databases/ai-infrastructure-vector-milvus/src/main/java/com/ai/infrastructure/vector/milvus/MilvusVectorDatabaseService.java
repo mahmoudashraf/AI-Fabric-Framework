@@ -576,9 +576,9 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             verifySuccess(hasCollection, "check collection existence");
             exists = Boolean.TRUE.equals(hasCollection.getData());
         } catch (Exception ex) {
-            // Cleanup must be best-effort: do not fail test runs because teardown could not confirm state.
+            // Cleanup should still attempt to drop the collection even when existence checks fail.
             log.debug("Milvus cleanup could not check collection existence for '{}': {}", collection, ex.getMessage());
-            exists = false;
+            exists = true;
         }
 
         long removed = exists ? bestEffortRowCount(collection) : 0;
@@ -596,17 +596,40 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         }
 
         if (exists) {
-            try {
-                R<?> dropped = client.dropCollection(DropCollectionParam.newBuilder()
-                    .withCollectionName(collection)
-                    .build());
-                verifySuccess(dropped, "drop collection " + collection);
-            } catch (AIServiceException ex) {
-                // Treat races (already dropped) as success.
-                String message = ex.getMessage() != null ? ex.getMessage().toLowerCase(Locale.ROOT) : "";
-                if (!message.contains("not found") && !message.contains("does not exist")) {
-                    throw ex;
+            long backoffMillis = 200L;
+            Exception lastException = null;
+            for (int attempt = 1; attempt <= 6; attempt++) {
+                try {
+                    R<?> dropped = client.dropCollection(DropCollectionParam.newBuilder()
+                        .withCollectionName(collection)
+                        .build());
+                    verifySuccess(dropped, "drop collection " + collection);
+                    lastException = null;
+                    break;
+                } catch (Exception ex) {
+                    lastException = ex;
+                    String message = ex.getMessage() != null ? ex.getMessage().toLowerCase(Locale.ROOT) : "";
+                    // Treat races (already dropped) as success.
+                    if (message.contains("not found") || message.contains("does not exist")) {
+                        lastException = null;
+                        break;
+                    }
+                    // Milvus can transiently refuse drop while collection is still loading/unloading.
+                    if (isCollectionNotLoadedMessage(message)) {
+                        try {
+                            Thread.sleep(backoffMillis);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                        backoffMillis = Math.min(backoffMillis * 2, 2000L);
+                        continue;
+                    }
+                    break;
                 }
+            }
+            if (lastException != null) {
+                throw new AIServiceException("Milvus cleanup failed to drop collection " + collection + ": " + lastException.getMessage(), lastException);
             }
         }
 
@@ -744,8 +767,15 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
                     .withSyncLoad(false)
                     .build());
                 verifySuccess(response, "load collection " + collection);
-            } catch (AIServiceException ex) {
-                // If the collection is already loading/loaded we can proceed to polling.
+            } catch (Exception ex) {
+                // If the collection is already loading/loaded or Milvus returns a transient "not loaded yet" response,
+                // proceed to polling for load state. Fail fast only on obvious configuration/parameter issues.
+                String message = ex.getMessage() != null ? ex.getMessage().toLowerCase(Locale.ROOT) : "";
+                if (message.contains("invalid collection name")
+                    || message.contains("does not exist")
+                    || message.contains("not found")) {
+                    throw new AIServiceException("Milvus operation failed for load collection " + collection + ": " + ex.getMessage(), ex);
+                }
                 log.debug("Milvus loadCollection request for '{}' returned: {}", collection, ex.getMessage());
             }
 
