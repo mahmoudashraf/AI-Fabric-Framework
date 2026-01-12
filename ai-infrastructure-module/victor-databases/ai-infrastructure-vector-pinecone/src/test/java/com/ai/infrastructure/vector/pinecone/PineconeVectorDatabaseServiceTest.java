@@ -12,11 +12,13 @@ import io.pinecone.proto.FetchResponse;
 import io.pinecone.proto.QueryResponse;
 import io.pinecone.proto.ScoredVector;
 import io.pinecone.unsigned_indices_model.QueryResponseWithUnsignedIndices;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -152,6 +154,46 @@ class PineconeVectorDatabaseServiceTest {
 
         assertEquals(1, response.getTotalResults());
         assertEquals("product::123", response.getResults().get(0).get("vectorId"));
+    }
+
+    @Test
+    void searchBuildsValidPineconeFilterStruct() {
+        when(index.queryByVector(eq(5), anyList(), eq("product"), nullable(Struct.class), eq(false), eq(true)))
+            .thenReturn(new QueryResponseWithUnsignedIndices(QueryResponse.getDefaultInstance()));
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("sessionId", null);
+        metadata.put("piiDetectedTypes", List.of("SSN"));
+        metadata.put("tenantId", "t-1");
+
+        service.search(
+            List.of(0.2, 0.3, 0.4),
+            AISearchRequest.builder()
+                .query("luxury")
+                .entityType("product")
+                .limit(5)
+                .threshold(0.0)
+                .metadata(metadata)
+                .build()
+        );
+
+        ArgumentCaptor<Struct> filterCaptor = ArgumentCaptor.forClass(Struct.class);
+        verify(index).queryByVector(eq(5), anyList(), eq("product"), filterCaptor.capture(), eq(false), eq(true));
+
+        Struct filter = filterCaptor.getValue();
+        assertNotNull(filter);
+
+        Assertions.assertFalse(filter.getFieldsMap().containsKey("sessionId"));
+
+        Value tenantCond = filter.getFieldsOrThrow("tenantId");
+        assertTrue(tenantCond.hasStructValue());
+        assertEquals("t-1", tenantCond.getStructValue().getFieldsOrThrow("$eq").getStringValue());
+
+        Value piiCond = filter.getFieldsOrThrow("piiDetectedTypes");
+        assertTrue(piiCond.hasStructValue());
+        Value inValue = piiCond.getStructValue().getFieldsOrThrow("$in");
+        assertTrue(inValue.hasListValue());
+        assertEquals("SSN", inValue.getListValue().getValues(0).getStringValue());
     }
 
     @Test

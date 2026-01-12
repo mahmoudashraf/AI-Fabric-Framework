@@ -139,7 +139,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
         Struct filter = null;
         if (request.getMetadata() != null && !request.getMetadata().isEmpty()) {
-            filter = toStruct(request.getMetadata());
+            filter = toFilterStruct(request.getMetadata());
         }
 
         QueryResponseWithUnsignedIndices response;
@@ -717,6 +717,144 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         Map<String, Value> fields = new LinkedHashMap<>();
         values.forEach((key, value) -> fields.put(key, toValue(value)));
         return Struct.newBuilder().putAllFields(fields).build();
+    }
+
+    /**
+     * Build a Pinecone metadata filter struct.
+     *
+     * Pinecone expects filter values to be "operator objects" (e.g. {"field": {"$eq": "x"}}).
+     * Lists/collections must be represented via operators such as "$in", not raw arrays.
+     * Null/blank values are skipped to avoid INVALID_ARGUMENT errors.
+     */
+    private Struct toFilterStruct(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Value> fields = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (!StringUtils.hasText(key)) {
+                return;
+            }
+            Value condition = toFilterCondition(value);
+            if (condition != null) {
+                fields.put(key, condition);
+            }
+        });
+
+        if (fields.isEmpty()) {
+            return null;
+        }
+        return Struct.newBuilder().putAllFields(fields).build();
+    }
+
+    private Value toFilterCondition(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String str && !StringUtils.hasText(str)) {
+            return null;
+        }
+
+        // If caller already provided a Pinecone-style operator map, keep it (but skip nulls).
+        if (value instanceof Map<?, ?> map) {
+            Struct struct = toFilterOperatorStruct(map);
+            if (struct == null || struct.getFieldsCount() == 0) {
+                return null;
+            }
+            return Value.newBuilder().setStructValue(struct).build();
+        }
+
+        // Collections/lists must use operators like "$in" instead of a raw ListValue.
+        if (value instanceof Iterable<?> iterable) {
+            List<Value> items = new ArrayList<>();
+            for (Object item : iterable) {
+                Value scalar = toFilterScalarValue(item);
+                if (scalar != null) {
+                    items.add(scalar);
+                }
+            }
+            if (items.isEmpty()) {
+                return null;
+            }
+            Struct condition = Struct.newBuilder()
+                .putFields("$in", Value.newBuilder()
+                    .setListValue(ListValue.newBuilder().addAllValues(items))
+                    .build())
+                .build();
+            return Value.newBuilder().setStructValue(condition).build();
+        }
+
+        Value scalar = toFilterScalarValue(value);
+        if (scalar == null) {
+            return null;
+        }
+        Struct condition = Struct.newBuilder()
+            .putFields("$eq", scalar)
+            .build();
+        return Value.newBuilder().setStructValue(condition).build();
+    }
+
+    private Struct toFilterOperatorStruct(Map<?, ?> map) {
+        if (map == null || map.isEmpty()) {
+            return Struct.getDefaultInstance();
+        }
+
+        Map<String, Value> fields = new LinkedHashMap<>();
+        map.forEach((rawKey, rawValue) -> {
+            if (rawKey == null || rawValue == null) {
+                return;
+            }
+            String key = String.valueOf(rawKey);
+            if (!StringUtils.hasText(key)) {
+                return;
+            }
+
+            // For "$in", ensure we emit a ListValue of scalars and skip nulls/blanks.
+            if ("$in".equals(key) && rawValue instanceof Iterable<?> iterable) {
+                List<Value> items = new ArrayList<>();
+                for (Object item : iterable) {
+                    Value scalar = toFilterScalarValue(item);
+                    if (scalar != null) {
+                        items.add(scalar);
+                    }
+                }
+                if (!items.isEmpty()) {
+                    fields.put(key, Value.newBuilder()
+                        .setListValue(ListValue.newBuilder().addAllValues(items))
+                        .build());
+                }
+                return;
+            }
+
+            // Default: allow scalar or nested structures, but avoid embedding nulls.
+            Value scalar = toFilterScalarValue(rawValue);
+            if (scalar != null) {
+                fields.put(key, scalar);
+            }
+        });
+
+        return Struct.newBuilder().putAllFields(fields).build();
+    }
+
+    private Value toFilterScalarValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String str) {
+            return StringUtils.hasText(str)
+                ? Value.newBuilder().setStringValue(str).build()
+                : null;
+        }
+        if (value instanceof Boolean bool) {
+            return Value.newBuilder().setBoolValue(bool).build();
+        }
+        if (value instanceof Number number) {
+            return Value.newBuilder().setNumberValue(number.doubleValue()).build();
+        }
+        // As a fallback, treat as a keyword string value.
+        String text = String.valueOf(value);
+        return StringUtils.hasText(text) ? Value.newBuilder().setStringValue(text).build() : null;
     }
 
     private Object fromValue(Value value) {
