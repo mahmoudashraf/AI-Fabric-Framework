@@ -94,6 +94,55 @@ TEST_CLASS="RealAPIProviderMatrixIntegrationTest"
 CONNECTIVITY_TEST_CLASS="RealApiConnectivityVerificationTest"
 SKIP_TESTS="${SKIP_TESTS:-false}"
 
+# Local convenience: allow loading OPENAI_API_KEY from an ignored file so developers
+# don't have to export secrets manually (CI should use GitHub Secrets/Vars).
+maybe_load_openai_api_key() {
+    if [ -n "${OPENAI_API_KEY:-}" ]; then
+        return
+    fi
+
+    # Prefer explicit env var pointing to a key file.
+    local candidates=()
+    if [ -n "${OPENAI_API_KEY_FILE:-}" ]; then
+        candidates+=("${OPENAI_API_KEY_FILE}")
+    fi
+
+    # Common local patterns (all ignored by .gitignore).
+    candidates+=("${PROJECT_ROOT}/.env.local" "${PROJECT_ROOT}/dev.env" "${PROJECT_ROOT}/dev2.env")
+
+    for candidate in "${candidates[@]}"; do
+        if [ -z "$candidate" ] || [ ! -f "$candidate" ]; then
+            continue
+        fi
+
+        # Accept either:
+        # - raw key (single line)
+        # - OPENAI_API_KEY=... (dotenv style)
+        local first_line
+        first_line="$(head -n 1 "$candidate" | tr -d '\r\n' | xargs)"
+        if [ -z "$first_line" ]; then
+            continue
+        fi
+        if [[ "$first_line" == OPENAI_API_KEY=* ]]; then
+            first_line="${first_line#OPENAI_API_KEY=}"
+            first_line="$(echo "$first_line" | xargs)"
+        fi
+
+        if [ -n "$first_line" ]; then
+            export OPENAI_API_KEY="$first_line"
+            return
+        fi
+    done
+}
+
+maybe_load_openai_api_key
+
+# If a local OpenAI key is present, enable the OpenAI provider for Spring Boot config that uses
+# `openai.enabled: ${OPENAI_ENABLED:false}` (see application-real-api-test.yml).
+if [ -n "${OPENAI_API_KEY:-}" ] && [ -z "${OPENAI_ENABLED:-}" ]; then
+    export OPENAI_ENABLED=true
+fi
+
 # Functions
 print_header() {
     echo -e "${BLUE}"
@@ -289,8 +338,13 @@ fi
 if [ "${CI:-false}" == "true" ] || [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
     print_info "Running in CI/CD - skipping dependency build check (already built by workflow)"
 else
-    # SCRIPT_DIR is ai-infrastructure-module/integration-Testing/integration-tests, so parent is ai-infrastructure-module
-    PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    # Build dependencies from the Maven reactor root.
+    PARENT_DIR="${PROJECT_ROOT}/ai-infrastructure-module"
+    if [ ! -f "${PARENT_DIR}/pom.xml" ]; then
+        # Fallback in case PROJECT_ROOT resolution changes.
+        PARENT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+    fi
+
     CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
     if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
         print_warning "Dependencies may not be built. Attempting to build..."
