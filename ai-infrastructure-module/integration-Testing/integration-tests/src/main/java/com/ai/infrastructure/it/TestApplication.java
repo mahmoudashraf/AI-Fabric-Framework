@@ -8,6 +8,8 @@ import com.ai.infrastructure.rag.config.RAGAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -22,7 +24,16 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * @author AI Infrastructure Team
  * @version 1.0.0
  */
-@SpringBootApplication(scanBasePackages = {"com.ai.infrastructure", "com.ai.infrastructure.it"})
+@SpringBootApplication
+@ComponentScan(
+    basePackages = "com.ai.infrastructure.it",
+    excludeFilters = @ComponentScan.Filter(
+        type = FilterType.REGEX,
+        pattern = {
+            "com\\.ai\\.infrastructure\\.it\\.storage\\..*"
+        }
+    )
+)
 @Import({AIInfrastructureAutoConfiguration.class, RAGAutoConfiguration.class})
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
@@ -30,7 +41,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     "com.ai.infrastructure.migration.domain"
 })
 @EnableJpaRepositories(basePackages = {
-    "com.ai.infrastructure.repository",
     "com.ai.infrastructure.it.repository",
     "com.ai.infrastructure.migration.repository"
 })

@@ -47,7 +47,6 @@ import com.ai.infrastructure.provider.onnx.ONNXEmbeddingProvider;
 import com.ai.infrastructure.vector.lucene.LuceneVectorAutoConfiguration;
 import com.ai.infrastructure.vector.lucene.LuceneVectorDatabaseService;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -69,10 +68,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.beans.factory.annotation.Qualifier;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -270,11 +267,6 @@ public class RelationshipQueryIntegrationTest {
             .build();
     }
 
-    @AfterAll
-    static void cleanUpLuceneIndex() throws IOException {
-        IntegrationTestSupport.cleanUpLuceneIndex();
-    }
-
     @SpringBootApplication(
         scanBasePackages = {
             "com.ai.infrastructure.relationship",
@@ -322,11 +314,6 @@ public class RelationshipQueryIntegrationTest {
     static class IntegrationTestBeans {
 
         @Bean
-        CacheManager integrationTestCacheManager() {
-            return new ConcurrentMapCacheManager();
-        }
-
-        @Bean
         ONNXEmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
             return new ONNXEmbeddingProvider(config);
         }
@@ -334,8 +321,8 @@ public class RelationshipQueryIntegrationTest {
         @Bean
         AIEmbeddingService aiEmbeddingService(AIProviderConfig config,
                                               ONNXEmbeddingProvider onnxEmbeddingProvider,
-                                              CacheManager integrationTestCacheManager) {
-            return new AIEmbeddingService(config, onnxEmbeddingProvider, integrationTestCacheManager, null);
+                                              CacheManager cacheManager) {
+            return new AIEmbeddingService(config, onnxEmbeddingProvider, cacheManager, null);
         }
 
         @Bean

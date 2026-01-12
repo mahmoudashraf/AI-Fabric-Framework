@@ -15,7 +15,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
@@ -39,15 +39,15 @@ import org.springframework.context.annotation.Bean;
  * 
  * <p><strong>Conditional Loading:</strong></p>
  * <ul>
- *   <li>RAGService loads when {@code ai.infrastructure.rag.enabled=true} (default)</li>
- *   <li>AdvancedRAGService loads when {@code ai.infrastructure.rag.advanced.enabled=true} (default)</li>
+ *   <li>RAGService loads when {@code ai.rag.enabled=true} (alias for {@code ai.infrastructure.rag.enabled}, default=true)</li>
+ *   <li>AdvancedRAGService loads when {@code ai.rag.advanced.enabled=true} (alias for {@code ai.infrastructure.rag.advanced.enabled}, default=true)</li>
  *   <li>Custom RAGProvider implementations take precedence over default</li>
  * </ul>
  * 
  * <p><strong>Configuration Properties:</strong></p>
  * <pre>{@code
  * ai.infrastructure.rag:
- *   enabled: true                    # Enable RAG module
+ *   enabled: true                   # Enable RAG module
  *   default-limit: 10               # Default search result limit
  *   default-threshold: 0.7          # Default similarity threshold
  *   advanced:
@@ -66,7 +66,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 @AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @EnableConfigurationProperties(RAGProperties.class)
-@ConditionalOnProperty(prefix = "ai.infrastructure.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnExpression("${ai.rag.enabled:${ai.infrastructure.rag.enabled:true}}")
 public class RAGAutoConfiguration {
     
     // =========================================================================
@@ -141,7 +141,7 @@ public class RAGAutoConfiguration {
      * @return AdvancedRAGService
      */
     @Bean
-    @ConditionalOnProperty(prefix = "ai.infrastructure.rag.advanced", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnExpression("${ai.rag.advanced.enabled:${ai.infrastructure.rag.advanced.enabled:true}}")
     @ConditionalOnBean({
         AISearchService.class,
         AIEmbeddingService.class,

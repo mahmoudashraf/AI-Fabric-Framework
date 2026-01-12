@@ -5,6 +5,7 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.http.HttpClient;
 import com.theokanning.openai.embedding.EmbeddingRequest;
 import com.theokanning.openai.embedding.EmbeddingResult;
 import com.theokanning.openai.service.OpenAiService;
@@ -18,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
 // @Component removed - using @Bean in auto-configuration instead
 
 import jakarta.annotation.PostConstruct;
@@ -44,8 +44,8 @@ import java.util.stream.Collectors;
 public class OpenAIEmbeddingProvider implements EmbeddingProvider {
     
     private final AIProviderConfig config;
+    private final HttpClient httpClient;
     private OpenAiService openAiService;
-    private RestTemplate restTemplate;
     private boolean available = false;
     private int embeddingDimension = 1536; // Default for text-embedding-3-small
     private boolean useDirectHttp = false; // Use direct HTTP when dimension reduction is needed
@@ -74,9 +74,6 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                 openai.getApiKey(),
                 Duration.ofSeconds(openai.getTimeout())
             );
-            
-            // Initialize RestTemplate for direct HTTP calls (needed for dimension reduction)
-            restTemplate = new RestTemplate();
             
             // Check if dimension reduction is needed
             Integer requestedDimensions = openai.getEmbeddingDimensions();
@@ -133,7 +130,13 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
     
     @Override
     public boolean isAvailable() {
-        return available && openAiService != null;
+        if (!available) {
+            return false;
+        }
+        if (useDirectHttp) {
+            return httpClient != null;
+        }
+        return openAiService != null;
     }
     
     @Override
@@ -424,7 +427,7 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
         long backoffMs = 400;
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
-                return restTemplate.exchange(url, method, entity, responseType);
+                return httpClient.exchange(url, method, entity, responseType);
             } catch (HttpStatusCodeException ex) {
                 HttpStatusCode statusCode = ex.getStatusCode();
                 int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();
@@ -501,4 +504,3 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
         return status;
     }
 }
-

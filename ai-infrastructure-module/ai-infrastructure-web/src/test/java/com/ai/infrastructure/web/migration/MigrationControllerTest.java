@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(classes = TestWebApplication.class)
+@SpringBootTest(classes = TestWebApplication.class, properties = "ai.enabled=false")
 @AutoConfigureMockMvc
 class MigrationControllerTest {
 

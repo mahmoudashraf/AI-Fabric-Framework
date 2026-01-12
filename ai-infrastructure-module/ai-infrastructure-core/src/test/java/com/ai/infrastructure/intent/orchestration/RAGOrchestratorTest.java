@@ -152,16 +152,19 @@ class RAGOrchestratorTest {
         normalizationProperties.setDebugSnapshotEnabled(false);
         var normalizer = new OrchestrationResultNormalizer();
 
+        ObjectProvider<RAGProvider> ragProviderProvider = mock(ObjectProvider.class);
+        lenient().when(ragProviderProvider.getIfAvailable()).thenReturn(ragProvider);
+
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
             new PIIDetectionStep(piiDetectionService, piiDetectionProperties),
             new ComplianceCheckStep(complianceService),
             new IntentExtractionStep(intentQueryExtractor),
-            new IntentHandlingStep(actionHandlerRegistry, ragProvider, aiCoreService, aiServiceConfig, advancedRagProvider),
+            new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider),
             new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
             new MetadataBuildingStep(),
-            new SmartSuggestionsStep(smartSuggestionsProperties, ragProvider),
+            new SmartSuggestionsStep(smartSuggestionsProperties, ragProviderProvider),
             new ResponseSanitizationStep(responseSanitizer, piiDetectionProperties),
             new HistoryPersistenceStep(intentHistoryService)
         );

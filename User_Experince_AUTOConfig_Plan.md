@@ -1,7 +1,7 @@
 # AI Fabric Framework - Developer Experience Enhancement Guide
 
 > **Version:** 1.1.1  
-> **Status:** Partially implemented (DX baseline)  
+> **Status:** Proposal (DX improvements)  
 > **Last Updated:** January 2026  
 > **Backward Compatibility:** Not a goal (breaking changes allowed)
 
@@ -46,16 +46,19 @@ Examples present today:
 
 ## Observed DX Problems (Current Codebase)
 
-These issues were observed in earlier iterations and are now addressed in the current implementation:
+1. **Implicit scanning requirements**
+   - `ai-fabric-core` contains many `@Component` classes (pipeline steps, processors, aspects).
+   - `AIInfrastructureAutoConfiguration` currently registers many beans via `@Bean`, but does **not** declare `@ComponentScan` to pick up those `@Component`s automatically.
+   - Outcome: consumers may need manual `@ComponentScan("com.ai.infrastructure")`.
 
-1. **Implicit scanning requirements** (addressed)
-   - `AIInfrastructureAutoConfiguration` now declares `@ComponentScan("com.ai.infrastructure", ...)` to register framework `@Component`s without consumer `@ComponentScan`.
+2. **JPA entity/repository discovery isn’t guaranteed**
+   - Core entities live under `com.ai.infrastructure.entity` and repositories under `com.ai.infrastructure.repository`.
+   - Without framework-provided `@EntityScan` / `@EnableJpaRepositories` (or equivalent), consumers can be forced into manual wiring.
+   - Behavior module already includes `@EntityScan(...)` and `@ComponentScan(...)`, but core does not.
 
-2. **JPA entity/repository discovery isn’t guaranteed** (addressed)
-   - `AIInfrastructureAutoConfiguration` now declares `@EntityScan("com.ai.infrastructure.entity")` and `@EnableJpaRepositories("com.ai.infrastructure.repository")`.
-
-3. **HTTP provider coupling** (addressed)
-   - Providers no longer instantiate `RestTemplate` directly; HTTP is centralized behind a core `HttpClient` port and `AIHttpClientFactory`.
+3. **HTTP provider coupling**
+   - Providers and `ProviderConfiguration` use `RestTemplate` directly.
+   - This makes it harder to standardize concerns (timeouts, retries, auth, observability), and complicates provider testing/mocking.
 
 4. **Config surface area is large**
    - There are multiple property classes and YAML presets; some defaults exist as module resources.
@@ -97,8 +100,6 @@ It should:
 
 Important: per framework philosophy, this is allowed to be a breaking change if it simplifies usage.
 
-**Status:** Implemented (`@EnableAIInfrastructure` imports `AIInfrastructureAutoConfiguration`).
-
 ### 2) Make core self-contained for component discovery
 
 Update core auto-configuration to ensure framework `@Component`s are registered without consumer `@ComponentScan`.
@@ -109,8 +110,6 @@ Candidate file:
 Options:
 - Add `@ComponentScan("com.ai.infrastructure")` (broad, simplest)
 - Or refactor `@Component` classes into `@Bean` registrations (more explicit, more work)
-
-**Status:** Implemented via `@ComponentScan` on `AIInfrastructureAutoConfiguration` (with exclusions for optional modules).
 
 ### 3) Make JPA scanning explicit and predictable
 
@@ -124,8 +123,6 @@ Candidate file:
 Alternatively (more modular):
 - separate persistence adapters into a dedicated module and make it optional.
   - Note: this would be a bigger refactor but reduces mandatory JPA footprint.
-
-**Status:** Implemented via `@EntityScan` + `@EnableJpaRepositories` on `AIInfrastructureAutoConfiguration`.
 
 ### 4) Introduce an HTTP abstraction for providers (port/adapter)
 
@@ -144,8 +141,6 @@ Then:
 - move provider code to depend on `HttpClient` instead of creating/managing `RestTemplate`
 - centralize timeouts/retries/logging
 
-**Status:** Implemented (`com.ai.infrastructure.http.HttpClient`, `AIHttpClientFactory`, default `RestTemplate` adapter).
-
 ### 5) Provide a “minimum config” quickstart that matches current modules
 
 Document and keep working a minimal configuration that boots the framework.
@@ -157,8 +152,6 @@ Today, providers and vector databases are separate modules under:
 The guide should present:
 - “fast local” option (e.g., ONNX + Lucene or Memory vector DB)
 - “cloud” option (OpenAI/Azure + Qdrant/Pinecone/etc.)
-
-**Status:** Implemented: `ai-infrastructure-module/docs/GETTING_STARTED.md`.
 
 ## Implementation Roadmap (Suggested Phases)
 
@@ -183,3 +176,4 @@ The guide should present:
 2. JPA entities/repositories required by enabled modules work without manual `@EntityScan`/`@EnableJpaRepositories` (or are clearly separated into optional persistence modules).
 3. Providers do not instantiate their own HTTP client; HTTP concerns are centralized.
 4. Configuration failures are explicit and fail-fast (aligned with framework security posture).
+

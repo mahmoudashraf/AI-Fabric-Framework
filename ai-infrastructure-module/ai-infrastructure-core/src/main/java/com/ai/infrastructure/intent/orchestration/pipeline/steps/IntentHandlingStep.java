@@ -144,7 +144,7 @@ public class IntentHandlingStep implements PipelineStep {
     // =========================================================================
     
     private final ActionHandlerRegistry actionHandlerRegistry;
-    private final RAGProvider ragProvider;
+    private final ObjectProvider<RAGProvider> ragProvider;
     private final AICoreService aiCoreService;
     private final AIServiceConfig aiServiceConfig;
     private final ObjectProvider<AdvancedRAGProvider> advancedRagProvider;
@@ -358,6 +358,24 @@ public class IntentHandlingStep implements PipelineStep {
                                                        boolean needsGeneration,
                                                        String query,
                                                        Map<String, Object> metadata) {
+        RAGProvider provider = ragProvider.getIfAvailable();
+        if (provider == null) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_ANSWER, null);
+            data.put(DATA_KEY_DOCUMENTS, List.of());
+            data.put(DATA_KEY_RAG_RESPONSE, null);
+            data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
+            data.put(DATA_KEY_DETAILS, "RAG module is not enabled (no RAGProvider bean present).");
+
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(false)
+                .message(RAG_NO_CONTEXT_MESSAGE)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
         RAGRequest ragRequest = RAGRequest.builder()
             .query(query)
             .entityType(intent.getVectorSpace())
@@ -369,8 +387,8 @@ public class IntentHandlingStep implements PipelineStep {
 
         // Use retrieval-only for search-only intents; use context-building query mode for generation flows.
         RAGResponse ragResponse = needsGeneration
-            ? ragProvider.performRAGQuery(ragRequest)
-            : ragProvider.performRag(ragRequest);
+            ? provider.performRAGQuery(ragRequest)
+            : provider.performRag(ragRequest);
         if (ragResponse == null) {
             return OrchestrationResult.error(ERROR_MSG_RAG_NULL_RESPONSE);
         }

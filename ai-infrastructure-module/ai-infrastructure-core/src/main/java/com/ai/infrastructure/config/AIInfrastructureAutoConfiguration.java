@@ -43,6 +43,10 @@ import com.ai.infrastructure.repository.IndexingQueueRepository;
 import com.ai.infrastructure.storage.AIStorageProperties;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.validation.AIProviderConfigValidator;
+import com.ai.infrastructure.http.AIHttpClientFactory;
+import com.ai.infrastructure.http.AIHttpClientProperties;
+import com.ai.infrastructure.http.DefaultAIHttpClientFactory;
+import com.ai.infrastructure.http.HttpClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -52,6 +56,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
@@ -80,19 +85,20 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @AutoConfiguration
-    @EnableConfigurationProperties({
-        AIProviderConfig.class,
-        AIServiceConfig.class,
-        PIIDetectionProperties.class,
-        SmartSuggestionsProperties.class,
-        ResponseSanitizationProperties.class,
-        OrchestrationResultNormalizationProperties.class,
-        IntentHistoryProperties.class,
-        SecurityProperties.class,
-        AIIndexingProperties.class,
-        AICleanupProperties.class,
-        AIStorageProperties.class
-    })
+	    @EnableConfigurationProperties({
+	        AIProviderConfig.class,
+	        AIServiceConfig.class,
+	        PIIDetectionProperties.class,
+	        SmartSuggestionsProperties.class,
+	        ResponseSanitizationProperties.class,
+	        OrchestrationResultNormalizationProperties.class,
+	        IntentHistoryProperties.class,
+	        SecurityProperties.class,
+	        AIIndexingProperties.class,
+	        AICleanupProperties.class,
+	        AIStorageProperties.class,
+            AIHttpClientProperties.class
+	    })
 @ComponentScan(
     basePackages = "com.ai.infrastructure",
     excludeFilters = @ComponentScan.Filter(
@@ -233,6 +239,19 @@ public class AIInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean(Clock.class)
     public Clock systemClock() {
         return Clock.systemUTC();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(AIHttpClientFactory.class)
+    public AIHttpClientFactory aiHttpClientFactory(RestTemplateBuilder restTemplateBuilder,
+                                                   AIHttpClientProperties properties) {
+        return new DefaultAIHttpClientFactory(restTemplateBuilder, properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(HttpClient.class)
+    public HttpClient aiHttpClient(AIHttpClientFactory factory) {
+        return factory.create();
     }
     
     // Vector database implementations are provided by dedicated vector modules

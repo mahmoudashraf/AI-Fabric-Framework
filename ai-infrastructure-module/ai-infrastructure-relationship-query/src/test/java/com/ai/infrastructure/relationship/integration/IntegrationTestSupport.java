@@ -37,6 +37,8 @@ public final class IntegrationTestSupport {
         registry.add("ai.providers.openai.api-key", () ->
             Optional.ofNullable(System.getenv("OPENAI_API_KEY"))
                 .orElse("sk-test-integration"));
+        registry.add("ai.providers.openai.base-url", () -> "https://api.openai.com/v1");
+        registry.add("ai.providers.openai.model", () -> "gpt-4o-mini");
         registry.add("ai.vector-db.type", () -> "lucene");
         registry.add("ai.vector-db.lucene.index-path", () -> LUCENE_INDEX_PATH.toString());
         registry.add("ai.vector-db.lucene.vector-dimension", () -> "384");

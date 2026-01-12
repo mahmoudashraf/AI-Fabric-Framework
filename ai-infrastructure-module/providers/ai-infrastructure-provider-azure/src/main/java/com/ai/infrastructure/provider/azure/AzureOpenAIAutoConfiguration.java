@@ -3,9 +3,10 @@ package com.ai.infrastructure.provider.azure;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
+import com.ai.infrastructure.http.AIHttpClientFactory;
+import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.provider.ProviderConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -14,7 +15,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
 
 /**
  * Auto-configuration for the Azure OpenAI provider module.
@@ -55,19 +57,21 @@ public class AzureOpenAIAutoConfiguration {
     @ConditionalOnBean(name = "azureProviderConfig")
     public AzureOpenAIProvider azureOpenAIProvider(@Qualifier("azureProviderConfig") ProviderConfig providerConfig,
                                                    AIProviderConfig aiProviderConfig,
-                                                   ObjectProvider<RestTemplate> restTemplateProvider) {
-        RestTemplate restTemplate = restTemplateProvider.getIfAvailable(RestTemplate::new);
-        return new AzureOpenAIProvider(providerConfig, aiProviderConfig.getAzure(), restTemplate);
+                                                   AIHttpClientFactory httpClientFactory) {
+        Duration readTimeout = providerConfig.getTimeoutSeconds() != null
+            ? Duration.ofSeconds(providerConfig.getTimeoutSeconds())
+            : null;
+        HttpClient httpClient = httpClientFactory.create(Duration.ofSeconds(5), readTimeout);
+        return new AzureOpenAIProvider(providerConfig, aiProviderConfig.getAzure(), httpClient);
     }
 
     @Bean
     @ConditionalOnBean(name = "azureProviderConfig")
     @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "azure")
     public EmbeddingProvider azureEmbeddingProvider(AIProviderConfig providerConfig,
-                                                    ObjectProvider<RestTemplate> restTemplateProvider) {
-        AzureOpenAIEmbeddingProvider embeddingProvider = new AzureOpenAIEmbeddingProvider(providerConfig);
-        restTemplateProvider.ifAvailable(embeddingProvider::setRestTemplate);
-        return embeddingProvider;
+                                                    AIHttpClientFactory httpClientFactory) {
+        HttpClient httpClient = httpClientFactory.create();
+        return new AzureOpenAIEmbeddingProvider(providerConfig, httpClient);
     }
 
     private String normalizeEndpoint(String endpoint) {

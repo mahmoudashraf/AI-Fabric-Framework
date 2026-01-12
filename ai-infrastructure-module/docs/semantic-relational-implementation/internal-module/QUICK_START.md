@@ -11,7 +11,7 @@ This guide walks through bootstrapping the `ai-infrastructure-relationship-query
 ## 2. Add the Dependency
 ```xml
 <dependency>
-    <groupId>com.ai.infrastructure</groupId>
+    <groupId>com.ai.fabric</groupId>
     <artifactId>ai-infrastructure-relationship-query</artifactId>
     <version>${project.version}</version>
 </dependency>
@@ -20,7 +20,8 @@ The module auto-registers via `RelationshipQueryAutoConfiguration`.
 
 ## 3. Minimum Configuration
 ```properties
-ai.infrastructure.relationship.enabled=true
+ai.relationship.enabled=true
+# (alias) ai.infrastructure.relationship.enabled=true
 ai.infrastructure.relationship.max-traversal-depth=3
 ai.providers.llm-provider=openai
 ai.providers.embedding-provider=onnx

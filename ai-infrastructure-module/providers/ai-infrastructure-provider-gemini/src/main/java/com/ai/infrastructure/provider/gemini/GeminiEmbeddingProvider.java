@@ -5,6 +5,7 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.http.HttpClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -15,7 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 import java.util.*;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 public class GeminiEmbeddingProvider implements EmbeddingProvider {
     
     private final AIProviderConfig aiProviderConfig;
-    private RestTemplate restTemplate;
+    private final HttpClient httpClient;
     private boolean available = false;
     private int embeddingDimension = 768; // Default for text-embedding-004 (actual dimension will be determined at runtime)
     
@@ -55,8 +55,6 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
                 available = false;
                 return;
             }
-            
-            restTemplate = new RestTemplate();
             
             // Test connection with a small embedding call
             try {
@@ -94,7 +92,7 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
     
     @Override
     public boolean isAvailable() {
-        return available && restTemplate != null;
+        return available && httpClient != null;
     }
     
     @Override
@@ -194,7 +192,7 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
         long backoffMs = 400;
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
-                return restTemplate.exchange(url, method, entity, responseType);
+                return httpClient.exchange(url, method, entity, responseType);
             } catch (HttpStatusCodeException ex) {
                 HttpStatusCode statusCode = ex.getStatusCode();
                 int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();

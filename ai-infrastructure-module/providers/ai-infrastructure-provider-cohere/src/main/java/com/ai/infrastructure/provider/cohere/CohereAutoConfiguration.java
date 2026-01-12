@@ -3,9 +3,10 @@ package com.ai.infrastructure.provider.cohere;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
+import com.ai.infrastructure.http.AIHttpClientFactory;
+import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.provider.ProviderConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -14,7 +15,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
 
 /**
  * Auto-configuration for the Cohere provider module.
@@ -53,15 +55,20 @@ public class CohereAutoConfiguration {
     @Bean
     @ConditionalOnBean(name = "cohereProviderConfig")
     public CohereProvider cohereProvider(@Qualifier("cohereProviderConfig") ProviderConfig providerConfig,
-                                         ObjectProvider<RestTemplate> restTemplateProvider) {
-        RestTemplate restTemplate = restTemplateProvider.getIfAvailable(RestTemplate::new);
-        return new CohereProvider(providerConfig, restTemplate);
+                                         AIHttpClientFactory httpClientFactory) {
+        HttpClient httpClient = httpClientFactory.create(
+            Duration.ofSeconds(5),
+            providerConfig.getTimeoutSeconds() != null ? Duration.ofSeconds(providerConfig.getTimeoutSeconds()) : null
+        );
+        return new CohereProvider(providerConfig, httpClient);
     }
 
     @Bean
     @ConditionalOnBean(name = "cohereProviderConfig")
     @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "cohere")
-    public EmbeddingProvider cohereEmbeddingProvider(AIProviderConfig aiProviderConfig) {
-        return new CohereEmbeddingProvider(aiProviderConfig);
+    public EmbeddingProvider cohereEmbeddingProvider(AIProviderConfig aiProviderConfig,
+                                                     AIHttpClientFactory httpClientFactory) {
+        HttpClient httpClient = httpClientFactory.create();
+        return new CohereEmbeddingProvider(aiProviderConfig, httpClient);
     }
 }
