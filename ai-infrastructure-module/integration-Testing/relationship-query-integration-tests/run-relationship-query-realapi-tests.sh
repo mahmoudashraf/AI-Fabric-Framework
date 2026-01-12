@@ -48,8 +48,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # Configuration
-# Use SPRING_PROFILES_ACTIVE if set (e.g., from GitHub Actions), otherwise default to realapi
-MAVEN_PROFILE="${SPRING_PROFILES_ACTIVE:-realapi}"
+# - Maven profile controls which Maven executions run (RealAPI tests live under the `realapi` Maven profile).
+# - Spring profiles control Spring Boot configuration overlays (e.g., `testcontainers`).
+MAVEN_PROFILE="realapi"
+SPRING_PROFILE="${SPRING_PROFILES_ACTIVE:-realapi}"
 TEST_MODULE="relationship-query-integration-tests"
 MATRIX_SPEC="${1:-openai:onnx}"
 VECTOR_DB="${2:-}"
@@ -263,11 +265,18 @@ export AI_INFRASTRUCTURE_EMBEDDING_PROVIDER="${AI_INFRASTRUCTURE_EMBEDDING_PROVI
 print_header "Test Configuration"
 print_info "Test Module: $TEST_MODULE"
 print_info "Maven Profile: $MAVEN_PROFILE"
+print_info "Spring Profiles: $SPRING_PROFILE"
 print_info "Provider Matrix: ${AI_INFRASTRUCTURE_LLM_PROVIDER}:${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER}"
 if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
     print_info "Vector DB: $AI_INFRASTRUCTURE_VECTOR_DATABASE"
 fi
 print_info "Test Classes: All *RealApiIntegrationTest.java in realapi/ directory"
+
+# Keep Spring's testcontainers support aligned with the selected vector database.
+# The shared `testcontainers-support` module's `application-testcontainers.yml` uses VECTOR_DB_TYPE.
+if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ] && [ -z "${VECTOR_DB_TYPE:-}" ]; then
+    export VECTOR_DB_TYPE="$AI_INFRASTRUCTURE_VECTOR_DATABASE"
+fi
 
 # Check if dependencies are built (skip in CI/CD - already built by workflow)
 if [ "${CI:-false}" == "true" ] || [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
@@ -295,9 +304,16 @@ print_header "Building Maven Command"
 cd "$SCRIPT_DIR"
 
 MAVEN_COMMAND="mvn -P${MAVEN_PROFILE}"
-MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=${MAVEN_PROFILE}"
+MAVEN_COMMAND="$MAVEN_COMMAND -Dspring.profiles.active=${SPRING_PROFILE}"
 MAVEN_COMMAND="$MAVEN_COMMAND -DforkCount=1"
 MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
+
+# Ensure the vector DB type is explicitly set as a system property so:
+# - Spring Boot auto-configurations match on `ai.vector-db.type`
+# - TestcontainersInitializer treats container types as explicitly specified (even if profiles are misconfigured)
+if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
+    MAVEN_COMMAND="$MAVEN_COMMAND -Dai.vector-db.type=${AI_INFRASTRUCTURE_VECTOR_DATABASE}"
+fi
 
 # Pass embedding provider as system property (more reliable than environment variables)
 # This ensures the selected provider from GitHub Actions UI is actually used
@@ -366,11 +382,15 @@ MAVEN_COMMAND="$MAVEN_COMMAND failsafe:integration-test failsafe:verify"
 print_header "Connectivity Verification"
 
 CONNECTIVITY_COMMAND="mvn -P${MAVEN_PROFILE}"
-CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dspring.profiles.active=${MAVEN_PROFILE}"
+CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dspring.profiles.active=${SPRING_PROFILE}"
 CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DforkCount=1"
 CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DreuseForks=false"
 CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.realapi.connectivity.check=true"
 CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dtest=RealApiConnectivityVerificationTest"
+
+if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
+    CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.vector-db.type=${AI_INFRASTRUCTURE_VECTOR_DATABASE}"
+fi
 
 # Use the same provider selection + enablement flags as the main run.
 if [ -n "$AI_INFRASTRUCTURE_EMBEDDING_PROVIDER" ]; then
@@ -456,4 +476,3 @@ else
     
     exit 1
 fi
-

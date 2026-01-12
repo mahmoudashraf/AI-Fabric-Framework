@@ -108,7 +108,18 @@ public class ResponseSanitizationProperties {
         if (type == null) {
             return false;
         }
-        boolean match = normalizedHighRiskTypes().contains(type.trim().toUpperCase(Locale.ROOT));
+        String normalized = type.trim().toUpperCase(Locale.ROOT);
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        Set<String> highRisk = normalizedHighRiskTypes();
+        boolean match = highRisk.contains(normalized);
+        if (!match) {
+            match = highRisk.stream()
+                .filter(candidate -> candidate != null && !candidate.isEmpty())
+                .anyMatch(normalized::contains);
+        }
         if (match) {
             log.debug("Detected high-risk type: {}", type);
         }
