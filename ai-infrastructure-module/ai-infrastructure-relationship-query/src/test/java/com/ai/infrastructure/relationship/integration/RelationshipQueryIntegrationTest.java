@@ -299,7 +299,6 @@ public class RelationshipQueryIntegrationTest {
         TransactionEntity.class
     })
     @EnableJpaRepositories(basePackageClasses = {
-        AISearchableEntityRepository.class,
         DocumentRepository.class,
         UserRepository.class,
         ProductRepository.class,

@@ -5,6 +5,9 @@ import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AISearchService;
+import com.ai.infrastructure.intent.orchestration.pipeline.DefaultOrchestrationPipeline;
+import com.ai.infrastructure.intent.orchestration.pipeline.Pipeline;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
@@ -121,6 +124,7 @@ public class AIInfrastructureAutoConfiguration {
     // Embedding provider implementations are supplied by dedicated modules
 
     @Bean
+    @ConditionalOnMissingBean(AIEmbeddingService.class)
     public AIEmbeddingService aiEmbeddingService(AIProviderConfig config,
                                                  List<EmbeddingProvider> embeddingProviders,
                                                  ObjectProvider<CacheManager> cacheManagerProvider,
@@ -150,16 +154,23 @@ public class AIInfrastructureAutoConfiguration {
                     .collect(Collectors.joining(", ")));
         }
         
-        CacheManager cacheManager = cacheManagerProvider.getIfAvailable(NoOpCacheManager::new);
+        CacheManager cacheManager = cacheManagerProvider.getIfUnique(NoOpCacheManager::new);
         EmbeddingProvider fallbackEmbeddingProvider = fallbackProvider != null ? fallbackProvider.getIfAvailable() : null;
         return new AIEmbeddingService(config, selectedProvider, cacheManager, fallbackEmbeddingProvider);
     }
     
     @Bean
+    @ConditionalOnMissingBean(AISearchService.class)
     public AISearchService aiSearchService(AIProviderConfig config,
                                            VectorSearchService vectorSearchService,
                                            VectorManagementService vectorManagementService) {
         return new AISearchService(config, vectorSearchService, vectorManagementService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(Pipeline.class)
+    public Pipeline orchestrationPipeline(List<PipelineStep> steps) {
+        return new DefaultOrchestrationPipeline(steps);
     }
     
     // AdvancedRAGService is now provided by ai-infrastructure-rag module
@@ -373,7 +384,7 @@ public class AIInfrastructureAutoConfiguration {
     public VectorSearchService vectorSearchService(AIProviderConfig config,
                                                   VectorDatabaseService vectorDatabaseService,
                                                   ObjectProvider<CacheManager> cacheManagerProvider) {
-        CacheManager cacheManager = cacheManagerProvider.getIfAvailable(NoOpCacheManager::new);
+        CacheManager cacheManager = cacheManagerProvider.getIfUnique(NoOpCacheManager::new);
         return new VectorSearchService(config, vectorDatabaseService, cacheManager);
     }
     

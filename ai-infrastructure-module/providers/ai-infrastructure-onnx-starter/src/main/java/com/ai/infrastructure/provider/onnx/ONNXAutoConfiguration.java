@@ -24,6 +24,7 @@ public class ONNXAutoConfiguration {
     @Bean
     @Primary
     @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "onnx", matchIfMissing = true)
+    @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
     public EmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
         log.info("Creating ONNX Embedding Provider (primary/default)");
         ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
