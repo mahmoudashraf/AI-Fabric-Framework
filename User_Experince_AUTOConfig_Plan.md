@@ -24,6 +24,8 @@ This repository is organized as a Maven multi-module build under `ai-infrastruct
 ai-infrastructure-module/
 ├── pom.xml                                # aggregator (modules), not a runtime “starter”
 ├── ai-infrastructure-core/                # artifactId: ai-fabric-core
+├── ai-infrastructure-indexing/            # artifactId: ai-infrastructure-indexing (optional indexing + scheduling)
+├── ai-fabric-starter/                     # artifactId: ai-fabric-starter (convenience starter: core + indexing)
 ├── ai-infrastructure-web/                 # artifactId: ai-fabric-web
 ├── ai-infrastructure-rag/
 ├── ai-infrastructure-relationship-query/
@@ -57,8 +59,8 @@ Examples present today:
    - Behavior module already includes `@EntityScan(...)` and `@ComponentScan(...)`, but core does not.
 
 3. **HTTP provider coupling**
-   - Providers and `ProviderConfiguration` use `RestTemplate` directly.
-   - This makes it harder to standardize concerns (timeouts, retries, auth, observability), and complicates provider testing/mocking.
+   - Providers should not couple directly to `RestTemplate`.
+   - Standardize HTTP concerns behind a small internal abstraction (timeouts, retries, auth, observability) to simplify provider code and testing.
 
 4. **Config surface area is large**
    - There are multiple property classes and YAML presets; some defaults exist as module resources.
@@ -141,6 +143,8 @@ Then:
 - move provider code to depend on `HttpClient` instead of creating/managing `RestTemplate`
 - centralize timeouts/retries/logging
 
+**Status note:** A `HttpClient` abstraction + factory already exists in `ai-fabric-core` and providers should depend on it (not raw `RestTemplate`).
+
 ### 5) Provide a “minimum config” quickstart that matches current modules
 
 Document and keep working a minimal configuration that boots the framework.
@@ -176,4 +180,3 @@ The guide should present:
 2. JPA entities/repositories required by enabled modules work without manual `@EntityScan`/`@EnableJpaRepositories` (or are clearly separated into optional persistence modules).
 3. Providers do not instantiate their own HTTP client; HTTP concerns are centralized.
 4. Configuration failures are explicit and fail-fast (aligned with framework security posture).
-

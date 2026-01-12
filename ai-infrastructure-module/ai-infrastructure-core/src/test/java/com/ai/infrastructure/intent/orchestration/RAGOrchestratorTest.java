@@ -116,7 +116,10 @@ class RAGOrchestratorTest {
         piiDetectionProperties.setEnabled(true);
         piiDetectionProperties.setDetectionDirection(PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT);
         piiDetectionService = new PIIDetectionService(piiDetectionProperties);
-        responseSanitizer = new ResponseSanitizer(piiDetectionService, sanitizationProperties);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
+        when(piiProvider.getIfAvailable()).thenReturn(piiDetectionService);
+        responseSanitizer = new ResponseSanitizer(piiProvider, sanitizationProperties);
         when(intentHistoryService.recordIntent(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
         when(securityService.analyzeRequest(any())).thenReturn(
             AISecurityResponse.builder()
@@ -155,10 +158,13 @@ class RAGOrchestratorTest {
         ObjectProvider<RAGProvider> ragProviderProvider = mock(ObjectProvider.class);
         lenient().when(ragProviderProvider.getIfAvailable()).thenReturn(ragProvider);
 
+        ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
+        lenient().when(piiProvider.getIfAvailable()).thenReturn(piiDetectionService);
+
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
-            new PIIDetectionStep(piiDetectionService, piiDetectionProperties),
+            new PIIDetectionStep(piiProvider, piiDetectionProperties),
             new ComplianceCheckStep(complianceService),
             new IntentExtractionStep(intentQueryExtractor),
             new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider),

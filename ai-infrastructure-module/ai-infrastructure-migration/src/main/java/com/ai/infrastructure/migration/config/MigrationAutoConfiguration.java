@@ -13,6 +13,7 @@ import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
 
 @AutoConfiguration
+@AutoConfigurationPackage(basePackages = "com.ai.infrastructure.migration")
 @AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "ai.migration", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({MigrationProperties.class, AIIndexingProperties.class})

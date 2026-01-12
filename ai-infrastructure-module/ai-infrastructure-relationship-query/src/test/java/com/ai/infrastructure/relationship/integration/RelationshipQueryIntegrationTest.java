@@ -56,7 +56,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -75,6 +74,7 @@ import java.util.List;
 import java.util.Map;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.EntityManager;
+import com.ai.infrastructure.repository.IntentHistoryRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -267,42 +267,19 @@ public class RelationshipQueryIntegrationTest {
             .build();
     }
 
-    @SpringBootApplication(
-        scanBasePackages = {
-            "com.ai.infrastructure.relationship",
-            "com.ai.infrastructure.repository"
-        },
-        exclude = {
-            ONNXAutoConfiguration.class,
-            LuceneVectorAutoConfiguration.class
-        }
-    )
+    @SpringBootApplication(exclude = {
+        ONNXAutoConfiguration.class,
+        LuceneVectorAutoConfiguration.class
+    })
     @EntityScan(basePackageClasses = {
         AISearchableEntity.class,
-        DocumentEntity.class,
-        UserEntity.class,
-        ProductEntity.class,
-        BrandEntity.class,
-        PatientEntity.class,
-        MedicalCaseEntity.class,
-        CandidateEntity.class,
-        RecruiterEntity.class,
-        AccountEntity.class,
-        TransactionEntity.class
+        DocumentEntity.class
     })
     @EnableJpaRepositories(basePackageClasses = {
         DocumentRepository.class,
-        UserRepository.class,
-        ProductRepository.class,
-        BrandRepository.class,
-        PatientRepository.class,
-        MedicalCaseRepository.class,
-        CandidateRepository.class,
-        RecruiterRepository.class,
-        AccountRepository.class,
-        TransactionRepository.class
+        AISearchableEntityRepository.class,
+        IntentHistoryRepository.class
     })
-    @EnableConfigurationProperties(AIProviderConfig.class)
     @Import({
         IntegrationTestBeans.class,
         RelationshipQueryAutoConfiguration.class

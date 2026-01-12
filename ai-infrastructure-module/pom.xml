@@ -30,6 +30,8 @@
 
     <modules>
         <module>ai-infrastructure-core</module>
+        <module>ai-infrastructure-indexing</module>
+        <module>ai-fabric-starter</module>
         <module>ai-infrastructure-rag</module>
         <module>ai-infrastructure-web</module>
         <module>providers/ai-infrastructure-provider-openai</module>

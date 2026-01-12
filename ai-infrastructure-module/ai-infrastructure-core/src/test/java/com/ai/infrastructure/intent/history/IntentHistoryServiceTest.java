@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,9 @@ class IntentHistoryServiceTest {
         detectionProperties.setEnabled(true);
 
         PIIDetectionService detectionService = new PIIDetectionService(detectionProperties);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> piiProvider = Mockito.mock(ObjectProvider.class);
+        when(piiProvider.getIfAvailable()).thenReturn(detectionService);
 
         IntentHistoryProperties historyProperties = new IntentHistoryProperties();
         historyProperties.setEnabled(true);
@@ -47,7 +51,7 @@ class IntentHistoryServiceTest {
 
         ObjectMapper objectMapper = new ObjectMapper();
 
-        service = new IntentHistoryService(repository, detectionService, objectMapper, historyProperties);
+        service = new IntentHistoryService(repository, piiProvider, objectMapper, historyProperties);
         when(repository.save(any(IntentHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -98,7 +102,7 @@ class IntentHistoryServiceTest {
 
         IntentHistoryService disabledService = new IntentHistoryService(
             repository,
-            new PIIDetectionService(new PIIDetectionProperties()),
+            piiProviderWith(new PIIDetectionService(new PIIDetectionProperties())),
             new ObjectMapper(),
             disabledProps
         );
@@ -113,5 +117,12 @@ class IntentHistoryServiceTest {
 
         assertThat(result).isEmpty();
         verify(repository, never()).save(any(IntentHistory.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<PIIDetectionService> piiProviderWith(PIIDetectionService detectionService) {
+        ObjectProvider<PIIDetectionService> provider = Mockito.mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(detectionService);
+        return provider;
     }
 }

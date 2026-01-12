@@ -7,12 +7,10 @@ import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.rag.config.RAGAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * Test Application for AI Infrastructure Integration Tests
@@ -35,15 +33,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     )
 )
 @Import({AIInfrastructureAutoConfiguration.class, RAGAutoConfiguration.class})
-@EntityScan(basePackages = {
-    "com.ai.infrastructure.entity",
-    "com.ai.infrastructure.it.entity",
-    "com.ai.infrastructure.migration.domain"
-})
-@EnableJpaRepositories(basePackages = {
-    "com.ai.infrastructure.it.repository",
-    "com.ai.infrastructure.migration.repository"
-})
 public class TestApplication {
 
     public static void main(String[] args) {

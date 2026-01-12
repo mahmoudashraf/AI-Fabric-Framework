@@ -1,7 +1,11 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.config.ProviderConfiguration;
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
+import com.ai.infrastructure.http.AIHttpClientFactory;
+import com.ai.infrastructure.http.AIHttpClientProperties;
+import com.ai.infrastructure.http.DefaultAIHttpClientFactory;
+import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.testing.RealApiConnectivityVerifier;
 import org.junit.jupiter.api.Test;
@@ -14,7 +18,10 @@ import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfigurat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -49,11 +56,29 @@ class RealApiConnectivityVerificationTest {
      * Importantly, since this is nested, it cannot accidentally disable JPA for the real relationship-query tests.</p>
      */
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class})
-    @EnableConfigurationProperties(AIProviderConfig.class)
+    @EnableAutoConfiguration(exclude = {
+        DataSourceAutoConfiguration.class,
+        HibernateJpaAutoConfiguration.class,
+        AIInfrastructureAutoConfiguration.class
+    })
+    @EnableConfigurationProperties({AIProviderConfig.class, AIHttpClientProperties.class})
     @ComponentScan(basePackageClasses = {AIProviderManager.class})
-    @Import(ProviderConfiguration.class)
+    @Import(ConnectivityHttpClientConfiguration.class)
     static class ConnectivityApp {
     }
-}
 
+    @Configuration(proxyBeanMethods = false)
+    static class ConnectivityHttpClientConfiguration {
+
+        @Bean
+        AIHttpClientFactory aiHttpClientFactory(RestTemplateBuilder restTemplateBuilder,
+                                                AIHttpClientProperties properties) {
+            return new DefaultAIHttpClientFactory(restTemplateBuilder, properties);
+        }
+
+        @Bean
+        HttpClient httpClient(AIHttpClientFactory factory) {
+            return factory.create();
+        }
+    }
+}

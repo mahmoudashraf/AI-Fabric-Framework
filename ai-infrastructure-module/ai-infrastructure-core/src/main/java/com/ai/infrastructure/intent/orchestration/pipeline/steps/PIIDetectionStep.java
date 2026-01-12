@@ -9,6 +9,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ public class PIIDetectionStep implements PipelineStep {
     // Dependencies
     // =========================================================================
     
-    private final PIIDetectionService piiDetectionService;
+    private final ObjectProvider<PIIDetectionService> piiDetectionService;
     private final PIIDetectionProperties piiDetectionProperties;
     
     // =========================================================================
@@ -110,11 +111,17 @@ public class PIIDetectionStep implements PipelineStep {
             log.debug(LOG_PII_DISABLED, detectionDirection);
             return context;
         }
+
+        PIIDetectionService detectionService = piiDetectionService.getIfAvailable();
+        if (detectionService == null) {
+            log.debug("PII detection requested but no PIIDetectionService bean is available. Skipping.");
+            return context;
+        }
         
         log.debug("Executing PII detection for request {}", context.getRequestId());
         
         String originalQuery = context.getOriginalQuery();
-        PIIDetectionResult piiAnalysis = piiDetectionService.analyze(originalQuery);
+        PIIDetectionResult piiAnalysis = detectionService.analyze(originalQuery);
         
         List<String> detectedPiiTypes = new ArrayList<>();
         String processedQuery = originalQuery;

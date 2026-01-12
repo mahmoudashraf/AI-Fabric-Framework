@@ -13,16 +13,6 @@ import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.cleanup.CleanupPolicyProvider;
-import com.ai.infrastructure.cleanup.DefaultCleanupPolicyProvider;
-import com.ai.infrastructure.cleanup.SearchableEntityCleanupScheduler;
-import com.ai.infrastructure.indexing.IndexingCoordinator;
-import com.ai.infrastructure.indexing.IndexingStrategyResolver;
-import com.ai.infrastructure.indexing.queue.IndexingQueueService;
-import com.ai.infrastructure.indexing.worker.AsyncIndexingWorker;
-import com.ai.infrastructure.indexing.worker.BatchIndexingWorker;
-import com.ai.infrastructure.indexing.worker.IndexingCleanupScheduler;
-import com.ai.infrastructure.indexing.worker.IndexingWorkProcessor;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
@@ -39,7 +29,6 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.VectorDatabaseServiceAdapter;
 import com.ai.infrastructure.health.AIHealthIndicator;
-import com.ai.infrastructure.repository.IndexingQueueRepository;
 import com.ai.infrastructure.storage.AIStorageProperties;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.validation.AIProviderConfigValidator;
@@ -51,10 +40,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.CacheManager;
@@ -64,8 +55,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.core.io.ResourceLoader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -85,6 +74,14 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @AutoConfiguration
+@AutoConfigurationPackage(basePackages = {
+    "com.ai.infrastructure.entity",
+    "com.ai.infrastructure.repository"
+})
+@AutoConfigureBefore({
+    org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration.class,
+    org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration.class
+})
 	    @EnableConfigurationProperties({
 	        AIProviderConfig.class,
 	        AIServiceConfig.class,
@@ -98,7 +95,7 @@ import java.util.stream.Collectors;
 	        AICleanupProperties.class,
 	        AIStorageProperties.class,
             AIHttpClientProperties.class
-	    })
+		    })
 @ComponentScan(
     basePackages = "com.ai.infrastructure",
     excludeFilters = @ComponentScan.Filter(
@@ -111,14 +108,11 @@ import java.util.stream.Collectors;
             "com\\.ai\\.infrastructure\\.onnxstarter\\..*",
             "com\\.ai\\.infrastructure\\.config\\..*"
         }
-    )
-)
-@EntityScan(basePackages = "com.ai.infrastructure.entity")
-@EnableJpaRepositories(basePackages = "com.ai.infrastructure.repository")
-@Import({ProviderConfiguration.class, AISearchableStorageStrategyAutoConfiguration.class})
+	    )
+	)
+@Import(AISearchableStorageStrategyAutoConfiguration.class)
 @ConditionalOnClass(AICapableAspect.class)
 @EnableAspectJAutoProxy
-@EnableScheduling
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     
@@ -183,10 +177,10 @@ public class AIInfrastructureAutoConfiguration {
     // See com.ai.infrastructure.rag.config.RAGAutoConfiguration
     
     @Bean
-    public AISecurityService aiSecurityService(PIIDetectionService piiDetectionService,
+    public AISecurityService aiSecurityService(ObjectProvider<PIIDetectionService> piiDetectionService,
                                                Clock clock,
                                                SecurityProperties securityProperties) {
-        return new AISecurityService(piiDetectionService, clock, securityProperties);
+        return new AISecurityService(piiDetectionService.getIfAvailable(), clock, securityProperties);
     }
     
     @Bean
@@ -268,124 +262,16 @@ public class AIInfrastructureAutoConfiguration {
         return new VectorManagementService(vectorDatabaseService);
     }
     
-    @Bean
-    @ConditionalOnMissingBean
-    public CleanupPolicyProvider cleanupPolicyProvider(AICleanupProperties cleanupProperties) {
-        return new DefaultCleanupPolicyProvider(cleanupProperties);
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "ai.cleanup", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public SearchableEntityCleanupScheduler searchableEntityCleanupScheduler(
-        AICleanupProperties cleanupProperties,
-        CleanupPolicyProvider cleanupPolicyProvider,
-        AISearchableEntityStorageStrategy storageStrategy,
-        VectorManagementService vectorManagementService,
-        ObjectMapper objectMapper,
-        Clock clock
-    ) {
-        return new SearchableEntityCleanupScheduler(
-            cleanupProperties,
-            cleanupPolicyProvider,
-            storageStrategy,
-            vectorManagementService,
-            objectMapper,
-            clock
-        );
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public IndexingStrategyResolver indexingStrategyResolver() {
-        return new IndexingStrategyResolver();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public IndexingQueueService indexingQueueService(
-        IndexingQueueRepository repository,
-        AIIndexingProperties indexingProperties,
-        Clock clock
-    ) {
-        return new IndexingQueueService(repository, indexingProperties, clock);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public IndexingWorkProcessor indexingWorkProcessor(
-        ObjectMapper objectMapper,
-        AIEntityConfigurationLoader configurationLoader,
-        AICapabilityService capabilityService
-    ) {
-        return new IndexingWorkProcessor(objectMapper, configurationLoader, capabilityService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public IndexingCoordinator indexingCoordinator(
-        IndexingStrategyResolver indexingStrategyResolver,
-        IndexingQueueService indexingQueueService,
-        AIEntityConfigurationLoader configurationLoader,
-        AIIndexingProperties indexingProperties,
-        ObjectMapper objectMapper,
-        AICapabilityService capabilityService
-    ) {
-        return new IndexingCoordinator(
-            indexingStrategyResolver,
-            indexingQueueService,
-            configurationLoader,
-            indexingProperties,
-            objectMapper,
-            capabilityService
-        );
-    }
-
-    @Bean
-    public AsyncIndexingWorker asyncIndexingWorker(
-        IndexingQueueService indexingQueueService,
-        IndexingWorkProcessor indexingWorkProcessor,
-        AIIndexingProperties indexingProperties
-    ) {
-        return new AsyncIndexingWorker(indexingQueueService, indexingWorkProcessor, indexingProperties);
-    }
-
-    @Bean
-    public BatchIndexingWorker batchIndexingWorker(
-        IndexingQueueService indexingQueueService,
-        IndexingWorkProcessor indexingWorkProcessor,
-        AIIndexingProperties indexingProperties
-    ) {
-        return new BatchIndexingWorker(indexingQueueService, indexingWorkProcessor, indexingProperties);
-    }
-
-    @Bean
-    public IndexingCleanupScheduler indexingCleanupScheduler(
-        IndexingQueueService indexingQueueService,
-        AIIndexingProperties indexingProperties,
-        Clock clock
-    ) {
-        return new IndexingCleanupScheduler(indexingQueueService, indexingProperties, clock);
-    }
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public AICapabilityService aiCapabilityService(
-            AIEmbeddingService embeddingService,
+	    @Bean
+	    @ConditionalOnMissingBean
+	    public AICapabilityService aiCapabilityService(
+	            AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
             AISearchableEntityStorageStrategy storageStrategy,
             AIEntityConfigurationLoader entityConfigurationLoader,
             VectorManagementService vectorManagementService,
             AnnotationFieldScanner annotationFieldScanner) {
         return new AICapabilityService(embeddingService, aiCoreService, storageStrategy, entityConfigurationLoader, vectorManagementService, annotationFieldScanner);
-    }
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public AICapableAspect aiCapableAspect(
-            AIEntityConfigurationLoader configLoader,
-            AICapabilityService aiCapabilityService,
-            IndexingCoordinator indexingCoordinator) {
-        return new AICapableAspect(configLoader, aiCapabilityService, indexingCoordinator);
     }
     
     @Bean

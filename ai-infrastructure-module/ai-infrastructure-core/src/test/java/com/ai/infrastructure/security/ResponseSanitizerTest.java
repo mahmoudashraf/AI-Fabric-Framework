@@ -10,6 +10,7 @@ import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -20,6 +21,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -38,7 +40,11 @@ class ResponseSanitizerTest {
         sanitizationProperties.setHighRiskTypes(Set.of("CREDIT_CARD"));
         sanitizationProperties.setGuidanceMessage("Please avoid sharing card numbers.");
 
-        sanitizer = new ResponseSanitizer(new PIIDetectionService(piiDetectionProperties), sanitizationProperties);
+        PIIDetectionService piiDetectionService = new PIIDetectionService(piiDetectionProperties);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
+        when(piiProvider.getIfAvailable()).thenReturn(piiDetectionService);
+        sanitizer = new ResponseSanitizer(piiProvider, sanitizationProperties);
         eventPublisher = mock(ApplicationEventPublisher.class);
         ReflectionTestUtils.setField(sanitizer, "eventPublisher", eventPublisher);
     }

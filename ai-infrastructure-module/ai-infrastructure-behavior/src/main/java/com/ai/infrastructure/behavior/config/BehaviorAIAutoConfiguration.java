@@ -8,22 +8,25 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.DependsOn;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Slf4j
 @AutoConfiguration
+@AutoConfigurationPackage(basePackages = "com.ai.infrastructure.behavior")
 @AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
+@AutoConfigureBefore({
+    org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration.class,
+    org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration.class
+})
 @ConditionalOnProperty(prefix = "ai.behavior", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @DependsOn("AIEntityConfigurationLoader")
 @ComponentScan(basePackages = "com.ai.infrastructure.behavior")
-@EntityScan(basePackages = "com.ai.infrastructure.behavior.entity")
-@EnableJpaRepositories(basePackages = "com.ai.infrastructure.behavior.repository")
 @EnableScheduling
 public class BehaviorAIAutoConfiguration {
     
