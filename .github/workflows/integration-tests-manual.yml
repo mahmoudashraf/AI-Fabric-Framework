@@ -685,6 +685,7 @@ jobs:
           [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
           [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
           [ -n "${{ github.event.inputs.azure_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.azure_api_key }}" || true
+          [ -n "${{ github.event.inputs.pinecone_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.pinecone_api_key }}" || true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -1016,6 +1017,7 @@ jobs:
           [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
           [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
           [ -n "${{ github.event.inputs.azure_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.azure_api_key }}" || true
+          [ -n "${{ github.event.inputs.pinecone_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.pinecone_api_key }}" || true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
