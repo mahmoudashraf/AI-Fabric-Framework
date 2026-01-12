@@ -21,6 +21,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -44,7 +46,7 @@ import java.lang.reflect.Method;
 @Slf4j
 @RequiredArgsConstructor
 public class ONNXEmbeddingProvider implements EmbeddingProvider {
-    
+
     private final AIProviderConfig config;
 
     private String modelPath;
@@ -75,6 +77,7 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     private static final int TOKEN_PAD = 0;    // [PAD] token
     private static final int TOKEN_UNK = 100;  // [UNK] token
     private static final int VOCAB_SIZE = 30522; // BERT vocabulary size
+    private static final ConcurrentMap<String, Path> CLASSPATH_RESOURCE_CACHE = new ConcurrentHashMap<>();
     
     @PostConstruct
     public void initialize() {
@@ -238,6 +241,12 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
             if (resourcePath.startsWith("/")) {
                 resourcePath = resourcePath.substring(1);
             }
+
+            Path cached = CLASSPATH_RESOURCE_CACHE.get(resourcePath);
+            if (cached != null && Files.exists(cached)) {
+                return cached;
+            }
+
             try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
                 if (inputStream == null) {
                     log.warn("Classpath resource '{}' not found for {}", resourcePath, descriptor);
@@ -245,8 +254,29 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
                 }
                 String suffix = resourcePath.contains(".") ? resourcePath.substring(resourcePath.lastIndexOf('.')) : "";
                 Path tempFile = Files.createTempFile("onnx-" + descriptor + "-", suffix);
-                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException ex) {
+                    try {
+                        Files.deleteIfExists(tempFile);
+                    } catch (IOException ignored) {
+                        // Best-effort cleanup for partially written temp files.
+                    }
+                    throw ex;
+                }
+
                 tempFile.toFile().deleteOnExit();
+
+                Path existing = CLASSPATH_RESOURCE_CACHE.putIfAbsent(resourcePath, tempFile);
+                if (existing != null) {
+                    try {
+                        Files.deleteIfExists(tempFile);
+                    } catch (IOException ignored) {
+                        // Another thread won the race; keep deleteOnExit as fallback.
+                    }
+                    return existing;
+                }
+
                 return tempFile;
             }
         }
@@ -939,4 +969,3 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
         }
     }
 }
-

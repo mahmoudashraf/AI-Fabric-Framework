@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.util.MetadataJsonSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,6 +41,8 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
             
             String vectorId = UUID.randomUUID().toString();
             LocalDateTime now = LocalDateTime.now();
+
+            Map<String, Object> safeMetadata = normalizeMetadata(metadata);
             
             VectorRecord vectorRecord = VectorRecord.builder()
                 .vectorId(vectorId)
@@ -47,7 +50,7 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
                 .entityId(entityId)
                 .content(content)
                 .embedding(embedding)
-                .metadata(metadata != null ? metadata : new HashMap<>())
+                .metadata(safeMetadata)
                 .aiAnalysis(null)
                 .createdAt(now)
                 .updatedAt(now)
@@ -79,6 +82,8 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
                 log.warn("Vector not found for vectorId: {}", vectorId);
                 return false;
             }
+
+            Map<String, Object> safeMetadata = normalizeMetadata(metadata);
             
             VectorRecord updatedRecord = VectorRecord.builder()
                 .vectorId(existingRecord.getVectorId())
@@ -86,7 +91,7 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
                 .entityId(entityId)
                 .content(content)
                 .embedding(embedding)
-                .metadata(metadata != null ? metadata : new HashMap<>())
+                .metadata(safeMetadata)
                 .aiAnalysis(existingRecord.getAiAnalysis())
                 .createdAt(existingRecord.getCreatedAt())
                 .updatedAt(LocalDateTime.now())
@@ -501,5 +506,25 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
         }
         
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    private Map<String, Object> normalizeMetadata(Map<String, Object> metadata) {
+        Map<String, Object> safeMetadata = metadata == null ? new LinkedHashMap<>() : new LinkedHashMap<>(metadata);
+        Object rawValue = safeMetadata.get("raw");
+        if (rawValue == null) {
+            safeMetadata.put("raw", MetadataJsonSerializer.serialize(stripRaw(safeMetadata)));
+        } else {
+            safeMetadata.put("raw", rawValue.toString());
+        }
+        return safeMetadata;
+    }
+
+    private Map<String, Object> stripRaw(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty() || !metadata.containsKey("raw")) {
+            return metadata == null ? Collections.emptyMap() : metadata;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>(metadata);
+        copy.remove("raw");
+        return copy;
     }
 }

@@ -379,7 +379,7 @@ public class VectorDatabaseContainerAutoConfiguration {
         log.info("Starting Qdrant container...");
 
         try {
-            String image = getImageVersion("qdrant", "qdrant/qdrant:v1.7.4");
+            String image = getImageVersion("qdrant", "qdrant/qdrant:v1.16.1");
             GenericContainer<?> container = new GenericContainer<>(
                 DockerImageName.parse(image)
             )
@@ -831,7 +831,7 @@ mvn verify \
 
 # Use a different Qdrant version
 mvn verify \
-    -Dtestcontainers.qdrant.image=qdrant/qdrant:v1.6.0 \
+    -Dtestcontainers.qdrant.image=qdrant/qdrant:v1.16.1 \
     -Dai.vector-db.type=qdrant \
     -Dspring.profiles.active=testcontainers
 ```
@@ -893,7 +893,7 @@ Override default health check timeouts:
 public class CustomContainerConfig {
     @Bean
     public GenericContainer<?> customQdrantContainer() {
-        return new GenericContainer<>("qdrant/qdrant:v1.7.4")
+        return new GenericContainer<>("qdrant/qdrant:v1.16.1")
             .waitingFor(Wait.forHttp("/readyz")
                 .withStartupTimeout(Duration.ofMinutes(10))); // Extended timeout
     }
@@ -914,7 +914,7 @@ public class NetworkContainerConfig {
     
     @Bean
     public GenericContainer<?> qdrantContainer(Network network) {
-        return new GenericContainer<>("qdrant/qdrant:v1.7.4")
+        return new GenericContainer<>("qdrant/qdrant:v1.16.1")
             .withNetwork(network)
             .withNetworkAliases("qdrant");
     }
@@ -1051,7 +1051,7 @@ Container startup times vary by provider:
 3. **Image Pre-pulling**: Pre-pull Docker images before CI runs:
    ```bash
    docker pull milvusdb/milvus:v2.4.1-latest
-   docker pull qdrant/qdrant:v1.7.4
+   docker pull qdrant/qdrant:v1.16.1
    ```
 4. **Resource Allocation**: Allocate sufficient Docker resources (RAM, CPU)
 5. **Test Grouping**: Group tests by provider to minimize container restarts
@@ -1259,7 +1259,7 @@ pipeline {
 | Provider | Image | Ports | Status |
 |----------|-------|-------|--------|
 | Milvus | `milvusdb/milvus:v2.4.1-latest` | 19530 (gRPC) | Official Testcontainers module |
-| Qdrant | `qdrant/qdrant:v1.7.4` | 6333 (REST), 6334 (gRPC) | GenericContainer |
+| Qdrant | `qdrant/qdrant:v1.16.1` | 6333 (REST), 6334 (gRPC) | GenericContainer |
 | Weaviate | `semitechnologies/weaviate:1.23.0` | 8080 (REST) | GenericContainer |
 | Chroma | `chromadb/chroma:0.4.22` | 8000 (REST) | GenericContainer |
 | pgvector | `pgvector/pgvector:pg16` | 5432 (PostgreSQL) | PostgreSQLContainer |
@@ -1665,7 +1665,7 @@ Default container image versions used:
 | Provider | Default Image | Tested Version |
 |----------|---------------|----------------|
 | Milvus | `milvusdb/milvus:v2.4.1-latest` | v2.4.1 |
-| Qdrant | `qdrant/qdrant:v1.7.4` | v1.7.4 |
+| Qdrant | `qdrant/qdrant:v1.16.1` | v1.16.1 |
 | Weaviate | `semitechnologies/weaviate:1.23.0` | 1.23.0 |
 | Chroma | `chromadb/chroma:0.4.22` | 0.4.22 |
 | pgvector | `pgvector/pgvector:pg16` | PostgreSQL 16 |

@@ -5,14 +5,12 @@ import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.web.client.RestTemplate;
 
 /**
  * Auto-configuration for Pinecone-backed vector database integration.
@@ -23,10 +21,8 @@ public class PineconeVectorAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config,
-                                                                        ObjectProvider<RestTemplate> restTemplateProvider) {
-        RestTemplate restTemplate = restTemplateProvider.getIfAvailable(RestTemplate::new);
-        return new PineconeVectorDatabaseService(config, restTemplate);
+    public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config) {
+        return new PineconeVectorDatabaseService(config);
     }
 
     @Bean

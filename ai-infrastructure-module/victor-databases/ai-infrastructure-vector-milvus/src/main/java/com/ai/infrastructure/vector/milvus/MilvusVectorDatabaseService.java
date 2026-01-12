@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.util.MetadataJsonSerializer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.milvus.exception.IllegalResponseException;
@@ -17,12 +18,15 @@ import io.milvus.grpc.SearchResults;
 import io.milvus.grpc.CollectionSchema;
 import io.milvus.grpc.FieldSchema;
 import io.milvus.grpc.KeyValuePair;
+import io.milvus.common.clientenum.ConsistencyLevelEnum;
 import io.milvus.param.ConnectParam;
 import io.milvus.param.R;
 import io.milvus.param.collection.CreateCollectionParam;
 import io.milvus.param.collection.DescribeCollectionParam;
+import io.milvus.param.collection.FlushParam;
 import io.milvus.param.collection.HasCollectionParam;
 import io.milvus.param.collection.LoadCollectionParam;
+import io.milvus.param.control.GetFlushStateParam;
 import io.milvus.param.dml.DeleteParam;
 import io.milvus.param.dml.InsertParam;
 import io.milvus.param.dml.QueryParam;
@@ -122,7 +126,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         fields.add(new InsertParam.Field(FIELD_VECTOR_ID, Collections.singletonList(vectorId)));
         fields.add(new InsertParam.Field(FIELD_ENTITY_ID, Collections.singletonList(entityId)));
         fields.add(new InsertParam.Field(FIELD_CONTENT, Collections.singletonList(content != null ? content : "")));
-        fields.add(new InsertParam.Field(FIELD_METADATA, Collections.singletonList(metadataToJson(metadata))));
+        fields.add(new InsertParam.Field(FIELD_METADATA, Collections.singletonList(MetadataJsonSerializer.serialize(stripRaw(metadata)))));
         fields.add(new InsertParam.Field(FIELD_VECTOR, Collections.singletonList(toFloatList(embedding))));
 
         InsertParam insertParam = InsertParam.newBuilder()
@@ -132,6 +136,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
 
         R<MutationResult> response = client.insert(insertParam);
         verifySuccess(response, "insert vector into Milvus");
+        flushCollection(collection);
         return vectorId;
     }
 
@@ -146,10 +151,15 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
     public Optional<VectorRecord> getVector(String vectorId) {
         Objects.requireNonNull(vectorId, "vectorId must not be null");
         String collection = extractEntityType(vectorId);
+        if (!collectionExists(collection)) {
+            return Optional.empty();
+        }
         ensureCollectionLoaded(collection);
 
         QueryParam queryParam = QueryParam.newBuilder()
             .withCollectionName(collection)
+            .withConsistencyLevel(ConsistencyLevelEnum.STRONG)
+            .withIgnoreGrowing(false)
             .withExpr(String.format("%s == \"%s\"", FIELD_VECTOR_ID, vectorId))
             .addOutField(FIELD_VECTOR_ID)
             .addOutField(FIELD_ENTITY_ID)
@@ -172,10 +182,15 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         Objects.requireNonNull(entityType, "entityType must not be null");
         Objects.requireNonNull(entityId, "entityId must not be null");
         String collection = entityType.toLowerCase();
+        if (!collectionExists(collection)) {
+            return Optional.empty();
+        }
         ensureCollectionLoaded(collection);
 
         QueryParam queryParam = QueryParam.newBuilder()
             .withCollectionName(collection)
+            .withConsistencyLevel(ConsistencyLevelEnum.STRONG)
+            .withIgnoreGrowing(false)
             .withExpr(String.format("%s == \"%s\"", FIELD_ENTITY_ID, entityId))
             .addOutField(FIELD_VECTOR_ID)
             .addOutField(FIELD_ENTITY_ID)
@@ -284,6 +299,9 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             return false;
         }
         String collection = entityType.toLowerCase();
+        if (!collectionExists(collection)) {
+            return false;
+        }
         ensureCollectionLoaded(collection);
         DeleteParam deleteParam = DeleteParam.newBuilder()
             .withCollectionName(collection)
@@ -300,6 +318,9 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             return false;
         }
         String collection = extractEntityType(vectorId);
+        if (!collectionExists(collection)) {
+            return false;
+        }
         ensureCollectionLoaded(collection);
         DeleteParam deleteParam = DeleteParam.newBuilder()
             .withCollectionName(collection)
@@ -352,10 +373,15 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             return Collections.emptyList();
         }
         String collection = entityType.toLowerCase();
+        if (!collectionExists(collection)) {
+            return Collections.emptyList();
+        }
         ensureCollectionLoaded(collection);
 
         QueryParam queryParam = QueryParam.newBuilder()
             .withCollectionName(collection)
+            .withConsistencyLevel(ConsistencyLevelEnum.STRONG)
+            .withIgnoreGrowing(false)
             .withExpr(String.format("%s != \"\"", FIELD_VECTOR_ID))
             .addOutField(FIELD_VECTOR_ID)
             .addOutField(FIELD_ENTITY_ID)
@@ -518,6 +544,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             .build()), "create index for collection " + collection);
         verifySuccess(client.loadCollection(LoadCollectionParam.newBuilder()
             .withCollectionName(collection)
+            .withSyncLoad(true)
             .build()), "load collection " + collection);
     }
 
@@ -540,11 +567,32 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
     }
 
     private void ensureCollectionLoaded(String collection) {
-        try {
-            client.loadCollection(LoadCollectionParam.newBuilder().withCollectionName(collection).build());
-        } catch (Exception ex) {
-            throw new AIServiceException("Failed to load Milvus collection '" + collection + "': " + ex.getMessage(), ex);
+        R<?> response = client.loadCollection(LoadCollectionParam.newBuilder()
+            .withCollectionName(collection)
+            .withSyncLoad(true)
+            .withRefresh(true)
+            .build());
+        verifySuccess(response, "load collection " + collection);
+    }
+
+    private boolean collectionExists(String collection) {
+        if (collection == null || collection.isBlank()) {
+            return false;
         }
+        if (collectionDimensions.containsKey(collection)) {
+            return true;
+        }
+
+        R<Boolean> hasCollection = client.hasCollection(HasCollectionParam.newBuilder()
+            .withCollectionName(collection)
+            .build());
+        verifySuccess(hasCollection, "check collection existence");
+        if (Boolean.TRUE.equals(hasCollection.getData())) {
+            int dimension = resolveCollectionDimension(collection);
+            collectionDimensions.put(collection, dimension);
+            return true;
+        }
+        return false;
     }
 
     private VectorRecord toVectorRecord(String collection, QueryResultsWrapper wrapper, int index) {
@@ -566,21 +614,24 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
                 metadataWrapper = null;
             }
 
-            String vectorId = idWrapper.getAsString(index, FIELD_VECTOR_ID);
-            String entityId = entityWrapper.getAsString(index, FIELD_ENTITY_ID);
+            Object vectorIdValue = idWrapper.valueByIdx(index);
+            String vectorId = vectorIdValue != null ? vectorIdValue.toString() : null;
+
+            Object entityIdValue = entityWrapper.valueByIdx(index);
+            String entityId = entityIdValue != null ? entityIdValue.toString() : null;
 
             String content = null;
             if (contentWrapper != null) {
-                Object contentValue = contentWrapper.get(index, FIELD_CONTENT);
+                Object contentValue = contentWrapper.valueByIdx(index);
                 if (contentValue != null) {
                     content = contentValue.toString();
                 }
             }
 
-            Object metadataRaw = metadataWrapper != null ? metadataWrapper.get(index, FIELD_METADATA) : null;
+            Object metadataRaw = metadataWrapper != null ? metadataWrapper.valueByIdx(index) : null;
             Map<String, Object> metadata = parseMetadata(metadataRaw);
 
-            Object vectorValue = vectorWrapper.get(index, FIELD_VECTOR);
+            Object vectorValue = vectorWrapper.valueByIdx(index);
             if (!(vectorValue instanceof List<?> floatsRaw)) {
                 throw new AIServiceException("Unexpected Milvus embedding payload type: " + vectorValue);
             }
@@ -599,6 +650,43 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
                 .build();
         } catch (ParamException | IllegalResponseException ex) {
             throw new AIServiceException("Failed to parse Milvus query response", ex);
+        }
+    }
+
+    private void flushCollection(String collection) {
+        R<io.milvus.grpc.FlushResponse> response = client.flush(FlushParam.newBuilder()
+            .addCollectionName(collection)
+            .build());
+        verifySuccess(response, "flush collection " + collection);
+
+        io.milvus.grpc.FlushResponse data = response.getData();
+        if (data == null) {
+            return;
+        }
+        long flushTs = data.getCollFlushTsOrDefault(collection, 0L);
+        if (flushTs <= 0) {
+            return;
+        }
+
+        GetFlushStateParam flushStateParam = GetFlushStateParam.newBuilder()
+            .withCollectionName(collection)
+            .withFlushTs(flushTs)
+            .build();
+
+        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
+        while (System.currentTimeMillis() < deadline) {
+            R<io.milvus.grpc.GetFlushStateResponse> state = client.getFlushState(flushStateParam);
+            verifySuccess(state, "get flush state for collection " + collection);
+            io.milvus.grpc.GetFlushStateResponse stateData = state.getData();
+            if (stateData != null && stateData.getFlushed()) {
+                return;
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 
@@ -630,11 +718,29 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             return Collections.emptyMap();
         }
         try {
-            return MAPPER.readValue(json, Map.class);
+            Map<String, Object> parsed = MAPPER.readValue(json, Map.class);
+            if (parsed == null || parsed.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            if (!parsed.containsKey("raw")) {
+                parsed.put("raw", MetadataJsonSerializer.serialize(parsed));
+            }
+            return parsed;
         } catch (Exception ex) {
             log.warn("Failed to parse metadata JSON: {}", json, ex);
-            return Collections.emptyMap();
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("raw", json);
+            return fallback;
         }
+    }
+
+    private Map<String, Object> stripRaw(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty() || !metadata.containsKey("raw")) {
+            return metadata == null ? Collections.emptyMap() : metadata;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>(metadata);
+        copy.remove("raw");
+        return copy;
     }
 
     private void verifySuccess(R<?> response, String action) {

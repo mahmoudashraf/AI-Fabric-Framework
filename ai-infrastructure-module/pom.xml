@@ -70,6 +70,8 @@
         <mockito.version>5.8.0</mockito.version>
         <jmh.version>1.37</jmh.version>
         <javafaker.version>1.0.2</javafaker.version>
+        <!-- Align gRPC versions across vector DB SDKs (Qdrant/Pinecone/Weaviate/Milvus). -->
+        <grpc.version>1.68.2</grpc.version>
     </properties>
 
     <dependencyManagement>
@@ -78,6 +80,13 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
                 <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${grpc.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
