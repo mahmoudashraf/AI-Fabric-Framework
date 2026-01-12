@@ -4,30 +4,32 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
-import com.ai.infrastructure.vector.pinecone.PineconeVectorDatabaseService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.Struct;
+import com.google.protobuf.Value;
+import io.pinecone.clients.Index;
+import io.pinecone.proto.DescribeIndexStatsResponse;
+import io.pinecone.proto.FetchResponse;
+import io.pinecone.proto.QueryResponse;
+import io.pinecone.proto.ScoredVector;
+import io.pinecone.unsigned_indices_model.QueryResponseWithUnsignedIndices;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.test.web.client.ExpectedCount;
-import org.springframework.test.web.client.MockRestServiceServer;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class PineconeVectorDatabaseServiceTest {
 
     private PineconeVectorDatabaseService service;
-    private MockRestServiceServer server;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private Index index;
 
     @BeforeEach
     void setUp() {
@@ -40,47 +42,105 @@ class PineconeVectorDatabaseServiceTest {
         pinecone.setEnvironment("test-env");
         pinecone.setDimensions(3);
 
-        RestTemplate restTemplate = new RestTemplate();
-        service = new PineconeVectorDatabaseService(config, restTemplate);
-        service.initializeClient();
-
-        server = MockRestServiceServer.bindTo(restTemplate)
-            .ignoreExpectOrder(true)
-            .build();
+        index = mock(Index.class);
+        service = new PineconeVectorDatabaseService(config, (connection, indexName) -> index);
     }
 
     @Test
     void storeVectorCallsUpsertEndpoint() {
-        server.expect(ExpectedCount.once(), requestTo("https://mock-pinecone.test/vectors/upsert"))
-            .andExpect(method(HttpMethod.POST))
-            .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        ArgumentCaptor<Struct> metadataCaptor = ArgumentCaptor.forClass(Struct.class);
 
-        String vectorId = service.storeVector("product", "123", "Luxury watch", List.of(0.1, 0.2, 0.3), Map.of("category", "watches"));
+        String vectorId = service.storeVector(
+            "product",
+            "123",
+            "Luxury watch",
+            List.of(0.1, 0.2, 0.3),
+            Map.of("category", "watches")
+        );
 
         assertEquals("product::123", vectorId);
-        server.verify();
+
+        verify(index).upsert(
+            eq("product::123"),
+            anyList(),
+            isNull(),
+            isNull(),
+            metadataCaptor.capture(),
+            eq("product")
+        );
+
+        Struct captured = metadataCaptor.getValue();
+        assertEquals("product", captured.getFieldsOrThrow("entityType").getStringValue());
+        assertEquals("123", captured.getFieldsOrThrow("entityId").getStringValue());
+        assertEquals("Luxury watch", captured.getFieldsOrThrow("content").getStringValue());
+        assertEquals(3.0, captured.getFieldsOrThrow("embeddingDim").getNumberValue());
+        assertFalse(captured.getFieldsOrThrow("embeddingBase64").getStringValue().isBlank());
+        assertTrue(captured.getFieldsOrThrow("raw").getStringValue().contains("watches"));
+        assertEquals("watches", captured.getFieldsOrThrow("category").getStringValue());
     }
 
     @Test
-    void searchReturnsFilteredResults() throws Exception {
-        Map<String, Object> responseBody = Map.of(
-            "matches", List.of(
-                Map.of(
-                    "id", "product::123",
-                    "score", 0.92,
-                    "metadata", Map.of("entityId", "123", "entityType", "product", "content", "Luxury watch")
-                ),
-                Map.of(
-                    "id", "product::456",
-                    "score", 0.4,
-                    "metadata", Map.of("entityId", "456", "entityType", "product")
-                )
-            )
+    void storeVectorUsesSparseUpsertWhenIndexIsSparse() {
+        when(index.describeIndexStats()).thenReturn(DescribeIndexStatsResponse.newBuilder().setDimension(0).build());
+
+        service.storeVector(
+            "product",
+            "123",
+            "Luxury watch",
+            List.of(0.1, 0.2, 0.3),
+            Map.of("category", "watches")
         );
 
-        server.expect(ExpectedCount.once(), requestTo("https://mock-pinecone.test/query"))
-            .andExpect(method(HttpMethod.POST))
-            .andRespond(withSuccess(objectMapper.writeValueAsString(responseBody), MediaType.APPLICATION_JSON));
+        ArgumentCaptor<List<Float>> denseCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<Long>> indicesCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<Float>> sparseCaptor = ArgumentCaptor.forClass(List.class);
+
+        verify(index).upsert(
+            eq("product::123"),
+            denseCaptor.capture(),
+            indicesCaptor.capture(),
+            sparseCaptor.capture(),
+            any(Struct.class),
+            eq("product")
+        );
+
+        assertEquals(List.of(0.1f, 0.2f, 0.3f), denseCaptor.getValue());
+        assertEquals(List.of(0L, 1L, 2L), indicesCaptor.getValue());
+        assertEquals(List.of(0.1f, 0.2f, 0.3f), sparseCaptor.getValue());
+    }
+
+    @Test
+    void searchReturnsFilteredResults() {
+        Struct highMetadata = Struct.newBuilder()
+            .putFields("entityType", Value.newBuilder().setStringValue("product").build())
+            .putFields("entityId", Value.newBuilder().setStringValue("123").build())
+            .putFields("content", Value.newBuilder().setStringValue("Luxury watch").build())
+            .build();
+
+        Struct lowMetadata = Struct.newBuilder()
+            .putFields("entityType", Value.newBuilder().setStringValue("product").build())
+            .putFields("entityId", Value.newBuilder().setStringValue("456").build())
+            .build();
+
+        ScoredVector highScore = ScoredVector.newBuilder()
+            .setId("product::123")
+            .setScore(0.92f)
+            .setMetadata(highMetadata)
+            .build();
+
+        ScoredVector lowScore = ScoredVector.newBuilder()
+            .setId("product::456")
+            .setScore(0.4f)
+            .setMetadata(lowMetadata)
+            .build();
+
+        QueryResponse queryResponse = QueryResponse.newBuilder()
+            .addMatches(highScore)
+            .addMatches(lowScore)
+            .build();
+
+        when(index.queryByVector(eq(5), anyList(), eq("product"), nullable(Struct.class), eq(false), eq(true)))
+            .thenReturn(new QueryResponseWithUnsignedIndices(queryResponse));
 
         AISearchResponse response = service.search(
             List.of(0.2, 0.3, 0.4),
@@ -93,31 +153,76 @@ class PineconeVectorDatabaseServiceTest {
         );
 
         assertEquals(1, response.getTotalResults());
-        assertEquals("product::123", response.getResults().get(0).get("id"));
-        server.verify();
+        assertEquals("product::123", response.getResults().get(0).get("vectorId"));
     }
 
     @Test
-    void getVectorFetchesFromApi() throws Exception {
-        Map<String, Object> responseBody = Map.of(
-            "vectors", Map.of(
-                "product::123", Map.of(
-                    "id", "product::123",
-                    "values", List.of(0.1, 0.3, 0.5),
-                    "metadata", Map.of("entityId", "123", "entityType", "product", "content", "Luxury watch")
-                )
-            )
+    void searchBuildsValidPineconeFilterStruct() {
+        when(index.queryByVector(eq(5), anyList(), eq("product"), nullable(Struct.class), eq(false), eq(true)))
+            .thenReturn(new QueryResponseWithUnsignedIndices(QueryResponse.getDefaultInstance()));
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("sessionId", null);
+        metadata.put("piiDetectedTypes", List.of("SSN"));
+        metadata.put("tenantId", "t-1");
+
+        service.search(
+            List.of(0.2, 0.3, 0.4),
+            AISearchRequest.builder()
+                .query("luxury")
+                .entityType("product")
+                .limit(5)
+                .threshold(0.0)
+                .metadata(metadata)
+                .build()
         );
 
-        server.expect(ExpectedCount.once(), requestTo("https://mock-pinecone.test/vectors/fetch?ids=product::123&namespace=product"))
-            .andExpect(method(HttpMethod.GET))
-            .andRespond(withSuccess(objectMapper.writeValueAsString(responseBody), MediaType.APPLICATION_JSON));
+        ArgumentCaptor<Struct> filterCaptor = ArgumentCaptor.forClass(Struct.class);
+        verify(index).queryByVector(eq(5), anyList(), eq("product"), filterCaptor.capture(), eq(false), eq(true));
+
+        Struct filter = filterCaptor.getValue();
+        assertNotNull(filter);
+
+        Assertions.assertFalse(filter.getFieldsMap().containsKey("sessionId"));
+
+        Value tenantCond = filter.getFieldsOrThrow("tenantId");
+        assertTrue(tenantCond.hasStructValue());
+        assertEquals("t-1", tenantCond.getStructValue().getFieldsOrThrow("$eq").getStringValue());
+
+        Value piiCond = filter.getFieldsOrThrow("piiDetectedTypes");
+        assertTrue(piiCond.hasStructValue());
+        Value inValue = piiCond.getStructValue().getFieldsOrThrow("$in");
+        assertTrue(inValue.hasListValue());
+        assertEquals("SSN", inValue.getListValue().getValues(0).getStringValue());
+    }
+
+    @Test
+    void getVectorFetchesFromApi() {
+        Struct metadata = Struct.newBuilder()
+            .putFields("entityType", Value.newBuilder().setStringValue("product").build())
+            .putFields("entityId", Value.newBuilder().setStringValue("123").build())
+            .putFields("content", Value.newBuilder().setStringValue("Luxury watch").build())
+            .putFields("raw", Value.newBuilder().setStringValue("{\"category\":\"watches\"}").build())
+            .build();
+
+        io.pinecone.proto.Vector vector = io.pinecone.proto.Vector.newBuilder()
+            .setId("product::123")
+            .addAllValues(List.of(0.1f, 0.3f, 0.5f))
+            .setMetadata(metadata)
+            .build();
+
+        FetchResponse fetchResponse = FetchResponse.newBuilder()
+            .putVectors("product::123", vector)
+            .build();
+
+        when(index.fetch(eq(List.of("product::123")), eq("product"))).thenReturn(fetchResponse);
 
         Optional<VectorRecord> record = service.getVector("product::123");
 
         assertTrue(record.isPresent());
         assertEquals("123", record.get().getEntityId());
         assertEquals(3, record.get().getEmbedding().size());
-        server.verify();
+        assertEquals("product::123", record.get().getVectorId());
+        verify(index).fetch(eq(List.of("product::123")), eq("product"));
     }
 }

@@ -16,6 +16,13 @@
     <description>Dedicated Spring Boot module housing real API integration tests for the relationship query engine.</description>
 
     <dependencies>
+        <!-- Shared Testcontainers Support -->
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>testcontainers-support</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
         <dependency>
             <groupId>com.ai.fabric</groupId>
             <artifactId>ai-fabric-core</artifactId>
@@ -92,11 +99,59 @@
             <artifactId>ai-infrastructure-vector-lucene</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-milvus</artifactId>
+            <version>${project.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.testcontainers</groupId>
+                    <artifactId>milvus</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-qdrant</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-weaviate</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-pinecone</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-memory</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- Note: Chroma and pgvector modules don't exist yet - they're handled in testcontainers-support code but not as dependencies -->
 
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

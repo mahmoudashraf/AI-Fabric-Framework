@@ -83,7 +83,22 @@ public class Intent {
     private NextStepRecommendation nextStepRecommended;
 
     public void setActionParams(Map<String, Object> params) {
-        this.actionParams = params == null ? Collections.emptyMap() : Map.copyOf(params);
+        if (params == null || params.isEmpty()) {
+            this.actionParams = Collections.emptyMap();
+            return;
+        }
+
+        // Jackson can deserialize JSON objects that contain null values, but Map.copyOf rejects null keys/values.
+        // Be defensive and drop null entries to avoid NPEs during intent extraction parsing.
+        Map<String, Object> cleaned = new java.util.LinkedHashMap<>(params.size());
+        params.forEach((key, value) -> {
+            if (key == null || value == null) {
+                return;
+            }
+            cleaned.put(key, value);
+        });
+
+        this.actionParams = cleaned.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(cleaned);
     }
 
     /**

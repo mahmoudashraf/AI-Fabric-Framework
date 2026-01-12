@@ -229,7 +229,7 @@ public class VectorDatabaseContainerAutoConfiguration {
         log.info("Starting Qdrant container...");
 
         GenericContainer<?> container = new GenericContainer<>(
-            DockerImageName.parse("qdrant/qdrant:v1.7.4")
+            DockerImageName.parse("qdrant/qdrant:v1.16.1")
         )
             .withExposedPorts(6333, 6334)
             .waitingFor(Wait.forHttp("/readyz")
@@ -673,7 +673,7 @@ pipeline {
 | Provider | Image | Ports | Status |
 |----------|-------|-------|--------|
 | Milvus | `milvusdb/milvus:v2.4.1-latest` | 19530 (gRPC) | Official Testcontainers module |
-| Qdrant | `qdrant/qdrant:v1.7.4` | 6333 (REST), 6334 (gRPC) | GenericContainer |
+| Qdrant | `qdrant/qdrant:v1.16.1` | 6333 (REST), 6334 (gRPC) | GenericContainer |
 | Weaviate | `semitechnologies/weaviate:1.23.0` | 8080 (REST) | GenericContainer |
 | Chroma | `chromadb/chroma:0.4.22` | 8000 (REST) | GenericContainer |
 | pgvector | `pgvector/pgvector:pg16` | 5432 (PostgreSQL) | PostgreSQLContainer |

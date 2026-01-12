@@ -48,6 +48,20 @@ on:
         required: false
         type: string
         default: 'embedding-model'
+      pinecone_api_key:
+        description: 'Pinecone API Key (required when vector_database=pinecone)'
+        required: false
+        type: string
+      pinecone_index_name:
+        description: 'Pinecone index name (optional when pinecone_host is provided; derived from host if blank). If left blank, workflow will use repo variable PINECONE_INDEX_NAME (if set).'
+        required: false
+        type: string
+        default: 'ai-fabric'
+      pinecone_host:
+        description: 'Pinecone index host URL (optional; recommended for serverless). Example: https://<index>.svc.<env>.pinecone.io. If left blank, workflow will use repo variable PINECONE_API_HOST (if set).'
+        required: false
+        type: string
+        default: 'https://ai-fabric-pwkuyn5.svc.aped-4627-b74a.pinecone.io'
       llm_provider:
         description: 'LLM Provider'
         required: true
@@ -169,6 +183,7 @@ jobs:
           [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
           [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
           [ -n "${{ github.event.inputs.azure_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.azure_api_key }}" || true
+          [ -n "${{ github.event.inputs.pinecone_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.pinecone_api_key }}" || true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -176,6 +191,13 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: Verify Docker is available (required for Testcontainers)
+        run: |
+          echo "Verifying Docker availability for Testcontainers..."
+          docker --version
+          docker info | head -5
+          echo "✅ Docker is available and running"
 
       - name: Cache Maven packages
         uses: actions/cache@v3
@@ -277,7 +299,8 @@ jobs:
               "anthropic": ${{ github.event.inputs.anthropic_api_key != '' && 'true' || 'false' }},
               "gemini": ${{ github.event.inputs.gemini_api_key != '' && 'true' || 'false' }},
               "cohere": ${{ github.event.inputs.cohere_api_key != '' && 'true' || 'false' }},
-              "azure": ${{ github.event.inputs.azure_api_key != '' && 'true' || 'false' }}
+              "azure": ${{ github.event.inputs.azure_api_key != '' && 'true' || 'false' }},
+              "pinecone": ${{ github.event.inputs.pinecone_api_key != '' && 'true' || 'false' }}
             },
             "azure_configuration": {
               "endpoint_provided": ${{ github.event.inputs.azure_endpoint != '' && 'true' || 'false' }},
@@ -528,17 +551,42 @@ jobs:
           export MAVEN_LOGGING_LEVEL="$EFFECTIVE_MAVEN_LOGGING_LEVEL"
           echo "Using MAVEN_LOGGING_LEVEL=$MAVEN_LOGGING_LEVEL"
           
+          # Determine if Testcontainers should be enabled based on vector database selection
+          # Testcontainers-supported databases: milvus, qdrant, weaviate, chroma, pgvector
+          VECTOR_DB="${{ github.event.inputs.vector_database }}"
+          SPRING_PROFILES="real-api-test"
+          if [[ "$VECTOR_DB" == "milvus" ]] || \
+             [[ "$VECTOR_DB" == "qdrant" ]] || \
+             [[ "$VECTOR_DB" == "weaviate" ]] || \
+             [[ "$VECTOR_DB" == "chroma" ]] || \
+             [[ "$VECTOR_DB" == "pgvector" ]]; then
+            SPRING_PROFILES="real-api-test,testcontainers"
+            echo "✅ Testcontainers enabled for vector database: $VECTOR_DB"
+          else
+            echo "ℹ️  Testcontainers not needed for vector database: $VECTOR_DB (using: lucene, memory, or pinecone)"
+          fi
+          export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
+          
           bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}:${{ github.event.inputs.storage_strategy }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
-          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
-          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
-          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
-          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
-          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
+          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY }}
+          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key || secrets.COHERE_API_KEY }}
+          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key || secrets.AZURE_API_KEY }}
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
+          PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+          # Allow leaving workflow_dispatch inputs blank by falling back to GitHub repo variables.
+          # Configure these under: Settings → Secrets and variables → Actions → Variables
+          PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
+          PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
+          AI_PROVIDERS_PINECONE_ENABLED: ${{ github.event.inputs.vector_database == 'pinecone' && 'true' || 'false' }}
+          AI_PROVIDERS_PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+          AI_PROVIDERS_PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
+          AI_PROVIDERS_PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           # Allow run step to override the effective level (e.g. for Anthropic).
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
@@ -601,6 +649,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
+          large_files: true
           files: |
             ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/*.xml
           check_name: AI Infrastructure Test Results
@@ -637,6 +686,7 @@ jobs:
           [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
           [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
           [ -n "${{ github.event.inputs.azure_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.azure_api_key }}" || true
+          [ -n "${{ github.event.inputs.pinecone_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.pinecone_api_key }}" || true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -644,6 +694,13 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: Verify Docker is available (required for Testcontainers)
+        run: |
+          echo "Verifying Docker availability for Testcontainers..."
+          docker --version
+          docker info | head -5
+          echo "✅ Docker is available and running"
 
       - name: Cache Maven packages
         uses: actions/cache@v3
@@ -714,23 +771,49 @@ jobs:
       - name: Run Relationship Query Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
+          
+          # Determine if Testcontainers should be enabled based on vector database selection
+          VECTOR_DB="${{ github.event.inputs.vector_database }}"
+          SPRING_PROFILES="realapi"
+          if [[ "$VECTOR_DB" == "milvus" ]] || \
+             [[ "$VECTOR_DB" == "qdrant" ]] || \
+             [[ "$VECTOR_DB" == "weaviate" ]] || \
+             [[ "$VECTOR_DB" == "chroma" ]] || \
+             [[ "$VECTOR_DB" == "pgvector" ]]; then
+            SPRING_PROFILES="realapi,testcontainers"
+            echo "✅ Testcontainers enabled for vector database: $VECTOR_DB"
+          else
+            echo "ℹ️  Testcontainers not needed for vector database: $VECTOR_DB"
+          fi
+          export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
+          
           bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
-          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
+          TESTCONTAINERS_RYUK_DISABLED: false
+          OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
           # Needed when embedding_provider=openai to satisfy startup validation.
           OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
-          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
+          ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_ENABLED: ${{ (github.event.inputs.llm_provider == 'anthropic' || github.event.inputs.embedding_provider == 'anthropic') && 'true' || 'false' }}
-          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key }}
+          GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY }}
           GEMINI_ENABLED: ${{ (github.event.inputs.llm_provider == 'gemini' || github.event.inputs.embedding_provider == 'gemini') && 'true' || 'false' }}
-          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key }}
+          COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key || secrets.COHERE_API_KEY }}
           # IMPORTANT: do not set empty string for booleans; Spring binds empty -> null -> crash for primitive boolean fields.
           COHERE_ENABLED: ${{ (github.event.inputs.llm_provider == 'cohere' || github.event.inputs.embedding_provider == 'cohere') && 'true' || 'false' }}
-          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key }}
+          AZURE_API_KEY: ${{ github.event.inputs.azure_api_key || secrets.AZURE_API_KEY }}
           AZURE_ENDPOINT: ${{ github.event.inputs.azure_endpoint }}
           AZURE_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_deployment_name }}
           AZURE_EMBEDDING_DEPLOYMENT_NAME: ${{ github.event.inputs.azure_embedding_deployment_name }}
           AZURE_ENABLED: ${{ (github.event.inputs.llm_provider == 'azure' || github.event.inputs.embedding_provider == 'azure') && 'true' || 'false' }}
+          # Pinecone is used when vector_database=pinecone. Allow leaving the API key blank (e.g., using repo secrets/vars)
+          # and fall back for host/index to workflow defaults/repo vars.
+          PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
+          PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
+          AI_PROVIDERS_PINECONE_ENABLED: ${{ github.event.inputs.vector_database == 'pinecone' && 'true' || 'false' }}
+          AI_PROVIDERS_PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+          AI_PROVIDERS_PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
+          AI_PROVIDERS_PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
           COHERE_MODEL: ${{ github.event.inputs.llm_provider == 'cohere' && (github.event.inputs.llm_model || 'command-r7b-12-2024') || '' }}
           COHERE_EMBEDDING_MODEL: ${{ github.event.inputs.embedding_provider == 'cohere' && (github.event.inputs.embedding_model || 'embed-english-v3.0') || '' }}
@@ -904,6 +987,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
+          large_files: true
           files: |
             ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/*.xml
           check_name: Relationship Query Test Results
@@ -935,6 +1019,7 @@ jobs:
           [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
           [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
           [ -n "${{ github.event.inputs.azure_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.azure_api_key }}" || true
+          [ -n "${{ github.event.inputs.pinecone_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.pinecone_api_key }}" || true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -942,6 +1027,13 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: Verify Docker is available (required for Testcontainers)
+        run: |
+          echo "Verifying Docker availability for Testcontainers..."
+          docker --version
+          docker info | head -5
+          echo "✅ Docker is available and running"
 
       - name: Cache Maven packages
         uses: actions/cache@v3
@@ -1000,8 +1092,25 @@ jobs:
       - name: Run Behavior Integration Tests (Real API)
         run: |
           cd ai-infrastructure-module/integration-Testing/behavior-integration-tests
+          
+          # Determine if Testcontainers should be enabled based on vector database selection
+          VECTOR_DB="${{ github.event.inputs.vector_database }}"
+          SPRING_PROFILES="realapi"
+          if [[ "$VECTOR_DB" == "milvus" ]] || \
+             [[ "$VECTOR_DB" == "qdrant" ]] || \
+             [[ "$VECTOR_DB" == "weaviate" ]] || \
+             [[ "$VECTOR_DB" == "chroma" ]] || \
+             [[ "$VECTOR_DB" == "pgvector" ]]; then
+            SPRING_PROFILES="realapi,testcontainers"
+            echo "✅ Testcontainers enabled for vector database: $VECTOR_DB"
+          else
+            echo "ℹ️  Testcontainers not needed for vector database: $VECTOR_DB"
+          fi
+          export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
+          
           bash run-behavior-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
+          TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
           ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key }}
@@ -1034,6 +1143,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
+          large_files: true
           files: |
             ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/surefire-reports/*.xml
             ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/failsafe-reports/*.xml

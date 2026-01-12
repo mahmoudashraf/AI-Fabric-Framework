@@ -101,6 +101,30 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     }
 
     @Override
+    protected boolean shouldIncludeCombination(ProviderCombination combo) {
+        if (!super.shouldIncludeCombination(combo)) {
+            return false;
+        }
+
+        String vectorDb = combo.vectorDbProvider();
+        if (!StringUtils.hasText(vectorDb)) {
+            return true;
+        }
+
+        if ("pinecone".equalsIgnoreCase(vectorDb)) {
+            boolean configured = isPineconeConfiguredForTests();
+            if (!configured) {
+                log.warn("Skipping combination {} because Pinecone is selected but not configured. " +
+                        "Set PINECONE_API_KEY and either PINECONE_INDEX_NAME or PINECONE_API_HOST (or their AI_PROVIDERS_* equivalents).",
+                    combo.displayName());
+            }
+            return configured;
+        }
+
+        return true;
+    }
+
+    @Override
     protected void beforeMatrixExecution() {
         RealAPITestSupport.ensureProviderConfigured();
         
@@ -141,6 +165,51 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             message.append("\nSkipping Real API provider matrix.");
             Assumptions.assumeTrue(false, message.toString());
         }
+    }
+
+    private boolean isPineconeConfiguredForTests() {
+        // Vector DB selection is handled separately via ai.vector-db.type, but if pinecone is selected
+        // we need enough configuration to build the Pinecone client during Spring context startup.
+        String enabled = firstNonBlank(
+            System.getProperty("ai.providers.pinecone.enabled"),
+            System.getenv("AI_PROVIDERS_PINECONE_ENABLED")
+        );
+        if (StringUtils.hasText(enabled) && !"true".equalsIgnoreCase(enabled.trim())) {
+            return false;
+        }
+
+        String apiKey = firstNonBlank(
+            System.getProperty("ai.providers.pinecone.api-key"),
+            System.getProperty("ai.providers.pinecone.apiKey"),
+            System.getenv("AI_PROVIDERS_PINECONE_API_KEY"),
+            System.getenv("PINECONE_API_KEY")
+        );
+
+        // indexName can be derived from apiHost; accept either.
+        String indexNameOrHost = firstNonBlank(
+            System.getProperty("ai.providers.pinecone.index-name"),
+            System.getProperty("ai.providers.pinecone.indexName"),
+            System.getProperty("ai.providers.pinecone.api-host"),
+            System.getProperty("ai.providers.pinecone.apiHost"),
+            System.getenv("AI_PROVIDERS_PINECONE_INDEX_NAME"),
+            System.getenv("PINECONE_INDEX_NAME"),
+            System.getenv("AI_PROVIDERS_PINECONE_API_HOST"),
+            System.getenv("PINECONE_API_HOST")
+        );
+
+        return StringUtils.hasText(apiKey) && StringUtils.hasText(indexNameOrHost);
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     @Override

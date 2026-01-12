@@ -81,7 +81,7 @@ public class AICapabilityService {
             String searchableContent = extractSearchableContent(entity, config);
             
             // Validate content if needed
-            if (config.getFeatures().contains("validation")) {
+            if (isFeatureEnabled(config, "validation")) {
                 // Perform AI-powered validation
                 boolean isValid = aiCoreService.validateContent(searchableContent, Map.of()).containsKey("valid");
                 if (!isValid) {
@@ -103,6 +103,11 @@ public class AICapabilityService {
         try {
             log.debug("Generating embeddings for entity of type: {}", config.getEntityType());
             log.debug("Config metadata fields: {}", config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
+
+            if (!isFeatureEnabled(config, "embedding")) {
+                log.debug("Embedding feature disabled for entity type: {}", config.getEntityType());
+                return;
+            }
             
             if (!config.isAutoEmbedding()) {
                 log.debug("Auto-embedding disabled for entity type: {}", config.getEntityType());
@@ -139,6 +144,11 @@ public class AICapabilityService {
     public void indexForSearch(Object entity, AIEntityConfig config) {
         try {
             log.debug("Indexing entity for search of type: {}", config.getEntityType());
+
+            if (!isFeatureEnabled(config, "search")) {
+                log.debug("Search feature disabled for entity type: {}", config.getEntityType());
+                return;
+            }
             
             if (!config.isIndexable()) {
                 log.debug("Indexing disabled for entity type: {}", config.getEntityType());
@@ -174,6 +184,11 @@ public class AICapabilityService {
     public void analyzeEntity(Object entity, AIEntityConfig config) {
         try {
             log.debug("Analyzing entity of type: {}", config.getEntityType());
+
+            if (!isFeatureEnabled(config, "analysis")) {
+                log.debug("Analysis feature disabled for entity type: {}", config.getEntityType());
+                return;
+            }
             
             // Extract content for analysis
             String content = extractSearchableContent(entity, config);
@@ -545,5 +560,23 @@ public class AICapabilityService {
         } catch (Exception e) {
             log.error("Error processing entity for AI", e);
         }
+    }
+
+    private boolean isFeatureEnabled(AIEntityConfig config, String feature) {
+        Objects.requireNonNull(feature, "feature");
+        if (config == null) {
+            return false;
+        }
+        List<String> features = config.getFeatures();
+        if (features == null || features.isEmpty()) {
+            // Backwards-compatible default: if a config doesn't specify features, treat them as enabled.
+            return true;
+        }
+        for (String entry : features) {
+            if (entry != null && entry.equalsIgnoreCase(feature)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

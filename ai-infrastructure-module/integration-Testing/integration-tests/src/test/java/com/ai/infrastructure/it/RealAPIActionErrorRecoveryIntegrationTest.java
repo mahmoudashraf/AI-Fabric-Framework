@@ -155,24 +155,34 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
             }
         }
 
-        // Preferred behavior: OUT_OF_SCOPE. Some providers may still misclassify and return ACTION,
-        // which (in this test context) deterministically becomes ERROR (ACTION_NOT_FOUND) because no handlers exist.
+        // Preferred behavior: OUT_OF_SCOPE. Some providers may instead answer with INFORMATION_PROVIDED.
+        // Some providers may misclassify and return ACTION, which (in this test context) deterministically becomes
+        // ERROR (ACTION_NOT_FOUND) because no handlers exist.
         //
         // Providers can also produce ERROR without attempting an action (e.g., parser/validation issues),
         // so we accept ERROR as long as no successful action is executed.
         assertThat(result.getType())
-            .as("Expected OUT_OF_SCOPE or ERROR (provider variability)")
-            .isIn(OrchestrationResultType.OUT_OF_SCOPE, OrchestrationResultType.ERROR);
-        if (result.getType() == OrchestrationResultType.OUT_OF_SCOPE) {
-            assertThat(result.isSuccess()).isTrue();
-            assertThat(actionWasAttempted).isFalse();
-        } else {
+            .as("Expected OUT_OF_SCOPE, INFORMATION_PROVIDED, or ERROR (provider variability)")
+            .isIn(
+                OrchestrationResultType.OUT_OF_SCOPE,
+                OrchestrationResultType.INFORMATION_PROVIDED,
+                OrchestrationResultType.ERROR
+            );
+
+        if (actionWasAttempted) {
+            assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
+        }
+
+        if (result.getType() == OrchestrationResultType.ERROR) {
             assertThat(result.isSuccess()).isFalse();
             if (actionWasAttempted) {
                 assertThat(result.getErrorCode())
                     .as("When an action is attempted but no handlers exist, errorCode should be ACTION_NOT_FOUND")
                     .isEqualTo("ACTION_NOT_FOUND");
             }
+        } else {
+            assertThat(result.isSuccess()).isTrue();
+            assertThat(actionWasAttempted).isFalse();
         }
 
         // Prefer next-step recommendations; allow fallback to smart suggestions when the LLM returns a compound/error path

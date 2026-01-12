@@ -1,0 +1,179 @@
+name: Provider Suite (Keys Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      openai_api_key:
+        description: 'OpenAI API Key (LLM)'
+        required: false
+        type: string
+      pinecone_api_key:
+        description: 'Pinecone API Key (Vector DB)'
+        required: false
+        type: string
+      cohere_api_key:
+        description: 'Cohere API Key (LLM)'
+        required: false
+        type: string
+      anthropic_api_key:
+        description: 'Anthropic API Key (LLM)'
+        required: false
+        type: string
+      gemini_api_key:
+        description: 'Gemini API Key (LLM)'
+        required: false
+        type: string
+      logging_level:
+        description: 'Maven logging level'
+        required: false
+        default: 'normal'
+        type: choice
+        options:
+          - quiet
+          - error
+          - normal
+          - verbose
+          - debug
+      storage_strategy:
+        description: 'Storage strategy for AISearchableEntity'
+        required: false
+        default: 'SINGLE_TABLE'
+        type: choice
+        options:
+          - SINGLE_TABLE
+          - PER_TYPE_TABLE
+          - CUSTOM
+      persistence_database:
+        description: 'Persistence database'
+        required: false
+        default: 'h2'
+        type: choice
+        options:
+          - h2
+          - postgresql
+
+jobs:
+  provider-suite:
+    name: Full suite (ONNX) across providers
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+
+    env:
+      MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level || 'normal' }}
+      AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database || 'h2' }}
+      AI_INFRASTRUCTURE_STORAGE_STRATEGY: ${{ github.event.inputs.storage_strategy || 'SINGLE_TABLE' }}
+
+      # Prefer workflow_dispatch inputs, fall back to repo secrets.
+      OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
+      PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+      COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key || secrets.COHERE_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY }}
+
+      # Pinecone host/index are fixed defaults; override via repo variables if needed.
+      PINECONE_INDEX_NAME: ${{ vars.PINECONE_INDEX_NAME != '' && vars.PINECONE_INDEX_NAME || 'ai-fabric' }}
+      PINECONE_API_HOST: ${{ vars.PINECONE_API_HOST != '' && vars.PINECONE_API_HOST || 'https://ai-fabric-pwkuyn5.svc.aped-4627-b74a.pinecone.io' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # workflow_dispatch inputs are NOT treated as secrets by GitHub.
+      # Mask them explicitly to avoid leaking API keys in logs.
+      - name: Mask provider API keys
+        if: always()
+        run: |
+          [ -n "${{ github.event.inputs.openai_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.openai_api_key }}" || true
+          [ -n "${{ github.event.inputs.pinecone_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.pinecone_api_key }}" || true
+          [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
+          [ -n "${{ github.event.inputs.anthropic_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}" || true
+          [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Verify Docker is available (required for Testcontainers)
+        run: |
+          docker --version
+          docker info | head -5
+
+      - name: Cache Maven packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-provider-suite-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-provider-suite-
+            ${{ runner.os }}-maven-
+
+      - name: Validate required keys
+        run: |
+          missing=0
+          check() {
+            local name="$1"
+            local val="$2"
+            if [ -z "$val" ]; then
+              echo "Missing required key: $name"
+              missing=1
+            fi
+          }
+          check "OPENAI_API_KEY" "${OPENAI_API_KEY:-}"
+          check "PINECONE_API_KEY" "${PINECONE_API_KEY:-}"
+          check "COHERE_API_KEY" "${COHERE_API_KEY:-}"
+          check "ANTHROPIC_API_KEY" "${ANTHROPIC_API_KEY:-}"
+          check "GEMINI_API_KEY" "${GEMINI_API_KEY:-}"
+          if [ "$missing" -ne 0 ]; then
+            echo ""
+            echo "Provide keys via workflow inputs or GitHub repo secrets:"
+            echo "Settings → Secrets and variables → Actions → Secrets"
+            exit 1
+          fi
+
+      - name: Build AI Infrastructure Module (skip tests)
+        run: |
+          cd ai-infrastructure-module
+          mvn clean install -DskipTests -B -V
+
+      - name: Run suite (OpenAI + ONNX + Pinecone)
+        run: |
+          cd ai-infrastructure-module/integration-Testing/integration-tests
+          export SPRING_PROFILES_ACTIVE="real-api-test"
+          export AI_PROVIDERS_PINECONE_ENABLED="true"
+          export AI_PROVIDERS_PINECONE_API_KEY="${PINECONE_API_KEY}"
+          export AI_PROVIDERS_PINECONE_INDEX_NAME="${PINECONE_INDEX_NAME}"
+          export AI_PROVIDERS_PINECONE_API_HOST="${PINECONE_API_HOST}"
+          bash run-provider-matrix-tests.sh "openai:onnx:pinecone:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+
+      - name: Run suite (Cohere + ONNX + Qdrant)
+        run: |
+          cd ai-infrastructure-module/integration-Testing/integration-tests
+          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
+          export AI_PROVIDERS_PINECONE_ENABLED="false"
+          bash run-provider-matrix-tests.sh "cohere:onnx:qdrant:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+
+      - name: Run suite (Anthropic + ONNX + Milvus)
+        run: |
+          cd ai-infrastructure-module/integration-Testing/integration-tests
+          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
+          export AI_PROVIDERS_PINECONE_ENABLED="false"
+          bash run-provider-matrix-tests.sh "anthropic:onnx:milvus:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+
+      - name: Run suite (Gemini + ONNX + Weaviate)
+        run: |
+          cd ai-infrastructure-module/integration-Testing/integration-tests
+          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
+          export AI_PROVIDERS_PINECONE_ENABLED="false"
+          bash run-provider-matrix-tests.sh "gemini:onnx:weaviate:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+
+      - name: Run suite (OpenAI + ONNX + Lucene)
+        run: |
+          cd ai-infrastructure-module/integration-Testing/integration-tests
+          export SPRING_PROFILES_ACTIVE="real-api-test"
+          export AI_PROVIDERS_PINECONE_ENABLED="false"
+          bash run-provider-matrix-tests.sh "openai:onnx:lucene:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"

@@ -941,6 +941,21 @@ public class RelationshipQueryPlanner {
         if (!StringUtils.hasText(response)) {
             return null;
         }
+        String trimmed = response.trim();
+
+        // Strip common markdown fences before extracting JSON.
+        if (trimmed.startsWith("```")) {
+            int firstNewline = trimmed.indexOf('\n');
+            if (firstNewline > 0) {
+                trimmed = trimmed.substring(firstNewline + 1);
+            }
+        }
+        if (trimmed.endsWith("```")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 3);
+        }
+
+        // Some providers wrap the JSON in explanatory text; extract the outermost JSON object.
+        response = trimmed;
         int start = response.indexOf('{');
         int end = response.lastIndexOf('}');
         if (start == -1 || end <= start) {

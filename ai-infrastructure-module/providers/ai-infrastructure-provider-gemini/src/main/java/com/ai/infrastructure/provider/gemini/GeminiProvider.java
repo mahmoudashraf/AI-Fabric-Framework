@@ -98,12 +98,16 @@ public class GeminiProvider implements AIProvider {
             // Build contents array - Gemini uses "contents" instead of "messages"
             List<Map<String, Object>> contents = new ArrayList<>();
             Map<String, Object> content = new HashMap<>();
-            
+
+            Map<String, Object> requestParams = request.getParameters() != null ? request.getParameters() : Map.of();
+            boolean jsonRequested = isJsonResponseRequested(requestParams);
+
             // Add system instruction if present (Gemini uses systemInstruction in generationConfig)
             String systemPrompt = request.getSystemPrompt() != null ? request.getSystemPrompt() : "";
             
-            // For intent extraction, enhance the system prompt to be very explicit about JSON-only responses
-            if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
+            // For JSON-sensitive tasks, enhance the system prompt to be very explicit about JSON-only responses.
+            // (Additionally, set generationConfig.responseMimeType to application/json when requested.)
+            if (jsonRequested || (request.getGenerationType() != null && request.getGenerationType().contains("intent_extraction"))) {
                 String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
                     "You MUST respond with ONLY valid JSON. No markdown code blocks (no ```json or ```), " +
                     "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
@@ -111,8 +115,7 @@ public class GeminiProvider implements AIProvider {
                 
                 systemPrompt = jsonInstruction + systemPrompt;
                 
-                log.info("Enhanced system prompt for intent extraction with JSON-only requirement (length: {})", systemPrompt.length());
-                log.debug("Enhanced system prompt preview: {}", systemPrompt.substring(0, Math.min(200, systemPrompt.length())));
+                log.info("Enhanced system prompt with JSON-only requirement (length: {})", systemPrompt.length());
             }
             
             // Gemini uses "parts" array with text content
@@ -133,6 +136,11 @@ public class GeminiProvider implements AIProvider {
                 generationConfig.put("temperature", request.getTemperature());
             } else if (config.getTemperature() != null) {
                 generationConfig.put("temperature", config.getTemperature());
+            }
+
+            // Gemini supports enforcing JSON output via responseMimeType.
+            if (jsonRequested) {
+                generationConfig.put("responseMimeType", "application/json");
             }
             
             // Add system instruction if present
@@ -175,8 +183,14 @@ public class GeminiProvider implements AIProvider {
             
             @SuppressWarnings("unchecked")
             Map<String, Object> responseBody = response.getBody();
+            if (responseBody == null) {
+                throw new RuntimeException("Gemini returned an empty response body");
+            }
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> candidates = (List<Map<String, Object>>) responseBody.get("candidates");
+            if (candidates == null || candidates.isEmpty()) {
+                throw new RuntimeException("Gemini returned no candidates");
+            }
             @SuppressWarnings("unchecked")
             Map<String, Object> candidate = candidates.get(0);
             @SuppressWarnings("unchecked")
@@ -449,5 +463,28 @@ public class GeminiProvider implements AIProvider {
             return ((Number) value).intValue();
         }
         return null;
+    }
+
+    private boolean isJsonResponseRequested(Map<String, Object> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return false;
+        }
+
+        Object responseFormat = parameters.get("response_format");
+        if (responseFormat == null) {
+            responseFormat = parameters.get("responseFormat");
+        }
+        if (responseFormat == null) {
+            responseFormat = parameters.get("response_mime_type");
+        }
+        if (responseFormat == null) {
+            responseFormat = parameters.get("responseMimeType");
+        }
+        if (responseFormat == null) {
+            return false;
+        }
+
+        String value = String.valueOf(responseFormat).trim().toLowerCase();
+        return value.contains("json");
     }
 }

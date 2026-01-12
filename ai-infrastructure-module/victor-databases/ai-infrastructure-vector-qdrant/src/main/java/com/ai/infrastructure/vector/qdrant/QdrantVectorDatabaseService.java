@@ -6,23 +6,24 @@ import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ai.infrastructure.util.MetadataJsonSerializer;
+import com.google.common.util.concurrent.ListenableFuture;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestTemplate;
+import io.qdrant.client.PointIdFactory;
+import io.qdrant.client.QdrantClient;
+import io.qdrant.client.QdrantGrpcClient;
+import io.qdrant.client.VectorsFactory;
+import io.qdrant.client.WithPayloadSelectorFactory;
+import io.qdrant.client.WithVectorsSelectorFactory;
+import io.qdrant.client.ValueFactory;
+import io.qdrant.client.grpc.Common;
+import io.qdrant.client.grpc.JsonWithInt;
+import io.qdrant.client.grpc.Points;
+import jakarta.annotation.PreDestroy;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -30,129 +31,249 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.StringJoiner;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
 
 /**
- * Vector database service backed by Qdrant's REST API.
+ * Vector database service backed by the official Qdrant Java client (gRPC).
  */
 @Slf4j
-public class QdrantVectorDatabaseService implements VectorDatabaseService {
+public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoCloseable {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String EMBEDDING_PAYLOAD_FIELD = "embedding";
+    private static final Set<String> RESERVED_PAYLOAD_FIELDS = Set.of("entityType", "entityId", "content", EMBEDDING_PAYLOAD_FIELD);
 
     private final AIProviderConfig.QdrantConfig config;
-    private final RestTemplate restTemplate;
+    private final QdrantClient qdrantClient;
     private final ConcurrentMap<String, Boolean> collectionCache = new ConcurrentHashMap<>();
 
     public QdrantVectorDatabaseService(AIProviderConfig providerConfig) {
         this.config = Objects.requireNonNull(providerConfig.getQdrant(), "Qdrant configuration must be present");
-        this.restTemplate = buildRestTemplate(config);
+        this.qdrantClient = new QdrantClient(buildGrpcClient(config));
     }
 
     @Override
     public String storeVector(String entityType, String entityId, String content, List<Double> embedding, Map<String, Object> metadata) {
         ensureEnabled();
+        if (embedding == null || embedding.isEmpty()) {
+            throw new AIServiceException("Qdrant storeVector requires a non-empty embedding vector");
+        }
+
         ensureCollection(entityType, embedding.size());
         String vectorId = buildVectorId(entityType, entityId);
 
-        ObjectNode payload = MAPPER.createObjectNode();
-        ArrayNode points = payload.putArray("points");
-        ObjectNode point = points.addObject();
-        point.put("id", vectorId);
+        List<Float> vector = toFloatList(embedding);
 
-        ArrayNode vectorArray = point.putArray("vector");
-        embedding.forEach(vectorArray::add);
-
-        ObjectNode payloadNode = point.putObject("payload");
-        payloadNode.put("entityId", entityId);
+        Map<String, JsonWithInt.Value> payload = new LinkedHashMap<>();
+        payload.put("entityType", ValueFactory.value(entityType));
+        payload.put("entityId", ValueFactory.value(entityId));
         if (content != null) {
-            payloadNode.put("content", content);
-        }
-        if (metadata != null) {
-            metadata.forEach((key, value) -> payloadNode.set(key, MAPPER.valueToTree(value)));
+            payload.put("content", ValueFactory.value(content));
         }
 
-        execute(HttpMethod.PUT, collectionPath(entityType, "/points"), payload, JsonNode.class);
+        Map<String, Object> safeMetadata = metadata == null ? Collections.emptyMap() : metadata;
+        String rawMetadata = MetadataJsonSerializer.serialize(stripRaw(safeMetadata));
+        payload.put("raw", ValueFactory.value(rawMetadata));
+        payload.put(EMBEDDING_PAYLOAD_FIELD, toValue(embedding));
+
+        safeMetadata.forEach((key, value) -> {
+            if (key == null || value == null || "raw".equals(key) || RESERVED_PAYLOAD_FIELDS.contains(key)) {
+                return;
+            }
+            payload.put(key, toValue(value));
+        });
+
+        Points.PointStruct point = Points.PointStruct.newBuilder()
+            .setId(PointIdFactory.id(parseVectorUuid(vectorId)))
+            .setVectors(VectorsFactory.vectors(vector))
+            .putAllPayload(payload)
+            .build();
+
+        await(qdrantClient.upsertAsync(entityType, List.of(point)), "upsert point");
         return vectorId;
     }
 
     @Override
     public boolean updateVector(String vectorId, String entityType, String entityId, String content, List<Double> embedding, Map<String, Object> metadata) {
         ensureEnabled();
+        if (vectorId == null || vectorId.isBlank()) {
+            return false;
+        }
+        if (embedding == null || embedding.isEmpty()) {
+            throw new AIServiceException("Qdrant updateVector requires a non-empty embedding vector");
+        }
+
         ensureCollection(entityType, embedding.size());
-        return storeVector(entityType, entityId, content, embedding, metadata) != null;
+
+        List<Float> vector = toFloatList(embedding);
+
+        Map<String, JsonWithInt.Value> payload = new LinkedHashMap<>();
+        payload.put("entityType", ValueFactory.value(entityType));
+        payload.put("entityId", ValueFactory.value(entityId));
+        if (content != null) {
+            payload.put("content", ValueFactory.value(content));
+        }
+
+        Map<String, Object> safeMetadata = metadata == null ? Collections.emptyMap() : metadata;
+        String rawMetadata = MetadataJsonSerializer.serialize(stripRaw(safeMetadata));
+        payload.put("raw", ValueFactory.value(rawMetadata));
+        payload.put(EMBEDDING_PAYLOAD_FIELD, toValue(embedding));
+        safeMetadata.forEach((key, value) -> {
+            if (key == null || value == null || "raw".equals(key) || RESERVED_PAYLOAD_FIELDS.contains(key)) {
+                return;
+            }
+            payload.put(key, toValue(value));
+        });
+
+        Points.PointStruct point = Points.PointStruct.newBuilder()
+            .setId(PointIdFactory.id(parseVectorUuid(vectorId)))
+            .setVectors(VectorsFactory.vectors(vector))
+            .putAllPayload(payload)
+            .build();
+
+        await(qdrantClient.upsertAsync(entityType, List.of(point)), "update point");
+        return true;
     }
 
     @Override
     public Optional<VectorRecord> getVector(String vectorId) {
         ensureEnabled();
-        String[] parts = parseVectorId(vectorId);
-        String entityType = parts[0];
-        ensureCollection(entityType, null);
-        ObjectNode payload = MAPPER.createObjectNode();
-        payload.putArray("ids").add(vectorId);
-        JsonNode response = execute(HttpMethod.POST, collectionPath(entityType, "/points/scroll"), payload, JsonNode.class);
-        JsonNode points = response.path("result").path("points");
-        if (!points.isArray() || points.isEmpty()) {
+        if (vectorId == null || vectorId.isBlank()) {
             return Optional.empty();
         }
-        return Optional.of(toVectorRecord(entityType, points.get(0)));
+
+        UUID id = parseVectorUuid(vectorId);
+
+        for (String collection : listCandidateCollections()) {
+            try {
+                List<Points.RetrievedPoint> points = await(qdrantClient.retrieveAsync(
+                    collection,
+                    List.of(PointIdFactory.id(id)),
+                    WithPayloadSelectorFactory.enable(true),
+                    WithVectorsSelectorFactory.enable(true),
+                    null
+                ), "retrieve point");
+
+                if (!CollectionUtils.isEmpty(points)) {
+                    return Optional.of(toVectorRecord(collection, points.getFirst(), null));
+                }
+            } catch (AIServiceException ignored) {
+                // Best-effort scan across collections.
+            }
+        }
+
+        return Optional.empty();
     }
 
     @Override
     public Optional<VectorRecord> getVectorByEntity(String entityType, String entityId) {
         String vectorId = buildVectorId(entityType, entityId);
-        return getVector(vectorId);
+        ensureEnabled();
+        if (!collectionExists(entityType)) {
+            return Optional.empty();
+        }
+
+        List<Points.RetrievedPoint> points = await(qdrantClient.retrieveAsync(
+            entityType,
+            List.of(PointIdFactory.id(parseVectorUuid(vectorId))),
+            WithPayloadSelectorFactory.enable(true),
+            WithVectorsSelectorFactory.enable(true),
+            null
+        ), "retrieve point by entity");
+
+        if (CollectionUtils.isEmpty(points)) {
+            return Optional.empty();
+        }
+        return Optional.of(toVectorRecord(entityType, points.getFirst(), null));
     }
 
     @Override
     public AISearchResponse search(List<Double> queryVector, AISearchRequest request) {
         ensureEnabled();
-        String entityType = Optional.ofNullable(request.getEntityType()).orElseThrow(() ->
-            new AIServiceException("Qdrant search requires request.entityType"));
-        ensureCollection(entityType, queryVector.size());
+        if (request == null) {
+            throw new AIServiceException("Qdrant search requires a request");
+        }
+        if (CollectionUtils.isEmpty(queryVector)) {
+            throw new AIServiceException("Qdrant search requires a non-empty query vector");
+        }
 
+        String entityType = request.getEntityType();
         int limit = Optional.ofNullable(request.getLimit()).orElse(10);
         double threshold = Optional.ofNullable(request.getThreshold()).orElse(0.0);
 
-        ObjectNode payload = MAPPER.createObjectNode();
-        payload.put("limit", limit);
-        ArrayNode vectorArray = payload.putArray("vector");
-        queryVector.forEach(vectorArray::add);
-
-        JsonNode filterNode = buildFilterNode(request.getFilters(), request.getMetadata());
-        if (filterNode != null) {
-            payload.set("filter", filterNode);
+        List<String> collections = resolveSearchCollections(entityType);
+        if (collections.isEmpty()) {
+            return AISearchResponse.builder()
+                .query(request.getQuery())
+                .results(List.of())
+                .totalResults(0)
+                .model("qdrant")
+                .build();
         }
 
-        JsonNode response = execute(HttpMethod.POST, collectionPath(entityType, "/points/search"), payload, JsonNode.class);
-        List<VectorRecord> results = parseSearchResults(entityType, response.path("result"), threshold);
+        List<Float> queryVectorFloat = toFloatList(queryVector);
+
+        List<VectorRecord> allResults = new ArrayList<>();
+        for (String collection : collections) {
+            ensureCollection(collection, queryVector.size());
+            Common.Filter filter = buildMetadataFilter(request.getMetadata());
+
+            Points.SearchPoints.Builder searchBuilder = Points.SearchPoints.newBuilder()
+                .setCollectionName(collection)
+                .addAllVector(queryVectorFloat)
+                .setLimit(limit)
+                .setWithPayload(WithPayloadSelectorFactory.enable(true))
+                .setWithVectors(WithVectorsSelectorFactory.enable(true));
+
+            if (filter != null) {
+                searchBuilder.setFilter(filter);
+            }
+
+            List<Points.ScoredPoint> scored = await(qdrantClient.searchAsync(searchBuilder.build()), "search points");
+            if (CollectionUtils.isEmpty(scored)) {
+                continue;
+            }
+
+            for (Points.ScoredPoint point : scored) {
+                double score = point.getScore();
+                if (score < threshold) {
+                    continue;
+                }
+                allResults.add(toVectorRecord(collection, point, score));
+            }
+        }
+
+        List<Map<String, Object>> mapped = allResults.stream()
+            .sorted((left, right) -> Double.compare(
+                Optional.ofNullable(right.getSimilarityScore()).orElse(0.0),
+                Optional.ofNullable(left.getSimilarityScore()).orElse(0.0)))
+            .limit(limit)
+            .map(record -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("vectorId", record.getVectorId());
+                row.put("entityId", record.getEntityId());
+                row.put("entityType", record.getEntityType());
+                row.put("content", record.getContent());
+                row.put("metadata", record.getMetadata());
+                row.put("score", record.getSimilarityScore());
+                return row;
+            })
+            .toList();
 
         return AISearchResponse.builder()
             .query(request.getQuery())
-            .results(results.stream()
-                .map(record -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("vectorId", record.getVectorId());
-                    row.put("entityId", record.getEntityId());
-                    row.put("entityType", record.getEntityType());
-                    row.put("content", record.getContent());
-                    row.put("metadata", record.getMetadata());
-                    row.put("score", record.getSimilarityScore());
-                    return row;
-                })
-                .collect(Collectors.toList()))
-            .totalResults(results.size())
-            .model(entityType)
+            .results(mapped)
+            .totalResults(mapped.size())
+            .model("qdrant")
             .build();
     }
 
     @Override
     public AISearchResponse searchByEntityType(List<Double> queryVector, String entityType, int limit, double threshold) {
         AISearchRequest request = AISearchRequest.builder()
+            .query("")
             .entityType(entityType)
             .limit(limit)
             .threshold(threshold)
@@ -162,21 +283,38 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
 
     @Override
     public boolean removeVector(String entityType, String entityId) {
+        ensureEnabled();
+        if (!collectionExists(entityType)) {
+            return false;
+        }
+
         String vectorId = buildVectorId(entityType, entityId);
-        return removeVectorById(vectorId);
+        Optional<VectorRecord> existing = getVectorByEntity(entityType, entityId);
+        if (existing.isEmpty()) {
+            return false;
+        }
+        await(qdrantClient.deleteAsync(entityType, List.of(PointIdFactory.id(parseVectorUuid(vectorId)))), "delete point");
+        return true;
     }
 
     @Override
     public boolean removeVectorById(String vectorId) {
         ensureEnabled();
-        String[] parts = parseVectorId(vectorId);
-        String entityType = parts[0];
-        ensureCollection(entityType, null);
+        if (vectorId == null || vectorId.isBlank()) {
+            return false;
+        }
 
-        ObjectNode payload = MAPPER.createObjectNode();
-        payload.putArray("points").add(vectorId);
-        execute(HttpMethod.POST, collectionPath(entityType, "/points/delete"), payload, JsonNode.class);
-        return true;
+        UUID id = parseVectorUuid(vectorId);
+        boolean removed = false;
+        for (String collection : listCandidateCollections()) {
+            try {
+                await(qdrantClient.deleteAsync(collection, List.of(PointIdFactory.id(id))), "delete point");
+                removed = true;
+            } catch (AIServiceException ignored) {
+                // Best-effort scan across collections.
+            }
+        }
+        return removed;
     }
 
     @Override
@@ -184,11 +322,13 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
         if (CollectionUtils.isEmpty(vectors)) {
             return Collections.emptyList();
         }
-        vectors.forEach(record -> storeVector(record.getEntityType(), record.getEntityId(), record.getContent(),
-            record.getEmbedding(), record.getMetadata()));
-        return vectors.stream()
-            .map(record -> buildVectorId(record.getEntityType(), record.getEntityId()))
-            .collect(Collectors.toList());
+
+        List<String> ids = new ArrayList<>(vectors.size());
+        for (VectorRecord record : vectors) {
+            ids.add(storeVector(record.getEntityType(), record.getEntityId(), record.getContent(),
+                record.getEmbedding(), record.getMetadata()));
+        }
+        return ids;
     }
 
     @Override
@@ -196,8 +336,17 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
         if (CollectionUtils.isEmpty(vectors)) {
             return 0;
         }
-        batchStoreVectors(vectors);
-        return vectors.size();
+        int updated = 0;
+        for (VectorRecord record : vectors) {
+            if (record.getVectorId() == null) {
+                continue;
+            }
+            if (updateVector(record.getVectorId(), record.getEntityType(), record.getEntityId(), record.getContent(),
+                record.getEmbedding(), record.getMetadata())) {
+                updated++;
+            }
+        }
+        return updated;
     }
 
     @Override
@@ -205,36 +354,61 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
         if (CollectionUtils.isEmpty(vectorIds)) {
             return 0;
         }
-        ObjectNode payload = MAPPER.createObjectNode();
-        ArrayNode ids = payload.putArray("points");
-        vectorIds.forEach(ids::add);
-        String entityType = parseVectorId(vectorIds.get(0))[0];
-        ensureCollection(entityType, null);
-        execute(HttpMethod.POST, collectionPath(entityType, "/points/delete"), payload, JsonNode.class);
-        return vectorIds.size();
+        int removed = 0;
+        for (String id : vectorIds) {
+            if (removeVectorById(id)) {
+                removed++;
+            }
+        }
+        return removed;
     }
 
     @Override
     public List<VectorRecord> getVectorsByEntityType(String entityType) {
         ensureEnabled();
-        ensureCollection(entityType, null);
-        ObjectNode payload = MAPPER.createObjectNode();
-        payload.put("limit", 1000);
-        JsonNode response = execute(HttpMethod.POST, collectionPath(entityType, "/points/scroll"), payload, JsonNode.class);
-        JsonNode points = response.path("result").path("points");
-        if (!points.isArray()) {
+        if (!collectionExists(entityType)) {
             return Collections.emptyList();
         }
+
         List<VectorRecord> records = new ArrayList<>();
-        points.forEach(point -> records.add(toVectorRecord(entityType, point)));
+        Common.PointId offset = null;
+        int pageSize = 256;
+
+        while (true) {
+            Points.ScrollPoints.Builder builder = Points.ScrollPoints.newBuilder()
+                .setCollectionName(entityType)
+                .setLimit(pageSize)
+                .setWithPayload(WithPayloadSelectorFactory.enable(true))
+                .setWithVectors(WithVectorsSelectorFactory.enable(true));
+
+            if (offset != null) {
+                builder.setOffset(offset);
+            }
+
+            Points.ScrollResponse response = await(qdrantClient.scrollAsync(builder.build()), "scroll points");
+            if (response == null || response.getResultCount() == 0) {
+                break;
+            }
+
+            response.getResultList().forEach(point -> records.add(toVectorRecord(entityType, point, null)));
+            if (!response.hasNextPageOffset()) {
+                break;
+            }
+            offset = response.getNextPageOffset();
+        }
+
         return records;
     }
 
     @Override
     public long getVectorCountByEntityType(String entityType) {
         ensureEnabled();
-        JsonNode response = execute(HttpMethod.GET, collectionPath(entityType, ""), null, JsonNode.class);
-        return response.path("result").path("points_count").asLong(0);
+        if (!collectionExists(entityType)) {
+            return 0L;
+        }
+        Common.Filter filter = Common.Filter.newBuilder().build();
+        Long count = await(qdrantClient.countAsync(entityType, filter, true), "count points");
+        return count != null ? count : 0L;
     }
 
     @Override
@@ -245,24 +419,20 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
     @Override
     public Map<String, Object> getStatistics() {
         ensureEnabled();
-        JsonNode response = execute(HttpMethod.GET, "/collections", null, JsonNode.class);
-        return response == null ? Collections.emptyMap() : MAPPER.convertValue(response, Map.class);
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("type", "qdrant");
+        stats.put("host", config.getHost());
+        stats.put("grpcPort", config.getGrpcPort());
+        stats.put("collections", listCandidateCollections());
+        return stats;
     }
 
     @Override
     public long clearVectors() {
         ensureEnabled();
-        JsonNode response = execute(HttpMethod.GET, "/collections", null, JsonNode.class);
-        JsonNode collections = response.path("result");
-        if (!collections.isArray()) {
-            return 0;
-        }
         long removed = 0;
-        for (JsonNode collection : collections) {
-            String name = collection.path("name").asText(null);
-            if (name != null) {
-                removed += clearVectorsByEntityType(name);
-            }
+        for (String collection : listCandidateCollections()) {
+            removed += clearVectorsByEntityType(collection);
         }
         return removed;
     }
@@ -270,11 +440,11 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
     @Override
     public long clearVectorsByEntityType(String entityType) {
         ensureEnabled();
-        ensureCollection(entityType, null);
-        ObjectNode payload = MAPPER.createObjectNode();
-        payload.put("filter", MAPPER.createObjectNode());
-        execute(HttpMethod.POST, collectionPath(entityType, "/points/delete"), payload, JsonNode.class);
-        return 0; // Qdrant does not return count for delete requests
+        if (!collectionExists(entityType)) {
+            return 0L;
+        }
+        await(qdrantClient.deleteAsync(entityType, Common.Filter.newBuilder().build()), "delete all points");
+        return 0;
     }
 
     private void ensureEnabled() {
@@ -283,144 +453,327 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService {
         }
     }
 
+    private QdrantGrpcClient buildGrpcClient(AIProviderConfig.QdrantConfig config) {
+        String rawHost = Optional.ofNullable(config.getHost()).orElse("localhost").trim();
+        boolean tls = false;
+        String host = rawHost;
+
+        if (rawHost.startsWith("https://")) {
+            tls = true;
+            host = rawHost.substring("https://".length());
+        } else if (rawHost.startsWith("http://")) {
+            host = rawHost.substring("http://".length());
+        }
+
+        int grpcPort = Optional.ofNullable(config.getGrpcPort()).orElse(6334);
+        QdrantGrpcClient.Builder builder = QdrantGrpcClient.newBuilder(host, grpcPort, tls);
+
+        if (config.getApiKey() != null && !config.getApiKey().isBlank()) {
+            builder.withApiKey(config.getApiKey());
+        }
+
+        int timeoutSeconds = Optional.ofNullable(config.getTimeout()).orElse(30);
+        if (timeoutSeconds > 0) {
+            builder.withTimeout(Duration.ofSeconds(timeoutSeconds));
+        }
+
+        return builder.build();
+    }
+
+    @PreDestroy
+    @Override
+    public void close() {
+        qdrantClient.close();
+    }
+
     private void ensureCollection(String collection, Integer vectorSize) {
         if (collectionCache.containsKey(collection)) {
             return;
         }
+
         synchronized (collectionCache) {
             if (collectionCache.containsKey(collection)) {
                 return;
             }
-            try {
-                execute(HttpMethod.GET, collectionPath(collection, ""), null, JsonNode.class);
-            } catch (AIServiceException ex) {
-                ObjectNode payload = MAPPER.createObjectNode();
-                payload.put("name", collection);
-                if (vectorSize != null && vectorSize > 0) {
-                    payload.putObject("vectors").put("size", vectorSize).put("distance", "Cosine");
-                }
-                execute(HttpMethod.PUT, "/collections/" + collection, payload, JsonNode.class);
+
+            if (collectionExists(collection)) {
+                collectionCache.put(collection, Boolean.TRUE);
+                return;
             }
+
+            if (vectorSize == null || vectorSize <= 0) {
+                throw new AIServiceException("Cannot create Qdrant collection '" + collection + "' without vector size");
+            }
+
+            io.qdrant.client.grpc.Collections.VectorParams vectorParams = io.qdrant.client.grpc.Collections.VectorParams.newBuilder()
+                .setSize(vectorSize)
+                .setDistance(io.qdrant.client.grpc.Collections.Distance.Cosine)
+                .build();
+
+            await(qdrantClient.createCollectionAsync(collection, vectorParams), "create collection");
             collectionCache.put(collection, Boolean.TRUE);
         }
     }
 
-    private JsonNode buildFilterNode(String rawFilter, Map<String, Object> metadataFilters) {
-        if (hasText(rawFilter)) {
-            try {
-                return MAPPER.readTree(rawFilter);
-            } catch (Exception ex) {
-                throw new AIServiceException("Invalid Qdrant filter expression", ex);
-            }
+    private boolean collectionExists(String collection) {
+        if (collectionCache.containsKey(collection)) {
+            return true;
         }
-        if (metadataFilters != null && !metadataFilters.isEmpty()) {
-            ObjectNode filter = MAPPER.createObjectNode();
-            ArrayNode must = filter.putObject("must").putArray("must");
-            metadataFilters.forEach((key, value) -> {
-                ObjectNode condition = must.addObject();
-                condition.put("key", key);
-                condition.putObject("match").putPOJO("value", value);
-            });
-            return filter;
+        List<String> collections = await(qdrantClient.listCollectionsAsync(), "list collections");
+        if (collections != null && collections.contains(collection)) {
+            collectionCache.put(collection, Boolean.TRUE);
+            return true;
         }
-        return null;
-    }
-
-    private List<VectorRecord> parseSearchResults(String entityType, JsonNode results, double threshold) {
-        if (!results.isArray()) {
-            return Collections.emptyList();
-        }
-        List<VectorRecord> list = new ArrayList<>();
-        for (JsonNode node : results) {
-            double score = node.path("score").asDouble(0.0);
-            if (score < threshold) {
-                continue;
-            }
-            list.add(toVectorRecord(entityType, node));
-        }
-        return list;
-    }
-
-    private VectorRecord toVectorRecord(String entityType, JsonNode node) {
-        String id = node.path("id").asText(null);
-        JsonNode payload = node.path("payload");
-        String entityId = payload.path("entityId").asText(null);
-        String content = payload.path("content").asText(null);
-        List<Double> vector = new ArrayList<>();
-        JsonNode vectorNode = node.path("vector");
-        if (vectorNode.isArray()) {
-            vectorNode.forEach(v -> vector.add(v.asDouble()));
-        }
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        payload.fields().forEachRemaining(entry -> {
-            if (!List.of("entityId", "content").contains(entry.getKey())) {
-                metadata.put(entry.getKey(), MAPPER.convertValue(entry.getValue(), Object.class));
-            }
-        });
-        return VectorRecord.builder()
-            .vectorId(id)
-            .entityType(entityType)
-            .entityId(entityId)
-            .content(content)
-            .embedding(vector)
-            .metadata(metadata)
-            .similarityScore(node.path("score").asDouble(0.0))
-            .build();
-    }
-
-    private RestTemplate buildRestTemplate(AIProviderConfig.QdrantConfig config) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        int timeout = Optional.ofNullable(config.getTimeout()).orElse(30) * 1000;
-        factory.setConnectTimeout(timeout);
-        factory.setReadTimeout(timeout);
-        return new RestTemplate(factory);
-    }
-
-    private <T> T execute(HttpMethod method, String path, Object body, Class<T> responseType) {
-        try {
-            URI uri = buildUri(path);
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            if (config.getApiKey() != null && !config.getApiKey().isBlank()) {
-                headers.set("api-key", config.getApiKey());
-                headers.set("Authorization", "Bearer " + config.getApiKey());
-            }
-            HttpEntity<Object> entity = new HttpEntity<>(body, headers);
-            ResponseEntity<T> response = restTemplate.exchange(uri, method, entity, responseType);
-            return response.getBody();
-        } catch (HttpStatusCodeException ex) {
-            String message = ex.getResponseBodyAsString();
-            log.error("Qdrant request failed: {}", message);
-            throw new AIServiceException("Qdrant request failed: " + message, ex);
-        } catch (Exception ex) {
-            throw new AIServiceException("Qdrant request failed: " + ex.getMessage(), ex);
-        }
-    }
-
-    private URI buildUri(String path) throws URISyntaxException {
-        String host = Optional.ofNullable(config.getHost()).orElse("localhost");
-        int port = Optional.ofNullable(config.getPort()).orElse(6333);
-        String normalizedPath = path.startsWith("/") ? path : "/" + path;
-        return new URI("http", null, host, port, normalizedPath, null, null);
+        return false;
     }
 
     private String buildVectorId(String entityType, String entityId) {
-        return entityType + "::" + entityId;
+        String key = entityType + "::" + entityId;
+        return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
-    private String[] parseVectorId(String vectorId) {
-        String[] parts = vectorId.split("::", 2);
-        if (parts.length != 2) {
-            throw new AIServiceException("Invalid vector ID: " + vectorId);
+    private UUID parseVectorUuid(String vectorId) {
+        try {
+            return UUID.fromString(vectorId);
+        } catch (IllegalArgumentException ex) {
+            throw new AIServiceException("Invalid Qdrant vector ID (expected UUID): " + vectorId, ex);
         }
-        return parts;
     }
 
-    private String collectionPath(String collection, String suffix) {
-        String normalizedSuffix = suffix.startsWith("/") ? suffix : "/" + suffix;
-        return "/collections/" + collection + normalizedSuffix;
+    private List<Float> toFloatList(List<Double> values) {
+        List<Float> floats = new ArrayList<>(values.size());
+        for (Double value : values) {
+            floats.add(value.floatValue());
+        }
+        return floats;
     }
-    private boolean hasText(String value) {
-        return value != null && !value.trim().isEmpty();
+
+    private JsonWithInt.Value toValue(Object obj) {
+        if (obj == null) {
+            return ValueFactory.nullValue();
+        }
+        if (obj instanceof String value) {
+            return ValueFactory.value(value);
+        }
+        if (obj instanceof Boolean value) {
+            return ValueFactory.value(value);
+        }
+        if (obj instanceof Integer || obj instanceof Long) {
+            return ValueFactory.value(((Number) obj).longValue());
+        }
+        if (obj instanceof Float || obj instanceof Double) {
+            return ValueFactory.value(((Number) obj).doubleValue());
+        }
+        if (obj instanceof Number number) {
+            double asDouble = number.doubleValue();
+            long asLong = number.longValue();
+            if (Math.abs(asDouble - asLong) < 1e-9) {
+                return ValueFactory.value(asLong);
+            }
+            return ValueFactory.value(asDouble);
+        }
+        if (obj instanceof List<?> list) {
+            List<JsonWithInt.Value> values = list.stream()
+                .map(this::toValue)
+                .toList();
+            return ValueFactory.list(values);
+        }
+        if (obj instanceof Map<?, ?> map) {
+            Map<String, JsonWithInt.Value> converted = new LinkedHashMap<>();
+            map.forEach((key, value) -> {
+                if (key != null) {
+                    converted.put(String.valueOf(key), toValue(value));
+                }
+            });
+            return ValueFactory.value(converted);
+        }
+        return ValueFactory.value(obj.toString());
+    }
+
+    private Object fromValue(JsonWithInt.Value value) {
+        if (value == null) {
+            return null;
+        }
+        return switch (value.getKindCase()) {
+            case NULL_VALUE -> null;
+            case STRING_VALUE -> value.getStringValue();
+            case BOOL_VALUE -> value.getBoolValue();
+            case INTEGER_VALUE -> value.getIntegerValue();
+            case DOUBLE_VALUE -> value.getDoubleValue();
+            case STRUCT_VALUE -> {
+                Map<String, Object> map = new LinkedHashMap<>();
+                value.getStructValue().getFieldsMap().forEach((k, v) -> map.put(k, fromValue(v)));
+                yield map;
+            }
+            case LIST_VALUE -> value.getListValue().getValuesList().stream()
+                .map(this::fromValue)
+                .toList();
+            case KIND_NOT_SET -> null;
+        };
+    }
+
+    private Map<String, Object> stripRaw(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty() || !metadata.containsKey("raw")) {
+            return metadata == null ? Collections.emptyMap() : metadata;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>(metadata);
+        copy.remove("raw");
+        return copy;
+    }
+
+    private VectorRecord toVectorRecord(String entityType, Points.RetrievedPoint point, Double scoreOverride) {
+        String vectorId = point.hasId() && point.getId().hasUuid() ? point.getId().getUuid() : null;
+        Map<String, JsonWithInt.Value> payload = point.getPayloadMap();
+
+        String entityId = Optional.ofNullable(payload.get("entityId"))
+            .filter(JsonWithInt.Value::hasStringValue)
+            .map(JsonWithInt.Value::getStringValue)
+            .orElse(null);
+
+        String content = Optional.ofNullable(payload.get("content"))
+            .filter(JsonWithInt.Value::hasStringValue)
+            .map(JsonWithInt.Value::getStringValue)
+            .orElse(null);
+
+        List<Double> embedding = extractEmbedding(payload, point);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        payload.forEach((key, value) -> {
+            if (!RESERVED_PAYLOAD_FIELDS.contains(key)) {
+                metadata.put(key, fromValue(value));
+            }
+        });
+
+        if (!metadata.containsKey("raw") && !metadata.isEmpty()) {
+            metadata.put("raw", MetadataJsonSerializer.serialize(metadata));
+        }
+
+        return VectorRecord.builder()
+            .vectorId(vectorId)
+            .entityType(entityType)
+            .entityId(entityId)
+            .content(content)
+            .embedding(embedding)
+            .metadata(metadata)
+            .similarityScore(scoreOverride)
+            .build();
+    }
+
+    private List<Double> extractEmbedding(Map<String, JsonWithInt.Value> payload, Points.RetrievedPoint point) {
+        if (payload != null) {
+            JsonWithInt.Value embeddingValue = payload.get(EMBEDDING_PAYLOAD_FIELD);
+            List<Double> embeddingFromPayload = parseEmbeddingValue(embeddingValue);
+            if (!CollectionUtils.isEmpty(embeddingFromPayload)) {
+                return embeddingFromPayload;
+            }
+        }
+
+        if (point.hasVectors() && point.getVectors().hasVector()) {
+            List<Double> embedding = new ArrayList<>(point.getVectors().getVector().getDataCount());
+            for (Float entry : point.getVectors().getVector().getDataList()) {
+                embedding.add(entry.doubleValue());
+            }
+            return embedding;
+        }
+
+        return Collections.emptyList();
+    }
+
+    private List<Double> parseEmbeddingValue(JsonWithInt.Value value) {
+        if (value == null || value.getKindCase() != JsonWithInt.Value.KindCase.LIST_VALUE) {
+            return null;
+        }
+
+        List<Double> embedding = new ArrayList<>(value.getListValue().getValuesCount());
+        for (JsonWithInt.Value entry : value.getListValue().getValuesList()) {
+            if (entry == null) {
+                continue;
+            }
+            switch (entry.getKindCase()) {
+                case DOUBLE_VALUE -> embedding.add(entry.getDoubleValue());
+                case INTEGER_VALUE -> embedding.add((double) entry.getIntegerValue());
+                case STRING_VALUE -> {
+                    try {
+                        embedding.add(Double.parseDouble(entry.getStringValue()));
+                    } catch (NumberFormatException ignored) {
+                        // Ignore unparsable payload values.
+                    }
+                }
+                default -> {
+                    // Ignore unsupported payload value types.
+                }
+            }
+        }
+
+        return embedding;
+    }
+
+    private VectorRecord toVectorRecord(String entityType, Points.ScoredPoint point, double score) {
+        Points.RetrievedPoint converted = Points.RetrievedPoint.newBuilder()
+            .setId(point.getId())
+            .putAllPayload(point.getPayloadMap())
+            .setVectors(point.getVectors())
+            .build();
+        return toVectorRecord(entityType, converted, score);
+    }
+
+    private Common.Filter buildMetadataFilter(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+
+        List<Common.Condition> conditions = new ArrayList<>();
+        metadata.forEach((key, value) -> {
+            if (value == null) {
+                return;
+            }
+            if (value instanceof Boolean bool) {
+                conditions.add(io.qdrant.client.ConditionFactory.match(key, bool));
+                return;
+            }
+            if (value instanceof Number number) {
+                conditions.add(io.qdrant.client.ConditionFactory.match(key, number.longValue()));
+                return;
+            }
+            conditions.add(io.qdrant.client.ConditionFactory.matchKeyword(key, String.valueOf(value)));
+        });
+
+        if (conditions.isEmpty()) {
+            return null;
+        }
+
+        return Common.Filter.newBuilder().addAllMust(conditions).build();
+    }
+
+    private List<String> resolveSearchCollections(String entityType) {
+        if (entityType != null && !entityType.isBlank()) {
+            return List.of(entityType);
+        }
+        return listCandidateCollections();
+    }
+
+    private List<String> listCandidateCollections() {
+        List<String> cached = new ArrayList<>(collectionCache.keySet());
+        if (!cached.isEmpty()) {
+            return cached;
+        }
+        try {
+            List<String> collections = await(qdrantClient.listCollectionsAsync(), "list collections");
+            return collections == null ? List.of() : collections;
+        } catch (Exception ex) {
+            log.debug("Unable to list Qdrant collections; falling back to cache only", ex);
+            return cached;
+        }
+    }
+
+    private <T> T await(ListenableFuture<T> future, String action) {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AIServiceException("Qdrant operation interrupted during " + action, e);
+        } catch (Exception e) {
+            throw new AIServiceException("Qdrant operation failed during " + action + ": " + e.getMessage(), e);
+        }
     }
 }

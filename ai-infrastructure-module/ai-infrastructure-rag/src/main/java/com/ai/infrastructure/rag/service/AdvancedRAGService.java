@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 /**
@@ -323,7 +324,8 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
                         return doc;
                     }
                 })
-                .sorted((d1, d2) -> Double.compare(d2.getSimilarity(), d1.getSimilarity()))
+                .sorted(Comparator.comparingDouble((RAGResponse.RAGDocument doc) -> safeDouble(doc.getSimilarity()))
+                    .reversed())
                 .collect(Collectors.toList());
                 
         } catch (Exception e) {
@@ -369,7 +371,8 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
     private List<RAGResponse.RAGDocument> rerankByScore(
             List<RAGResponse.RAGDocument> documents) {
         return documents.stream()
-            .sorted((d1, d2) -> Double.compare(d2.getScore(), d1.getScore()))
+            .sorted(Comparator.comparingDouble((RAGResponse.RAGDocument doc) -> safeDouble(doc.getScore()))
+                .reversed())
             .collect(Collectors.toList());
     }
 
@@ -410,7 +413,8 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
 
     private String optimizeContextMedium(List<RAGResponse.RAGDocument> documents) {
         return documents.stream()
-            .sorted((d1, d2) -> Double.compare(d2.getScore(), d1.getScore()))
+            .sorted(Comparator.comparingDouble((RAGResponse.RAGDocument doc) -> safeDouble(doc.getScore()))
+                .reversed())
             .limit(TOP_DOCUMENTS_FOR_MEDIUM_OPTIMIZATION)
             .map(RAGResponse.RAGDocument::getContent)
             .collect(Collectors.joining("\n\n"));
@@ -465,15 +469,15 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
     }
 
     private double calculateHybridScore(RAGResponse.RAGDocument doc) {
-        double score = doc.getScore();
-        double similarity = doc.getSimilarity();
+        double score = safeDouble(doc.getScore());
+        double similarity = safeDouble(doc.getSimilarity());
         
         return (score * SCORE_WEIGHT) + (similarity * SIMILARITY_WEIGHT);
     }
 
     private List<Double> extractRelevanceScores(List<RAGResponse.RAGDocument> documents) {
         return documents.stream()
-            .map(RAGResponse.RAGDocument::getSimilarity)
+            .map(doc -> safeDouble(doc.getSimilarity()))
             .collect(Collectors.toList());
     }
 
@@ -483,16 +487,20 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
         }
         
         double avgScore = documents.stream()
-            .mapToDouble(RAGResponse.RAGDocument::getScore)
+            .mapToDouble(doc -> safeDouble(doc.getScore()))
             .average()
             .orElse(0.0);
         
         double avgSimilarity = documents.stream()
-            .mapToDouble(RAGResponse.RAGDocument::getSimilarity)
+            .mapToDouble(doc -> safeDouble(doc.getSimilarity()))
             .average()
             .orElse(0.0);
         
         return (avgScore + avgSimilarity) / 2.0;
+    }
+
+    private static double safeDouble(Double value) {
+        return value == null ? 0.0 : value.doubleValue();
     }
 
     private Map<String, Object> createMetadata(AdvancedRAGRequest request, long processingTime) {

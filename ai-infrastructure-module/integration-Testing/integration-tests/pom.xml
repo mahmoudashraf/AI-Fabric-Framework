@@ -24,6 +24,13 @@
     </properties>
 
     <dependencies>
+        <!-- Shared Testcontainers Support -->
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>testcontainers-support</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
         <!-- AI Infrastructure Module (the module being tested) -->
         <dependency>
             <groupId>com.ai.fabric</groupId>
@@ -99,6 +106,12 @@
             <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-milvus</artifactId>
             <version>${project.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.testcontainers</groupId>
+                    <artifactId>milvus</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Optional ONNX starter to supply bundled model/tokenizer assets -->
@@ -193,16 +206,7 @@
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>test</scope>
-        </dependency>
+        <!-- Testcontainers dependencies come from testcontainers-support module -->
 
         <!-- JUnit Platform launcher for programmatic execution -->
         <dependency>

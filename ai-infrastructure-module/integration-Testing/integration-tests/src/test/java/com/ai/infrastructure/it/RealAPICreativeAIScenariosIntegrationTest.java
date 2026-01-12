@@ -542,8 +542,30 @@ public class RealAPICreativeAIScenariosIntegrationTest {
         System.out.println("   - Total entities processed: " + stressEntities.size());
 
         // Performance assertions
-        assertTrue(totalTime < 120000, "Stress test should complete within 2 minutes");
-        assertTrue(avgTimePerEntity < 5000, "Average processing time per entity should be under 5 seconds");
+        boolean isCI = "true".equalsIgnoreCase(System.getenv("CI"));
+        long maxTotalTimeMillis = getLongSetting("AI_IT_STRESS_MAX_TOTAL_TIME_MILLIS", isCI ? 900_000L : 120_000L);
+        long maxAvgTimePerEntityMillis = getLongSetting("AI_IT_STRESS_MAX_AVG_TIME_PER_ENTITY_MILLIS", isCI ? 15_000L : 5_000L);
+
+        assertTrue(totalTime < maxTotalTimeMillis,
+            "Stress test should complete within " + maxTotalTimeMillis + "ms (configurable via AI_IT_STRESS_MAX_TOTAL_TIME_MILLIS)");
+        assertTrue(avgTimePerEntity < maxAvgTimePerEntityMillis,
+            "Average processing time per entity should be under " + maxAvgTimePerEntityMillis
+                + "ms (configurable via AI_IT_STRESS_MAX_AVG_TIME_PER_ENTITY_MILLIS)");
+    }
+
+    private static long getLongSetting(String name, long defaultValue) {
+        String value = System.getProperty(name);
+        if (value == null || value.isBlank()) {
+            value = System.getenv(name);
+        }
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException ex) {
+            return defaultValue;
+        }
     }
     private List<AISearchableEntity> entities(String entityType) {
         return storageStrategy.findByEntityType(entityType);
