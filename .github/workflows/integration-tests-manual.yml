@@ -56,12 +56,12 @@ on:
         description: 'Pinecone index name (optional when pinecone_host is provided; derived from host if blank). If left blank, workflow will use repo variable PINECONE_INDEX_NAME (if set).'
         required: false
         type: string
-        default: ''
+        default: 'ai-fabric'
       pinecone_host:
         description: 'Pinecone index host URL (optional; recommended for serverless). Example: https://<index>.svc.<env>.pinecone.io. If left blank, workflow will use repo variable PINECONE_API_HOST (if set).'
         required: false
         type: string
-        default: ''
+        default: 'https://ai-fabric-pwkuyn5.svc.aped-4627-b74a.pinecone.io'
       llm_provider:
         description: 'LLM Provider'
         required: true
