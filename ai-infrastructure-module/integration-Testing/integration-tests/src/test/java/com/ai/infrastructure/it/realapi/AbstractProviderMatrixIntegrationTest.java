@@ -9,6 +9,7 @@ import com.ai.infrastructure.provider.registry.ProviderRegistryService;
 import com.ai.infrastructure.provider.registry.ProviderType;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultDebugSnapshotStore;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.platform.launcher.Launcher;
@@ -54,20 +55,25 @@ abstract class AbstractProviderMatrixIntegrationTest {
     private final AtomicInteger successCount = new AtomicInteger(0);
 
     @TestFactory
-    Stream<DynamicTest> providerMatrix() {
-        beforeMatrixExecution();
-        List<ProviderCombination> combinations = resolveProviderMatrix();
-        Assertions.assertThat(combinations)
-            .as("Provider matrix should not be empty")
-            .isNotEmpty();
+	    Stream<DynamicTest> providerMatrix() {
+	        beforeMatrixExecution();
+	        List<ProviderCombination> combinations = resolveProviderMatrix();
+	        Assertions.assertThat(combinations)
+	            .as("Provider matrix should not be empty")
+	            .isNotEmpty();
 
-        // Filter combinations based on provider-specific rules
-        List<ProviderCombination> filteredCombinations = filterProviderCombinations(combinations);
-        
-        if (filteredCombinations.size() < combinations.size()) {
-            log.info("Filtered {} combinations down to {} based on provider-specific rules",
-                combinations.size(), filteredCombinations.size());
-        }
+	        // Filter combinations based on provider-specific rules
+	        List<ProviderCombination> filteredCombinations = filterProviderCombinations(combinations);
+	        if (filteredCombinations.isEmpty()) {
+	            Assumptions.assumeTrue(false,
+	                "No runnable provider combinations after filtering. " +
+	                    "This usually means required provider configuration is missing for the requested matrix.");
+	        }
+	        
+	        if (filteredCombinations.size() < combinations.size()) {
+	            log.info("Filtered {} combinations down to {} based on provider-specific rules",
+	                combinations.size(), filteredCombinations.size());
+	        }
 
         log.info("═══════════════════════════════════════════════════════════════");
         log.info("{} - Starting", suiteDisplayName());
