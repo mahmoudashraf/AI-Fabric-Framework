@@ -91,7 +91,7 @@ ai:
 Notes:
 - The ONNX starter supplies default values for `ai.providers.onnx.model-path` and `ai.providers.onnx.tokenizer-path` via its bundled `application.properties` (override if needed).
 - Global enable/disable: `ai.enabled=false` disables the core auto-configuration.
-- Module toggles (enable/disable aliases):
-  - RAG: `ai.rag.enabled` (alias for `ai.infrastructure.rag.enabled`)
-  - Relationship Query: `ai.relationship.enabled` (alias for `ai.infrastructure.relationship.enabled`)
+- Module toggles (enable/disable):
+  - RAG: `ai.infrastructure.rag.enabled`
+  - Relationship Query: `ai.infrastructure.relationship.enabled`
 - Core HTTP defaults are configurable via `ai.http.connect-timeout` and `ai.http.read-timeout`.

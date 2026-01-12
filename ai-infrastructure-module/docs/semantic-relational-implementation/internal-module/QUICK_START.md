@@ -20,8 +20,7 @@ The module auto-registers via `RelationshipQueryAutoConfiguration`.
 
 ## 3. Minimum Configuration
 ```properties
-ai.relationship.enabled=true
-# (alias) ai.infrastructure.relationship.enabled=true
+ai.infrastructure.relationship.enabled=true
 ai.infrastructure.relationship.max-traversal-depth=3
 ai.providers.llm-provider=openai
 ai.providers.embedding-provider=onnx
