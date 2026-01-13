@@ -54,11 +54,80 @@ on:
 
 jobs:
   provider-suite:
-    name: Full suite (ONNX) across providers
+    name: Provider Suite (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 180
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - name: openai-onnx-pinecone
+            llm: openai
+            embedding: onnx
+            vector_db: pinecone
+            spring_profiles: real-api-test
+            use_testcontainers: false
+            requires_openai: true
+            requires_cohere: false
+            requires_anthropic: false
+            requires_gemini: false
+            requires_pinecone: true
+          - name: cohere-onnx-qdrant
+            llm: cohere
+            embedding: onnx
+            vector_db: qdrant
+            spring_profiles: real-api-test,testcontainers
+            use_testcontainers: true
+            requires_openai: false
+            requires_cohere: true
+            requires_anthropic: false
+            requires_gemini: false
+            requires_pinecone: false
+          - name: anthropic-onnx-milvus
+            llm: anthropic
+            embedding: onnx
+            vector_db: milvus
+            spring_profiles: real-api-test,testcontainers
+            use_testcontainers: true
+            requires_openai: false
+            requires_cohere: false
+            requires_anthropic: true
+            requires_gemini: false
+            requires_pinecone: false
+          - name: gemini-onnx-weaviate
+            llm: gemini
+            embedding: onnx
+            vector_db: weaviate
+            spring_profiles: real-api-test,testcontainers
+            use_testcontainers: true
+            requires_openai: false
+            requires_cohere: false
+            requires_anthropic: false
+            requires_gemini: true
+            requires_pinecone: false
+          - name: openai-onnx-lucene
+            llm: openai
+            embedding: onnx
+            vector_db: lucene
+            spring_profiles: real-api-test
+            use_testcontainers: false
+            requires_openai: true
+            requires_cohere: false
+            requires_anthropic: false
+            requires_gemini: false
+            requires_pinecone: false
+
+    if: >-
+      ${{
+        (!matrix.requires_openai || github.event.inputs.openai_api_key != '' || secrets.OPENAI_API_KEY != '') &&
+        (!matrix.requires_cohere || github.event.inputs.cohere_api_key != '' || secrets.COHERE_API_KEY != '') &&
+        (!matrix.requires_anthropic || github.event.inputs.anthropic_api_key != '' || secrets.ANTHROPIC_API_KEY != '') &&
+        (!matrix.requires_gemini || github.event.inputs.gemini_api_key != '' || secrets.GEMINI_API_KEY != '') &&
+        (!matrix.requires_pinecone || github.event.inputs.pinecone_api_key != '' || secrets.PINECONE_API_KEY != '')
+      }}
 
     env:
       MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level || 'normal' }}
@@ -98,82 +167,26 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Verify Docker is available (required for Testcontainers)
+      - name: Verify Docker is available
         run: |
           docker --version
           docker info | head -5
 
-      - name: Cache Maven packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-provider-suite-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-provider-suite-
-            ${{ runner.os }}-maven-
-
-      - name: Validate required keys
-        run: |
-          missing=0
-          check() {
-            local name="$1"
-            local val="$2"
-            if [ -z "$val" ]; then
-              echo "Missing required key: $name"
-              missing=1
-            fi
-          }
-          check "OPENAI_API_KEY" "${OPENAI_API_KEY:-}"
-          check "PINECONE_API_KEY" "${PINECONE_API_KEY:-}"
-          check "COHERE_API_KEY" "${COHERE_API_KEY:-}"
-          check "ANTHROPIC_API_KEY" "${ANTHROPIC_API_KEY:-}"
-          check "GEMINI_API_KEY" "${GEMINI_API_KEY:-}"
-          if [ "$missing" -ne 0 ]; then
-            echo ""
-            echo "Provide keys via workflow inputs or GitHub repo secrets:"
-            echo "Settings → Secrets and variables → Actions → Secrets"
-            exit 1
-          fi
-
       - name: Build AI Infrastructure Module (skip tests)
         run: |
           cd ai-infrastructure-module
-          mvn clean install -DskipTests -B -V
+          mvn install -DskipTests -B -V
 
-      - name: Run suite (OpenAI + ONNX + Pinecone)
+      - name: Run suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})
         run: |
           cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test"
-          export AI_PROVIDERS_PINECONE_ENABLED="true"
-          export AI_PROVIDERS_PINECONE_API_KEY="${PINECONE_API_KEY}"
-          export AI_PROVIDERS_PINECONE_INDEX_NAME="${PINECONE_INDEX_NAME}"
-          export AI_PROVIDERS_PINECONE_API_HOST="${PINECONE_API_HOST}"
-          bash run-provider-matrix-tests.sh "openai:onnx:pinecone:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
-
-      - name: Run suite (Cohere + ONNX + Qdrant)
-        run: |
-          cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
-          export AI_PROVIDERS_PINECONE_ENABLED="false"
-          bash run-provider-matrix-tests.sh "cohere:onnx:qdrant:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
-
-      - name: Run suite (Anthropic + ONNX + Milvus)
-        run: |
-          cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
-          export AI_PROVIDERS_PINECONE_ENABLED="false"
-          bash run-provider-matrix-tests.sh "anthropic:onnx:milvus:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
-
-      - name: Run suite (Gemini + ONNX + Weaviate)
-        run: |
-          cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
-          export AI_PROVIDERS_PINECONE_ENABLED="false"
-          bash run-provider-matrix-tests.sh "gemini:onnx:weaviate:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
-
-      - name: Run suite (OpenAI + ONNX + Lucene)
-        run: |
-          cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test"
-          export AI_PROVIDERS_PINECONE_ENABLED="false"
-          bash run-provider-matrix-tests.sh "openai:onnx:lucene:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+          export SPRING_PROFILES_ACTIVE="${{ matrix.spring_profiles }}"
+          if [ "${{ matrix.vector_db }}" = "pinecone" ]; then
+            export AI_PROVIDERS_PINECONE_ENABLED="true"
+            export AI_PROVIDERS_PINECONE_API_KEY="${PINECONE_API_KEY}"
+            export AI_PROVIDERS_PINECONE_INDEX_NAME="${PINECONE_INDEX_NAME}"
+            export AI_PROVIDERS_PINECONE_API_HOST="${PINECONE_API_HOST}"
+          else
+            export AI_PROVIDERS_PINECONE_ENABLED="false"
+          fi
+          bash run-provider-matrix-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
