@@ -23,8 +23,6 @@ import io.pinecone.proto.SparseValues;
 import io.pinecone.proto.UpsertRequest;
 import io.pinecone.unsigned_indices_model.QueryResponseWithUnsignedIndices;
 import io.pinecone.unsigned_indices_model.ScoredVectorWithUnsignedIndices;
-import io.pinecone.unsigned_indices_model.SparseValuesWithUnsignedIndices;
-import io.pinecone.unsigned_indices_model.VectorWithUnsignedIndices;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
@@ -78,6 +76,14 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         this.connection = buildConnection(this.config, this.indexName);
         this.index = Objects.requireNonNull(indexFactory, "Pinecone indexFactory must be provided")
             .create(connection, indexName);
+        log.info("Pinecone client configured for index '{}'", indexName);
+    }
+
+    PineconeVectorDatabaseService(AIProviderConfig providerConfig, PineconeConnection connection, Index index) {
+        this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
+        this.indexName = resolveIndexName(this.config);
+        this.connection = Objects.requireNonNull(connection, "Pinecone connection must be provided");
+        this.index = Objects.requireNonNull(index, "Pinecone index must be provided");
         log.info("Pinecone client configured for index '{}'", indexName);
     }
 
@@ -605,9 +611,27 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         if (sparseOnly) {
-            SparseValuesWithUnsignedIndices sparse = new SparseValuesWithUnsignedIndices(sparseIndices, sparseValues);
-            VectorWithUnsignedIndices vector = new VectorWithUnsignedIndices(vectorId, null, metadataStruct, sparse);
-            index.upsert(List.of(vector), namespace);
+            List<Integer> protoIndices = sparseIndices.stream()
+                .map(Long::intValue)
+                .collect(Collectors.toList());
+
+            io.pinecone.proto.Vector vector = io.pinecone.proto.Vector.newBuilder()
+                .setId(vectorId)
+                .setMetadata(metadataStruct)
+                .setSparseValues(
+                    SparseValues.newBuilder()
+                        .addAllIndices(protoIndices)
+                        .addAllValues(sparseValues)
+                        .build()
+                )
+                .build();
+
+            UpsertRequest request = UpsertRequest.newBuilder()
+                .setNamespace(namespace)
+                .addVectors(vector)
+                .build();
+
+            connection.getBlockingStub().upsert(request);
             return;
         }
 

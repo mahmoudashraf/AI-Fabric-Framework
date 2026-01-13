@@ -7,12 +7,14 @@ import com.ai.infrastructure.dto.VectorRecord;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
 import io.pinecone.clients.Index;
+import io.pinecone.configs.PineconeConnection;
 import io.pinecone.proto.DescribeIndexStatsResponse;
 import io.pinecone.proto.FetchResponse;
 import io.pinecone.proto.QueryResponse;
 import io.pinecone.proto.ScoredVector;
+import io.pinecone.proto.UpsertRequest;
+import io.pinecone.proto.VectorServiceGrpc;
 import io.pinecone.unsigned_indices_model.QueryResponseWithUnsignedIndices;
-import io.pinecone.unsigned_indices_model.VectorWithUnsignedIndices;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,6 +86,20 @@ class PineconeVectorDatabaseServiceTest {
     void storeVectorUsesSparseUpsertWhenIndexIsSparse() {
         when(index.describeIndexStats()).thenReturn(DescribeIndexStatsResponse.newBuilder().setDimension(0).build());
 
+        PineconeConnection connection = mock(PineconeConnection.class);
+        VectorServiceGrpc.VectorServiceBlockingStub stub = mock(VectorServiceGrpc.VectorServiceBlockingStub.class);
+        when(connection.getBlockingStub()).thenReturn(stub);
+
+        service = new PineconeVectorDatabaseService(new AIProviderConfig() {{
+            AIProviderConfig.PineconeConfig pinecone = getPinecone();
+            pinecone.setEnabled(true);
+            pinecone.setApiKey("test-key");
+            pinecone.setApiHost("https://mock-pinecone.test");
+            pinecone.setIndexName("test-index");
+            pinecone.setEnvironment("test-env");
+            pinecone.setDimensions(3);
+        }}, connection, index);
+
         service.storeVector(
             "product",
             "123",
@@ -92,20 +108,15 @@ class PineconeVectorDatabaseServiceTest {
             Map.of("category", "watches")
         );
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<VectorWithUnsignedIndices>> vectorsCaptor = ArgumentCaptor.forClass(List.class);
-
-        verify(index).upsert(vectorsCaptor.capture(), eq("product"));
-
-        List<VectorWithUnsignedIndices> vectors = vectorsCaptor.getValue();
-        assertNotNull(vectors);
-        assertEquals(1, vectors.size());
-        VectorWithUnsignedIndices vector = vectors.get(0);
-        assertEquals("product::123", vector.getId());
-        assertTrue(vector.getValuesList() == null || vector.getValuesList().isEmpty());
-        assertNotNull(vector.getSparseValuesWithUnsignedIndices());
-        assertEquals(List.of(0L, 1L, 2L), vector.getSparseValuesWithUnsignedIndices().getIndicesWithUnsigned32IntList());
-        assertEquals(List.of(0.1f, 0.2f, 0.3f), vector.getSparseValuesWithUnsignedIndices().getValuesList());
+        ArgumentCaptor<UpsertRequest> requestCaptor = ArgumentCaptor.forClass(UpsertRequest.class);
+        verify(stub).upsert(requestCaptor.capture());
+        UpsertRequest request = requestCaptor.getValue();
+        assertEquals("product", request.getNamespace());
+        assertEquals(1, request.getVectorsCount());
+        assertEquals("product::123", request.getVectors(0).getId());
+        assertEquals(0, request.getVectors(0).getValuesCount());
+        assertEquals(List.of(0, 1, 2), request.getVectors(0).getSparseValues().getIndicesList());
+        assertEquals(List.of(0.1f, 0.2f, 0.3f), request.getVectors(0).getSparseValues().getValuesList());
     }
 
     @Test

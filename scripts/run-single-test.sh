@@ -42,6 +42,7 @@ MATRIX_SPEC="${MATRIX_SPEC:-}"
 # Maven Configuration
 MAVEN_PROFILE="${MAVEN_PROFILE:-real-api-test}"
 MAVEN_MODULE="${MAVEN_MODULE:-integration-Testing/integration-tests}"
+MAVEN_ALSO_MAKE="${MAVEN_ALSO_MAKE:-true}" # build required reactor deps (-am)
 FORK_COUNT="${FORK_COUNT:-1}"
 REUSE_FORKS="${REUSE_FORKS:-false}"
 LOG_LEVEL="${LOG_LEVEL:-WARN}"
@@ -169,7 +170,11 @@ echo ""
 
 # Build Maven command
 MAVEN_CMD="mvn test -pl $MAVEN_MODULE"
+if [ "${MAVEN_ALSO_MAKE}" = "true" ]; then
+  MAVEN_CMD="$MAVEN_CMD -am"
+fi
 MAVEN_CMD="$MAVEN_CMD -Dtest=$TEST_CLASS"
+MAVEN_CMD="$MAVEN_CMD -Dsurefire.failIfNoSpecifiedTests=false"
 MAVEN_CMD="$MAVEN_CMD -Dspring.profiles.active=$MAVEN_PROFILE"
 MAVEN_CMD="$MAVEN_CMD -Dai.providers.llm-provider=$LLM_PROVIDER"
 MAVEN_CMD="$MAVEN_CMD -Dai.providers.embedding-provider=$EMBEDDING_PROVIDER"
