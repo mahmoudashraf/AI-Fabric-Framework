@@ -13,9 +13,9 @@
     </parent>
 
     <groupId>com.subscription</groupId>
-    <artifactId>subscription-management-hub</artifactId>
+    <artifactId>subscription-management-hub-simple</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <name>Subscription Management Hub</name>
+    <name>Subscription Management Hub (Simple)</name>
     <description>AI-Powered Subscription Management Platform using AI Fabric Framework</description>
 
     <properties>
@@ -110,6 +110,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <mainClass>com.subscription.hub.SubscriptionManagementHubApplication</mainClass>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>

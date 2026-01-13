@@ -1,55 +1,40 @@
 # Subscription Management Hub (Simple)
 
-**Use case:** Subscription Management Hub (SaaS subscriptions)  
-**Setup scenario:** Minimal integration (configuration-driven, minimal AI annotations)
+**Scenario:** Minimal, configuration-driven AI Fabric integration (keep app code free of AI annotations).
 
-## What This App Demonstrates
+## Setup
 
-- A “greenfield” Spring Boot app that integrates AI Fabric with a single entry point: `@EnableAIInfrastructure`.
-- AI entity behavior defined in `src/main/resources/ai-entity-config.yml` (no entity-level AI annotations required).
-- Local-first defaults: H2 + Lucene vector DB + ONNX embeddings.
-- A realistic domain: users, subscription plans, subscriptions, and seeded sample data.
+- Spring Boot `3.2.x`, Java `21`
+- Database: H2 file (`./data/subscriptiondb`)
+- AI: ONNX embeddings + Lucene vector DB
+- AI config file: `src/main/resources/ai-entity-config.yml`
 
-## Key Integration Points
+## Build + Run
 
-- Main entry point: `src/main/java/com/subscription/hub/SubscriptionManagementHubApplication.java`
-- AI opt-in: `@EnableAIInfrastructure`
-- AI entity config: `src/main/resources/ai-entity-config.yml`
-- AI config wiring: `src/main/resources/application.yml` (`ai.config.default-file: ai-entity-config.yml`)
-
-## Run
-
-1) Install the framework artifacts locally:
+1) Install the framework artifacts:
 
 `cd ../../ai-infrastructure-module && mvn -DskipTests install`
 
-2) Build + run the app:
+2) Run the app (port `8080`):
 
-`mvn -DskipTests package && java -jar target/*.jar`
+`cd ../Real_Apps/sub-management-hub-simple && mvn -DskipTests clean package && java -jar target/*.jar`
 
-### Optional: enable real LLM calls (Cohere)
+## Validate Indexing + Search (Debug Endpoints)
 
-By default, Cohere is disabled (`COHERE_ENABLED=false`). To enable:
+- Check what AI/indexing beans are active:
+  - `GET http://localhost:8080/api/ai/debug/indexing/components`
+- Reindex seeded subscription plans (sync):
+  - `POST http://localhost:8080/api/ai/debug/indexing/reindex/plans?mode=sync`
+- Query plans via vector search:
+  - `GET http://localhost:8080/api/ai/debug/indexing/search/plans?q=premium&limit=5`
+- End-to-end demo (mutate + index + search):
+  - `POST http://localhost:8080/api/ai/debug/indexing/demo?mode=sync`
 
-`export COHERE_ENABLED=true`
-`export COHERE_API_KEY=...`
+### Queue-based (Async) Validation
 
-## What To Try
-
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
-- H2 console: `http://localhost:8080/h2-console` (JDBC URL is in `application.yml`)
-- Get a test user:
-  - `POST /api/auth/guest/login`
-- Browse plans:
-  - `GET /api/subscriptions/plans`
-- Create a subscription:
-  - `POST /api/subscriptions/subscribe?userId=1&planId=<uuid>&billingCycle=MONTHLY`
-- Plan search endpoint:
-  - `POST /api/subscriptions/plans/search?query=pro&limit=10`
-
-## Data + Storage
-
-- DB: `jdbc:h2:file:./data/subscriptiondb`
-- Lucene index: `./data/lucene-vector-index`
-- Seed data runs on startup (plans + users + subscriptions).
-- Startup also indexes the 3 subscription plans for semantic search (`entityType=subscription-plan`).
+- Enqueue indexing:
+  - `POST http://localhost:8080/api/ai/debug/indexing/reindex/plans?mode=async`
+- Process one worker tick manually (if you don’t want to wait for scheduling):
+  - `POST http://localhost:8080/api/ai/debug/indexing/queue/run-once?strategy=async`
+- Queue status:
+  - `GET http://localhost:8080/api/ai/debug/indexing/queue`

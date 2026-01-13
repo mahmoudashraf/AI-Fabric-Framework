@@ -8,6 +8,8 @@ import com.ai.infrastructure.config.AICleanupProperties;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.config.AIIndexingProperties;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
+import com.ai.infrastructure.config.condition.EmbeddingsFeatureEnabledCondition;
+import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
 import com.ai.infrastructure.indexing.IndexingCoordinator;
 import com.ai.infrastructure.indexing.IndexingStrategyResolver;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
@@ -23,7 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -34,7 +36,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @EnableScheduling
 @ConditionalOnProperty(prefix = "ai.indexing", name = "enabled", havingValue = "true", matchIfMissing = true)
-@ConditionalOnBean(AICapabilityService.class)
+@Conditional({VectorDbConfiguredCondition.class, EmbeddingsFeatureEnabledCondition.class})
 @EnableConfigurationProperties({AIIndexingProperties.class, AICleanupProperties.class})
 public class AIIndexingAutoConfiguration {
 
