@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Uses the LLM via {@link AICoreService} to transform natural language queries into structured plans.
@@ -192,7 +193,7 @@ public class RelationshipQueryPlanner {
 
     public RelationshipQueryPlan planQuery(String query, List<String> entityTypes) {
         long start = System.nanoTime();
-        String cacheKey = QueryCache.hash(query);
+        String cacheKey = buildCacheKey(query, entityTypes);
         if (queryCache.isEnabled()) {
             Optional<RelationshipQueryPlan> cachedPlan = queryCache.getPlan(cacheKey);
             if (cachedPlan.isPresent()) {
@@ -218,10 +219,10 @@ public class RelationshipQueryPlanner {
                     feedback = List.of(safeMessage(ex));
                     continue;
                 }
-                recordPlanMetrics(start, false, false);
-                if (properties.getPlanner().isFailOnParseError()) {
-                    throw new QueryPlanningException(
-                        "Planner failed to produce a structured plan",
+        recordPlanMetrics(start, false, false);
+        if (properties.getPlanner().isFailOnParseError()) {
+            throw new QueryPlanningException(
+                "Planner failed to produce a structured plan",
                         buildPlannerErrorContext(query, entityTypes, fallback, ex),
                         ex
                     );
@@ -247,6 +248,19 @@ public class RelationshipQueryPlanner {
             );
         }
         return fallback;
+    }
+
+    private String buildCacheKey(String query, List<String> entityTypes) {
+        String normalizedQuery = query != null ? query.trim() : "";
+        String normalizedEntityTypes = "";
+        if (!CollectionUtils.isEmpty(entityTypes)) {
+            normalizedEntityTypes = entityTypes.stream()
+                .filter(StringUtils::hasText)
+                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .sorted()
+                .collect(Collectors.joining(","));
+        }
+        return QueryCache.hash(normalizedQuery + "|" + normalizedEntityTypes);
     }
 
     private RelationshipQueryPlan requestPlan(String query,
@@ -568,7 +582,7 @@ public class RelationshipQueryPlanner {
             .temperature(llm.getTemperature())
             .maxTokens(1200)
             .parameters(java.util.Map.of(
-                "response_format", "json",
+                "response_format", java.util.Map.of("type", "json_object"),
                 "min_confidence", llm.getMinConfidence()
             ))
             .purpose("relationship-query-plan")

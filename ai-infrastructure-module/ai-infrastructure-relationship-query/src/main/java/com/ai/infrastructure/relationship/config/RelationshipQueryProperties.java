@@ -212,6 +212,11 @@ public class RelationshipQueryProperties {
     @Getter
     public static class CacheProperties {
         private boolean enabled = true;
+        /**
+         * Caching JPQL result IDs can become stale when underlying data changes.
+         * Keep it opt-in; plan + embedding caches provide most of the benefit.
+         */
+        private boolean cacheResults = false;
         @NestedConfigurationProperty
         private final RegionProperties plan = new RegionProperties(3600, 10_000);
         @NestedConfigurationProperty
@@ -221,6 +226,10 @@ public class RelationshipQueryProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
+        }
+
+        public void setCacheResults(boolean cacheResults) {
+            this.cacheResults = cacheResults;
         }
     }
 

@@ -435,8 +435,32 @@ public class OpenAIProvider implements AIProvider {
         if (responseFormat == null) {
             responseFormat = parameters.get("responseFormat");
         }
-        if (responseFormat != null) {
-            requestBody.put("response_format", responseFormat);
+        Object normalized = normalizeResponseFormat(responseFormat);
+        if (normalized != null) {
+            requestBody.put("response_format", normalized);
         }
+    }
+
+    private Object normalizeResponseFormat(Object responseFormat) {
+        if (responseFormat == null) {
+            return null;
+        }
+        if (responseFormat instanceof Map<?, ?>) {
+            return responseFormat;
+        }
+        if (!(responseFormat instanceof String)) {
+            return null;
+        }
+        String value = ((String) responseFormat).trim().toLowerCase();
+        if (value.isEmpty()) {
+            return null;
+        }
+        if (value.equals("json") || value.equals("json_object") || value.equals("json-object") || value.equals("jsonobject")) {
+            return Map.of("type", "json_object");
+        }
+        if (value.equals("text")) {
+            return Map.of("type", "text");
+        }
+        return null;
     }
 }
