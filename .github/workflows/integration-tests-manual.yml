@@ -651,7 +651,8 @@ jobs:
         with:
           large_files: true
           files: |
-            ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/*.xml
+            ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/TEST-*.xml
+            ai-infrastructure-module/integration-Testing/integration-tests/target/failsafe-reports/TEST-*.xml
           check_name: AI Infrastructure Test Results
 
   # ==============================================================================
@@ -989,7 +990,8 @@ jobs:
         with:
           large_files: true
           files: |
-            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/*.xml
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/TEST-*.xml
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports/TEST-*.xml
           check_name: Relationship Query Test Results
 
   # ==============================================================================
@@ -1145,8 +1147,8 @@ jobs:
         with:
           large_files: true
           files: |
-            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/surefire-reports/*.xml
-            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/failsafe-reports/*.xml
+            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/surefire-reports/TEST-*.xml
+            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/failsafe-reports/TEST-*.xml
           check_name: Behavior Test Results
 
   # ==============================================================================

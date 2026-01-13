@@ -1,4 +1,4 @@
-name: Provider Suite (Keys Only)
+name: Matrix Suite
 
 on:
   workflow_dispatch:
@@ -43,18 +43,97 @@ on:
           - SINGLE_TABLE
           - PER_TYPE_TABLE
           - CUSTOM
-      persistence_database:
-        description: 'Persistence database'
-        required: false
-        default: 'h2'
-        type: choice
-        options:
-          - h2
-          - postgresql
 
 jobs:
+  resolve-matrix:
+    name: Resolve Matrix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has_any: ${{ steps.matrix.outputs.has_any }}
+    env:
+      OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
+      PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+      COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key || secrets.COHERE_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY }}
+    steps:
+      - name: Mask provider API keys
+        if: always()
+        run: |
+          [ -n "${{ github.event.inputs.openai_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.openai_api_key }}" || true
+          [ -n "${{ github.event.inputs.pinecone_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.pinecone_api_key }}" || true
+          [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
+          [ -n "${{ github.event.inputs.anthropic_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}" || true
+          [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
+
+      - id: matrix
+        name: Build matrix from available keys
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          
+          def has(key: str) -> bool:
+            return bool((os.getenv(key) or "").strip())
+          
+          include = []
+          
+          if has("OPENAI_API_KEY") and has("PINECONE_API_KEY"):
+            include.append({
+              "name": "openai-onnx-pinecone",
+              "llm": "openai",
+              "embedding": "onnx",
+              "vector_db": "pinecone",
+              "spring_profiles": "real-api-test",
+            })
+          
+          if has("COHERE_API_KEY"):
+            include.append({
+              "name": "cohere-onnx-qdrant",
+              "llm": "cohere",
+              "embedding": "onnx",
+              "vector_db": "qdrant",
+              "spring_profiles": "real-api-test,testcontainers",
+            })
+          
+          if has("ANTHROPIC_API_KEY"):
+            include.append({
+              "name": "anthropic-onnx-milvus",
+              "llm": "anthropic",
+              "embedding": "onnx",
+              "vector_db": "milvus",
+              "spring_profiles": "real-api-test,testcontainers",
+            })
+          
+          if has("GEMINI_API_KEY"):
+            include.append({
+              "name": "gemini-onnx-weaviate",
+              "llm": "gemini",
+              "embedding": "onnx",
+              "vector_db": "weaviate",
+              "spring_profiles": "real-api-test,testcontainers",
+            })
+          
+          if has("OPENAI_API_KEY"):
+            include.append({
+              "name": "openai-onnx-lucene",
+              "llm": "openai",
+              "embedding": "onnx",
+              "vector_db": "lucene",
+              "spring_profiles": "real-api-test",
+            })
+          
+          matrix = {"include": include}
+          print("matrix=" + json.dumps(matrix))
+          print("has_any=" + ("true" if include else "false"))
+          PY
+
   provider-suite:
-    name: Provider Suite (${{ matrix.name }})
+    name: Matrix Suite (${{ matrix.name }})
+    needs: [resolve-matrix]
+    if: needs.resolve-matrix.outputs.has_any == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     permissions:
@@ -62,76 +141,10 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 3
-      matrix:
-        include:
-          - name: openai-onnx-pinecone
-            llm: openai
-            embedding: onnx
-            vector_db: pinecone
-            spring_profiles: real-api-test
-            use_testcontainers: false
-            requires_openai: true
-            requires_cohere: false
-            requires_anthropic: false
-            requires_gemini: false
-            requires_pinecone: true
-          - name: cohere-onnx-qdrant
-            llm: cohere
-            embedding: onnx
-            vector_db: qdrant
-            spring_profiles: real-api-test,testcontainers
-            use_testcontainers: true
-            requires_openai: false
-            requires_cohere: true
-            requires_anthropic: false
-            requires_gemini: false
-            requires_pinecone: false
-          - name: anthropic-onnx-milvus
-            llm: anthropic
-            embedding: onnx
-            vector_db: milvus
-            spring_profiles: real-api-test,testcontainers
-            use_testcontainers: true
-            requires_openai: false
-            requires_cohere: false
-            requires_anthropic: true
-            requires_gemini: false
-            requires_pinecone: false
-          - name: gemini-onnx-weaviate
-            llm: gemini
-            embedding: onnx
-            vector_db: weaviate
-            spring_profiles: real-api-test,testcontainers
-            use_testcontainers: true
-            requires_openai: false
-            requires_cohere: false
-            requires_anthropic: false
-            requires_gemini: true
-            requires_pinecone: false
-          - name: openai-onnx-lucene
-            llm: openai
-            embedding: onnx
-            vector_db: lucene
-            spring_profiles: real-api-test
-            use_testcontainers: false
-            requires_openai: true
-            requires_cohere: false
-            requires_anthropic: false
-            requires_gemini: false
-            requires_pinecone: false
-
-    if: >-
-      ${{
-        (!matrix.requires_openai || github.event.inputs.openai_api_key != '' || secrets.OPENAI_API_KEY != '') &&
-        (!matrix.requires_cohere || github.event.inputs.cohere_api_key != '' || secrets.COHERE_API_KEY != '') &&
-        (!matrix.requires_anthropic || github.event.inputs.anthropic_api_key != '' || secrets.ANTHROPIC_API_KEY != '') &&
-        (!matrix.requires_gemini || github.event.inputs.gemini_api_key != '' || secrets.GEMINI_API_KEY != '') &&
-        (!matrix.requires_pinecone || github.event.inputs.pinecone_api_key != '' || secrets.PINECONE_API_KEY != '')
-      }}
+      matrix: ${{ fromJson(needs.resolve-matrix.outputs.matrix) }}
 
     env:
       MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level || 'normal' }}
-      AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database || 'h2' }}
       AI_INFRASTRUCTURE_STORAGE_STRATEGY: ${{ github.event.inputs.storage_strategy || 'SINGLE_TABLE' }}
 
       # Prefer workflow_dispatch inputs, fall back to repo secrets.
