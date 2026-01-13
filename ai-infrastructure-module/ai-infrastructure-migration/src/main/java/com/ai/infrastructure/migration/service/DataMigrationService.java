@@ -6,7 +6,7 @@ import com.ai.infrastructure.dto.AIEntityConfig;
 import com.ai.infrastructure.indexing.IndexingActionPlan;
 import com.ai.infrastructure.indexing.IndexingOperation;
 import com.ai.infrastructure.indexing.IndexingRequest;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.migration.config.MigrationProperties;
 import com.ai.infrastructure.migration.config.MigrationFieldConfig;

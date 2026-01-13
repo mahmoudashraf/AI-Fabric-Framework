@@ -26,6 +26,12 @@
 
         <dependency>
             <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-pii</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-indexing</artifactId>
             <version>${project.version}</version>
         </dependency>

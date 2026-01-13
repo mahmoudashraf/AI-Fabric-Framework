@@ -1,6 +1,5 @@
 package com.ai.infrastructure.config;
 
-import com.ai.infrastructure.aspect.AICapableAspect;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
@@ -54,7 +53,6 @@ import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ResourceLoader;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -89,14 +87,11 @@ import java.util.stream.Collectors;
 	    @EnableConfigurationProperties({
 	        AIProviderConfig.class,
 	        AIServiceConfig.class,
-	        PIIDetectionProperties.class,
 	        SmartSuggestionsProperties.class,
 	        ResponseSanitizationProperties.class,
 	        OrchestrationResultNormalizationProperties.class,
 	        IntentHistoryProperties.class,
 	        SecurityProperties.class,
-	        AIIndexingProperties.class,
-	        AICleanupProperties.class,
 	        AIStorageProperties.class,
             AIHttpClientProperties.class
 		    })
@@ -117,8 +112,6 @@ import java.util.stream.Collectors;
 	    )
 	)
 @Import(AISearchableStorageStrategyAutoConfiguration.class)
-@ConditionalOnClass(AICapableAspect.class)
-@EnableAspectJAutoProxy
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     
@@ -216,12 +209,6 @@ public class AIInfrastructureAutoConfiguration {
     @Bean
     public AIDataPrivacyService aiDataPrivacyService(AICoreService aiCoreService) {
         return new AIDataPrivacyService(aiCoreService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public PIIDetectionService piiDetectionService(PIIDetectionProperties properties) {
-        return new PIIDetectionService(properties);
     }
     
     @Bean

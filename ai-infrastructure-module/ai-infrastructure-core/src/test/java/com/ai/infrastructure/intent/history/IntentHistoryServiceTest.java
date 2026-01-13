@@ -1,7 +1,6 @@
 package com.ai.infrastructure.intent.history;
 
 import com.ai.infrastructure.config.IntentHistoryProperties;
-import com.ai.infrastructure.config.PIIDetectionProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -11,6 +10,7 @@ import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ai.infrastructure.testsupport.SimplePIIDetectionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -36,10 +36,7 @@ class IntentHistoryServiceTest {
     void setUp() {
         repository = Mockito.mock(IntentHistoryRepository.class);
 
-        PIIDetectionProperties detectionProperties = new PIIDetectionProperties();
-        detectionProperties.setEnabled(true);
-
-        PIIDetectionService detectionService = new PIIDetectionService(detectionProperties);
+        PIIDetectionService detectionService = new SimplePIIDetectionService();
         @SuppressWarnings("unchecked")
         ObjectProvider<PIIDetectionService> piiProvider = Mockito.mock(ObjectProvider.class);
         when(piiProvider.getIfAvailable()).thenReturn(detectionService);
@@ -102,7 +99,7 @@ class IntentHistoryServiceTest {
 
         IntentHistoryService disabledService = new IntentHistoryService(
             repository,
-            piiProviderWith(new PIIDetectionService(new PIIDetectionProperties())),
+            piiProviderWith(new SimplePIIDetectionService()),
             new ObjectMapper(),
             disabledProps
         );

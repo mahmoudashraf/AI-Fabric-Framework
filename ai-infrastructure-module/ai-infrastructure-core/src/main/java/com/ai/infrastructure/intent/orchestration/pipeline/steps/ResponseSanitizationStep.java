@@ -1,7 +1,5 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
-import com.ai.infrastructure.config.PIIDetectionProperties;
-import com.ai.infrastructure.config.PIIDetectionProperties.PIIDetectionDirection;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -26,11 +24,7 @@ import java.util.stream.Collectors;
  * 
  * <p><strong>Order:</strong> 90 (after smart suggestions)</p>
  * 
- * <p><strong>Output PII Detection:</strong> If configured for INPUT_OUTPUT
- * detection, this step handles the OUTPUT detection phase.</p>
- * 
  * @see ResponseSanitizer
- * @see PIIDetectionProperties
  * @see PipelineStep
  * @since 1.0
  */
@@ -55,7 +49,6 @@ public class ResponseSanitizationStep implements PipelineStep {
     // =========================================================================
     
     private final ResponseSanitizer responseSanitizer;
-    private final PIIDetectionProperties piiDetectionProperties;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -106,17 +99,9 @@ public class ResponseSanitizationStep implements PipelineStep {
         // ResponseSanitizer guarantees a non-empty payload
         Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, identifier);
         
-        PIIDetectionDirection detectionDirection = piiDetectionProperties.getDetectionDirection();
-        boolean detectOutput = piiDetectionProperties.isEnabled() &&
-            detectionDirection == PIIDetectionDirection.INPUT_OUTPUT;
-        
-        if (!detectOutput) {
-            log.debug("PII OUTPUT detection is disabled (configuration: {})", detectionDirection);
-        }
-        
         // Merge PII detection information
         List<String> inputPiiTypes = context.getDetectedPiiTypes();
-        if ((!inputPiiTypes.isEmpty() || detectOutput) && sanitizedPayload.containsKey(SANITIZATION_KEY)) {
+        if (!inputPiiTypes.isEmpty() && sanitizedPayload.containsKey(SANITIZATION_KEY)) {
             sanitizedPayload = mergePiiDetectionInfo(sanitizedPayload, inputPiiTypes);
         }
         

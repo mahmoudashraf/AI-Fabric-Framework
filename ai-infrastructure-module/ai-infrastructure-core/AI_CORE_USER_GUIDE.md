@@ -218,9 +218,9 @@ public class Article {
 @AICapable(indexingStrategy = IndexingStrategy.ASYNC)  // Default
 ```
 
-**DEFERRED**: Scheduled batch indexing
+**BATCH**: Scheduled batch indexing
 ```java
-@AICapable(indexingStrategy = IndexingStrategy.DEFERRED)
+@AICapable(indexingStrategy = IndexingStrategy.BATCH)
 ```
 
 **AUTO**: Inherit from operation-level strategy
@@ -270,7 +270,7 @@ ai:
   
   # Indexing
   indexing:
-    default-strategy: ASYNC            # SYNC, ASYNC, DEFERRED
+    default-strategy: ASYNC            # SYNC, ASYNC, BATCH
     queue:
       enabled: true
       max-retries: 5
@@ -609,7 +609,7 @@ public class SupportTicket {
 1. **Entity Change** → Entity created/updated/deleted
 2. **Aspect Intercepts** → `@AIProcess` or `@AICapable` triggers
 3. **Request Created** → `IndexingRequest` built
-4. **Strategy Resolved** → SYNC/ASYNC/DEFERRED determined
+4. **Strategy Resolved** → SYNC/ASYNC/BATCH determined
 5. **Queued** → Added to `IndexingQueueEntry` table
 6. **Worker Picks Up** → `AsyncIndexingWorker` or `BatchIndexingWorker`
 7. **Processed** → Embedding generated, vector stored
@@ -627,7 +627,7 @@ public class SupportTicket {
 - Best for: Most use cases
 - Latency: +5-20ms per request
 
-**DEFERRED (Batch)**:
+**BATCH**:
 - Scheduled batch processing
 - Best for: High-volume, non-time-sensitive
 - Latency: Processed on schedule (e.g., every 5 minutes)
@@ -1150,4 +1150,3 @@ A: Use the Migration Module for bulk indexing.
 ---
 
 *This guide reflects the actual implementation in the codebase. For specific modules (Behavior, Migration, Relationship Query), refer to their respective guides.*
-

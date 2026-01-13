@@ -1,6 +1,6 @@
 package com.ai.infrastructure.annotation;
 
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;

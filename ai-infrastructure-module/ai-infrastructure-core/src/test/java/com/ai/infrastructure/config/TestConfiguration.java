@@ -11,6 +11,9 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.privacy.pii.PIIDetectionService;
+import com.ai.infrastructure.testsupport.SimplePIIDetectionService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -54,6 +57,13 @@ public class TestConfiguration {
     @Primary
     public RAGProvider testRAGProvider(VectorDatabaseService vectorDatabaseService) {
         return new TestRAGProvider(vectorDatabaseService);
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(prefix = "ai.pii-detection", name = "enabled", havingValue = "true")
+    public PIIDetectionService testPiiDetectionService() {
+        return new SimplePIIDetectionService();
     }
 
     /**

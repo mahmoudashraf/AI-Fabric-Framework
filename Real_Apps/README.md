@@ -66,6 +66,7 @@ No manual `@ComponentScan` for framework packages.
 
 At minimum:
 - `com.ai.fabric:ai-fabric-starter` (core + indexing)
+- `com.ai.fabric:ai-fabric-provider-starter` (provider-only / core-only scenarios)
 - one **LLM provider** module (ex: `ai-infrastructure-provider-cohere`)
 - one **vector database** module (ex: `ai-infrastructure-vector-lucene`)
 - one **embedding** module (ex: `ai-infrastructure-onnx-starter`)
@@ -133,4 +134,3 @@ Use entity annotations (`@AICapable`, `@AISearchable`, `@AIContext`) only when t
 - **Privacy first**: PII detection in `REDACT` mode + response sanitization + audit logging.
 - **Indexing scaling**: async worker tuned (batch size, retry behavior) + sample load generator endpoint.
 - **Migration**: enable `ai.migration.enabled=true` and show an upgrade path for stored searchable entities/vectors.
-

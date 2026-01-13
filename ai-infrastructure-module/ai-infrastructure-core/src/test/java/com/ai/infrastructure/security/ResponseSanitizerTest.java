@@ -1,6 +1,5 @@
 package com.ai.infrastructure.security;
 
-import com.ai.infrastructure.config.PIIDetectionProperties;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.intent.action.ActionResult;
@@ -13,6 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
+import com.ai.infrastructure.testsupport.SimplePIIDetectionService;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,15 +32,12 @@ class ResponseSanitizerTest {
 
     @BeforeEach
     void setUp() {
-        PIIDetectionProperties piiDetectionProperties = new PIIDetectionProperties();
-        piiDetectionProperties.setEnabled(true);
-        // Detection mode can remain PASS_THROUGH because ResponseSanitizer uses analyze()
         ResponseSanitizationProperties sanitizationProperties = new ResponseSanitizationProperties();
         sanitizationProperties.setSuggestionLimit(3);
         sanitizationProperties.setHighRiskTypes(Set.of("CREDIT_CARD"));
         sanitizationProperties.setGuidanceMessage("Please avoid sharing card numbers.");
 
-        PIIDetectionService piiDetectionService = new PIIDetectionService(piiDetectionProperties);
+        PIIDetectionService piiDetectionService = new SimplePIIDetectionService();
         @SuppressWarnings("unchecked")
         ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
         when(piiProvider.getIfAvailable()).thenReturn(piiDetectionService);

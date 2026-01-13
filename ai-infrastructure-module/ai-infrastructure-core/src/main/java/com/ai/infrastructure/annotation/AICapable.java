@@ -1,6 +1,6 @@
 package com.ai.infrastructure.annotation;
 
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.lang.annotation.Documented;

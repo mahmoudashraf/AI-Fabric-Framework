@@ -4,7 +4,7 @@ import com.ai.infrastructure.entity.IndexingQueueEntry;
 import com.ai.infrastructure.indexing.IndexingOperation;
 import com.ai.infrastructure.indexing.IndexingPriority;
 import com.ai.infrastructure.indexing.IndexingStatus;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.service.TestProductService;

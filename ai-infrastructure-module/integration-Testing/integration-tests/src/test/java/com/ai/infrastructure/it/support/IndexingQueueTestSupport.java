@@ -2,7 +2,7 @@ package com.ai.infrastructure.it.support;
 
 import com.ai.infrastructure.config.AIIndexingProperties;
 import com.ai.infrastructure.entity.IndexingQueueEntry;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.indexing.worker.IndexingWorkProcessor;
 import java.util.List;

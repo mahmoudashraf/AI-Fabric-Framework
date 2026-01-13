@@ -1,7 +1,7 @@
 package com.subscription.hub.service;
 
 import com.ai.infrastructure.annotation.AIProcess;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
