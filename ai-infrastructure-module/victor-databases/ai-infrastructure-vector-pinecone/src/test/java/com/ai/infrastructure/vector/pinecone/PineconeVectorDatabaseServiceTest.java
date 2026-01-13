@@ -104,7 +104,7 @@ class PineconeVectorDatabaseServiceTest {
             eq("product")
         );
 
-        assertEquals(List.of(0.1f, 0.2f, 0.3f), denseCaptor.getValue());
+        assertNull(denseCaptor.getValue());
         assertEquals(List.of(0L, 1L, 2L), indicesCaptor.getValue());
         assertEquals(List.of(0.1f, 0.2f, 0.3f), sparseCaptor.getValue());
     }

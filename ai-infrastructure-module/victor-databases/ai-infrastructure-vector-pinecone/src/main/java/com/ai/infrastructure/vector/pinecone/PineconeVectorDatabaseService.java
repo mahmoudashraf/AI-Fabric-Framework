@@ -503,7 +503,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         try {
             withPineconeRetry("upsert", () -> {
                 if (preferSparse) {
-                    upsertSparse(vectorId, namespace, embedding, metadataStruct);
+                    upsertSparse(vectorId, namespace, embedding, metadataStruct, true);
                 } else {
                     upsertDense(vectorId, namespace, embedding, metadataStruct);
                 }
@@ -513,7 +513,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             if (!preferSparse && shouldRetryAsSparse(ex)) {
                 sparseIndex = true;
                 withPineconeRetry("upsertSparse", () -> {
-                    upsertSparse(vectorId, namespace, embedding, metadataStruct);
+                    upsertSparse(vectorId, namespace, embedding, metadataStruct, true);
                     return null;
                 });
                 return;
@@ -589,8 +589,12 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         index.upsert(vectorId, values, null, null, metadataStruct, namespace);
     }
 
-    private void upsertSparse(String vectorId, String namespace, List<Double> embedding, Struct metadataStruct) {
-        List<Float> denseValues = toFloatList(embedding);
+    private void upsertSparse(String vectorId,
+                              String namespace,
+                              List<Double> embedding,
+                              Struct metadataStruct,
+                              boolean sparseOnly) {
+        List<Float> denseValues = sparseOnly ? null : toFloatList(embedding);
         List<Long> sparseIndices = new ArrayList<>(embedding.size());
         List<Float> sparseValues = new ArrayList<>(embedding.size());
         for (int i = 0; i < embedding.size(); i++) {
