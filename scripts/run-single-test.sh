@@ -22,6 +22,13 @@ TEST_CLASS="${TEST_CLASS:-RealAPIProviderMatrixIntegrationTest}" # Change this t
 OPENAI_KEY_FILE="${OPENAI_KEY_FILE:-dev2.env}"
 OPENAI_KEY="${OPENAI_KEY:-}"
 
+# Pinecone defaults (keep aligned with our manual workflow defaults)
+PINECONE_KEY_FILE="${PINECONE_KEY_FILE:-dev.env}"
+PINECONE_DEFAULT_INDEX_NAME="${PINECONE_DEFAULT_INDEX_NAME:-ai-fabric}"
+PINECONE_DEFAULT_API_HOST="${PINECONE_DEFAULT_API_HOST:-https://ai-fabric-pwkuyn5.svc.aped-4627-b74a.pinecone.io}"
+# Optional; typically set in CI as a repo variable
+PINECONE_DEFAULT_ENVIRONMENT="${PINECONE_DEFAULT_ENVIRONMENT:-}"
+
 # Provider Configuration (used by some tests; provider-matrix tests should prefer MATRIX_SPEC)
 LLM_PROVIDER="${LLM_PROVIDER:-openai}"
 EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-onnx}"
@@ -113,6 +120,41 @@ if [ -z "${OPENAI_API_KEY:-}" ]; then
     if [ -n "$KEY_FROM_FILE" ]; then
       export OPENAI_API_KEY="$KEY_FROM_FILE"
     fi
+  fi
+fi
+
+# Resolve Pinecone key (do not echo it)
+# Supports:
+# - AI_PROVIDERS_PINECONE_API_KEY / PINECONE_API_KEY from environment
+# - Else read from PINECONE_KEY_FILE (first line is the key)
+if [ -z "${AI_PROVIDERS_PINECONE_API_KEY:-}" ] && [ -z "${PINECONE_API_KEY:-}" ]; then
+  if [ -f "$PINECONE_KEY_FILE" ]; then
+    PINECONE_KEY_FROM_FILE="$(head -n 1 "$PINECONE_KEY_FILE" | tr -d '\r' | xargs)"
+    if [ -n "$PINECONE_KEY_FROM_FILE" ]; then
+      export AI_PROVIDERS_PINECONE_API_KEY="$PINECONE_KEY_FROM_FILE"
+      export PINECONE_API_KEY="$PINECONE_KEY_FROM_FILE"
+    fi
+  fi
+fi
+
+# Ensure Pinecone host/index defaults exist when running pinecone vector db tests locally.
+# These mirror the defaults used in the manual GitHub Action.
+if [ "${VECTOR_DB:-}" = "pinecone" ] || [[ "${MATRIX_SPEC:-}" == *":pinecone:"* ]] || [[ "${MATRIX_SPEC:-}" == *":pinecone" ]]; then
+  export AI_PROVIDERS_PINECONE_ENABLED="${AI_PROVIDERS_PINECONE_ENABLED:-true}"
+
+  if [ -z "${AI_PROVIDERS_PINECONE_INDEX_NAME:-}" ] && [ -z "${PINECONE_INDEX_NAME:-}" ]; then
+    export AI_PROVIDERS_PINECONE_INDEX_NAME="$PINECONE_DEFAULT_INDEX_NAME"
+    export PINECONE_INDEX_NAME="$PINECONE_DEFAULT_INDEX_NAME"
+  fi
+
+  if [ -z "${AI_PROVIDERS_PINECONE_API_HOST:-}" ] && [ -z "${PINECONE_API_HOST:-}" ]; then
+    export AI_PROVIDERS_PINECONE_API_HOST="$PINECONE_DEFAULT_API_HOST"
+    export PINECONE_API_HOST="$PINECONE_DEFAULT_API_HOST"
+  fi
+
+  if [ -n "$PINECONE_DEFAULT_ENVIRONMENT" ] && [ -z "${PINECONE_ENVIRONMENT:-}" ] && [ -z "${AI_PROVIDERS_PINECONE_ENVIRONMENT:-}" ]; then
+    export PINECONE_ENVIRONMENT="$PINECONE_DEFAULT_ENVIRONMENT"
+    export AI_PROVIDERS_PINECONE_ENVIRONMENT="$PINECONE_DEFAULT_ENVIRONMENT"
   fi
 fi
 

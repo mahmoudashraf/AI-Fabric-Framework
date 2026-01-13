@@ -12,6 +12,7 @@ import io.pinecone.proto.FetchResponse;
 import io.pinecone.proto.QueryResponse;
 import io.pinecone.proto.ScoredVector;
 import io.pinecone.unsigned_indices_model.QueryResponseWithUnsignedIndices;
+import io.pinecone.unsigned_indices_model.VectorWithUnsignedIndices;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -91,22 +92,20 @@ class PineconeVectorDatabaseServiceTest {
             Map.of("category", "watches")
         );
 
-        ArgumentCaptor<List<Float>> denseCaptor = ArgumentCaptor.forClass(List.class);
-        ArgumentCaptor<List<Long>> indicesCaptor = ArgumentCaptor.forClass(List.class);
-        ArgumentCaptor<List<Float>> sparseCaptor = ArgumentCaptor.forClass(List.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<VectorWithUnsignedIndices>> vectorsCaptor = ArgumentCaptor.forClass(List.class);
 
-        verify(index).upsert(
-            eq("product::123"),
-            denseCaptor.capture(),
-            indicesCaptor.capture(),
-            sparseCaptor.capture(),
-            any(Struct.class),
-            eq("product")
-        );
+        verify(index).upsert(vectorsCaptor.capture(), eq("product"));
 
-        assertNull(denseCaptor.getValue());
-        assertEquals(List.of(0L, 1L, 2L), indicesCaptor.getValue());
-        assertEquals(List.of(0.1f, 0.2f, 0.3f), sparseCaptor.getValue());
+        List<VectorWithUnsignedIndices> vectors = vectorsCaptor.getValue();
+        assertNotNull(vectors);
+        assertEquals(1, vectors.size());
+        VectorWithUnsignedIndices vector = vectors.get(0);
+        assertEquals("product::123", vector.getId());
+        assertTrue(vector.getValuesList() == null || vector.getValuesList().isEmpty());
+        assertNotNull(vector.getSparseValuesWithUnsignedIndices());
+        assertEquals(List.of(0L, 1L, 2L), vector.getSparseValuesWithUnsignedIndices().getIndicesWithUnsigned32IntList());
+        assertEquals(List.of(0.1f, 0.2f, 0.3f), vector.getSparseValuesWithUnsignedIndices().getValuesList());
     }
 
     @Test

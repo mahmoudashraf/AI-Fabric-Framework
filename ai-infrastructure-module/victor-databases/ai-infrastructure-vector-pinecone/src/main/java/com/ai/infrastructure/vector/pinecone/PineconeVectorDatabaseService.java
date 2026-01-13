@@ -23,6 +23,8 @@ import io.pinecone.proto.SparseValues;
 import io.pinecone.proto.UpsertRequest;
 import io.pinecone.unsigned_indices_model.QueryResponseWithUnsignedIndices;
 import io.pinecone.unsigned_indices_model.ScoredVectorWithUnsignedIndices;
+import io.pinecone.unsigned_indices_model.SparseValuesWithUnsignedIndices;
+import io.pinecone.unsigned_indices_model.VectorWithUnsignedIndices;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
@@ -594,7 +596,6 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
                               List<Double> embedding,
                               Struct metadataStruct,
                               boolean sparseOnly) {
-        List<Float> denseValues = sparseOnly ? null : toFloatList(embedding);
         List<Long> sparseIndices = new ArrayList<>(embedding.size());
         List<Float> sparseValues = new ArrayList<>(embedding.size());
         for (int i = 0; i < embedding.size(); i++) {
@@ -603,6 +604,14 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             sparseValues.add(value != null ? value.floatValue() : 0.0f);
         }
 
+        if (sparseOnly) {
+            SparseValuesWithUnsignedIndices sparse = new SparseValuesWithUnsignedIndices(sparseIndices, sparseValues);
+            VectorWithUnsignedIndices vector = new VectorWithUnsignedIndices(vectorId, null, metadataStruct, sparse);
+            index.upsert(List.of(vector), namespace);
+            return;
+        }
+
+        List<Float> denseValues = toFloatList(embedding);
         index.upsert(vectorId, denseValues, sparseIndices, sparseValues, metadataStruct, namespace);
     }
 
