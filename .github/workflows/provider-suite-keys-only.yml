@@ -93,7 +93,8 @@ jobs:
               "llm": "openai",
               "embedding": "onnx",
               "vector_db": "pinecone",
-              "spring_profiles": "real-api-test",
+              "integration_spring_profiles": "real-api-test",
+              "realapi_spring_profiles": "realapi",
             })
           
           if has("COHERE_API_KEY"):
@@ -102,7 +103,8 @@ jobs:
               "llm": "cohere",
               "embedding": "onnx",
               "vector_db": "qdrant",
-              "spring_profiles": "real-api-test,testcontainers",
+              "integration_spring_profiles": "real-api-test,testcontainers",
+              "realapi_spring_profiles": "realapi,testcontainers",
             })
           
           if has("ANTHROPIC_API_KEY"):
@@ -111,7 +113,8 @@ jobs:
               "llm": "anthropic",
               "embedding": "onnx",
               "vector_db": "milvus",
-              "spring_profiles": "real-api-test,testcontainers",
+              "integration_spring_profiles": "real-api-test,testcontainers",
+              "realapi_spring_profiles": "realapi,testcontainers",
             })
           
           if has("GEMINI_API_KEY"):
@@ -120,7 +123,8 @@ jobs:
               "llm": "gemini",
               "embedding": "onnx",
               "vector_db": "weaviate",
-              "spring_profiles": "real-api-test,testcontainers",
+              "integration_spring_profiles": "real-api-test,testcontainers",
+              "realapi_spring_profiles": "realapi,testcontainers",
             })
           
           if run_openai_lucene and has("OPENAI_API_KEY"):
@@ -129,7 +133,8 @@ jobs:
               "llm": "openai",
               "embedding": "onnx",
               "vector_db": "lucene",
-              "spring_profiles": "real-api-test",
+              "integration_spring_profiles": "real-api-test",
+              "realapi_spring_profiles": "realapi",
             })
           
           matrix = {"include": include}
@@ -164,6 +169,7 @@ jobs:
       # Pinecone host/index are fixed defaults; override via repo variables if needed.
       PINECONE_INDEX_NAME: ${{ vars.PINECONE_INDEX_NAME != '' && vars.PINECONE_INDEX_NAME || 'ai-fabric' }}
       PINECONE_API_HOST: ${{ vars.PINECONE_API_HOST != '' && vars.PINECONE_API_HOST || 'https://ai-fabric-pwkuyn5.svc.aped-4627-b74a.pinecone.io' }}
+      PINECONE_ENVIRONMENT: ${{ vars.PINECONE_ENVIRONMENT }}
 
     steps:
       - name: Checkout code
@@ -200,7 +206,7 @@ jobs:
       - name: Run suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})
         run: |
           cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="${{ matrix.spring_profiles }}"
+          export SPRING_PROFILES_ACTIVE="${{ matrix.integration_spring_profiles }}"
           if [ "${{ matrix.vector_db }}" = "pinecone" ]; then
             export AI_PROVIDERS_PINECONE_ENABLED="true"
             export AI_PROVIDERS_PINECONE_API_KEY="${PINECONE_API_KEY}"
@@ -210,3 +216,15 @@ jobs:
             export AI_PROVIDERS_PINECONE_ENABLED="false"
           fi
           bash run-provider-matrix-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+
+      - name: Run relationship-query suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})
+        run: |
+          cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
+          export SPRING_PROFILES_ACTIVE="${{ matrix.realapi_spring_profiles }}"
+          bash run-relationship-query-realapi-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}"
+
+      - name: Run behavior suite (${{ matrix.llm }} + ${{ matrix.embedding }})
+        run: |
+          cd ai-infrastructure-module/integration-Testing/behavior-integration-tests
+          export SPRING_PROFILES_ACTIVE="realapi"
+          bash run-behavior-realapi-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}"
