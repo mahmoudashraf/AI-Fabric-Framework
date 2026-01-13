@@ -1,5 +1,8 @@
 package com.subscription.hub.service;
 
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AISearchRequest;
+import com.ai.infrastructure.dto.AISearchResponse;
 import com.subscription.hub.entity.Subscription;
 import com.subscription.hub.entity.SubscriptionPlan;
 import com.subscription.hub.entity.Address;
@@ -7,6 +10,7 @@ import com.subscription.hub.repository.SubscriptionPlanRepository;
 import com.subscription.hub.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,6 +28,9 @@ public class SubscriptionService {
     
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionPlanRepository planRepository;
+
+    @Autowired(required = false)
+    private AICoreService aiCoreService;
     
     /**
      * Subscribe to a plan
@@ -150,12 +158,41 @@ public class SubscriptionService {
      * Search for subscription plans
      */
     public List<SubscriptionPlan> searchPlans(String query, int limit) {
-        // Basic repository search
-        return planRepository.findAll().stream()
+        List<SubscriptionPlan> fallback = planRepository.findAll().stream()
             .filter(plan -> plan.getName().toLowerCase().contains(query.toLowerCase()) ||
                            plan.getDescription().toLowerCase().contains(query.toLowerCase()))
             .limit(limit)
             .collect(Collectors.toList());
+
+        if (aiCoreService == null) {
+            log.debug("AICoreService not available; using basic plan search");
+            return fallback;
+        }
+
+        try {
+            AISearchRequest searchRequest = AISearchRequest.builder()
+                .query(query)
+                .entityType("subscription-plan")
+                .limit(limit)
+                .build();
+
+            AISearchResponse response = aiCoreService.performSearch(searchRequest);
+            if (response == null || response.getResults() == null || response.getResults().isEmpty()) {
+                return fallback;
+            }
+
+            return response.getResults().stream()
+                .map(result -> {
+                    Object id = result.get("id");
+                    return id != null ? planRepository.findById(UUID.fromString(id.toString())).orElse(null) : null;
+                })
+                .filter(plan -> plan != null)
+                .limit(limit)
+                .collect(Collectors.toList());
+        } catch (Exception ex) {
+            log.warn("AI plan search failed; falling back to basic search", ex);
+            return fallback;
+        }
     }
     
     /**

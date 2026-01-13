@@ -4,6 +4,8 @@ import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import lombok.extern.slf4j.Slf4j;
+import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
+@Conditional(VectorDbConfiguredCondition.class)
 public class KnowledgeBaseOverviewService {
 
     private final VectorDatabaseService vectorDatabaseService;

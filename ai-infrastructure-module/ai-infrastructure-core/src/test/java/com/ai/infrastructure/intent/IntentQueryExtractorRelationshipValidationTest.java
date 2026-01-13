@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
@@ -49,11 +50,15 @@ class IntentQueryExtractorRelationshipValidationTest {
     void setUp() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class)))
             .thenReturn("system-prompt");
+
+        ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseProvider = org.mockito.Mockito.mock(ObjectProvider.class);
+        when(knowledgeBaseProvider.getIfAvailable()).thenReturn(knowledgeBaseOverviewService);
+
         extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseProvider,
             new ObjectMapper()
         );
     }

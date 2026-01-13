@@ -121,6 +121,9 @@ class EnrichedPromptBuilderEntityTypesTest {
         when(overviewService.getOverview()).thenReturn(
             KnowledgeBaseOverview.builder().totalIndexedDocuments(0).build()
         );
+
+        ObjectProvider<KnowledgeBaseOverviewService> overviewProvider = mock(ObjectProvider.class);
+        when(overviewProvider.getIfAvailable()).thenReturn(overviewService);
         
         ObjectProvider<com.ai.infrastructure.spi.BehaviorContextProvider> behaviorProvider = 
             mock(ObjectProvider.class);
@@ -133,7 +136,7 @@ class EnrichedPromptBuilderEntityTypesTest {
         // Create a builder that will return specific entity types
         SystemContextBuilder builder = new SystemContextBuilder(
             registry,
-            overviewService,
+            overviewProvider,
             behaviorProvider,
             clockProvider,
             mock(ObjectProvider.class)
@@ -159,4 +162,3 @@ class EnrichedPromptBuilderEntityTypesTest {
         return builder;
     }
 }
-

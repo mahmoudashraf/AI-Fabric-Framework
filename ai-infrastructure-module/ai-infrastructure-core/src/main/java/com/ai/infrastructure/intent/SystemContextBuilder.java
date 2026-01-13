@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -25,6 +26,7 @@ import java.util.Set;
 public class SystemContextBuilder {
 
     private final AvailableActionsRegistry availableActionsRegistry;
+    @Nullable
     private final KnowledgeBaseOverviewService knowledgeBaseOverviewService;
     private final Optional<BehaviorContextProvider> behaviorContextProvider;
     private final Clock clock;
@@ -36,12 +38,12 @@ public class SystemContextBuilder {
 
     @Autowired
     public SystemContextBuilder(AvailableActionsRegistry availableActionsRegistry,
-                                KnowledgeBaseOverviewService knowledgeBaseOverviewService,
+                                ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider,
                                 ObjectProvider<BehaviorContextProvider> behaviorContextProvider,
                                 ObjectProvider<Clock> clockProvider,
                                 ObjectProvider<BeanFactory> beanFactoryProvider) {
         this.availableActionsRegistry = availableActionsRegistry;
-        this.knowledgeBaseOverviewService = knowledgeBaseOverviewService;
+        this.knowledgeBaseOverviewService = knowledgeBaseOverviewServiceProvider.getIfAvailable();
         this.behaviorContextProvider = Optional.ofNullable(behaviorContextProvider.getIfAvailable());
         this.clock = clockProvider.getIfAvailable(Clock::systemUTC);
         this.beanFactory = Optional.ofNullable(beanFactoryProvider.getIfAvailable());
@@ -60,7 +62,7 @@ public class SystemContextBuilder {
      */
     public SystemContext buildContext(OrchestrationContext orchestrationContext) {
         List<ActionInfo> actions = availableActionsRegistry.getAllAvailableActions();
-        KnowledgeBaseOverview overview = knowledgeBaseOverviewService.getOverview();
+        KnowledgeBaseOverview overview = knowledgeBaseOverviewService != null ? knowledgeBaseOverviewService.getOverview() : null;
 
         SystemContext.SystemContextBuilder builder = SystemContext.builder()
             .availableActions(actions)

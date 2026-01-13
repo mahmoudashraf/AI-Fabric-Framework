@@ -228,32 +228,42 @@ public class SubscriptionService {
      * Semantic search for subscription plans
      */
     public List<SubscriptionPlan> searchPlans(String query, int limit) {
+        List<SubscriptionPlan> fallback = planRepository.findAll().stream()
+            .filter(plan -> plan.getName().toLowerCase().contains(query.toLowerCase()) ||
+                           plan.getDescription().toLowerCase().contains(query.toLowerCase()))
+            .limit(limit)
+            .collect(Collectors.toList());
+
         if (aiCoreService == null) {
             log.warn("AICoreService not available, falling back to basic search");
-            // Fallback to basic repository search
-            return planRepository.findAll().stream()
-                .filter(plan -> plan.getName().toLowerCase().contains(query.toLowerCase()) ||
-                               plan.getDescription().toLowerCase().contains(query.toLowerCase()))
+            return fallback;
+        }
+
+        try {
+            AISearchRequest searchRequest = AISearchRequest.builder()
+                .query(query)
+                .entityType("subscription-plan")
+                .limit(limit)
+                .build();
+
+            AISearchResponse response = aiCoreService.performSearch(searchRequest);
+            if (response == null || response.getResults() == null || response.getResults().isEmpty()) {
+                return fallback;
+            }
+
+            // Convert search results to SubscriptionPlan entities
+            return response.getResults().stream()
+                .map(result -> {
+                    Object planId = result.get("id");
+                    return planId != null ? planRepository.findById(UUID.fromString(planId.toString())).orElse(null) : null;
+                })
+                .filter(plan -> plan != null)
                 .limit(limit)
                 .collect(Collectors.toList());
+        } catch (Exception ex) {
+            log.warn("AI plan search failed; falling back to basic search", ex);
+            return fallback;
         }
-        
-        AISearchRequest searchRequest = AISearchRequest.builder()
-            .query(query)
-            .entityType("subscription-plan")
-            .limit(limit)
-            .build();
-        
-        AISearchResponse response = aiCoreService.performSearch(searchRequest);
-        
-        // Convert search results to SubscriptionPlan entities
-        return response.getResults().stream()
-            .map(result -> {
-                String planId = result.get("id").toString();
-                return planRepository.findById(UUID.fromString(planId)).orElse(null);
-            })
-            .filter(plan -> plan != null)
-            .collect(Collectors.toList());
     }
     
     /**

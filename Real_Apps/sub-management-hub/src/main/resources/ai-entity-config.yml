@@ -5,48 +5,40 @@ ai-entities:
     indexable: true
     enable-search: true
     enable-recommendations: true
-    indexing-strategy: ASYNC
     searchable-fields:
       - name: "name"
         weight: 2.0
       - name: "description"
         weight: 1.5
     metadata-fields:
-      - name: "price"
-        context-key: "price"
-        data-type: "decimal"
+      - name: "monthlyPrice"
+        type: "decimal"
       - name: "annualPrice"
-        context-key: "annualPrice"
-        data-type: "decimal"
+        type: "decimal"
       - name: "tier"
-        context-key: "tier"
+        type: "string"
       - name: "features"
-        context-key: "features"
+        type: "string"
       - name: "maxUsers"
-        context-key: "maxUsers"
+        type: "integer"
       - name: "storageGB"
-        context-key: "storageGB"
+        type: "integer"
   
   subscription:
     entity-type: "subscription"
     auto-embedding: false
     indexable: true
     enable-search: false
-    indexing-strategy: ASYNC
     metadata-fields:
       - name: "status"
-        context-key: "status"
+        type: "string"
       - name: "startDate"
-        context-key: "startDate"
-        data-type: "datetime"
+        type: "datetime"
       - name: "endDate"
-        context-key: "endDate"
-        data-type: "datetime"
+        type: "datetime"
       - name: "billingCycle"
-        context-key: "billingCycle"
-      - name: "churnRisk"
-        context-key: "churnRisk"
-        data-type: "decimal"
+        type: "string"
+      - name: "churnRiskScore"
+        type: "decimal"
       - name: "lastActivityDate"
-        context-key: "lastActivityDate"
-        data-type: "datetime"
+        type: "datetime"

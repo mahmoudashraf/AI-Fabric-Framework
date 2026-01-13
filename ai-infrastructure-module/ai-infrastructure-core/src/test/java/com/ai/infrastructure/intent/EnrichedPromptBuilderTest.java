@@ -47,10 +47,13 @@ class EnrichedPromptBuilderTest {
         
         ObjectProvider<org.springframework.beans.factory.BeanFactory> beanFactoryProvider = Mockito.mock(ObjectProvider.class);
         Mockito.when(beanFactoryProvider.getIfAvailable()).thenReturn(null);
+
+        ObjectProvider<KnowledgeBaseOverviewService> overviewProvider = Mockito.mock(ObjectProvider.class);
+        Mockito.when(overviewProvider.getIfAvailable()).thenReturn(overviewService);
         
         SystemContextBuilder contextBuilder = new SystemContextBuilder(
             registry, 
-            overviewService, 
+            overviewProvider,
             behaviorProvider,
             clockProvider,
             beanFactoryProvider

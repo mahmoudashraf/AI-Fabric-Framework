@@ -1,9 +1,11 @@
 package com.subscription.hub.config;
 
+import com.ai.infrastructure.service.AICapabilityService;
 import com.subscription.hub.entity.*;
 import com.subscription.hub.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,7 @@ public class DataInitializer implements CommandLineRunner {
     private final SubscriptionPlanRepository planRepository;
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final ObjectProvider<AICapabilityService> aiCapabilityServiceProvider;
     private final Random random = new Random();
     
     // Seed data arrays
@@ -157,11 +160,38 @@ public class DataInitializer implements CommandLineRunner {
             List<SubscriptionPlan> plans = Arrays.asList(basicPlan, proPlan, enterprisePlan);
             planRepository.saveAll(plans);
             log.info("Initialized {} subscription plans", plans.size());
+            indexPlansForAi(plans);
             return plans;
         } else {
             log.info("Plans already exist. Skipping plan initialization.");
-            return planRepository.findAll();
+            List<SubscriptionPlan> plans = planRepository.findAll();
+            indexPlansForAi(plans);
+            return plans;
         }
+    }
+
+    private void indexPlansForAi(List<SubscriptionPlan> plans) {
+        AICapabilityService aiCapabilityService = aiCapabilityServiceProvider.getIfAvailable();
+        if (aiCapabilityService == null) {
+            log.debug("AICapabilityService not available; skipping plan indexing");
+            return;
+        }
+
+        if (plans == null || plans.isEmpty()) {
+            return;
+        }
+
+        int indexed = 0;
+        for (SubscriptionPlan plan : plans) {
+            try {
+                aiCapabilityService.processEntityForAI(plan, "subscription-plan");
+                indexed++;
+            } catch (Exception ex) {
+                log.warn("Failed to index subscription plan {} for AI search", plan != null ? plan.getId() : null, ex);
+            }
+        }
+
+        log.info("AI indexing completed for {} subscription plan(s)", indexed);
     }
     
     private List<User> initializeUsers() {

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
@@ -67,7 +68,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -108,7 +109,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -149,7 +150,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -193,7 +194,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -211,7 +212,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -236,7 +237,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -275,7 +276,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -315,7 +316,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -323,5 +324,11 @@ class IntentQueryExtractorTest {
 
         assertThat(response.getIntents()).hasSize(1);
         assertThat(response.getIntents().getFirst().getVectorSpace()).isEqualTo("test-product");
+    }
+
+    private ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider() {
+        ObjectProvider<KnowledgeBaseOverviewService> provider = org.mockito.Mockito.mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(knowledgeBaseOverviewService);
+        return provider;
     }
 }

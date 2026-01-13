@@ -58,8 +58,17 @@ public class AIProviderConfigValidator {
     public ValidationResult validate() {
         ValidationResult result = new ValidationResult();
 
-        validateLlmProvider(result);
-        validateEmbeddingProvider(result);
+        if (isGenerationEnabled()) {
+            validateLlmProvider(result);
+        } else {
+            result.addWarning("ai.service.features.enable-generation=false. Skipping LLM provider validation.");
+        }
+
+        if (isEmbeddingsEnabled()) {
+            validateEmbeddingProvider(result);
+        } else {
+            result.addWarning("ai.service.features.enable-embeddings=false. Skipping embedding provider validation.");
+        }
         validateServiceConfig(result);
 
         return result;
@@ -67,6 +76,10 @@ public class AIProviderConfigValidator {
 
     private void validateLlmProvider(ValidationResult result) {
         String provider = normalize(providerConfig.getLlmProvider());
+        if (provider.isBlank() || "none".equals(provider) || "disabled".equals(provider)) {
+            result.addWarning("ai.providers.llm-provider is blank/disabled. LLM generation will be unavailable.");
+            return;
+        }
 
         switch (provider) {
             case "openai" -> validateOpenAI(result, true);
@@ -80,6 +93,10 @@ public class AIProviderConfigValidator {
 
     private void validateEmbeddingProvider(ValidationResult result) {
         String provider = normalize(providerConfig.getEmbeddingProvider());
+        if (provider.isBlank() || "none".equals(provider) || "disabled".equals(provider)) {
+            result.addWarning("ai.providers.embedding-provider is blank/disabled. Embeddings will be unavailable.");
+            return;
+        }
 
         switch (provider) {
             case "openai" -> validateOpenAI(result, false);
@@ -286,6 +303,22 @@ public class AIProviderConfigValidator {
         return value == null ? "" : value.trim().toLowerCase();
     }
 
+    private boolean isEmbeddingsEnabled() {
+        if (serviceConfig.getFeatures() == null) {
+            return true;
+        }
+        Boolean flag = serviceConfig.getFeatures().getEnableEmbeddings();
+        return flag == null || flag;
+    }
+
+    private boolean isGenerationEnabled() {
+        if (serviceConfig.getFeatures() == null) {
+            return true;
+        }
+        Boolean flag = serviceConfig.getFeatures().getEnableGeneration();
+        return flag == null || flag;
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
@@ -338,4 +371,3 @@ public class AIProviderConfigValidator {
      */
     public record ValidationIssue(String key, String message) {}
 }
-

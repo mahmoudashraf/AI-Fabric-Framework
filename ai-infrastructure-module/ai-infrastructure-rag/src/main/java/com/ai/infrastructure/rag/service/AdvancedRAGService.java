@@ -12,7 +12,6 @@ import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,7 +56,6 @@ import java.util.stream.Collectors;
  * @since 1.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AdvancedRAGService implements AdvancedRAGProvider {
 

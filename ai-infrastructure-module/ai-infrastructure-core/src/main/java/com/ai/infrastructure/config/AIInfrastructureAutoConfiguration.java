@@ -37,6 +37,7 @@ import com.ai.infrastructure.http.AIHttpClientProperties;
 import com.ai.infrastructure.http.DefaultAIHttpClientFactory;
 import com.ai.infrastructure.http.HttpClient;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -57,6 +58,9 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ResourceLoader;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ai.infrastructure.config.condition.EmbeddingsFeatureEnabledCondition;
+import com.ai.infrastructure.config.condition.SearchFeatureEnabledCondition;
+import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
 
 import java.time.Clock;
 import java.util.List;
@@ -127,6 +131,7 @@ public class AIInfrastructureAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AIEmbeddingService.class)
+    @ConditionalOnProperty(prefix = "ai.service.features", name = "enable-embeddings", havingValue = "true", matchIfMissing = true)
     public AIEmbeddingService aiEmbeddingService(AIProviderConfig config,
                                                  List<EmbeddingProvider> embeddingProviders,
                                                  ObjectProvider<CacheManager> cacheManagerProvider,
@@ -163,6 +168,7 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean(AISearchService.class)
+    @Conditional({VectorDbConfiguredCondition.class, SearchFeatureEnabledCondition.class})
     public AISearchService aiSearchService(AIProviderConfig config,
                                            VectorSearchService vectorSearchService,
                                            VectorManagementService vectorManagementService) {
@@ -192,6 +198,7 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
+    @Conditional(VectorDbConfiguredCondition.class)
     public UserDataDeletionService userDataDeletionService(AISearchableEntityStorageStrategy storageStrategy,
                                                            VectorDatabaseService vectorDatabaseService,
                                                            Clock clock,
@@ -260,12 +267,14 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
+    @Conditional(VectorDbConfiguredCondition.class)
     public VectorManagementService vectorManagementService(VectorDatabaseService vectorDatabaseService) {
         return new VectorManagementService(vectorDatabaseService);
     }
     
 	    @Bean
 	    @ConditionalOnMissingBean
+        @Conditional({VectorDbConfiguredCondition.class, EmbeddingsFeatureEnabledCondition.class})
 	    public AICapabilityService aiCapabilityService(
 	            AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
@@ -288,6 +297,7 @@ public class AIInfrastructureAutoConfiguration {
     }
     
     @Bean
+    @Conditional({VectorDbConfiguredCondition.class, SearchFeatureEnabledCondition.class})
     public VectorSearchService vectorSearchService(AIProviderConfig config,
                                                   VectorDatabaseService vectorDatabaseService,
                                                   ObjectProvider<CacheManager> cacheManagerProvider) {
@@ -297,6 +307,7 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean(VectorDatabase.class)
+    @Conditional(VectorDbConfiguredCondition.class)
     public VectorDatabase vectorDatabase(VectorDatabaseService vectorDatabaseService) {
         return new VectorDatabaseServiceAdapter(vectorDatabaseService);
     }
@@ -326,6 +337,7 @@ public class AIInfrastructureAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(AICapabilityService.class)
     public com.ai.infrastructure.service.AIInfrastructureProfileService aiInfrastructureProfileService(com.ai.infrastructure.repository.AIInfrastructureProfileRepository aiInfrastructureProfileRepository, AICapabilityService aiCapabilityService) {
         return new com.ai.infrastructure.service.AIInfrastructureProfileService(aiInfrastructureProfileRepository, aiCapabilityService);
     }
