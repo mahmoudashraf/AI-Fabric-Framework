@@ -43,6 +43,11 @@ on:
           - SINGLE_TABLE
           - PER_TYPE_TABLE
           - CUSTOM
+      run_openai_lucene:
+        description: 'Also run OpenAI + ONNX + Lucene'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   resolve-matrix:
@@ -59,6 +64,7 @@ jobs:
       COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key || secrets.COHERE_API_KEY }}
       ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
       GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY }}
+      RUN_OPENAI_LUCENE: ${{ github.event.inputs.run_openai_lucene }}
     steps:
       - name: Mask provider API keys
         if: always()
@@ -78,6 +84,7 @@ jobs:
           def has(key: str) -> bool:
             return bool((os.getenv(key) or "").strip())
           
+          run_openai_lucene = (os.getenv("RUN_OPENAI_LUCENE") or "").strip().lower() == "true"
           include = []
           
           if has("OPENAI_API_KEY") and has("PINECONE_API_KEY"):
@@ -116,7 +123,7 @@ jobs:
               "spring_profiles": "real-api-test,testcontainers",
             })
           
-          if has("OPENAI_API_KEY"):
+          if run_openai_lucene and has("OPENAI_API_KEY"):
             include.append({
               "name": "openai-onnx-lucene",
               "llm": "openai",
