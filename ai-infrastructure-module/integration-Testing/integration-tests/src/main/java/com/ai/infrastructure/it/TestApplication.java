@@ -4,6 +4,7 @@ import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
+import com.ai.infrastructure.indexing.config.AIIndexingAutoConfiguration;
 import com.ai.infrastructure.rag.config.RAGAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -32,7 +33,7 @@ import org.springframework.context.annotation.Import;
         }
     )
 )
-@Import({AIInfrastructureAutoConfiguration.class, RAGAutoConfiguration.class})
+@Import({AIInfrastructureAutoConfiguration.class, AIIndexingAutoConfiguration.class, RAGAutoConfiguration.class})
 public class TestApplication {
 
     public static void main(String[] args) {

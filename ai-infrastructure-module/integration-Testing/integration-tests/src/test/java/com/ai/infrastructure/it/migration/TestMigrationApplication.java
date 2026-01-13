@@ -13,11 +13,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
     "com.ai.infrastructure.migration.domain",
+    "com.ai.infrastructure.it.entity",
     "com.ai.infrastructure.it.migration"
 })
 @EnableJpaRepositories(basePackages = {
     "com.ai.infrastructure.repository",
     "com.ai.infrastructure.migration.repository",
+    "com.ai.infrastructure.it.repository",
     "com.ai.infrastructure.it.migration"
 })
 @Profile("migration-test")

@@ -105,6 +105,8 @@ import java.util.stream.Collectors;
             "com\\.ai\\.infrastructure\\.rag\\..*",
             "com\\.ai\\.infrastructure\\.relationship\\..*",
             "com\\.ai\\.infrastructure\\.web\\..*",
+            "com\\.ai\\.infrastructure\\.migration\\..*",
+            "com\\.ai\\.infrastructure\\.it\\..*",
             "com\\.ai\\.infrastructure\\.onnxstarter\\..*",
             "com\\.ai\\.infrastructure\\.config\\..*"
         }

@@ -33,7 +33,7 @@ import java.util.List;
 @AutoConfiguration
 @AutoConfigurationPackage(basePackages = "com.ai.infrastructure.migration")
 @AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
-@ConditionalOnProperty(prefix = "ai.migration", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "ai.migration", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties({MigrationProperties.class, AIIndexingProperties.class})
 @Import({EntityRepositoryRegistry.class, MigrationProgressTracker.class})
 public class MigrationAutoConfiguration {
