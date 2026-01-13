@@ -74,6 +74,7 @@ public class IntentQueryExtractor {
             .generationType("intent_extraction")
             .systemPrompt(systemPrompt)
             .prompt(userPrompt)
+            .parameters(jsonOnlyResponseParameters())
             .userId(safeContext.getUserId())
             .build();
 
@@ -207,6 +208,7 @@ public class IntentQueryExtractor {
             .generationType("intent_extraction_repair")
             .systemPrompt(repairSystemPrompt)
             .prompt(repairPrompt)
+            .parameters(jsonOnlyResponseParameters())
             .userId(userId)
             .build();
 
@@ -236,6 +238,14 @@ public class IntentQueryExtractor {
             }
         }
         return text;
+    }
+
+    private Map<String, Object> jsonOnlyResponseParameters() {
+        // Provider-agnostic hint: OpenAI/Azure support `response_format`, Gemini maps it to responseMimeType,
+        // and other providers may ignore it while still benefiting from the JSON-only system prompt contract.
+        return Map.of(
+            "response_format", Map.of("type", "json_object")
+        );
     }
 
     private void validateResponse(MultiIntentResponse response, String originalQuery) {

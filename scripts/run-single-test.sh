@@ -1,29 +1,43 @@
 #!/bin/bash
 
 ###############################################################################
-# Relationship Query Integration Test Runner (Bash)
+# Single Integration Test Runner (Bash)
 ###############################################################################
-# This script runs a specific integration test with configurable parameters
-# Usage: ./run-single-test.sh
+# Runs a single Maven test class with optional provider/matrix overrides.
+#
+# Usage examples:
+#   ./scripts/run-single-test.sh
+#   TEST_CLASS=RealAPIProviderMatrixIntegrationTest MATRIX_SPEC="openai:onnx:qdrant:SINGLE_TABLE" ./scripts/run-single-test.sh
 ###############################################################################
 
 # ==================== CONFIGURATION (Edit these) ====================
 
 # Test Configuration
-TEST_CLASS="OrchestratorAccessPolicyRealApiIntegrationTest"  # Change this to your test class name
-OPENAI_KEY="sk-proj-YOUR-API-KEY-HERE"                       # Change this to your OpenAI API key
+TEST_CLASS="${TEST_CLASS:-RealAPIProviderMatrixIntegrationTest}" # Change this to your test class name
 
-# Provider Configuration
-LLM_PROVIDER="openai"
-EMBEDDING_PROVIDER="onnx"
-VECTOR_DB="lucene"
-STORAGE_STRATEGY="SINGLE_TABLE"
+# Key loading:
+# - Prefer OPENAI_API_KEY from environment if already set
+# - Else read from OPENAI_KEY_FILE (first line is the key)
+# - Else fall back to OPENAI_KEY (not recommended to hardcode)
+OPENAI_KEY_FILE="${OPENAI_KEY_FILE:-dev2.env}"
+OPENAI_KEY="${OPENAI_KEY:-}"
+
+# Provider Configuration (used by some tests; provider-matrix tests should prefer MATRIX_SPEC)
+LLM_PROVIDER="${LLM_PROVIDER:-openai}"
+EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-onnx}"
+VECTOR_DB="${VECTOR_DB:-lucene}"
+STORAGE_STRATEGY="${STORAGE_STRATEGY:-SINGLE_TABLE}"
+
+# Provider matrix override (for RealAPIProviderMatrixIntegrationTest)
+# Format: llm:embedding[:vectordb][:storageStrategy]
+MATRIX_SPEC="${MATRIX_SPEC:-}"
 
 # Maven Configuration
-MAVEN_PROFILE="realapi"
-FORK_COUNT="1"
-REUSE_FORKS="false"
-LOG_LEVEL="WARN"
+MAVEN_PROFILE="${MAVEN_PROFILE:-real-api-test}"
+MAVEN_MODULE="${MAVEN_MODULE:-integration-Testing/integration-tests}"
+FORK_COUNT="${FORK_COUNT:-1}"
+REUSE_FORKS="${REUSE_FORKS:-false}"
+LOG_LEVEL="${LOG_LEVEL:-WARN}"
 
 # ==================== END CONFIGURATION ====================
 
@@ -62,7 +76,7 @@ print_warning() {
 }
 
 # Header
-print_header "Relationship Query Integration Test Runner"
+print_header "Single Integration Test Runner"
 
 # Pre-flight checks
 if ! command -v java &> /dev/null; then
@@ -79,31 +93,49 @@ fi
 echo ""
 print_info "Test Configuration:"
 echo "   Test Class: $TEST_CLASS"
+echo "   Maven Module: $MAVEN_MODULE"
 echo "   Maven Profile: $MAVEN_PROFILE"
 echo "   LLM Provider: $LLM_PROVIDER"
 echo "   Embedding: $EMBEDDING_PROVIDER"
 echo "   Vector DB: $VECTOR_DB"
 echo "   Storage: $STORAGE_STRATEGY"
+if [ -n "$MATRIX_SPEC" ]; then
+  echo "   Matrix Spec: $MATRIX_SPEC"
+fi
 echo ""
 
-# Set environment variables
-export OPENAI_API_KEY="$OPENAI_KEY"
+# Resolve OpenAI key (do not echo it)
+if [ -z "${OPENAI_API_KEY:-}" ]; then
+  if [ -n "$OPENAI_KEY" ]; then
+    export OPENAI_API_KEY="$OPENAI_KEY"
+  elif [ -f "$OPENAI_KEY_FILE" ]; then
+    KEY_FROM_FILE="$(head -n 1 "$OPENAI_KEY_FILE" | tr -d '\r' | xargs)"
+    if [ -n "$KEY_FROM_FILE" ]; then
+      export OPENAI_API_KEY="$KEY_FROM_FILE"
+    fi
+  fi
+fi
 
-# Navigate to script directory
+# Navigate to repo + module directory (Maven needs a pom.xml)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR" || exit 1
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+AI_INFRA_DIR="$REPO_ROOT/ai-infrastructure-module"
+cd "$AI_INFRA_DIR" || exit 1
 
 print_info "Working Directory: $(pwd)"
 echo ""
 
 # Build Maven command
-MAVEN_CMD="mvn test"
+MAVEN_CMD="mvn test -pl $MAVEN_MODULE"
 MAVEN_CMD="$MAVEN_CMD -Dtest=$TEST_CLASS"
 MAVEN_CMD="$MAVEN_CMD -Dspring.profiles.active=$MAVEN_PROFILE"
 MAVEN_CMD="$MAVEN_CMD -Dai.providers.llm-provider=$LLM_PROVIDER"
 MAVEN_CMD="$MAVEN_CMD -Dai.providers.embedding-provider=$EMBEDDING_PROVIDER"
 MAVEN_CMD="$MAVEN_CMD -Dai.vector-db.type=$VECTOR_DB"
 MAVEN_CMD="$MAVEN_CMD -Dai-infrastructure.storage.strategy=$STORAGE_STRATEGY"
+if [ -n "$MATRIX_SPEC" ]; then
+  MAVEN_CMD="$MAVEN_CMD -Dai.providers.real-api.matrix=$MATRIX_SPEC"
+fi
 MAVEN_CMD="$MAVEN_CMD -DforkCount=$FORK_COUNT"
 MAVEN_CMD="$MAVEN_CMD -DreuseForks=$REUSE_FORKS"
 MAVEN_CMD="$MAVEN_CMD -Dlogging.level.root=$LOG_LEVEL"
@@ -139,4 +171,3 @@ else
     
     exit 1
 fi
-

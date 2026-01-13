@@ -130,6 +130,8 @@ public class AzureOpenAIProvider implements AIProvider {
             body.put("messages", messages);
             body.put("temperature", Optional.ofNullable(request.getTemperature()).orElse(config.getTemperature()));
             body.put("max_tokens", Optional.ofNullable(request.getMaxTokens()).orElse(config.getMaxTokens()));
+
+            applyResponseFormat(body, request.getParameters());
             
             // For OpenAI-compatible format (/openai/v1), include model in request body
             String endpoint = azureConfig.getEndpoint();
@@ -409,6 +411,19 @@ public class AzureOpenAIProvider implements AIProvider {
             return "";
         }
         return endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
+    }
+
+    private void applyResponseFormat(Map<String, Object> body, Map<String, Object> parameters) {
+        if (body == null || parameters == null || parameters.isEmpty()) {
+            return;
+        }
+        Object responseFormat = parameters.get("response_format");
+        if (responseFormat == null) {
+            responseFormat = parameters.get("responseFormat");
+        }
+        if (responseFormat != null) {
+            body.put("response_format", responseFormat);
+        }
     }
 
     private void updateMetrics(boolean success, long responseTime) {

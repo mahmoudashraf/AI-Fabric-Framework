@@ -109,6 +109,8 @@ public class OpenAIProvider implements AIProvider {
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
             requestBody.put("top_p", 0.1);  // Lower top_p for more deterministic responses
+
+            applyResponseFormat(requestBody, request.getParameters());
             
             // IMPORTANT: Never use System.out for provider logging; it bypasses log levels and makes CI noisy.
             // Emit request/response summaries + payload snippets at INFO (visible at "normal").
@@ -423,5 +425,18 @@ public class OpenAIProvider implements AIProvider {
             return trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
+    }
+
+    private void applyResponseFormat(Map<String, Object> requestBody, Map<String, Object> parameters) {
+        if (requestBody == null || parameters == null || parameters.isEmpty()) {
+            return;
+        }
+        Object responseFormat = parameters.get("response_format");
+        if (responseFormat == null) {
+            responseFormat = parameters.get("responseFormat");
+        }
+        if (responseFormat != null) {
+            requestBody.put("response_format", responseFormat);
+        }
     }
 }
