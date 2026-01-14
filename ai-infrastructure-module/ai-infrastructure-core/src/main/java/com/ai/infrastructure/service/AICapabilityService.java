@@ -464,7 +464,7 @@ public class AICapabilityService {
     /**
      * Validate AI entity configuration
      */
-    private void validateConfiguration(AIEntityConfig config, String entityType, @Nullable Class<?> entityClass) {
+    private void validateConfiguration(AIEntityConfig config, String entityType, @jakarta.annotation.Nullable Class<?> entityClass) {
         if (config == null) {
             throw new IllegalArgumentException("AI configuration cannot be null for entity type: " + entityType);
         }
