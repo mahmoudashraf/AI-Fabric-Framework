@@ -18,32 +18,130 @@ This document unifies the solutions for progressive intent extraction, vectorSpa
 4. **Provider Configuration** - Single LLM provider for both orchestration and generation is suboptimal
 
 ### Solution Architecture
-Three-layer progressive pipeline:
+Progressive stabilization through dedicated pipeline steps:
 ```
+Pipeline Orchestration Flow:
+═══════════════════════════════════════════════════════════════
+
+Order 50: IntentExtractionStep (Enhanced with Progressive Engine)
 ┌────────────────────────────────────────────────────────────┐
-│  Layer 1: Progressive Intent Extraction                    │
+│  Progressive Intent Extraction Engine                       │
 │  • Compound (fast path)                                     │
 │  • Repair (structural only, max 1 attempt)                  │
 │  • Multi-Step (decomposed: classify → action → retrieval)   │
+│                                                              │
+│  Output: Structurally valid MultiIntentResponse            │
 └────────────────────────────────────────────────────────────┘
                           ↓
+Order 55: VectorSpaceResolutionStep (NEW)
 ┌────────────────────────────────────────────────────────────┐
-│  Layer 2: Intent Validation & Enrichment                   │
-│  • Deterministic validation (schema + invariants)           │
-│  • Action grounding (against registry)                      │
-│  • vectorSpace routing (when missing):                      │
-│    - If 1 space → auto-assign                               │
-│    - Else → bounded fan-out (top N spaces, small topK)      │
-│    - Else → clarification (if fan-out weak)                 │
+│  VectorSpace Resolution Policy                              │
+│  • If 1 space → auto-assign                                 │
+│  • If >1 space → bounded fan-out (top N spaces, topK/each)  │
+│  • If fan-out weak → clarification                          │
+│  • Deterministic validation & enrichment                    │
+│                                                              │
+│  Output: Fully resolved retrieval plan (no missing spaces)  │
 └────────────────────────────────────────────────────────────┘
                           ↓
+Order 60: IntentHandlingStep (Existing)
 ┌────────────────────────────────────────────────────────────┐
-│  Layer 3: Result Normalization (✅ ALREADY EXISTS)          │
+│  Intent Execution                                           │
+│  • Route to action handlers                                 │
+│  • Execute RAG retrieval                                    │
+│  • Generate responses                                       │
+└────────────────────────────────────────────────────────────┘
+                          ↓
+Order 65: OrchestrationResultNormalizationStep (✅ EXISTS)
+┌────────────────────────────────────────────────────────────┐
+│  Result Normalization                                       │
 │  • Provider-agnostic contract enforcement                   │
 │  • Error code standardization                               │
-│  • Child error bubbling                                     │
+│  • Child error bubbling (with soft error handling)          │
+│                                                              │
+│  Output: Canonical OrchestrationResult                      │
 └────────────────────────────────────────────────────────────┘
 ```
+
+**Key Architectural Decision:** VectorSpace resolution is a **separate pipeline step** (not embedded in extraction logic) because:
+- Intent extraction should not own retrieval policies
+- Retrieval must never run with missing vectorSpace
+- Clean separation enables independent testing and feature toggling
+- Follows existing pipeline pattern
+
+---
+
+## Architectural Principles
+
+These principles guide the design and implementation of this solution, ensuring alignment with the AI Fabric Framework philosophy.
+
+### 1. Separation of Concerns
+
+**Intent Extraction** → produces structured intent (structural validation only)
+**VectorSpace Resolution** → resolves routing (semantic policy)
+**Result Normalization** → enforces contract (system-fact driven)
+
+Each layer has ONE clear responsibility. No mixing.
+
+### 2. Repair is Structural-Only (Never Semantic)
+
+**Critical Rule:** Repair fixes JSON/schema correctness, NOT semantic decisions.
+
+```java
+// ✅ CORRECT - Repair fixes structure:
+// Input:  {"type":"ACTION","action":"search_products" // ← Missing closing brace
+// Repair: {"type":"ACTION","action":"search_products"}
+
+// ❌ WRONG - Repair should NOT do this:
+// Input:  {"type":"ACTION","requiresRetrieval":true,"vectorSpace":""}
+// Repair: {"type":"ACTION","requiresRetrieval":true,"vectorSpace":"products"} // ← Guessing!
+```
+
+**Why this matters:**
+- If `vectorSpace` cannot be deterministically derived from schema/structure, leave it unset
+- Routing policy (VectorSpaceResolutionStep) handles missing vectorSpace semantically
+- Repair should never "infer" missing fields using query analysis
+
+### 3. System-Fact-Driven Normalization
+
+**Normalize based on deterministic system facts:**
+- ✅ Action handler exists in registry → valid
+- ✅ Action handler missing → `ERROR` with `ACTION_NOT_FOUND`
+- ✅ Child intent failed → bubble error to parent
+- ❌ Provider wrapper type → ignore (provider-dependent)
+- ❌ Provider prose/wording → ignore (provider-dependent)
+
+**Contract invariants:**
+- `type`: canonical top-level outcome
+- `success`: derived from system facts (not provider boolean)
+- `errorCode`: stable identifier for clients
+- `message`: product-owned (not dependent on provider phrasing)
+
+### 4. Bounded Fallback Behavior
+
+**No unbounded retry loops. All fallbacks are strictly bounded:**
+
+| Layer | Fallback | Bound |
+|-------|----------|-------|
+| Intent Extraction | Repair loop | Max 1 attempt (default) |
+| Intent Extraction | Multi-step | 3-4 steps max |
+| vectorSpace Routing | Fan-out | Max N spaces × topK docs |
+| Overall | Total LLM calls | Max 5 per request (configurable) |
+
+### 5. No Silent Misrouting
+
+**For multi-domain knowledge bases:**
+- "Confident-but-wrong" is worse than clarification
+- Prefer bounded fan-out (coverage + bounded cost)
+- When uncertain → ask for clarification (correctness-first)
+- Avoid "largest-count as final answer" for production multi-domain KBs
+
+### 6. Provider-Agnostic Determinism
+
+**Same input + same configuration → same outcome, regardless of provider:**
+- OpenAI, Anthropic, Cohere should produce same final `OrchestrationResult` type
+- Tests assert canonical invariants (`type`, `success`, `errorCode`)
+- Tests never assert provider-specific wrappers or prose
 
 ---
 
@@ -931,9 +1029,116 @@ public class ProgressiveIntentExtractionProperties {
 
 ---
 
-### Phase 3: vectorSpace Bounded Fan-Out Routing (Week 5-6)
+### Phase 3: VectorSpace Resolution Pipeline Step (Week 5-6)
 
-#### 3.1 Vector Space Router Interface
+**New Pipeline Step:** `VectorSpaceResolutionStep` (Order 55)
+
+**Pipeline Integration:**
+```
+Order 50: IntentExtractionStep → Order 55: VectorSpaceResolutionStep → Order 60: IntentHandlingStep
+```
+
+**Why a separate pipeline step:**
+- Intent extraction should not own retrieval policies (separation of concerns)
+- Retrieval must never run with missing vectorSpace (guarantee safety)
+- Clean separation enables independent testing and feature toggling
+- Follows existing pipeline pattern (consistent with framework architecture)
+
+#### 3.1 VectorSpace Resolution Step Implementation
+
+**New File:** `ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/VectorSpaceResolutionStep.java`
+
+```java
+package com.ai.infrastructure.intent.orchestration.pipeline.steps;
+
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.rag.vectorspace.VectorSpaceRouter;
+import com.ai.infrastructure.rag.vectorspace.RoutingResult;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+/**
+ * Pipeline step that resolves missing vectorSpace for retrieval intents.
+ *
+ * <p>Guarantees: If an intent requires retrieval, a safe retrieval plan is resolved
+ * before reaching IntentHandlingStep.</p>
+ *
+ * <p><strong>Order:</strong> 55 (after IntentExtractionStep, before IntentHandlingStep)</p>
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class VectorSpaceResolutionStep implements OrchestrationPipelineStep {
+
+    private final VectorSpaceRouter vectorSpaceRouter;
+
+    @Override
+    public int getOrder() {
+        return 55; // After IntentExtractionStep (50), before IntentHandlingStep (60)
+    }
+
+    @Override
+    public StepResult execute(OrchestrationContext context) {
+        MultiIntentResponse intents = context.getExtractedIntents();
+
+        if (intents == null || intents.getIntents() == null) {
+            return StepResult.continueProcessing();
+        }
+
+        for (Intent intent : intents.getIntents()) {
+            if (requiresVectorSpaceResolution(intent)) {
+                resolveVectorSpace(intent, context);
+            }
+        }
+
+        return StepResult.continueProcessing();
+    }
+
+    private boolean requiresVectorSpaceResolution(Intent intent) {
+        return intent.getType() == IntentType.INFORMATION
+            && Boolean.TRUE.equals(intent.getRequiresRetrieval())
+            && !hasValidVectorSpace(intent);
+    }
+
+    private boolean hasValidVectorSpace(Intent intent) {
+        return intent.getVectorSpace() != null && !intent.getVectorSpace().isBlank();
+    }
+
+    private void resolveVectorSpace(Intent intent, OrchestrationContext context) {
+        log.debug("Resolving missing vectorSpace for intent");
+
+        RoutingResult routing = vectorSpaceRouter.route(intent, context.getOriginalQuery());
+
+        if (routing.isSuccess()) {
+            if (routing.requiresFanOut()) {
+                // Store fan-out candidates for retrieval handler
+                intent.setMetadata("vectorSpace.fanOut", true);
+                intent.setMetadata("vectorSpace.candidates", routing.getCandidateSpaces());
+                intent.setVectorSpace(String.join(",", routing.getCandidateSpaces()));
+            } else {
+                intent.setVectorSpace(routing.getVectorSpace());
+            }
+
+            // Store routing metadata
+            intent.setMetadata("vectorSpace.routing", routing.getStrategy().name());
+            intent.setMetadata("vectorSpace.confidence", routing.getConfidence());
+            intent.setMetadata("vectorSpace.rationale", routing.getRationale());
+
+            log.info("Resolved vectorSpace: strategy={}, result={}",
+                routing.getStrategy(), routing.getVectorSpace());
+        } else {
+            log.warn("VectorSpace resolution failed: {}", routing.getRationale());
+            // Keep vectorSpace null - IntentHandlingStep will handle clarification
+        }
+    }
+}
+```
+
+#### 3.2 Vector Space Router Interface
 
 **New File:** `ai-infrastructure-core/src/main/java/com/ai/infrastructure/rag/vectorspace/VectorSpaceRouter.java`
 
@@ -1181,7 +1386,143 @@ public class BoundedFanOutRouter implements VectorSpaceRouter {
 }
 ```
 
-#### 3.5 Configuration Properties
+#### 3.5 Fan-Out Result Merging (Rank-Based Strategy)
+
+**Critical Design Decision:** Use **rank-based merging** instead of score normalization.
+
+**Why Rank-Based Merging:**
+- Different vector DBs use different similarity metrics (cosine similarity, L2 distance, dot product, TF-IDF)
+- Score scales are not comparable across providers (e.g., Pinecone [0,1] vs Milvus [0,∞])
+- Normalizing scores across providers is complex and error-prone
+- Rank-based merging is deterministic and provider-agnostic
+
+**New File:** `ai-infrastructure-core/src/main/java/com/ai/infrastructure/rag/vectorspace/RankBasedMerger.java`
+
+```java
+package com.ai.infrastructure.rag.vectorspace;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Merges retrieval results from multiple vector spaces using rank-based strategy.
+ *
+ * <p><strong>Why rank-based:</strong> Different vector databases use incompatible similarity
+ * metrics. Instead of normalizing scores (complex and error-prone), we use document rank
+ * within each space, which is provider-agnostic and deterministic.</p>
+ */
+@Slf4j
+@Component
+public class RankBasedMerger {
+
+    /**
+     * Merge results from multiple spaces using rank-based strategy.
+     *
+     * <p>Strategy:</p>
+     * <ol>
+     *   <li>Take top K documents from each space (already ranked by similarity)</li>
+     *   <li>Interleave by rank to avoid bias toward first space</li>
+     *   <li>Preserve source space metadata for observability</li>
+     * </ol>
+     *
+     * @param resultsBySpace map of space name to ranked documents
+     * @param topKPerSpace max documents to take from each space
+     * @return merged list of documents (interleaved by rank)
+     */
+    public <T> List<T> mergeByRank(Map<String, List<T>> resultsBySpace, int topKPerSpace) {
+        if (resultsBySpace == null || resultsBySpace.isEmpty()) {
+            return List.of();
+        }
+
+        log.debug("Merging results from {} spaces using rank-based strategy", resultsBySpace.size());
+
+        // Interleave by rank: take rank-1 from each space, then rank-2, etc.
+        List<T> merged = new ArrayList<>();
+        int maxRank = topKPerSpace;
+
+        for (int rank = 0; rank < maxRank; rank++) {
+            for (Map.Entry<String, List<T>> entry : resultsBySpace.entrySet()) {
+                List<T> docs = entry.getValue();
+                if (rank < docs.size()) {
+                    merged.add(docs.get(rank));
+                }
+            }
+        }
+
+        log.debug("Merged {} documents from {} spaces", merged.size(), resultsBySpace.size());
+        return merged;
+    }
+
+    /**
+     * Example usage in RAG retrieval handler:
+     *
+     * <pre>{@code
+     * // Fan-out to multiple spaces
+     * Map<String, List<Document>> resultsBySpace = new HashMap<>();
+     * for (String space : candidateSpaces) {
+     *     List<Document> docs = vectorDB.search(query, space, topK);
+     *     resultsBySpace.put(space, docs);
+     * }
+     *
+     * // Merge using rank-based strategy
+     * List<Document> merged = rankBasedMerger.mergeByRank(resultsBySpace, topKPerSpace);
+     *
+     * // Continue with generation using merged context
+     * }</pre>
+     */
+}
+```
+
+**Comparison: Score Normalization vs Rank-Based**
+
+```java
+// ❌ WRONG - Score normalization (complex, error-prone):
+public List<Document> mergeByScore(Map<String, List<Document>> results) {
+    List<Document> all = new ArrayList<>();
+
+    for (Map.Entry<String, List<Document>> entry : results.entrySet()) {
+        String provider = getProviderForSpace(entry.getKey());
+
+        for (Document doc : entry.getValue()) {
+            // Nightmare: different similarity metrics per provider
+            double normalized = switch (provider) {
+                case "pinecone" -> doc.getScore(); // cosine [0, 1]
+                case "milvus" -> 1.0 / (1.0 + doc.getScore()); // L2 distance [0, ∞]
+                case "lucene" -> normalizeT fIdf(doc.getScore()); // TF-IDF [0, ∞]
+                default -> doc.getScore();
+            };
+            doc.setNormalizedScore(normalized);
+            all.add(doc);
+        }
+    }
+
+    // Sort by normalized score (but normalization is approximate!)
+    all.sort(Comparator.comparingDouble(Document::getNormalizedScore).reversed());
+    return all;
+}
+
+// ✅ CORRECT - Rank-based (simple, deterministic):
+public List<Document> mergeByRank(Map<String, List<Document>> results, int topK) {
+    List<Document> merged = new ArrayList<>();
+
+    // Interleave by rank (no score normalization needed)
+    for (int rank = 0; rank < topK; rank++) {
+        for (List<Document> docs : results.values()) {
+            if (rank < docs.size()) {
+                merged.add(docs.get(rank)); // Already ranked within space
+            }
+        }
+    }
+
+    return merged; // Deterministic, provider-agnostic
+}
+```
+
+#### 3.6 Configuration Properties
 
 **New File:** `ai-infrastructure-core/src/main/java/com/ai/infrastructure/rag/vectorspace/VectorSpaceRoutingProperties.java`
 
@@ -1307,7 +1648,105 @@ diagnostics.put("vectorSpaceCandidates", List.of("product", "customer"));
 result.getMetadata().put("extractionDiagnostics", diagnostics);
 ```
 
-#### 4.3 Unit Tests
+#### 4.3 Soft Error Behavior Documentation (IMPORTANT for Tests)
+
+**Existing Behavior in `OrchestrationResultNormalizer`:**
+
+The current implementation includes **deliberate soft error handling** for compound intents. This behavior is NOT a bug - it's a feature that affects test expectations.
+
+**Rule:** For compound intents, if the **primary child succeeds** and a **non-primary child** has a "soft error," normalization **promotes the primary success** rather than failing the entire request.
+
+**Soft Errors:**
+- `ACTION_NOT_FOUND` (common: "summarize this" misclassified as ACTION)
+- `GENERATION_FAILED` (non-primary generation failed but retrieval succeeded)
+
+**Why This Matters:**
+
+```java
+// Scenario: User asks compound query
+User: "Get me premium customers and summarize the results"
+
+// LLM returns compound intent:
+MultiIntentResponse {
+  intents: [
+    Intent {                    // PRIMARY (first, most important)
+      type: INFORMATION,
+      requiresRetrieval: true,
+      vectorSpace: "customer"
+    },
+    Intent {                    // NON-PRIMARY (secondary)
+      type: ACTION,
+      action: "summarize"       // ← No handler exists!
+    }
+  ]
+}
+
+// Execution:
+// 1. Primary intent (retrieval) → ✅ SUCCEEDS (finds premium customers)
+// 2. Non-primary intent (action) → ❌ FAILS (ACTION_NOT_FOUND)
+
+// Normalization Decision:
+// Option A (strict): Return ERROR (fail entire request)
+// Option B (pragmatic): Return INFORMATION_PROVIDED (primary succeeded) ← CURRENT BEHAVIOR
+
+// Result:
+OrchestrationResult {
+  type: INFORMATION_PROVIDED,    // ← Promoted primary success
+  success: true,
+  data: { customers: [...] },
+  metadata: {
+    softChildErrorCode: "ACTION_NOT_FOUND"  // ← Error preserved for observability
+  }
+}
+```
+
+**Test Implications:**
+
+```java
+// ❌ WRONG TEST (expects strict error bubbling):
+@Test
+void shouldFailEntireCompoundWhenAnyChildFails() {
+    // Arrange: compound with primary success + non-primary ACTION_NOT_FOUND
+    // Act: execute orchestration
+    // Assert:
+    assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR); // ← FAILS!
+}
+
+// ✅ CORRECT TEST (expects soft error handling):
+@Test
+void shouldPromotePrimarySuccessWhenNonPrimaryHasSoftError() {
+    // Arrange: compound with primary INFORMATION success + non-primary ACTION_NOT_FOUND
+    // Act: execute orchestration
+    // Assert:
+    assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED); // ← PASSES
+    assertThat(result.isSuccess()).isTrue();
+    assertThat(result.getMetadata().get("softChildErrorCode")).isEqualTo("ACTION_NOT_FOUND");
+}
+```
+
+**Hard Errors (Always Bubble):**
+
+If non-primary child has a **hard error** (not ACTION_NOT_FOUND or GENERATION_FAILED), normalization WILL bubble to top-level ERROR:
+
+```java
+// Hard errors (always fail compound):
+- SECURITY_VIOLATION
+- VALIDATION_ERROR
+- DATABASE_ERROR
+- UNEXPECTED_ERROR
+```
+
+**Documentation Location:**
+
+This behavior is implemented in:
+- `OrchestrationResultNormalizer.normalize()` (lines 38-64)
+- See `promoteCompoundPrimary()` method
+
+**Why This Design:**
+
+User intent was primarily to **get premium customers**. The "summarize" was secondary. Failing the entire request because we can't summarize would be poor UX when we successfully retrieved what they asked for.
+
+#### 4.4 Unit Tests
 
 **Test Cases:**
 
@@ -1412,27 +1851,411 @@ class IntentExtractionIntegrationTest {
 
 ## Success Metrics
 
-### Before (Baseline)
-- Intent extraction failures: ~15% (provider-dependent)
-- Missing vectorSpace: ~8% of RAG requests
-- Flaky test rate: ~12%
-- Silent misrouting: unknown
+### Extraction Metrics
 
-### After (Target)
-- Intent extraction failures: <3% (with progressive fallback)
-- Missing vectorSpace: <1% (with routing)
-- Flaky test rate: <2%
-- Silent misrouting: 0% (telemetry)
-- Cost increase: <10% (bounded retries + fan-out)
+**Intent Extraction Path Distribution:**
+| Metric | Baseline | Target | Measurement |
+|--------|----------|--------|-------------|
+| Compound fast-path success rate | 85% | 92% | `intentExtraction.path=compound AND success=true` |
+| Repair invocations | Unknown | <12% | `intentExtraction.path=repair` |
+| Multi-step fallback usage | 0% (doesn't exist) | <3% | `intentExtraction.path=multi_step` |
+| Structural failure rate | ~15% overall | <3% | Failed to produce valid MultiIntentResponse |
+
+**Per-Provider Structural Failures:**
+| Provider | Baseline (estimate) | Target |
+|----------|---------------------|--------|
+| OpenAI GPT-4o | ~5% | <2% |
+| Cohere Command-R | ~10% | <3% |
+| Anthropic Claude | ~8% | <2% |
+| Gemini Pro | ~18% | <5% |
+
+**Latency by Extraction Path:**
+| Path | p50 | p95 | p99 |
+|------|-----|-----|-----|
+| Compound (baseline) | 800ms | 1500ms | 2500ms |
+| Compound + Repair | 1600ms | 3000ms | 5000ms |
+| Multi-Step (target) | 2400ms | 4500ms | 7000ms |
+
+### Routing Metrics
+
+**vectorSpace Resolution:**
+| Metric | Baseline | Target | Measurement |
+|--------|----------|--------|-------------|
+| Missing vectorSpace rate | ~8% | <1% | Intents with `requiresRetrieval=true AND vectorSpace=null` |
+| Auto-assign (single space) | Unknown | 40-50% | `routing.vectorSpace.policy=single` |
+| Fan-out usage | 0% (doesn't exist) | 30-40% | `routing.vectorSpace.policy=fanout` |
+| Clarification requests | 0% (crashes instead) | 5-10% | `routing.vectorSpace.policy=clarify` |
+| Heuristic last-resort | ~8% (all cases) | <5% | `routing.vectorSpace.policy=heuristic` |
+
+**Fan-Out Cost Tracking:**
+| Metric | Baseline | Target | Notes |
+|--------|----------|--------|-------|
+| Vector queries per request | 1 (when space known) | 1-3 (avg 1.8) | Max N spaces with topK per space |
+| Fan-out similarity distributions | N/A | p50 > 0.7, p95 > 0.5 | Track weak results that trigger clarification |
+| Weak-results rate (below threshold) | N/A | <15% | Results below `clarificationThreshold=0.4` |
+
+### Normalization Metrics
+
+**Result Normalization:**
+| Metric | Baseline | Target | Measurement |
+|--------|----------|--------|-------------|
+| Results normalized vs unchanged | Unknown | 15-20% | Results modified by normalizer |
+| Flaky test rate | ~12% | <2% | Tests asserting provider-dependent wrappers |
+| Provider-agnostic contract compliance | ~70% | 100% | All results have canonical `type`, `success`, `errorCode` |
+
+**Top Error Codes (Expected Distribution):**
+| Error Code | % of Errors | Notes |
+|------------|-------------|-------|
+| `ACTION_NOT_FOUND` | 45% | Most common: unregistered actions |
+| `CHILD_ERROR` | 25% | Bubbled child failures |
+| `GENERATION_FAILED` | 15% | LLM generation issues |
+| `VECTORSPACE_MISSING` | 10% | Should decrease to <1% |
+| `VALIDATION_ERROR` | 5% | Schema/invariant violations |
+
+**Compound Soft Child Errors:**
+| Metric | Baseline | Target | Notes |
+|--------|----------|--------|-------|
+| Frequency of soft errors | Unknown | 8-12% of compound intents | `metadata.softChildErrorCode` present |
+| Primary success promotion rate | Unknown | 100% | When primary succeeds + non-primary soft error |
+
+### Cost & Performance Metrics
+
+**LLM Cost Analysis:**
+| Scenario | Baseline LLM Calls | Target LLM Calls | Cost Impact |
+|----------|-------------------|------------------|-------------|
+| Simple query (compound succeeds) | 1 | 1 | 0% |
+| Structural failure (repair) | 1 (fails) | 2 (1+repair) | +100% for affected queries (~12%) |
+| Complex query (multi-step) | 1 (fails) | 3-4 | +300% for affected queries (<3%) |
+| **Weighted average** | 1.0 | 1.14 | **+14% overall** |
+
+**Vector Query Cost:**
+| Scenario | Baseline | Target | Cost Impact |
+|----------|----------|--------|-------------|
+| vectorSpace known | 1 | 1 | 0% |
+| vectorSpace missing (crashes) | 0 (crashes) | 3 (fan-out) | +200% for affected queries (~8%) |
+| **Weighted average** | 0.92 (crashes excluded) | 1.16 | **+26% overall** |
+
+**Combined Cost Impact:** +18% overall (LLM: +14%, Vector: +26% on subset)
+
+**Performance SLA Targets:**
+| Metric | Baseline | Target | Acceptable Max |
+|--------|----------|--------|----------------|
+| p50 latency | 800ms | 900ms | 1200ms |
+| p95 latency | 1500ms | 2000ms | 3000ms |
+| p99 latency | 2500ms | 3500ms | 5000ms |
+| Timeout rate | ~5% | <1% | <2% |
+
+### Reliability Metrics
+
+**System Reliability:**
+| Metric | Baseline | Target | Measurement |
+|--------|----------|--------|-------------|
+| Silent misrouting rate | Unknown (no telemetry) | 0% | All routing decisions logged |
+| Crash rate (null vectorSpace) | ~8% | 0% | VectorSpaceResolutionStep guarantees resolution |
+| Test stability | ~88% (12% flaky) | >98% | Tests assert canonical contracts |
+| Provider-switching regression rate | Unknown | <1% | Same query+config → same outcome |
+
+### Observability & Debugging
+
+**Telemetry Coverage:**
+| Metric | Baseline | Target |
+|--------|----------|--------|
+| Extraction path logged | No | 100% |
+| Routing strategy logged | No | 100% |
+| Normalization applied logged | No | 100% |
+| Diagnostic metadata attached | <10% | 100% |
+| Cost per request tracked | No | 100% |
 
 ---
 
-## Open Questions
+## Monitoring Dashboard (Recommended)
 
-1. **vectorSpace routing cost:** Are you OK with 3× vector queries when vectorSpace is missing (fan-out N=3)?
-2. **Clarification UX:** When fan-out yields weak results, should we ask users or fall back to "best effort"?
-3. **Orchestration LLM provider:** Which provider do you prefer for structured outputs (Cohere, OpenAI, Anthropic)?
-4. **Rollout timeline:** 8 weeks for all phases, or prioritize specific phases?
+```yaml
+# Grafana/Datadog Dashboard
+
+Extraction Panel:
+  - Gauge: Structural failure rate (target: <3%)
+  - Pie chart: Extraction path distribution (compound/repair/multi-step)
+  - Line graph: p95 latency by path (last 24h)
+  - Table: Per-provider failure rates
+
+Routing Panel:
+  - Gauge: Missing vectorSpace rate (target: <1%)
+  - Pie chart: Routing strategy distribution (auto/fan-out/clarify/heuristic)
+  - Line graph: Fan-out vector queries per request (cost tracking)
+  - Histogram: Fan-out similarity score distributions
+
+Normalization Panel:
+  - Gauge: Flaky test rate (target: <2%)
+  - Bar chart: Top error codes (frequency)
+  - Counter: Soft child error frequency
+  - Line graph: Normalization application rate
+
+Cost Panel:
+  - Counter: Total LLM calls (per hour)
+  - Counter: Total vector queries (per hour)
+  - Line graph: Cost per request trend (rolling average)
+  - Alert: Cost anomalies (>30% increase)
+```
+
+---
+
+## Open Decisions (Resolve Before Implementation)
+
+These questions require team discussion and explicit decisions before proceeding with implementation.
+
+### 1. Clarification Outcome Representation
+
+**Decision Needed:** How should clarification requirements be surfaced to clients?
+
+**Option A: New `OrchestrationResultType.CLARIFICATION_REQUIRED` (Recommended)**
+```java
+public enum OrchestrationResultType {
+    INFORMATION_PROVIDED,
+    ACTION_EXECUTED,
+    ERROR,
+    OUT_OF_SCOPE,
+    COMPOUND_HANDLED,
+    CLARIFICATION_REQUIRED  // ← NEW
+}
+```
+
+**Pros:**
+- ✅ Explicit, clear semantics for clients
+- ✅ Tests can assert specifically for clarification
+- ✅ Aligns with greenfield philosophy (clean enums)
+
+**Cons:**
+- ❌ Public API change (new enum value)
+- ❌ Clients must handle new type
+
+**Option B: Reuse `OUT_OF_SCOPE` with structured metadata**
+```java
+OrchestrationResult {
+    type: OUT_OF_SCOPE,
+    message: "Please specify which domain you're asking about",
+    metadata: {
+        reason: "CLARIFICATION_REQUIRED",
+        candidates: ["products", "customers", "orders"]
+    }
+}
+```
+
+**Pros:**
+- ✅ No public API change
+- ✅ Backward compatible
+
+**Cons:**
+- ❌ Less explicit (clients must check metadata)
+- ❌ Overloads OUT_OF_SCOPE semantics
+
+**Team Decision:** _______________ (Option A or B)
+
+---
+
+### 2. Fan-Out Merge Strategy Details
+
+**Decision Needed:** Should we support optional score-based merging in the future?
+
+**Current Plan: Rank-Based Only**
+- Simple, deterministic, provider-agnostic
+- Avoids complex score normalization
+
+**Future Option: Hybrid (Rank + Score)**
+- Allow score-based merging when ALL spaces use same vector DB provider
+- Fall back to rank-based when mixed providers
+
+**Team Decision:**
+- [ ] Rank-based only (sufficient)
+- [ ] Add score-based as future enhancement (when?)
+- [ ] Implement hybrid approach from start
+
+---
+
+### 3. Router Stage (Mid-Term Enhancement)
+
+**Decision Needed:** When to invest in explicit LLM-based router?
+
+**Current Plan: Rules-Based Routing**
+- Query mention matching
+- Heuristic (largest count, first type)
+- Bounded fan-out when ambiguous
+
+**Future Option: LLM-Based Router Stage**
+```java
+// Explicit routing step with LLM analysis
+RoutingAnalysis {
+    vectorSpace: "products",
+    confidence: 0.85,
+    rationale: "Query mentions 'laptop' and 'price' which are product attributes"
+}
+```
+
+**Triggers for Router Investment:**
+| Metric | Threshold | Rationale |
+|--------|-----------|-----------|
+| Heuristic last-resort usage | >15% | Rules insufficient |
+| Clarification request rate | >20% | Over-asking users |
+| Silent misrouting reports | >5 per month | Correctness issues |
+
+**Team Decision:**
+- Trigger thresholds: _____________
+- Timeline: Q__ 202__ (if triggered)
+- Preferred approach: LLM-based / Hybrid / ML classifier
+
+---
+
+### 4. Provider Selection for Orchestration vs Generation
+
+**Decision Needed:** Which LLM providers for each purpose in production?
+
+**Orchestration (Structure-First):**
+| Provider | Model | Pros | Cons | Recommendation |
+|----------|-------|------|------|----------------|
+| Cohere | Command-R Plus | Fast, cheap, good JSON | Smaller context | ✅ Primary |
+| OpenAI | GPT-4o-mini | Fast, cheap | Medium quality | ✅ Fallback |
+| Anthropic | Haiku | Very fast | Lower accuracy | ⚠️ Testing only |
+
+**Generation (Quality-First):**
+| Provider | Model | Pros | Cons | Recommendation |
+|----------|-------|------|------|----------------|
+| OpenAI | GPT-4o | High quality | Expensive | ✅ Primary |
+| Anthropic | Sonnet | Excellent quality | Expensive | ✅ Alternative |
+| Cohere | Command-R Plus | Good quality, cheap | Lower than GPT-4o | ⚠️ Budget option |
+
+**Team Decision:**
+- Orchestration primary: _______________
+- Orchestration fallback: _______________
+- Generation primary: _______________
+- Generation fallback: _______________
+
+---
+
+### 5. Cost Controls & Limits
+
+**Decision Needed:** Are these cost control limits appropriate for production?
+
+**Current Proposed Limits:**
+| Control | Limit | Impact | Adjustable? |
+|---------|-------|--------|-------------|
+| Max LLM calls per request | 5 | Prevents runaway costs | Yes (config) |
+| Max repair attempts | 1 | Bounded structural fallback | Yes (config) |
+| Fan-out max spaces | 3 | Bounded vector queries | Yes (config) |
+| Fan-out topK per space | 5 | Total: 15 docs max | Yes (config) |
+| Multi-step max steps | 4 | Prevents long chains | Code constant |
+
+**Cost Scenarios:**
+- Worst case: 5 LLM calls + 15 vector queries = ~$0.08 per request
+- Average case: 1.14 LLM calls + 1.16 vector queries = ~$0.012 per request
+
+**Team Decision:**
+- [ ] Limits are acceptable as-is
+- [ ] Adjust limits (specify): _______________
+- [ ] Add per-user/per-tenant limits
+- [ ] Add budget alerts at: $___/day
+
+---
+
+### 6. Rollout Timeline & Prioritization
+
+**Decision Needed:** 8 weeks for all phases, or prioritize?
+
+**Proposed Timeline:**
+| Phase | Duration | Priority | Dependencies |
+|-------|----------|----------|--------------|
+| Phase 1: Provider Config | Week 1-2 | HIGH | None |
+| Phase 2: Progressive Extraction | Week 3-4 | HIGH | Phase 1 |
+| Phase 3: vectorSpace Routing | Week 5-6 | MEDIUM | Phase 2 |
+| Phase 4: Testing & Tuning | Week 7-8 | HIGH | All phases |
+
+**Alternative: Prioritize Critical Path**
+- Week 1-2: Phase 1 (Provider Config)
+- Week 3-4: Phase 3 (vectorSpace Routing) ← Addresses 8% crash rate
+- Week 5-6: Phase 2 (Progressive Extraction)
+- Week 7-8: Phase 4 (Testing & Tuning)
+
+**Team Decision:**
+- [ ] Sequential (Phase 1 → 2 → 3 → 4)
+- [ ] Prioritize routing (Phase 1 → 3 → 2 → 4)
+- [ ] Parallel implementation (Phase 1 + 3 in parallel)
+- [ ] Custom timeline: _______________
+
+---
+
+### 7. Clarification UX Strategy
+
+**Decision Needed:** When fan-out yields weak results, what should happen?
+
+**Option A: Ask for Clarification (Correctness-First)**
+```
+System: "I found some results, but I'm not confident. Which domain are you asking about?"
+Options: [Products, Customers, Orders]
+```
+
+**Pros:**
+- ✅ Avoids wrong answers
+- ✅ User learns system capabilities
+
+**Cons:**
+- ❌ Extra friction
+- ❌ May annoy users
+
+**Option B: Best-Effort with Disclaimer (UX-First)**
+```
+System: "Here are results from multiple domains (I wasn't sure which you meant):"
+[Shows results from top 2 spaces]
+"Was this helpful? If not, please specify: Products / Customers / Orders"
+```
+
+**Pros:**
+- ✅ No blocking
+- ✅ User gets something
+
+**Cons:**
+- ❌ May return wrong results
+- ❌ User trust issues if wrong
+
+**Option C: Adaptive (Confidence-Based)**
+- High confidence (>0.7): auto-select
+- Medium confidence (0.4-0.7): best-effort with disclaimer
+- Low confidence (<0.4): ask for clarification
+
+**Team Decision:** _______________ (Option A, B, or C)
+
+---
+
+### 8. Multi-Step Extraction Prompt Design
+
+**Decision Needed:** What should the multi-step extraction prompts look like?
+
+**Proposed Steps:**
+1. **Classify:** `IntentType` + `requiresRetrieval` + `requiresGeneration`
+2. **Action (if ACTION):** Select from available actions (hard constraint)
+3. **Retrieval (if INFORMATION):** `vectorSpace` + filters + sort
+4. **Relationship (if needed):** Source/target entities + relationship type
+
+**Alternative: Fewer Steps**
+- Combine 1+3 into single retrieval prompt
+
+**Team Decision:**
+- [ ] 4-step (as proposed)
+- [ ] 3-step (combine classify + retrieval)
+- [ ] Custom: _______________
+
+---
+
+## Decision Tracking
+
+| Decision # | Status | Decided By | Date | Notes |
+|------------|--------|------------|------|-------|
+| 1. Clarification Outcome | ⏳ Pending | - | - | - |
+| 2. Merge Strategy | ⏳ Pending | - | - | - |
+| 3. Router Stage | ⏳ Pending | - | - | - |
+| 4. Provider Selection | ⏳ Pending | - | - | - |
+| 5. Cost Controls | ⏳ Pending | - | - | - |
+| 6. Rollout Timeline | ⏳ Pending | - | - | - |
+| 7. Clarification UX | ⏳ Pending | - | - | - |
+| 8. Multi-Step Prompts | ⏳ Pending | - | - | - |
 
 ---
 
