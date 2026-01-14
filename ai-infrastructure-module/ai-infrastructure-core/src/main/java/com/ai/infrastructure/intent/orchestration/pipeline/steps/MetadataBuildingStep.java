@@ -89,6 +89,9 @@ public class MetadataBuildingStep implements PipelineStep {
         MultiIntentResponse intentResponse = context.getIntentResponse();
         
         Map<String, Object> metadata = new LinkedHashMap<>();
+        if (context.getMetadata() != null && !context.getMetadata().isEmpty()) {
+            metadata.putAll(context.getMetadata());
+        }
         metadata.put(METADATA_KEY_REQUEST_ID, context.getRequestId());
         metadata.put(METADATA_KEY_SESSION_ID, context.getOrchestrationContext().getSessionId());
         metadata.put(METADATA_KEY_INTENTS_COUNT, 

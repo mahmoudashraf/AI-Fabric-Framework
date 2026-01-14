@@ -116,6 +116,7 @@ public class OrchestrationResultNormalizer {
         OrchestrationResultType normalizedType = primary.getType();
         boolean normalizedSuccess = switch (normalizedType) {
             case ACTION_EXECUTED, INFORMATION_PROVIDED -> primary.isSuccess();
+            case CLARIFICATION_REQUIRED -> false;
             case OUT_OF_SCOPE -> true;
             case ACTION_DENIED -> false;
             default -> raw.isSuccess();
@@ -158,6 +159,7 @@ public class OrchestrationResultNormalizer {
         return firstByType(children, OrchestrationResultType.ACTION_EXECUTED,
             OrchestrationResultType.ACTION_DENIED,
             OrchestrationResultType.INFORMATION_PROVIDED,
+            OrchestrationResultType.CLARIFICATION_REQUIRED,
             OrchestrationResultType.OUT_OF_SCOPE,
             OrchestrationResultType.COMPOUND_HANDLED);
     }

@@ -76,18 +76,72 @@ public class AIProviderConfigValidator {
 
     private void validateLlmProvider(ValidationResult result) {
         String provider = normalize(providerConfig.getLlmProvider());
-        if (provider.isBlank() || "none".equals(provider) || "disabled".equals(provider)) {
-            result.addWarning("ai.providers.llm-provider is blank/disabled. LLM generation will be unavailable.");
+        boolean globalDisabled = provider.isBlank() || "none".equals(provider) || "disabled".equals(provider);
+        if (globalDisabled) {
+            boolean hasPurposeOverride = hasPurposeLlmOverride(providerConfig.getOrchestration())
+                || hasPurposeLlmOverride(providerConfig.getGeneration());
+            if (hasPurposeOverride) {
+                result.addWarning("ai.providers.llm-provider is blank/disabled. Using purpose-specific LLM providers only.");
+            } else {
+                result.addWarning("ai.providers.llm-provider is blank/disabled and no purpose-specific provider is configured. LLM generation will be unavailable.");
+            }
+        } else {
+            switch (provider) {
+                case "openai" -> validateOpenAI(result, true, true);
+                case "anthropic" -> validateAnthropic(result);
+                case "cohere" -> validateCohere(result);
+                case "azure" -> validateAzure(result, true, false, true);
+                default -> result.addWarning("ai.providers.llm-provider='" + provider
+                    + "' is not a built-in provider. Skipping strict LLM provider validation.");
+            }
+        }
+
+        validatePurposeLlmProvider("ai.providers.orchestration", providerConfig.getOrchestration(), result);
+        validatePurposeLlmProvider("ai.providers.generation", providerConfig.getGeneration(), result);
+    }
+
+    private boolean hasPurposeLlmOverride(Object purposeConfig) {
+        if (purposeConfig instanceof AIProviderConfig.OrchestrationLlmConfig orchestration) {
+            return !normalize(orchestration.getLlmProvider()).isBlank();
+        }
+        if (purposeConfig instanceof AIProviderConfig.GenerationLlmConfig generation) {
+            return !normalize(generation.getLlmProvider()).isBlank();
+        }
+        return false;
+    }
+
+    private void validatePurposeLlmProvider(String configPrefix,
+                                            Object purposeConfig,
+                                            ValidationResult result) {
+        if (purposeConfig == null) {
             return;
         }
 
+        String provider;
+        String modelOverride = null;
+        if (purposeConfig instanceof AIProviderConfig.OrchestrationLlmConfig orchestration) {
+            provider = normalize(orchestration.getLlmProvider());
+            modelOverride = orchestration.getModel();
+        } else if (purposeConfig instanceof AIProviderConfig.GenerationLlmConfig generation) {
+            provider = normalize(generation.getLlmProvider());
+            modelOverride = generation.getModel();
+        } else {
+            return;
+        }
+
+        if (provider.isBlank()) {
+            // Purpose config is present but provider is blank: treat as "use global".
+            return;
+        }
+
+        boolean hasModelOverride = modelOverride != null && !modelOverride.trim().isEmpty();
         switch (provider) {
-            case "openai" -> validateOpenAI(result, true);
-            case "anthropic" -> validateAnthropic(result);
-            case "cohere" -> validateCohere(result);
-            case "azure" -> validateAzure(result, true, false);
-            default -> result.addWarning("ai.providers.llm-provider='" + provider
-                + "' is not a built-in provider. Skipping strict LLM provider validation.");
+            case "openai" -> validateOpenAI(result, true, !hasModelOverride);
+            case "anthropic" -> validateAnthropic(result, !hasModelOverride);
+            case "cohere" -> validateCohere(result, !hasModelOverride);
+            case "azure" -> validateAzure(result, true, false, !hasModelOverride);
+            default -> result.addWarning(configPrefix + ".llm-provider='" + provider
+                + "' is not a built-in provider. Skipping strict validation.");
         }
     }
 
@@ -99,8 +153,8 @@ public class AIProviderConfigValidator {
         }
 
         switch (provider) {
-            case "openai" -> validateOpenAI(result, false);
-            case "azure" -> validateAzure(result, false, true);
+            case "openai" -> validateOpenAI(result, false, false);
+            case "azure" -> validateAzure(result, false, true, false);
             case "rest" -> validateRest(result);
             case "onnx" -> validateOnnx(result);
             default -> result.addWarning("ai.providers.embedding-provider='" + provider
@@ -108,7 +162,7 @@ public class AIProviderConfigValidator {
         }
     }
 
-    private void validateOpenAI(ValidationResult result, boolean isLlm) {
+    private void validateOpenAI(ValidationResult result, boolean isLlm, boolean requireModel) {
         AIProviderConfig.OpenAIConfig config = providerConfig.getOpenai();
 
         if (config == null) {
@@ -135,7 +189,7 @@ public class AIProviderConfigValidator {
                 "OpenAI base URL is required (e.g. https://api.openai.com/v1).");
         }
 
-        if (isLlm && isBlank(config.getModel())) {
+        if (isLlm && requireModel && isBlank(config.getModel())) {
             result.addError("ai.providers.openai.model",
                 "OpenAI model is required when OpenAI is the LLM provider.");
         }
@@ -151,6 +205,10 @@ public class AIProviderConfigValidator {
     }
 
     private void validateAnthropic(ValidationResult result) {
+        validateAnthropic(result, true);
+    }
+
+    private void validateAnthropic(ValidationResult result, boolean requireModel) {
         AIProviderConfig.AnthropicConfig config = providerConfig.getAnthropic();
 
         if (config == null) {
@@ -171,12 +229,16 @@ public class AIProviderConfigValidator {
             result.addError("ai.providers.anthropic.base-url", "Anthropic base URL is required.");
         }
 
-        if (isBlank(config.getModel())) {
+        if (requireModel && isBlank(config.getModel())) {
             result.addError("ai.providers.anthropic.model", "Anthropic model is required when Anthropic is selected.");
         }
     }
 
     private void validateCohere(ValidationResult result) {
+        validateCohere(result, true);
+    }
+
+    private void validateCohere(ValidationResult result, boolean requireModel) {
         AIProviderConfig.CohereConfig config = providerConfig.getCohere();
 
         if (config == null) {
@@ -197,12 +259,12 @@ public class AIProviderConfigValidator {
             result.addError("ai.providers.cohere.base-url", "Cohere base URL is required.");
         }
 
-        if (isBlank(config.getModel())) {
+        if (requireModel && isBlank(config.getModel())) {
             result.addError("ai.providers.cohere.model", "Cohere model is required when Cohere is selected.");
         }
     }
 
-    private void validateAzure(ValidationResult result, boolean isLlm, boolean isEmbedding) {
+    private void validateAzure(ValidationResult result, boolean isLlm, boolean isEmbedding, boolean requireLlmDeployment) {
         AIProviderConfig.AzureConfig config = providerConfig.getAzure();
 
         if (config == null) {
@@ -231,7 +293,7 @@ public class AIProviderConfigValidator {
             result.addError("ai.providers.azure.api-version", "Azure api-version is required when Azure is selected.");
         }
 
-        if (isLlm && isBlank(config.getDeploymentName())) {
+        if (isLlm && requireLlmDeployment && isBlank(config.getDeploymentName())) {
             result.addError("ai.providers.azure.deployment-name", "Azure deployment-name is required when Azure is the LLM provider.");
         }
 

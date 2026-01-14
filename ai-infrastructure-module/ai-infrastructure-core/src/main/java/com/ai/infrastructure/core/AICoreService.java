@@ -55,22 +55,35 @@ public class AICoreService {
      * @return generated content response
      */
     public AIGenerationResponse generateContent(AIGenerationRequest request) {
+        return generateContent(request, LlmPurpose.DEFAULT);
+    }
+
+    /**
+     * Generate AI content for a specific purpose (enables purpose-specific provider configuration).
+     *
+     * @param request the generation request
+     * @param purpose the purpose of the request
+     * @return generated content response
+     */
+    public AIGenerationResponse generateContent(AIGenerationRequest request, LlmPurpose purpose) {
         try {
-            AIGenerationRequest generationRequest = applyGenerationDefaults(request);
+            LlmPurpose effectivePurpose = purpose != null ? purpose : LlmPurpose.DEFAULT;
+            AIProviderConfig.GenerationDefaults defaults = resolveDefaultsForPurpose(effectivePurpose);
+            AIGenerationRequest generationRequest = applyGenerationDefaults(request, defaults);
 
-            log.debug("Generating AI content via provider manager for prompt: {}",
-                generationRequest.getPrompt());
+            log.debug("Generating AI content via provider manager for purpose={} prompt={}",
+                effectivePurpose, generationRequest.getPrompt());
 
-            AIGenerationResponse response = providerManager.generateContent(generationRequest);
+            AIGenerationResponse response = providerManager.generateContent(generationRequest, defaults.providerName());
 
-            log.debug("Successfully generated AI content using provider response model: {}",
-                response.getModel());
+            log.debug("Successfully generated AI content using model={} purpose={}",
+                response != null ? response.getModel() : null, effectivePurpose);
 
             return response;
 
         } catch (Exception e) {
-            log.error("Error generating AI content", e);
-            throw new AIServiceException("Failed to generate AI content", e);
+            log.error("Error generating AI content for purpose={}", purpose, e);
+            throw new AIServiceException("Failed to generate AI content: " + e.getMessage(), e);
         }
     }
     
@@ -238,8 +251,16 @@ public class AICoreService {
      * Generate text using AI with simple string input
      */
     public String generateText(String prompt) {
+        return generateText(prompt, LlmPurpose.DEFAULT);
+    }
+
+    /**
+     * Generate text using AI with a specific purpose.
+     */
+    public String generateText(String prompt, LlmPurpose purpose) {
         try {
-            AIProviderConfig.GenerationDefaults defaults = aiProviderConfig.resolveLlmDefaults();
+            LlmPurpose effectivePurpose = purpose != null ? purpose : LlmPurpose.DEFAULT;
+            AIProviderConfig.GenerationDefaults defaults = resolveDefaultsForPurpose(effectivePurpose);
 
             AIGenerationRequest request = AIGenerationRequest.builder()
                 .entityId("adhoc-" + UUID.randomUUID())
@@ -251,7 +272,8 @@ public class AICoreService {
                 .temperature(defaults.temperature())
                 .build();
 
-            return generateContent(request).getContent();
+            AIGenerationResponse response = generateContent(request, effectivePurpose);
+            return response != null ? response.getContent() : null;
                 
         } catch (Exception e) {
             log.error("Error generating text: {}", e.getMessage(), e);
@@ -259,12 +281,10 @@ public class AICoreService {
         }
     }
 
-    private AIGenerationRequest applyGenerationDefaults(AIGenerationRequest request) {
+    private AIGenerationRequest applyGenerationDefaults(AIGenerationRequest request, AIProviderConfig.GenerationDefaults defaults) {
         if (request == null) {
             throw new AIServiceException("Generation request cannot be null");
         }
-
-        AIProviderConfig.GenerationDefaults defaults = aiProviderConfig.resolveLlmDefaults();
 
         boolean requiresDefaults = request.getModel() == null
             || request.getMaxTokens() == null
@@ -288,6 +308,14 @@ public class AICoreService {
             .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : defaults.maxTokens())
             .temperature(request.getTemperature() != null ? request.getTemperature() : defaults.temperature())
             .build();
+    }
+
+    private AIProviderConfig.GenerationDefaults resolveDefaultsForPurpose(LlmPurpose purpose) {
+        return switch (purpose) {
+            case ORCHESTRATION -> aiProviderConfig.resolveOrchestrationLlmDefaults();
+            case GENERATION -> aiProviderConfig.resolveGenerationLlmDefaults();
+            case EMBEDDINGS, DEFAULT -> aiProviderConfig.resolveLlmDefaults();
+        };
     }
 
     private AIEmbeddingRequest applyEmbeddingDefaults(AIEmbeddingRequest request) {

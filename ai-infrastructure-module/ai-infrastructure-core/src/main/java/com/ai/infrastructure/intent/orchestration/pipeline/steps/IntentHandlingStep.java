@@ -18,6 +18,9 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
+import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -71,6 +75,7 @@ public class IntentHandlingStep implements PipelineStep {
     // RAG defaults
     private static final double DEFAULT_RAG_THRESHOLD = 0.6;
     private static final int DEFAULT_RAG_LIMIT = 5;
+    private static final double FAN_OUT_RAG_THRESHOLD = 0.0;
     
     // Data keys
     private static final String DATA_KEY_ACTION = "action";
@@ -83,6 +88,8 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_REQUIRES_GENERATION = "requiresGeneration";
     private static final String DATA_KEY_DETAILS = "details";
     private static final String DATA_KEY_RESULTS = "results";
+    private static final String DATA_KEY_CANDIDATE_VECTOR_SPACES = "candidateVectorSpaces";
+    private static final String DATA_KEY_ROUTING_STRATEGY = "vectorSpaceRoutingStrategy";
 
     // Advanced RAG data keys
     private static final String DATA_KEY_EXPANDED_QUERIES = "expandedQueries";
@@ -148,6 +155,8 @@ public class IntentHandlingStep implements PipelineStep {
     private final AICoreService aiCoreService;
     private final AIServiceConfig aiServiceConfig;
     private final ObjectProvider<AdvancedRAGProvider> advancedRagProvider;
+    private final VectorSpaceRoutingProperties vectorSpaceRoutingProperties;
+    private final RankBasedMerger rankBasedMerger;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -342,6 +351,23 @@ public class IntentHandlingStep implements PipelineStep {
             metadata.put("piiDetectedTypes", pipelineContext.getDetectedPiiTypesView());
         }
 
+        List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
+        if (vectorSpaces.isEmpty()) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, List.of());
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message("Which knowledge base domain should I search?")
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
+        if (vectorSpaces.size() > 1) {
+            return handleInformationFanOut(intent, context, pipelineContext, needsGeneration, query, metadata, vectorSpaces);
+        }
+
         if (shouldUseAdvancedRag(intent, needsGeneration, query, context)) {
             OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, query, metadata);
             if (advanced != null) {
@@ -433,6 +459,153 @@ public class IntentHandlingStep implements PipelineStep {
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
             .success(Boolean.TRUE.equals(ragResponse.getSuccess()) || ragResponse.getSuccess() == null)
+            .message(message)
+            .data(Collections.unmodifiableMap(data))
+            .nextSteps(extractNextSteps(intent))
+            .build();
+    }
+
+    private OrchestrationResult handleInformationFanOut(Intent intent,
+                                                        OrchestrationContext context,
+                                                        PipelineContext pipelineContext,
+                                                        boolean needsGeneration,
+                                                        String query,
+                                                        Map<String, Object> metadata,
+                                                        List<String> vectorSpaces) {
+        RAGProvider provider = ragProvider.getIfAvailable();
+        if (provider == null) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_ANSWER, null);
+            data.put(DATA_KEY_DOCUMENTS, List.of());
+            data.put(DATA_KEY_RAG_RESPONSE, null);
+            data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
+            data.put(DATA_KEY_DETAILS, "RAG module is not enabled (no RAGProvider bean present).");
+            data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, vectorSpaces);
+            data.put(DATA_KEY_ROUTING_STRATEGY, "FAN_OUT");
+
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(false)
+                .message(RAG_NO_CONTEXT_MESSAGE)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
+        int topKPerSpace = vectorSpaceRoutingProperties != null
+            ? vectorSpaceRoutingProperties.getFanOutTopKPerSpace()
+            : DEFAULT_RAG_LIMIT;
+
+        Map<String, List<RAGResponse.RAGDocument>> docsBySpace = new LinkedHashMap<>();
+        for (String vectorSpace : vectorSpaces) {
+            RAGRequest ragRequest = RAGRequest.builder()
+                .query(query)
+                .entityType(vectorSpace)
+                .limit(topKPerSpace)
+                .threshold(FAN_OUT_RAG_THRESHOLD)
+                .metadata(Collections.unmodifiableMap(new LinkedHashMap<>(metadata)))
+                .userId(context.getIdentifier())
+                .build();
+
+            RAGResponse ragResponse = needsGeneration
+                ? provider.performRAGQuery(ragRequest)
+                : provider.performRag(ragRequest);
+
+            List<RAGResponse.RAGDocument> docs = ragResponse != null && ragResponse.getDocuments() != null
+                ? ragResponse.getDocuments()
+                : List.of();
+
+            List<RAGResponse.RAGDocument> tagged = docs.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(doc -> tagDocumentWithVectorSpace(doc, vectorSpace))
+                .collect(Collectors.toList());
+
+            docsBySpace.put(vectorSpace, tagged);
+        }
+
+        List<RAGResponse.RAGDocument> merged = rankBasedMerger.mergeByRank(docsBySpace, topKPerSpace);
+        merged = rankBasedMerger.dedupePreserveOrder(merged, doc -> doc != null ? doc.getId() : null);
+
+        Double bestScore = bestDocumentScore(merged);
+        double threshold = vectorSpaceRoutingProperties != null
+            ? vectorSpaceRoutingProperties.getClarificationThreshold()
+            : 0.4d;
+
+        if (merged.isEmpty() || (bestScore != null && bestScore < threshold)) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, vectorSpaces);
+            data.put(DATA_KEY_ROUTING_STRATEGY, "FAN_OUT");
+            if (bestScore != null) {
+                data.put("bestScore", bestScore);
+            }
+
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message("I couldn't confidently determine which domain to search. Please specify one of: "
+                    + String.join(", ", vectorSpaces))
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
+        int docsForContext = Math.min(DEFAULT_RAG_LIMIT, merged.size());
+        String mergedContext = buildContextFromDocuments(merged.subList(0, docsForContext));
+        RAGResponse mergedResponse = RAGResponse.builder()
+            .documents(merged)
+            .context(mergedContext)
+            .originalQuery(query)
+            .entityType(String.join(",", vectorSpaces))
+            .success(true)
+            .build();
+
+        String answer = null;
+        if (needsGeneration) {
+            try {
+                answer = generateRagAnswer(query, mergedContext);
+            } catch (Exception ex) {
+                log.error("Fan-out RAG generation failed for request {}: {}",
+                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+                    ex.getMessage(),
+                    ex);
+
+                Map<String, Object> errorData = new LinkedHashMap<>();
+                errorData.put(DATA_KEY_ANSWER, null);
+                errorData.put(DATA_KEY_DOCUMENTS, merged);
+                errorData.put(DATA_KEY_RAG_RESPONSE, mergedResponse);
+                errorData.put(DATA_KEY_REQUIRES_GENERATION, true);
+                errorData.put(DATA_KEY_GENERATION_ERROR, ex.getMessage());
+                errorData.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, vectorSpaces);
+                errorData.put(DATA_KEY_ROUTING_STRATEGY, "FAN_OUT");
+
+                return OrchestrationResult.builder()
+                    .type(OrchestrationResultType.ERROR)
+                    .success(false)
+                    .message("Failed to generate response: " + ex.getMessage())
+                    .data(Collections.unmodifiableMap(errorData))
+                    .nextSteps(extractNextSteps(intent))
+                    .build();
+            }
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put(DATA_KEY_ANSWER, answer);
+        data.put(DATA_KEY_DOCUMENTS, merged);
+        data.put(DATA_KEY_RAG_RESPONSE, mergedResponse);
+        data.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
+        data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, vectorSpaces);
+        data.put(DATA_KEY_ROUTING_STRATEGY, "FAN_OUT");
+        if (bestScore != null) {
+            data.put("bestScore", bestScore);
+        }
+
+        String message = StringUtils.hasText(answer)
+            ? answer
+            : MSG_SEARCH_COMPLETED;
+
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
             .message(message)
             .data(Collections.unmodifiableMap(data))
             .nextSteps(extractNextSteps(intent))
@@ -703,7 +876,103 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         String prompt = String.format(RAG_PROMPT_TEMPLATE, query, context);
-        return aiCoreService.generateText(prompt);
+        return aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
+    }
+
+    private List<String> parseVectorSpaces(String vectorSpace) {
+        if (!StringUtils.hasText(vectorSpace)) {
+            return List.of();
+        }
+        String[] parts = vectorSpace.split(",");
+        Set<String> unique = new java.util.LinkedHashSet<>();
+        for (String part : parts) {
+            if (part == null) {
+                continue;
+            }
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                unique.add(trimmed);
+            }
+        }
+        return List.copyOf(unique);
+    }
+
+    private RAGResponse.RAGDocument tagDocumentWithVectorSpace(RAGResponse.RAGDocument doc, String vectorSpace) {
+        if (doc == null) {
+            return null;
+        }
+
+        Map<String, Object> meta = new LinkedHashMap<>();
+        if (doc.getMetadata() != null && !doc.getMetadata().isEmpty()) {
+            meta.putAll(doc.getMetadata());
+        }
+        meta.put("vectorSpace", vectorSpace);
+
+        return RAGResponse.RAGDocument.builder()
+            .id(doc.getId())
+            .content(doc.getContent())
+            .title(doc.getTitle())
+            .type(doc.getType())
+            .score(doc.getScore())
+            .similarity(doc.getSimilarity())
+            .metadata(Collections.unmodifiableMap(meta))
+            .embeddings(doc.getEmbeddings())
+            .highlightedContent(doc.getHighlightedContent())
+            .source(doc.getSource())
+            .url(doc.getUrl())
+            .createdAt(doc.getCreatedAt())
+            .modifiedAt(doc.getModifiedAt())
+            .author(doc.getAuthor())
+            .tags(doc.getTags())
+            .wordCount(doc.getWordCount())
+            .language(doc.getLanguage())
+            .build();
+    }
+
+    private Double bestDocumentScore(List<RAGResponse.RAGDocument> docs) {
+        if (docs == null || docs.isEmpty()) {
+            return null;
+        }
+        Double best = null;
+        for (RAGResponse.RAGDocument doc : docs) {
+            if (doc == null) {
+                continue;
+            }
+            Double score = doc.getScore() != null ? doc.getScore() : doc.getSimilarity();
+            if (score == null) {
+                continue;
+            }
+            if (best == null || score > best) {
+                best = score;
+            }
+        }
+        return best;
+    }
+
+    private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return RAG_NO_CONTEXT_MESSAGE;
+        }
+        StringBuilder builder = new StringBuilder();
+        for (RAGResponse.RAGDocument doc : documents) {
+            if (doc == null) {
+                continue;
+            }
+            Object vectorSpace = doc.getMetadata() != null ? doc.getMetadata().get("vectorSpace") : null;
+            if (vectorSpace != null) {
+                builder.append("[")
+                    .append(vectorSpace)
+                    .append("] ");
+            }
+            if (StringUtils.hasText(doc.getTitle())) {
+                builder.append(doc.getTitle()).append("\n");
+            }
+            if (StringUtils.hasText(doc.getContent())) {
+                builder.append(doc.getContent()).append("\n");
+            }
+            builder.append("---\n");
+        }
+        return builder.toString();
     }
     
     private OrchestrationResult handleOutOfScope(Intent intent) {

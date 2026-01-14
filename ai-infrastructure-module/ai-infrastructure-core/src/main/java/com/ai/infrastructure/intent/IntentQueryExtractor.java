@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
@@ -14,8 +15,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -36,19 +35,15 @@ public class IntentQueryExtractor {
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
     private final ActionHandlerRegistry actionHandlerRegistry;
-    @Nullable
-    private final KnowledgeBaseOverviewService knowledgeBaseOverviewService;
     private final ObjectMapper objectMapper;
 
     public IntentQueryExtractor(AICoreService aiCoreService,
                                 EnrichedPromptBuilder enrichedPromptBuilder,
                                 ActionHandlerRegistry actionHandlerRegistry,
-                                ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider,
                                 ObjectMapper objectMapper) {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;
         this.actionHandlerRegistry = actionHandlerRegistry;
-        this.knowledgeBaseOverviewService = knowledgeBaseOverviewServiceProvider.getIfAvailable();
         this.objectMapper = objectMapper.copy()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
@@ -78,7 +73,7 @@ public class IntentQueryExtractor {
             .userId(safeContext.getUserId())
             .build();
 
-        AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest);
+        AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest, LlmPurpose.ORCHESTRATION);
         String content = generationResponse != null ? generationResponse.getContent() : null;
         if (!StringUtils.hasText(content)) {
             throw new AIServiceException("Intent extraction returned an empty response from provider");
@@ -188,8 +183,9 @@ public class IntentQueryExtractor {
         String originalUserPrompt = originalRequest != null ? originalRequest.getPrompt() : null;
         String repairPrompt = """
             Convert the malformed assistant response into valid JSON that matches the schema in the system prompt.
-            Use the original user request to infer missing fields such as vectorSpace, requiresRetrieval, and requiresGeneration.
-            If a value cannot be inferred, choose a safe default (e.g., OUT_OF_SCOPE with neutral confidence) but keep the schema intact.
+            This is a STRUCTURAL repair step only: fix JSON/schema correctness, do NOT infer or guess semantic fields.
+            Do NOT guess vectorSpace or other routing fields. If a semantic field is missing, leave it unset/null and keep the schema intact.
+            If the assistant response cannot be repaired into a valid schema, choose a safe default (e.g., OUT_OF_SCOPE with neutral confidence).
 
             ORIGINAL USER REQUEST (for context):
             ---BEGIN USER REQUEST---
@@ -213,7 +209,7 @@ public class IntentQueryExtractor {
             .build();
 
         try {
-            AIGenerationResponse repairResponse = aiCoreService.generateContent(repairRequest);
+            AIGenerationResponse repairResponse = aiCoreService.generateContent(repairRequest, LlmPurpose.ORCHESTRATION);
             String repairedContent = repairResponse != null ? repairResponse.getContent() : null;
             if (!StringUtils.hasText(repairedContent)) {
                 throw new AIServiceException("Intent extraction repair attempt returned an empty response from provider");
@@ -265,95 +261,12 @@ public class IntentQueryExtractor {
                 intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
             }
             if (Boolean.TRUE.equals(intent.getRequiresRetrieval()) && !StringUtils.hasText(intent.getVectorSpace())) {
-                String inferred = inferVectorSpace(originalQuery);
-                if (StringUtils.hasText(inferred)) {
-                    intent.setVectorSpace(inferred);
-                }
+                log.debug("Intent requires retrieval but vectorSpace is missing; deferring routing to VectorSpaceResolutionStep");
             }
         }
 
         if (response.getOrchestrationStrategy() == null) {
             response.setOrchestrationStrategy(deriveOrchestrationStrategy(response));
-        }
-    }
-
-    private String inferVectorSpace(String originalQuery) {
-        KnowledgeBaseOverview overview = safeKnowledgeBaseOverview();
-        if (overview == null || overview.getEntityTypes() == null || overview.getEntityTypes().isEmpty()) {
-            return null;
-        }
-
-        List<String> candidateTypes = overview.getEntityTypes();
-        if (candidateTypes.size() == 1) {
-            return candidateTypes.getFirst();
-        }
-
-        String query = StringUtils.hasText(originalQuery) ? originalQuery.toLowerCase(Locale.ROOT) : null;
-        if (query != null) {
-            for (String type : candidateTypes) {
-                if (!StringUtils.hasText(type)) {
-                    continue;
-                }
-                if (queryMentionsType(query, type)) {
-                    return type;
-                }
-            }
-        }
-
-        Map<String, Long> counts = overview.getDocumentsByType();
-        if (counts != null && !counts.isEmpty()) {
-            return counts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse(candidateTypes.getFirst());
-        }
-
-        return candidateTypes.getFirst();
-    }
-
-    private boolean queryMentionsType(String queryLower, String type) {
-        String normalized = type.toLowerCase(Locale.ROOT);
-        if (queryLower.contains(normalized)) {
-            return true;
-        }
-
-        String[] tokens = normalized.split("[^a-z0-9]+");
-        for (String token : tokens) {
-            if (token == null) {
-                continue;
-            }
-            String trimmed = token.trim();
-            if (trimmed.length() < 3) {
-                continue;
-            }
-            if ("test".equals(trimmed) || "kb".equals(trimmed) || "doc".equals(trimmed) || "docs".equals(trimmed)) {
-                continue;
-            }
-            if (queryLower.contains(trimmed)) {
-                return true;
-            }
-            if (queryLower.contains(trimmed + "s")) {
-                return true;
-            }
-            if (trimmed.endsWith("y") && trimmed.length() > 3) {
-                String plural = trimmed.substring(0, trimmed.length() - 1) + "ies";
-                if (queryLower.contains(plural)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private KnowledgeBaseOverview safeKnowledgeBaseOverview() {
-        if (knowledgeBaseOverviewService == null) {
-            return null;
-        }
-        try {
-            return knowledgeBaseOverviewService.getOverview();
-        } catch (Exception ex) {
-            log.debug("Unable to infer vectorSpace from knowledge base overview", ex);
-            return null;
         }
     }
 

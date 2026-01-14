@@ -56,6 +56,17 @@ public class AIProviderManager {
      * @return generation response
      */
     public AIGenerationResponse generateContent(AIGenerationRequest request) {
+        return generateContent(request, null);
+    }
+
+    /**
+     * Generate content using the best available provider, optionally overriding the configured LLM provider.
+     *
+     * @param request generation request
+     * @param providerOverride optional provider name override (e.g. "cohere")
+     * @return generation response
+     */
+    public AIGenerationResponse generateContent(AIGenerationRequest request, String providerOverride) {
         log.debug("Generating content with provider manager");
         
         List<AIProvider> availableProviders = getAvailableProviders();
@@ -63,7 +74,9 @@ public class AIProviderManager {
             throw new RuntimeException("No AI providers available");
         }
         
-        String configuredProvider = providerConfig.getLlmProvider();
+        String configuredProvider = providerOverride != null && !providerOverride.isBlank()
+            ? providerOverride
+            : providerConfig.getLlmProvider();
         AIProvider selectedProvider = findPreferredProvider(availableProviders, configuredProvider);
         if (selectedProvider == null) {
             selectedProvider = selectProvider(availableProviders, "generation");
