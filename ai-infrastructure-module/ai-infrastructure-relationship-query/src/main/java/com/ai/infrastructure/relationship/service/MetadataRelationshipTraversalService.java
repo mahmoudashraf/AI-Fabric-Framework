@@ -5,7 +5,7 @@ import com.ai.infrastructure.relationship.dto.FilterCondition;
 import com.ai.infrastructure.relationship.dto.JpqlQuery;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.dto.FilterOperator;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.util.CollectionUtils;
@@ -26,12 +26,12 @@ public class MetadataRelationshipTraversalService implements RelationshipTravers
 
     private static final TypeReference<Map<String, Object>> MAP_REFERENCE = new TypeReference<>() {};
 
-    private final AISearchableEntityRepository entityRepository;
+    private final AISearchableEntityStorageStrategy storageStrategy;
     private final ObjectMapper objectMapper;
 
-    public MetadataRelationshipTraversalService(AISearchableEntityRepository entityRepository,
+    public MetadataRelationshipTraversalService(AISearchableEntityStorageStrategy storageStrategy,
                                                 ObjectMapper objectMapper) {
-        this.entityRepository = Objects.requireNonNull(entityRepository);
+        this.storageStrategy = Objects.requireNonNull(storageStrategy);
         this.objectMapper = Objects.requireNonNull(objectMapper);
     }
 
@@ -51,7 +51,7 @@ public class MetadataRelationshipTraversalService implements RelationshipTravers
             return Collections.emptyList();
         }
 
-        List<AISearchableEntity> candidates = entityRepository.findByEntityType(plan.getPrimaryEntityType());
+        List<AISearchableEntity> candidates = storageStrategy.findByEntityType(plan.getPrimaryEntityType());
         if (candidates.isEmpty()) {
             return Collections.emptyList();
         }

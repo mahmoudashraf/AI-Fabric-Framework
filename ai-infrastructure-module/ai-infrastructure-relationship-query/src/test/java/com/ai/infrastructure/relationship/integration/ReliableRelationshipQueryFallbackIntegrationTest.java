@@ -29,6 +29,7 @@ import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryServi
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,9 @@ class ReliableRelationshipQueryFallbackIntegrationTest {
     private AISearchableEntityRepository searchableEntityRepository;
 
     @Autowired
+    private AISearchableEntityStorageStrategy storageStrategy;
+
+    @Autowired
     private RelationshipQueryProperties relationshipQueryProperties;
 
     @Autowired
@@ -111,7 +115,7 @@ class ReliableRelationshipQueryFallbackIntegrationTest {
 
         seedEntities();
 
-        metadataTraversalService = new MetadataRelationshipTraversalService(searchableEntityRepository, objectMapper);
+        metadataTraversalService = new MetadataRelationshipTraversalService(storageStrategy, objectMapper);
         primaryService = Mockito.mock(LLMDrivenJPAQueryService.class);
         vectorDatabaseService = Mockito.mock(VectorDatabaseService.class);
         embeddingService = Mockito.mock(AIEmbeddingService.class);
@@ -124,7 +128,7 @@ class ReliableRelationshipQueryFallbackIntegrationTest {
             metadataTraversalService,
             vectorDatabaseService,
             embeddingService,
-            searchableEntityRepository,
+            storageStrategy,
             relationshipQueryValidator,
             relationshipQueryProperties,
             relationshipModuleMetadata,

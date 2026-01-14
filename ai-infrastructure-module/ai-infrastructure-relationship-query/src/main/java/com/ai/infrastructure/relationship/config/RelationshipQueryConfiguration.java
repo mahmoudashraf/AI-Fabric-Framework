@@ -16,7 +16,7 @@ import com.ai.infrastructure.relationship.service.RelationshipTraversalService;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.EntityManager;
@@ -103,11 +103,11 @@ class RelationshipQueryConfiguration {
     }
 
     @Bean(name = "metadataRelationshipTraversalService")
-    @ConditionalOnBean(AISearchableEntityRepository.class)
+    @ConditionalOnBean(AISearchableEntityStorageStrategy.class)
     @ConditionalOnMissingBean(name = "metadataRelationshipTraversalService")
-    RelationshipTraversalService metadataRelationshipTraversalService(AISearchableEntityRepository repository,
+    RelationshipTraversalService metadataRelationshipTraversalService(AISearchableEntityStorageStrategy storageStrategy,
                                                                       ObjectMapper objectMapper) {
-        return new MetadataRelationshipTraversalService(repository, objectMapper);
+        return new MetadataRelationshipTraversalService(storageStrategy, objectMapper);
     }
 
     @Bean
@@ -117,7 +117,7 @@ class RelationshipQueryConfiguration {
             DynamicJPAQueryBuilder.class,
             RelationshipQueryValidator.class,
             RelationshipModuleMetadata.class,
-            AISearchableEntityRepository.class
+            AISearchableEntityStorageStrategy.class
         },
         name = {"jpaRelationshipTraversalService", "metadataRelationshipTraversalService"}
     )
@@ -129,7 +129,7 @@ class RelationshipQueryConfiguration {
                                                       RelationshipModuleMetadata metadata,
                                                       @Qualifier("jpaRelationshipTraversalService") RelationshipTraversalService jpaRelationshipTraversalService,
                                                       @Qualifier("metadataRelationshipTraversalService") RelationshipTraversalService metadataRelationshipTraversalService,
-                                                      AISearchableEntityRepository repository,
+                                                      AISearchableEntityStorageStrategy storageStrategy,
                                                       @Nullable VectorDatabaseService vectorDatabaseService,
                                                       @Nullable AIEmbeddingService embeddingService,
                                                       QueryCache queryCache,
@@ -142,7 +142,7 @@ class RelationshipQueryConfiguration {
             metadata,
             jpaRelationshipTraversalService,
             metadataRelationshipTraversalService,
-            repository,
+            storageStrategy,
             vectorDatabaseService,
             embeddingService,
             queryCache,
@@ -163,7 +163,7 @@ class RelationshipQueryConfiguration {
             RelationshipQueryPlanner.class,
             RelationshipQueryValidator.class,
             RelationshipModuleMetadata.class,
-            AISearchableEntityRepository.class
+            AISearchableEntityStorageStrategy.class
         },
         name = "metadataRelationshipTraversalService"
     )
@@ -173,7 +173,7 @@ class RelationshipQueryConfiguration {
                                                                       @Qualifier("metadataRelationshipTraversalService") RelationshipTraversalService metadataTraversalService,
                                                                       @Nullable VectorDatabaseService vectorDatabaseService,
                                                                       @Nullable AIEmbeddingService embeddingService,
-                                                                      AISearchableEntityRepository repository,
+                                                                      AISearchableEntityStorageStrategy storageStrategy,
                                                                       RelationshipQueryValidator validator,
                                                                       RelationshipQueryProperties properties,
                                                                       RelationshipModuleMetadata metadata,
@@ -185,7 +185,7 @@ class RelationshipQueryConfiguration {
             metadataTraversalService,
             vectorDatabaseService,
             embeddingService,
-            repository,
+            storageStrategy,
             validator,
             properties,
             metadata,

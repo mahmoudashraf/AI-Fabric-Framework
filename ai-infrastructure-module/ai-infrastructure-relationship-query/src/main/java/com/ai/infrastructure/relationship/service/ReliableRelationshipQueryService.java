@@ -20,7 +20,7 @@ import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
@@ -46,7 +46,7 @@ public class ReliableRelationshipQueryService {
     private final RelationshipTraversalService metadataTraversalService;
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEmbeddingService embeddingService;
-    private final AISearchableEntityRepository entityRepository;
+    private final AISearchableEntityStorageStrategy storageStrategy;
     private final RelationshipQueryValidator validator;
     private final RelationshipQueryProperties properties;
     private final RelationshipModuleMetadata moduleMetadata;
@@ -58,7 +58,7 @@ public class ReliableRelationshipQueryService {
                                             RelationshipTraversalService metadataTraversalService,
                                             VectorDatabaseService vectorDatabaseService,
                                             AIEmbeddingService embeddingService,
-                                            AISearchableEntityRepository entityRepository,
+                                            AISearchableEntityStorageStrategy storageStrategy,
                                             RelationshipQueryValidator validator,
                                             RelationshipQueryProperties properties,
                                             RelationshipModuleMetadata moduleMetadata,
@@ -69,7 +69,7 @@ public class ReliableRelationshipQueryService {
         this.metadataTraversalService = metadataTraversalService;
         this.vectorDatabaseService = vectorDatabaseService;
         this.embeddingService = embeddingService;
-        this.entityRepository = entityRepository;
+        this.storageStrategy = storageStrategy;
         this.validator = validator;
         this.properties = properties;
         this.moduleMetadata = moduleMetadata;
@@ -183,7 +183,7 @@ public class ReliableRelationshipQueryService {
             return emptyResponse(query, plan, "SIMPLE_DISABLED");
         }
         try {
-            List<AISearchableEntity> entities = entityRepository.findByEntityType(plan.getPrimaryEntityType());
+            List<AISearchableEntity> entities = storageStrategy.findByEntityType(plan.getPrimaryEntityType());
             int limit = options.getLimit() != null ? options.getLimit() : 20;
             List<RAGResponse.RAGDocument> documents = new ArrayList<>();
             for (int i = 0; i < entities.size() && i < limit; i++) {
@@ -296,7 +296,7 @@ public class ReliableRelationshipQueryService {
                     .source(stage.toLowerCase())
                     .build());
             } else {
-                entityRepository.findByEntityTypeAndEntityId(plan.getPrimaryEntityType(), id)
+                storageStrategy.findByEntityTypeAndEntityId(plan.getPrimaryEntityType(), id)
                     .ifPresent(entity -> documents.add(
                         RAGResponse.RAGDocument.builder()
                             .id(id)
