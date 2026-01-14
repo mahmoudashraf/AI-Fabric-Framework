@@ -44,6 +44,8 @@ public final class IntegrationTestSupport {
         registry.add("ai.vector-db.lucene.vector-dimension", () -> "384");
         registry.add("ai.vector-db.lucene.similarity-threshold", () -> "0.6");
         registry.add("spring.main.allow-bean-definition-overriding", () -> "true");
+        // Tests seed/read via AISearchableEntityRepository. Use SINGLE_TABLE so the storage strategy matches that repository.
+        registry.add("ai-infrastructure.storage.strategy", () -> "SINGLE_TABLE");
         registry.add("ai.infrastructure.relationship.schema.auto-discover", () -> "false");
         registry.add("ai.infrastructure.relationship.schema.refresh-on-startup", () -> "false");
     }

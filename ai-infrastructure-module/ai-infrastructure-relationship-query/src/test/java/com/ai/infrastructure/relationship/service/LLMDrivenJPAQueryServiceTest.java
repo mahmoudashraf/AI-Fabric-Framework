@@ -16,7 +16,7 @@ import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,7 +54,7 @@ class LLMDrivenJPAQueryServiceTest {
     @Mock
     private RelationshipTraversalService metadataTraversalService;
     @Mock
-    private AISearchableEntityRepository entityRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
     @Mock
     private VectorDatabaseService vectorDatabaseService;
     @Mock
@@ -83,7 +83,7 @@ class LLMDrivenJPAQueryServiceTest {
             moduleMetadata,
             jpaTraversalService,
             metadataTraversalService,
-            entityRepository,
+            storageStrategy,
             vectorDatabaseService,
             embeddingService,
             queryCache,
@@ -100,7 +100,7 @@ class LLMDrivenJPAQueryServiceTest {
         when(planner.planQuery(eq("find documents"), anyList())).thenReturn(plan);
         when(queryBuilder.buildQuery(plan)).thenReturn(jpqlQuery);
         when(jpaTraversalService.traverse(plan, jpqlQuery)).thenReturn(List.of("doc-1"));
-        when(entityRepository.findByEntityTypeAndEntityId("document", "doc-1"))
+        when(storageStrategy.findByEntityTypeAndEntityId("document", "doc-1"))
             .thenReturn(Optional.of(searchableEntity("doc-1", "Finance doc", "{\"status\":\"active\"}")));
 
         QueryOptions options = QueryOptions.builder()
@@ -179,9 +179,9 @@ class LLMDrivenJPAQueryServiceTest {
         when(vectorDatabaseService.searchByEntityType(eq(embeddingResponse.getEmbedding()), eq("document"), anyInt(), anyDouble()))
             .thenReturn(vectorResponse);
 
-        when(entityRepository.findByEntityTypeAndEntityId("document", "vec-1"))
+        when(storageStrategy.findByEntityTypeAndEntityId("document", "vec-1"))
             .thenReturn(Optional.of(searchableEntity("vec-1", "Vector doc", null)));
-        when(entityRepository.findByEntityTypeAndEntityId("document", "doc-1"))
+        when(storageStrategy.findByEntityTypeAndEntityId("document", "doc-1"))
             .thenReturn(Optional.of(searchableEntity("doc-1", "JPA doc", null)));
 
         QueryOptions options = QueryOptions.builder()

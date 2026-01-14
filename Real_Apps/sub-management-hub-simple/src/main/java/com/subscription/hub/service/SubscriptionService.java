@@ -17,8 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 
 @Service
@@ -158,9 +158,10 @@ public class SubscriptionService {
      * Search for subscription plans
      */
     public List<SubscriptionPlan> searchPlans(String query, int limit) {
+        String normalizedQuery = query == null ? "" : query.trim();
+
         List<SubscriptionPlan> fallback = planRepository.findAll().stream()
-            .filter(plan -> plan.getName().toLowerCase().contains(query.toLowerCase()) ||
-                           plan.getDescription().toLowerCase().contains(query.toLowerCase()))
+            .filter(plan -> matchesPlan(plan, normalizedQuery))
             .limit(limit)
             .collect(Collectors.toList());
 
@@ -171,7 +172,7 @@ public class SubscriptionService {
 
         try {
             AISearchRequest searchRequest = AISearchRequest.builder()
-                .query(query)
+                .query(normalizedQuery)
                 .entityType("subscription-plan")
                 .limit(limit)
                 .build();
@@ -183,8 +184,16 @@ public class SubscriptionService {
 
             return response.getResults().stream()
                 .map(result -> {
-                    Object id = result.get("id");
-                    return id != null ? planRepository.findById(UUID.fromString(id.toString())).orElse(null) : null;
+                    String entityId = extractEntityId(result);
+                    if (entityId == null) {
+                        return null;
+                    }
+                    try {
+                        return planRepository.findById(UUID.fromString(entityId)).orElse(null);
+                    } catch (IllegalArgumentException ex) {
+                        log.debug("Unable to parse plan entityId '{}' as UUID (result keys: {})", entityId, result.keySet());
+                        return null;
+                    }
                 })
                 .filter(plan -> plan != null)
                 .limit(limit)
@@ -193,6 +202,39 @@ public class SubscriptionService {
             log.warn("AI plan search failed; falling back to basic search", ex);
             return fallback;
         }
+    }
+
+    private boolean matchesPlan(SubscriptionPlan plan, String query) {
+        if (plan == null) {
+            return false;
+        }
+        if (query == null || query.isBlank()) {
+            return true;
+        }
+        String lower = query.toLowerCase();
+        return containsIgnoreCase(plan.getName(), lower) || containsIgnoreCase(plan.getDescription(), lower);
+    }
+
+    private boolean containsIgnoreCase(String value, String lowerNeedle) {
+        if (value == null) {
+            return false;
+        }
+        return value.toLowerCase().contains(lowerNeedle);
+    }
+
+    private String extractEntityId(java.util.Map<String, Object> result) {
+        if (result == null || result.isEmpty()) {
+            return null;
+        }
+
+        // Different vector DB implementations may return different keys.
+        // Lucene returns "id" (entityId); other providers may return "entityId".
+        Object id = firstNonNull(result.get("entityId"), result.get("id"));
+        return id != null ? Objects.toString(id, null) : null;
+    }
+
+    private Object firstNonNull(Object first, Object second) {
+        return first != null ? first : second;
     }
     
     /**

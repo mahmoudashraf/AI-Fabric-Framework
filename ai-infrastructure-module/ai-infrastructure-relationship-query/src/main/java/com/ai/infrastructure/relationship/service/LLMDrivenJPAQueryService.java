@@ -17,7 +17,7 @@ import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
@@ -49,7 +49,7 @@ public class LLMDrivenJPAQueryService {
     private final RelationshipModuleMetadata moduleMetadata;
     private final RelationshipTraversalService jpaTraversalService;
     private final RelationshipTraversalService metadataTraversalService;
-    private final AISearchableEntityRepository entityRepository;
+    private final AISearchableEntityStorageStrategy storageStrategy;
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEmbeddingService embeddingService;
     private final QueryCache queryCache;
@@ -62,7 +62,7 @@ public class LLMDrivenJPAQueryService {
                                     RelationshipModuleMetadata moduleMetadata,
                                     RelationshipTraversalService jpaTraversalService,
                                       RelationshipTraversalService metadataTraversalService,
-                                    AISearchableEntityRepository entityRepository,
+                                    AISearchableEntityStorageStrategy storageStrategy,
                                     VectorDatabaseService vectorDatabaseService,
                                       AIEmbeddingService embeddingService,
                                       QueryCache queryCache,
@@ -74,7 +74,7 @@ public class LLMDrivenJPAQueryService {
         this.moduleMetadata = moduleMetadata;
         this.jpaTraversalService = jpaTraversalService;
         this.metadataTraversalService = metadataTraversalService;
-        this.entityRepository = entityRepository;
+        this.storageStrategy = storageStrategy;
         this.vectorDatabaseService = vectorDatabaseService;
         this.embeddingService = embeddingService;
         this.queryCache = queryCache;
@@ -213,7 +213,7 @@ public class LLMDrivenJPAQueryService {
 
         List<RAGResponse.RAGDocument> documents = new ArrayList<>();
         for (String entityId : limited) {
-            entityRepository.findByEntityTypeAndEntityId(plan.getPrimaryEntityType(), entityId)
+            storageStrategy.findByEntityTypeAndEntityId(plan.getPrimaryEntityType(), entityId)
                 .ifPresent(entity -> documents.add(RAGResponse.RAGDocument.builder()
                     .id(entityId)
                     .content(entity.getSearchableContent())
@@ -376,4 +376,3 @@ public class LLMDrivenJPAQueryService {
         }
     }
 }
-

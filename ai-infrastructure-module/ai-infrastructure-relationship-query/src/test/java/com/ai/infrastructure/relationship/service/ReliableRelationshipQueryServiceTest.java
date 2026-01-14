@@ -13,7 +13,7 @@ import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,7 +53,7 @@ class ReliableRelationshipQueryServiceTest {
     @Mock
     private AIEmbeddingService embeddingService;
     @Mock
-    private AISearchableEntityRepository entityRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
     @Mock
     private RelationshipQueryValidator validator;
     @Mock
@@ -78,7 +78,7 @@ class ReliableRelationshipQueryServiceTest {
             metadataTraversalService,
             vectorDatabaseService,
             embeddingService,
-            entityRepository,
+            storageStrategy,
             validator,
             properties,
             metadata,
@@ -116,7 +116,7 @@ class ReliableRelationshipQueryServiceTest {
             .entityType("document")
             .searchableContent("doc-content")
             .build();
-        when(entityRepository.findByEntityTypeAndEntityId("document", "123")).thenReturn(Optional.of(entity));
+        when(storageStrategy.findByEntityTypeAndEntityId("document", "123")).thenReturn(Optional.of(entity));
 
         RAGResponse response = service.execute("fallback metadata", List.of("document"), QueryOptions.defaults());
 
@@ -167,7 +167,7 @@ class ReliableRelationshipQueryServiceTest {
             .entityType("document")
             .searchableContent("Fallback doc")
             .build();
-        when(entityRepository.findByEntityType("document")).thenReturn(List.of(entity));
+        when(storageStrategy.findByEntityType("document")).thenReturn(List.of(entity));
 
         RAGResponse response = service.execute("simple fallback", List.of("document"), QueryOptions.defaults());
 
@@ -188,7 +188,7 @@ class ReliableRelationshipQueryServiceTest {
         when(llmService.executeRelationshipQuery(anyString(), anyList(), any()))
             .thenReturn(RAGResponse.builder().documents(List.of()).build());
         when(planner.planQuery(anyString(), anyList())).thenReturn(plan);
-        when(entityRepository.findByEntityType("document")).thenReturn(List.of());
+        when(storageStrategy.findByEntityType("document")).thenReturn(List.of());
 
         RAGResponse response = service.execute("exhausted", List.of("document"), QueryOptions.defaults());
 

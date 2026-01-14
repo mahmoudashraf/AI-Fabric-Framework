@@ -6,7 +6,7 @@ import com.ai.infrastructure.relationship.dto.FilterOperator;
 import com.ai.infrastructure.relationship.dto.JpqlQuery;
 import com.ai.infrastructure.relationship.dto.RelationshipPath;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,18 +24,18 @@ import static org.mockito.Mockito.when;
 class MetadataRelationshipTraversalServiceTest {
 
     @Mock
-    private AISearchableEntityRepository entityRepository;
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     private MetadataRelationshipTraversalService service;
 
     @BeforeEach
     void setUp() {
-        service = new MetadataRelationshipTraversalService(entityRepository, new ObjectMapper());
+        service = new MetadataRelationshipTraversalService(storageStrategy, new ObjectMapper());
     }
 
     @Test
     void shouldReturnMatchingIdsWhenMetadataSatisfiesMergedFilters() {
-        when(entityRepository.findByEntityType("document")).thenReturn(List.of(
+        when(storageStrategy.findByEntityType("document")).thenReturn(List.of(
             searchableEntity("doc-1", """
                 {"state":"published","creatorstatus":"approved","priority":5}
                 """),
@@ -72,7 +72,7 @@ class MetadataRelationshipTraversalServiceTest {
 
     @Test
     void shouldRespectLimitWhenNoFiltersProvided() {
-        when(entityRepository.findByEntityType("document")).thenReturn(List.of(
+        when(storageStrategy.findByEntityType("document")).thenReturn(List.of(
             searchableEntity("doc-1", null),
             searchableEntity("doc-2", null)
         ));
@@ -88,7 +88,7 @@ class MetadataRelationshipTraversalServiceTest {
 
     @Test
     void shouldSkipEntitiesWithInvalidMetadata() {
-        when(entityRepository.findByEntityType("document")).thenReturn(List.of(
+        when(storageStrategy.findByEntityType("document")).thenReturn(List.of(
             searchableEntity("doc-1", "{ not valid json }"),
             searchableEntity("doc-2", "")
         ));

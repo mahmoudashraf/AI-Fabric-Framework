@@ -28,6 +28,7 @@ import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -79,6 +80,9 @@ class HRCandidateSearchTest {
 
     @Autowired
     private AISearchableEntityRepository searchableEntityRepository;
+
+    @Autowired
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private RelationshipQueryPlanner planner;
@@ -145,7 +149,7 @@ class HRCandidateSearchTest {
 
         var jpaTraversalService = new com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService(entityManager);
         var metadataTraversalService = new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
-            searchableEntityRepository,
+            storageStrategy,
             objectMapper
         );
 
@@ -157,7 +161,7 @@ class HRCandidateSearchTest {
             relationshipModuleMetadata,
             jpaTraversalService,
             metadataTraversalService,
-            searchableEntityRepository,
+            storageStrategy,
             vectorDatabaseService,
             aiEmbeddingService,
             queryCache,

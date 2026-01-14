@@ -41,6 +41,7 @@ import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.provider.onnx.ONNXAutoConfiguration;
 import com.ai.infrastructure.provider.onnx.ONNXEmbeddingProvider;
@@ -106,6 +107,9 @@ public class RelationshipQueryIntegrationTest {
 
     @Autowired
     private AISearchableEntityRepository searchableEntityRepository;
+
+    @Autowired
+    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
@@ -199,7 +203,7 @@ public class RelationshipQueryIntegrationTest {
 
         com.ai.infrastructure.relationship.service.RelationshipTraversalService metadataTraversalService =
             new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
-                searchableEntityRepository,
+                storageStrategy,
                 objectMapper
             );
 
@@ -211,7 +215,7 @@ public class RelationshipQueryIntegrationTest {
             relationshipModuleMetadata,
             jpaTraversalService,
             metadataTraversalService,
-            searchableEntityRepository,
+            storageStrategy,
             vectorDatabaseService,
             aiEmbeddingService,
             queryCache,

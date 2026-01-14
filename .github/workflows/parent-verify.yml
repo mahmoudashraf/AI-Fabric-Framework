@@ -74,7 +74,7 @@ jobs:
           # First install all dependencies (excluding test modules) to local repository
           mvn clean install -B -V -pl '!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests' -DskipTests
           # Then verify all modules including integration tests (dependencies are now in local repo)
-          mvn verify -B -V
+          mvn verify -B -V -Dai.vector-db.lucene.cleanup-on-close=true
        
         env:
           MAVEN_OPTS: "-Xmx2g"

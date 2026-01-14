@@ -23,6 +23,27 @@
 - `Real_Apps/sub-management-hub/`
   - Scenario: “advanced/explicit” (shows optional entity annotations like `@AICapable`, `@AISearchable`, `@AIContext`).
   - Still uses `ai-entity-config.yml` so the framework has a single consistent source of truth.
+- `Real_Apps/it-support-action-bot/`
+  - Scenario: “provider-only action bot” (no vector DB / no indexing / no RAG).
+  - Validates orchestrator + action handling with only an LLM provider configured.
+- `Real_Apps/privacy-first-customer-facing-support/`
+  - Scenario: “privacy-first support” (PII detection + redaction + optional encrypted/hash original storage).
+  - No vector DB / indexing / providers required; driven entirely by `ai.pii-detection.*` configuration.
+- `Real_Apps/smart-faq-assistant/`
+  - Scenario: “offline semantic search” (H2 + ONNX embeddings + Lucene vector DB), optional contextual answer generation.
+  - Uses DB text (FAQ articles), not file parsing/document ingestion.
+- `Real_Apps/migration-enabled-product-catalog/`
+  - Scenario: “migration-enabled backfill” (seed DB first, then bulk index via `DataMigrationService` + async indexing worker).
+  - Default stack: H2 + ONNX + Lucene (no external services/keys).
+- `Real_Apps/relationship-query-crm-insights/`
+  - Scenario: “relationship query” (natural language → JPQL) with a stub LLM provider (no external keys).
+  - Demonstrates relationship traversal on a realistic CRM domain (accounts, contacts, deals, tickets).
+- `Real_Apps/behavior-churn-signals/`
+  - Scenario: “behavior analytics” (churn/sentiment insights) using the Behavior module + a stub LLM provider.
+  - Demonstrates SPI-based event ingestion and stored insights (H2; no external keys).
+- `Real_Apps/cloud-qdrant-openai-vector-search/`
+  - Scenario: “cloud semantic search” (Postgres + Qdrant + OpenAI embeddings).
+  - Demonstrates annotation-driven indexing/embeddings with external vector DB + minimal YAML for enablement/metadata.
 
 ## How To Create A New Real App
 
