@@ -75,4 +75,3 @@ public class OrchestrationResultNormalizationStep implements PipelineStep {
             .build();
     }
 }
-

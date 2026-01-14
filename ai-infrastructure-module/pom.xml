@@ -30,6 +30,10 @@
 
     <modules>
         <module>ai-infrastructure-core</module>
+        <module>ai-infrastructure-indexing</module>
+        <module>ai-infrastructure-pii</module>
+        <module>ai-fabric-starter</module>
+        <module>ai-fabric-provider-starter</module>
         <module>ai-infrastructure-rag</module>
         <module>ai-infrastructure-web</module>
         <module>providers/ai-infrastructure-provider-openai</module>
@@ -107,6 +111,11 @@
             </dependency>
             <dependency>
                 <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-fabric-provider-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
                 <artifactId>ai-fabric-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -123,6 +132,11 @@
             <dependency>
                 <groupId>com.ai.fabric</groupId>
                 <artifactId>ai-infrastructure-rag</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-infrastructure-pii</artifactId>
                 <version>${project.version}</version>
             </dependency>
             

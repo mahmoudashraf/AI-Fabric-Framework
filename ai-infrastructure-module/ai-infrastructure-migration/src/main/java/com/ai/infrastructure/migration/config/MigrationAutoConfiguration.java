@@ -1,7 +1,9 @@
 package com.ai.infrastructure.migration.config;
 
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.config.AIIndexingProperties;
+import com.ai.infrastructure.indexing.config.AIIndexingAutoConfiguration;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.migration.repository.MigrationJobRepository;
 import com.ai.infrastructure.migration.service.DataMigrationService;
@@ -12,6 +14,9 @@ import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -28,7 +33,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
 
 @AutoConfiguration
-@ConditionalOnProperty(prefix = "ai.migration", name = "enabled", havingValue = "true", matchIfMissing = true)
+@AutoConfigurationPackage(basePackages = "com.ai.infrastructure.migration")
+@AutoConfigureAfter({AIInfrastructureAutoConfiguration.class, AIIndexingAutoConfiguration.class})
+@ConditionalOnProperty(prefix = "ai.migration", name = "enabled", havingValue = "true")
+@ConditionalOnBean(IndexingQueueService.class)
 @EnableConfigurationProperties({MigrationProperties.class, AIIndexingProperties.class})
 @Import({EntityRepositoryRegistry.class, MigrationProgressTracker.class})
 public class MigrationAutoConfiguration {

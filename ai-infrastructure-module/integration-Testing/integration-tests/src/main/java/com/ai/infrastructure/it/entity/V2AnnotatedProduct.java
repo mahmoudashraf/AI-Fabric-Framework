@@ -3,7 +3,7 @@ package com.ai.infrastructure.it.entity;
 import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.annotation.AIContext;
 import com.ai.infrastructure.annotation.AISearchable;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -69,4 +69,3 @@ public class V2AnnotatedProduct {
         createdAt = LocalDateTime.now();
     }
 }
-

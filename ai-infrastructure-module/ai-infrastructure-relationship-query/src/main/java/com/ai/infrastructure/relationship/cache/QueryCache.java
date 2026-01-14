@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class QueryCache {
 
     private final boolean enabled;
+    private final boolean resultEnabled;
     private final CacheRegion<String, RelationshipQueryPlan> planCache;
     private final CacheRegion<String, AIEmbeddingResponse> embeddingCache;
     private final CacheRegion<String, List<String>> resultCache;
@@ -28,6 +29,7 @@ public class QueryCache {
     public QueryCache(RelationshipQueryProperties properties) {
         RelationshipQueryProperties.CacheProperties cacheProperties = properties.getCache();
         this.enabled = properties.isEnableQueryCaching() && cacheProperties.isEnabled();
+        this.resultEnabled = cacheProperties.isCacheResults();
         planCache = new CacheRegion<>(
             cacheProperties.getPlan().ttlMillis(),
             cacheProperties.getPlan().getMaxEntries()
@@ -67,11 +69,11 @@ public class QueryCache {
     }
 
     public Optional<List<String>> getQueryResult(String key) {
-        return enabled ? resultCache.get(key) : Optional.empty();
+        return enabled && resultEnabled ? resultCache.get(key) : Optional.empty();
     }
 
     public void putQueryResult(String key, List<String> entityIds) {
-        if (enabled && entityIds != null) {
+        if (enabled && resultEnabled && entityIds != null) {
             resultCache.put(key, List.copyOf(entityIds));
         }
     }

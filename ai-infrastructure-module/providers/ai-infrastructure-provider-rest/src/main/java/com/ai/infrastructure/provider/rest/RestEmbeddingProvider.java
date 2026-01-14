@@ -5,10 +5,10 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.http.HttpClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.RestClientException;
 
 import jakarta.annotation.PostConstruct;
@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 public class RestEmbeddingProvider implements EmbeddingProvider {
     
     private final AIProviderConfig config;
-    private RestTemplate restTemplate;
+    private final HttpClient httpClient;
     private boolean available = false;
     private int embeddingDimension = 384; // Default for all-MiniLM-L6-v2
     
@@ -43,16 +43,7 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
     public void initialize() {
         try {
             log.info("Initializing REST Embedding Provider");
-            
-            // Create REST template with configured timeouts
-            var requestFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
-            Integer timeout = timeout();
-            if (timeout != null) {
-                requestFactory.setConnectTimeout(timeout);
-                requestFactory.setReadTimeout(timeout);
-            }
-            restTemplate = new RestTemplate(requestFactory);
-            
+
             // Test connection
             testConnection();
             
@@ -75,12 +66,7 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<?> entity = new HttpEntity<>(headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                healthUrl,
-                HttpMethod.GET,
-                entity,
-                Map.class
-            );
+            ResponseEntity<Map> response = httpClient.exchange(healthUrl, HttpMethod.GET, entity, Map.class);
             
             if (response.getStatusCode().is2xxSuccessful()) {
                 available = true;
@@ -155,12 +141,7 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
                 log.info("REST embedding request textSnippet={}", snippet);
                 log.info("=== END REST EMBEDDING API REQUEST ===");
             }
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url,
-                HttpMethod.POST,
-                entity,
-                Map.class
-            );
+            ResponseEntity<Map> response = httpClient.exchange(url, HttpMethod.POST, entity, Map.class);
             
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new AIServiceException("REST API returned non-success status: " + response.getStatusCode());
@@ -261,12 +242,7 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
                 );
                 log.info("=== END REST EMBEDDING API REQUEST ===");
             }
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url,
-                HttpMethod.POST,
-                entity,
-                Map.class
-            );
+            ResponseEntity<Map> response = httpClient.exchange(url, HttpMethod.POST, entity, Map.class);
             
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new AIServiceException("REST API returned non-success status: " + response.getStatusCode());
@@ -401,4 +377,3 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
         return status;
     }
 }
-

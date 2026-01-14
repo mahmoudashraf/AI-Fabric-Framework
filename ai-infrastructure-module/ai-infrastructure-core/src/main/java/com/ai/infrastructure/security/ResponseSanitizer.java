@@ -9,6 +9,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -39,9 +40,9 @@ public class ResponseSanitizer {
     @Autowired(required = false)
     private ApplicationEventPublisher eventPublisher;
 
-    public ResponseSanitizer(PIIDetectionService piiDetectionService,
+    public ResponseSanitizer(ObjectProvider<PIIDetectionService> piiDetectionService,
                              ResponseSanitizationProperties properties) {
-        this.piiDetectionService = piiDetectionService;
+        this.piiDetectionService = piiDetectionService.getIfAvailable();
         this.properties = properties;
     }
 
@@ -147,6 +148,9 @@ public class ResponseSanitizer {
 
     private SanitizationOutcome<String> sanitizeText(String text, String userId) {
         if (!StringUtils.hasText(text)) {
+            return SanitizationOutcome.of(text, RiskLevel.NONE, List.of());
+        }
+        if (piiDetectionService == null) {
             return SanitizationOutcome.of(text, RiskLevel.NONE, List.of());
         }
         PIIDetectionResult analysis = piiDetectionService.analyze(text);

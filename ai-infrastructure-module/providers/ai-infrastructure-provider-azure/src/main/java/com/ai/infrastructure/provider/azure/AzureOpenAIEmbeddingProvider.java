@@ -5,6 +5,7 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.http.HttpClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -13,20 +14,15 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -40,7 +36,7 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
     private static final String HEADER_API_KEY = "api-key";
 
     private final AIProviderConfig config;
-    private RestTemplate restTemplate;
+    private final HttpClient httpClient;
     private boolean available = false;
     private int embeddingDimension = 1536;
     private static final int MAX_RETRY_ATTEMPTS = 3;
@@ -71,8 +67,6 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             }
         }
 
-        restTemplate = Optional.ofNullable(restTemplate).orElseGet(() -> buildRestTemplate(azure));
-
         try {
             log.info("Validating Azure embedding deployment '{}'", azure.getEmbeddingDeploymentName());
             AIEmbeddingRequest probe = AIEmbeddingRequest.builder().text("ping").build();
@@ -93,14 +87,13 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
 
     @Override
     public boolean isAvailable() {
-        return available;
+        return available && httpClient != null;
     }
 
     @Override
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
         AIProviderConfig.AzureConfig azure = config.getAzure();
         ensureConfigured(azure, available);
-        restTemplate = Optional.ofNullable(restTemplate).orElseGet(() -> buildRestTemplate(azure));
 
         try {
             String url = buildEmbeddingsUrl(azure.getEndpoint(), azure.getEmbeddingDeploymentName(), azure.getApiVersion());
@@ -178,7 +171,6 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
     public List<AIEmbeddingResponse> generateEmbeddings(List<String> texts) {
         AIProviderConfig.AzureConfig azure = config.getAzure();
         ensureConfigured(azure, available);
-        restTemplate = Optional.ofNullable(restTemplate).orElseGet(() -> buildRestTemplate(azure));
 
         try {
             String url = buildEmbeddingsUrl(azure.getEndpoint(), azure.getEmbeddingDeploymentName(), azure.getApiVersion());
@@ -252,10 +244,6 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
         return embeddingDimension;
     }
 
-    public void setRestTemplate(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
-    }
-
     @Override
     public Map<String, Object> getStatus() {
         AIProviderConfig.AzureConfig azure = config.getAzure();
@@ -284,14 +272,6 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
         if (requireAvailability && !available) {
             throw new AIServiceException("Azure embedding provider is not currently available");
         }
-    }
-
-    private RestTemplate buildRestTemplate(AIProviderConfig.AzureConfig azure) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        int timeoutMillis = Optional.ofNullable(azure.getTimeout()).orElse(60) * 1000;
-        factory.setConnectTimeout(timeoutMillis);
-        factory.setReadTimeout(timeoutMillis);
-        return new RestTemplate(factory);
     }
 
     private String buildEmbeddingsUrl(String endpoint, String deployment, String apiVersion) {
@@ -338,7 +318,7 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
         long backoffMs = 400;
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
-                return restTemplate.exchange(url, method, entity, responseType);
+                return httpClient.exchange(url, method, entity, responseType);
             } catch (HttpStatusCodeException ex) {
                 HttpStatusCode statusCode = ex.getStatusCode();
                 int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();

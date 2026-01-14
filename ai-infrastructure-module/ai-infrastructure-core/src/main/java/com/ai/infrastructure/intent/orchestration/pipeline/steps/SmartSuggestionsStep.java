@@ -10,6 +10,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -91,7 +92,7 @@ public class SmartSuggestionsStep implements PipelineStep {
     // =========================================================================
     
     private final SmartSuggestionsProperties smartSuggestionsProperties;
-    private final RAGProvider ragProvider;
+    private final ObjectProvider<RAGProvider> ragProvider;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -177,7 +178,13 @@ public class SmartSuggestionsStep implements PipelineStep {
                 .userId(context.getIdentifier())
                 .build();
             
-            RAGResponse ragResponse = ragProvider.performRag(ragRequest);
+            RAGProvider provider = ragProvider.getIfAvailable();
+            if (provider == null) {
+                log.debug("Smart suggestions skipped for request {} (no RAGProvider bean present)", context.getRequestId());
+                return context;
+            }
+
+            RAGResponse ragResponse = provider.performRag(ragRequest);
             if (ragResponse == null) {
                 log.debug("Smart suggestion retrieval returned null for intent {} in request {}", 
                     candidate.getIntent(), context.getRequestId());

@@ -234,4 +234,3 @@ public class OrchestrationResultNormalizer {
         return data != null && data.containsKey("generationError");
     }
 }
-

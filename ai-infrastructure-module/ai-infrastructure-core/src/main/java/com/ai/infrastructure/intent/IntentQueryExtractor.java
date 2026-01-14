@@ -14,6 +14,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -34,18 +36,19 @@ public class IntentQueryExtractor {
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
     private final ActionHandlerRegistry actionHandlerRegistry;
+    @Nullable
     private final KnowledgeBaseOverviewService knowledgeBaseOverviewService;
     private final ObjectMapper objectMapper;
 
     public IntentQueryExtractor(AICoreService aiCoreService,
                                 EnrichedPromptBuilder enrichedPromptBuilder,
                                 ActionHandlerRegistry actionHandlerRegistry,
-                                KnowledgeBaseOverviewService knowledgeBaseOverviewService,
+                                ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider,
                                 ObjectMapper objectMapper) {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;
         this.actionHandlerRegistry = actionHandlerRegistry;
-        this.knowledgeBaseOverviewService = knowledgeBaseOverviewService;
+        this.knowledgeBaseOverviewService = knowledgeBaseOverviewServiceProvider.getIfAvailable();
         this.objectMapper = objectMapper.copy()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
@@ -71,6 +74,7 @@ public class IntentQueryExtractor {
             .generationType("intent_extraction")
             .systemPrompt(systemPrompt)
             .prompt(userPrompt)
+            .parameters(jsonOnlyResponseParameters())
             .userId(safeContext.getUserId())
             .build();
 
@@ -204,6 +208,7 @@ public class IntentQueryExtractor {
             .generationType("intent_extraction_repair")
             .systemPrompt(repairSystemPrompt)
             .prompt(repairPrompt)
+            .parameters(jsonOnlyResponseParameters())
             .userId(userId)
             .build();
 
@@ -233,6 +238,14 @@ public class IntentQueryExtractor {
             }
         }
         return text;
+    }
+
+    private Map<String, Object> jsonOnlyResponseParameters() {
+        // Provider-agnostic hint: OpenAI/Azure support `response_format`, Gemini maps it to responseMimeType,
+        // and other providers may ignore it while still benefiting from the JSON-only system prompt contract.
+        return Map.of(
+            "response_format", Map.of("type", "json_object")
+        );
     }
 
     private void validateResponse(MultiIntentResponse response, String originalQuery) {

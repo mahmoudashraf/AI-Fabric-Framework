@@ -2,13 +2,14 @@ package com.ai.infrastructure.it.support;
 
 import com.ai.infrastructure.config.AIIndexingProperties;
 import com.ai.infrastructure.entity.IndexingQueueEntry;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.indexing.worker.IndexingWorkProcessor;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,19 +22,40 @@ public class IndexingQueueTestSupport {
 
     private static final Logger log = LoggerFactory.getLogger(IndexingQueueTestSupport.class);
 
-    private final IndexingQueueService queueService;
-    private final IndexingWorkProcessor workProcessor;
-    private final AIIndexingProperties indexingProperties;
+    private final ObjectProvider<IndexingQueueService> queueServiceProvider;
+    private final ObjectProvider<IndexingWorkProcessor> workProcessorProvider;
+    private final ObjectProvider<AIIndexingProperties> indexingPropertiesProvider;
 
     /**
      * Drain both async and batch indexing queues once, best-effort.
      */
     public void drainQueue() {
-        drainStrategy(IndexingStrategy.ASYNC, Math.max(1, indexingProperties.getAsyncWorker().getBatchSize()));
-        drainStrategy(IndexingStrategy.BATCH, Math.max(1, indexingProperties.getBatchWorker().getBatchSize()));
+        IndexingQueueService queueService = queueServiceProvider.getIfAvailable();
+        IndexingWorkProcessor workProcessor = workProcessorProvider.getIfAvailable();
+        AIIndexingProperties indexingProperties = indexingPropertiesProvider.getIfAvailable();
+
+        if (queueService == null || workProcessor == null) {
+            log.debug("Indexing queue components are not available; skipping drain.");
+            return;
+        }
+
+        int asyncBatchSize = 10;
+        int batchBatchSize = 10;
+        if (indexingProperties != null) {
+            asyncBatchSize = Math.max(1, indexingProperties.getAsyncWorker().getBatchSize());
+            batchBatchSize = Math.max(1, indexingProperties.getBatchWorker().getBatchSize());
+        }
+
+        drainStrategy(queueService, workProcessor, IndexingStrategy.ASYNC, asyncBatchSize);
+        drainStrategy(queueService, workProcessor, IndexingStrategy.BATCH, batchBatchSize);
     }
 
-    private void drainStrategy(IndexingStrategy strategy, int batchSize) {
+    private void drainStrategy(
+        IndexingQueueService queueService,
+        IndexingWorkProcessor workProcessor,
+        IndexingStrategy strategy,
+        int batchSize
+    ) {
         int iteration = 0;
         int maxIterations = 50;
         int idleCycles = 0;

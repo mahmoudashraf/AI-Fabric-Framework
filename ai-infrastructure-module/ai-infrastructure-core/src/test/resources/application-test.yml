@@ -4,6 +4,9 @@ spring:
       enabled: false
 
 ai:
+  vector-db:
+    type: memory
+
   pii-detection:
     enabled: true
     detection-direction: INPUT_OUTPUT

@@ -60,6 +60,28 @@ class DynamicJPAQueryBuilderTest {
         assertThat(query.getParameters()).containsEntry("p1", "ACTIVE");
     }
 
+    @Test
+    void shouldTranslateEntityQualifiedFieldNamesToRegisteredAliases() {
+        RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
+            .originalQuery("Find active documents")
+            .primaryEntityType("document")
+            .directFilters(Map.of(
+                "document", List.of(
+                    FilterCondition.builder()
+                        .field("document.status")
+                        .operator(FilterOperator.EQUALS)
+                        .value("ACTIVE")
+                        .build()
+                )
+            ))
+            .build();
+
+        JpqlQuery query = builder.buildQuery(plan);
+
+        assertThat(query.getJpql()).contains("root.status = :p1");
+        assertThat(query.getJpql()).doesNotContain("document.status");
+    }
+
     @AICapable(entityType = "document")
     private static class DocumentEntity { }
 

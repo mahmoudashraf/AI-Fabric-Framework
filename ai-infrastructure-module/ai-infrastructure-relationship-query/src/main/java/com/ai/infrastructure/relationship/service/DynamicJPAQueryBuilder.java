@@ -153,7 +153,7 @@ public class DynamicJPAQueryBuilder {
                                   AliasRegistry aliases,
                                   Map<String, Object> parameters,
                                   AtomicInteger paramSequence) {
-        String fieldName = resolveFieldName(condition, alias);
+        String fieldName = resolveFieldName(condition, alias, aliases);
         String parameterName = "p" + paramSequence.incrementAndGet();
         Object value = condition.getValue();
         FilterOperator operator = condition.getOperator() != null
@@ -248,14 +248,37 @@ public class DynamicJPAQueryBuilder {
         return "%s BETWEEN :%s AND :%s".formatted(field, parameterName, secondParameter);
     }
 
-    private String resolveFieldName(FilterCondition condition, String defaultAlias) {
+    private String resolveFieldName(FilterCondition condition, String defaultAlias, AliasRegistry aliases) {
         if (!StringUtils.hasText(condition.getField())) {
             return defaultAlias;
         }
-        if (condition.getField().contains(".")) {
-            return condition.getField();
+        String raw = condition.getField().trim();
+        if (raw.isEmpty()) {
+            return defaultAlias;
         }
-        return defaultAlias + "." + condition.getField();
+        if (!raw.contains(".")) {
+            return defaultAlias + "." + raw;
+        }
+
+        String[] parts = raw.split("\\.", 2);
+        if (parts.length != 2) {
+            return defaultAlias + "." + raw;
+        }
+
+        String prefix = parts[0].trim();
+        String suffix = parts[1].trim();
+        if (suffix.isEmpty()) {
+            return defaultAlias;
+        }
+
+        String resolvedAlias = StringUtils.hasText(prefix) ? aliases.aliasFor(prefix) : null;
+        if (StringUtils.hasText(resolvedAlias)) {
+            return resolvedAlias + "." + suffix;
+        }
+        if (aliases.isKnownAlias(prefix)) {
+            return raw;
+        }
+        return defaultAlias + "." + raw;
     }
 
     private String resolveFieldReference(Object value, AliasRegistry aliases) {
@@ -314,6 +337,14 @@ public class DynamicJPAQueryBuilder {
 
         String aliasFor(String entityType) {
             return aliasByEntity.get(normalize(entityType));
+        }
+
+        boolean isKnownAlias(String alias) {
+            if (!StringUtils.hasText(alias)) {
+                return false;
+            }
+            String trimmed = alias.trim();
+            return aliasByEntity.values().stream().anyMatch(value -> value.equals(trimmed));
         }
 
         private String normalize(String entityType) {

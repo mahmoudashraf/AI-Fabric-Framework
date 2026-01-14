@@ -1,23 +1,28 @@
 package com.ai.infrastructure.provider.anthropic;
 
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.http.AIHttpClientFactory;
+import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.provider.ProviderConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
 
 /**
  * Auto-configuration for the Anthropic provider module.
  */
 @Slf4j
 @AutoConfiguration
+@AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @ConditionalOnClass(AnthropicProvider.class)
 public class AnthropicAutoConfiguration {
 
@@ -49,8 +54,11 @@ public class AnthropicAutoConfiguration {
     @Bean
     @ConditionalOnBean(name = "anthropicProviderConfig")
     public AnthropicProvider anthropicProvider(@Qualifier("anthropicProviderConfig") ProviderConfig providerConfig,
-                                               ObjectProvider<RestTemplate> restTemplateProvider) {
-        RestTemplate restTemplate = restTemplateProvider.getIfAvailable(RestTemplate::new);
-        return new AnthropicProvider(providerConfig, restTemplate);
+                                               AIHttpClientFactory httpClientFactory) {
+        HttpClient httpClient = httpClientFactory.create(
+            Duration.ofSeconds(5),
+            providerConfig.getTimeoutSeconds() != null ? Duration.ofSeconds(providerConfig.getTimeoutSeconds()) : null
+        );
+        return new AnthropicProvider(providerConfig, httpClient);
     }
 }

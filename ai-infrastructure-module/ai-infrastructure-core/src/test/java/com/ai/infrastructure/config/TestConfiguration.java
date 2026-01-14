@@ -11,12 +11,12 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.provider.AIProviderManager;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.privacy.pii.PIIDetectionService;
+import com.ai.infrastructure.testsupport.SimplePIIDetectionService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,10 +32,7 @@ import static org.mockito.Mockito.mock;
  * Test configuration supplying deterministic provider and vector service doubles
  * so core module tests can run without external modules.
  */
-@SpringBootApplication(scanBasePackages = "com.ai.infrastructure")
-@Import(AIInfrastructureAutoConfiguration.class)
-@EntityScan(basePackages = "com.ai.infrastructure.entity")
-@EnableJpaRepositories(basePackages = "com.ai.infrastructure.repository")
+@SpringBootApplication
 public class TestConfiguration {
 
     @Bean
@@ -60,6 +57,13 @@ public class TestConfiguration {
     @Primary
     public RAGProvider testRAGProvider(VectorDatabaseService vectorDatabaseService) {
         return new TestRAGProvider(vectorDatabaseService);
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(prefix = "ai.pii-detection", name = "enabled", havingValue = "true")
+    public PIIDetectionService testPiiDetectionService() {
+        return new SimplePIIDetectionService();
     }
 
     /**

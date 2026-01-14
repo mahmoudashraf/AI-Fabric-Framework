@@ -9,8 +9,8 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.provider.AIProviderManager;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -31,13 +31,22 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AICoreService {
     
     private final AIProviderConfig aiProviderConfig;
-    private final AIEmbeddingService embeddingService;
-    private final AISearchService searchService;
     private final AIProviderManager providerManager;
+    private final ObjectProvider<AIEmbeddingService> embeddingServiceProvider;
+    private final ObjectProvider<AISearchService> searchServiceProvider;
+
+    public AICoreService(AIProviderConfig aiProviderConfig,
+                         AIProviderManager providerManager,
+                         ObjectProvider<AIEmbeddingService> embeddingServiceProvider,
+                         ObjectProvider<AISearchService> searchServiceProvider) {
+        this.aiProviderConfig = aiProviderConfig;
+        this.providerManager = providerManager;
+        this.embeddingServiceProvider = embeddingServiceProvider;
+        this.searchServiceProvider = searchServiceProvider;
+    }
     
     /**
      * Generate AI content based on prompt
@@ -78,6 +87,7 @@ public class AICoreService {
             log.debug("Generating embedding via embedding service for entityType={} entityId={}",
                 embeddingRequest.getEntityType(), embeddingRequest.getEntityId());
 
+            AIEmbeddingService embeddingService = requireEmbeddingService();
             AIEmbeddingResponse response = embeddingService.generateEmbedding(embeddingRequest);
 
             log.debug("Successfully generated embedding with {} dimensions using provider {}",
@@ -109,6 +119,7 @@ public class AICoreService {
             AIEmbeddingResponse embedding = generateEmbedding(embeddingRequest);
             
             // Perform vector search
+            AISearchService searchService = requireSearchService();
             return searchService.search(embedding.getEmbedding(), request);
             
         } catch (Exception e) {
@@ -143,6 +154,7 @@ public class AICoreService {
                 .limit(limit)
                 .build();
             
+            AISearchService searchService = requireSearchService();
             AISearchResponse searchResponse = searchService.search(embedding.getEmbedding(), searchRequest);
             
             log.debug("Generated {} recommendations", searchResponse.getResults().size());
@@ -296,5 +308,27 @@ public class AICoreService {
             .metadata(request.getMetadata())
             .model(defaults.model())
             .build();
+    }
+
+    private AIEmbeddingService requireEmbeddingService() {
+        AIEmbeddingService embeddingService = embeddingServiceProvider.getIfAvailable();
+        if (embeddingService == null) {
+            throw new AIServiceException(
+                "Embeddings are not available. Enable embeddings (ai.service.features.enable-embeddings=true) " +
+                    "and configure an embedding provider (ai.providers.embedding-provider)."
+            );
+        }
+        return embeddingService;
+    }
+
+    private AISearchService requireSearchService() {
+        AISearchService searchService = searchServiceProvider.getIfAvailable();
+        if (searchService == null) {
+            throw new AIServiceException(
+                "Semantic search is not available. Ensure a VectorDatabaseService is configured and " +
+                    "search is enabled (ai.service.features.enable-search=true)."
+            );
+        }
+        return searchService;
     }
 }

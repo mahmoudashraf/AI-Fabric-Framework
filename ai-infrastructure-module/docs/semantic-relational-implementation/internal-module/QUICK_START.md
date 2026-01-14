@@ -11,7 +11,7 @@ This guide walks through bootstrapping the `ai-infrastructure-relationship-query
 ## 2. Add the Dependency
 ```xml
 <dependency>
-    <groupId>com.ai.infrastructure</groupId>
+    <groupId>com.ai.fabric</groupId>
     <artifactId>ai-infrastructure-relationship-query</artifactId>
     <version>${project.version}</version>
 </dependency>

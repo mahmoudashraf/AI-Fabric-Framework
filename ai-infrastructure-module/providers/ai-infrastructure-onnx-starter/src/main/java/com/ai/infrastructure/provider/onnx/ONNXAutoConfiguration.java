@@ -1,9 +1,11 @@
 package com.ai.infrastructure.provider.onnx;
 
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,12 +17,14 @@ import org.springframework.context.annotation.Primary;
  */
 @Slf4j
 @AutoConfiguration
+@AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @ConditionalOnClass(ONNXEmbeddingProvider.class)
 public class ONNXAutoConfiguration {
 
     @Bean
     @Primary
     @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "onnx", matchIfMissing = true)
+    @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
     public EmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
         log.info("Creating ONNX Embedding Provider (primary/default)");
         ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);

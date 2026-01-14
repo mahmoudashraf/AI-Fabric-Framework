@@ -23,6 +23,7 @@ class QueryCacheTest {
         properties.setEnableQueryCaching(true);
         RelationshipQueryProperties.CacheProperties cacheProperties = properties.getCache();
         cacheProperties.setEnabled(true);
+        cacheProperties.setCacheResults(true);
         cacheProperties.getPlan().setTtlSeconds(1);
         cacheProperties.getEmbedding().setTtlSeconds(1);
         cacheProperties.getResult().setTtlSeconds(1);

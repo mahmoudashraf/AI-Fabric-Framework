@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.support.Repositories;
-import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import java.util.Map;
@@ -18,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Discovers @AICapable entities and wires them to their JPA repositories.
  */
 @Slf4j
-@Component
 public class EntityRepositoryRegistry {
 
     private final Map<String, EntityRegistration> registry = new ConcurrentHashMap<>();

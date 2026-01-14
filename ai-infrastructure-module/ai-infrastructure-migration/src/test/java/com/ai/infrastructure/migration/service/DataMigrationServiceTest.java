@@ -8,7 +8,7 @@ import com.ai.infrastructure.dto.AIMetadataField;
 import com.ai.infrastructure.dto.AISearchableField;
 import com.ai.infrastructure.indexing.IndexingOperation;
 import com.ai.infrastructure.indexing.IndexingRequest;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.migration.config.MigrationFieldConfig;
 import com.ai.infrastructure.migration.config.MigrationProperties;

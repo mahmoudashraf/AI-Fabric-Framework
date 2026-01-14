@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 
 import jakarta.annotation.PostConstruct;
@@ -27,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @version 1.0.0
  */
 @Slf4j
-@Component
 public class AIEntityConfigurationLoader {
     
     private final ResourceLoader resourceLoader;

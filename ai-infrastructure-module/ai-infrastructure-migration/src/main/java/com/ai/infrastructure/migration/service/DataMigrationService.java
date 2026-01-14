@@ -6,7 +6,7 @@ import com.ai.infrastructure.dto.AIEntityConfig;
 import com.ai.infrastructure.indexing.IndexingActionPlan;
 import com.ai.infrastructure.indexing.IndexingOperation;
 import com.ai.infrastructure.indexing.IndexingRequest;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.migration.config.MigrationProperties;
 import com.ai.infrastructure.migration.config.MigrationFieldConfig;
@@ -24,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Field;
@@ -37,7 +36,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
 public class DataMigrationService {
 
     private final IndexingQueueService queueService;

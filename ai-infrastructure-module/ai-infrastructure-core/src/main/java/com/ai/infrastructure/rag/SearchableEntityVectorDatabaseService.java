@@ -41,7 +41,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
                               List<Double> embedding, Map<String, Object> metadata) {
         String vectorId = delegate.storeVector(entityType, entityId, content, embedding, metadata);
         registerRollbackCleanup(entityType, entityId, vectorId);
-        upsertSearchableEntity(entityType, entityId, content, metadata, vectorId);
+        upsertSearchableEntityWithTransactionAwareness(entityType, entityId, content, metadata, vectorId);
         return vectorId;
     }
 
@@ -50,7 +50,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
                                 String content, List<Double> embedding, Map<String, Object> metadata) {
         boolean updated = delegate.updateVector(vectorId, entityType, entityId, content, embedding, metadata);
         if (updated) {
-            upsertSearchableEntity(entityType, entityId, content, metadata, vectorId);
+            upsertSearchableEntityWithTransactionAwareness(entityType, entityId, content, metadata, vectorId);
         }
         return updated;
     }
@@ -100,7 +100,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
             VectorRecord record = vectors.get(i);
             if (i < vectorIds.size()) {
                 registerRollbackCleanup(record.getEntityType(), record.getEntityId(), vectorIds.get(i));
-                upsertSearchableEntity(record.getEntityType(), record.getEntityId(), record.getContent(),
+                upsertSearchableEntityWithTransactionAwareness(record.getEntityType(), record.getEntityId(), record.getContent(),
                     record.getMetadata(), vectorIds.get(i));
             }
         }
@@ -112,7 +112,7 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
         int updated = delegate.batchUpdateVectors(vectors);
         for (VectorRecord record : vectors) {
             if (record.getVectorId() != null) {
-                upsertSearchableEntity(record.getEntityType(), record.getEntityId(), record.getContent(),
+                upsertSearchableEntityWithTransactionAwareness(record.getEntityType(), record.getEntityId(), record.getContent(),
                     record.getMetadata(), record.getVectorId());
             }
         }
@@ -195,6 +195,21 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
                         log.warn("Unable to rollback vector {} for entity {}:{}", vectorId, entityType, entityId, ex);
                     }
                 }
+            }
+        });
+    }
+
+    private void upsertSearchableEntityWithTransactionAwareness(String entityType, String entityId, String content,
+                                                               Map<String, Object> metadata, String vectorId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            upsertSearchableEntity(entityType, entityId, content, metadata, vectorId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                upsertSearchableEntity(entityType, entityId, content, metadata, vectorId);
             }
         });
     }

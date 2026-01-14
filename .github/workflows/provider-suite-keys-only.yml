@@ -1,4 +1,4 @@
-name: Provider Suite (Keys Only)
+name: Matrix Suite
 
 on:
   workflow_dispatch:
@@ -43,26 +43,120 @@ on:
           - SINGLE_TABLE
           - PER_TYPE_TABLE
           - CUSTOM
-      persistence_database:
-        description: 'Persistence database'
+      run_openai_lucene:
+        description: 'Also run OpenAI + ONNX + Lucene'
         required: false
-        default: 'h2'
-        type: choice
-        options:
-          - h2
-          - postgresql
+        default: false
+        type: boolean
 
 jobs:
+  resolve-matrix:
+    name: Resolve Matrix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has_any: ${{ steps.matrix.outputs.has_any }}
+    env:
+      OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
+      PINECONE_API_KEY: ${{ github.event.inputs.pinecone_api_key || secrets.PINECONE_API_KEY }}
+      COHERE_API_KEY: ${{ github.event.inputs.cohere_api_key || secrets.COHERE_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ github.event.inputs.anthropic_api_key || secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY }}
+      RUN_OPENAI_LUCENE: ${{ github.event.inputs.run_openai_lucene }}
+    steps:
+      - name: Mask provider API keys
+        if: always()
+        run: |
+          [ -n "${{ github.event.inputs.openai_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.openai_api_key }}" || true
+          [ -n "${{ github.event.inputs.pinecone_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.pinecone_api_key }}" || true
+          [ -n "${{ github.event.inputs.cohere_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.cohere_api_key }}" || true
+          [ -n "${{ github.event.inputs.anthropic_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.anthropic_api_key }}" || true
+          [ -n "${{ github.event.inputs.gemini_api_key }}" ] && echo "::add-mask::${{ github.event.inputs.gemini_api_key }}" || true
+
+      - id: matrix
+        name: Build matrix from available keys
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          
+          def has(key: str) -> bool:
+            return bool((os.getenv(key) or "").strip())
+          
+          run_openai_lucene = (os.getenv("RUN_OPENAI_LUCENE") or "").strip().lower() == "true"
+          include = []
+          
+          if has("OPENAI_API_KEY") and has("PINECONE_API_KEY"):
+            include.append({
+              "name": "openai-onnx-pinecone",
+              "llm": "openai",
+              "embedding": "onnx",
+              "vector_db": "pinecone",
+              "integration_spring_profiles": "real-api-test",
+              "realapi_spring_profiles": "realapi",
+            })
+          
+          if has("COHERE_API_KEY"):
+            include.append({
+              "name": "cohere-onnx-qdrant",
+              "llm": "cohere",
+              "embedding": "onnx",
+              "vector_db": "qdrant",
+              "integration_spring_profiles": "real-api-test,testcontainers",
+              "realapi_spring_profiles": "realapi,testcontainers",
+            })
+          
+          if has("ANTHROPIC_API_KEY"):
+            include.append({
+              "name": "anthropic-onnx-milvus",
+              "llm": "anthropic",
+              "embedding": "onnx",
+              "vector_db": "milvus",
+              "integration_spring_profiles": "real-api-test,testcontainers",
+              "realapi_spring_profiles": "realapi,testcontainers",
+            })
+          
+          if has("GEMINI_API_KEY"):
+            include.append({
+              "name": "gemini-onnx-weaviate",
+              "llm": "gemini",
+              "embedding": "onnx",
+              "vector_db": "weaviate",
+              "integration_spring_profiles": "real-api-test,testcontainers",
+              "realapi_spring_profiles": "realapi,testcontainers",
+            })
+          
+          if run_openai_lucene and has("OPENAI_API_KEY"):
+            include.append({
+              "name": "openai-onnx-lucene",
+              "llm": "openai",
+              "embedding": "onnx",
+              "vector_db": "lucene",
+              "integration_spring_profiles": "real-api-test",
+              "realapi_spring_profiles": "realapi",
+            })
+          
+          matrix = {"include": include}
+          print("matrix=" + json.dumps(matrix))
+          print("has_any=" + ("true" if include else "false"))
+          PY
+
   provider-suite:
-    name: Full suite (ONNX) across providers
+    name: Matrix Suite (${{ matrix.name }})
+    needs: [resolve-matrix]
+    if: needs.resolve-matrix.outputs.has_any == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix: ${{ fromJson(needs.resolve-matrix.outputs.matrix) }}
 
     env:
       MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level || 'normal' }}
-      AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database || 'h2' }}
       AI_INFRASTRUCTURE_STORAGE_STRATEGY: ${{ github.event.inputs.storage_strategy || 'SINGLE_TABLE' }}
 
       # Prefer workflow_dispatch inputs, fall back to repo secrets.
@@ -75,6 +169,7 @@ jobs:
       # Pinecone host/index are fixed defaults; override via repo variables if needed.
       PINECONE_INDEX_NAME: ${{ vars.PINECONE_INDEX_NAME != '' && vars.PINECONE_INDEX_NAME || 'ai-fabric' }}
       PINECONE_API_HOST: ${{ vars.PINECONE_API_HOST != '' && vars.PINECONE_API_HOST || 'https://ai-fabric-pwkuyn5.svc.aped-4627-b74a.pinecone.io' }}
+      PINECONE_ENVIRONMENT: ${{ vars.PINECONE_ENVIRONMENT }}
 
     steps:
       - name: Checkout code
@@ -98,82 +193,38 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Verify Docker is available (required for Testcontainers)
+      - name: Verify Docker is available
         run: |
           docker --version
           docker info | head -5
 
-      - name: Cache Maven packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-provider-suite-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-provider-suite-
-            ${{ runner.os }}-maven-
-
-      - name: Validate required keys
-        run: |
-          missing=0
-          check() {
-            local name="$1"
-            local val="$2"
-            if [ -z "$val" ]; then
-              echo "Missing required key: $name"
-              missing=1
-            fi
-          }
-          check "OPENAI_API_KEY" "${OPENAI_API_KEY:-}"
-          check "PINECONE_API_KEY" "${PINECONE_API_KEY:-}"
-          check "COHERE_API_KEY" "${COHERE_API_KEY:-}"
-          check "ANTHROPIC_API_KEY" "${ANTHROPIC_API_KEY:-}"
-          check "GEMINI_API_KEY" "${GEMINI_API_KEY:-}"
-          if [ "$missing" -ne 0 ]; then
-            echo ""
-            echo "Provide keys via workflow inputs or GitHub repo secrets:"
-            echo "Settings → Secrets and variables → Actions → Secrets"
-            exit 1
-          fi
-
       - name: Build AI Infrastructure Module (skip tests)
         run: |
           cd ai-infrastructure-module
-          mvn clean install -DskipTests -B -V
+          mvn install -DskipTests -B -V
 
-      - name: Run suite (OpenAI + ONNX + Pinecone)
+      - name: Run suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})
         run: |
           cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test"
-          export AI_PROVIDERS_PINECONE_ENABLED="true"
-          export AI_PROVIDERS_PINECONE_API_KEY="${PINECONE_API_KEY}"
-          export AI_PROVIDERS_PINECONE_INDEX_NAME="${PINECONE_INDEX_NAME}"
-          export AI_PROVIDERS_PINECONE_API_HOST="${PINECONE_API_HOST}"
-          bash run-provider-matrix-tests.sh "openai:onnx:pinecone:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+          export SPRING_PROFILES_ACTIVE="${{ matrix.integration_spring_profiles }}"
+          if [ "${{ matrix.vector_db }}" = "pinecone" ]; then
+            export AI_PROVIDERS_PINECONE_ENABLED="true"
+            export AI_PROVIDERS_PINECONE_API_KEY="${PINECONE_API_KEY}"
+            export AI_PROVIDERS_PINECONE_INDEX_NAME="${PINECONE_INDEX_NAME}"
+            export AI_PROVIDERS_PINECONE_API_HOST="${PINECONE_API_HOST}"
+          else
+            export AI_PROVIDERS_PINECONE_ENABLED="false"
+          fi
+          bash run-provider-matrix-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
 
-      - name: Run suite (Cohere + ONNX + Qdrant)
+      - name: Run relationship-query suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})
         run: |
-          cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
-          export AI_PROVIDERS_PINECONE_ENABLED="false"
-          bash run-provider-matrix-tests.sh "cohere:onnx:qdrant:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+          cd ai-infrastructure-module/integration-Testing/relationship-query-integration-tests
+          export SPRING_PROFILES_ACTIVE="${{ matrix.realapi_spring_profiles }}"
+          bash run-relationship-query-realapi-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}"
 
-      - name: Run suite (Anthropic + ONNX + Milvus)
+      - name: Run behavior suite (${{ matrix.llm }} + ${{ matrix.embedding }})
         run: |
-          cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
-          export AI_PROVIDERS_PINECONE_ENABLED="false"
-          bash run-provider-matrix-tests.sh "anthropic:onnx:milvus:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
-
-      - name: Run suite (Gemini + ONNX + Weaviate)
-        run: |
-          cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test,testcontainers"
-          export AI_PROVIDERS_PINECONE_ENABLED="false"
-          bash run-provider-matrix-tests.sh "gemini:onnx:weaviate:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
-
-      - name: Run suite (OpenAI + ONNX + Lucene)
-        run: |
-          cd ai-infrastructure-module/integration-Testing/integration-tests
-          export SPRING_PROFILES_ACTIVE="real-api-test"
-          export AI_PROVIDERS_PINECONE_ENABLED="false"
-          bash run-provider-matrix-tests.sh "openai:onnx:lucene:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+          cd ai-infrastructure-module/integration-Testing/behavior-integration-tests
+          export SPRING_PROFILES_ACTIVE="realapi"
+          bash run-behavior-realapi-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}"

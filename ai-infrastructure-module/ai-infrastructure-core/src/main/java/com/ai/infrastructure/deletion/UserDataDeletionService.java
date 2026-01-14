@@ -18,7 +18,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -27,7 +26,6 @@ import org.springframework.util.StringUtils;
  * to {@link UserDataDeletionProvider} hooks while handling infrastructure owned data stores.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class UserDataDeletionService {
 

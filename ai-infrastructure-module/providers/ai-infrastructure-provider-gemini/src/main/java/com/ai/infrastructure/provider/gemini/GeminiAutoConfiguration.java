@@ -1,24 +1,29 @@
 package com.ai.infrastructure.provider.gemini;
 
+import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
+import com.ai.infrastructure.http.AIHttpClientFactory;
+import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.provider.ProviderConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
 
 /**
  * Auto-configuration for the Google Gemini provider module.
  */
 @Slf4j
 @AutoConfiguration
+@AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @ConditionalOnClass(GeminiProvider.class)
 public class GeminiAutoConfiguration {
 
@@ -50,15 +55,20 @@ public class GeminiAutoConfiguration {
     @Bean
     @ConditionalOnBean(name = "geminiProviderConfig")
     public GeminiProvider geminiProvider(@Qualifier("geminiProviderConfig") ProviderConfig providerConfig,
-                                       ObjectProvider<RestTemplate> restTemplateProvider) {
-        RestTemplate restTemplate = restTemplateProvider.getIfAvailable(RestTemplate::new);
-        return new GeminiProvider(providerConfig, restTemplate);
+                                       AIHttpClientFactory httpClientFactory) {
+        HttpClient httpClient = httpClientFactory.create(
+            Duration.ofSeconds(5),
+            providerConfig.getTimeoutSeconds() != null ? Duration.ofSeconds(providerConfig.getTimeoutSeconds()) : null
+        );
+        return new GeminiProvider(providerConfig, httpClient);
     }
 
     @Bean
     @ConditionalOnBean(name = "geminiProviderConfig")
     @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "gemini")
-    public EmbeddingProvider geminiEmbeddingProvider(AIProviderConfig aiProviderConfig) {
-        return new GeminiEmbeddingProvider(aiProviderConfig);
+    public EmbeddingProvider geminiEmbeddingProvider(AIProviderConfig aiProviderConfig,
+                                                     AIHttpClientFactory httpClientFactory) {
+        HttpClient httpClient = httpClientFactory.create();
+        return new GeminiEmbeddingProvider(aiProviderConfig, httpClient);
     }
 }

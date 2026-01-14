@@ -17,7 +17,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.Collection;
@@ -55,7 +54,6 @@ import java.util.stream.Collectors;
  * @since 1.0
  */
 @Slf4j
-@Service("ragService")
 @RequiredArgsConstructor
 public class RAGService implements RAGProvider {
     

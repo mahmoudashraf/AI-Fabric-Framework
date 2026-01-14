@@ -7,10 +7,10 @@ import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.http.HttpClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class OpenAIProvider implements AIProvider {
     
     private final ProviderConfig config;
-    private final RestTemplate restTemplate;
+    private final HttpClient httpClient;
     private final AtomicLong totalRequests = new AtomicLong(0);
     private final AtomicLong successfulRequests = new AtomicLong(0);
     private final AtomicLong failedRequests = new AtomicLong(0);
@@ -109,6 +109,8 @@ public class OpenAIProvider implements AIProvider {
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
             requestBody.put("top_p", 0.1);  // Lower top_p for more deterministic responses
+
+            applyResponseFormat(requestBody, request.getParameters());
             
             // IMPORTANT: Never use System.out for provider logging; it bypasses log levels and makes CI noisy.
             // Emit request/response summaries + payload snippets at INFO (visible at "normal").
@@ -260,7 +262,7 @@ public class OpenAIProvider implements AIProvider {
         long backoffMs = 400;
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
-                return restTemplate.exchange(url, method, entity, responseType);
+                return httpClient.exchange(url, method, entity, responseType);
             } catch (HttpStatusCodeException ex) {
                 HttpStatusCode statusCode = ex.getStatusCode();
                 int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();
@@ -423,5 +425,42 @@ public class OpenAIProvider implements AIProvider {
             return trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
+    }
+
+    private void applyResponseFormat(Map<String, Object> requestBody, Map<String, Object> parameters) {
+        if (requestBody == null || parameters == null || parameters.isEmpty()) {
+            return;
+        }
+        Object responseFormat = parameters.get("response_format");
+        if (responseFormat == null) {
+            responseFormat = parameters.get("responseFormat");
+        }
+        Object normalized = normalizeResponseFormat(responseFormat);
+        if (normalized != null) {
+            requestBody.put("response_format", normalized);
+        }
+    }
+
+    private Object normalizeResponseFormat(Object responseFormat) {
+        if (responseFormat == null) {
+            return null;
+        }
+        if (responseFormat instanceof Map<?, ?>) {
+            return responseFormat;
+        }
+        if (!(responseFormat instanceof String)) {
+            return null;
+        }
+        String value = ((String) responseFormat).trim().toLowerCase();
+        if (value.isEmpty()) {
+            return null;
+        }
+        if (value.equals("json") || value.equals("json_object") || value.equals("json-object") || value.equals("jsonobject")) {
+            return Map.of("type", "json_object");
+        }
+        if (value.equals("text")) {
+            return Map.of("type", "text");
+        }
+        return null;
     }
 }

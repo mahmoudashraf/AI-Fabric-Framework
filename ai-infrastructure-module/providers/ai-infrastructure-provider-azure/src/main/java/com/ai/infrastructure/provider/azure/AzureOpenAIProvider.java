@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
@@ -16,11 +17,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -44,7 +43,7 @@ public class AzureOpenAIProvider implements AIProvider {
 
     private final ProviderConfig config;
     private final AIProviderConfig.AzureConfig azureConfig;
-    private final RestTemplate restTemplate;
+    private final HttpClient httpClient;
 
     private final AtomicLong totalRequests = new AtomicLong(0);
     private final AtomicLong successfulRequests = new AtomicLong(0);
@@ -57,10 +56,10 @@ public class AzureOpenAIProvider implements AIProvider {
 
     public AzureOpenAIProvider(ProviderConfig config,
                                AIProviderConfig.AzureConfig azureConfig,
-                               RestTemplate restTemplate) {
+                               HttpClient httpClient) {
         this.config = Objects.requireNonNull(config, "ProviderConfig must not be null");
         this.azureConfig = Objects.requireNonNull(azureConfig, "Azure configuration must not be null");
-        this.restTemplate = restTemplate != null ? restTemplate : buildRestTemplate();
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient must not be null");
     }
 
     @Override
@@ -131,6 +130,8 @@ public class AzureOpenAIProvider implements AIProvider {
             body.put("messages", messages);
             body.put("temperature", Optional.ofNullable(request.getTemperature()).orElse(config.getTemperature()));
             body.put("max_tokens", Optional.ofNullable(request.getMaxTokens()).orElse(config.getMaxTokens()));
+
+            applyResponseFormat(body, request.getParameters());
             
             // For OpenAI-compatible format (/openai/v1), include model in request body
             String endpoint = azureConfig.getEndpoint();
@@ -339,14 +340,6 @@ public class AzureOpenAIProvider implements AIProvider {
         }
     }
 
-    private RestTemplate buildRestTemplate() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        int timeoutMillis = Optional.ofNullable(azureConfig.getTimeout()).orElse(60) * 1000;
-        factory.setConnectTimeout(timeoutMillis);
-        factory.setReadTimeout(timeoutMillis);
-        return new RestTemplate(factory);
-    }
-
     private String buildChatCompletionsUrl() {
         String endpoint = normalizeEndpoint(azureConfig.getEndpoint());
         String apiVersion = azureConfig.getApiVersion() != null ? azureConfig.getApiVersion() : "2024-02-15-preview";
@@ -420,6 +413,43 @@ public class AzureOpenAIProvider implements AIProvider {
         return endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
     }
 
+    private void applyResponseFormat(Map<String, Object> body, Map<String, Object> parameters) {
+        if (body == null || parameters == null || parameters.isEmpty()) {
+            return;
+        }
+        Object responseFormat = parameters.get("response_format");
+        if (responseFormat == null) {
+            responseFormat = parameters.get("responseFormat");
+        }
+        Object normalized = normalizeResponseFormat(responseFormat);
+        if (normalized != null) {
+            body.put("response_format", normalized);
+        }
+    }
+
+    private Object normalizeResponseFormat(Object responseFormat) {
+        if (responseFormat == null) {
+            return null;
+        }
+        if (responseFormat instanceof Map<?, ?>) {
+            return responseFormat;
+        }
+        if (!(responseFormat instanceof String)) {
+            return null;
+        }
+        String value = ((String) responseFormat).trim().toLowerCase();
+        if (value.isEmpty()) {
+            return null;
+        }
+        if (value.equals("json") || value.equals("json_object") || value.equals("json-object") || value.equals("jsonobject")) {
+            return Map.of("type", "json_object");
+        }
+        if (value.equals("text")) {
+            return Map.of("type", "text");
+        }
+        return null;
+    }
+
     private void updateMetrics(boolean success, long responseTime) {
         if (success) {
             successfulRequests.incrementAndGet();
@@ -478,7 +508,7 @@ public class AzureOpenAIProvider implements AIProvider {
         long backoffMs = 400;
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
-                return restTemplate.exchange(url, method, entity, responseType);
+                return httpClient.exchange(url, method, entity, responseType);
             } catch (HttpStatusCodeException ex) {
                 HttpStatusCode statusCode = ex.getStatusCode();
                 int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();

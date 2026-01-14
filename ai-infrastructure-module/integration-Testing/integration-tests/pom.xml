@@ -31,10 +31,10 @@
             <version>${project.version}</version>
         </dependency>
         
-        <!-- AI Infrastructure Module (the module being tested) -->
+        <!-- AI Infrastructure Starter (pulls core + default modules like indexing) -->
         <dependency>
             <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-fabric-core</artifactId>
+            <artifactId>ai-fabric-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

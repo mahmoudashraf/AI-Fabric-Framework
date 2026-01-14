@@ -6,6 +6,8 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -14,6 +16,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Conditional(VectorDbConfiguredCondition.class)
 public class RemoveVectorActionHandler implements ActionHandler {
 
     private final VectorDatabaseService vectorDatabaseService;

@@ -47,7 +47,6 @@ import com.ai.infrastructure.provider.onnx.ONNXEmbeddingProvider;
 import com.ai.infrastructure.vector.lucene.LuceneVectorAutoConfiguration;
 import com.ai.infrastructure.vector.lucene.LuceneVectorDatabaseService;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -57,7 +56,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -69,15 +67,14 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.beans.factory.annotation.Qualifier;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.EntityManager;
+import com.ai.infrastructure.repository.IntentHistoryRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -270,48 +267,19 @@ public class RelationshipQueryIntegrationTest {
             .build();
     }
 
-    @AfterAll
-    static void cleanUpLuceneIndex() throws IOException {
-        IntegrationTestSupport.cleanUpLuceneIndex();
-    }
-
-    @SpringBootApplication(
-        scanBasePackages = {
-            "com.ai.infrastructure.relationship",
-            "com.ai.infrastructure.repository"
-        },
-        exclude = {
-            ONNXAutoConfiguration.class,
-            LuceneVectorAutoConfiguration.class
-        }
-    )
+    @SpringBootApplication(exclude = {
+        ONNXAutoConfiguration.class,
+        LuceneVectorAutoConfiguration.class
+    })
     @EntityScan(basePackageClasses = {
         AISearchableEntity.class,
-        DocumentEntity.class,
-        UserEntity.class,
-        ProductEntity.class,
-        BrandEntity.class,
-        PatientEntity.class,
-        MedicalCaseEntity.class,
-        CandidateEntity.class,
-        RecruiterEntity.class,
-        AccountEntity.class,
-        TransactionEntity.class
+        DocumentEntity.class
     })
     @EnableJpaRepositories(basePackageClasses = {
-        AISearchableEntityRepository.class,
         DocumentRepository.class,
-        UserRepository.class,
-        ProductRepository.class,
-        BrandRepository.class,
-        PatientRepository.class,
-        MedicalCaseRepository.class,
-        CandidateRepository.class,
-        RecruiterRepository.class,
-        AccountRepository.class,
-        TransactionRepository.class
+        AISearchableEntityRepository.class,
+        IntentHistoryRepository.class
     })
-    @EnableConfigurationProperties(AIProviderConfig.class)
     @Import({
         IntegrationTestBeans.class,
         RelationshipQueryAutoConfiguration.class
@@ -323,11 +291,6 @@ public class RelationshipQueryIntegrationTest {
     static class IntegrationTestBeans {
 
         @Bean
-        CacheManager integrationTestCacheManager() {
-            return new ConcurrentMapCacheManager();
-        }
-
-        @Bean
         ONNXEmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
             return new ONNXEmbeddingProvider(config);
         }
@@ -335,8 +298,8 @@ public class RelationshipQueryIntegrationTest {
         @Bean
         AIEmbeddingService aiEmbeddingService(AIProviderConfig config,
                                               ONNXEmbeddingProvider onnxEmbeddingProvider,
-                                              CacheManager integrationTestCacheManager) {
-            return new AIEmbeddingService(config, onnxEmbeddingProvider, integrationTestCacheManager, null);
+                                              CacheManager cacheManager) {
+            return new AIEmbeddingService(config, onnxEmbeddingProvider, cacheManager, null);
         }
 
         @Bean

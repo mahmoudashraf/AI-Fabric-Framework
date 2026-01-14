@@ -1,6 +1,5 @@
 package com.ai.infrastructure.intent.orchestration;
 
-import com.ai.infrastructure.config.PIIDetectionProperties;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.config.AIServiceConfig;
@@ -28,7 +27,6 @@ import com.ai.infrastructure.intent.orchestration.pipeline.steps.IntentExtractio
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.IntentHandlingStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.MetadataBuildingStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.OrchestrationResultNormalizationStep;
-import com.ai.infrastructure.intent.orchestration.pipeline.steps.PIIDetectionStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.ResponseSanitizationStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SecurityAnalysisStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SmartSuggestionsStep;
@@ -102,8 +100,6 @@ class RAGOrchestratorTest {
 
     private ResponseSanitizer responseSanitizer;
     private SmartSuggestionsProperties smartSuggestionsProperties;
-    private PIIDetectionService piiDetectionService;
-    private PIIDetectionProperties piiDetectionProperties;
 
     private RAGOrchestrator orchestrator;
 
@@ -112,11 +108,10 @@ class RAGOrchestratorTest {
         smartSuggestionsProperties = new SmartSuggestionsProperties();
         ResponseSanitizationProperties sanitizationProperties = new ResponseSanitizationProperties();
         sanitizationProperties.setEnabled(false);
-        piiDetectionProperties = new PIIDetectionProperties();
-        piiDetectionProperties.setEnabled(true);
-        piiDetectionProperties.setDetectionDirection(PIIDetectionProperties.PIIDetectionDirection.INPUT_OUTPUT);
-        piiDetectionService = new PIIDetectionService(piiDetectionProperties);
-        responseSanitizer = new ResponseSanitizer(piiDetectionService, sanitizationProperties);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
+        lenient().when(piiProvider.getIfAvailable()).thenReturn(null);
+        responseSanitizer = new ResponseSanitizer(piiProvider, sanitizationProperties);
         when(intentHistoryService.recordIntent(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
         when(securityService.analyzeRequest(any())).thenReturn(
             AISecurityResponse.builder()
@@ -152,17 +147,19 @@ class RAGOrchestratorTest {
         normalizationProperties.setDebugSnapshotEnabled(false);
         var normalizer = new OrchestrationResultNormalizer();
 
+        ObjectProvider<RAGProvider> ragProviderProvider = mock(ObjectProvider.class);
+        lenient().when(ragProviderProvider.getIfAvailable()).thenReturn(ragProvider);
+
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
-            new PIIDetectionStep(piiDetectionService, piiDetectionProperties),
             new ComplianceCheckStep(complianceService),
             new IntentExtractionStep(intentQueryExtractor),
-            new IntentHandlingStep(actionHandlerRegistry, ragProvider, aiCoreService, aiServiceConfig, advancedRagProvider),
+            new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider),
             new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
             new MetadataBuildingStep(),
-            new SmartSuggestionsStep(smartSuggestionsProperties, ragProvider),
-            new ResponseSanitizationStep(responseSanitizer, piiDetectionProperties),
+            new SmartSuggestionsStep(smartSuggestionsProperties, ragProviderProvider),
+            new ResponseSanitizationStep(responseSanitizer),
             new HistoryPersistenceStep(intentHistoryService)
         );
         return new DefaultOrchestrationPipeline(steps);

@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -90,6 +91,22 @@ class RelationshipQueryPlannerTest {
         verify(validator).validate(any(RelationshipQueryPlan.class));
         verify(queryCache).putPlan(anyString(), any(RelationshipQueryPlan.class));
         verify(queryMetrics).recordPlan(any(Long.class), any(Boolean.class), any(Boolean.class));
+    }
+
+    @Test
+    void shouldBuildDifferentCacheKeysWhenEntityTypesDiffer() {
+        when(queryCache.getPlan(anyString())).thenReturn(Optional.empty());
+        when(aiCoreService.generateContent(any()))
+            .thenReturn(AIGenerationResponse.builder().content(samplePlanJson()).build());
+
+        planner.planQuery("Find docs", List.of("document"));
+        planner.planQuery("Find docs", List.of("product"));
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(queryCache, times(2)).getPlan(keyCaptor.capture());
+        List<String> keys = keyCaptor.getAllValues();
+        assertThat(keys).hasSize(2);
+        assertThat(keys.get(0)).isNotEqualTo(keys.get(1));
     }
 
     @Test

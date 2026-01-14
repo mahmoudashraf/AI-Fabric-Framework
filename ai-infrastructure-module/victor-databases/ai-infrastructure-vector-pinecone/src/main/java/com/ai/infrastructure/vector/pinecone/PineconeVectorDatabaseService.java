@@ -79,6 +79,14 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         log.info("Pinecone client configured for index '{}'", indexName);
     }
 
+    PineconeVectorDatabaseService(AIProviderConfig providerConfig, PineconeConnection connection, Index index) {
+        this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
+        this.indexName = resolveIndexName(this.config);
+        this.connection = Objects.requireNonNull(connection, "Pinecone connection must be provided");
+        this.index = Objects.requireNonNull(index, "Pinecone index must be provided");
+        log.info("Pinecone client configured for index '{}'", indexName);
+    }
+
     @Override
     public String storeVector(String entityType, String entityId, String content, 
                            List<Double> embedding, Map<String, Object> metadata) {
@@ -503,7 +511,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         try {
             withPineconeRetry("upsert", () -> {
                 if (preferSparse) {
-                    upsertSparse(vectorId, namespace, embedding, metadataStruct);
+                    upsertSparse(vectorId, namespace, embedding, metadataStruct, true);
                 } else {
                     upsertDense(vectorId, namespace, embedding, metadataStruct);
                 }
@@ -513,7 +521,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             if (!preferSparse && shouldRetryAsSparse(ex)) {
                 sparseIndex = true;
                 withPineconeRetry("upsertSparse", () -> {
-                    upsertSparse(vectorId, namespace, embedding, metadataStruct);
+                    upsertSparse(vectorId, namespace, embedding, metadataStruct, true);
                     return null;
                 });
                 return;
@@ -589,8 +597,11 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         index.upsert(vectorId, values, null, null, metadataStruct, namespace);
     }
 
-    private void upsertSparse(String vectorId, String namespace, List<Double> embedding, Struct metadataStruct) {
-        List<Float> denseValues = toFloatList(embedding);
+    private void upsertSparse(String vectorId,
+                              String namespace,
+                              List<Double> embedding,
+                              Struct metadataStruct,
+                              boolean sparseOnly) {
         List<Long> sparseIndices = new ArrayList<>(embedding.size());
         List<Float> sparseValues = new ArrayList<>(embedding.size());
         for (int i = 0; i < embedding.size(); i++) {
@@ -599,6 +610,32 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             sparseValues.add(value != null ? value.floatValue() : 0.0f);
         }
 
+        if (sparseOnly) {
+            List<Integer> protoIndices = sparseIndices.stream()
+                .map(Long::intValue)
+                .collect(Collectors.toList());
+
+            io.pinecone.proto.Vector vector = io.pinecone.proto.Vector.newBuilder()
+                .setId(vectorId)
+                .setMetadata(metadataStruct)
+                .setSparseValues(
+                    SparseValues.newBuilder()
+                        .addAllIndices(protoIndices)
+                        .addAllValues(sparseValues)
+                        .build()
+                )
+                .build();
+
+            UpsertRequest request = UpsertRequest.newBuilder()
+                .setNamespace(namespace)
+                .addVectors(vector)
+                .build();
+
+            connection.getBlockingStub().upsert(request);
+            return;
+        }
+
+        List<Float> denseValues = toFloatList(embedding);
         index.upsert(vectorId, denseValues, sparseIndices, sparseValues, metadataStruct, namespace);
     }
 

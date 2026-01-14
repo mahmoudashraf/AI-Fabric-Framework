@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +34,7 @@ import java.util.stream.Collectors;
 public class IntentHistoryService {
 
     private final IntentHistoryRepository repository;
-    private final PIIDetectionService piiDetectionService;
+    private final ObjectProvider<PIIDetectionService> piiDetectionService;
     private final ObjectMapper objectMapper;
     private final IntentHistoryProperties properties;
 
@@ -123,7 +124,12 @@ public class IntentHistoryService {
         if (!StringUtils.hasText(originalQuery)) {
             return originalQuery;
         }
-        PIIDetectionResult analysis = piiDetectionService.analyze(originalQuery);
+        PIIDetectionService detectionService = piiDetectionService.getIfAvailable();
+        if (detectionService == null) {
+            return originalQuery;
+        }
+
+        PIIDetectionResult analysis = detectionService.analyze(originalQuery);
         if (!analysis.isPiiDetected()) {
             return originalQuery;
         }
@@ -139,14 +145,23 @@ public class IntentHistoryService {
         if (!StringUtils.hasText(originalQuery)) {
             return false;
         }
-        return piiDetectionService.analyze(originalQuery).isPiiDetected();
+        PIIDetectionService detectionService = piiDetectionService.getIfAvailable();
+        if (detectionService == null) {
+            return false;
+        }
+        return detectionService.analyze(originalQuery).isPiiDetected();
     }
 
     private String resolveSensitiveTypes(String originalQuery) {
         if (!StringUtils.hasText(originalQuery)) {
             return null;
         }
-        List<String> types = piiDetectionService.analyze(originalQuery).getDetections().stream()
+        PIIDetectionService detectionService = piiDetectionService.getIfAvailable();
+        if (detectionService == null) {
+            return null;
+        }
+
+        List<String> types = detectionService.analyze(originalQuery).getDetections().stream()
             .map(PIIDetection::getType)
             .filter(StringUtils::hasText)
             .distinct()
@@ -158,7 +173,12 @@ public class IntentHistoryService {
         if (!properties.isStoreEncryptedQuery() || !StringUtils.hasText(originalQuery)) {
             return null;
         }
-        PIIDetectionResult processed = piiDetectionService.detectAndProcess(originalQuery);
+        PIIDetectionService detectionService = piiDetectionService.getIfAvailable();
+        if (detectionService == null) {
+            return null;
+        }
+
+        PIIDetectionResult processed = detectionService.detectAndProcess(originalQuery);
         return processed.getEncryptedOriginalQuery();
     }
 
@@ -186,7 +206,12 @@ public class IntentHistoryService {
     }
 
     private String sanitizeByMasking(String original) {
-        PIIDetectionResult analysis = piiDetectionService.detectAndProcess(original);
+        PIIDetectionService detectionService = piiDetectionService.getIfAvailable();
+        if (detectionService == null) {
+            return original;
+        }
+
+        PIIDetectionResult analysis = detectionService.detectAndProcess(original);
         if (analysis.isPiiDetected()) {
             return analysis.getProcessedQuery();
         }

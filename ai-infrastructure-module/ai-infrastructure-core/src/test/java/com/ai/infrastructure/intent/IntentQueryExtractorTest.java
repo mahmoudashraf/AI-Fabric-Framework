@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,7 +70,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -78,6 +81,54 @@ class IntentQueryExtractorTest {
         assertThat(intent.getIntent()).isEqualTo("cancel_subscription");
         assertThat(intent.getActionParams()).containsEntry("reason", "too expensive");
         assertThat(response.getOrchestrationStrategy()).isEqualTo("DIRECT_ACTION");
+    }
+
+    @Test
+    void shouldRequestJsonOnlyResponseFormatFromProvider() {
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
+
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "ACTION",
+                  "intent": "cancel_subscription",
+                  "confidence": 0.92,
+                  "action": "cancel_subscription",
+                  "actionParams": {"reason": "too expensive"},
+                  "requiresRetrieval": false
+                }
+              ],
+              "isCompound": false
+            }
+            """;
+
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            knowledgeBaseOverviewServiceProvider(),
+            objectMapper
+        );
+
+        extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
+
+        org.mockito.ArgumentCaptor<AIGenerationRequest> captor =
+            org.mockito.ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService).generateContent(captor.capture());
+
+        AIGenerationRequest sent = captor.getValue();
+        assertThat(sent.getParameters()).isNotNull();
+        assertThat(sent.getParameters()).containsKey("response_format");
+
+        Object responseFormat = sent.getParameters().get("response_format");
+        assertThat(responseFormat).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> responseFormatMap = (Map<String, Object>) responseFormat;
+        assertThat(responseFormatMap).containsEntry("type", "json_object");
     }
 
     @Test
@@ -108,7 +159,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -149,7 +200,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -193,7 +244,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -211,7 +262,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -236,7 +287,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -275,7 +326,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -315,7 +366,7 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewService,
+            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -323,5 +374,11 @@ class IntentQueryExtractorTest {
 
         assertThat(response.getIntents()).hasSize(1);
         assertThat(response.getIntents().getFirst().getVectorSpace()).isEqualTo("test-product");
+    }
+
+    private ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider() {
+        ObjectProvider<KnowledgeBaseOverviewService> provider = org.mockito.Mockito.mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(knowledgeBaseOverviewService);
+        return provider;
     }
 }

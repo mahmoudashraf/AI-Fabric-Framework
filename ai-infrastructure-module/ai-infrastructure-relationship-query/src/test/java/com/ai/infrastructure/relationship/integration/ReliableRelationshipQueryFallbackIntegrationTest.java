@@ -30,7 +30,6 @@ import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -41,7 +40,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -286,8 +284,4 @@ class ReliableRelationshipQueryFallbackIntegrationTest {
             .build();
     }
 
-    @AfterAll
-    static void cleanUpLuceneIndex() throws IOException {
-        IntegrationTestSupport.cleanUpLuceneIndex();
-    }
 }

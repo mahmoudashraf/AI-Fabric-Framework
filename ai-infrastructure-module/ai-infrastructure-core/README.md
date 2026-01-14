@@ -846,7 +846,7 @@ searchService.search(query);
 @AICapable(onCreateStrategy = IndexingStrategy.SYNC)
 
 // Bulk updates: Batch process
-@AICapable(onUpdateStrategy = IndexingStrategy.DEFERRED)
+@AICapable(onUpdateStrategy = IndexingStrategy.BATCH)
 ```
 
 ### Tip 4: Monitor Performance
@@ -1015,4 +1015,3 @@ AISearchResponse results = searchService.search(query);
 **Three steps. Infinite AI possibilities.**
 
 *Make your application intelligent. Today.*
-

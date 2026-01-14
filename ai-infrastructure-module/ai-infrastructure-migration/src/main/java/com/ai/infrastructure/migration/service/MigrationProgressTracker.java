@@ -2,13 +2,11 @@ package com.ai.infrastructure.migration.service;
 
 import com.ai.infrastructure.migration.domain.MigrationJob;
 import com.ai.infrastructure.migration.domain.MigrationProgress;
-import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-@Component
 public class MigrationProgressTracker {
 
     private final Clock clock;

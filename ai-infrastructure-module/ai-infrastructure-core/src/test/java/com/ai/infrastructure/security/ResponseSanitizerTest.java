@@ -1,6 +1,5 @@
 package com.ai.infrastructure.security;
 
-import com.ai.infrastructure.config.PIIDetectionProperties;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.intent.action.ActionResult;
@@ -10,8 +9,10 @@ import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
+import com.ai.infrastructure.testsupport.SimplePIIDetectionService;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -30,15 +32,16 @@ class ResponseSanitizerTest {
 
     @BeforeEach
     void setUp() {
-        PIIDetectionProperties piiDetectionProperties = new PIIDetectionProperties();
-        piiDetectionProperties.setEnabled(true);
-        // Detection mode can remain PASS_THROUGH because ResponseSanitizer uses analyze()
         ResponseSanitizationProperties sanitizationProperties = new ResponseSanitizationProperties();
         sanitizationProperties.setSuggestionLimit(3);
         sanitizationProperties.setHighRiskTypes(Set.of("CREDIT_CARD"));
         sanitizationProperties.setGuidanceMessage("Please avoid sharing card numbers.");
 
-        sanitizer = new ResponseSanitizer(new PIIDetectionService(piiDetectionProperties), sanitizationProperties);
+        PIIDetectionService piiDetectionService = new SimplePIIDetectionService();
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
+        when(piiProvider.getIfAvailable()).thenReturn(piiDetectionService);
+        sanitizer = new ResponseSanitizer(piiProvider, sanitizationProperties);
         eventPublisher = mock(ApplicationEventPublisher.class);
         ReflectionTestUtils.setField(sanitizer, "eventPublisher", eventPublisher);
     }

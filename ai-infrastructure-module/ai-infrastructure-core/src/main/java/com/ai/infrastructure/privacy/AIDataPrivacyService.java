@@ -5,7 +5,6 @@ import com.ai.infrastructure.dto.AIDataPrivacyResponse;
 import com.ai.infrastructure.core.AICoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -16,7 +15,6 @@ import java.util.stream.Collectors;
  * AI Data Privacy Service for data protection and privacy compliance
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AIDataPrivacyService {
 

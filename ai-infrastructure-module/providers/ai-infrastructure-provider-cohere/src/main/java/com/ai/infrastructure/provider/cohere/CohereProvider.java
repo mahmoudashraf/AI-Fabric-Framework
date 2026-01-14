@@ -7,9 +7,9 @@ import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.http.HttpClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class CohereProvider implements AIProvider {
     
     private final ProviderConfig config;
-    private final RestTemplate restTemplate;
+    private final HttpClient httpClient;
     private final AtomicLong totalRequests = new AtomicLong(0);
     private final AtomicLong successfulRequests = new AtomicLong(0);
     private final AtomicLong failedRequests = new AtomicLong(0);
@@ -281,7 +281,7 @@ public class CohereProvider implements AIProvider {
         long backoffMs = 400;
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
-                return restTemplate.exchange(url, method, entity, responseType);
+                return httpClient.exchange(url, method, entity, responseType);
             } catch (HttpStatusCodeException ex) {
                 HttpStatusCode statusCode = ex.getStatusCode();
                 int rawStatus = statusCode != null ? statusCode.value() : ex.getRawStatusCode();

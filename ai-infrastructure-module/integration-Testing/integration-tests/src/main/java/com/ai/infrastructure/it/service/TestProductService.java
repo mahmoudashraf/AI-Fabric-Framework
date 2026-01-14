@@ -1,7 +1,7 @@
 package com.ai.infrastructure.it.service;
 
 import com.ai.infrastructure.annotation.AIProcess;
-import com.ai.infrastructure.indexing.IndexingStrategy;
+import com.ai.infrastructure.indexing.api.IndexingStrategy;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -102,4 +102,3 @@ public class TestProductService {
             .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
     }
 }
-
