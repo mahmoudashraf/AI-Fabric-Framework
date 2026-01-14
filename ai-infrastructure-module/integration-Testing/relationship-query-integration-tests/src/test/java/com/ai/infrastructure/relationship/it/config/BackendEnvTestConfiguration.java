@@ -16,8 +16,8 @@ import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
 import com.ai.infrastructure.relationship.service.RelationshipTraversalService;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -85,9 +85,9 @@ public class BackendEnvTestConfiguration {
     }
 
     @Bean(name = "metadataRelationshipTraversalService")
-    RelationshipTraversalService testMetadataRelationshipTraversalService(AISearchableEntityRepository repository,
+    RelationshipTraversalService testMetadataRelationshipTraversalService(AISearchableEntityStorageStrategy storageStrategy,
                                                                           ObjectMapper objectMapper) {
-        return new MetadataRelationshipTraversalService(repository, objectMapper);
+        return new MetadataRelationshipTraversalService(storageStrategy, objectMapper);
     }
 
     @Bean
@@ -99,7 +99,7 @@ public class BackendEnvTestConfiguration {
                                                           RelationshipModuleMetadata metadata,
                                                           @Qualifier("jpaRelationshipTraversalService") RelationshipTraversalService jpaTraversalService,
                                                           @Qualifier("metadataRelationshipTraversalService") RelationshipTraversalService metadataTraversalService,
-                                                          AISearchableEntityRepository repository,
+                                                          AISearchableEntityStorageStrategy storageStrategy,
                                                           @Nullable VectorDatabaseService vectorDatabaseService,
                                                           @Nullable AIEmbeddingService embeddingService,
                                                           QueryCache queryCache,
@@ -112,7 +112,7 @@ public class BackendEnvTestConfiguration {
             metadata,
             jpaTraversalService,
             metadataTraversalService,
-            repository,
+            storageStrategy,
             vectorDatabaseService,
             embeddingService,
             queryCache,
@@ -127,7 +127,7 @@ public class BackendEnvTestConfiguration {
                                                                           @Qualifier("metadataRelationshipTraversalService") RelationshipTraversalService metadataTraversalService,
                                                                           @Nullable VectorDatabaseService vectorDatabaseService,
                                                                           @Nullable AIEmbeddingService embeddingService,
-                                                                          AISearchableEntityRepository repository,
+                                                                          AISearchableEntityStorageStrategy storageStrategy,
                                                                           RelationshipQueryValidator validator,
                                                                           RelationshipQueryProperties properties,
                                                                           RelationshipModuleMetadata metadata,
@@ -139,7 +139,7 @@ public class BackendEnvTestConfiguration {
             metadataTraversalService,
             vectorDatabaseService,
             embeddingService,
-            repository,
+            storageStrategy,
             validator,
             properties,
             metadata,
