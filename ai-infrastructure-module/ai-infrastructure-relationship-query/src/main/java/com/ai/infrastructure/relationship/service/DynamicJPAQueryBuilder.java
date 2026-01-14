@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -31,6 +33,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class DynamicJPAQueryBuilder {
 
     private final EntityRelationshipMapper relationshipMapper;
+    private final ConcurrentMap<String, Class<?>> expectedTypeCache = new ConcurrentHashMap<>();
+    private static final Class<?> NO_TYPE = Void.class;
     public DynamicJPAQueryBuilder(EntityRelationshipMapper relationshipMapper) {
         this.relationshipMapper = Objects.requireNonNull(relationshipMapper);
     }
@@ -461,7 +465,16 @@ public class DynamicJPAQueryBuilder {
         if (!StringUtils.hasText(propertyPath)) {
             return null;
         }
-        return resolvePropertyType(entityClass, propertyPath);
+
+        String cacheKey = resolvedEntityType.trim().toLowerCase(Locale.ROOT) + "|" + propertyPath.trim();
+        Class<?> cached = expectedTypeCache.get(cacheKey);
+        if (cached != null) {
+            return cached == NO_TYPE ? null : cached;
+        }
+
+        Class<?> resolved = resolvePropertyType(entityClass, propertyPath);
+        expectedTypeCache.put(cacheKey, resolved != null ? resolved : NO_TYPE);
+        return resolved;
     }
 
     private Class<?> resolvePropertyType(Class<?> rootType, String propertyPath) {
