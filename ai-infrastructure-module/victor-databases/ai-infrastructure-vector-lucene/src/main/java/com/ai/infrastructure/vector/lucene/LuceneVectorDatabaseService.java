@@ -16,6 +16,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -80,7 +81,10 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     
     @Value("${ai.vector-db.lucene.vector-dimension:1536}")
     private int vectorDimension;
-    
+
+    @Value("${ai.vector-db.lucene.cleanup-on-close:false}")
+    private boolean cleanupOnClose;
+
     private static final String VECTOR_FIELD = "vector";
     private static final String VECTOR_ID_FIELD = "vectorId";
     private static final String ENTITY_ID_FIELD = "entityId";
@@ -150,7 +154,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     public void cleanup() {
         try {
             log.debug("Closing Lucene Vector Database");
-            
+
+            boolean removedFromCache = false;
             if (indexWriter != null) {
                 if (indexReader != null) {
                     indexReader.close();
@@ -173,6 +178,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                         return shared;
                     }) == null) {
                         directory = null;
+                        removedFromCache = true;
                     }
                 }
             } else if (indexReader != null) {
@@ -181,9 +187,13 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             if (analyzer != null) {
                 analyzer.close();
             }
-            
+
+            if (cleanupOnClose && removedFromCache && resolvedIndexPath != null) {
+                deleteDirectoryRecursively(resolvedIndexPath);
+            }
+
             log.debug("Lucene Vector Database closed successfully");
-            
+
         } catch (Exception e) {
             log.error("Error closing Lucene Vector Database", e);
         }
@@ -447,7 +457,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         doc.add(new StringField(VECTOR_ID_FIELD, vectorId, Field.Store.YES));
         doc.add(new StringField(ENTITY_ID_FIELD, entityId, Field.Store.YES));
         doc.add(new StringField(ENTITY_TYPE_FIELD, entityType, Field.Store.YES));
-        doc.add(new TextField("content", content, Field.Store.YES));
+        doc.add(new StoredField("content", content));
 
         float[] vectorArray = new float[embedding.size()];
         for (int i = 0; i < embedding.size(); i++) {
@@ -458,13 +468,13 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         String embeddingText = embedding.stream()
             .map(String::valueOf)
             .collect(Collectors.joining(","));
-        doc.add(new TextField("embedding", embeddingText, Field.Store.YES));
+        doc.add(new StoredField("embedding", embeddingText));
 
         if (metadata != null && !metadata.isEmpty()) {
             String metadataJson = metadata.entrySet().stream()
                 .map(entry -> "\"" + entry.getKey() + "\":\"" + entry.getValue() + "\"")
                 .collect(Collectors.joining(",", "{", "}"));
-            doc.add(new TextField("metadata", metadataJson, Field.Store.YES));
+            doc.add(new StoredField("metadata", metadataJson));
         }
 
         long currentTime = System.currentTimeMillis();
@@ -897,6 +907,29 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
 
         private boolean release() {
             return refCount.decrementAndGet() == 0;
+        }
+    }
+
+    private void deleteDirectoryRecursively(Path directoryPath) {
+        try {
+            if (!Files.exists(directoryPath)) {
+                return;
+            }
+            if (!Files.isDirectory(directoryPath)) {
+                return;
+            }
+
+            Files.walk(directoryPath)
+                .sorted(Comparator.reverseOrder())
+                .forEach(path -> {
+                    try {
+                        Files.deleteIfExists(path);
+                    } catch (IOException e) {
+                        log.debug("Unable to delete {}", path, e);
+                    }
+                });
+        } catch (IOException e) {
+            log.debug("Unable to cleanup Lucene index directory {}", directoryPath, e);
         }
     }
 }

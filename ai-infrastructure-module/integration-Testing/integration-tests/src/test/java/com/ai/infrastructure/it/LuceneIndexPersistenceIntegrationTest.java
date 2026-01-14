@@ -30,7 +30,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("dev")
-@TestPropertySource(properties = "ai.vector-db.lucene.index-path=./data/test-lucene-index/persistence")
+@TestPropertySource(properties = {
+    "ai.vector-db.lucene.index-path=./data/test-lucene-index/persistence",
+    "ai.vector-db.lucene.cleanup-on-close=false"
+})
 class LuceneIndexPersistenceIntegrationTest {
 
     private static final String ENTITY_TYPE = "persistvector";
@@ -158,4 +161,3 @@ class LuceneIndexPersistenceIntegrationTest {
         return ids;
     }
 }
-
