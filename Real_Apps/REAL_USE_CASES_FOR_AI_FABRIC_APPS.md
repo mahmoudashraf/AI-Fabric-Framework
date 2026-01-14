@@ -3710,6 +3710,16 @@ All use cases are aligned with actual AI Fabric Framework capabilities:
 
 ---
 
+## Real_Apps (Implemented Demos)
+
+These are the **standalone demo apps** under `Real_Apps/` in this repository. Each one targets a single setup scenario and is meant to stay runnable as the framework evolves.
+
+- `Real_Apps/relationship-query-crm-insights/` — Relationship Query (NL → JPQL) with offline stub LLM; H2; no external keys.
+- `Real_Apps/behavior-churn-signals/` — Behavior module (churn/sentiment insights) with offline stub LLM; SPI event ingestion; H2; no external keys.
+- `Real_Apps/cloud-qdrant-openai-vector-search/` — Cloud semantic search (Postgres + Qdrant + OpenAI embeddings); annotation-driven indexing/embeddings with minimal YAML; includes `docker-compose.yml`.
+
+---
+
 **Document Status:** Complete and Aligned with Framework  
 **Last Updated:** January 2026  
 **Maintainer:** AI Fabric Framework Team  

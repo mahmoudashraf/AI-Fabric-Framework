@@ -35,6 +35,15 @@
 - `Real_Apps/migration-enabled-product-catalog/`
   - Scenario: “migration-enabled backfill” (seed DB first, then bulk index via `DataMigrationService` + async indexing worker).
   - Default stack: H2 + ONNX + Lucene (no external services/keys).
+- `Real_Apps/relationship-query-crm-insights/`
+  - Scenario: “relationship query” (natural language → JPQL) with a stub LLM provider (no external keys).
+  - Demonstrates relationship traversal on a realistic CRM domain (accounts, contacts, deals, tickets).
+- `Real_Apps/behavior-churn-signals/`
+  - Scenario: “behavior analytics” (churn/sentiment insights) using the Behavior module + a stub LLM provider.
+  - Demonstrates SPI-based event ingestion and stored insights (H2; no external keys).
+- `Real_Apps/cloud-qdrant-openai-vector-search/`
+  - Scenario: “cloud semantic search” (Postgres + Qdrant + OpenAI embeddings).
+  - Demonstrates annotation-driven indexing/embeddings with external vector DB + minimal YAML for enablement/metadata.
 
 ## How To Create A New Real App
 

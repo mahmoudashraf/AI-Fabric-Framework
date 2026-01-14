@@ -10,6 +10,9 @@ import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
@@ -161,7 +164,7 @@ public class DynamicJPAQueryBuilder {
             : FilterOperator.EQUALS;
         String referencedField = resolveFieldReference(value, aliases);
         if (referencedField == null) {
-            value = coerceParameterValue(value);
+            value = coerceParameterValue(value, condition);
         }
 
         return switch (operator) {
@@ -207,7 +210,7 @@ public class DynamicJPAQueryBuilder {
                 parameters.put(parameterName, value != null ? value.toString().toLowerCase(Locale.ROOT) : null);
                 yield "LOWER(%s) LIKE :%s".formatted(fieldName, parameterName);
             }
-            case IN, NOT_IN -> buildCollectionPredicate(operator, fieldName, parameterName, value, parameters);
+            case IN, NOT_IN -> buildCollectionPredicate(operator, fieldName, parameterName, value, condition, parameters);
             case BETWEEN -> buildBetweenPredicate(fieldName, parameterName, condition, parameters, paramSequence);
             case EXISTS -> "%s IS NOT NULL".formatted(fieldName);
             case NOT_EXISTS -> "%s IS NULL".formatted(fieldName);
@@ -218,20 +221,21 @@ public class DynamicJPAQueryBuilder {
                                             String field,
                                             String parameterName,
                                             Object value,
+                                            FilterCondition condition,
                                             Map<String, Object> parameters) {
         if (value instanceof Iterable<?> iterable) {
             List<Object> values = new ArrayList<>();
-            iterable.forEach(item -> values.add(coerceParameterValue(item)));
+            iterable.forEach(item -> values.add(coerceParameterValue(item, condition)));
             parameters.put(parameterName, values);
         } else if (value != null && value.getClass().isArray()) {
             Object[] array = (Object[]) value;
             List<Object> values = new ArrayList<>(array.length);
             for (Object element : array) {
-                values.add(coerceParameterValue(element));
+                values.add(coerceParameterValue(element, condition));
             }
             parameters.put(parameterName, values);
         } else {
-            parameters.put(parameterName, List.of(coerceParameterValue(value)));
+            parameters.put(parameterName, List.of(coerceParameterValue(value, condition)));
         }
         String clause = "%s %s :%s".formatted(field, operator == FilterOperator.IN ? "IN" : "NOT IN", parameterName);
         return clause;
@@ -243,8 +247,8 @@ public class DynamicJPAQueryBuilder {
                                          Map<String, Object> parameters,
                                          AtomicInteger paramSequence) {
         String secondParameter = "p" + paramSequence.incrementAndGet();
-        parameters.put(parameterName, coerceParameterValue(condition.getValue()));
-        parameters.put(secondParameter, coerceParameterValue(condition.getSecondaryValue()));
+        parameters.put(parameterName, coerceParameterValue(condition.getValue(), condition));
+        parameters.put(secondParameter, coerceParameterValue(condition.getSecondaryValue(), condition));
         return "%s BETWEEN :%s AND :%s".formatted(field, parameterName, secondParameter);
     }
 
@@ -313,10 +317,196 @@ public class DynamicJPAQueryBuilder {
         } catch (DateTimeParseException ignored) {
         }
         try {
-            return LocalDate.parse(trimmed).atStartOfDay();
+            return LocalDate.parse(trimmed);
         } catch (DateTimeParseException ignored) {
         }
         return value;
+    }
+
+    private Object coerceParameterValue(Object value, FilterCondition condition) {
+        Object coerced = coerceParameterValue(value);
+        if (coerced == null || condition == null) {
+            return coerced;
+        }
+
+        Class<?> expectedType = resolveExpectedJavaType(condition);
+        if (expectedType == null) {
+            return coerced;
+        }
+
+        if (expectedType.isEnum()) {
+            if (coerced instanceof String str) {
+                String constant = str.trim();
+                if (constant.isEmpty()) {
+                    return coerced;
+                }
+                try {
+                    return Enum.valueOf(expectedType.asSubclass(Enum.class), constant.toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException ignored) {
+                    return coerced;
+                }
+            }
+            return coerced;
+        }
+
+        if (expectedType == BigDecimal.class) {
+            if (coerced instanceof BigDecimal) {
+                return coerced;
+            }
+            if (coerced instanceof Number number) {
+                return new BigDecimal(number.toString());
+            }
+            if (coerced instanceof String str) {
+                try {
+                    return new BigDecimal(str.trim());
+                } catch (NumberFormatException ignored) {
+                    return coerced;
+                }
+            }
+            return coerced;
+        }
+
+        if (expectedType == LocalDateTime.class && coerced instanceof LocalDate date) {
+            return date.atStartOfDay();
+        }
+        if (expectedType == LocalDate.class && coerced instanceof LocalDateTime dateTime) {
+            return dateTime.toLocalDate();
+        }
+
+        if (expectedType == Integer.class || expectedType == int.class) {
+            if (coerced instanceof Number number) {
+                return number.intValue();
+            }
+            if (coerced instanceof String str) {
+                try {
+                    return Integer.parseInt(str.trim());
+                } catch (NumberFormatException ignored) {
+                    return coerced;
+                }
+            }
+            return coerced;
+        }
+
+        if (expectedType == Long.class || expectedType == long.class) {
+            if (coerced instanceof Number number) {
+                return number.longValue();
+            }
+            if (coerced instanceof String str) {
+                try {
+                    return Long.parseLong(str.trim());
+                } catch (NumberFormatException ignored) {
+                    return coerced;
+                }
+            }
+            return coerced;
+        }
+
+        if (expectedType == Double.class || expectedType == double.class) {
+            if (coerced instanceof Number number) {
+                return number.doubleValue();
+            }
+            if (coerced instanceof String str) {
+                try {
+                    return Double.parseDouble(str.trim());
+                } catch (NumberFormatException ignored) {
+                    return coerced;
+                }
+            }
+            return coerced;
+        }
+
+        if (expectedType == Boolean.class || expectedType == boolean.class) {
+            if (coerced instanceof Boolean) {
+                return coerced;
+            }
+            if (coerced instanceof String str) {
+                String normalized = str.trim().toLowerCase(Locale.ROOT);
+                if ("true".equals(normalized) || "false".equals(normalized)) {
+                    return Boolean.parseBoolean(normalized);
+                }
+            }
+            return coerced;
+        }
+
+        return coerced;
+    }
+
+    private Class<?> resolveExpectedJavaType(FilterCondition condition) {
+        String entityType = condition.getEntityType();
+        String field = condition.getField();
+
+        String resolvedEntityType = entityType;
+        if (!StringUtils.hasText(resolvedEntityType) && StringUtils.hasText(field) && field.contains(".")) {
+            resolvedEntityType = field.substring(0, field.indexOf('.'));
+        }
+        if (!StringUtils.hasText(resolvedEntityType)) {
+            return null;
+        }
+
+        Class<?> entityClass;
+        try {
+            entityClass = relationshipMapper.getEntityClass(resolvedEntityType);
+        } catch (Exception ignored) {
+            return null;
+        }
+
+        String propertyPath = field;
+        if (StringUtils.hasText(propertyPath) && propertyPath.contains(".")) {
+            String prefix = propertyPath.substring(0, propertyPath.indexOf('.'));
+            if (prefix.equalsIgnoreCase(resolvedEntityType)) {
+                propertyPath = propertyPath.substring(prefix.length() + 1);
+            }
+        }
+
+        if (!StringUtils.hasText(propertyPath)) {
+            return null;
+        }
+        return resolvePropertyType(entityClass, propertyPath);
+    }
+
+    private Class<?> resolvePropertyType(Class<?> rootType, String propertyPath) {
+        String[] segments = propertyPath.split("\\.");
+        Class<?> currentType = rootType;
+        for (String segment : segments) {
+            if (!StringUtils.hasText(segment) || currentType == null) {
+                return null;
+            }
+            currentType = resolveSinglePropertyType(currentType, segment.trim());
+        }
+        return currentType;
+    }
+
+    private Class<?> resolveSinglePropertyType(Class<?> type, String property) {
+        Class<?> fieldType = findFieldType(type, property);
+        if (fieldType != null) {
+            return fieldType;
+        }
+        Method getter = findGetter(type, property);
+        return getter != null ? getter.getReturnType() : null;
+    }
+
+    private Class<?> findFieldType(Class<?> type, String name) {
+        Class<?> current = type;
+        while (current != null && current != Object.class) {
+            try {
+                Field field = current.getDeclaredField(name);
+                return field.getType();
+            } catch (NoSuchFieldException ignored) {
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    private Method findGetter(Class<?> type, String property) {
+        String capitalized = property.substring(0, 1).toUpperCase(Locale.ROOT) + property.substring(1);
+        for (String candidate : List.of("get" + capitalized, "is" + capitalized)) {
+            try {
+                return type.getMethod(candidate);
+            } catch (NoSuchMethodException ignored) {
+            }
+        }
+        return null;
     }
 
     private static class AliasRegistry {

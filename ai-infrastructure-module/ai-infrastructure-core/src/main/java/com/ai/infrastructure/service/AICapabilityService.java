@@ -464,7 +464,7 @@ public class AICapabilityService {
     /**
      * Validate AI entity configuration
      */
-    private void validateConfiguration(AIEntityConfig config, String entityType) {
+    private void validateConfiguration(AIEntityConfig config, String entityType, @Nullable Class<?> entityClass) {
         if (config == null) {
             throw new IllegalArgumentException("AI configuration cannot be null for entity type: " + entityType);
         }
@@ -473,15 +473,20 @@ public class AICapabilityService {
             throw new IllegalArgumentException("AI configuration entity type cannot be null or empty");
         }
         
-        if (config.getSearchableFields() == null || config.getSearchableFields().isEmpty()) {
+        boolean hasAnnotationSearchableFields = entityClass != null
+            && !annotationFieldScanner.getSearchableFields(entityClass).isEmpty();
+        boolean hasAnnotationContextFields = entityClass != null
+            && !annotationFieldScanner.getContextFields(entityClass).isEmpty();
+
+        if ((config.getSearchableFields() == null || config.getSearchableFields().isEmpty()) && !hasAnnotationSearchableFields) {
             log.warn("No searchable fields configured for entity type: {}", entityType);
         }
-        
-        if (config.getEmbeddableFields() == null || config.getEmbeddableFields().isEmpty()) {
+
+        if ((config.getEmbeddableFields() == null || config.getEmbeddableFields().isEmpty()) && !hasAnnotationSearchableFields) {
             log.warn("No embeddable fields configured for entity type: {}", entityType);
         }
         
-        if (config.getMetadataFields() == null) {
+        if (config.getMetadataFields() == null && !hasAnnotationContextFields) {
             log.warn("No metadata fields configured for entity type: {} - metadata extraction will be skipped", entityType);
         }
     }
@@ -518,7 +523,7 @@ public class AICapabilityService {
                 config.getMetadataFields() != null ? config.getMetadataFields().getClass().getSimpleName() : "null");
             
             // Validate configuration
-            validateConfiguration(config, entityType);
+            validateConfiguration(config, entityType, entity != null ? entity.getClass() : null);
             
             log.debug("Retrieved config for entity type: {}, metadata fields: {}",
                 entityType, config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");

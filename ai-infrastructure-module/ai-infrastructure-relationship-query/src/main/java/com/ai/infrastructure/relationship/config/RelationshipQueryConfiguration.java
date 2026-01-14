@@ -20,11 +20,13 @@ import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.orm.jpa.SharedEntityManagerCreator;
 
 /**
  * Base configuration that exposes shared beans for the relationship query module.
@@ -57,12 +59,13 @@ class RelationshipQueryConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(EntityManager.class)
+    @ConditionalOnBean(name = "entityManagerFactory")
     @ConditionalOnMissingBean
-    RelationshipSchemaProvider relationshipSchemaProvider(EntityManager entityManager,
+    RelationshipSchemaProvider relationshipSchemaProvider(EntityManagerFactory entityManagerFactory,
                                                          @Nullable AIEntityConfigurationLoader configurationLoader,
                                                          RelationshipQueryProperties properties,
                                                          EntityRelationshipMapper mapper) {
+        EntityManager entityManager = SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory);
         return new RelationshipSchemaProvider(entityManager, configurationLoader, properties, mapper);
     }
 
@@ -92,9 +95,10 @@ class RelationshipQueryConfiguration {
     }
 
     @Bean(name = "jpaRelationshipTraversalService")
-    @ConditionalOnBean(EntityManager.class)
+    @ConditionalOnBean(name = "entityManagerFactory")
     @ConditionalOnMissingBean(name = "jpaRelationshipTraversalService")
-    RelationshipTraversalService jpaRelationshipTraversalService(EntityManager entityManager) {
+    RelationshipTraversalService jpaRelationshipTraversalService(EntityManagerFactory entityManagerFactory) {
+        EntityManager entityManager = SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory);
         return new JpaRelationshipTraversalService(entityManager);
     }
 
@@ -107,19 +111,24 @@ class RelationshipQueryConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean({
-        RelationshipQueryPlanner.class,
-        RelationshipTraversalService.class,
-        AISearchableEntityRepository.class
-    })
+    @ConditionalOnBean(
+        value = {
+            RelationshipQueryPlanner.class,
+            DynamicJPAQueryBuilder.class,
+            RelationshipQueryValidator.class,
+            RelationshipModuleMetadata.class,
+            AISearchableEntityRepository.class
+        },
+        name = {"jpaRelationshipTraversalService", "metadataRelationshipTraversalService"}
+    )
     @ConditionalOnMissingBean
     LLMDrivenJPAQueryService relationshipQueryService(RelationshipQueryPlanner planner,
                                                       DynamicJPAQueryBuilder queryBuilder,
                                                       RelationshipQueryValidator validator,
                                                       RelationshipQueryProperties properties,
                                                       RelationshipModuleMetadata metadata,
-                                                      RelationshipTraversalService jpaRelationshipTraversalService,
-                                                      RelationshipTraversalService metadataRelationshipTraversalService,
+                                                      @Qualifier("jpaRelationshipTraversalService") RelationshipTraversalService jpaRelationshipTraversalService,
+                                                      @Qualifier("metadataRelationshipTraversalService") RelationshipTraversalService metadataRelationshipTraversalService,
                                                       AISearchableEntityRepository repository,
                                                       @Nullable VectorDatabaseService vectorDatabaseService,
                                                       @Nullable AIEmbeddingService embeddingService,
@@ -148,7 +157,16 @@ class RelationshipQueryConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean({LLMDrivenJPAQueryService.class, RelationshipQueryPlanner.class})
+    @ConditionalOnBean(
+        value = {
+            LLMDrivenJPAQueryService.class,
+            RelationshipQueryPlanner.class,
+            RelationshipQueryValidator.class,
+            RelationshipModuleMetadata.class,
+            AISearchableEntityRepository.class
+        },
+        name = "metadataRelationshipTraversalService"
+    )
     @ConditionalOnMissingBean
     ReliableRelationshipQueryService reliableRelationshipQueryService(LLMDrivenJPAQueryService llmDrivenJPAQueryService,
                                                                       RelationshipQueryPlanner relationshipQueryPlanner,
