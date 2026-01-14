@@ -23,6 +23,18 @@
 - `Real_Apps/sub-management-hub/`
   - Scenario: “advanced/explicit” (shows optional entity annotations like `@AICapable`, `@AISearchable`, `@AIContext`).
   - Still uses `ai-entity-config.yml` so the framework has a single consistent source of truth.
+- `Real_Apps/it-support-action-bot/`
+  - Scenario: “provider-only action bot” (no vector DB / no indexing / no RAG).
+  - Validates orchestrator + action handling with only an LLM provider configured.
+- `Real_Apps/privacy-first-customer-facing-support/`
+  - Scenario: “privacy-first support” (PII detection + redaction + optional encrypted/hash original storage).
+  - No vector DB / indexing / providers required; driven entirely by `ai.pii-detection.*` configuration.
+- `Real_Apps/smart-faq-assistant/`
+  - Scenario: “offline semantic search” (H2 + ONNX embeddings + Lucene vector DB), optional contextual answer generation.
+  - Uses DB text (FAQ articles), not file parsing/document ingestion.
+- `Real_Apps/migration-enabled-product-catalog/`
+  - Scenario: “migration-enabled backfill” (seed DB first, then bulk index via `DataMigrationService` + async indexing worker).
+  - Default stack: H2 + ONNX + Lucene (no external services/keys).
 
 ## How To Create A New Real App
 

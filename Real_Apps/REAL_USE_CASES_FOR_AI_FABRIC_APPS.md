@@ -47,7 +47,7 @@ Each use case leverages one or more of these AI Fabric capabilities:
 - **PII/PHI Detection** - Privacy-first data handling (via `PIIDetectionService`)
 - **Migration Tools** - Bulk data processing (via `DataMigrationService`)
 - **Web Endpoints** - REST controllers for security/compliance/advanced RAG/migration (via `ai-fabric-web` module)
-- **Automatic Indexing** - Via `@AICapable` annotation with `autoEmbedding` and `indexable`
+- **Automatic Indexing** - Prefer configuration-driven entity setup; annotations are optional
 
 ### Framework Modules
 
@@ -73,15 +73,17 @@ Below is a proposed demo suite selected from the use cases in this document, wit
 | Real_Apps folder | Source idea | Setup scenario (one focus) | Suggested default setup | Framework support check |
 |---|---|---|---|---|
 | `sub-management-hub-simple` | [App 7](#app-7-subscription-management-hub) | **Minimal integration** (config-driven) | ONNX + Lucene + H2 (no external infra) | ✅ Supported (core + indexing + local embeddings + embedded vector DB) |
-| `sub-management-hub` | [App 7](#app-7-subscription-management-hub) | **Annotation-driven** (shows `@AICapable`/`@AIProcess`) | ONNX + Lucene + H2 | ✅ Supported (core + indexing; annotations optional) |
+| `sub-management-hub` | [App 7](#app-7-subscription-management-hub) | **Annotation-assisted** (optional annotations) | ONNX + Lucene + H2 | ✅ Supported (core + indexing; annotations optional) |
+| `privacy-first-customer-facing-support` | [Customer Success & Support](#customer-success--support) | **Privacy-first support intake** (PII detect + redact + optional encrypted/hash audit) | PII module + H2 (no external infra) | ✅ Supported (`ai-infrastructure-pii`) |
 | `smart-faq-assistant` | [App 1](#app-1-smart-faq-assistant) | **RAG + semantic search** over curated content | ONNX + Lucene + H2; optional LLM provider | ✅ Supported (RAG module + AdvancedRAG) |
+| `migration-enabled-product-catalog` | [Implementation Guidelines](#implementation-guidelines) | **Migration + indexing backfill** (seed DB, then resume/pause migration jobs) | Migration module + ONNX + Lucene + H2 | ✅ Supported (`ai-fabric-migration-core` + indexing) |
 | `document-intelligence-hub` | [App 2](#app-2-document-intelligence-hub) | **PII-aware ingestion + Q&A** over documents | ONNX + Lucene + Postgres; PII `REDACT` | ✅ Supported (PII + RAG + chunking) ⚠️ File parsing is external |
 | `product-discovery-engine` | [App 3](#app-3-product-discovery-engine) | **Production-like vector search** + metadata filtering | OpenAI/Cohere + Qdrant + Postgres | ✅ Supported (Qdrant module exists) ⚠️ Needs external Qdrant |
 | `team-sentiment-tracker` | [App 4](#app-4-team-sentiment-tracker) | **Behavior analytics** (sentiment + churn) | LLM provider required + Postgres | ✅ Supported (behavior module) ⚠️ App must provide `ExternalEventProvider` |
 | `bi-analytics-platform` | [Use Case #21](#use-case-21-business-intelligence--analytics-platform) | **Natural language → relational queries** | Relationship Query + Postgres + LLM provider | ✅ Supported (`ReliableRelationshipQueryService`) ⚠️ LLM required |
 
 **Notes (important for correctness):**
-- **Index sync trigger:** Today, keeping vectors/searchables synced typically means annotating write methods with `@AIProcess` (or calling the indexing coordinator explicitly). Plan the demo apps accordingly.
+- **Index sync trigger:** Prefer configuration-driven indexing. If you have unusual write paths, trigger indexing explicitly in the service layer or use optional AOP/annotations where they add value.
 - **Migration demo:** If an app needs to demonstrate bulk backfill/reindexing, include `ai-infrastructure-migration` and set `ai.migration.enabled=true` (optionally add `ai-fabric-web` to expose `/api/ai/migration/*`).
 
 ---
@@ -143,7 +145,7 @@ public class FAQArticle {
 - `GET /api/faq/articles/{id}` - Get article by ID
 - `POST /api/faq/feedback/{queryId}` - Submit helpfulness feedback
 
-**Service Methods (REQUIRED @AIProcess for vector sync):**
+**Service Methods (indexing trigger example):**
 ```java
 @Service
 public class FAQService {
@@ -174,7 +176,7 @@ public class FAQService {
 **AI Fabric Framework Provides:**
 - ✅ **PII Detection** - `PIIDetectionService.detectAndProcess()` with redaction capabilities
 - ✅ **Embedding Generation** - `AICoreService.generateEmbedding()` for vector creation
-- ✅ **Vector Indexing** - Automatic via `@AICapable` and `@AIProcess` annotations
+- ✅ **Vector Indexing** - Supported via config-driven entity setup; trigger via explicit service call or optional annotations
 - ✅ **RAG for Q&A** - Via `RAGProvider` for question answering
 - ✅ **Semantic Search** - `AISearchService` for searching indexed documents
 
@@ -191,7 +193,7 @@ public class FAQService {
    ↓
 4. Embedding Generation (✅ Framework: AICoreService.generateEmbedding())
    ↓
-5. Vector Indexing (✅ Framework: Automatic via @AICapable/@AIProcess)
+5. Vector Indexing (✅ Framework: config-driven; triggered via explicit call or optional annotations)
    ↓
 6. Ready for Search & Q&A (✅ Framework: RAGProvider)
 ```
@@ -247,7 +249,7 @@ public class Document {
 - `POST /api/docs/bulk-upload` - Upload multiple documents at once
 - `POST /api/docs/{id}/reprocess` - Reprocess document (e.g., after PII detection update)
 
-**Service Methods (REQUIRED @AIProcess for vector sync):**
+**Service Methods (indexing trigger example):**
 ```java
 @Service
 @RequiredArgsConstructor
@@ -362,7 +364,7 @@ public class DocumentService {
 **✅ Framework Features (Ready to Use):**
 - **PII Detection:** Framework provides `PIIDetectionService.detectAndProcess()` with detection and redaction
 - **Embedding Generation:** Framework provides `AICoreService.generateEmbedding()` for vector creation
-- **Vector Indexing:** Automatic via `@AICapable` and `@AIProcess` annotations
+- **Vector Indexing:** Configuration-driven; trigger via explicit call or optional annotations
 - **RAG for Q&A:** Framework provides `RAGProvider` for question answering
 - **Semantic Search:** Framework provides `AISearchService` for searching indexed documents
 - **Async Processing:** Use `IndexingStrategy.ASYNC` for large documents to avoid blocking
@@ -420,7 +422,7 @@ public class Product {
 - `POST /api/products/interactions` - Track user interaction
 - `GET /api/products/trending` - Get trending products
 
-**Service Methods (REQUIRED @AIProcess for vector sync):**
+**Service Methods (indexing trigger example):**
 ```java
 @Service
 public class ProductService {
@@ -484,7 +486,7 @@ public class TeamCheckIn {
 - `GET /api/sentiment/alerts` - Get active alerts
 - `GET /api/sentiment/team/{teamId}/trends` - Team sentiment trends
 
-**Service Methods (REQUIRED @AIProcess for vector sync):**
+**Service Methods (indexing trigger example):**
 ```java
 @Service
 public class SentimentService {
@@ -542,7 +544,7 @@ public class CodeDocumentation {
 - `POST /api/code/index-repo` - Index a repository
 - `GET /api/code/repos` - List indexed repositories
 
-**Service Methods (REQUIRED @AIProcess for vector sync):**
+**Service Methods (indexing trigger example):**
 ```java
 @Service
 public class CodeDocumentationService {
@@ -603,7 +605,7 @@ public class Meeting {
 - `POST /api/meetings/search` - Search across meetings
 - `POST /api/meetings/ask` - Ask question about past meetings
 
-**Service Methods (REQUIRED @AIProcess for vector sync):**
+**Service Methods (indexing trigger example):**
 ```java
 @Service
 public class MeetingService {
@@ -752,7 +754,7 @@ public class Address {
 - `GET /api/subscriptions/at-risk` - List subscribers at risk of churning
 - `POST /api/subscriptions/events` - Track subscription events (for behavior analysis)
 
-**Service Methods (REQUIRED @AIProcess for vector sync):**
+**Service Methods (indexing trigger example):**
 ```java
 @Service
 @RequiredArgsConstructor
@@ -3104,8 +3106,11 @@ All use cases follow these common patterns:
    - `AISearchService` - Semantic search operations
    - `RAGProvider` - RAG operations (implemented by `ai-infrastructure-rag` module)
    - `AIEmbeddingService` - Embedding generation
-3. **Data Layer** - JPA entities with `@AICapable` annotation:
+3. **Data Layer** - Plain JPA entities + configuration-driven entity setup (annotations optional):
+   - Preferred: configure entity types/fields in the entity config YAML (`ai.config.default-file`)
+   - Optional: use annotations like `@AICapable`, `@AISearchable`, `@AIContext` to reduce boilerplate
    ```java
+   // Optional example (annotation-assisted)
    @AICapable(
        entityType = "your-entity-type",
        autoEmbedding = true,  // Auto-generate embeddings
@@ -3116,6 +3121,49 @@ All use cases follow these common patterns:
 4. **AI Layer** - Semantic search, RAG, embeddings via AI Fabric Core
 5. **Security Layer** - PII/PHI detection via `PIIDetectionService`, access control
 6. **Analytics Layer** - Behavior module for insights via `BehaviorAnalysisService`
+
+### Minimal App Configuration (Config-first)
+
+The current goal for `Real_Apps/` is **minimal annotations** and **configuration-driven behavior**. A typical local dev setup looks like:
+
+**`application.yml` (minimal)**
+```yaml
+ai:
+  enabled: true
+  config:
+    default-file: classpath:ai-entity-config.yml
+  providers:
+    llm-provider: ${LLM_PROVIDER:openai}
+    embedding-provider: ${EMBEDDING_PROVIDER:onnx}
+    onnx:
+      enabled: true
+  vector-db:
+    type: ${VECTOR_DB:lucene}
+```
+
+**`ai-entity-config.yml` (minimal)**
+```yaml
+ai-entities:
+  product:
+    features: ["embedding", "search"]
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: name
+      - name: description
+    metadata-fields:
+      - name: category
+        type: STRING
+      - name: brand
+        type: STRING
+```
+
+**Indexing trigger (minimal, explicit)**
+```java
+Product saved = repository.save(product);
+aiCapabilityService.processEntityForAI(saved, "product");
+```
 
 ### Required Dependencies
 
@@ -3197,7 +3245,7 @@ All use cases follow these common patterns:
 
 ### @AICapable Annotation Usage
 
-The `@AICapable` annotation is the primary way to enable AI capabilities on entities:
+The `@AICapable` annotation is an optional (annotation-assisted) way to declare AI intent on entities. Prefer configuration-driven entity setup when possible.
 
 ```java
 @AICapable(
@@ -3226,16 +3274,17 @@ public class Product {
 }
 ```
 
-### ⚠️ CRITICAL: @AIProcess Annotation for Vector Synchronization
+### Index Synchronization (Config-first, minimal annotation)
 
-**@AIProcess is ESSENTIAL** for keeping vectors synchronized with database changes. It must be used on **ALL service methods** that save, update, or delete entities.
+Prefer explicit indexing calls in the service layer so apps work with minimal annotations and the write-path is obvious.
 
-**Why it's needed:**
-- `@AICapable` works for direct repository calls
-- Service methods need `@AIProcess` to ensure AOP intercepts at the service layer
-- Without `@AIProcess`, vectors may become out of sync with database
+**Recommended (explicit call):**
+```java
+Product saved = repository.save(product);
+aiCapabilityService.processEntityForAI(saved, "product");
+```
 
-**Where to use @AIProcess:**
+**Optional (AOP helper):** use `@AIProcess` if you want AOP-driven synchronization without explicit calls.
 
 ```java
 @Service
@@ -3245,7 +3294,7 @@ public class ProductService {
     private final ProductRepository repository;
     
     /**
-     * CREATE - Must use @AIProcess to sync vectors
+     * CREATE - optional @AIProcess wrapper
      */
     @AIProcess(
         entityType = "product",
@@ -3265,7 +3314,7 @@ public class ProductService {
     }
     
     /**
-     * UPDATE - Must use @AIProcess to sync vectors
+     * UPDATE - optional @AIProcess wrapper
      */
     @AIProcess(
         entityType = "product",
@@ -3286,7 +3335,7 @@ public class ProductService {
     }
     
     /**
-     * DELETE - Must use @AIProcess to remove from index
+     * DELETE - optional @AIProcess wrapper
      */
     @AIProcess(
         entityType = "product",
@@ -3304,7 +3353,7 @@ public class ProductService {
     }
     
     /**
-     * BULK OPERATIONS - Must use @AIProcess
+     * BULK OPERATIONS - optional @AIProcess wrapper
      */
     @AIProcess(
         entityType = "product",
@@ -3323,7 +3372,7 @@ public class ProductService {
 }
 ```
 
-**Use @AIProcess on:**
+**If you use @AIProcess, use it on:**
 - ✅ All CREATE methods (`createProduct()`, `saveProduct()`, `addProduct()`)
 - ✅ All UPDATE methods (`updateProduct()`, `modifyProduct()`, `editProduct()`)
 - ✅ All DELETE methods (`deleteProduct()`, `removeProduct()`)
@@ -3355,8 +3404,7 @@ public class ProductService {
     private final BehaviorAnalysisService behaviorService;
     
     /**
-     * ⚠️ CRITICAL: Use @AIProcess on ALL methods that save/update/delete entities
-     * This ensures vectors stay synchronized with database changes
+     * Option: wrap write-path with @AIProcess (or call AICapabilityService explicitly)
      */
     @AIProcess(
         entityType = "product",
@@ -3426,20 +3474,10 @@ public class ProductService {
 }
 ```
 
-### ⚠️ CRITICAL: @AIProcess for Vector Synchronization
+### Index Synchronization Summary
 
-**@AIProcess is ESSENTIAL** for keeping vectors synchronized with database changes. Use it on:
-
-1. **All CREATE methods** - `createProduct()`, `saveProduct()`, `addProduct()`
-2. **All UPDATE methods** - `updateProduct()`, `modifyProduct()`, `editProduct()`
-3. **All DELETE methods** - `deleteProduct()`, `removeProduct()`
-4. **Bulk operations** - `bulkCreate()`, `importProducts()`, `migrateData()`
-5. **Custom business logic** - Any service method that calls `repository.save()`
-
-**Why it's needed:**
-- `@AICapable` works for direct repository calls
-- Service methods need `@AIProcess` to ensure AOP intercepts at the service layer
-- Without `@AIProcess`, vectors may become out of sync with database
+- Preferred: explicit service call to `AICapabilityService.processEntityForAI(entity, entityType)`
+- Optional: `@AIProcess` where you want AOP-based synchronization
 
 ### Implementation Phases
 
@@ -3447,7 +3485,7 @@ public class ProductService {
 - Setup project structure
 - Configure AI Fabric modules
 - Create database schema
-- Setup basic entities with @AICapable
+- Setup entity config YAML (annotations optional)
 
 **Phase 2: Core Features (Weeks 2-3)**
 - Implement core business logic
@@ -3648,8 +3686,9 @@ These provide **additional inspiration** across different industries:
 
 All use cases are aligned with actual AI Fabric Framework capabilities:
 
-✅ **@AICapable Annotation** - Correct usage with `autoEmbedding`, `indexable`, `indexingStrategy`  
-✅ **@AIProcess Annotation** - **ESSENTIAL** for service methods to keep vectors synced with DB  
+✅ **Configuration-first setup** - minimal annotations; auto-configuration drives bean creation  
+✅ **@AICapable Annotation** - optional annotation for entity intent  
+✅ **@AIProcess Annotation** - optional AOP helper for write-path synchronization  
 ✅ **@AISearchable Annotation** - Field-level annotation for searchable content  
 ✅ **@AIContext Annotation** - Field-level annotation for metadata  
 ✅ **Core Services** - `AICoreService`, `AISearchService`, `RAGProvider`, `AIEmbeddingService`  
@@ -3664,7 +3703,7 @@ All use cases are aligned with actual AI Fabric Framework capabilities:
 
 1. **Choose a starter app** from the 7 recommended examples
 2. **Review the implementation guidelines** for framework setup
-3. **Follow the data model patterns** with `@AICapable` annotations
+3. **Create entity config YAML** (annotations optional)
 4. **Implement REST endpoints** using AI Fabric Web module
 5. **Leverage framework services** for AI capabilities
 6. **Test and deploy** following the testing strategy

@@ -30,6 +30,21 @@
 - End-to-end demo (mutate + index + search):
   - `POST http://localhost:8080/api/ai/debug/indexing/demo?mode=sync`
 
+## Validate (App-Level Scenarios)
+
+These endpoints are more “product-like” and validate that the framework integration works without exposing internal indexing/queue types.
+
+- Reindex plans (explicit, config-first trigger):
+  - `POST http://localhost:8080/api/demo/indexing/reindex/plans`
+- AI plan recommendation (returns scores + hydrated plans):
+  - `GET http://localhost:8080/api/subscriptions/plans/ai/search?q=team%20collaboration%20api%20access&limit=3`
+- Plan search endpoint used by the app (returns plans only, falls back to DB contains if AI isn’t available):
+  - `POST http://localhost:8080/api/subscriptions/plans/search?query=priority%20support&limit=3`
+
+### Ready-to-run request file
+
+Use `Real_Apps/sub-management-hub-simple/requests/demo.http`.
+
 ### Queue-based (Async) Validation
 
 - Enqueue indexing:

@@ -42,11 +42,11 @@ public class Subscription {
     @Builder.Default
     private SubscriptionStatus status = SubscriptionStatus.ACTIVE;
     
-    @AIContext(contextKey = "startDate", dataType = "datetime")
+    @AIContext(contextKey = "startDate")
     @Column(nullable = false)
     private LocalDateTime startDate;
     
-    @AIContext(contextKey = "endDate", dataType = "datetime")
+    @AIContext(contextKey = "endDate")
     private LocalDateTime endDate;
     
     @AIContext(contextKey = "billingCycle")
@@ -54,10 +54,10 @@ public class Subscription {
     @Enumerated(EnumType.STRING)
     private BillingCycle billingCycle;  // MONTHLY, ANNUAL
     
-    @AIContext(contextKey = "churnRisk", dataType = "decimal")
+    @AIContext(contextKey = "churnRiskScore")
     private Double churnRiskScore;  // 0.0-1.0 from Behavior Analysis
     
-    @AIContext(contextKey = "lastActivityDate", dataType = "datetime")
+    @AIContext(contextKey = "lastActivityDate")
     private LocalDateTime lastActivityDate;
     
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)

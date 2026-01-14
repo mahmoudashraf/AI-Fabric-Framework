@@ -41,29 +41,29 @@ public class SubscriptionPlan {
     @Column(columnDefinition = "TEXT")
     private String description;  // Full plan description
     
-    @AIContext(contextKey = "price", dataType = "decimal")
+    @AIContext
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal monthlyPrice;
     
-    @AIContext(contextKey = "annualPrice", dataType = "decimal")
+    @AIContext
     @Column(precision = 10, scale = 2)
     private BigDecimal annualPrice;
     
-    @AIContext(contextKey = "tier")
+    @AIContext
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private PlanTier tier;  // BASIC, PRO, ENTERPRISE
     
-    @AIContext(contextKey = "features")
+    @AIContext
     @ElementCollection
     @CollectionTable(name = "plan_features", joinColumns = @JoinColumn(name = "plan_id"))
     @Column(name = "feature")
     private List<String> features;  // ["Unlimited storage", "Priority support", ...]
     
-    @AIContext(contextKey = "maxUsers")
+    @AIContext
     private Integer maxUsers;
     
-    @AIContext(contextKey = "storageGB")
+    @AIContext
     private Integer storageGB;
     
     @Column(nullable = false)
