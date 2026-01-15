@@ -112,6 +112,32 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             return Optional.empty();
         }
 
+        // Weaviate >= 1.23 deprecates object paths without className; prefer class-qualified lookups.
+        List<String> classCandidates = knownClasses.isEmpty()
+            ? List.of()
+            : knownClasses.stream().filter(this::hasText).sorted().toList();
+
+        for (String className : classCandidates) {
+            Result<List<WeaviateObject>> result = client.data()
+                .objectsGetter()
+                .withClassName(className)
+                .withID(vectorId)
+                .withVector()
+                .run();
+
+            if (result.hasErrors()) {
+                if (isNotFound(result.getError())) {
+                    continue;
+                }
+                throw new AIServiceException("Weaviate getVector failed: " + errorMessages(result.getError()));
+            }
+
+            if (!CollectionUtils.isEmpty(result.getResult())) {
+                return Optional.ofNullable(toVectorRecord(result.getResult().getFirst(), null));
+            }
+        }
+
+        // Fallback for older stores/unknown classes: may trigger a deprecation warning on Weaviate >= 1.23.
         Result<List<WeaviateObject>> result = client.data()
             .objectsGetter()
             .withID(vectorId)
@@ -262,6 +288,16 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             return false;
         }
         try {
+            // Prefer class-qualified deletes to avoid Weaviate 1.23+ deprecation warnings.
+            if (!knownClasses.isEmpty()) {
+                for (String className : knownClasses.stream().filter(this::hasText).sorted().toList()) {
+                    if (deleteById(className, vectorId)) {
+                        return true;
+                    }
+                }
+            }
+
+            // Fallback: may trigger a deprecation warning on Weaviate >= 1.23.
             Result<Boolean> result = client.data()
                 .deleter()
                 .withID(vectorId)
@@ -406,8 +442,13 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
         if (!hasText(entityType)) {
             return 0;
         }
+        String className = toClassName(entityType);
+        if (!classExists(className)) {
+            return 0;
+        }
+
         List<VectorRecord> records = getVectorsByEntityType(entityType);
-        records.forEach(record -> removeVectorById(record.getVectorId()));
+        records.forEach(record -> deleteById(className, record.getVectorId()));
         return records.size();
     }
 

@@ -249,18 +249,24 @@ public class IntentQueryExtractor {
             response.setIntents(List.of());
         }
 
-        for (Intent intent : response.getIntents()) {
-            if (!intent.hasValidType()) {
-                throw new AIServiceException("Intent is missing a valid type attribute");
-            }
-            if (!intent.hasMeaningfulName()) {
-                throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
-            }
-            validateRelationshipActionParams(intent, originalQuery);
-            if (intent.getRequiresRetrieval() == null) {
-                intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
-            }
-            if (Boolean.TRUE.equals(intent.getRequiresRetrieval()) && !StringUtils.hasText(intent.getVectorSpace())) {
+	        for (Intent intent : response.getIntents()) {
+	            if (!intent.hasValidType()) {
+	                throw new AIServiceException("Intent is missing a valid type attribute");
+	            }
+	            if (!intent.hasMeaningfulName()) {
+	                // Provider-agnostic tolerance: some models emit OUT_OF_SCOPE intents without a stable name.
+	                // For OUT_OF_SCOPE we do not require `intent` / `action` because execution does not depend on it.
+	                if (intent.getType() == IntentType.OUT_OF_SCOPE) {
+	                    intent.setIntent("out_of_scope");
+	                } else {
+	                    throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
+	                }
+	            }
+	            validateRelationshipActionParams(intent, originalQuery);
+	            if (intent.getRequiresRetrieval() == null) {
+	                intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
+	            }
+	            if (Boolean.TRUE.equals(intent.getRequiresRetrieval()) && !StringUtils.hasText(intent.getVectorSpace())) {
                 log.debug("Intent requires retrieval but vectorSpace is missing; deferring routing to VectorSpaceResolutionStep");
             }
         }

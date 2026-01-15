@@ -210,6 +210,43 @@ class IntentQueryExtractorTest {
     }
 
     @Test
+    void shouldTolerateOutOfScopeIntentWithoutNameFields() {
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
+
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "OUT_OF_SCOPE",
+                  "confidence": 1.0,
+                  "actionParams": {"reason": "Unrelated to available knowledge base"}
+                }
+              ],
+              "isCompound": false
+            }
+            """;
+
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            objectMapper
+        );
+
+        MultiIntentResponse response = extractor.extract("What analytics solutions do you offer?",
+            OrchestrationContext.forUser("user-789"));
+
+        assertThat(response.getIntents()).hasSize(1);
+        Intent intent = response.getIntents().getFirst();
+        assertThat(intent.getType()).isEqualTo(IntentType.OUT_OF_SCOPE);
+        assertThat(intent.getIntent()).isEqualTo("out_of_scope");
+        assertThat(intent.getActionParams()).containsEntry("reason", "Unrelated to available knowledge base");
+    }
+
+    @Test
     void shouldParseNextStepRecommendation() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
 
