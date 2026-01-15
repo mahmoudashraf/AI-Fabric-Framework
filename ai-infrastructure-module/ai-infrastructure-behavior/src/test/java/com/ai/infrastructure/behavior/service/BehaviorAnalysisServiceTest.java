@@ -7,11 +7,12 @@ import com.ai.infrastructure.behavior.model.UserEventBatch;
 import com.ai.infrastructure.behavior.spi.ExternalEventProvider;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.llm.structured.DefaultStructuredJsonCallExecutor;
+import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,13 +40,18 @@ class BehaviorAnalysisServiceTest {
 
     private ObjectMapper objectMapper;
 
-    @InjectMocks
     private BehaviorAnalysisService service;
 
     @BeforeEach
     void setup() {
         objectMapper = new ObjectMapper();
-        service = new BehaviorAnalysisService(eventProvider, storageAdapter, aiCoreService, objectMapper);
+        service = new BehaviorAnalysisService(
+            eventProvider,
+            storageAdapter,
+            aiCoreService,
+            objectMapper,
+            new DefaultStructuredJsonCallExecutor(new StructuredJsonExtractor(), objectMapper)
+        );
     }
 
     @Test

@@ -15,6 +15,7 @@ import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
 import com.ai.infrastructure.relationship.service.RelationshipTraversalService;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
+import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -85,8 +86,18 @@ class RelationshipQueryConfiguration {
                                                       RelationshipQueryValidator validator,
                                                       QueryCache queryCache,
                                                       QueryMetrics queryMetrics,
-                                                      ObjectMapper objectMapper) {
-        return new RelationshipQueryPlanner(aiCoreService, schemaProvider, properties, validator, queryCache, queryMetrics, objectMapper);
+                                                      ObjectMapper objectMapper,
+                                                      StructuredJsonExtractor structuredJsonExtractor) {
+        return new RelationshipQueryPlanner(
+            aiCoreService,
+            schemaProvider,
+            properties,
+            validator,
+            queryCache,
+            queryMetrics,
+            objectMapper,
+            structuredJsonExtractor
+        );
     }
 
     @Bean

@@ -3,6 +3,7 @@ package com.ai.infrastructure.relationship.service;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
@@ -60,7 +61,8 @@ class RelationshipQueryPlannerTest {
             validator,
             queryCache,
             queryMetrics,
-            new ObjectMapper()
+            new ObjectMapper(),
+            new StructuredJsonExtractor()
         );
     }
 
@@ -91,6 +93,33 @@ class RelationshipQueryPlannerTest {
         verify(validator).validate(any(RelationshipQueryPlan.class));
         verify(queryCache).putPlan(anyString(), any(RelationshipQueryPlan.class));
         verify(queryMetrics).recordPlan(any(Long.class), any(Boolean.class), any(Boolean.class));
+    }
+
+    @Test
+    void shouldUseConfiguredMaxTokensForPlanningRequests() {
+        RelationshipQueryProperties properties = new RelationshipQueryProperties();
+        properties.getLlm().setMaxTokens(2400);
+
+        planner = new RelationshipQueryPlanner(
+            aiCoreService,
+            schemaProvider,
+            properties,
+            validator,
+            queryCache,
+            queryMetrics,
+            new ObjectMapper(),
+            new StructuredJsonExtractor()
+        );
+
+        when(queryCache.getPlan(anyString())).thenReturn(Optional.empty());
+        when(aiCoreService.generateContent(any()))
+            .thenReturn(AIGenerationResponse.builder().content(samplePlanJson()).build());
+
+        planner.planQuery("Find docs", List.of("document"));
+
+        ArgumentCaptor<AIGenerationRequest> captor = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService).generateContent(captor.capture());
+        assertThat(captor.getValue().getMaxTokens()).isEqualTo(2400);
     }
 
     @Test
