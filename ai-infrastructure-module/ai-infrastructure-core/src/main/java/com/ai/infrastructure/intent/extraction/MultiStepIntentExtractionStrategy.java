@@ -47,21 +47,41 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     private final IntentExtractionJsonSupport jsonSupport;
     private final IntentExtractionValidator validator;
 
+    record ClassificationResult(ClassificationResponse response, int llmCalls) {}
+    record ActionSelectionResult(Map<Integer, String> mappings, int llmCalls) {}
+
+    static class LlmCallFailureException extends RuntimeException {
+        private final int llmCalls;
+
+        LlmCallFailureException(int llmCalls, Exception cause) {
+            super(cause != null ? cause.getMessage() : "LLM call failed", cause);
+            this.llmCalls = llmCalls;
+        }
+
+        int llmCalls() {
+            return llmCalls;
+        }
+    }
+
     @Override
     public ExtractionAttempt attemptExtract(String query, OrchestrationContext context) {
+        int llmCalls = 0;
         try {
-            ClassificationResponse classification = classify(query, context);
+            ClassificationResult classificationResult = classify(query, context);
+            llmCalls += classificationResult.llmCalls();
+            ClassificationResponse classification = classificationResult.response();
             if (classification == null || CollectionUtils.isEmpty(classification.getIntents())) {
                 return ExtractionAttempt.builder()
                     .success(false)
                     .strategyName(getStrategyName())
                     .errorMessage("Multi-step classification returned no intents")
-                    .llmCalls(1)
+                    .llmCalls(llmCalls)
                     .build();
             }
 
-            Map<Integer, String> selectedActions = selectActionsIfNeeded(query, context, classification);
-            int llmCalls = selectedActions != null && !selectedActions.isEmpty() ? 2 : 1;
+            ActionSelectionResult selection = selectActionsIfNeeded(query, context, classification);
+            llmCalls += selection.llmCalls();
+            Map<Integer, String> selectedActions = selection.mappings();
 
             MultiIntentResponse response = buildResponse(query, classification, selectedActions);
             IntentExtractionValidator.ValidationResult validation = validator.validate(response);
@@ -73,6 +93,16 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 .strategyName(getStrategyName())
                 .llmCalls(llmCalls)
                 .build();
+        } catch (LlmCallFailureException ex) {
+            llmCalls += ex.llmCalls();
+            log.warn("Multi-step extraction failed during LLM call: {}", ex.getMessage());
+            return ExtractionAttempt.builder()
+                .success(false)
+                .strategyName(getStrategyName())
+                .errorMessage(ex.getMessage())
+                .exception(ex)
+                .llmCalls(llmCalls)
+                .build();
         } catch (Exception ex) {
             log.warn("Multi-step extraction failed: {}", ex.getMessage());
             return ExtractionAttempt.builder()
@@ -80,7 +110,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 .strategyName(getStrategyName())
                 .errorMessage(ex.getMessage())
                 .exception(ex)
-                .llmCalls(1)
+                .llmCalls(llmCalls)
                 .build();
         }
     }
@@ -90,7 +120,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         return "multi_step";
     }
 
-    private ClassificationResponse classify(String query, OrchestrationContext context) {
+    private ClassificationResult classify(String query, OrchestrationContext context) {
         String prompt = """
             You are classifying a user request into one or more intents.
             Output MUST be valid JSON and MUST match the following schema:
@@ -130,23 +160,32 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .userId(context != null ? context.getUserId() : null)
             .build();
 
-        AIGenerationResponse response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+        int llmCalls = 1;
+        AIGenerationResponse response;
+        try {
+            response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+        } catch (Exception ex) {
+            throw new LlmCallFailureException(llmCalls, ex);
+        }
         String content = response != null ? response.getContent() : null;
         if (!StringUtils.hasText(content)) {
-            return null;
+            return new ClassificationResult(null, llmCalls);
         }
         String sanitized = jsonSupport.stripCodeFences(content);
         try {
-            return jsonSupport.objectMapper().readValue(sanitized, ClassificationResponse.class);
+            return new ClassificationResult(
+                jsonSupport.objectMapper().readValue(sanitized, ClassificationResponse.class),
+                llmCalls
+            );
         } catch (Exception ex) {
             log.warn("Failed to parse multi-step classification JSON: {}", ex.getMessage());
-            return null;
+            return new ClassificationResult(null, llmCalls);
         }
     }
 
-    private Map<Integer, String> selectActionsIfNeeded(String query,
-                                                       OrchestrationContext context,
-                                                       ClassificationResponse classification) {
+    private ActionSelectionResult selectActionsIfNeeded(String query,
+                                                        OrchestrationContext context,
+                                                        ClassificationResponse classification) {
         List<ClassificationIntent> actionIntents = new ArrayList<>();
         for (int i = 0; i < classification.getIntents().size(); i++) {
             ClassificationIntent intent = classification.getIntents().get(i);
@@ -156,12 +195,12 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         }
 
         if (actionIntents.isEmpty()) {
-            return Map.of();
+            return new ActionSelectionResult(Map.of(), 0);
         }
 
         List<AIActionMetaData> actions = actionHandlerRegistry != null ? actionHandlerRegistry.getAllMetadata() : List.of();
         if (actions.isEmpty()) {
-            return Map.of();
+            return new ActionSelectionResult(Map.of(), 0);
         }
 
         Map<String, String> allowedByNormalizedName = new LinkedHashMap<>();
@@ -214,10 +253,16 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .userId(context != null ? context.getUserId() : null)
             .build();
 
-        AIGenerationResponse response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+        int llmCalls = 1;
+        AIGenerationResponse response;
+        try {
+            response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+        } catch (Exception ex) {
+            throw new LlmCallFailureException(llmCalls, ex);
+        }
         String content = response != null ? response.getContent() : null;
         if (!StringUtils.hasText(content)) {
-            return Map.of();
+            return new ActionSelectionResult(Map.of(), llmCalls);
         }
 
         String sanitized = jsonSupport.stripCodeFences(content);
@@ -226,11 +271,11 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             parsed = jsonSupport.objectMapper().readValue(sanitized, ActionSelectionResponse.class);
         } catch (Exception ex) {
             log.warn("Failed to parse action selection JSON: {}", ex.getMessage());
-            return Map.of();
+            return new ActionSelectionResult(Map.of(), llmCalls);
         }
 
         if (parsed == null || CollectionUtils.isEmpty(parsed.getMappings())) {
-            return Map.of();
+            return new ActionSelectionResult(Map.of(), llmCalls);
         }
 
         Map<Integer, String> out = new LinkedHashMap<>();
@@ -248,7 +293,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 out.put(idx, canonical);
             }
         }
-        return Collections.unmodifiableMap(out);
+        return new ActionSelectionResult(Collections.unmodifiableMap(out), llmCalls);
     }
 
     private String normalizeActionName(String value) {

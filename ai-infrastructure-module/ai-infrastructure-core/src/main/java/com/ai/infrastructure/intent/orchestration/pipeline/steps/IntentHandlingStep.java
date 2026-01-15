@@ -75,7 +75,7 @@ public class IntentHandlingStep implements PipelineStep {
     // RAG defaults
     private static final double DEFAULT_RAG_THRESHOLD = 0.6;
     private static final int DEFAULT_RAG_LIMIT = 5;
-    private static final double FAN_OUT_RAG_THRESHOLD = 0.0;
+    private static final double DEFAULT_FAN_OUT_RAG_THRESHOLD = 0.3d;
     
     // Data keys
     private static final String DATA_KEY_ACTION = "action";
@@ -553,13 +553,17 @@ public class IntentHandlingStep implements PipelineStep {
             ? vectorSpaceRoutingProperties.getFanOutTopKPerSpace()
             : DEFAULT_RAG_LIMIT;
 
+        double fanOutThreshold = vectorSpaceRoutingProperties != null
+            ? vectorSpaceRoutingProperties.getFanOutRagThreshold()
+            : DEFAULT_FAN_OUT_RAG_THRESHOLD;
+
         Map<String, List<RAGResponse.RAGDocument>> docsBySpace = new LinkedHashMap<>();
         for (String vectorSpace : vectorSpaces) {
             RAGRequest ragRequest = RAGRequest.builder()
                 .query(query)
                 .entityType(vectorSpace)
                 .limit(topKPerSpace)
-                .threshold(FAN_OUT_RAG_THRESHOLD)
+                .threshold(fanOutThreshold)
                 .metadata(Collections.unmodifiableMap(new LinkedHashMap<>(metadata)))
                 .userId(context.getIdentifier())
                 .build();

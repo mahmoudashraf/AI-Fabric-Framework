@@ -36,6 +36,16 @@ public class VectorSpaceRoutingProperties {
     private int fanOutTopKPerSpace = 5;
 
     /**
+     * Similarity threshold used for each individual fan-out RAG query.
+     *
+     * <p>This is passed to {@code RAGRequest.threshold} and allows frameworks/apps to avoid pulling extremely
+     * low-quality matches from each space. Use {@code 0.0} to disable threshold filtering.</p>
+     */
+    @DecimalMin("0.0")
+    @DecimalMax("1.0")
+    private double fanOutRagThreshold = 0.3d;
+
+    /**
      * Minimum similarity score to consider fan-out successful.
      *
      * <p>If retrieval scores are available and the best score is below this threshold,
@@ -51,4 +61,3 @@ public class VectorSpaceRoutingProperties {
         CLARIFICATION
     }
 }
-

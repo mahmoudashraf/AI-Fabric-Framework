@@ -91,7 +91,7 @@ class IntentHandlingStepFanOutTest {
         assertThat(requestCaptor.getAllValues()).hasSize(2);
         assertThat(requestCaptor.getAllValues())
             .extracting(RAGRequest::getThreshold)
-            .containsOnly(0.0d);
+            .containsOnly(0.25d);
     }
 
     @Test
@@ -191,6 +191,7 @@ class IntentHandlingStepFanOutTest {
         VectorSpaceRoutingProperties routingProperties = new VectorSpaceRoutingProperties();
         routingProperties.setClarificationThreshold(0.0d);
         routingProperties.setFanOutTopKPerSpace(2);
+        routingProperties.setFanOutRagThreshold(0.25d);
         return new IntentHandlingStep(
             mock(ActionHandlerRegistry.class),
             providerOf(ragProvider),
