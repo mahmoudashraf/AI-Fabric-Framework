@@ -13,6 +13,10 @@ import com.ai.infrastructure.it.RealAPIPIIEdgeSpectrumIntegrationTest;
 import com.ai.infrastructure.it.RealAPISmartSuggestionsIntegrationTest;
 import com.ai.infrastructure.it.RealAPISmartValidationIntegrationTest;
 import com.ai.infrastructure.it.RealAPIVectorLifecycleIntegrationTest;
+import com.ai.infrastructure.it.RealAPILlmPurposePropagationIntegrationTest;
+import com.ai.infrastructure.it.RealAPIProgressiveExtractionDiagnosticsIntegrationTest;
+import com.ai.infrastructure.it.RealAPIProgressiveMultiStepComplexScenariosIntegrationTest;
+import com.ai.infrastructure.it.RealAPIVectorSpaceClarificationPolicyIntegrationTest;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.it.RealAPIMultiProviderFailoverIntegrationTest;
 import com.ai.infrastructure.it.RealAPICreativeAIScenariosIntegrationTest;
@@ -42,7 +46,9 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPIIntegrationTest.class,
         RealAPIIntegrationTestV2.class,
         RealAPIONNXFallbackIntegrationTest.class,
-        RealAPISmartValidationIntegrationTest.class
+        RealAPILlmPurposePropagationIntegrationTest.class,
+        RealAPISmartValidationIntegrationTest.class,
+        RealAPIProgressiveExtractionDiagnosticsIntegrationTest.class
     };
 
     private static final Class<?>[] CHUNK_VECTOR = {
@@ -55,20 +61,25 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPIIntentHistoryAggregationIntegrationTest.class,
         RealAPIActionErrorRecoveryIntegrationTest.class,
         RealAPIActionFlowIntegrationTest.class,
-        RealAPIIntentGenerationRoutingIntegrationTest.class
+        RealAPIIntentGenerationRoutingIntegrationTest.class,
+        RealAPIVectorSpaceClarificationPolicyIntegrationTest.class
     };
 
     private static final Class<?>[] CHUNK_ADVANCED = {
         RealAPIMultiProviderFailoverIntegrationTest.class,
         RealAPISmartSuggestionsIntegrationTest.class,
         RealAPIPIIEdgeSpectrumIntegrationTest.class,
-        RealAPICreativeAIScenariosIntegrationTest.class
+        RealAPICreativeAIScenariosIntegrationTest.class,
+        RealAPIProgressiveMultiStepComplexScenariosIntegrationTest.class
     };
 
     private static final Class<?>[] REAL_API_TEST_CLASSES = {
         RealAPIIntegrationTest.class,
         RealAPIIntegrationTestV2.class,
         RealAPIONNXFallbackIntegrationTest.class,
+        RealAPILlmPurposePropagationIntegrationTest.class,
+        RealAPIProgressiveExtractionDiagnosticsIntegrationTest.class,
+        RealAPIProgressiveMultiStepComplexScenariosIntegrationTest.class,
         RealAPISmartValidationIntegrationTest.class,
         RealAPIVectorLifecycleIntegrationTest.class,
         RealAPIHybridRetrievalToggleIntegrationTest.class,
@@ -76,6 +87,7 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPIActionErrorRecoveryIntegrationTest.class,
         RealAPIActionFlowIntegrationTest.class,
         RealAPIIntentGenerationRoutingIntegrationTest.class,
+        RealAPIVectorSpaceClarificationPolicyIntegrationTest.class,
         RealAPIMultiProviderFailoverIntegrationTest.class,
         RealAPISmartSuggestionsIntegrationTest.class,
         RealAPIPIIEdgeSpectrumIntegrationTest.class,

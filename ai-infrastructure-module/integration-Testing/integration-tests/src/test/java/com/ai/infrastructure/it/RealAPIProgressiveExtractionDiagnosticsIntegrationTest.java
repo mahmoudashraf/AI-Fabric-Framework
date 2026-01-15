@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @ActiveProfiles("real-api-test")
 @Transactional
-class RealAPIProgressiveExtractionDiagnosticsIntegrationTest {
+public class RealAPIProgressiveExtractionDiagnosticsIntegrationTest {
 
     static {
         RealAPITestSupport.ensureProviderConfigured();
