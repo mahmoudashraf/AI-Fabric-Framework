@@ -841,9 +841,9 @@ class ProviderScorecardRealApiIntegrationTest {
         nike = brandRepository.save(nike);
         adidas = brandRepository.save(adidas);
 
-        ProductEntity nikeBlueRunner = product("Blue Runner", "blue", BigDecimal.valueOf(85), "ACTIVE", nike);
-        ProductEntity adidasBlue = product("Adidas Flex", "blue", BigDecimal.valueOf(95), "ACTIVE", adidas);
-        ProductEntity adidasRunner = product("Adidas Runner Elite", "red", BigDecimal.valueOf(110), "ACTIVE", adidas);
+        ProductEntity nikeBlueRunner = product("Blue Runner Running Shoes", "blue", BigDecimal.valueOf(85), "ACTIVE", nike);
+        ProductEntity adidasBlue = product("Adidas Flex Shoes", "blue", BigDecimal.valueOf(95), "ACTIVE", adidas);
+        ProductEntity adidasRunner = product("Adidas Runner Shoes Elite", "red", BigDecimal.valueOf(110), "ACTIVE", adidas);
         productRepository.saveAll(List.of(nikeBlueRunner, adidasBlue, adidasRunner));
         indexProduct(nikeBlueRunner);
         indexProduct(adidasBlue);
@@ -922,4 +922,3 @@ class ProviderScorecardRealApiIntegrationTest {
         );
     }
 }
-

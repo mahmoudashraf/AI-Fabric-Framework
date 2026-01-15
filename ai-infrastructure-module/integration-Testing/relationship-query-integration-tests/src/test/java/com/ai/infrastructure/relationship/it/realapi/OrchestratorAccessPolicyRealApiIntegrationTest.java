@@ -665,8 +665,8 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         nike.setName("Nike");
         nike = brandRepository.save(nike);
 
-        ProductEntity blueRunner = product("Blue Runner", "blue", BigDecimal.valueOf(95), "ACTIVE", nike);
-        ProductEntity redRunner = product("Red Runner", "red", BigDecimal.valueOf(110), "ACTIVE", nike);
+        ProductEntity blueRunner = product("Blue Runner Running Shoes", "blue", BigDecimal.valueOf(95), "ACTIVE", nike);
+        ProductEntity redRunner = product("Red Runner Running Shoes", "red", BigDecimal.valueOf(110), "ACTIVE", nike);
 
         productRepository.saveAll(List.of(blueRunner, redRunner));
         indexProduct(blueRunner);

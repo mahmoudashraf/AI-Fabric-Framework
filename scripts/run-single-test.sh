@@ -145,6 +145,15 @@ if [ -z "${OPENAI_API_KEY:-}" ]; then
   fi
 fi
 
+# Enable OpenAI in profiles that gate via OPENAI_ENABLED/AI_INFRASTRUCTURE_OPENAI_ENABLED.
+# Only do this when OpenAI is the selected LLM (or when the matrix explicitly uses openai).
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+  if [ "${LLM_PROVIDER:-}" = "openai" ] || [[ "${MATRIX_SPEC:-}" == openai:* ]]; then
+    export OPENAI_ENABLED="${OPENAI_ENABLED:-true}"
+    export AI_INFRASTRUCTURE_OPENAI_ENABLED="${AI_INFRASTRUCTURE_OPENAI_ENABLED:-true}"
+  fi
+fi
+
 # Resolve Pinecone key (do not echo it)
 # Supports:
 # - AI_PROVIDERS_PINECONE_API_KEY / PINECONE_API_KEY from environment
@@ -157,6 +166,28 @@ if [ -z "${AI_PROVIDERS_PINECONE_API_KEY:-}" ] && [ -z "${PINECONE_API_KEY:-}" ]
       export PINECONE_API_KEY="$PINECONE_KEY_FROM_FILE"
     fi
   fi
+fi
+
+# Enable other LLM providers in profiles that gate via *_ENABLED flags.
+# Only set when the provider is selected (or explicitly present in the matrix spec).
+if [ "${LLM_PROVIDER:-}" = "anthropic" ] || [[ "${MATRIX_SPEC:-}" == anthropic:* ]]; then
+  export ANTHROPIC_ENABLED="${ANTHROPIC_ENABLED:-true}"
+  export AI_INFRASTRUCTURE_ANTHROPIC_ENABLED="${AI_INFRASTRUCTURE_ANTHROPIC_ENABLED:-true}"
+fi
+
+if [ "${LLM_PROVIDER:-}" = "gemini" ] || [[ "${MATRIX_SPEC:-}" == gemini:* ]]; then
+  export GEMINI_ENABLED="${GEMINI_ENABLED:-true}"
+  export AI_INFRASTRUCTURE_GEMINI_ENABLED="${AI_INFRASTRUCTURE_GEMINI_ENABLED:-true}"
+fi
+
+if [ "${LLM_PROVIDER:-}" = "cohere" ] || [[ "${MATRIX_SPEC:-}" == cohere:* ]]; then
+  export COHERE_ENABLED="${COHERE_ENABLED:-true}"
+  export AI_INFRASTRUCTURE_COHERE_ENABLED="${AI_INFRASTRUCTURE_COHERE_ENABLED:-true}"
+fi
+
+if [ "${LLM_PROVIDER:-}" = "azure" ] || [[ "${MATRIX_SPEC:-}" == azure:* ]]; then
+  export AZURE_ENABLED="${AZURE_ENABLED:-true}"
+  export AI_INFRASTRUCTURE_AZURE_ENABLED="${AI_INFRASTRUCTURE_AZURE_ENABLED:-true}"
 fi
 
 # Ensure Pinecone host/index defaults exist when running pinecone vector db tests locally.

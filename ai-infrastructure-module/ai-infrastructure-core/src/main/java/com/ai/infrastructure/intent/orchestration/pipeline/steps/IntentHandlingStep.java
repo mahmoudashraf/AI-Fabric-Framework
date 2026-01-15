@@ -127,6 +127,10 @@ public class IntentHandlingStep implements PipelineStep {
 
     private static final String RAG_NO_CONTEXT_MESSAGE = "No relevant context found.";
     private static final String RAG_NO_INFO_MESSAGE_PREFIX = "I don't have enough information to answer your question: ";
+    private static final String RAG_NO_CONTEXT_PROMPT_TEMPLATE =
+        "The system retrieved no relevant knowledge base context for the user's question.\n" +
+            "Do NOT invent facts. Respond briefly that you couldn't find relevant information and suggest how the user can refine the question.\n\n" +
+            "Question: %s";
     private static final String RAG_PROMPT_TEMPLATE =
         "Based on the following context, answer the question: %s\n\n" +
             "Context:\n%s\n\n" +
@@ -925,6 +929,19 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         if (!StringUtils.hasText(context) || RAG_NO_CONTEXT_MESSAGE.equals(context)) {
+            if (aiServiceConfig != null
+                && aiServiceConfig.getFeatures() != null
+                && Boolean.TRUE.equals(aiServiceConfig.getFeatures().getEnableGeneration())) {
+                try {
+                    String prompt = String.format(RAG_NO_CONTEXT_PROMPT_TEMPLATE, query);
+                    String response = aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
+                    if (StringUtils.hasText(response)) {
+                        return response;
+                    }
+                } catch (Exception ex) {
+                    log.warn("No-context generation failed; falling back to static response: {}", ex.getMessage());
+                }
+            }
             return RAG_NO_INFO_MESSAGE_PREFIX + query;
         }
 
