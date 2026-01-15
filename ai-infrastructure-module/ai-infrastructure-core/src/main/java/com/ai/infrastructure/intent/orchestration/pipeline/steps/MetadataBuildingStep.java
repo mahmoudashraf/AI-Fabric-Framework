@@ -65,6 +65,11 @@ public class MetadataBuildingStep implements PipelineStep {
     public int getOrder() {
         return STEP_ORDER;
     }
+
+    @Override
+    public boolean shouldSkip(PipelineContext context) {
+        return false;
+    }
     
     /**
      * Build and attach metadata to the orchestration result.
@@ -89,6 +94,9 @@ public class MetadataBuildingStep implements PipelineStep {
         MultiIntentResponse intentResponse = context.getIntentResponse();
         
         Map<String, Object> metadata = new LinkedHashMap<>();
+        if (result.getMetadata() != null && !result.getMetadata().isEmpty()) {
+            metadata.putAll(result.getMetadata());
+        }
         if (context.getMetadata() != null && !context.getMetadata().isEmpty()) {
             metadata.putAll(context.getMetadata());
         }

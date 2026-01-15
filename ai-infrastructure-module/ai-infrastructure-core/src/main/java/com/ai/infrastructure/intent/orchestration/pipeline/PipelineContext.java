@@ -207,6 +207,7 @@ public class PipelineContext {
         return this.toBuilder()
             .shouldTerminate(true)
             .earlyTerminationResult(result)
+            .intentResult(result)
             .build();
     }
     

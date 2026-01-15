@@ -331,11 +331,13 @@ public class IntentHandlingStep implements PipelineStep {
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
         boolean needsGeneration = intent.requiresGenerationOrDefault(false);
+        boolean requiresRetrieval = intent.requiresRetrievalOrDefault(true);
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
         String query = StringUtils.hasText(optimizedQuery)
             ? optimizedQuery
             : (StringUtils.hasText(processedQuery) ? processedQuery : intent.getIntentOrAction());
+        String generationOnlyQuery = StringUtils.hasText(processedQuery) ? processedQuery : query;
         
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put(METADATA_KEY_SOURCE, METADATA_VALUE_ORCHESTRATOR);
@@ -343,12 +345,17 @@ public class IntentHandlingStep implements PipelineStep {
         metadata.put(METADATA_KEY_SESSION_ID, context.getSessionId());
         metadata.put(METADATA_KEY_AUTHENTICATED, context.isAuthenticated());
         metadata.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
+        metadata.put("requiresRetrieval", requiresRetrieval);
         if (optimizedQuery != null) {
             metadata.put(METADATA_KEY_OPTIMIZED_QUERY, optimizedQuery);
         }
         if (pipelineContext != null && !pipelineContext.getDetectedPiiTypesView().isEmpty()) {
             metadata.put("piiProcessed", true);
             metadata.put("piiDetectedTypes", pipelineContext.getDetectedPiiTypesView());
+        }
+
+        if (!requiresRetrieval) {
+            return handleInformationGenerationOnly(intent, context, pipelineContext, generationOnlyQuery, metadata);
         }
 
         List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
@@ -376,6 +383,52 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         return handleInformationBasic(intent, context, pipelineContext, needsGeneration, query, metadata);
+    }
+
+    private OrchestrationResult handleInformationGenerationOnly(Intent intent,
+                                                                OrchestrationContext context,
+                                                                PipelineContext pipelineContext,
+                                                                String query,
+                                                                Map<String, Object> metadata) {
+        String answer;
+        try {
+            // Generation-only informational intent (no retrieval / no vectorSpace required).
+            answer = aiCoreService.generateText(query, LlmPurpose.GENERATION);
+        } catch (Exception ex) {
+            log.error("Generation-only response failed for request {}: {}",
+                pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+                ex.getMessage(),
+                ex);
+            Map<String, Object> errorData = new LinkedHashMap<>();
+            errorData.put(DATA_KEY_ANSWER, null);
+            errorData.put(DATA_KEY_DOCUMENTS, List.of());
+            errorData.put(DATA_KEY_RAG_RESPONSE, null);
+            errorData.put(DATA_KEY_REQUIRES_GENERATION, true);
+            errorData.put(DATA_KEY_GENERATION_ERROR, ex.getMessage());
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ERROR)
+                .success(false)
+                .message("Failed to generate response: " + ex.getMessage())
+                .data(Collections.unmodifiableMap(errorData))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put(DATA_KEY_ANSWER, answer);
+        data.put(DATA_KEY_DOCUMENTS, List.of());
+        data.put(DATA_KEY_RAG_RESPONSE, null);
+        data.put(DATA_KEY_REQUIRES_GENERATION, true);
+        data.put("requiresRetrieval", false);
+
+        String message = StringUtils.hasText(answer) ? answer : RAG_NO_CONTEXT_MESSAGE;
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(StringUtils.hasText(answer))
+            .message(message)
+            .data(Collections.unmodifiableMap(data))
+            .nextSteps(extractNextSteps(intent))
+            .build();
     }
 
     private OrchestrationResult handleInformationBasic(Intent intent,

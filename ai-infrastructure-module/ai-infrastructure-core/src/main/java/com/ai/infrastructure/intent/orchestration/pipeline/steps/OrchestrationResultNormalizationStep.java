@@ -37,6 +37,11 @@ public class OrchestrationResultNormalizationStep implements PipelineStep {
     }
 
     @Override
+    public boolean shouldSkip(PipelineContext context) {
+        return false;
+    }
+
+    @Override
     public PipelineContext process(PipelineContext context) {
         boolean enabled = properties == null || properties.isEnabled();
         boolean snapshotEnabled = properties != null && properties.isDebugSnapshotEnabled();

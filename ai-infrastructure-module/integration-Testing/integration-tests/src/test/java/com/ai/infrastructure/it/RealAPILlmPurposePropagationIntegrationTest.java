@@ -31,6 +31,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doReturn;
@@ -120,7 +121,7 @@ public class RealAPILlmPurposePropagationIntegrationTest {
         assertThat(result).isNotNull();
         assertThat(result.getType()).isNotNull();
 
-        verify(aiCoreService, atLeastOnce()).generateContent(any(), eq(LlmPurpose.GENERATION));
+        verify(aiCoreService, atLeastOnce()).generateText(anyString(), eq(LlmPurpose.GENERATION));
     }
 
     private void seedProduct() {
@@ -155,4 +156,3 @@ public class RealAPILlmPurposePropagationIntegrationTest {
         );
     }
 }
-

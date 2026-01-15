@@ -3,6 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.dto.AIComplianceResponse;
 import com.ai.infrastructure.dto.AISecurityResponse;
@@ -34,6 +35,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -123,7 +125,7 @@ class IntentGenerationRoutingIntegrationTest {
         verify(ragProvider).performRag(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
         verify(ragProvider, never()).performRAGQuery(any());
-        verify(aiCoreService, never()).generateText(anyString());
+        verify(aiCoreService, never()).generateText(anyString(), any(LlmPurpose.class));
     }
 
     @Test
@@ -140,7 +142,7 @@ class IntentGenerationRoutingIntegrationTest {
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().context("generation-context").documents(List.of()).success(true).build()
         );
-        when(aiCoreService.generateText(anyString())).thenReturn("llm-needed");
+        when(aiCoreService.generateText(anyString(), eq(LlmPurpose.GENERATION))).thenReturn("llm-needed");
 
         OrchestrationResult result = orchestrator.orchestrate("what should I buy next?", "user-2");
 
@@ -151,6 +153,6 @@ class IntentGenerationRoutingIntegrationTest {
         verify(ragProvider).performRAGQuery(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("requiresGeneration", true);
         verify(ragProvider, never()).performRag(any());
-        verify(aiCoreService).generateText(anyString());
+        verify(aiCoreService).generateText(anyString(), eq(LlmPurpose.GENERATION));
     }
 }

@@ -1,6 +1,7 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.RAGResponse;
@@ -30,6 +31,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -153,9 +155,7 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
     }
 
     private void stubIntentExtractionMissingQuery() {
-        when(aiCoreService.generateContent(argThat(req ->
-            req != null && "intent_extraction".equals(req.getGenerationType())
-        ))).thenReturn(AIGenerationResponse.builder().content("""
+        AIGenerationResponse response = AIGenerationResponse.builder().content("""
             {
               "intents": [
                 {
@@ -174,13 +174,19 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
               "isCompound": false,
               "orchestrationStrategy": "DIRECT_ACTION"
             }
-            """).build());
+            """).build();
+
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction".equals(req.getGenerationType())
+        ), eq(LlmPurpose.ORCHESTRATION))).thenReturn(response);
+
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction".equals(req.getGenerationType())
+        ))).thenReturn(response);
     }
 
     private void stubIntentExtractionWithExplicitQuery(String query) {
-        when(aiCoreService.generateContent(argThat(req ->
-            req != null && "intent_extraction".equals(req.getGenerationType())
-        ))).thenReturn(AIGenerationResponse.builder().content("""
+        AIGenerationResponse response = AIGenerationResponse.builder().content("""
             {
               "intents": [
                 {
@@ -200,13 +206,19 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
               "isCompound": false,
               "orchestrationStrategy": "DIRECT_ACTION"
             }
-            """.formatted(query)).build());
+            """.formatted(query)).build();
+
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction".equals(req.getGenerationType())
+        ), eq(LlmPurpose.ORCHESTRATION))).thenReturn(response);
+
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction".equals(req.getGenerationType())
+        ))).thenReturn(response);
     }
 
     private void stubRelationshipPlanNoFilters() {
-        when(aiCoreService.generateContent(argThat(req ->
-            req != null && "planning".equals(req.getGenerationType()) && "relationship-query".equals(req.getEntityType())
-        ))).thenReturn(AIGenerationResponse.builder().content("""
+        AIGenerationResponse response = AIGenerationResponse.builder().content("""
             {
               "primaryEntityType": "brand",
               "candidateEntityTypes": ["brand"],
@@ -218,7 +230,15 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
               "needsSemanticSearch": false,
               "confidence": 0.9
             }
-            """).build());
+            """).build();
+
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "planning".equals(req.getGenerationType()) && "relationship-query".equals(req.getEntityType())
+        ))).thenReturn(response);
+
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "planning".equals(req.getGenerationType()) && "relationship-query".equals(req.getEntityType())
+        ), eq(LlmPurpose.ORCHESTRATION))).thenReturn(response);
     }
 
     private void assertExecutedPlanOriginalQuery(Map<String, Object> payload, String expectedOriginalQuery) {
@@ -252,4 +272,3 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
         throw new AssertionError("Unexpected plan payload type: " + planRaw.getClass().getName());
     }
 }
-

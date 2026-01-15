@@ -69,6 +69,11 @@ public class ResponseSanitizationStep implements PipelineStep {
     public int getOrder() {
         return STEP_ORDER;
     }
+
+    @Override
+    public boolean shouldSkip(PipelineContext context) {
+        return false;
+    }
     
     /**
      * Sanitize the response and merge PII detection information.
