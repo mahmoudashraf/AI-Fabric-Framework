@@ -15,6 +15,8 @@ import io.pinecone.proto.ScoredVector;
 import io.pinecone.proto.UpsertRequest;
 import io.pinecone.proto.VectorServiceGrpc;
 import io.pinecone.unsigned_indices_model.QueryResponseWithUnsignedIndices;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -234,5 +236,34 @@ class PineconeVectorDatabaseServiceTest {
         assertEquals(3, record.get().getEmbedding().size());
         assertEquals("product::123", record.get().getVectorId());
         verify(index).fetch(eq(List.of("product::123")), eq("product"));
+    }
+
+    @Test
+    void removeVectorByIdTreatsNamespaceNotFoundAsSuccess() {
+        doThrow(new StatusRuntimeException(Status.NOT_FOUND.withDescription("Namespace not found")))
+            .when(index)
+            .deleteByIds(eq(List.of("product::missing")), eq("product"));
+
+        assertTrue(service.removeVectorById("product::missing"));
+    }
+
+    @Test
+    void searchTreatsNamespaceNotFoundAsEmptyResultSet() {
+        when(index.queryByVector(eq(5), anyList(), eq("product"), nullable(Struct.class), eq(false), eq(true)))
+            .thenThrow(new StatusRuntimeException(Status.NOT_FOUND.withDescription("Namespace not found")));
+
+        AISearchResponse response = service.search(
+            List.of(0.2, 0.3, 0.4),
+            AISearchRequest.builder()
+                .query("luxury")
+                .entityType("product")
+                .limit(5)
+                .threshold(0.0)
+                .build()
+        );
+
+        assertNotNull(response);
+        assertEquals(0, response.getTotalResults());
+        assertTrue(response.getResults().isEmpty());
     }
 }

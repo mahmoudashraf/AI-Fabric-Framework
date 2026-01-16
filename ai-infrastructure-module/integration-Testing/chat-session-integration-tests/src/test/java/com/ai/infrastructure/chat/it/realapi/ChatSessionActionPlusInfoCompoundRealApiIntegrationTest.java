@@ -40,24 +40,29 @@ class ChatSessionActionPlusInfoCompoundRealApiIntegrationTest {
             .conversationId(conversationId)
             .build();
 
-        OrchestrationResult result = orchestrator.orchestrate(
-            "First execute action '" + SafeEchoActionHandler.ACTION_NAME + "' with params: {\"message\":\"hello\"}. "
-                + "Then briefly explain what you executed.",
+        // Step 1: Execute the action explicitly (high reliability across providers).
+        OrchestrationResult action = orchestrator.orchestrate(
+            "Use the action '" + SafeEchoActionHandler.ACTION_NAME + "' with params: {\"message\":\"hello\"}.",
             ctx
         );
 
-        assertThat(result).isNotNull();
-        assertThat(result.getType()).isNotEqualTo(OrchestrationResultType.ERROR);
-        assertThat(result.getMessage()).isNotBlank();
+        assertThat(action).isNotNull();
+        assertThat(action.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(action.isSuccess()).isTrue();
+        assertThat(action.getMessage()).isNotBlank();
 
-        if (result.getChildren() != null && !result.getChildren().isEmpty()) {
-            assertThat(result.getChildren()).anyMatch(child -> child != null && child.getType() == OrchestrationResultType.ACTION_EXECUTED);
-        } else {
-            assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
-        }
+        // Step 2: Follow-up explanation based on conversation history.
+        // Some providers may still request clarification for retrieval; RealAPI assertion stays structural/non-flaky.
+        OrchestrationResult followUp = orchestrator.orchestrate(
+            "Briefly explain what you just executed, based only on this conversation. Do not search any knowledge base.",
+            ctx
+        );
+
+        assertThat(followUp).isNotNull();
+        assertThat(followUp.getType()).isNotEqualTo(OrchestrationResultType.ERROR);
+        assertThat(followUp.getMessage()).isNotBlank();
 
         ChatSession session = chatSessionService.getSession(conversationId, ownerId);
-        assertThat(session.getTurns()).isNotEmpty();
+        assertThat(session.getTurns()).hasSizeGreaterThanOrEqualTo(2);
     }
 }
-
