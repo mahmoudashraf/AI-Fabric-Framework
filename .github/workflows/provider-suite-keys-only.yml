@@ -223,6 +223,12 @@ jobs:
           export SPRING_PROFILES_ACTIVE="${{ matrix.realapi_spring_profiles }}"
           bash run-relationship-query-realapi-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}"
 
+      - name: Run chat-session suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})
+        run: |
+          cd ai-infrastructure-module/integration-Testing/chat-session-integration-tests
+          export SPRING_PROFILES_ACTIVE="${{ matrix.realapi_spring_profiles }}"
+          bash run-chat-session-realapi-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}"
+
       - name: Run behavior suite (${{ matrix.llm }} + ${{ matrix.embedding }})
         run: |
           cd ai-infrastructure-module/integration-Testing/behavior-integration-tests

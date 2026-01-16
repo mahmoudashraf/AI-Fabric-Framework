@@ -103,6 +103,7 @@ import java.util.stream.Collectors;
         type = FilterType.REGEX,
         pattern = {
             "com\\.ai\\.infrastructure\\.behavior\\..*",
+            "com\\.ai\\.infrastructure\\.chat\\..*",
             "com\\.ai\\.infrastructure\\.rag\\..*",
             "com\\.ai\\.infrastructure\\.relationship\\..*",
             "com\\.ai\\.infrastructure\\.web\\..*",

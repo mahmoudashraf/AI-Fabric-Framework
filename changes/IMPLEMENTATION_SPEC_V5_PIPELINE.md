@@ -3,7 +3,7 @@
 
 **Version:** 5.1 (updated) - Pipeline Architecture + Conversations (planned)
 **Date:** January 2026
-**Status:** Planned (not implemented yet)
+**Status:** In Progress (core primitives started)
 **Source of truth:** Current code; this doc proposes changes
 **Architecture:** Pipeline-based (current codebase)
 
@@ -21,24 +21,26 @@ This document is an **implementation plan** for introducing **multi-turn convers
 - Pipeline + thin orchestrator exist (`DefaultOrchestrationPipeline`, `RAGOrchestrator`).
 - `OrchestrationResultNormalizationStep` exists at order **65** (provider-agnostic contract).
 - `PIIDetectionStep` exists at order **30**, but is contributed by the `ai-infrastructure-pii` module (optional dependency).
-- No conversation primitives exist yet: no `conversationId` on `OrchestrationContext`, no chat-session module, and no conversation pipeline steps.
+- `VectorSpaceResolutionStep` exists at order **55** (provider-agnostic routing step for multi-domain RAG when `vectorSpace` is missing/ambiguous).
+- Progressive intent extraction exists behind `ai.intent-extraction.progressive.enabled` (compound → repair → multi-step), aligned with `changes/UNIFIED_INTENT_EXTRACTION_AND_VECTORIZATION_SOLUTION.md`.
+- Core conversation primitive exists: `conversationId` on `OrchestrationContext` (+ metadata propagation), but no chat-session module and no conversation pipeline steps yet.
 - No action-confirmation workflow exists yet: no `CONFIRMATION_*` intent types, no confirmation resolver step, and actions execute immediately in `IntentHandlingStep`.
 
 ### Delivery plan (recommended PR sequence)
 
 1. **Core primitives (small PR):**
-   - Add `conversationId` to `OrchestrationContext` (+ `hasConversation()`).
-   - Update `MetadataBuildingStep` to include `conversationId` when present.
+   - ✅ Add `conversationId` to `OrchestrationContext` (+ `hasConversation()`).
+   - ✅ Update `MetadataBuildingStep` to include `conversationId` when present.
 2. **Conversation module (medium PRs):**
    - Add `ai-infrastructure-chat-session` module with storage SPI + service + memory strategy.
    - Add pipeline steps: `ConversationEnrichmentStep(25)` and `ConversationRecordingStep(95)` (guarded via `@ConditionalOnBean` / feature flag).
 3. **Confirmation workflow (optional, larger PRs):**
-   - Add `ConfirmationResolutionStep(55)` + supporting types (intent types/result types/resolvers/stack) behind flags.
+   - Add `ConfirmationResolutionStep(57)` + supporting types (intent types/result types/resolvers/stack) behind flags.
 
 **Key Updates from v4.0:**
 1. ✅ **Pipeline Architecture:** Integration via `PipelineStep`s instead of modifying `RAGOrchestrator`
-2. ✅ **Minimal Core Changes:** `RAGOrchestrator` remains unchanged; add `conversationId` to `OrchestrationContext` (planned)
-3. ✅ **Composable Steps (planned):** `ConversationEnrichmentStep` (Order 25), `ConfirmationResolutionStep` (Order 55), and `ConversationRecordingStep` (Order 95)
+2. ✅ **Minimal Core Changes:** `RAGOrchestrator` remains unchanged; `conversationId` added to `OrchestrationContext`
+3. ✅ **Composable Steps (planned):** `ConversationEnrichmentStep` (Order 25), `ConfirmationResolutionStep` (Order 57), and `ConversationRecordingStep` (Order 95)
 4. ✅ **Auto-Discovery:** Steps automatically included via Spring dependency injection
 5. ✅ **Better Separation:** Each step has single responsibility
 6. ✅ **Action Confirmation (optional, planned):** Two-step conversational confirmation for high-risk actions
@@ -97,7 +99,8 @@ PipelineSteps (in order):
     30: PIIDetectionStep            ← OPTIONAL: Provided by ai-infrastructure-pii module
     40: ComplianceCheckStep
     50: IntentExtractionStep
-    55: ConfirmationResolutionStep  ← PLANNED: Handles action confirmations
+    55: VectorSpaceResolutionStep   ← EXISTS: Resolves routing when vectorSpace missing
+    57: ConfirmationResolutionStep  ← PLANNED: Handles action confirmations (order adjusted to avoid conflict)
     60: IntentHandlingStep
     65: OrchestrationResultNormalizationStep ← EXISTS: provider-agnostic contract
     70: MetadataBuildingStep   ← PLANNED UPDATE: include conversationId
@@ -163,7 +166,7 @@ OrchestrationContext.validate():
 ai-infrastructure-module/
 ├── ai-infrastructure-core/                     # MINIMAL CHANGES
 │   └── src/main/java/.../orchestration/
-│       └── OrchestrationContext.java           # PLANNED: add conversationId field
+│       └── OrchestrationContext.java           # ✅ IMPLEMENTED: conversationId field (+ hasConversation)
 │
 └── ai-infrastructure-chat-session/            # NEW MODULE (to be added)
     ├── pom.xml
@@ -188,7 +191,7 @@ ai-infrastructure-module/
         │   │   └── SummaryMemoryStrategy.java            # Summarizes old, keeps recent
         │   ├── pipeline/                                 # NEW: Pipeline integration
         │   │   ├── ConversationEnrichmentStep.java       # Order 25
-        │   │   ├── ConfirmationResolutionStep.java      # Order 55
+        │   │   ├── ConfirmationResolutionStep.java      # Order 57
         │   │   └── ConversationRecordingStep.java       # Order 95
         │   ├── config/
         │   │   ├── ChatSessionProperties.java
@@ -227,7 +230,8 @@ ai-infrastructure-module/
 │  30: PIIDetectionStep                                        │
 │  40: ComplianceCheckStep                                     │
 │  50: IntentExtractionStep                                    │
-│  55: ConfirmationResolutionStep  ← NEW (chat module)        │
+│  55: VectorSpaceResolutionStep   ← EXISTS (core)             │
+│  57: ConfirmationResolutionStep  ← NEW (chat module)         │
 │  60: IntentHandlingStep                                      │
 │  70: MetadataBuildingStep  ← UPDATED (includes convId)     │
 │  80: SmartSuggestionsStep                                    │
@@ -726,15 +730,15 @@ public class ChatSessionServiceImpl implements ChatSessionService {
 
 **Integration Points:**
 1. **ConversationEnrichmentStep** (Order 25) - Enriches query with history (planned)
-2. **ConfirmationResolutionStep** (Order 55) - Resolves confirmation intents (optional, planned)
+2. **ConfirmationResolutionStep** (Order 57) - Resolves confirmation intents (optional, planned)
 3. **ConversationRecordingStep** (Order 95) - Records turn after processing (planned)
-4. **MetadataBuildingStep** (Order 70) - Include `conversationId` in metadata (planned update)
+4. **MetadataBuildingStep** (Order 70) - Include `conversationId` in metadata (✅ implemented)
 
 ### 9.2 Changes to OrchestrationContext
 
 **File:** `ai-infrastructure-core/.../orchestration/OrchestrationContext.java`
 
-**Planned change (minimal core change for conversations): add ONE field**
+**Implemented (minimal core change for conversations): add ONE field**
 
 ```java
 /**
@@ -1077,7 +1081,9 @@ User: "cancel my subscription"
     ↓
 IntentExtractionStep (50): LLM detects ACTION intent
     ↓
-ConfirmationResolutionStep (55):
+VectorSpaceResolutionStep (55): (no-op for ACTION intents)
+    ↓
+ConfirmationResolutionStep (57):
     - Checks if action requires confirmation
     - No pending confirmation found
     - Passes through to IntentHandlingStep
@@ -1108,7 +1114,9 @@ ConversationEnrichmentStep (25): Enriches query with pending action context
 IntentExtractionStep (50): LLM analyzes enriched query
     ↓ Detects: CONFIRMATION_POSITIVE intent (new intent type)
     ↓
-ConfirmationResolutionStep (55):
+VectorSpaceResolutionStep (55): (no-op for confirmation intents)
+    ↓
+ConfirmationResolutionStep (57):
     - Checks conversation metadata
     - Finds pending action: "cancel_subscription"
     - Detects CONFIRMATION_POSITIVE intent (from LLM)
@@ -3003,7 +3011,9 @@ IntentExtractionStep (50): LLM analyzes enriched query
         - CONFIRMATION_POSITIVE ("yes")
         - INFORMATION ("give me programming laptop black colour")
     ↓
-ConfirmationResolutionStep (55):
+VectorSpaceResolutionStep (55): (no-op for confirmation intents)
+    ↓
+ConfirmationResolutionStep (57):
     - Detects intentResponse.isCompound() == true
     - Finds CONFIRMATION_POSITIVE in intent list
     - Executes pending action ("cancel_subscription")
@@ -3474,7 +3484,7 @@ ConversationEnrichmentStep (25):
 IntentExtractionStep (50):
   - LLM detects: CONFIRMATION_POSITIVE
 
-ConfirmationResolutionStep (55):
+ConfirmationResolutionStep (57):
   - Checks resolvers in priority order...
 
 LoyaltyPointsConfirmationResolver (Priority 8):
@@ -3502,7 +3512,7 @@ Response: "You have 5000 loyalty points worth $50. Would you like to convert the
 ```
 User: "yes"
 
-ConfirmationResolutionStep (55):
+ConfirmationResolutionStep (57):
   - SingleConfirmationPositiveResolver (Priority 50) matches
   - Peek stack → "offer_loyalty_conversion"
   - Creates ACTION from top of stack
@@ -3528,7 +3538,7 @@ Note: "cancel_order" STILL pending at stack depth 1!
 ```
 User: "no"
 
-ConfirmationResolutionStep (55):
+ConfirmationResolutionStep (57):
   - SingleConfirmationNegativeResolver matches
   - Peek stack → "offer_loyalty_conversion"
   - Pops stack
@@ -3865,12 +3875,12 @@ OrchestrationResult result = orchestrator.orchestrate("What did we discuss?", ct
 - [ ] Add error handling with constants
 
 ### Phase 6: Pipeline Integration ⚠️ **UPDATED**
-- [ ] Add conversationId to OrchestrationContext
-- [ ] Add hasConversation() method to OrchestrationContext
+- [x] Add conversationId to OrchestrationContext
+- [x] Add hasConversation() method to OrchestrationContext
 - [ ] Create ConversationEnrichmentStep (Order 25)
-- [ ] Create ConfirmationResolutionStep (Order 55)
+- [ ] Create ConfirmationResolutionStep (Order 57)
 - [ ] Create ConversationRecordingStep (Order 95)
-- [ ] Update MetadataBuildingStep (include conversationId)
+- [x] Update MetadataBuildingStep (include conversationId)
 - [ ] Test pipeline integration
 
 ### Phase 7: Action Confirmation Workflow 🆕 **NEW**
