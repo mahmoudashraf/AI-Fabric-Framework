@@ -38,6 +38,11 @@
             <artifactId>ai-infrastructure-chat-session</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-pii</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- Provider modules (required when running Real API tests in this module) -->
         <dependency>
@@ -201,7 +206,7 @@
                     </includes>
                     <excludes>
                         <!-- Exclude RealAPI tests - they require provider credentials and are run separately -->
-                        <exclude>**/realapi/*RealApiIntegrationTest.java</exclude>
+                        <exclude>**/realapi/**</exclude>
                     </excludes>
                 </configuration>
                 <executions>
@@ -240,4 +245,3 @@
         </profile>
     </profiles>
 </project>
-

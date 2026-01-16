@@ -15,6 +15,12 @@
 # Test Configuration
 TEST_CLASS="${TEST_CLASS:-RealAPIProviderMatrixIntegrationTest}" # Change this to your test class name
 
+# Test runner selection:
+# - surefire (default): `mvn test -Dtest=...`
+# - failsafe: `mvn verify -Dit.test=...`
+# Auto-detect failsafe for *IT / *IntegrationTest / *RealApiIntegrationTest unless forced.
+TEST_RUNNER="${TEST_RUNNER:-auto}" # auto|surefire|failsafe
+
 # Key loading:
 # - Prefer OPENAI_API_KEY from environment if already set
 # - Else read from OPENAI_KEY_FILE (first line is the key)
@@ -43,6 +49,8 @@ MATRIX_SPEC="${MATRIX_SPEC:-}"
 MAVEN_PROFILE="${MAVEN_PROFILE:-real-api-test}"
 MAVEN_MODULE="${MAVEN_MODULE:-integration-Testing/integration-tests}"
 MAVEN_ALSO_MAKE="${MAVEN_ALSO_MAKE:-true}" # build required reactor deps (-am)
+MAVEN_MVN_PROFILES="${MAVEN_MVN_PROFILES:-}" # e.g., "realapi" or "realapi,other"
+MAVEN_EXTRA_ARGS="${MAVEN_EXTRA_ARGS:-}" # e.g., "-Dfoo=bar"
 FORK_COUNT="${FORK_COUNT:-1}"
 REUSE_FORKS="${REUSE_FORKS:-false}"
 LOG_LEVEL="${LOG_LEVEL:-WARN}"
@@ -124,6 +132,10 @@ print_info "Test Configuration:"
 echo "   Test Class: $TEST_CLASS"
 echo "   Maven Module: $MAVEN_MODULE"
 echo "   Maven Profile: $MAVEN_PROFILE"
+echo "   Test Runner: $TEST_RUNNER"
+if [ -n "$MAVEN_MVN_PROFILES" ]; then
+  echo "   Maven Profiles: $MAVEN_MVN_PROFILES"
+fi
 echo "   LLM Provider: $LLM_PROVIDER"
 echo "   Embedding: $EMBEDDING_PROVIDER"
 echo "   Vector DB: $VECTOR_DB"
@@ -217,12 +229,38 @@ cd "$AI_INFRA_DIR" || exit 1
 print_info "Working Directory: $(pwd)"
 echo ""
 
+# Determine which runner to use
+if [ "$TEST_RUNNER" = "auto" ]; then
+  if [[ "$TEST_CLASS" == *IT ]] || [[ "$TEST_CLASS" == *IntegrationTest ]] || [[ "$TEST_CLASS" == *RealApiIntegrationTest ]]; then
+    TEST_RUNNER="failsafe"
+  else
+    TEST_RUNNER="surefire"
+  fi
+fi
+
+# Ensure realapi profile is enabled when running RealApiIntegrationTest via failsafe,
+# unless the caller explicitly set a profile list.
+if [ "$TEST_RUNNER" = "failsafe" ] && [[ "$TEST_CLASS" == *RealApiIntegrationTest ]] && [ -z "$MAVEN_MVN_PROFILES" ]; then
+  MAVEN_MVN_PROFILES="realapi"
+fi
+
 # Build Maven command
-MAVEN_CMD="mvn test -pl $MAVEN_MODULE"
+if [ "$TEST_RUNNER" = "failsafe" ]; then
+  MAVEN_CMD="mvn verify -pl $MAVEN_MODULE"
+else
+  MAVEN_CMD="mvn test -pl $MAVEN_MODULE"
+fi
 if [ "${MAVEN_ALSO_MAKE}" = "true" ]; then
   MAVEN_CMD="$MAVEN_CMD -am"
 fi
-MAVEN_CMD="$MAVEN_CMD -Dtest=$TEST_CLASS"
+if [ -n "$MAVEN_MVN_PROFILES" ]; then
+  MAVEN_CMD="$MAVEN_CMD -P $MAVEN_MVN_PROFILES"
+fi
+if [ "$TEST_RUNNER" = "failsafe" ]; then
+  MAVEN_CMD="$MAVEN_CMD -Dit.test=$TEST_CLASS"
+else
+  MAVEN_CMD="$MAVEN_CMD -Dtest=$TEST_CLASS"
+fi
 MAVEN_CMD="$MAVEN_CMD -Dsurefire.failIfNoSpecifiedTests=false"
 MAVEN_CMD="$MAVEN_CMD -Dspring.profiles.active=$MAVEN_PROFILE"
 MAVEN_CMD="$MAVEN_CMD -Dai.providers.llm-provider=$LLM_PROVIDER"
@@ -235,6 +273,9 @@ fi
 MAVEN_CMD="$MAVEN_CMD -DforkCount=$FORK_COUNT"
 MAVEN_CMD="$MAVEN_CMD -DreuseForks=$REUSE_FORKS"
 MAVEN_CMD="$MAVEN_CMD -Dlogging.level.root=$LOG_LEVEL"
+if [ -n "$MAVEN_EXTRA_ARGS" ]; then
+  MAVEN_CMD="$MAVEN_CMD $MAVEN_EXTRA_ARGS"
+fi
 
 print_success "Executing Maven Test..."
 echo -e "${GRAY}   Command: $MAVEN_CMD${NC}"

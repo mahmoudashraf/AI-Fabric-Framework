@@ -31,21 +31,21 @@ public class AIAccessControlService {
         Objects.requireNonNull(request, "access request must not be null");
 
         EntityAccessPolicy policy = requirePolicy();
-        String userId = extractUserId(request);
+        String actorId = resolveActorId(request);
 
         LocalDateTime evaluationTimestamp = Optional.ofNullable(request.getTimestamp())
             .orElseGet(() -> LocalDateTime.now(clock));
         Map<String, Object> entityContext = buildEntityContext(request, evaluationTimestamp);
 
-        Decision decision = evaluateAccess(policy, userId, entityContext);
+        Decision decision = evaluateAccess(policy, actorId, entityContext);
         if (!decision.granted()) {
-            logDenied(policy, userId, entityContext);
+            logDenied(policy, actorId, entityContext);
         }
 
         long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
         return AIAccessControlResponse.builder()
             .requestId(request.getRequestId())
-            .userId(userId)
+            .userId(actorId)
             .resourceId(Objects.toString(entityContext.get("resourceId"), null))
             .operationType(Objects.toString(entityContext.get("operationType"), null))
             .accessGranted(decision.granted())
@@ -67,12 +67,16 @@ public class AIAccessControlService {
         return entityAccessPolicy;
     }
 
-    private String extractUserId(AIAccessControlRequest request) {
+    private String resolveActorId(AIAccessControlRequest request) {
         String userId = request.getUserId();
-        if (userId == null || userId.isBlank()) {
-            throw new IllegalArgumentException("userId must be provided");
+        if (userId != null && !userId.isBlank()) {
+            return userId.trim();
         }
-        return userId;
+        String sessionId = request.getSessionId();
+        if (sessionId != null && !sessionId.isBlank()) {
+            return sessionId.trim();
+        }
+        throw new IllegalArgumentException("userId or sessionId must be provided");
     }
 
     private Map<String, Object> buildEntityContext(AIAccessControlRequest request, LocalDateTime timestamp) {

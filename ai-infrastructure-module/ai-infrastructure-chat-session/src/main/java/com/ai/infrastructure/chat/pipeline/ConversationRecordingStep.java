@@ -43,8 +43,22 @@ public class ConversationRecordingStep implements PipelineStep {
     }
 
     @Override
+    public boolean shouldSkip(PipelineContext context) {
+        if (context == null) {
+            return true;
+        }
+        if (!context.isShouldTerminate()) {
+            return false;
+        }
+        return !shouldRecordAfterTermination(context);
+    }
+
+    @Override
     public PipelineContext process(PipelineContext context) {
-        if (context == null || context.isShouldTerminate()) {
+        if (context == null) {
+            return context;
+        }
+        if (context.isShouldTerminate() && !shouldRecordAfterTermination(context)) {
             return context;
         }
         if (properties == null || !properties.isEnabled()) {
@@ -75,6 +89,20 @@ public class ConversationRecordingStep implements PipelineStep {
             log.warn("Failed to record conversation turn conversationId={}: {}", conversationId, ex.getMessage());
         }
         return context;
+    }
+
+    private boolean shouldRecordAfterTermination(PipelineContext context) {
+        if (context == null) {
+            return false;
+        }
+        if (!context.isShouldTerminate()) {
+            return true;
+        }
+        if (context.getEarlyTerminationResult() == null || context.getEarlyTerminationResult().getType() == null) {
+            return false;
+        }
+        // Clarification is an expected user-facing outcome; keep the conversation history consistent.
+        return context.getEarlyTerminationResult().getType() == com.ai.infrastructure.intent.orchestration.OrchestrationResultType.CLARIFICATION_REQUIRED;
     }
 
     private String sanitizedMessage(PipelineContext context) {

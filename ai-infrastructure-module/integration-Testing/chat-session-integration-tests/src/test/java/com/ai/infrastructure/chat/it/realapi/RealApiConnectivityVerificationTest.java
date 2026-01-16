@@ -2,6 +2,7 @@ package com.ai.infrastructure.chat.it.realapi;
 
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
+import com.ai.infrastructure.chat.config.ChatSessionAutoConfiguration;
 import com.ai.infrastructure.http.AIHttpClientFactory;
 import com.ai.infrastructure.http.AIHttpClientProperties;
 import com.ai.infrastructure.http.DefaultAIHttpClientFactory;
@@ -53,7 +54,8 @@ class RealApiConnectivityVerificationTest {
     @EnableAutoConfiguration(exclude = {
         DataSourceAutoConfiguration.class,
         HibernateJpaAutoConfiguration.class,
-        AIInfrastructureAutoConfiguration.class
+        AIInfrastructureAutoConfiguration.class,
+        ChatSessionAutoConfiguration.class
     })
     @EnableConfigurationProperties({AIProviderConfig.class, AIHttpClientProperties.class})
     @ComponentScan(basePackageClasses = {AIProviderManager.class})
@@ -76,4 +78,3 @@ class RealApiConnectivityVerificationTest {
         }
     }
 }
-

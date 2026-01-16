@@ -11,6 +11,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
@@ -40,6 +41,25 @@ class AIAccessControlServiceTest {
         assertThat(response.getAccessGranted()).isFalse();
         assertThat(response.getSuccess()).isFalse();
         assertThat(response.getErrorMessage()).contains("boom");
+    }
+
+    @Test
+    void shouldAllowAnonymousSessionIdWhenUserIdMissing() {
+        EntityAccessPolicy policy = mock(EntityAccessPolicy.class);
+        doReturn(true).when(policy).canUserAccessEntity(any(), any());
+
+        AIAccessControlService service = new AIAccessControlService(clock, policy);
+
+        AIAccessControlResponse response = service.checkAccess(AIAccessControlRequest.builder()
+            .requestId("req-session-1")
+            .sessionId("session-1")
+            .resourceId("resource-1")
+            .operationType("READ")
+            .metadata(Map.of("test", true))
+            .build());
+
+        assertThat(response.getAccessGranted()).isTrue();
+        assertThat(response.getUserId()).isEqualTo("session-1");
     }
 
     private AIAccessControlRequest buildRequest(String userId) {
