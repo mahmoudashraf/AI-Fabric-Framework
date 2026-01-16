@@ -1,5 +1,5 @@
 server:
-  port: 8097
+  port: ${PORT:8097}
 
 spring:
   application:
@@ -39,4 +39,3 @@ logging:
     com.ai.fabric.realapps.behavior: INFO
     com.ai.infrastructure.behavior: INFO
     com.ai.infrastructure: INFO
-

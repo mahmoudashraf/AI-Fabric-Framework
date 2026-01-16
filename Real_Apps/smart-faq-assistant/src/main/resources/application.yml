@@ -1,5 +1,5 @@
 server:
-  port: 8094
+  port: ${PORT:8094}
 
 spring:
   application:
@@ -33,4 +33,3 @@ logging:
   level:
     com.ai.fabric.realapps.faq: INFO
     com.ai.infrastructure: INFO
-
