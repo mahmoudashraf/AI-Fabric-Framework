@@ -23,6 +23,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Explicit Real API connectivity check.
@@ -37,6 +39,31 @@ import org.springframework.test.context.ActiveProfiles;
 )
 @ActiveProfiles("realapi")
 class RealApiConnectivityVerificationTest {
+
+    @DynamicPropertySource
+    static void enableProvidersWhenKeysPresent(DynamicPropertyRegistry registry) {
+        // CI may provide API keys without explicitly setting *_ENABLED flags.
+        if (hasText(getPropertyOrEnv("OPENAI_API_KEY"))) {
+            registry.add("OPENAI_ENABLED", () -> "true");
+            registry.add("AI_INFRASTRUCTURE_OPENAI_ENABLED", () -> "true");
+        }
+        if (hasText(getPropertyOrEnv("ANTHROPIC_API_KEY"))) {
+            registry.add("ANTHROPIC_ENABLED", () -> "true");
+            registry.add("AI_INFRASTRUCTURE_ANTHROPIC_ENABLED", () -> "true");
+        }
+        if (hasText(getPropertyOrEnv("GEMINI_API_KEY"))) {
+            registry.add("GEMINI_ENABLED", () -> "true");
+            registry.add("AI_INFRASTRUCTURE_GEMINI_ENABLED", () -> "true");
+        }
+        if (hasText(getPropertyOrEnv("COHERE_API_KEY"))) {
+            registry.add("COHERE_ENABLED", () -> "true");
+            registry.add("AI_INFRASTRUCTURE_COHERE_ENABLED", () -> "true");
+        }
+        if (hasText(getPropertyOrEnv("AZURE_API_KEY")) && hasText(getPropertyOrEnv("AZURE_ENDPOINT"))) {
+            registry.add("AZURE_ENABLED", () -> "true");
+            registry.add("AI_INFRASTRUCTURE_AZURE_ENABLED", () -> "true");
+        }
+    }
 
     @Autowired
     private AIProviderManager providerManager;
@@ -80,5 +107,17 @@ class RealApiConnectivityVerificationTest {
         HttpClient httpClient(AIHttpClientFactory factory) {
             return factory.create();
         }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private static String getPropertyOrEnv(String key) {
+        String prop = System.getProperty(key);
+        if (hasText(prop)) {
+            return prop;
+        }
+        return System.getenv(key);
     }
 }
