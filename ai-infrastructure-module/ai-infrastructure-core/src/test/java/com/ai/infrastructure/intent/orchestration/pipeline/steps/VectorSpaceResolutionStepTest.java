@@ -134,6 +134,37 @@ class VectorSpaceResolutionStepTest {
     }
 
     @Test
+    void shouldResolveSingleCandidateFanOutWithoutClarification() {
+        VectorSpaceRouter router = mock(VectorSpaceRouter.class);
+        when(router.route(any(), anyString())).thenReturn(RoutingResult.builder()
+            .success(true)
+            .candidateSpaces(List.of("faq"))
+            .strategy(RoutingStrategy.FAN_OUT)
+            .confidence(0.5d)
+            .rationale("single candidate")
+            .build());
+
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(router);
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("refund_policy")
+            .vectorSpace(null)
+            .requiresRetrieval(true)
+            .build();
+
+        PipelineContext context = PipelineContext.from("q", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated.isShouldTerminate()).isFalse();
+        assertThat(updated.getIntentResponse().getIntents().getFirst().getVectorSpace()).isEqualTo("faq");
+    }
+
+    @Test
     void shouldTerminateWithClarificationWhenRoutingFailsWithCandidates() {
         VectorSpaceRouter router = mock(VectorSpaceRouter.class);
         when(router.route(any(), anyString())).thenReturn(RoutingResult.builder()

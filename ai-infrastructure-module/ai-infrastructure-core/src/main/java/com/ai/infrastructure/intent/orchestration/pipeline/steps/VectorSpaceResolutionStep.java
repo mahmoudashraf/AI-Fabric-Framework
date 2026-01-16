@@ -119,6 +119,17 @@ public class VectorSpaceResolutionStep implements PipelineStep {
         if (routing.requiresFanOut()) {
             return String.join(",", routing.getCandidateSpaces());
         }
+
+        // Provider-agnostic robustness: some routers return FAN_OUT strategy with a single candidate when fan-out is
+        // configured to max 1 space. Treat that single candidate as a resolved vectorSpace rather than forcing
+        // clarification due to routing.getVectorSpace() being null.
+        if (routing.getStrategy() == com.ai.infrastructure.intent.vectorspace.RoutingStrategy.FAN_OUT
+            && routing.getCandidateSpaces() != null
+            && routing.getCandidateSpaces().size() == 1) {
+            String only = routing.getCandidateSpaces().getFirst();
+            return hasText(only) ? only.trim() : null;
+        }
+
         return routing.getVectorSpace();
     }
 
