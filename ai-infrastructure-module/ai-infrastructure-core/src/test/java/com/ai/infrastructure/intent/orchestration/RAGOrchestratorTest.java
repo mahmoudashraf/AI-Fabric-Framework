@@ -4,6 +4,7 @@ import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.config.AIServiceConfig;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.Intent;
@@ -30,6 +31,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.steps.OrchestrationRe
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.ResponseSanitizationStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SecurityAnalysisStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.SmartSuggestionsStep;
+import com.ai.infrastructure.intent.orchestration.pipeline.steps.VectorSpaceResolutionStep;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
@@ -150,12 +152,31 @@ class RAGOrchestratorTest {
         ObjectProvider<RAGProvider> ragProviderProvider = mock(ObjectProvider.class);
         lenient().when(ragProviderProvider.getIfAvailable()).thenReturn(ragProvider);
 
+        var vectorSpaceRoutingProperties = new com.ai.infrastructure.config.VectorSpaceRoutingProperties();
+        var rankBasedMerger = new com.ai.infrastructure.intent.vectorspace.RankBasedMerger();
+        var vectorSpaceRouter = mock(com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter.class);
+        lenient().when(vectorSpaceRouter.route(any(), anyString())).thenReturn(
+            com.ai.infrastructure.intent.vectorspace.RoutingResult.builder()
+                .success(true)
+                .vectorSpace("policies")
+                .strategy(com.ai.infrastructure.intent.vectorspace.RoutingStrategy.HEURISTIC)
+                .confidence(0.5d)
+                .rationale("test default")
+                .build()
+        );
+
+        ObjectProvider<com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine> progressiveEngineProvider =
+            mock(ObjectProvider.class);
+        lenient().when(progressiveEngineProvider.getIfAvailable()).thenReturn(null);
+
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
             new ComplianceCheckStep(complianceService),
-            new IntentExtractionStep(intentQueryExtractor),
-            new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider),
+            new IntentExtractionStep(intentQueryExtractor, progressiveEngineProvider),
+            new VectorSpaceResolutionStep(vectorSpaceRouter),
+            new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider,
+                vectorSpaceRoutingProperties, rankBasedMerger),
             new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
             new MetadataBuildingStep(),
             new SmartSuggestionsStep(smartSuggestionsProperties, ragProviderProvider),
@@ -262,7 +283,7 @@ class RAGOrchestratorTest {
             .documents(List.of())
             .build();
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
-        when(aiCoreService.generateText(anyString())).thenReturn("Refunds take 5-7 days.");
+        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Refunds take 5-7 days.");
 
         OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", "user");
 
@@ -279,6 +300,7 @@ class RAGOrchestratorTest {
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
             .intent("product_recommendations")
+            .vectorSpace("product")
             .optimizedQuery("Product entities where price_usd < 100 and stock_status = 'in_stock'")
             .requiresGeneration(true)
             .build();
@@ -291,7 +313,7 @@ class RAGOrchestratorTest {
             .success(true)
             .build();
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
-        when(aiCoreService.generateText(anyString())).thenReturn("Here are top picks.");
+        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Here are top picks.");
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", "user");
 
@@ -334,7 +356,7 @@ class RAGOrchestratorTest {
                 .documents(List.of())
                 .build()
         );
-        when(aiCoreService.generateText(anyString())).thenReturn("Generated answer from orchestrator.");
+        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Generated answer from orchestrator.");
 
         OrchestrationResult result = orchestrator.orchestrate("What should I buy for commuting?", "user");
 
@@ -344,7 +366,7 @@ class RAGOrchestratorTest {
         verify(provider).performAdvancedRAG(any(AdvancedRAGRequest.class));
         verify(ragProvider, never()).performRAGQuery(any(RAGRequest.class));
         verify(ragProvider, never()).performRag(any(RAGRequest.class));
-        verify(aiCoreService).generateText(anyString());
+        verify(aiCoreService).generateText(anyString(), any(LlmPurpose.class));
     }
 
     @Test
@@ -376,7 +398,7 @@ class RAGOrchestratorTest {
                 .success(true)
                 .build()
         );
-        when(aiCoreService.generateText(anyString())).thenReturn("Basic generated answer.");
+        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Basic generated answer.");
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", "user");
 
@@ -416,7 +438,7 @@ class RAGOrchestratorTest {
                 .success(true)
                 .build()
         );
-        when(aiCoreService.generateText(anyString())).thenReturn("Basic generated answer.");
+        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Basic generated answer.");
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", "user");
 
@@ -462,7 +484,7 @@ class RAGOrchestratorTest {
         assertThat(result.getMessage()).isEqualTo("Advanced provider answer.");
 
         verify(provider).performAdvancedRAG(any(AdvancedRAGRequest.class));
-        verify(aiCoreService, never()).generateText(anyString());
+        verify(aiCoreService, never()).generateText(anyString(), any(LlmPurpose.class));
         verify(ragProvider, never()).performRAGQuery(any(RAGRequest.class));
     }
 

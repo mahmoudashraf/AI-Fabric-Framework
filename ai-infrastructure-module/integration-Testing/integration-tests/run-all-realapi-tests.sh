@@ -1,11 +1,18 @@
 #!/bin/bash
 # Run all RealAPI tests with OpenAI embeddings (512 dimensions) and Lucene
 
-export OPENAI_API_KEY="${OPENAI_API_KEY:-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}"
+if [[ -z "${OPENAI_API_KEY}" ]]; then
+  echo "ERROR: OPENAI_API_KEY must be set to run RealAPI tests." >&2
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REACTOR_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # All RealAPI test classes
 TESTS=(
   "RealAPIIntegrationTest"
+  "RealAPIProgressiveExtractionDiagnosticsIntegrationTest"
   "RealAPIONNXFallbackIntegrationTest"
   "RealAPISmartValidationIntegrationTest"
   "RealAPIVectorLifecycleIntegrationTest"
@@ -34,9 +41,11 @@ echo "  - Storage Strategy: SINGLE_TABLE"
 echo "=========================================="
 echo ""
 
-mvn test \
+cd "${REACTOR_ROOT}" || exit 1
+
+mvn -pl integration-Testing/integration-tests -am test \
   "-Dtest=${TEST_CLASSES}" \
-  "-Dspring.profiles.active=realapi" \
+  "-Dsurefire.failIfNoSpecifiedTests=false" \
   "-Dai.providers.llm-provider=openai" \
   "-Dai.providers.embedding-provider=openai" \
   "-Dai.providers.openai.embedding-model=text-embedding-3-small" \

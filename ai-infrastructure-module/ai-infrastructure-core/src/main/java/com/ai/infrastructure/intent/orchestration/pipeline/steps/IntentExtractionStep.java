@@ -2,11 +2,13 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
@@ -50,6 +52,7 @@ public class IntentExtractionStep implements PipelineStep {
     // =========================================================================
     
     private final IntentQueryExtractor intentQueryExtractor;
+    private final ObjectProvider<ProgressiveIntentExtractionEngine> progressiveEngineProvider;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -93,16 +96,34 @@ public class IntentExtractionStep implements PipelineStep {
         log.debug("Extracting intent for request {}", context.getRequestId());
         
         String processedQuery = context.getEffectiveQuery();
-        
-        MultiIntentResponse intentResponse = intentQueryExtractor.extract(
-            processedQuery, 
-            context.getOrchestrationContext()
-        );
+
+        ProgressiveIntentExtractionEngine engine = progressiveEngineProvider != null
+            ? progressiveEngineProvider.getIfAvailable()
+            : null;
+
+        MultiIntentResponse intentResponse;
+        PipelineContext updatedContext = context;
+
+        if (engine != null) {
+            ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract(
+                processedQuery,
+                context.getOrchestrationContext()
+            );
+            intentResponse = output != null ? output.response() : null;
+            if (output != null && output.diagnostics() != null && !output.diagnostics().isEmpty()) {
+                updatedContext = updatedContext.withMetadata("extractionDiagnostics", output.diagnostics());
+            }
+        } else {
+            intentResponse = intentQueryExtractor.extract(
+                processedQuery,
+                context.getOrchestrationContext()
+            );
+        }
         
         if (!intentResponse.hasIntents()) {
             log.warn("No intents extracted for query '{}' in request {}", 
                 processedQuery, context.getRequestId());
-            return context.terminate(OrchestrationResult.error(ERROR_MSG_NO_INTENT));
+            return updatedContext.terminate(OrchestrationResult.error(ERROR_MSG_NO_INTENT));
         }
         
         int intentCount = intentResponse.getIntents().size();
@@ -111,7 +132,7 @@ public class IntentExtractionStep implements PipelineStep {
         log.debug("Extracted {} intent(s) for request {} (compound: {})", 
             intentCount, context.getRequestId(), isCompound);
         
-        return context.toBuilder()
+        return updatedContext.toBuilder()
             .intentResponse(intentResponse)
             .build();
     }

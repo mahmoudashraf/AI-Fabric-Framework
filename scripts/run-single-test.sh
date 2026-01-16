@@ -83,6 +83,27 @@ print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
+# Resolve repo root early so key files work regardless of the current working directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+AI_INFRA_DIR="$REPO_ROOT/ai-infrastructure-module"
+
+resolve_repo_file() {
+  local path="$1"
+  if [ -z "$path" ]; then
+    return 1
+  fi
+  if [ -f "$path" ]; then
+    echo "$path"
+    return 0
+  fi
+  if [[ "$path" != /* ]] && [ -f "$REPO_ROOT/$path" ]; then
+    echo "$REPO_ROOT/$path"
+    return 0
+  fi
+  return 1
+}
+
 # Header
 print_header "Single Integration Test Runner"
 
@@ -116,11 +137,20 @@ echo ""
 if [ -z "${OPENAI_API_KEY:-}" ]; then
   if [ -n "$OPENAI_KEY" ]; then
     export OPENAI_API_KEY="$OPENAI_KEY"
-  elif [ -f "$OPENAI_KEY_FILE" ]; then
-    KEY_FROM_FILE="$(head -n 1 "$OPENAI_KEY_FILE" | tr -d '\r' | xargs)"
+  elif OPENAI_KEY_FILE_RESOLVED="$(resolve_repo_file "$OPENAI_KEY_FILE")"; then
+    KEY_FROM_FILE="$(head -n 1 "$OPENAI_KEY_FILE_RESOLVED" | tr -d '\r' | xargs)"
     if [ -n "$KEY_FROM_FILE" ]; then
       export OPENAI_API_KEY="$KEY_FROM_FILE"
     fi
+  fi
+fi
+
+# Enable OpenAI in profiles that gate via OPENAI_ENABLED/AI_INFRASTRUCTURE_OPENAI_ENABLED.
+# Only do this when OpenAI is the selected LLM (or when the matrix explicitly uses openai).
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+  if [ "${LLM_PROVIDER:-}" = "openai" ] || [[ "${MATRIX_SPEC:-}" == openai:* ]]; then
+    export OPENAI_ENABLED="${OPENAI_ENABLED:-true}"
+    export AI_INFRASTRUCTURE_OPENAI_ENABLED="${AI_INFRASTRUCTURE_OPENAI_ENABLED:-true}"
   fi
 fi
 
@@ -129,13 +159,35 @@ fi
 # - AI_PROVIDERS_PINECONE_API_KEY / PINECONE_API_KEY from environment
 # - Else read from PINECONE_KEY_FILE (first line is the key)
 if [ -z "${AI_PROVIDERS_PINECONE_API_KEY:-}" ] && [ -z "${PINECONE_API_KEY:-}" ]; then
-  if [ -f "$PINECONE_KEY_FILE" ]; then
-    PINECONE_KEY_FROM_FILE="$(head -n 1 "$PINECONE_KEY_FILE" | tr -d '\r' | xargs)"
+  if PINECONE_KEY_FILE_RESOLVED="$(resolve_repo_file "$PINECONE_KEY_FILE")"; then
+    PINECONE_KEY_FROM_FILE="$(head -n 1 "$PINECONE_KEY_FILE_RESOLVED" | tr -d '\r' | xargs)"
     if [ -n "$PINECONE_KEY_FROM_FILE" ]; then
       export AI_PROVIDERS_PINECONE_API_KEY="$PINECONE_KEY_FROM_FILE"
       export PINECONE_API_KEY="$PINECONE_KEY_FROM_FILE"
     fi
   fi
+fi
+
+# Enable other LLM providers in profiles that gate via *_ENABLED flags.
+# Only set when the provider is selected (or explicitly present in the matrix spec).
+if [ "${LLM_PROVIDER:-}" = "anthropic" ] || [[ "${MATRIX_SPEC:-}" == anthropic:* ]]; then
+  export ANTHROPIC_ENABLED="${ANTHROPIC_ENABLED:-true}"
+  export AI_INFRASTRUCTURE_ANTHROPIC_ENABLED="${AI_INFRASTRUCTURE_ANTHROPIC_ENABLED:-true}"
+fi
+
+if [ "${LLM_PROVIDER:-}" = "gemini" ] || [[ "${MATRIX_SPEC:-}" == gemini:* ]]; then
+  export GEMINI_ENABLED="${GEMINI_ENABLED:-true}"
+  export AI_INFRASTRUCTURE_GEMINI_ENABLED="${AI_INFRASTRUCTURE_GEMINI_ENABLED:-true}"
+fi
+
+if [ "${LLM_PROVIDER:-}" = "cohere" ] || [[ "${MATRIX_SPEC:-}" == cohere:* ]]; then
+  export COHERE_ENABLED="${COHERE_ENABLED:-true}"
+  export AI_INFRASTRUCTURE_COHERE_ENABLED="${AI_INFRASTRUCTURE_COHERE_ENABLED:-true}"
+fi
+
+if [ "${LLM_PROVIDER:-}" = "azure" ] || [[ "${MATRIX_SPEC:-}" == azure:* ]]; then
+  export AZURE_ENABLED="${AZURE_ENABLED:-true}"
+  export AI_INFRASTRUCTURE_AZURE_ENABLED="${AI_INFRASTRUCTURE_AZURE_ENABLED:-true}"
 fi
 
 # Ensure Pinecone host/index defaults exist when running pinecone vector db tests locally.
@@ -160,9 +212,6 @@ if [ "${VECTOR_DB:-}" = "pinecone" ] || [[ "${MATRIX_SPEC:-}" == *":pinecone:"* 
 fi
 
 # Navigate to repo + module directory (Maven needs a pom.xml)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-AI_INFRA_DIR="$REPO_ROOT/ai-infrastructure-module"
 cd "$AI_INFRA_DIR" || exit 1
 
 print_info "Working Directory: $(pwd)"

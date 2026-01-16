@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -68,6 +69,17 @@ public class PIIDetectionStep implements PipelineStep {
             ? piiResult.getProcessedQuery()
             : originalQuery;
 
+        // Safety invariant: never forward raw PII to downstream LLM steps.
+        // Even when PIIMode is DETECT_ONLY (which stores the original payload and emits detections),
+        // we still pass a masked version into the orchestration pipeline so providers do not see
+        // secrets/PII and to reduce provider refusals / OUT_OF_SCOPE misclassifications.
+        if (piiResult.isPiiDetected()
+            && processedQuery.equals(originalQuery)
+            && piiResult.getDetections() != null
+            && !piiResult.getDetections().isEmpty()) {
+            processedQuery = redact(originalQuery, piiResult.getDetections());
+        }
+
         List<String> detectedTypes = piiResult.getDetections().stream()
             .map(PIIDetection::getType)
             .filter(StringUtils::hasText)
@@ -83,5 +95,21 @@ public class PIIDetectionStep implements PipelineStep {
             .detectedPiiTypes(detectedTypes)
             .build();
     }
-}
 
+    private String redact(String original, List<PIIDetection> detections) {
+        if (!StringUtils.hasText(original) || detections == null || detections.isEmpty()) {
+            return original;
+        }
+
+        StringBuilder builder = new StringBuilder(original);
+        detections.stream()
+            .filter(d -> d != null && StringUtils.hasText(d.getMaskedValue()))
+            .sorted(Comparator.comparingInt((PIIDetection d) -> d.getStartIndex()).reversed())
+            .forEach(detection -> {
+                int start = Math.max(0, Math.min(detection.getStartIndex(), builder.length()));
+                int end = Math.max(start, Math.min(detection.getEndIndex(), builder.length()));
+                builder.replace(start, end, detection.getMaskedValue());
+            });
+        return builder.toString();
+    }
+}

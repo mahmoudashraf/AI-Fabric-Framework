@@ -2,6 +2,7 @@ package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.entity.IntentHistory;
@@ -118,6 +119,71 @@ public class RealAPIMultiProviderFailoverIntegrationTest {
             // For all other calls, delegate to real implementation
             return invocation.callRealMethod();
         }).when(aiCoreService).generateContent(Mockito.any(AIGenerationRequest.class));
+
+        // New purpose-aware overload used by IntentQueryExtractor / progressive extraction.
+        Mockito.doAnswer(invocation -> {
+            AIGenerationRequest request = invocation.getArgument(0);
+            LlmPurpose purpose = invocation.getArgument(1);
+
+            // Only intercept intent extraction requests
+            if (request.getGenerationType() != null
+                && request.getGenerationType().contains("intent_extraction")
+                && purpose == LlmPurpose.ORCHESTRATION) {
+
+                int currentCall = callCount.incrementAndGet();
+
+                // Return malformed JSON on first call (simulating provider error/timeout recovery)
+                if (currentCall == 1) {
+                    malformedJsonResponseCount.incrementAndGet();
+                    String malformedJson = """
+                        ```json
+                        { "intents": [ { "type": "INFORMATION", "intent": "query about products"
+                        // Intentionally incomplete/malformed JSON
+                        """;
+                    return AIGenerationResponse.builder()
+                        .content(malformedJson)
+                        .generationType("intent_extraction")
+                        .model("gpt-4o-mini")
+                        .build();
+                }
+
+                // Return a deterministic repair response to avoid flakiness across real providers/models.
+                // This keeps the test focused on exercising the repair pathway, while downstream RAG
+                // and generation still use the real provider stack.
+                if (request.getGenerationType().contains("intent_extraction_repair") && currentCall == 2) {
+                    String repairedJson = """
+                        {
+                          "intents": [
+                            {
+                              "type": "INFORMATION",
+                              "intent": "knowledge_base_recommendations",
+                              "confidence": 0.82,
+                              "action": null,
+                              "actionParams": {},
+                              "vectorSpace": "test-product",
+                              "requiresRetrieval": true,
+                              "requiresGeneration": true,
+                              "needsAdvancedRAG": false,
+                              "optimizedQuery": "Enterprise Security Suite capabilities and integration options; Data Privacy Compliance Tool features for GDPR adherence",
+                              "nextStepRecommended": null
+                            }
+                          ],
+                          "compound": false,
+                          "orchestrationStrategy": "RETRIEVE_AND_GENERATE",
+                          "metadata": { "repaired": true }
+                        }
+                        """;
+                    return AIGenerationResponse.builder()
+                        .content(repairedJson)
+                        .generationType("intent_extraction_repair")
+                        .model("mock-repair")
+                        .build();
+                }
+            }
+
+            // For all other calls, delegate to real implementation
+            return invocation.callRealMethod();
+        }).when(aiCoreService).generateContent(Mockito.any(AIGenerationRequest.class), Mockito.any(LlmPurpose.class));
 
         vectorManagementService.clearAllVectors();
         storageStrategy.deleteAll();

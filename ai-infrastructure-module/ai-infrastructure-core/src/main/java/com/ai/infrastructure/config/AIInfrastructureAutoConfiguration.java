@@ -87,6 +87,8 @@ import java.util.stream.Collectors;
 	    @EnableConfigurationProperties({
 	        AIProviderConfig.class,
 	        AIServiceConfig.class,
+            ProgressiveIntentExtractionProperties.class,
+            VectorSpaceRoutingProperties.class,
 	        SmartSuggestionsProperties.class,
 	        ResponseSanitizationProperties.class,
 	        OrchestrationResultNormalizationProperties.class,

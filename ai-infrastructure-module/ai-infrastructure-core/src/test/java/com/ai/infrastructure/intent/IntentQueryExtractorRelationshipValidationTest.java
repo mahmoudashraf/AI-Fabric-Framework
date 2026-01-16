@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
@@ -23,6 +23,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
@@ -41,9 +42,6 @@ class IntentQueryExtractorRelationshipValidationTest {
     @Mock
     private ActionHandlerRegistry actionHandlerRegistry;
 
-    @Mock
-    private KnowledgeBaseOverviewService knowledgeBaseOverviewService;
-
     private IntentQueryExtractor extractor;
 
     @BeforeEach
@@ -51,14 +49,10 @@ class IntentQueryExtractorRelationshipValidationTest {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class)))
             .thenReturn("system-prompt");
 
-        ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseProvider = org.mockito.Mockito.mock(ObjectProvider.class);
-        when(knowledgeBaseProvider.getIfAvailable()).thenReturn(knowledgeBaseOverviewService);
-
         extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseProvider,
             new ObjectMapper()
         );
     }
@@ -83,7 +77,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
         
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
         
         // Act
@@ -121,7 +115,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
         
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
         
         // Act
@@ -164,7 +158,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
         
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
         
         // Act
@@ -203,7 +197,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
         
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
         
         // Act
@@ -242,7 +236,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
 
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         // Act
@@ -277,7 +271,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
 
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         // Act
@@ -313,7 +307,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
 
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         // Act
@@ -347,7 +341,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
 
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         // Act
@@ -381,7 +375,7 @@ class IntentQueryExtractorRelationshipValidationTest {
             }
             """;
         
-        when(aiCoreService.generateContent(any()))
+        when(aiCoreService.generateContent(any(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
         
         // Act

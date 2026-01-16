@@ -1,20 +1,24 @@
-# Run All RealAPI Tests with OpenAI Embeddings (512 dimensions)
+# Run RealAPI Tests
 
-## Command to Run All RealAPI Tests
+All RealAPI tests in this module use `@ActiveProfiles("real-api-test")` and require a real provider API key.
+
+## Run All RealAPI Tests (recommended from reactor root)
 
 ```bash
-cd ai-infrastructure-module/integration-Testing/integration-tests
+cd ai-infrastructure-module
 
 # Clean up any existing Lucene locks
-rm -rf data/lucene-vector-index data/test-lucene-index
+rm -rf integration-Testing/integration-tests/data/lucene-vector-index \
+       integration-Testing/integration-tests/data/test-lucene-index \
+       integration-Testing/integration-tests/data/test-lucene-index-hybrid
 
-# Set OpenAI API key
-export OPENAI_API_KEY="your-api-key-here"
+# Set OpenAI API key (example: dev2.env contains the raw key string)
+export OPENAI_API_KEY="$(tr -d '\n' < ../dev2.env)"
 
-# Run all RealAPI tests with OpenAI embeddings (512 dimensions) and Lucene
-mvn test \
-  "-Dtest=RealAPIIntegrationTest,RealAPIONNXFallbackIntegrationTest,RealAPISmartValidationIntegrationTest,RealAPIVectorLifecycleIntegrationTest,RealAPIHybridRetrievalToggleIntegrationTest,RealAPIIntentHistoryAggregationIntegrationTest,RealAPIActionErrorRecoveryIntegrationTest,RealAPIActionFlowIntegrationTest,RealAPIIntentGenerationRoutingIntegrationTest,RealAPIMultiProviderFailoverIntegrationTest,RealAPISmartSuggestionsIntegrationTest,RealAPIPIIEdgeSpectrumIntegrationTest,RealAPICreativeAIScenariosIntegrationTest" \
-  "-Dspring.profiles.active=realapi" \
+# Run all RealAPI tests (OpenAI LLM + OpenAI embeddings with 512 dimensions) and Lucene
+mvn -pl integration-Testing/integration-tests -am test \
+  "-Dtest=RealAPIIntegrationTest,RealAPIProgressiveExtractionDiagnosticsIntegrationTest,RealAPIONNXFallbackIntegrationTest,RealAPISmartValidationIntegrationTest,RealAPIVectorLifecycleIntegrationTest,RealAPIHybridRetrievalToggleIntegrationTest,RealAPIIntentHistoryAggregationIntegrationTest,RealAPIActionErrorRecoveryIntegrationTest,RealAPIActionFlowIntegrationTest,RealAPIIntentGenerationRoutingIntegrationTest,RealAPIMultiProviderFailoverIntegrationTest,RealAPISmartSuggestionsIntegrationTest,RealAPIPIIEdgeSpectrumIntegrationTest,RealAPICreativeAIScenariosIntegrationTest" \
+  "-Dsurefire.failIfNoSpecifiedTests=false" \
   "-Dai.providers.llm-provider=openai" \
   "-Dai.providers.embedding-provider=openai" \
   "-Dai.providers.openai.embedding-model=text-embedding-3-small" \
@@ -27,41 +31,38 @@ mvn test \
   "-Dlogging.level.com.ai.infrastructure.provider.openai=INFO"
 ```
 
-## Test Results Summary
+## Run A Single RealAPI Test (OpenAI LLM + ONNX embeddings + Lucene)
 
-Based on test runs:
+```bash
+cd ai-infrastructure-module
 
-### ✅ Tests That Passed (with OpenAI 512 dimensions):
-1. **RealAPIIntegrationTest** - ✅ 5 tests passed
-2. **RealAPIONNXFallbackIntegrationTest** - ✅ 1 test passed  
-3. **RealAPISmartValidationIntegrationTest** - ✅ 1 test passed
-4. **RealAPIVectorLifecycleIntegrationTest** - ✅ 1 test passed
+rm -rf integration-Testing/integration-tests/data/lucene-vector-index \
+       integration-Testing/integration-tests/data/test-lucene-index \
+       integration-Testing/integration-tests/data/test-lucene-index-hybrid
 
-### All RealAPI Test Classes:
+export OPENAI_API_KEY="$(tr -d '\n' < ../dev2.env)"
+
+mvn -pl integration-Testing/integration-tests -am test \
+  "-Dtest=RealAPIProgressiveExtractionDiagnosticsIntegrationTest" \
+  "-Dsurefire.failIfNoSpecifiedTests=false" \
+  "-Dai.providers.llm-provider=openai" \
+  "-Dai.providers.embedding-provider=onnx" \
+  "-Dai.vector-db.type=lucene"
+```
+
+## All RealAPI Test Classes
 1. RealAPIIntegrationTest
-2. RealAPIIntegrationTestV2
-3. RealAPIONNXFallbackIntegrationTest
-4. RealAPISmartValidationIntegrationTest
-5. RealAPIVectorLifecycleIntegrationTest
-6. RealAPIHybridRetrievalToggleIntegrationTest
-7. RealAPIIntentHistoryAggregationIntegrationTest
-8. RealAPIActionErrorRecoveryIntegrationTest
-9. RealAPIActionFlowIntegrationTest
-10. RealAPIIntentGenerationRoutingIntegrationTest
-11. RealAPIMultiProviderFailoverIntegrationTest
-12. RealAPISmartSuggestionsIntegrationTest
-13. RealAPIPIIEdgeSpectrumIntegrationTest
-14. RealAPICreativeAIScenariosIntegrationTest
-
-## Expected Behavior
-
-- **Dimension Reduction**: All tests will use OpenAI embeddings with 512 dimensions
-- **Vector DB**: Lucene (compatible with 512 dimensions)
-- **Provider**: OpenAI for both LLM and embeddings
-- **Logs**: Will show "Successfully generated embedding with 512 dimensions using openai provider"
-
-## Notes
-
-- Tests may take 10-15 minutes to complete all 14 test classes
-- Some tests may have Lucene lock issues if run in parallel - clean up `data/` directories between runs
-- All tests default to ONNX, but with the command above, they will use OpenAI with dimension reduction
+2. RealAPIProgressiveExtractionDiagnosticsIntegrationTest
+3. RealAPIIntegrationTestV2
+4. RealAPIONNXFallbackIntegrationTest
+5. RealAPISmartValidationIntegrationTest
+6. RealAPIVectorLifecycleIntegrationTest
+7. RealAPIHybridRetrievalToggleIntegrationTest
+8. RealAPIIntentHistoryAggregationIntegrationTest
+9. RealAPIActionErrorRecoveryIntegrationTest
+10. RealAPIActionFlowIntegrationTest
+11. RealAPIIntentGenerationRoutingIntegrationTest
+12. RealAPIMultiProviderFailoverIntegrationTest
+13. RealAPISmartSuggestionsIntegrationTest
+14. RealAPIPIIEdgeSpectrumIntegrationTest
+15. RealAPICreativeAIScenariosIntegrationTest

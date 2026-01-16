@@ -10,6 +10,10 @@ import com.ai.infrastructure.behavior.spi.ExternalEventProvider;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.llm.structured.StructuredJsonCallExecutor;
+import com.ai.infrastructure.llm.structured.StructuredJsonCallSpec;
+import com.ai.infrastructure.llm.structured.StructuredJsonProviderHints;
+import com.ai.infrastructure.llm.structured.StructuredJsonResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
@@ -34,6 +39,7 @@ public class BehaviorAnalysisService {
     private final BehaviorStorageAdapter storageAdapter;
     private final AICoreService aiCoreService;
     private final ObjectMapper objectMapper;
+    private final StructuredJsonCallExecutor structuredJsonCallExecutor;
     
     /**
      * CASE 1: Analyze a specific user (Targeted)
@@ -107,19 +113,45 @@ public class BehaviorAnalysisService {
         try {
             String prompt = buildEvolutionaryPrompt(oldInsight, newEvents, userContext);
 
-            AIGenerationResponse response = aiCoreService.generateContent(
-                AIGenerationRequest.builder()
-                    .entityId(userId)
-                    .entityType("behavior-insight")
-                    .generationType("behavioral-analysis")
-                    .prompt(prompt)
-                    .systemPrompt(getSystemPrompt())
-                    .temperature(0.2)
-                    .maxTokens(1200)
+            AIGenerationRequest request = AIGenerationRequest.builder()
+                .entityId(userId)
+                .entityType("behavior-insight")
+                .generationType("behavioral-analysis")
+                .prompt(prompt)
+                .systemPrompt(getSystemPrompt())
+                .parameters(StructuredJsonProviderHints.jsonObjectResponseParameters())
+                .temperature(0.2)
+                .maxTokens(1200)
+                .build();
+
+            AtomicReference<AIGenerationResponse> lastResponseRef = new AtomicReference<>();
+            StructuredJsonResult<Map> structuredResult = structuredJsonCallExecutor.execute(
+                StructuredJsonCallSpec.<Map>builder()
+                    .callName("behavioral-analysis")
+                    .maxAttempts(2)
+                    .targetType(Map.class)
+                    .objectMapper(objectMapper)
+                    .caller(context -> {
+                        AIGenerationResponse response;
+                        if (context.attemptIndex() == 0) {
+                            response = aiCoreService.generateContent(request);
+                        } else {
+                            response = aiCoreService.generateContent(buildRepairRequest(request, prompt, context.previousRawContent()));
+                        }
+                        lastResponseRef.set(response);
+                        return response;
+                    })
                     .build()
             );
 
-            BehaviorInsights result = parseLLMResponse(userId, response.getContent(), oldInsight);
+            if (!structuredResult.isSuccess() || structuredResult.getValue() == null) {
+                String failureMessage = structuredResult.getLastFailure() != null
+                    ? structuredResult.getLastFailure().message()
+                    : "Unknown structured JSON failure";
+                throw new IllegalStateException("Behavior analysis did not return a valid JSON payload: " + failureMessage);
+            }
+
+            BehaviorInsights result = parseLLMResponse(userId, structuredResult.getValue(), oldInsight);
 
             // carry forward previous values for deltas
             if (oldInsight != null) {
@@ -135,7 +167,8 @@ public class BehaviorAnalysisService {
             }
 
             result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
-            result.setAiModelUsed(response.getModel() != null ? response.getModel() : "gpt-4o");
+            AIGenerationResponse lastResponse = lastResponseRef.get();
+            result.setAiModelUsed(lastResponse != null && lastResponse.getModel() != null ? lastResponse.getModel() : "gpt-4o");
             result.setModelPromptVersion("3.1.0");
 
             logTrendAlert(userId, oldInsight, result);
@@ -231,14 +264,9 @@ public class BehaviorAnalysisService {
 
     private BehaviorInsights parseLLMResponse(
         String userId,
-        String llmResponse,
+        Map<String, Object> parsed,
         BehaviorInsights oldInsight
     ) throws Exception {
-        String json = extractJson(llmResponse);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> parsed = objectMapper.readValue(json, Map.class);
-
         BehaviorInsights.BehaviorInsightsBuilder builder = BehaviorInsights.builder()
             .userId(userId)
             .segment((String) parsed.get("segment"))
@@ -297,13 +325,46 @@ public class BehaviorAnalysisService {
         return builder.build();
     }
 
-    private String extractJson(String response) {
-        int start = response.indexOf('{');
-        int end = response.lastIndexOf('}');
-        if (start == -1 || end <= start) {
-            throw new IllegalStateException("No valid JSON in LLM response");
-        }
-        return response.substring(start, end + 1);
+    private AIGenerationRequest buildRepairRequest(AIGenerationRequest originalRequest, String originalPrompt, String malformedContent) {
+        String originalSystemPrompt = originalRequest != null ? originalRequest.getSystemPrompt() : null;
+        String repairSystemPrompt = (org.springframework.util.StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "") + """
+            You are repairing a previously malformed assistant response.
+            Output MUST be a single JSON object that matches the schema above exactly.
+            Include ALL schema fields (use null/false/empty values where appropriate) so downstream systems can operate safely.
+            Never wrap the JSON in markdown code fences and never add commentary.
+            """;
+
+        String repairPrompt = """
+            Convert the malformed assistant response into valid JSON that matches the schema in the system prompt.
+            This is a STRUCTURAL repair step only: fix JSON/schema correctness, do NOT infer or guess semantic fields.
+
+            ORIGINAL USER REQUEST (for context):
+            ---BEGIN USER REQUEST---
+            %s
+            ---END USER REQUEST---
+
+            MALFORMED ASSISTANT RESPONSE:
+            ---BEGIN MALFORMED---
+            %s
+            ---END MALFORMED---
+            """.formatted(originalPrompt, malformedContent != null ? malformedContent : "");
+
+        String repairEntityId = originalRequest != null && originalRequest.getEntityId() != null
+            ? originalRequest.getEntityId() + "-repair"
+            : UUID.randomUUID().toString();
+
+        return AIGenerationRequest.builder()
+            .entityId(repairEntityId)
+            .entityType(originalRequest != null ? originalRequest.getEntityType() : "behavior-insight")
+            .generationType(originalRequest != null ? originalRequest.getGenerationType() : "behavioral-analysis")
+            .prompt(repairPrompt)
+            .systemPrompt(repairSystemPrompt)
+            .parameters(StructuredJsonProviderHints.jsonObjectResponseParameters())
+            .temperature(originalRequest != null ? originalRequest.getTemperature() : null)
+            .maxTokens(originalRequest != null ? originalRequest.getMaxTokens() : null)
+            .userId(originalRequest != null ? originalRequest.getUserId() : null)
+            .model(originalRequest != null ? originalRequest.getModel() : null)
+            .build();
     }
 
     private void logTrendAlert(String userId, BehaviorInsights old, BehaviorInsights current) {

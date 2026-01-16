@@ -101,19 +101,22 @@ public class EnrichedPromptBuilder {
 
     private void appendExtractionRules(StringBuilder prompt, SystemContext context) {
         prompt.append("EXTRACTION RULES:\n");
-        prompt.append("1. If the user wants to execute an action -> intent.type = ACTION and include action + actionParams.\n");
-        prompt.append("2. If the user is searching for information -> intent.type = INFORMATION.\n");
-        prompt.append("3. If the request is unsupported -> intent.type = OUT_OF_SCOPE and explain briefly in actionParams.reason.\n");
+        prompt.append("1. If the user requests an operation that changes system state and matches an AVAILABLE ACTION -> intent.type = ACTION and include action + actionParams.\n");
+        prompt.append("2. If the user asks for information, search, explanation, summarization, comparison, or recommendations -> intent.type = INFORMATION.\n");
+        prompt.append("3. Use intent.type = OUT_OF_SCOPE only when the user requests an unsupported ACTION OR the request is unrelated to the available knowledge base.\n");
+        prompt.append("   - When OUT_OF_SCOPE, explain briefly in actionParams.reason.\n");
         prompt.append("4. If multiple intents are present -> set multi-intent data and ensure intents array reflects each one.\n");
         prompt.append("5. Confidence must be between 0.0 and 1.0.\n");
-        prompt.append("6. For INFORMATION intents decide if LLM generation is needed (requiresGeneration = true for opinions/recommendations, false for data lookup).\n");
+        prompt.append("6. For INFORMATION intents decide if LLM generation is needed.\n");
+        prompt.append("   - Set requiresGeneration=true for synthesized answers (summaries, explanations, comparisons, recommendations) when using retrieved knowledge (requiresRetrieval=true).\n");
+        prompt.append("   - Set requiresGeneration=false for pure retrieval/listing requests where the user wants records/results without synthesis.\n");
         prompt.append("7. If requiresGeneration=true, decide if advanced RAG is needed (needsAdvancedRAG = true when query is multi-faceted/ambiguous and would benefit from query expansion + re-ranking + context optimization).\n");
         prompt.append("8. Action selection MUST be grounded in AVAILABLE ACTIONS and the user's request:\n");
         prompt.append("   - Only return intent.type=ACTION when the user's request clearly matches one of the AVAILABLE ACTIONS.\n");
         prompt.append("   - Choose the closest matching action by meaning; never pick an unrelated action just because it's available.\n");
         prompt.append("   - Never invent actions that are not listed in AVAILABLE ACTIONS (examples of forbidden invented actions: \"summarize\", \"search\", \"lookup\", \"answer_question\").\n");
         prompt.append("   - If the user asks to summarize / explain / answer using the knowledge base, that is INFORMATION (set vectorSpace + requiresRetrieval and requiresGeneration as appropriate) NOT an ACTION.\n");
-        prompt.append("   - If no AVAILABLE ACTION matches the user's request, return intent.type=OUT_OF_SCOPE.\n");
+        prompt.append("   - If the user requests an ACTION and no AVAILABLE ACTION matches it, return intent.type=OUT_OF_SCOPE.\n");
         // Add entity types information - always include, even if empty
         prompt.append("9. When action == \"relationship_query\":\n");
         prompt.append("   - Extract entityTypes from the user request as an array of lower-case strings. ");

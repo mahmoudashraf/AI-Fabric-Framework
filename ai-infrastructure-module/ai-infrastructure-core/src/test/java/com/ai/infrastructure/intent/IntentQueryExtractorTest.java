@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
@@ -22,6 +22,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,9 +39,6 @@ class IntentQueryExtractorTest {
 
     @Mock
     private ActionHandlerRegistry actionHandlerRegistry;
-
-    @Mock
-    private KnowledgeBaseOverviewService knowledgeBaseOverviewService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -63,14 +63,13 @@ class IntentQueryExtractorTest {
             }
             """;
 
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -103,14 +102,13 @@ class IntentQueryExtractorTest {
             }
             """;
 
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -118,7 +116,7 @@ class IntentQueryExtractorTest {
 
         org.mockito.ArgumentCaptor<AIGenerationRequest> captor =
             org.mockito.ArgumentCaptor.forClass(AIGenerationRequest.class);
-        verify(aiCoreService).generateContent(captor.capture());
+        verify(aiCoreService).generateContent(captor.capture(), eq(LlmPurpose.ORCHESTRATION));
 
         AIGenerationRequest sent = captor.getValue();
         assertThat(sent.getParameters()).isNotNull();
@@ -152,14 +150,13 @@ class IntentQueryExtractorTest {
             }
             """;
 
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -193,14 +190,13 @@ class IntentQueryExtractorTest {
             }
             """;
 
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -211,6 +207,43 @@ class IntentQueryExtractorTest {
         assertThat(intent.getType()).isEqualTo(IntentType.OUT_OF_SCOPE);
         assertThat(intent.getActionParams()).containsEntry("reason", "Unsupported domain");
         assertThat(response.getOrchestrationStrategy()).isEqualTo("ADMIT_UNKNOWN");
+    }
+
+    @Test
+    void shouldTolerateOutOfScopeIntentWithoutNameFields() {
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
+
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "OUT_OF_SCOPE",
+                  "confidence": 1.0,
+                  "actionParams": {"reason": "Unrelated to available knowledge base"}
+                }
+              ],
+              "isCompound": false
+            }
+            """;
+
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            objectMapper
+        );
+
+        MultiIntentResponse response = extractor.extract("What analytics solutions do you offer?",
+            OrchestrationContext.forUser("user-789"));
+
+        assertThat(response.getIntents()).hasSize(1);
+        Intent intent = response.getIntents().getFirst();
+        assertThat(intent.getType()).isEqualTo(IntentType.OUT_OF_SCOPE);
+        assertThat(intent.getIntent()).isEqualTo("out_of_scope");
+        assertThat(intent.getActionParams()).containsEntry("reason", "Unrelated to available knowledge base");
     }
 
     @Test
@@ -237,14 +270,13 @@ class IntentQueryExtractorTest {
             }
             """;
 
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -262,7 +294,6 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -275,19 +306,18 @@ class IntentQueryExtractorTest {
     void shouldRaiseExceptionWhenJsonInvalid() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
         // Mock initial call returning invalid JSON
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
-            req != null && req.getGenerationType().equals("intent_extraction"))))
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction".equals(req.getGenerationType())), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content("not-json").build());
         // Mock repair attempt also returning invalid JSON (repair fails)
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
-            req != null && req.getGenerationType().equals("intent_extraction_repair"))))
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction_repair".equals(req.getGenerationType())), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content("still-not-json").build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -300,8 +330,8 @@ class IntentQueryExtractorTest {
     void shouldRepairInvalidJsonAndReturnValidResponse() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
         // Mock initial call returning invalid JSON
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
-            req != null && req.getGenerationType().equals("intent_extraction"))))
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction".equals(req.getGenerationType())), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content("not-json").build());
         // Mock repair attempt returning valid JSON (repair succeeds)
         String repairedJson = """
@@ -317,16 +347,15 @@ class IntentQueryExtractorTest {
               ],
               "isCompound": false
             }
-            """;
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.argThat(req -> 
-            req != null && req.getGenerationType().equals("intent_extraction_repair"))))
+        """;
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction_repair".equals(req.getGenerationType())), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(repairedJson).build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
@@ -338,13 +367,8 @@ class IntentQueryExtractorTest {
     }
 
     @Test
-    void shouldInferVectorSpaceWhenMissingAndRetrievalRequired() {
+    void shouldNotInferVectorSpaceWhenMissingAndRetrievalRequired() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
-        when(knowledgeBaseOverviewService.getOverview()).thenReturn(KnowledgeBaseOverview.builder()
-            .documentsByType(Map.of("test-product", 10L))
-            .entityTypes(List.of("test-product"))
-            .totalIndexedDocuments(10L)
-            .build());
 
         String json = """
             {
@@ -359,26 +383,19 @@ class IntentQueryExtractorTest {
             }
             """;
 
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any()))
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
 
         IntentQueryExtractor extractor = new IntentQueryExtractor(
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            knowledgeBaseOverviewServiceProvider(),
             objectMapper
         );
 
         MultiIntentResponse response = extractor.extract("Find products", OrchestrationContext.forUser("user-123"));
 
         assertThat(response.getIntents()).hasSize(1);
-        assertThat(response.getIntents().getFirst().getVectorSpace()).isEqualTo("test-product");
-    }
-
-    private ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider() {
-        ObjectProvider<KnowledgeBaseOverviewService> provider = org.mockito.Mockito.mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(knowledgeBaseOverviewService);
-        return provider;
+        assertThat(response.getIntents().getFirst().getVectorSpace()).isNull();
     }
 }

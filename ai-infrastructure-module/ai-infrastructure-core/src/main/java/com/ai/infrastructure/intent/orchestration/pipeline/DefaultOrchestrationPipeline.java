@@ -114,6 +114,7 @@ public class DefaultOrchestrationPipeline implements Pipeline {
             LOG_PREFIX, requestId, steps.size());
         
         long pipelineStartTime = System.currentTimeMillis();
+        boolean terminationLogged = false;
         
         // Execute each step
         for (PipelineStep step : steps) {
@@ -139,20 +140,16 @@ public class DefaultOrchestrationPipeline implements Pipeline {
             } catch (Exception ex) {
                 log.error("{} Step {} failed for request {}: {}", 
                     LOG_PREFIX, step.getStepName(), requestId, ex.getMessage(), ex);
-                return OrchestrationResult.error(ERROR_STEP_FAILED_PREFIX + step.getStepName());
+                pipelineContext = pipelineContext.terminate(
+                    OrchestrationResult.error(ERROR_STEP_FAILED_PREFIX + step.getStepName())
+                );
             }
             
             // Check for early termination
-            if (pipelineContext.isShouldTerminate()) {
-                log.debug("{} Pipeline terminated early at step {} for request {}", 
+            if (pipelineContext.isShouldTerminate() && !terminationLogged) {
+                terminationLogged = true;
+                log.debug("{} Pipeline terminated early at step {} for request {}",
                     LOG_PREFIX, step.getStepName(), requestId);
-                
-                OrchestrationResult terminationResult = pipelineContext.getEarlyTerminationResult();
-                if (terminationResult != null) {
-                    return terminationResult;
-                }
-                // If no termination result, fall through to return the intent result or error
-                break;
             }
         }
         

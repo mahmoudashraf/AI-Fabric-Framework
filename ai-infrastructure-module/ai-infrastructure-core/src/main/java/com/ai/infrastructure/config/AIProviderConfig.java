@@ -33,6 +33,20 @@ public class AIProviderConfig {
     private String llmProvider = "openai";
 
     /**
+     * Orchestration-specific LLM configuration (intent extraction, classification, planning).
+     *
+     * <p>When not specified, defaults to the global {@link #llmProvider} configuration.</p>
+     */
+    private OrchestrationLlmConfig orchestration;
+
+    /**
+     * Generation-specific LLM configuration (RAG answers, summaries, narrative).
+     *
+     * <p>When not specified, defaults to the global {@link #llmProvider} configuration.</p>
+     */
+    private GenerationLlmConfig generation;
+
+    /**
      * Active embedding provider identifier (e.g. onnx, openai, rest).
      */
     private String embeddingProvider = "onnx";
@@ -74,6 +88,32 @@ public class AIProviderConfig {
     }
 
     /**
+     * Resolve defaults for orchestration LLM requests.
+     *
+     * <p>If {@link #orchestration} is not configured, falls back to {@link #resolveLlmDefaults()}.</p>
+     */
+    public GenerationDefaults resolveOrchestrationLlmDefaults() {
+        if (orchestration == null || !hasText(orchestration.getLlmProvider())) {
+            return resolveLlmDefaults();
+        }
+        return buildPurposeDefaults(orchestration.getLlmProvider(), orchestration.getModel(),
+            orchestration.getMaxTokens(), orchestration.getTemperature(), orchestration.getTimeout());
+    }
+
+    /**
+     * Resolve defaults for generation LLM requests.
+     *
+     * <p>If {@link #generation} is not configured, falls back to {@link #resolveLlmDefaults()}.</p>
+     */
+    public GenerationDefaults resolveGenerationLlmDefaults() {
+        if (generation == null || !hasText(generation.getLlmProvider())) {
+            return resolveLlmDefaults();
+        }
+        return buildPurposeDefaults(generation.getLlmProvider(), generation.getModel(),
+            generation.getMaxTokens(), generation.getTemperature(), generation.getTimeout());
+    }
+
+    /**
      * Resolve defaults for the configured primary embedding provider.
      *
      * @return defaults for the current embedding provider
@@ -94,6 +134,40 @@ public class AIProviderConfig {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private GenerationDefaults buildPurposeDefaults(String providerRaw,
+                                                    String modelOverride,
+                                                    Integer maxTokens,
+                                                    Double temperature,
+                                                    Integer timeoutSeconds) {
+        String provider = normalize(providerRaw);
+        GenerationDefaults providerDefaults = resolveDefaultsForProvider(provider);
+        String model = hasText(modelOverride) ? modelOverride : providerDefaults.model();
+
+        return new GenerationDefaults(
+            provider,
+            model,
+            maxTokens != null ? maxTokens : providerDefaults.maxTokens(),
+            temperature != null ? temperature : providerDefaults.temperature(),
+            timeoutSeconds != null ? timeoutSeconds : providerDefaults.timeoutSeconds(),
+            null
+        );
+    }
+
+    private GenerationDefaults resolveDefaultsForProvider(String provider) {
+        return switch (normalize(provider)) {
+            case "anthropic" -> anthropic.toGenerationDefaults("anthropic");
+            case "cohere" -> cohere.toGenerationDefaults("cohere");
+            case "gemini" -> gemini.toGenerationDefaults("gemini");
+            case "azure" -> azure.toGenerationDefaults("azure");
+            case "openai" -> openai.toGenerationDefaults("openai");
+            default -> openai.toGenerationDefaults("openai");
+        };
     }
 
     /**
@@ -125,6 +199,44 @@ public class AIProviderConfig {
         String providerName,
         String model
     ) {}
+
+    @Data
+    public static class OrchestrationLlmConfig {
+        /**
+         * LLM provider for orchestration tasks.
+         * Leave null/blank to use {@link #llmProvider}.
+         */
+        private String llmProvider;
+
+        /**
+         * Model identifier for orchestration tasks (optional).
+         */
+        private String model;
+
+        /**
+         * Temperature for orchestration (default: 0.1 for consistency).
+         */
+        private Double temperature = 0.1;
+
+        /**
+         * Max tokens for orchestration requests.
+         */
+        private Integer maxTokens;
+
+        /**
+         * Timeout in seconds for orchestration requests.
+         */
+        private Integer timeout;
+    }
+
+    @Data
+    public static class GenerationLlmConfig {
+        private String llmProvider;
+        private String model;
+        private Double temperature = 0.3;
+        private Integer maxTokens;
+        private Integer timeout;
+    }
 
     @Data
     public static class OpenAIConfig {

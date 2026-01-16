@@ -64,6 +64,11 @@ public class HistoryPersistenceStep implements PipelineStep {
     public int getOrder() {
         return STEP_ORDER;
     }
+
+    @Override
+    public boolean shouldSkip(PipelineContext context) {
+        return false;
+    }
     
     /**
      * Persist the intent history.

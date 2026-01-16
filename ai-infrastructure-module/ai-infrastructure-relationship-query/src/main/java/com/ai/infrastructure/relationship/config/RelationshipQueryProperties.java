@@ -168,6 +168,15 @@ public class RelationshipQueryProperties {
         @Max(1)
         private double temperature = 0.1;
 
+        /**
+         * Max output tokens for relationship query planning calls.
+         *
+         * <p>Some providers (notably Gemini) can emit large JSON plans for complex filters, and lower limits may
+         * cause truncation (finishReason=MAX_TOKENS), which leads to parse failures and fallback execution.</p>
+         */
+        @Positive
+        private int maxTokens = 2000;
+
         @Positive
         private int maxRetries = 3;
 
@@ -184,6 +193,10 @@ public class RelationshipQueryProperties {
 
         public void setTemperature(double temperature) {
             this.temperature = clampProbability(temperature);
+        }
+
+        public void setMaxTokens(int maxTokens) {
+            this.maxTokens = Math.max(1, maxTokens);
         }
 
         public void setMinConfidence(double confidence) {

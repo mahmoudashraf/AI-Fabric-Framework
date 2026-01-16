@@ -12,6 +12,9 @@ import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.exception.QueryPlanningException;
 import com.ai.infrastructure.relationship.exception.RelationshipQueryErrorContext;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
+import com.ai.infrastructure.llm.structured.StructuredJsonExtraction;
+import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
+import com.ai.infrastructure.llm.structured.StructuredJsonProviderHints;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
@@ -20,8 +23,10 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -41,6 +46,7 @@ public class RelationshipQueryPlanner {
     private final QueryCache queryCache;
     private final QueryMetrics queryMetrics;
     private final ObjectMapper objectMapper;
+    private final StructuredJsonExtractor structuredJsonExtractor;
 
     private static final List<String> PLAN_EXAMPLES = List.of(
         """
@@ -181,7 +187,8 @@ public class RelationshipQueryPlanner {
                                     RelationshipQueryValidator validator,
                                     QueryCache queryCache,
                                     QueryMetrics queryMetrics,
-                                    ObjectMapper objectMapper) {
+                                    ObjectMapper objectMapper,
+                                    StructuredJsonExtractor structuredJsonExtractor) {
         this.aiCoreService = aiCoreService;
         this.schemaProvider = schemaProvider;
         this.properties = properties;
@@ -189,6 +196,7 @@ public class RelationshipQueryPlanner {
         this.queryCache = queryCache;
         this.queryMetrics = queryMetrics;
         this.objectMapper = objectMapper;
+        this.structuredJsonExtractor = Objects.requireNonNull(structuredJsonExtractor, "structuredJsonExtractor");
     }
 
     public RelationshipQueryPlan planQuery(String query, List<String> entityTypes) {
@@ -572,6 +580,8 @@ public class RelationshipQueryPlanner {
 
     private AIGenerationRequest buildRequest(String query, String prompt) {
         RelationshipQueryProperties.LlmProperties llm = properties.getLlm();
+        Map<String, Object> parameters = new LinkedHashMap<>(StructuredJsonProviderHints.jsonObjectResponseParameters());
+        parameters.put("min_confidence", llm.getMinConfidence());
         return AIGenerationRequest.builder()
             .entityId("relationship-query-" + UUID.randomUUID())
             .entityType("relationship-query")
@@ -580,11 +590,8 @@ public class RelationshipQueryPlanner {
             .systemPrompt("You are an expert database planner. Return ONLY a JSON object.")
             .model(llm.getModel())
             .temperature(llm.getTemperature())
-            .maxTokens(1200)
-            .parameters(java.util.Map.of(
-                "response_format", java.util.Map.of("type", "json_object"),
-                "min_confidence", llm.getMinConfidence()
-            ))
+            .maxTokens(llm.getMaxTokens())
+            .parameters(parameters)
             .purpose("relationship-query-plan")
             .userId("relationship-module")
             .build();
@@ -641,14 +648,21 @@ public class RelationshipQueryPlanner {
     }
 
     private RelationshipQueryPlan parsePlan(String rawResponse) throws Exception {
-        String jsonPayload = extractJson(rawResponse);
-        if (!StringUtils.hasText(jsonPayload)) {
+        StructuredJsonExtraction extraction = structuredJsonExtractor.extractFirstJson(rawResponse);
+        if (!extraction.jsonFound() || !StringUtils.hasText(extraction.payload())) {
             throw new IllegalStateException("LLM did not return JSON payload");
         }
-        String sanitizedPayload = sanitizePayload(jsonPayload);
-        RelationshipQueryPlan plan = objectMapper.readValue(sanitizedPayload, RelationshipQueryPlan.class);
-        plan.setConfidenceScore(normalizeConfidence(plan.getConfidenceScore()));
-        return plan;
+        String sanitizedPayload = sanitizePayload(extraction.payload());
+        try {
+            RelationshipQueryPlan plan = objectMapper.readValue(sanitizedPayload, RelationshipQueryPlan.class);
+            plan.setConfidenceScore(normalizeConfidence(plan.getConfidenceScore()));
+            return plan;
+        } catch (Exception ex) {
+            if (extraction.truncationSuspected()) {
+                throw new IllegalStateException("LLM returned a truncated JSON payload", ex);
+            }
+            throw ex;
+        }
     }
 
     private double normalizeConfidence(Double confidence) {
@@ -949,33 +963,6 @@ public class RelationshipQueryPlanner {
                 "plannerFallback", Boolean.TRUE
             ))
             .build();
-    }
-
-    private String extractJson(String response) throws Exception {
-        if (!StringUtils.hasText(response)) {
-            return null;
-        }
-        String trimmed = response.trim();
-
-        // Strip common markdown fences before extracting JSON.
-        if (trimmed.startsWith("```")) {
-            int firstNewline = trimmed.indexOf('\n');
-            if (firstNewline > 0) {
-                trimmed = trimmed.substring(firstNewline + 1);
-            }
-        }
-        if (trimmed.endsWith("```")) {
-            trimmed = trimmed.substring(0, trimmed.length() - 3);
-        }
-
-        // Some providers wrap the JSON in explanatory text; extract the outermost JSON object.
-        response = trimmed;
-        int start = response.indexOf('{');
-        int end = response.lastIndexOf('}');
-        if (start == -1 || end <= start) {
-            return null;
-        }
-        return response.substring(start, end + 1);
     }
 
     private void cachePlan(String cacheKey, RelationshipQueryPlan plan) {

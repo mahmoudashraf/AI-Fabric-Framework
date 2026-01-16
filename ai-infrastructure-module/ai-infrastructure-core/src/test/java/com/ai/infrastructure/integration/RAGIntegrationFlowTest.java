@@ -13,6 +13,7 @@ import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -161,7 +162,7 @@ class RAGIntegrationFlowTest {
             .documents(List.of())
             .success(true)
             .build()).when(ragProvider).performRAGQuery(any(RAGRequest.class));
-        when(aiCoreService.generateText(anyString())).thenReturn("Refunds are processed within 5 business days.");
+        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Refunds are processed within 5 business days.");
 
         OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, "user-info");
 
