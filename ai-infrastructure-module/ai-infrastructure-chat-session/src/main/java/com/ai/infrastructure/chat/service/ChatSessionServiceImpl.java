@@ -155,6 +155,12 @@ public class ChatSessionServiceImpl implements ChatSessionService {
         if (!StringUtils.hasText(ownerId)) {
             throw new IllegalArgumentException("ownerId cannot be blank");
         }
+        // Fail-closed: never allow deletion without verifying ownership when the conversation exists.
+        storageProvider.findById(conversationId).ifPresent(session -> {
+            if (!session.isOwnedBy(ownerId)) {
+                throw new ChatSessionAccessDeniedException("Conversation is owned by a different user");
+            }
+        });
         if (!accessPolicy.canDeleteConversation(ownerId, conversationId)) {
             throw new ChatSessionAccessDeniedException("Access denied deleting conversation: " + conversationId);
         }

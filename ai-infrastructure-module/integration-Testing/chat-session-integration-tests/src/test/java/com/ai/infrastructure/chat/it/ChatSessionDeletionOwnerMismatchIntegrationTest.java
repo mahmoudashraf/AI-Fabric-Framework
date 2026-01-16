@@ -1,0 +1,36 @@
+package com.ai.infrastructure.chat.it;
+
+import com.ai.infrastructure.chat.exception.ChatSessionAccessDeniedException;
+import com.ai.infrastructure.chat.service.ChatSessionService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+@SpringBootTest(
+    classes = ChatSessionIntegrationTestApplication.class,
+    webEnvironment = SpringBootTest.WebEnvironment.NONE
+)
+@ActiveProfiles("test")
+class ChatSessionDeletionOwnerMismatchIntegrationTest {
+
+    @Autowired
+    private ChatSessionService chatSessionService;
+
+    @Test
+    void shouldDenyDeletionWhenOwnerDoesNotMatch() {
+        String ownerA = "delete-owner-a-" + UUID.randomUUID();
+        String ownerB = "delete-owner-b-" + UUID.randomUUID();
+        String conversationId = "conv-" + UUID.randomUUID();
+
+        chatSessionService.recordTurn(conversationId, ownerA, "Hello", "Hi");
+
+        assertThatThrownBy(() -> chatSessionService.deleteConversation(conversationId, ownerB))
+            .isInstanceOf(ChatSessionAccessDeniedException.class);
+    }
+}
+
