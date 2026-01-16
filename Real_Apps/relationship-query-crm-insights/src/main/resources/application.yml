@@ -1,5 +1,5 @@
 server:
-  port: 8096
+  port: ${PORT:8096}
 
 spring:
   application:
@@ -38,4 +38,3 @@ logging:
     com.ai.fabric.realapps.crm: INFO
     com.ai.infrastructure.relationship: INFO
     com.ai.infrastructure: INFO
-

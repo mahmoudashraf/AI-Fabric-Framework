@@ -116,7 +116,8 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String ERROR_MSG_COMPOUND_MISSING = "Compound intent payload is missing component intents.";
     private static final String ERROR_MSG_COMPOUND_EMPTY = "Compound intent payload did not include any child intents.";
     private static final String MSG_SEARCH_COMPLETED = "Search completed.";
-    private static final String MSG_OUT_OF_SCOPE = "I'm not able to help with that request. Please contact support for further assistance.";
+    private static final String MSG_OUT_OF_SCOPE =
+        "Sorry — I can’t help with that request. If you rephrase it into a task related to your indexed knowledge base (search/summarize/explain) or an available action, I’ll do my best to help.";
     private static final String MSG_ALL_PROCESSED = "All intents processed successfully.";
     private static final String MSG_SOME_FAILED = "Some intents failed. See results for details.";
     

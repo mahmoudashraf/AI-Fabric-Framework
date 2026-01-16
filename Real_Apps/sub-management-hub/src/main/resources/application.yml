@@ -21,7 +21,7 @@ spring:
         format_sql: true
 
 server:
-  port: 8081
+  port: ${PORT:8081}
 
 ai:
   config:

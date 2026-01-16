@@ -1,0 +1,127 @@
+package com.ai.infrastructure.chat.it;
+
+import com.ai.infrastructure.chat.repository.ChatSessionRepository;
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
+import com.ai.infrastructure.intent.orchestration.pipeline.Pipeline;
+import com.ai.infrastructure.intent.vectorspace.RoutingResult;
+import com.ai.infrastructure.intent.vectorspace.RoutingStrategy;
+import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@SpringBootTest(
+    classes = ChatSessionIntegrationTestApplication.class,
+    webEnvironment = SpringBootTest.WebEnvironment.NONE,
+    properties = {
+        "ai.intent-extraction.progressive.enabled=false"
+    }
+)
+@ActiveProfiles("test")
+class ChatClarificationThenExecuteIntegrationTest {
+
+    @Autowired
+    private ChatSessionRepository chatSessionRepository;
+
+    @Autowired
+    private Pipeline pipeline;
+
+    @MockBean
+    private IntentQueryExtractor intentQueryExtractor;
+
+    @MockBean
+    private VectorSpaceRouter vectorSpaceRouter;
+
+    @BeforeEach
+    void setUp() {
+        chatSessionRepository.deleteAll();
+    }
+
+    @Test
+    void shouldRecordClarificationAndIncludeItInNextTurnHistory() {
+        when(vectorSpaceRouter.route(any(Intent.class), anyString())).thenReturn(RoutingResult.builder()
+            .success(false)
+            .strategy(RoutingStrategy.CLARIFICATION)
+            .candidateSpaces(List.of("ragconversation"))
+            .confidence(0.0d)
+            .rationale("test-clarification")
+            .build());
+
+        MultiIntentResponse needsDomain = MultiIntentResponse.builder()
+            .intents(List.of(Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("search")
+                .confidence(0.9)
+                .requiresRetrieval(true)
+                .requiresGeneration(false)
+                .vectorSpace(null)
+                .build()))
+            .compound(false)
+            .orchestrationStrategy("ADMIT_UNKNOWN")
+            .build();
+
+        MultiIntentResponse resolved = MultiIntentResponse.builder()
+            .intents(List.of(Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("search")
+                .confidence(0.9)
+                .requiresRetrieval(false)
+                .requiresGeneration(true)
+                .vectorSpace("ragconversation")
+                .build()))
+            .compound(false)
+            .orchestrationStrategy("ADMIT_UNKNOWN")
+            .build();
+
+        when(intentQueryExtractor.extract(
+            anyString(),
+            any(com.ai.infrastructure.intent.orchestration.OrchestrationContext.class)
+        )).thenReturn(needsDomain, resolved);
+
+        String ownerId = "chat-clarify-then-exec-user";
+        String conversationId = "conv-" + UUID.randomUUID();
+        OrchestrationContext orch = OrchestrationContext.builder()
+            .userId(ownerId)
+            .conversationId(conversationId)
+            .build();
+
+        OrchestrationResult first = pipeline.execute("Search for policy details.", orch);
+        assertThat(first.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
+
+        OrchestrationResult second = pipeline.execute("Use the ragconversation domain.", orch);
+        assertThat(second.getType()).isNotEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
+        assertThat(second.getType()).isNotEqualTo(OrchestrationResultType.ERROR);
+
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(intentQueryExtractor, times(2)).extract(
+            promptCaptor.capture(),
+            any(com.ai.infrastructure.intent.orchestration.OrchestrationContext.class)
+        );
+
+        String secondPrompt = promptCaptor.getAllValues().get(1);
+        assertThat(secondPrompt).contains("Conversation History:");
+        assertThat(secondPrompt).contains("Search for policy details.");
+        assertThat(secondPrompt).contains("Which knowledge base domain should I search?");
+        assertThat(secondPrompt).contains("Use the ragconversation domain.");
+    }
+}

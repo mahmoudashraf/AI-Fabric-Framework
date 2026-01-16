@@ -32,6 +32,13 @@ public class OrchestrationContext {
     private String sessionId;
 
     /**
+     * Conversation identifier for multi-turn chat sessions (optional).
+     *
+     * <p>When present, conversation-aware pipeline steps can enrich the request with history and record turns.</p>
+     */
+    private String conversationId;
+
+    /**
      * Request ID for tracing; generated if not provided.
      */
     private String requestId;
@@ -76,6 +83,13 @@ public class OrchestrationContext {
      */
     public String getIdentifier() {
         return isAuthenticated() ? userId : sessionId;
+    }
+
+    /**
+     * True if a conversation identifier was provided.
+     */
+    public boolean hasConversation() {
+        return conversationId != null && !conversationId.isBlank();
     }
 
     /**

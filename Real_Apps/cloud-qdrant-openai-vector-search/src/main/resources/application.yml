@@ -1,5 +1,5 @@
 server:
-  port: 8098
+  port: ${PORT:8098}
 
 spring:
   application:
@@ -43,4 +43,3 @@ logging:
   level:
     com.ai.fabric.realapps.cloudvector: INFO
     com.ai.infrastructure: INFO
-

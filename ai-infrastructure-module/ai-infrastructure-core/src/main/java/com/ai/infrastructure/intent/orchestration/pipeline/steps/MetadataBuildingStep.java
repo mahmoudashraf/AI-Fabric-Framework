@@ -41,6 +41,7 @@ public class MetadataBuildingStep implements PipelineStep {
     // Metadata keys
     private static final String METADATA_KEY_REQUEST_ID = "requestId";
     private static final String METADATA_KEY_SESSION_ID = "sessionId";
+    private static final String METADATA_KEY_CONVERSATION_ID = "conversationId";
     private static final String METADATA_KEY_INTENTS_COUNT = "intentsCount";
     private static final String METADATA_KEY_COMPOUND = "compound";
     private static final String METADATA_KEY_AUTHENTICATED = "authenticated";
@@ -102,6 +103,9 @@ public class MetadataBuildingStep implements PipelineStep {
         }
         metadata.put(METADATA_KEY_REQUEST_ID, context.getRequestId());
         metadata.put(METADATA_KEY_SESSION_ID, context.getOrchestrationContext().getSessionId());
+        if (context.getOrchestrationContext() != null && context.getOrchestrationContext().hasConversation()) {
+            metadata.put(METADATA_KEY_CONVERSATION_ID, context.getOrchestrationContext().getConversationId());
+        }
         metadata.put(METADATA_KEY_INTENTS_COUNT, 
             intentResponse != null ? intentResponse.getIntents().size() : 0);
         metadata.put(METADATA_KEY_COMPOUND, 

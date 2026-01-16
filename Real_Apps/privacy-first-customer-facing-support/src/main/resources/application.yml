@@ -1,5 +1,5 @@
 server:
-  port: 8093
+  port: ${PORT:8093}
 
 spring:
   application:
@@ -38,4 +38,3 @@ logging:
   level:
     root: INFO
     com.ai.infrastructure.privacy.pii: INFO
-

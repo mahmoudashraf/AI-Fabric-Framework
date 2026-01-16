@@ -116,7 +116,16 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         String namespace = extractNamespace(vectorId);
-        FetchResponse response = index.fetch(List.of(vectorId), namespace);
+        FetchResponse response;
+        try {
+            response = index.fetch(List.of(vectorId), namespace);
+        } catch (Exception ex) {
+            // Missing namespaces are common for fresh indexes and should be treated as "not found".
+            if (isNamespaceNotFound(ex)) {
+                return Optional.empty();
+            }
+            throw new AIServiceException("Pinecone fetch failed", ex);
+        }
         if (response == null || !response.containsVectors(vectorId)) {
             return Optional.empty();
         }
@@ -159,6 +168,9 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
                 response = index.queryByVector(topK, toFloatList(queryVector), namespace, filter, false, true);
             }
         } catch (Exception ex) {
+            if (isNamespaceNotFound(ex)) {
+                return emptySearchResponse(request, namespace, start);
+            }
             if (!preferSparse && shouldRetryAsSparse(ex)) {
                 sparseIndex = true;
                 response = querySparse(topK, queryVector, namespace, filter);
@@ -244,7 +256,14 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         String namespace = extractNamespace(vectorId);
-        index.deleteByIds(List.of(vectorId), namespace);
+        try {
+            index.deleteByIds(List.of(vectorId), namespace);
+        } catch (Exception ex) {
+            // Deletion should be idempotent: a missing namespace/vector is effectively "already deleted".
+            if (!isNamespaceNotFound(ex)) {
+                throw new AIServiceException("Pinecone delete failed", ex);
+            }
+        }
         return true;
     }
 
@@ -287,7 +306,13 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         Map<String, List<String>> grouped = vectorIds.stream().filter(StringUtils::hasText).collect(Collectors.groupingBy(this::extractNamespace));
         int removed = 0;
         for (Map.Entry<String, List<String>> entry : grouped.entrySet()) {
-            index.deleteByIds(entry.getValue(), entry.getKey());
+            try {
+                index.deleteByIds(entry.getValue(), entry.getKey());
+            } catch (Exception ex) {
+                if (!isNamespaceNotFound(ex)) {
+                    throw new AIServiceException("Pinecone batch delete failed", ex);
+                }
+            }
             removed += entry.getValue().size();
         }
         return removed;
@@ -303,9 +328,17 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         int pageSize = 100;
 
         do {
-            ListResponse response = token == null
-                ? index.list(namespace, pageSize)
-                : index.list(namespace, pageSize, token);
+            ListResponse response;
+            try {
+                response = token == null
+                    ? index.list(namespace, pageSize)
+                    : index.list(namespace, pageSize, token);
+            } catch (Exception ex) {
+                if (isNamespaceNotFound(ex)) {
+                    return List.of();
+                }
+                throw new AIServiceException("Pinecone list failed", ex);
+            }
 
             if (response == null) {
                 break;
@@ -326,7 +359,15 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
         List<VectorRecord> records = new ArrayList<>(ids.size());
         for (List<String> chunk : chunk(ids, 100)) {
-            FetchResponse fetch = index.fetch(chunk, namespace);
+            FetchResponse fetch;
+            try {
+                fetch = index.fetch(chunk, namespace);
+            } catch (Exception ex) {
+                if (isNamespaceNotFound(ex)) {
+                    return List.of();
+                }
+                throw new AIServiceException("Pinecone fetch failed", ex);
+            }
             if (fetch == null) {
                 continue;
             }
@@ -334,6 +375,18 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         return records;
+    }
+
+    private AISearchResponse emptySearchResponse(AISearchRequest request, String namespace, long startMs) {
+        return AISearchResponse.builder()
+            .results(List.of())
+            .totalResults(0)
+            .maxScore(0.0)
+            .processingTimeMs(System.currentTimeMillis() - startMs)
+            .requestId(UUID.randomUUID().toString())
+            .query(request != null ? request.getQuery() : null)
+            .model(namespace)
+            .build();
     }
     
     @Override

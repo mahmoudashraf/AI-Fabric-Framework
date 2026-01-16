@@ -51,14 +51,15 @@ public class AISecurityService {
         long started = System.nanoTime();
         try {
             validateRequest(request);
+            String actorId = resolveActorId(request);
 
             LocalDateTime timestamp = Optional.ofNullable(request.getTimestamp())
                 .orElseGet(() -> LocalDateTime.now(clock));
 
             List<String> threats = new ArrayList<>(detectBuiltInThreats(request));
             boolean blockPii = securityProperties.isBlockOnPiiDetection();
-            log.debug("Security analysis for user={} threats={}, blockOnPiiDetection={}",
-                request.getUserId(), threats, blockPii);
+            log.debug("Security analysis for actor={} threats={}, blockOnPiiDetection={}",
+                actorId, threats, blockPii);
 
             if (securityPolicy != null) {
                 try {
@@ -92,7 +93,7 @@ public class AISecurityService {
             long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
             return AISecurityResponse.builder()
                 .requestId(request.getRequestId())
-                .userId(request.getUserId())
+                .userId(actorId)
                 .threatsDetected(List.copyOf(new HashSet<>(threats)))
                 .securityScore(securityScore)
                 .accessAllowed(!shouldBlock)
@@ -106,7 +107,7 @@ public class AISecurityService {
             log.error("Security analysis failed", ex);
             return AISecurityResponse.builder()
                 .requestId(request != null ? request.getRequestId() : null)
-                .userId(request != null ? request.getUserId() : null)
+                .userId(request != null ? resolveActorId(request) : null)
                 .accessAllowed(false)
                 .shouldBlock(true)
                 .success(false)
@@ -152,9 +153,19 @@ public class AISecurityService {
 
     private void validateRequest(AISecurityRequest request) {
         Objects.requireNonNull(request, "security request must not be null");
-        if (request.getUserId() == null || request.getUserId().isBlank()) {
-            throw new IllegalArgumentException("userId must be provided");
+        if (!hasText(request.getUserId()) && !hasText(request.getSessionId())) {
+            throw new IllegalArgumentException("userId or sessionId must be provided");
         }
+    }
+
+    private String resolveActorId(AISecurityRequest request) {
+        if (request == null) {
+            return null;
+        }
+        if (hasText(request.getUserId())) {
+            return request.getUserId().trim();
+        }
+        return hasText(request.getSessionId()) ? request.getSessionId().trim() : null;
     }
 
     private List<String> detectBuiltInThreats(AISecurityRequest request) {
@@ -233,7 +244,8 @@ public class AISecurityService {
     }
 
     private boolean checkRateLimit(AISecurityRequest request) {
-        String key = request.getUserId() + ":" +
+        String actorId = resolveActorId(request);
+        String key = actorId + ":" +
             Optional.ofNullable(request.getOperationType()).orElse("UNKNOWN");
         long now = clock.millis();
         RateCounter counter = accessAttempts.computeIfAbsent(key, k -> new RateCounter(now));
@@ -263,9 +275,10 @@ public class AISecurityService {
                                                 List<String> threats,
                                                 double score,
                                                 boolean blocked) {
+        String actorId = resolveActorId(request);
         AISecurityEvent event = AISecurityEvent.builder()
             .eventId("SEC_" + timestamp.toEpochSecond(clock.getZone().getRules().getOffset(timestamp)))
-            .userId(request.getUserId())
+            .userId(actorId)
             .requestId(request.getRequestId())
             .eventType(blocked ? "BLOCKED_REQUEST" : "SECURITY_CHECK")
             .threatsDetected(List.copyOf(new HashSet<>(threats)))
@@ -277,16 +290,20 @@ public class AISecurityService {
             .context(request.getContext())
             .build();
 
-        securityEvents.computeIfAbsent(request.getUserId(),
+        securityEvents.computeIfAbsent(actorId,
                 key -> Collections.synchronizedList(new ArrayList<>()))
             .add(event);
 
-        List<AISecurityEvent> userEvents = securityEvents.get(request.getUserId());
+        List<AISecurityEvent> userEvents = securityEvents.get(actorId);
         if (userEvents.size() > MAX_EVENTS_PER_USER) {
             userEvents.remove(0);
         }
 
         return event;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private String determineSeverity(List<String> threats, double score) {

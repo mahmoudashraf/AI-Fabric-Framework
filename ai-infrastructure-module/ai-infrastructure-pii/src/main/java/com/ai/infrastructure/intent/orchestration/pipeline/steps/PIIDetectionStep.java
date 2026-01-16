@@ -55,32 +55,33 @@ public class PIIDetectionStep implements PipelineStep {
             return context;
         }
 
-        String originalQuery = context.getOriginalQuery();
-        if (!StringUtils.hasText(originalQuery)) {
+        String inputQuery = context.getEffectiveQuery();
+        if (!StringUtils.hasText(inputQuery)) {
             return context;
         }
 
-        PIIDetectionResult piiResult = piiDetectionService.detectAndProcess(originalQuery);
+        PIIDetectionResult piiResult = piiDetectionService.detectAndProcess(inputQuery);
         if (piiResult == null) {
             return context;
         }
 
+        List<PIIDetection> detections = piiResult.getDetections() != null ? piiResult.getDetections() : List.of();
+
         String processedQuery = StringUtils.hasText(piiResult.getProcessedQuery())
             ? piiResult.getProcessedQuery()
-            : originalQuery;
+            : inputQuery;
 
         // Safety invariant: never forward raw PII to downstream LLM steps.
         // Even when PIIMode is DETECT_ONLY (which stores the original payload and emits detections),
         // we still pass a masked version into the orchestration pipeline so providers do not see
         // secrets/PII and to reduce provider refusals / OUT_OF_SCOPE misclassifications.
         if (piiResult.isPiiDetected()
-            && processedQuery.equals(originalQuery)
-            && piiResult.getDetections() != null
-            && !piiResult.getDetections().isEmpty()) {
-            processedQuery = redact(originalQuery, piiResult.getDetections());
+            && processedQuery.equals(inputQuery)
+            && !detections.isEmpty()) {
+            processedQuery = redact(inputQuery, detections);
         }
 
-        List<String> detectedTypes = piiResult.getDetections().stream()
+        List<String> detectedTypes = detections.stream()
             .map(PIIDetection::getType)
             .filter(StringUtils::hasText)
             .distinct()
