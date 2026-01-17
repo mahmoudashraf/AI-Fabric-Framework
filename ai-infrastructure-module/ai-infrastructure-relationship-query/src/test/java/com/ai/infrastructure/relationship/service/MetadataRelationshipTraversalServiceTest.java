@@ -65,9 +65,9 @@ class MetadataRelationshipTraversalServiceTest {
                 .build()))
             .build();
 
-        List<String> results = service.traverse(plan, JpqlQuery.builder().limit(5).build());
+        TraversalResult results = service.traverse(plan, JpqlQuery.builder().limit(5).build());
 
-        assertThat(results).containsExactly("doc-1");
+        assertThat(results.entityIds()).containsExactly("doc-1");
     }
 
     @Test
@@ -81,9 +81,9 @@ class MetadataRelationshipTraversalServiceTest {
             .primaryEntityType("document")
             .build();
 
-        List<String> results = service.traverse(plan, JpqlQuery.builder().limit(1).build());
+        TraversalResult results = service.traverse(plan, JpqlQuery.builder().limit(1).build());
 
-        assertThat(results).containsExactly("doc-1");
+        assertThat(results.entityIds()).containsExactly("doc-1");
     }
 
     @Test
@@ -105,9 +105,9 @@ class MetadataRelationshipTraversalServiceTest {
             ))
             .build();
 
-        List<String> results = service.traverse(plan, null);
+        TraversalResult results = service.traverse(plan, null);
 
-        assertThat(results).isEmpty();
+        assertThat(results.entityIds()).isEmpty();
     }
 
     private static AISearchableEntity searchableEntity(String entityId, String metadata) {

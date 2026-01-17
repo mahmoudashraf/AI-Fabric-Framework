@@ -1,7 +1,6 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
 import com.ai.infrastructure.relationship.it.api.RelationshipQueryRequest;
 import com.ai.infrastructure.relationship.it.config.BackendEnvTestConfiguration;
@@ -10,7 +9,6 @@ import com.ai.infrastructure.relationship.it.entity.ProductEntity;
 import com.ai.infrastructure.relationship.it.repository.BrandRepository;
 import com.ai.infrastructure.relationship.it.repository.ProductRepository;
 import com.ai.infrastructure.relationship.model.ReturnMode;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,11 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -41,7 +36,6 @@ class ECommerceRealApiIntegrationTest {
 
     private static final String QUERY = "Show me blue shoes under $100 from Nike";
     private static final String CROSS_BRAND_QUERY = "Show active Nike or Adidas runner shoes priced between $80 and $120 available in red or blue";
-    private static final Pattern PRODUCT_CONTENT_PATTERN = Pattern.compile("^(.*) \\((.*)\\) - \\$(.*)$");
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -52,9 +46,6 @@ class ECommerceRealApiIntegrationTest {
     @Autowired
     private BrandRepository brandRepository;
 
-    @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
 
@@ -63,7 +54,6 @@ class ECommerceRealApiIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        searchableEntityRepository.deleteAllInBatch();
         productRepository.deleteAllInBatch();
         brandRepository.deleteAllInBatch();
         if (vectorDatabaseService != null) {
@@ -94,7 +84,12 @@ class ECommerceRealApiIntegrationTest {
         RAGResponse rag = response.getBody();
         assertThat(rag.getDocuments()).isNotEmpty();
         assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(nikeProductId));
-        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getContent()).contains("Blue Runner"));
+        assertThat(rag.getDocuments()).anySatisfy(doc -> {
+            ParsedProduct parsed = parseProductContent(doc.getContent());
+            assertThat(parsed.name()).containsIgnoringCase("Blue Runner");
+            assertThat(parsed.color()).isEqualTo("blue");
+            assertThat(parsed.price()).isLessThan(BigDecimal.valueOf(100));
+        });
     }
 
     @Test
@@ -143,11 +138,6 @@ class ECommerceRealApiIntegrationTest {
         ProductEntity adidasRunner = product("Adidas Runner Shoes Elite", "red", BigDecimal.valueOf(110), "ACTIVE", adidas);
 
         productRepository.saveAll(List.of(nikeBlueRunner, nikePremiumBoot, nikeRedRunner, adidasBlue, adidasRunner));
-        indexProduct(nikeBlueRunner);
-        indexProduct(nikePremiumBoot);
-        indexProduct(nikeRedRunner);
-        indexProduct(adidasBlue);
-        indexProduct(adidasRunner);
         nikeProductId = nikeBlueRunner.getId();
         adidasRunnerId = adidasRunner.getId();
     }
@@ -163,31 +153,13 @@ class ECommerceRealApiIntegrationTest {
         return product;
     }
 
-    private void indexProduct(ProductEntity product) {
-        searchableEntityRepository.save(
-            AISearchableEntity.builder()
-                .entityType("product")
-                .entityId(product.getId())
-                .searchableContent("%s (%s) - $%s".formatted(product.getName(), product.getColor(), product.getPrice()))
-                .metadata("""
-                    {"brand":"%s","status":"%s"}
-                    """.formatted(product.getBrand().getName(), product.getStatus()))
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build()
-        );
-    }
-
     private ParsedProduct parseProductContent(String content) {
         assertThat(content).isNotBlank();
-        Matcher matcher = PRODUCT_CONTENT_PATTERN.matcher(content.trim());
-        assertThat(matcher.matches())
-            .as("content should match '%s' but was '%s'".formatted(PRODUCT_CONTENT_PATTERN, content))
-            .isTrue();
-
-        String name = matcher.group(1).trim();
-        String color = matcher.group(2).trim().toLowerCase(Locale.ROOT);
-        BigDecimal price = new BigDecimal(matcher.group(3).trim());
+        String[] tokens = content.trim().split("\\s+");
+        assertThat(tokens.length).isGreaterThanOrEqualTo(3);
+        String color = tokens[tokens.length - 2].trim().toLowerCase(Locale.ROOT);
+        BigDecimal price = new BigDecimal(tokens[tokens.length - 1].trim());
+        String name = String.join(" ", java.util.Arrays.copyOf(tokens, tokens.length - 2)).trim();
         return new ParsedProduct(name, color, price);
     }
 

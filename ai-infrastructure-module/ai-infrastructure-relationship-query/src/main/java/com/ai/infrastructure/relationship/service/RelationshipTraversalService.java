@@ -13,5 +13,5 @@ public interface RelationshipTraversalService {
 
     boolean supports(RelationshipQueryPlan plan);
 
-    List<String> traverse(RelationshipQueryPlan plan, JpqlQuery query);
+    TraversalResult traverse(RelationshipQueryPlan plan, JpqlQuery query);
 }

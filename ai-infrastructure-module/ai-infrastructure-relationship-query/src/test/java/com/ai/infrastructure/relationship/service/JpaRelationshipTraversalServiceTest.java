@@ -62,9 +62,9 @@ class JpaRelationshipTraversalServiceTest {
             .limit(25)
             .build();
 
-        List<String> ids = service.traverse(plan, query);
+        TraversalResult ids = service.traverse(plan, query);
 
-        assertThat(ids).containsExactly("101", "doc-202");
+        assertThat(ids.entityIds()).containsExactly("101", "doc-202");
         verify(jpaQuery).setParameter("status", "ACTIVE");
         verify(jpaQuery).setMaxResults(25);
     }
@@ -75,9 +75,9 @@ class JpaRelationshipTraversalServiceTest {
             .primaryEntityType("document")
             .build();
 
-        List<String> ids = service.traverse(plan, null);
+        TraversalResult ids = service.traverse(plan, null);
 
-        assertThat(ids).isEmpty();
+        assertThat(ids.entityIds()).isEmpty();
         verify(entityManager, never()).createQuery(anyString());
     }
 
@@ -98,9 +98,9 @@ class JpaRelationshipTraversalServiceTest {
             .parameters(Map.of())
             .build();
 
-        List<String> ids = service.traverse(plan, query);
+        TraversalResult ids = service.traverse(plan, query);
 
-        assertThat(ids).containsExactly("doc-11");
+        assertThat(ids.entityIds()).containsExactly("doc-11");
         verify(jpaQuery, never()).setMaxResults(anyInt());
     }
 

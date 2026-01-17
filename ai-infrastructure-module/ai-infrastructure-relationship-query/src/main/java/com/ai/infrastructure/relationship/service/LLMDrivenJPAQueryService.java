@@ -17,7 +17,6 @@ import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
@@ -29,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -48,8 +48,7 @@ public class LLMDrivenJPAQueryService {
     private final RelationshipQueryProperties properties;
     private final RelationshipModuleMetadata moduleMetadata;
     private final RelationshipTraversalService jpaTraversalService;
-    private final RelationshipTraversalService metadataTraversalService;
-    private final AISearchableEntityStorageStrategy storageStrategy;
+    private final RelationshipQueryDocumentMapper documentMapper;
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEmbeddingService embeddingService;
     private final QueryCache queryCache;
@@ -61,8 +60,7 @@ public class LLMDrivenJPAQueryService {
                                     RelationshipQueryProperties properties,
                                     RelationshipModuleMetadata moduleMetadata,
                                     RelationshipTraversalService jpaTraversalService,
-                                      RelationshipTraversalService metadataTraversalService,
-                                    AISearchableEntityStorageStrategy storageStrategy,
+                                    RelationshipQueryDocumentMapper documentMapper,
                                     VectorDatabaseService vectorDatabaseService,
                                       AIEmbeddingService embeddingService,
                                       QueryCache queryCache,
@@ -73,8 +71,7 @@ public class LLMDrivenJPAQueryService {
         this.properties = properties;
         this.moduleMetadata = moduleMetadata;
         this.jpaTraversalService = jpaTraversalService;
-        this.metadataTraversalService = metadataTraversalService;
-        this.storageStrategy = storageStrategy;
+        this.documentMapper = documentMapper;
         this.vectorDatabaseService = vectorDatabaseService;
         this.embeddingService = embeddingService;
         this.queryCache = queryCache;
@@ -103,14 +100,17 @@ public class LLMDrivenJPAQueryService {
             if (jpqlQuery != null && log.isInfoEnabled()) {
                 log.info("[RelationshipQuery] JPQL statement: {}\nParameters: {}", jpqlQuery.getJpql(), jpqlQuery.getParameters());
             }
-            List<String> entityIds = executeTraversal(plan, jpqlQuery);
+            ReturnMode returnMode = resolveReturnMode(options);
+            TraversalResult traversal = executeTraversal(plan, jpqlQuery, returnMode);
+            List<String> entityIds = traversal.entityIds();
+
             QueryMode mode = resolveMode(plan, options);
             if (mode == QueryMode.ENHANCED) {
                 entityIds = rerankWithVectors(plan, entityIds, options);
             }
 
-            ReturnMode returnMode = resolveReturnMode(options);
-            List<RAGResponse.RAGDocument> documents = materializeDocuments(plan, entityIds, returnMode, options);
+            List<String> warnings = new LinkedList<>();
+            List<RAGResponse.RAGDocument> documents = materializeDocuments(plan, traversal, entityIds, returnMode, options, warnings);
             long duration = Math.max(0, (System.nanoTime() - startNano) / 1_000_000);
 
             recordExecutionMetrics(mode, duration, documents.size(), plan.isNeedsSemanticSearch() || mode == QueryMode.ENHANCED);
@@ -126,7 +126,7 @@ public class LLMDrivenJPAQueryService {
                 .success(!documents.isEmpty())
                 .processingTimeMs(duration)
                 .confidenceScore(plan.getConfidenceScore())
-                .warnings(Collections.emptyList())
+                .warnings(warnings)
                 .metadata(Map.of(
                     "plan", plan,
                     "mode", mode,
@@ -144,12 +144,9 @@ public class LLMDrivenJPAQueryService {
         }
     }
 
-    private List<String> executeTraversal(RelationshipQueryPlan plan, JpqlQuery query) {
-        List<String> entityIds = executeJpaTraversal(plan, query);
-        if (!entityIds.isEmpty() || !properties.isFallbackToMetadata()) {
-            return entityIds;
-        }
-        return metadataTraversalService.traverse(plan, query);
+    private TraversalResult executeTraversal(RelationshipQueryPlan plan, JpqlQuery query, ReturnMode returnMode) {
+        boolean allowCache = returnMode == ReturnMode.IDS;
+        return executeJpaTraversal(plan, query, allowCache);
     }
 
     /**
@@ -201,37 +198,52 @@ public class LLMDrivenJPAQueryService {
     }
 
     private List<RAGResponse.RAGDocument> materializeDocuments(RelationshipQueryPlan plan,
-                                                               List<String> entityIds,
+                                                               TraversalResult traversal,
+                                                               List<String> orderedEntityIds,
                                                                ReturnMode returnMode,
-                                                               QueryOptions options) {
-        List<String> limited = applyLimit(plan, entityIds, options);
+                                                               QueryOptions options,
+                                                               List<String> warnings) {
+        List<String> limited = applyLimit(plan, orderedEntityIds, options);
         if (returnMode == ReturnMode.IDS) {
             return limited.stream()
                 .map(id -> RAGResponse.RAGDocument.builder().id(id).build())
                 .collect(Collectors.toList());
         }
 
+        if (traversal == null || traversal.entities().isEmpty()) {
+            warnings.add("RELATIONAL_MATERIALIZATION_UNAVAILABLE: JPQL did not return entities; returning IDs only.");
+            return limited.stream()
+                .map(id -> RAGResponse.RAGDocument.builder().id(id).build())
+                .collect(Collectors.toList());
+        }
+
+        Map<String, Object> entityById = new HashMap<>();
+        List<?> entities = traversal.entities();
+        List<String> ids = traversal.entityIds();
+        for (int i = 0; i < ids.size() && i < entities.size(); i++) {
+            entityById.put(ids.get(i), entities.get(i));
+        }
+
         List<RAGResponse.RAGDocument> documents = new ArrayList<>();
         for (String entityId : limited) {
-            storageStrategy.findByEntityTypeAndEntityId(plan.getPrimaryEntityType(), entityId)
-                .ifPresent(entity -> documents.add(RAGResponse.RAGDocument.builder()
-                    .id(entityId)
-                    .content(entity.getSearchableContent())
-                    .metadata(parseMetadata(entity.getMetadata()))
-                    .build()));
+            Object entity = entityById.get(entityId);
+            if (entity == null) {
+                warnings.add("RELATIONAL_MATERIALIZATION_MISSING_ENTITY: entityId=" + entityId);
+                documents.add(RAGResponse.RAGDocument.builder().id(entityId).build());
+                continue;
+            }
+            Optional<RAGResponse.RAGDocument> mapped = documentMapper != null
+                ? documentMapper.map(plan.getPrimaryEntityType(), entity, entityId)
+                : Optional.empty();
+            if (mapped.isPresent()) {
+                documents.add(mapped.get());
+            } else {
+                warnings.add("RELATIONAL_MATERIALIZATION_MISSING_MAPPING: entityType=" + plan.getPrimaryEntityType());
+                documents.add(RAGResponse.RAGDocument.builder().id(entityId).build());
+            }
         }
-        return documents;
-    }
 
-    private Map<String, Object> parseMetadata(String metadataJson) {
-        if (!StringUtils.hasText(metadataJson)) {
-            return Collections.emptyMap();
-        }
-        try {
-            return METADATA_MAPPER.readValue(metadataJson, Map.class);
-        } catch (Exception ex) {
-            return Map.of();
-        }
+        return documents;
     }
 
     private List<String> applyLimit(RelationshipQueryPlan plan, List<String> entityIds, QueryOptions options) {
@@ -290,31 +302,38 @@ public class LLMDrivenJPAQueryService {
             if (reranked.isEmpty()) {
                 return entityIds;
             }
-            Set<String> unique = new LinkedHashSet<>(reranked);
-            unique.addAll(entityIds);
-            return new ArrayList<>(unique);
+            Set<String> allowed = new LinkedHashSet<>(entityIds);
+            List<String> reordered = new ArrayList<>(entityIds.size());
+            for (String id : reranked) {
+                if (allowed.remove(id)) {
+                    reordered.add(id);
+                }
+            }
+            reordered.addAll(allowed);
+            return reordered;
         } catch (Exception ex) {
             log.warn("Vector reranking failed: {}", ex.getMessage());
             return entityIds;
         }
     }
 
-    private List<String> executeJpaTraversal(RelationshipQueryPlan plan, JpqlQuery query) {
+    private TraversalResult executeJpaTraversal(RelationshipQueryPlan plan, JpqlQuery query, boolean allowCache) {
         if (query == null || !StringUtils.hasText(query.getJpql())) {
-            return Collections.emptyList();
+            return TraversalResult.empty();
         }
         String cacheKey = QueryCache.hash(query);
-        if (queryCache.isEnabled()) {
+        if (allowCache && queryCache.isEnabled()) {
             Optional<List<String>> cached = queryCache.getQueryResult(cacheKey);
             if (cached.isPresent()) {
-                return cached.get();
+                return TraversalResult.ids(cached.get());
             }
         }
-        List<String> entityIds = jpaTraversalService.traverse(plan, query);
+        TraversalResult result = jpaTraversalService.traverse(plan, query);
+        List<String> entityIds = result.entityIds();
         if (queryCache.isEnabled()) {
             queryCache.putQueryResult(cacheKey, entityIds);
         }
-        return entityIds;
+        return result;
     }
 
     private void recordExecutionMetrics(QueryMode mode, long latencyMs, int resultCount, boolean fallbackUsed) {

@@ -46,19 +46,19 @@ public class MetadataRelationshipTraversalService implements RelationshipTravers
     }
 
     @Override
-    public List<String> traverse(RelationshipQueryPlan plan, JpqlQuery query) {
+    public TraversalResult traverse(RelationshipQueryPlan plan, JpqlQuery query) {
         if (!supports(plan)) {
-            return Collections.emptyList();
+            return TraversalResult.empty();
         }
 
         List<AISearchableEntity> candidates = storageStrategy.findByEntityType(plan.getPrimaryEntityType());
         if (candidates.isEmpty()) {
-            return Collections.emptyList();
+            return TraversalResult.empty();
         }
 
         List<FilterCondition> filterConditions = mergeFilters(plan);
         if (filterConditions.isEmpty()) {
-            return extractIds(candidates, query != null ? query.getLimit() : null);
+            return TraversalResult.ids(extractIds(candidates, query != null ? query.getLimit() : null));
         }
 
         List<String> matches = new ArrayList<>();
@@ -79,7 +79,7 @@ public class MetadataRelationshipTraversalService implements RelationshipTravers
             }
         }
 
-        return matches;
+        return TraversalResult.ids(matches);
     }
 
     private List<String> extractIds(List<AISearchableEntity> entities, Integer limit) {

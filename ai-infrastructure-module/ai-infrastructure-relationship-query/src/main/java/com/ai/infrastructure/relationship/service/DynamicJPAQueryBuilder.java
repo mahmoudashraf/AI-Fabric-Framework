@@ -93,7 +93,7 @@ public class DynamicJPAQueryBuilder {
             if (!StringUtils.hasText(toAlias)) {
                 toAlias = aliases.register(path.getToEntityType());
             }
-            String joinKeyword = path.isOptional() ? " LEFT JOIN " : " JOIN ";
+            String joinKeyword = path.isOptional() ? " LEFT JOIN FETCH " : " JOIN FETCH ";
             joins.add(joinKeyword + fromAlias + "." + path.getRelationshipType() + " " + toAlias);
             if (!CollectionUtils.isEmpty(path.getConditions())) {
                 String targetAlias = toAlias;

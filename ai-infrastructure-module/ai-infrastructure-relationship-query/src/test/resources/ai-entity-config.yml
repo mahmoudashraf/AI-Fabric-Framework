@@ -17,6 +17,7 @@ ai-entities:
       - name: author.fullName
         type: string
         include-in-search: true
+
   product:
     features:
       - embedding
@@ -29,12 +30,31 @@ ai-entities:
       - name: price
         include-in-rag: true
     metadata-fields:
-      - name: brand.name
-        type: string
-        include-in-search: true
       - name: status
         type: string
         include-in-search: true
+      - name: brand.name
+        type: string
+        include-in-search: true
+
+  medical-case:
+    features:
+      - embedding
+      - search
+    searchable-fields:
+      - name: title
+        include-in-rag: true
+    metadata-fields:
+      - name: status
+        type: string
+        include-in-search: true
+      - name: specialty
+        type: string
+        include-in-search: true
+      - name: patient.fullName
+        type: string
+        include-in-search: true
+
   transaction:
     features:
       - embedding
@@ -49,9 +69,23 @@ ai-entities:
       - name: status
         type: string
         include-in-search: true
-      - name: sourceAccount.region
+
+  candidate:
+    features:
+      - embedding
+      - search
+    searchable-fields:
+      - name: fullName
+        include-in-rag: true
+      - name: location
+        include-in-rag: true
+      - name: primarySkill
+        include-in-rag: true
+    metadata-fields:
+      - name: seniority
         type: string
         include-in-search: true
-      - name: destinationAccount.region
+      - name: recruiter.fullName
         type: string
         include-in-search: true
+

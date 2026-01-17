@@ -55,7 +55,7 @@ class DynamicJPAQueryBuilderTest {
         JpqlQuery query = builder.buildQuery(plan);
 
         assertThat(query.getJpql()).contains("FROM Document");
-        assertThat(query.getJpql()).contains("JOIN root.createdBy");
+        assertThat(query.getJpql()).contains("JOIN FETCH root.createdBy");
         assertThat(query.getJpql()).contains("root.status = :p1");
         assertThat(query.getParameters()).containsEntry("p1", "ACTIVE");
     }

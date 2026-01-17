@@ -1,7 +1,7 @@
 package com.ai.infrastructure.relationship.usecases;
 
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
@@ -21,14 +21,14 @@ import com.ai.infrastructure.relationship.integration.repository.TransactionRepo
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
+import com.ai.infrastructure.relationship.service.DefaultRelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
+import com.ai.infrastructure.relationship.service.RelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -80,10 +80,7 @@ class FinancialFraudDetectionTest {
     private TransactionRepository transactionRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
+    private AIEntityConfigurationLoader configurationLoader;
 
     @Autowired
     private RelationshipQueryPlanner planner;
@@ -118,16 +115,12 @@ class FinancialFraudDetectionTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     private LLMDrivenJPAQueryService llmDrivenJPAQueryService;
     private String flaggedTransactionId;
 
     @BeforeEach
     void setUp() {
         Mockito.reset(planner);
-        searchableEntityRepository.deleteAll();
         transactionRepository.deleteAll();
         accountRepository.deleteAll();
         if (vectorDatabaseService != null) {
@@ -149,10 +142,7 @@ class FinancialFraudDetectionTest {
         schemaProvider.refreshSchema();
 
         var jpaTraversalService = new com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService(entityManager);
-        var metadataTraversalService = new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
-            storageStrategy,
-            objectMapper
-        );
+        RelationshipQueryDocumentMapper documentMapper = new DefaultRelationshipQueryDocumentMapper(null, configurationLoader);
 
         llmDrivenJPAQueryService = new LLMDrivenJPAQueryService(
             planner,
@@ -161,8 +151,7 @@ class FinancialFraudDetectionTest {
             relationshipQueryProperties,
             relationshipModuleMetadata,
             jpaTraversalService,
-            metadataTraversalService,
-            storageStrategy,
+            documentMapper,
             vectorDatabaseService,
             aiEmbeddingService,
             queryCache,
@@ -246,7 +235,7 @@ class FinancialFraudDetectionTest {
 
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getDocuments().get(0).getId()).isEqualTo(flaggedTransactionId);
-        assertThat(response.getDocuments().get(0).getMetadata()).containsEntry("channel", "wire");
+        assertThat(response.getDocuments().get(0).getMetadata()).containsEntry("channel", "Wire");
         log.info("[Fraud] Result documents: {}", response.getDocuments());
     }
 
@@ -331,21 +320,7 @@ class FinancialFraudDetectionTest {
         tx.setDestinationAccount(destination);
         tx = transactionRepository.save(tx);
         flaggedTransactionId = flagged ? tx.getId() : flaggedTransactionId;
-        indexTransaction(tx, source, destination);
         return tx;
-    }
-
-    private void indexTransaction(TransactionEntity tx, AccountEntity source, AccountEntity destination) {
-        AISearchableEntity entity = AISearchableEntity.builder()
-            .entityType("transaction")
-            .entityId(tx.getId())
-            .searchableContent(tx.getTitle())
-            .metadata("{\"channel\":\"%s\",\"status\":\"%s\",\"amount\":%s,\"source\":\"%s\",\"destination\":\"%s\"}"
-                .formatted(tx.getChannel().toLowerCase(), tx.getStatus(), tx.getAmount(), source.getOwnerName().toLowerCase(), destination.getOwnerName().toLowerCase()))
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
-        searchableEntityRepository.save(entity);
     }
 
     @TestConfiguration

@@ -1,7 +1,7 @@
 package com.ai.infrastructure.relationship.usecases;
 
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
@@ -21,14 +21,14 @@ import com.ai.infrastructure.relationship.integration.repository.RecruiterReposi
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
+import com.ai.infrastructure.relationship.service.DefaultRelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
+import com.ai.infrastructure.relationship.service.RelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -79,10 +79,7 @@ class HRCandidateSearchTest {
     private RecruiterRepository recruiterRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
+    private AIEntityConfigurationLoader configurationLoader;
 
     @Autowired
     private RelationshipQueryPlanner planner;
@@ -117,16 +114,12 @@ class HRCandidateSearchTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     private LLMDrivenJPAQueryService llmDrivenJPAQueryService;
     private String matchedCandidateId;
 
     @BeforeEach
     void setUp() {
         Mockito.reset(planner);
-        searchableEntityRepository.deleteAll();
         candidateRepository.deleteAll();
         recruiterRepository.deleteAll();
         if (vectorDatabaseService != null) {
@@ -148,10 +141,7 @@ class HRCandidateSearchTest {
         schemaProvider.refreshSchema();
 
         var jpaTraversalService = new com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService(entityManager);
-        var metadataTraversalService = new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
-            storageStrategy,
-            objectMapper
-        );
+        RelationshipQueryDocumentMapper documentMapper = new DefaultRelationshipQueryDocumentMapper(null, configurationLoader);
 
         llmDrivenJPAQueryService = new LLMDrivenJPAQueryService(
             planner,
@@ -160,8 +150,7 @@ class HRCandidateSearchTest {
             relationshipQueryProperties,
             relationshipModuleMetadata,
             jpaTraversalService,
-            metadataTraversalService,
-            storageStrategy,
+            documentMapper,
             vectorDatabaseService,
             aiEmbeddingService,
             queryCache,
@@ -232,7 +221,7 @@ class HRCandidateSearchTest {
 
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getDocuments().get(0).getId()).isEqualTo(matchedCandidateId);
-        assertThat(response.getDocuments().get(0).getMetadata()).containsEntry("recruiter", "dana liu");
+        assertThat(response.getDocuments().get(0).getMetadata()).containsEntry("recruiter", "Dana Liu");
         log.info("[HR] Result documents: {}", response.getDocuments());
     }
 
@@ -274,10 +263,6 @@ class HRCandidateSearchTest {
 
         matchedCandidateId = nySeniorMl.getId();
 
-        indexCandidate(nySeniorMl, "new york", "senior", "machine learning", "Dana Liu");
-        indexCandidate(nyMidMl, "new york", "mid", "machine learning", "Dana Liu");
-        indexCandidate(laSeniorMl, "los angeles", "senior", "machine learning", "Ryan Patel");
-
         entityRelationshipMapper.registerEntityType(CandidateEntity.class);
         entityRelationshipMapper.registerEntityType(RecruiterEntity.class);
         try {
@@ -294,19 +279,6 @@ class HRCandidateSearchTest {
         candidate.setRecruiter(recruiter);
         recruiter.getCandidates().add(candidate);
         return candidateRepository.save(candidate);
-    }
-
-    private void indexCandidate(CandidateEntity candidate, String location, String seniority, String skill, String recruiter) {
-        AISearchableEntity entity = AISearchableEntity.builder()
-            .entityType("candidate")
-            .entityId(candidate.getId())
-            .searchableContent(candidate.getFullName())
-            .metadata("{\"location\":\"%s\",\"seniority\":\"%s\",\"skill\":\"%s\",\"recruiter\":\"%s\"}"
-                .formatted(location, seniority, skill, recruiter.toLowerCase()))
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
-        searchableEntityRepository.save(entity);
     }
 
     @TestConfiguration

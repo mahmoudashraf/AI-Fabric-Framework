@@ -1,7 +1,7 @@
 package com.ai.infrastructure.relationship.integration;
 
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.relationship.config.RelationshipQueryAutoConfiguration;
@@ -40,8 +40,8 @@ import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
+import com.ai.infrastructure.relationship.service.DefaultRelationshipQueryDocumentMapper;
+import com.ai.infrastructure.relationship.service.RelationshipQueryDocumentMapper;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.provider.onnx.ONNXAutoConfiguration;
 import com.ai.infrastructure.provider.onnx.ONNXEmbeddingProvider;
@@ -51,7 +51,6 @@ import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,6 +75,7 @@ import java.util.Map;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.EntityManager;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
+import com.ai.infrastructure.entity.IntentHistory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -106,10 +106,7 @@ public class RelationshipQueryIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
+    private AIEntityConfigurationLoader configurationLoader;
 
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
@@ -144,14 +141,10 @@ public class RelationshipQueryIntegrationTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
-
     private String activeDocumentId;
 
     @BeforeEach
     void setUpData() {
-        searchableEntityRepository.deleteAll();
         documentRepository.deleteAll();
         userRepository.deleteAll();
         if (vectorDatabaseService != null) {
@@ -175,16 +168,6 @@ public class RelationshipQueryIntegrationTest {
         userRepository.save(author);
         activeDocumentId = document.getId();
 
-        AISearchableEntity indexedDocument = AISearchableEntity.builder()
-            .entityType("document")
-            .entityId(activeDocumentId)
-            .searchableContent(document.getTitle())
-            .metadata("{\"status\":\"ACTIVE\",\"owner\":\"ada@example.com\"}")
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
-        searchableEntityRepository.save(indexedDocument);
-
         entityRelationshipMapper.registerEntityType(DocumentEntity.class);
         entityRelationshipMapper.registerEntityType(UserEntity.class);
         entityRelationshipMapper.registerRelationship("document", "user", "author", RelationshipDirection.FORWARD, false);
@@ -200,12 +183,7 @@ public class RelationshipQueryIntegrationTest {
 
         com.ai.infrastructure.relationship.service.RelationshipTraversalService jpaTraversalService =
             new com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService(entityManager);
-
-        com.ai.infrastructure.relationship.service.RelationshipTraversalService metadataTraversalService =
-            new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
-                storageStrategy,
-                objectMapper
-            );
+        RelationshipQueryDocumentMapper documentMapper = new DefaultRelationshipQueryDocumentMapper(null, configurationLoader);
 
         llmDrivenJPAQueryService = new LLMDrivenJPAQueryService(
             planner,
@@ -214,8 +192,7 @@ public class RelationshipQueryIntegrationTest {
             relationshipQueryProperties,
             relationshipModuleMetadata,
             jpaTraversalService,
-            metadataTraversalService,
-            storageStrategy,
+            documentMapper,
             vectorDatabaseService,
             aiEmbeddingService,
             queryCache,
@@ -276,12 +253,11 @@ public class RelationshipQueryIntegrationTest {
         LuceneVectorAutoConfiguration.class
     })
     @EntityScan(basePackageClasses = {
-        AISearchableEntity.class,
-        DocumentEntity.class
+        DocumentEntity.class,
+        IntentHistory.class
     })
     @EnableJpaRepositories(basePackageClasses = {
         DocumentRepository.class,
-        AISearchableEntityRepository.class,
         IntentHistoryRepository.class
     })
     @Import({
