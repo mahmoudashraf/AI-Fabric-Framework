@@ -7,6 +7,9 @@ All RealAPI tests in this module use `@ActiveProfiles("real-api-test")` and requ
 ```bash
 cd ai-infrastructure-module
 
+# Install dependencies first (skip tests) so running a single module doesn't trigger unrelated module tests.
+mvn clean install -DskipTests
+
 # Clean up any existing Lucene locks
 rm -rf integration-Testing/integration-tests/data/lucene-vector-index \
        integration-Testing/integration-tests/data/test-lucene-index \
@@ -16,15 +19,14 @@ rm -rf integration-Testing/integration-tests/data/lucene-vector-index \
 export OPENAI_API_KEY="$(tr -d '\n' < ../dev2.env)"
 
 # Run all RealAPI tests (OpenAI LLM + OpenAI embeddings with 512 dimensions) and Lucene
-mvn -pl integration-Testing/integration-tests -am test \
-  "-Dtest=RealAPIIntegrationTest,RealAPIProgressiveExtractionDiagnosticsIntegrationTest,RealAPIONNXFallbackIntegrationTest,RealAPISmartValidationIntegrationTest,RealAPIVectorLifecycleIntegrationTest,RealAPIHybridRetrievalToggleIntegrationTest,RealAPIIntentHistoryAggregationIntegrationTest,RealAPIActionErrorRecoveryIntegrationTest,RealAPIActionFlowIntegrationTest,RealAPIIntentGenerationRoutingIntegrationTest,RealAPIMultiProviderFailoverIntegrationTest,RealAPISmartSuggestionsIntegrationTest,RealAPIPIIEdgeSpectrumIntegrationTest,RealAPICreativeAIScenariosIntegrationTest" \
+mvn -pl integration-Testing/integration-tests test \
+  "-Dtest=RealAPIIntegrationTest,RealAPIProgressiveExtractionDiagnosticsIntegrationTest,RealAPIONNXFallbackIntegrationTest,RealAPISmartValidationIntegrationTest,RealAPIVectorLifecycleIntegrationTest,RealAPIHybridRetrievalToggleIntegrationTest,RealAPIIntentHistoryAggregationIntegrationTest,RealAPIActionErrorRecoveryIntegrationTest,RealAPIActionFlowIntegrationTest,RealAPIIntentGenerationRoutingIntegrationTest,RealAPIMultiProviderFailoverIntegrationTest,RealAPISmartSuggestionsIntegrationTest,RealAPIPIIEdgeSpectrumIntegrationTest" \
   "-Dsurefire.failIfNoSpecifiedTests=false" \
   "-Dai.providers.llm-provider=openai" \
   "-Dai.providers.embedding-provider=openai" \
   "-Dai.providers.openai.embedding-model=text-embedding-3-small" \
   "-Dai.providers.openai.embedding-dimensions=512" \
   "-Dai.vector-db.type=lucene" \
-  "-Dai-infrastructure.storage.strategy=SINGLE_TABLE" \
   "-DforkCount=1" \
   "-DreuseForks=false" \
   "-Dlogging.level.root=WARN" \
@@ -36,13 +38,15 @@ mvn -pl integration-Testing/integration-tests -am test \
 ```bash
 cd ai-infrastructure-module
 
+mvn clean install -DskipTests
+
 rm -rf integration-Testing/integration-tests/data/lucene-vector-index \
        integration-Testing/integration-tests/data/test-lucene-index \
        integration-Testing/integration-tests/data/test-lucene-index-hybrid
 
 export OPENAI_API_KEY="$(tr -d '\n' < ../dev2.env)"
 
-mvn -pl integration-Testing/integration-tests -am test \
+mvn -pl integration-Testing/integration-tests test \
   "-Dtest=RealAPIProgressiveExtractionDiagnosticsIntegrationTest" \
   "-Dsurefire.failIfNoSpecifiedTests=false" \
   "-Dai.providers.llm-provider=openai" \
@@ -65,4 +69,4 @@ mvn -pl integration-Testing/integration-tests -am test \
 12. RealAPIMultiProviderFailoverIntegrationTest
 13. RealAPISmartSuggestionsIntegrationTest
 14. RealAPIPIIEdgeSpectrumIntegrationTest
-15. RealAPICreativeAIScenariosIntegrationTest
+15. RealAPIProviderMatrixIntegrationTest

@@ -118,15 +118,6 @@ on:
         options:
           - h2
           - postgresql
-      storage_strategy:
-        description: 'Storage strategy for AISearchableEntity'
-        required: true
-        default: 'SINGLE_TABLE'
-        type: choice
-        options:
-          - SINGLE_TABLE
-          - PER_TYPE_TABLE
-          - CUSTOM
       timeout_minutes:
         description: 'Job timeout in minutes'
         required: false
@@ -285,11 +276,10 @@ jobs:
                 "name": "${{ github.event.inputs.embedding_provider }}",
                 "model": "${EMBEDDING_MODEL:-default}",
                 "configured": true
-              },
-              "vector_database": "${{ github.event.inputs.vector_database }}",
-              "persistence_database": "${{ github.event.inputs.persistence_database }}",
-              "storage_strategy": "${{ github.event.inputs.storage_strategy }}"
-            },
+	              },
+	              "vector_database": "${{ github.event.inputs.vector_database }}",
+	              "persistence_database": "${{ github.event.inputs.persistence_database }}"
+	            },
             "test_configuration": {
               "test_chunk": "${{ github.event.inputs.test_chunk }}",
               "timeout_minutes": "${{ github.event.inputs.timeout_minutes }}",
@@ -342,13 +332,10 @@ jobs:
           ### Vector Database
           - **Type**: \`${{ github.event.inputs.vector_database }}\`
           
-          ### Persistence Database
-          - **Type**: \`${{ github.event.inputs.persistence_database }}\`
-          
-          ### Storage Strategy
-          - **Strategy**: \`${{ github.event.inputs.storage_strategy }}\`
-          
-          ## Test Configuration
+	          ### Persistence Database
+	          - **Type**: \`${{ github.event.inputs.persistence_database }}\`
+	          
+	          ## Test Configuration
           
           - **Test Chunk**: \`${{ github.event.inputs.test_chunk }}\`
           - **Timeout**: \`${{ github.event.inputs.timeout_minutes }}\` minutes
@@ -568,7 +555,7 @@ jobs:
           fi
           export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
           
-          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}:${{ github.event.inputs.storage_strategy }}" "" "${{ github.event.inputs.test_chunk }}"
+	          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
@@ -1349,11 +1336,10 @@ jobs:
                 "embedding": {
                     "name": "${{ github.event.inputs.embedding_provider }}",
                     "model": "${{ github.event.inputs.embedding_model != '' && github.event.inputs.embedding_model || 'default' }}"
-                },
-                "vector_database": "${{ github.event.inputs.vector_database }}",
-                "persistence_database": "${{ github.event.inputs.persistence_database }}",
-                "storage_strategy": "${{ github.event.inputs.storage_strategy }}"
-            },
+	                },
+	                "vector_database": "${{ github.event.inputs.vector_database }}",
+	                "persistence_database": "${{ github.event.inputs.persistence_database }}"
+	            },
               "test_configuration": {
                   "test_chunk": "${{ github.event.inputs.test_chunk }}",
                   "timeout_minutes": "${{ github.event.inputs.timeout_minutes }}",
@@ -1432,7 +1418,6 @@ jobs:
           fi
           echo "- **Vector Database:** ${{ github.event.inputs.vector_database }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Persistence Database:** ${{ github.event.inputs.persistence_database }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Storage Strategy:** ${{ github.event.inputs.storage_strategy }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Test Chunk:** ${{ github.event.inputs.test_chunk }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### API Keys Provided" >> $GITHUB_STEP_SUMMARY

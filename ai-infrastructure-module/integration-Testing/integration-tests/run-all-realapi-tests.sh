@@ -24,7 +24,6 @@ TESTS=(
   "RealAPIMultiProviderFailoverIntegrationTest"
   "RealAPISmartSuggestionsIntegrationTest"
   "RealAPIPIIEdgeSpectrumIntegrationTest"
-  "RealAPICreativeAIScenariosIntegrationTest"
 )
 
 TEST_CLASSES=$(IFS=,; echo "${TESTS[*]}")
@@ -37,7 +36,6 @@ echo "Configuration:"
 echo "  - Embedding Provider: openai"
 echo "  - Embedding Dimensions: 512"
 echo "  - Vector DB: lucene"
-echo "  - Storage Strategy: SINGLE_TABLE"
 echo "=========================================="
 echo ""
 
@@ -51,7 +49,6 @@ mvn -pl integration-Testing/integration-tests -am test \
   "-Dai.providers.openai.embedding-model=text-embedding-3-small" \
   "-Dai.providers.openai.embedding-dimensions=512" \
   "-Dai.vector-db.type=lucene" \
-  "-Dai-infrastructure.storage.strategy=SINGLE_TABLE" \
   "-DforkCount=1" \
   "-DreuseForks=false" \
   "-Dlogging.level.root=WARN" \

@@ -7,7 +7,7 @@
 #
 # Usage examples:
 #   ./scripts/run-single-test.sh
-#   TEST_CLASS=RealAPIProviderMatrixIntegrationTest MATRIX_SPEC="openai:onnx:qdrant:SINGLE_TABLE" ./scripts/run-single-test.sh
+#   TEST_CLASS=RealAPIProviderMatrixIntegrationTest MATRIX_SPEC="openai:onnx:lucene" ./scripts/run-single-test.sh
 ###############################################################################
 
 # ==================== CONFIGURATION (Edit these) ====================
@@ -39,16 +39,15 @@ PINECONE_DEFAULT_ENVIRONMENT="${PINECONE_DEFAULT_ENVIRONMENT:-}"
 LLM_PROVIDER="${LLM_PROVIDER:-openai}"
 EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-onnx}"
 VECTOR_DB="${VECTOR_DB:-lucene}"
-STORAGE_STRATEGY="${STORAGE_STRATEGY:-SINGLE_TABLE}"
 
 # Provider matrix override (for RealAPIProviderMatrixIntegrationTest)
-# Format: llm:embedding[:vectordb][:storageStrategy]
+# Format: llm:embedding[:vectordb]
 MATRIX_SPEC="${MATRIX_SPEC:-}"
 
 # Maven Configuration
 MAVEN_PROFILE="${MAVEN_PROFILE:-real-api-test}"
 MAVEN_MODULE="${MAVEN_MODULE:-integration-Testing/integration-tests}"
-MAVEN_ALSO_MAKE="${MAVEN_ALSO_MAKE:-true}" # build required reactor deps (-am)
+MAVEN_ALSO_MAKE="${MAVEN_ALSO_MAKE:-false}" # build required reactor deps (-am); prefer false to avoid running unrelated module tests
 MAVEN_MVN_PROFILES="${MAVEN_MVN_PROFILES:-}" # e.g., "realapi" or "realapi,other"
 MAVEN_EXTRA_ARGS="${MAVEN_EXTRA_ARGS:-}" # e.g., "-Dfoo=bar"
 FORK_COUNT="${FORK_COUNT:-1}"
@@ -139,7 +138,6 @@ fi
 echo "   LLM Provider: $LLM_PROVIDER"
 echo "   Embedding: $EMBEDDING_PROVIDER"
 echo "   Vector DB: $VECTOR_DB"
-echo "   Storage: $STORAGE_STRATEGY"
 if [ -n "$MATRIX_SPEC" ]; then
   echo "   Matrix Spec: $MATRIX_SPEC"
 fi
@@ -266,7 +264,6 @@ MAVEN_CMD="$MAVEN_CMD -Dspring.profiles.active=$MAVEN_PROFILE"
 MAVEN_CMD="$MAVEN_CMD -Dai.providers.llm-provider=$LLM_PROVIDER"
 MAVEN_CMD="$MAVEN_CMD -Dai.providers.embedding-provider=$EMBEDDING_PROVIDER"
 MAVEN_CMD="$MAVEN_CMD -Dai.vector-db.type=$VECTOR_DB"
-MAVEN_CMD="$MAVEN_CMD -Dai-infrastructure.storage.strategy=$STORAGE_STRATEGY"
 if [ -n "$MATRIX_SPEC" ]; then
   MAVEN_CMD="$MAVEN_CMD -Dai.providers.real-api.matrix=$MATRIX_SPEC"
 fi

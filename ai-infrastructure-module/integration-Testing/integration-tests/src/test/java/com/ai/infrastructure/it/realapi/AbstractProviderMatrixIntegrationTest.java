@@ -430,14 +430,20 @@ abstract class AbstractProviderMatrixIntegrationTest {
             .filter(StringUtils::hasText)
             .map(entry -> {
                 String[] parts = entry.split(":");
-                if (parts.length < 2 || parts.length > 3) {
+                if (parts.length < 2 || parts.length > 4) {
                     throw new IllegalArgumentException(
-                        "Invalid provider matrix entry: '" + entry + "'. Expected llm:embedding[:vectordb]");
+                        "Invalid provider matrix entry: '" + entry + "'. Expected llm:embedding[:vectordb] (optional deprecated ':storageStrategy' is ignored)");
                 }
 
                 String llm = parts[0].trim();
                 String embedding = parts[1].trim();
                 String vectorDb = parts.length >= 3 ? parts[2].trim() : null;
+                if (parts.length == 4) {
+                    String ignoredStorage = parts[3].trim();
+                    if (StringUtils.hasText(ignoredStorage)) {
+                        log.warn("Ignoring deprecated provider-matrix storage strategy segment '{}' in entry '{}'", ignoredStorage, entry);
+                    }
+                }
 
                 if (!StringUtils.hasText(llm) || !StringUtils.hasText(embedding)) {
                     throw new IllegalArgumentException(
