@@ -1,7 +1,6 @@
 package com.ai.infrastructure.intent.orchestration;
 
 import com.ai.infrastructure.access.AIAccessControlService;
-import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.config.TestConfiguration;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -46,9 +45,6 @@ class RAGOrchestratorLiveHandlersTest {
     @MockBean
     private AIAccessControlService accessControlService;
 
-    @MockBean
-    private AIComplianceService complianceService;
-
     @BeforeEach
     void cleanIndex() {
         vectorDatabaseService.clearVectors();
@@ -62,12 +58,6 @@ class RAGOrchestratorLiveHandlersTest {
         when(accessControlService.checkAccess(any())).thenReturn(
             com.ai.infrastructure.dto.AIAccessControlResponse.builder()
                 .accessGranted(true)
-                .success(true)
-                .build()
-        );
-        when(complianceService.checkCompliance(any())).thenReturn(
-            com.ai.infrastructure.dto.AIComplianceResponse.builder()
-                .overallCompliant(true)
                 .success(true)
                 .build()
         );

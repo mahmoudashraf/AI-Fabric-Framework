@@ -13,16 +13,9 @@ import com.ai.infrastructure.processor.EmbeddingProcessor;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.security.AISecurityService;
-import com.ai.infrastructure.compliance.AIComplianceService;
-import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
-import com.ai.infrastructure.privacy.AIDataPrivacyService;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
-import com.ai.infrastructure.filter.AIContentFilterService;
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
-import com.ai.infrastructure.deletion.UserDataDeletionService;
-import com.ai.infrastructure.deletion.policy.UserDataDeletionProvider;
-import com.ai.infrastructure.deletion.port.BehaviorDeletionPort;
 import com.ai.infrastructure.search.VectorSearchService;
 import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
@@ -185,38 +178,6 @@ public class AIInfrastructureAutoConfiguration {
                                                Clock clock,
                                                SecurityProperties securityProperties) {
         return new AISecurityService(piiDetectionService.getIfAvailable(), clock, securityProperties);
-    }
-    
-    @Bean
-    public AIComplianceService aiComplianceService(Clock clock,
-                                                   ObjectProvider<ComplianceCheckProvider> complianceProvider) {
-        return new AIComplianceService(clock, complianceProvider.getIfAvailable());
-    }
-    
-    @Bean
-    @Conditional(VectorDbConfiguredCondition.class)
-    public UserDataDeletionService userDataDeletionService(AISearchableEntityStorageStrategy storageStrategy,
-                                                           VectorDatabaseService vectorDatabaseService,
-                                                           Clock clock,
-                                                           ObjectProvider<UserDataDeletionProvider> deletionProvider,
-                                                           ObjectProvider<BehaviorDeletionPort> behaviorDeletionPort) {
-        return new UserDataDeletionService(
-            storageStrategy,
-            vectorDatabaseService,
-            clock,
-            deletionProvider.getIfAvailable(),
-            behaviorDeletionPort
-        );
-    }
-    
-    @Bean
-    public AIDataPrivacyService aiDataPrivacyService(AICoreService aiCoreService) {
-        return new AIDataPrivacyService(aiCoreService);
-    }
-    
-    @Bean
-    public AIContentFilterService aiContentFilterService(AICoreService aiCoreService) {
-        return new AIContentFilterService(aiCoreService);
     }
     
     @Bean

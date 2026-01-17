@@ -22,7 +22,6 @@ import com.ai.infrastructure.intent.orchestration.pipeline.DefaultOrchestrationP
 import com.ai.infrastructure.intent.orchestration.pipeline.Pipeline;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.AccessControlStep;
-import com.ai.infrastructure.intent.orchestration.pipeline.steps.ComplianceCheckStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.HistoryPersistenceStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.IntentExtractionStep;
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.IntentHandlingStep;
@@ -38,9 +37,7 @@ import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.security.ResponseSanitizer;
 import com.ai.infrastructure.security.AISecurityService;
 import com.ai.infrastructure.access.AIAccessControlService;
-import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
-import com.ai.infrastructure.dto.AIComplianceResponse;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -97,9 +94,6 @@ class RAGOrchestratorTest {
     @Mock
     private AIAccessControlService accessControlService;
 
-    @Mock
-    private AIComplianceService complianceService;
-
     private ResponseSanitizer responseSanitizer;
     private SmartSuggestionsProperties smartSuggestionsProperties;
 
@@ -125,12 +119,6 @@ class RAGOrchestratorTest {
         when(accessControlService.checkAccess(any())).thenReturn(
             AIAccessControlResponse.builder()
                 .accessGranted(true)
-                .success(true)
-                .build()
-        );
-        when(complianceService.checkCompliance(any())).thenReturn(
-            AIComplianceResponse.builder()
-                .overallCompliant(true)
                 .success(true)
                 .build()
         );
@@ -172,7 +160,6 @@ class RAGOrchestratorTest {
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
-            new ComplianceCheckStep(complianceService),
             new IntentExtractionStep(intentQueryExtractor, progressiveEngineProvider),
             new VectorSpaceResolutionStep(vectorSpaceRouter),
             new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider,

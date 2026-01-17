@@ -4,6 +4,8 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
@@ -85,6 +87,16 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         this.connection = Objects.requireNonNull(connection, "Pinecone connection must be provided");
         this.index = Objects.requireNonNull(index, "Pinecone index must be provided");
         log.info("Pinecone client configured for index '{}'", indexName);
+    }
+
+    @Override
+    public boolean supportsVectorScan() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMetadataFiltering() {
+        return false;
     }
 
     @Override
@@ -375,6 +387,94 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         return records;
+    }
+
+    @Override
+    public VectorScanPage scan(VectorScanRequest request) {
+        ensureEnabled();
+        if (request == null || !StringUtils.hasText(request.getEntityType())) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .hasMore(false)
+                .nextCursor(null)
+                .build();
+        }
+
+        String namespace = namespace(request.getEntityType());
+        int limit = request.getLimit() != null && request.getLimit() > 0 ? request.getLimit() : 200;
+
+        String token = decodeListTokenCursor(request.getCursor());
+        final List<VectorRecord> matched = new ArrayList<>(limit + 1);
+
+        while (matched.size() < limit + 1) {
+            ListResponse response;
+            try {
+                response = token == null
+                    ? index.list(namespace, Math.min(500, Math.max(100, limit)))
+                    : index.list(namespace, Math.min(500, Math.max(100, limit)), token);
+            } catch (Exception ex) {
+                if (isNamespaceNotFound(ex)) {
+                    return VectorScanPage.builder()
+                        .vectors(List.of())
+                        .hasMore(false)
+                        .nextCursor(null)
+                        .build();
+                }
+                throw new AIServiceException("Pinecone list failed", ex);
+            }
+
+            if (response == null) {
+                break;
+            }
+
+            List<String> ids = response.getVectorsList().stream()
+                .map(ListItem::getId)
+                .filter(StringUtils::hasText)
+                .limit(1000)
+                .toList();
+
+            if (!ids.isEmpty()) {
+                for (List<String> chunk : chunk(ids, 100)) {
+                    FetchResponse fetch;
+                    try {
+                        fetch = index.fetch(chunk, namespace);
+                    } catch (Exception ex) {
+                        if (isNamespaceNotFound(ex)) {
+                            return VectorScanPage.builder()
+                                .vectors(List.of())
+                                .hasMore(false)
+                                .nextCursor(null)
+                                .build();
+                        }
+                        throw new AIServiceException("Pinecone fetch failed", ex);
+                    }
+                    if (fetch == null) {
+                        continue;
+                    }
+                    fetch.getVectorsMap().values().forEach(vector -> {
+                        VectorRecord record = toVectorRecord(vector, namespace);
+                        if (matchesMetadata(record, request.getMetadataEquals())) {
+                            matched.add(applyScanProjection(record, request));
+                        }
+                    });
+                }
+            }
+
+            token = response.hasPagination() ? response.getPagination().getNext() : null;
+            if (!StringUtils.hasText(token)) {
+                token = null;
+                break;
+            }
+        }
+
+        boolean hasMore = matched.size() > limit || token != null;
+        List<VectorRecord> pageVectors = matched.size() > limit ? matched.subList(0, limit) : matched;
+
+        return VectorScanPage.builder()
+            .vectors(pageVectors)
+            .hasMore(hasMore && token != null)
+            .nextCursor(token != null ? encodeListTokenCursor(token) : null)
+            .build();
     }
 
     private AISearchResponse emptySearchResponse(AISearchRequest request, String namespace, long startMs) {
@@ -1036,6 +1136,9 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
         List<Double> embedding = extractEmbedding(vector, allMetadata);
 
+        LocalDateTime createdAt = readTimestamp(metadata, "_indexedCreatedAt");
+        LocalDateTime updatedAt = readTimestamp(metadata, "_indexedUpdatedAt");
+
         return VectorRecord.builder()
             .vectorId(vector.getId())
             .entityType(entityType)
@@ -1043,8 +1146,87 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             .content(content)
             .embedding(embedding)
             .metadata(metadata)
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
+            .createdAt(createdAt)
+            .updatedAt(updatedAt)
+            .build();
+    }
+
+    private static LocalDateTime readTimestamp(Map<String, Object> metadata, String key) {
+        if (metadata == null || key == null) {
+            return null;
+        }
+        Object raw = metadata.get(key);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(raw.toString());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static boolean matchesMetadata(VectorRecord record, Map<String, Object> metadataEquals) {
+        if (metadataEquals == null || metadataEquals.isEmpty()) {
+            return true;
+        }
+        if (record == null || record.getMetadata() == null) {
+            return false;
+        }
+        for (Map.Entry<String, Object> entry : metadataEquals.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            Object expected = entry.getValue();
+            Object actual = record.getMetadata().get(entry.getKey());
+            if (!Objects.equals(String.valueOf(expected), String.valueOf(actual))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String encodeListTokenCursor(String token) {
+        if (!StringUtils.hasText(token)) {
+            return null;
+        }
+        String raw = "token:" + token;
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static String decodeListTokenCursor(String cursor) {
+        if (!StringUtils.hasText(cursor)) {
+            return null;
+        }
+        try {
+            String raw = new String(Base64.getUrlDecoder().decode(cursor), java.nio.charset.StandardCharsets.UTF_8);
+            if (!raw.startsWith("token:")) {
+                return null;
+            }
+            String token = raw.substring("token:".length());
+            return StringUtils.hasText(token) ? token : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static VectorRecord applyScanProjection(VectorRecord record, VectorScanRequest request) {
+        if (record == null || request == null) {
+            return record;
+        }
+        if (request.isIncludeContent() && request.isIncludeEmbedding() && request.isIncludeMetadata()) {
+            return record;
+        }
+        return VectorRecord.builder()
+            .vectorId(record.getVectorId())
+            .entityType(record.getEntityType())
+            .entityId(record.getEntityId())
+            .content(request.isIncludeContent() ? record.getContent() : null)
+            .embedding(request.isIncludeEmbedding() ? record.getEmbedding() : List.of())
+            .metadata(request.isIncludeMetadata() ? record.getMetadata() : Map.of())
+            .createdAt(record.getCreatedAt())
+            .updatedAt(record.getUpdatedAt())
+            .similarityScore(record.getSimilarityScore())
             .build();
     }
 

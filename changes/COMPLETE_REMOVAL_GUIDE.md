@@ -11,7 +11,7 @@
 
 **Objective**: Remove `AISearchableEntity` and all related storage infrastructure to simplify architecture.
 
-**Key Finding**: AISearchableEntity provides **no value** - it's purely duplicate storage of what vector database already contains.
+**Key Finding**: AISearchableEntity is *mostly* duplicate storage. In this repository it also currently underpins a few behaviors (retention enumeration, GDPR metadata fallback, analysis persistence), which must be replaced or explicitly dropped when removing it.
 
 **Benefits**:
 - ✅ 10-20% faster indexing (one write instead of two)
@@ -22,6 +22,16 @@
 - ✅ Better compliance implementation
 
 **Timeline**: 2-3 days implementation + testing
+
+### Reality Check / Preconditions (Important)
+
+This guide is feasible, but a few current behaviors in the repo mean “remove it and everything still works” is **not automatically true** unless you address these items:
+
+- **Retention & GDPR fallback currently rely on SQL enumeration/search.** After removal, the only generic alternative is vector-provider support for efficient **metadata filtering** and/or **paged scanning**. The current `VectorDatabaseService` contract does not guarantee an efficient metadata query or scan API for large datasets.
+- **Retention timestamps may be unstable across updates.** Example: the Lucene provider writes `createdAt` as “now” on writes; a reindex/update can reset `createdAt`. If you base retention on `VectorRecord.createdAt`, retention windows may silently extend. Prefer storing a stable timestamp in metadata (e.g., `sourceCreatedAt`, `retentionAt`) and basing cleanup on that.
+- **Soft delete semantics require search-time filtering.** Marking `_softDeleted=true` only helps if every search path excludes soft-deleted vectors. Several providers/search flows currently filter only by entity type. If you cannot guarantee metadata filtering, treat `SOFT_DELETE` as `HARD_DELETE` (remove vector) or keep an optional SQL catalog/audit store.
+- **AI analysis persistence currently uses `AISearchableEntity.aiAnalysis`.** If you delete `AISearchableEntity`, you must either store analysis elsewhere (vector metadata/secondary store) or drop “analysis persistence”.
+- **Some delete paths currently delete only SQL rows.** `AICapabilityService.removeFromSearch(...)` deletes only via storageStrategy today; after removal it must remove vectors too (or be removed from usage).
 
 ---
 
@@ -41,7 +51,7 @@
 
 ## Complete File Inventory
 
-### Files to DELETE (11 files)
+### Files to DELETE (core)
 
 #### Storage Layer
 ```
@@ -51,13 +61,16 @@ ai-infrastructure-core/src/main/java/com/ai/infrastructure/storage/strategy/AISe
 ai-infrastructure-core/src/main/java/com/ai/infrastructure/storage/strategy/SingleTableStorageStrategy.java
 ai-infrastructure-core/src/main/java/com/ai/infrastructure/storage/strategy/impl/PerTypeTableStorageStrategy.java
 ai-infrastructure-core/src/main/java/com/ai/infrastructure/storage/strategy/impl/PerTypeRepository.java
+ai-infrastructure-core/src/main/java/com/ai/infrastructure/storage/strategy/impl/PerTypeRepositoryFactory.java
 ai-infrastructure-core/src/main/java/com/ai/infrastructure/storage/auto/TableAutoCreationService.java
 ai-infrastructure-core/src/main/java/com/ai/infrastructure/rag/SearchableEntityVectorDatabaseService.java
 ```
 
 #### Configuration
 ```
+ai-infrastructure-core/src/main/java/com/ai/infrastructure/config/AISearchableStorageStrategyAutoConfiguration.java
 ai-infrastructure-core/src/main/java/com/ai/infrastructure/storage/AIStorageProperties.java
+ai-infrastructure-core/src/main/java/com/ai/infrastructure/storage/StorageStrategyProvider.java
 ```
 
 #### Tests (examples - full list ~30 files)
@@ -66,36 +79,40 @@ ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com
 ai-infrastructure-module/integration-Testing/integration-tests/src/test/java/com/ai/infrastructure/it/storage/*.java
 ```
 
-### Files to MODIFY (15 core files)
+### Files to MODIFY (core)
 
 #### Core Services
 1. `AICapabilityService.java` - Remove AISearchableEntity storage
 2. `AIInfrastructureAutoConfiguration.java` - Remove storage beans
 3. `VectorDatabaseService.java` - Add helper methods (optional)
+4. `KnowledgeBaseOverviewService.java` - Remove AISearchableEntity fallback/last-updated lookup
 
 #### Migration
-4. `DataMigrationService.java` - Use vector DB for deduplication
-5. `MigrationAutoConfiguration.java` - Remove storage strategy bean
+5. `DataMigrationService.java` - Use vector DB for deduplication
+6. `MigrationAutoConfiguration.java` - Remove storage strategy bean
 
 #### Compliance & Retention
-6. `RetentionPolicyProvider.java` - Change interface signature
-7. `SearchableEntityCleanupScheduler.java` - Delete 2 jobs, update 1
-8. `UserDataDeletionService.java` - Remove AISearchableEntity dependency
+7. `RetentionPolicyProvider.java` - Change interface signature
+8. `SearchableEntityCleanupScheduler.java` - Delete 2 jobs, update 1
+9. `UserDataDeletionService.java` - Remove AISearchableEntity dependency
 
 #### Relationship Query
-9. `ReliableRelationshipQueryService.java` - Use vector DB for content retrieval
-10. `LLMDrivenJPAQueryService.java` - Update any AISearchableEntity usage
+10. `ReliableRelationshipQueryService.java` - Use vector DB for content retrieval
+11. `LLMDrivenJPAQueryService.java` - Update any AISearchableEntity usage
+
+#### Indexing Auto-Config
+12. `AIIndexingAutoConfiguration.java` - Update cleanup scheduler wiring (remove AISearchableEntityStorageStrategy dependency)
 
 #### Annotations (Javadoc only)
-11. `AISearchable.java` - Update documentation
-12. `AIContext.java` - Update documentation
+13. `AISearchable.java` - Update documentation
+14. `AIContext.java` - Update documentation
 
 #### Configuration Files
-13. `application.yml` - Remove storage strategy properties
-14. `ai-entity-config.yml` - No changes needed
+15. `application.yml` - Remove storage strategy properties
+16. `ai-entity-config.yml` - No changes needed
 
 #### Database
-15. `V2.0__Remove_AISearchableEntity_Tables.sql` - New migration
+17. `V2.0__Remove_AISearchableEntity_Tables.sql` - New migration
 
 ---
 
@@ -611,8 +628,11 @@ public void cleanupByRetentionPolicy() {
         LocalDateTime cutoff = LocalDateTime.now(clock).minusDays(retentionDays);
 
         // ✅ Query vector DB directly
+        // Note: This can be expensive for large datasets; prefer a provider-native filter/scroll API when available.
         List<VectorRecord> vectors = vectorDatabaseService.getVectorsByEntityType(entityType);
         for (VectorRecord vector : vectors) {
+            // IMPORTANT: Prefer a stable retention timestamp from metadata (e.g. "retentionAt" or "sourceCreatedAt")
+            // if your provider does not preserve VectorRecord.createdAt across updates.
             if (shouldCleanup(vector.getCreatedAt(), cutoff)) {
                 applyPolicy(entityType, vector);
             }
@@ -623,30 +643,10 @@ public void cleanupByRetentionPolicy() {
 private void applyPolicy(String entityType, VectorRecord vector) {
     CleanupStrategy strategy = policyProvider.getStrategy(entityType);
     switch (strategy) {
-        case SOFT_DELETE -> softDelete(vector);
+        // Soft delete is only safe if search paths filter out "_softDeleted=true".
+        // If you cannot guarantee metadata filtering, treat SOFT_DELETE as deleteVector(...) (hard delete).
+        case SOFT_DELETE -> deleteVector(vector);
         case ARCHIVE, HARD_DELETE, CASCADE -> deleteVector(vector);
-    }
-}
-
-private void softDelete(VectorRecord vector) {
-    // Update vector metadata to mark as deleted
-    Map<String, Object> metadata = new HashMap<>(vector.getMetadata());
-    metadata.put("_softDeleted", true);
-    metadata.put("_deletedAt", LocalDateTime.now(clock).toString());
-
-    try {
-        // Update vector with soft delete marker (clear content, keep embedding)
-        vectorDatabaseService.updateVector(
-            vector.getVectorId(),
-            vector.getEntityType(),
-            vector.getEntityId(),
-            null,  // Clear content
-            vector.getEmbedding(),  // Keep embedding for reference
-            metadata
-        );
-        log.debug("Soft deleted vector {}:{}", vector.getEntityType(), vector.getEntityId());
-    } catch (Exception ex) {
-        log.warn("Failed soft deleting vector for {}:{}", vector.getEntityType(), vector.getEntityId(), ex);
     }
 }
 
@@ -1360,90 +1360,16 @@ COMMENT ON TABLE ai_searchable_entity_archived IS
 
 ---
 
-## Optional: Add Helper Methods to VectorDatabaseService
+## Optional: Add Vector DB Capabilities (for retention/GDPR at scale)
 
-### 17. VectorDatabaseService.java (Optional Enhancements)
+Your current `VectorDatabaseService` interface already defines `vectorExists(...)`, `getVectorsByEntityType(...)`, `getVectorCountByEntityType(...)`, `removeVector(...)`, and `removeVectorById(...)`.
 
-**Location**: `ai-infrastructure-core/src/main/java/com/ai/infrastructure/rag/VectorDatabaseService.java`
+If you want “GDPR metadata fallback” and retention to remain **efficient** without `AISearchableEntity`, consider adding provider-optional capabilities such as:
 
-```java
-public interface VectorDatabaseService {
+- **Metadata filtering**: a method like `searchByMetadata(String entityType, Map<String,Object> filters, int limit, ...)`.
+- **Paged scanning/scrolling**: iterate vectors by entity type in pages instead of loading everything into memory.
 
-    // ... existing methods
-
-    /**
-     * Check if a vector exists for the given entity.
-     *
-     * @param entityType the entity type
-     * @param entityId the entity ID
-     * @return true if vector exists
-     */
-    default boolean vectorExists(String entityType, String entityId) {
-        return getVectorByEntity(entityType, entityId).isPresent();
-    }
-
-    /**
-     * Get all vectors for a given entity type.
-     *
-     * @param entityType the entity type
-     * @return list of vector records
-     */
-    default List<VectorRecord> getVectorsByEntityType(String entityType) {
-        throw new UnsupportedOperationException(
-            "getVectorsByEntityType not supported by " + this.getClass().getSimpleName());
-    }
-
-    /**
-     * Get count of vectors for a given entity type.
-     *
-     * @param entityType the entity type
-     * @return count of vectors
-     */
-    default long getVectorCountByEntityType(String entityType) {
-        return getVectorsByEntityType(entityType).size();
-    }
-
-    /**
-     * Search vectors by metadata field (for GDPR compliance).
-     * Optional - providers can implement if they support it.
-     *
-     * @param metadataKey the metadata field key
-     * @param metadataValue the value to search for
-     * @return list of matching vector records
-     */
-    default List<VectorRecord> searchByMetadata(String metadataKey, String metadataValue) {
-        throw new UnsupportedOperationException(
-            "Metadata search not supported by " + this.getClass().getSimpleName());
-    }
-
-    /**
-     * Check if this provider supports metadata-based search.
-     *
-     * @return true if metadata search is supported
-     */
-    default boolean supportsMetadataSearch() {
-        return false;
-    }
-
-    /**
-     * Remove vector by entity reference.
-     * Convenience method that looks up vector and removes it.
-     *
-     * @param entityType the entity type
-     * @param entityId the entity ID
-     * @return true if removed, false if not found
-     */
-    default boolean removeVector(String entityType, String entityId) {
-        Optional<VectorRecord> vector = getVectorByEntity(entityType, entityId);
-        if (vector.isPresent()) {
-            return deleteVector(vector.get().getVectorId());
-        }
-        return false;
-    }
-}
-```
-
-Then implement these in `LuceneVectorDatabaseService.java`, `QdrantVectorDatabaseService.java`, etc.
+Without these, any metadata fallback implemented via `getVectorsByEntityType(...)` will be O(N) scans per entity type.
 
 ---
 

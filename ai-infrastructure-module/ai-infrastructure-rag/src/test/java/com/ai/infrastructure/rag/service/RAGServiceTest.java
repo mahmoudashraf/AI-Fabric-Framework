@@ -36,8 +36,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RAGServiceTest {
-    
-    @Mock
+
     private AIProviderConfig config;
     
     @Mock
@@ -56,6 +55,9 @@ class RAGServiceTest {
     
     @BeforeEach
     void setUp() {
+        config = new AIProviderConfig();
+        config.setEmbeddingProvider("openai");
+
         ragService = new RAGService(
             config,
             embeddingService,
@@ -75,14 +77,6 @@ class RAGServiceTest {
                 .results(Collections.emptyList())
                 .totalResults(0)
                 .build()
-        );
-        
-        when(config.resolveLlmDefaults()).thenReturn(
-            new AIProviderConfig.GenerationDefaults("openai", "gpt-4", 1000, 0.7, 60, 100)
-        );
-        
-        when(config.resolveEmbeddingDefaults()).thenReturn(
-            new AIProviderConfig.EmbeddingDefaults("openai", "text-embedding-ada-002")
         );
     }
     

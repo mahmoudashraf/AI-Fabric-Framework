@@ -77,13 +77,25 @@ public class VectorManagementService {
         try {
             log.debug("Updating vector for entity {} of type {}", entityId, entityType);
             
-            // Get existing vector
-            Optional<VectorRecord> existingVector = vectorDatabaseService.getVectorByEntity(entityType, entityId);
+            // Get existing vector (if any) to preserve vectorId when possible.
+            Optional<VectorRecord> existingVectorOpt = vectorDatabaseService.getVectorByEntity(entityType, entityId);
+
+            // Prefer in-place update when provider supports it.
+            if (existingVectorOpt.isPresent() && existingVectorOpt.get().getVectorId() != null) {
+                String existingVectorId = existingVectorOpt.get().getVectorId();
+                boolean updated = vectorDatabaseService.updateVector(existingVectorId, entityType, entityId, content, embedding, metadata);
+                if (updated) {
+                    log.debug("Updated vector {} for entity {} of type {}", existingVectorId, entityId, entityType);
+                    return existingVectorId;
+                }
+                log.warn("Vector {} for entity {}:{} could not be updated in-place; falling back to store+remove",
+                    existingVectorId, entityType, entityId);
+            }
 
             String newVectorId = vectorDatabaseService.storeVector(entityType, entityId, content, embedding, metadata);
             log.debug("Stored new vector {} for entity {} of type {}", newVectorId, entityId, entityType);
 
-            existingVector
+            existingVectorOpt
                 .map(VectorRecord::getVectorId)
                 .filter(previousVectorId -> previousVectorId != null && !previousVectorId.equals(newVectorId))
                 .ifPresent(previousVectorId -> {

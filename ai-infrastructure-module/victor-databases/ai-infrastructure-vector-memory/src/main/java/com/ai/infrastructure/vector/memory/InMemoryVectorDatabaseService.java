@@ -4,6 +4,8 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
@@ -32,6 +34,21 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
     
     // In-memory vector store - using vectorId as key for efficient lookups
     private final Map<String, VectorRecord> vectorStore = new HashMap<>();
+
+    @Override
+    public boolean supportsVectorScan() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMetadataFiltering() {
+        return true;
+    }
+
+    @Override
+    public VectorScanPage scan(VectorScanRequest request) {
+        return VectorDatabaseService.super.scan(request);
+    }
     
     @Override
     public String storeVector(String entityType, String entityId, String content, 

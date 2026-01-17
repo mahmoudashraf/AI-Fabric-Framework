@@ -26,6 +26,13 @@
 
         <dependency>
             <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-governance</artifactId>
+            <version>${project.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-rag</artifactId>
             <version>${project.version}</version>
         </dependency>

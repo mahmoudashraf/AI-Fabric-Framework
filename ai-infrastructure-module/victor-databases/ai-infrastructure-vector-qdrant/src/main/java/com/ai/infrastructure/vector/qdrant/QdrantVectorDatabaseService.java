@@ -4,6 +4,8 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
@@ -24,7 +26,9 @@ import jakarta.annotation.PreDestroy;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +39,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 /**
  * Vector database service backed by the official Qdrant Java client (gRPC).
@@ -52,6 +57,16 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     public QdrantVectorDatabaseService(AIProviderConfig providerConfig) {
         this.config = Objects.requireNonNull(providerConfig.getQdrant(), "Qdrant configuration must be present");
         this.qdrantClient = new QdrantClient(buildGrpcClient(config));
+    }
+
+    @Override
+    public boolean supportsVectorScan() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMetadataFiltering() {
+        return true;
     }
 
     @Override
@@ -364,6 +379,95 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     }
 
     @Override
+    public VectorScanPage scan(VectorScanRequest request) {
+        ensureEnabled();
+        if (request == null || request.getEntityType() == null || request.getEntityType().isBlank()) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .hasMore(false)
+                .nextCursor(null)
+                .build();
+        }
+
+        String entityType = request.getEntityType();
+        if (!collectionExists(entityType)) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .hasMore(false)
+                .nextCursor(null)
+                .build();
+        }
+
+        int limit = request.getLimit() != null && request.getLimit() > 0 ? request.getLimit() : 200;
+        int pageSize = limit + 1;
+        Common.PointId offset = decodeScrollCursor(request.getCursor());
+
+        Points.ScrollPoints.Builder builder = Points.ScrollPoints.newBuilder()
+            .setCollectionName(entityType)
+            .setLimit(pageSize);
+
+        if (offset != null) {
+            builder.setOffset(offset);
+        }
+
+        Common.Filter filter = buildMetadataFilter(request.getMetadataEquals());
+        if (filter != null) {
+            builder.setFilter(filter);
+        }
+
+        builder.setWithVectors(WithVectorsSelectorFactory.enable(request.isIncludeEmbedding()));
+
+        List<String> excludedPayloadFields = new ArrayList<>();
+        excludedPayloadFields.add(EMBEDDING_PAYLOAD_FIELD);
+        if (!request.isIncludeContent()) {
+            excludedPayloadFields.add("content");
+        }
+        if (!request.isIncludeMetadata()) {
+            // Keep identifiers even when metadata is suppressed.
+            excludedPayloadFields.addAll(request.getMetadataEquals() != null
+                ? request.getMetadataEquals().keySet().stream().filter(Objects::nonNull).collect(Collectors.toList())
+                : List.of());
+            excludedPayloadFields.add("raw");
+        }
+
+        if (excludedPayloadFields.size() == 1 && EMBEDDING_PAYLOAD_FIELD.equals(excludedPayloadFields.getFirst())) {
+            builder.setWithPayload(WithPayloadSelectorFactory.enable(true));
+        } else {
+            builder.setWithPayload(WithPayloadSelectorFactory.exclude(excludedPayloadFields));
+        }
+
+        Points.ScrollResponse response = await(qdrantClient.scrollAsync(builder.build()), "scroll points (scan)");
+        if (response == null || response.getResultCount() == 0) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .hasMore(false)
+                .nextCursor(null)
+                .build();
+        }
+
+        boolean hasMore = response.getResultCount() > limit || response.hasNextPageOffset();
+        List<Points.RetrievedPoint> points = response.getResultList();
+        if (points.size() > limit) {
+            points = points.subList(0, limit);
+        }
+
+        List<VectorRecord> records = points.stream()
+            .map(point -> toVectorRecord(entityType, point, null))
+            .map(record -> applyScanProjection(record, request))
+            .toList();
+
+        String nextCursor = response.hasNextPageOffset()
+            ? encodeScrollCursor(response.getNextPageOffset())
+            : null;
+
+        return VectorScanPage.builder()
+            .vectors(records)
+            .hasMore(hasMore && nextCursor != null)
+            .nextCursor(nextCursor)
+            .build();
+    }
+
+    @Override
     public List<VectorRecord> getVectorsByEntityType(String entityType) {
         ensureEnabled();
         if (!collectionExists(entityType)) {
@@ -655,6 +759,8 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
             .content(content)
             .embedding(embedding)
             .metadata(metadata)
+            .createdAt(readTimestamp(metadata, "_indexedCreatedAt"))
+            .updatedAt(readTimestamp(metadata, "_indexedUpdatedAt"))
             .similarityScore(scoreOverride)
             .build();
     }
@@ -677,6 +783,76 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         }
 
         return Collections.emptyList();
+    }
+
+    private VectorRecord applyScanProjection(VectorRecord record, VectorScanRequest request) {
+        if (record == null || request == null) {
+            return record;
+        }
+        if (request.isIncludeContent() && request.isIncludeEmbedding() && request.isIncludeMetadata()) {
+            return record;
+        }
+        return VectorRecord.builder()
+            .vectorId(record.getVectorId())
+            .entityType(record.getEntityType())
+            .entityId(record.getEntityId())
+            .content(request.isIncludeContent() ? record.getContent() : null)
+            .embedding(request.isIncludeEmbedding() ? record.getEmbedding() : List.of())
+            .metadata(request.isIncludeMetadata() ? record.getMetadata() : Map.of())
+            .createdAt(record.getCreatedAt())
+            .updatedAt(record.getUpdatedAt())
+            .similarityScore(record.getSimilarityScore())
+            .build();
+    }
+
+    private static String encodeScrollCursor(Common.PointId offset) {
+        if (offset == null) {
+            return null;
+        }
+        String raw;
+        if (offset.hasUuid()) {
+            raw = "offsetUuid:" + offset.getUuid();
+        } else if (offset.hasNum()) {
+            raw = "offsetNum:" + offset.getNum();
+        } else {
+            return null;
+        }
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static Common.PointId decodeScrollCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+        try {
+            String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            if (raw.startsWith("offsetUuid:")) {
+                UUID uuid = UUID.fromString(raw.substring("offsetUuid:".length()));
+                return PointIdFactory.id(uuid);
+            }
+            if (raw.startsWith("offsetNum:")) {
+                long num = Long.parseLong(raw.substring("offsetNum:".length()));
+                return PointIdFactory.id(num);
+            }
+            return null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static LocalDateTime readTimestamp(Map<String, Object> metadata, String key) {
+        if (metadata == null || key == null) {
+            return null;
+        }
+        Object raw = metadata.get(key);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(raw.toString());
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private List<Double> parseEmbeddingValue(JsonWithInt.Value value) {

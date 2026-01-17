@@ -11,7 +11,6 @@ import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.access.AIAccessControlService;
-import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -73,9 +72,6 @@ class RAGIntegrationFlowTest {
     private AIAccessControlService accessControlService;
 
     @MockBean
-    private AIComplianceService complianceService;
-
-    @MockBean
     private Clock clock;
 
     @MockBean
@@ -98,12 +94,6 @@ class RAGIntegrationFlowTest {
         when(accessControlService.checkAccess(any())).thenReturn(
             com.ai.infrastructure.dto.AIAccessControlResponse.builder()
                 .accessGranted(true)
-                .success(true)
-                .build()
-        );
-        when(complianceService.checkCompliance(any())).thenReturn(
-            com.ai.infrastructure.dto.AIComplianceResponse.builder()
-                .overallCompliant(true)
                 .success(true)
                 .build()
         );

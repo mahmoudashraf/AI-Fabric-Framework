@@ -30,7 +30,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class RAGServiceOptimizedQueryTest {
 
-    @Mock
     private AIProviderConfig config;
 
     @Mock
@@ -52,9 +51,10 @@ class RAGServiceOptimizedQueryTest {
 
     @BeforeEach
     void setUp() {
-        ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService);
+        config = new AIProviderConfig();
+        config.setEmbeddingProvider("openai");
 
-        when(config.resolveEmbeddingDefaults()).thenReturn(new AIProviderConfig.EmbeddingDefaults("openai", "embedding-test"));
+        ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService);
 
         when(embeddingService.generateEmbedding(any(AIEmbeddingRequest.class))).thenReturn(embeddingResponse);
         when(embeddingResponse.getEmbedding()).thenReturn(List.of(0.1, 0.2));

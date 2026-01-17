@@ -35,6 +35,11 @@
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-governance</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-chat-session</artifactId>
             <version>${project.version}</version>
         </dependency>

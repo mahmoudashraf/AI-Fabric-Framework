@@ -32,6 +32,7 @@
         <module>ai-infrastructure-core</module>
         <module>ai-infrastructure-indexing</module>
         <module>ai-infrastructure-pii</module>
+        <module>ai-infrastructure-governance</module>
         <module>ai-fabric-starter</module>
         <module>ai-fabric-provider-starter</module>
         <module>ai-infrastructure-rag</module>

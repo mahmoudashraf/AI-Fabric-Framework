@@ -4,6 +4,8 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -14,6 +16,8 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.document.StoredField;
@@ -89,6 +93,10 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
     private static final String VECTOR_ID_FIELD = "vectorId";
     private static final String ENTITY_ID_FIELD = "entityId";
     private static final String ENTITY_TYPE_FIELD = "entityType";
+    private static final String CREATED_AT_FIELD = "createdAt";
+    private static final String UPDATED_AT_FIELD = "updatedAt";
+    private static final String CREATED_AT_MILLIS_FIELD = "createdAtMillis";
+    private static final String UPDATED_AT_MILLIS_FIELD = "updatedAtMillis";
     
     private static final Map<Path, SharedIndex> INDEX_CACHE = new ConcurrentHashMap<>();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -206,7 +214,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             log.debug("Storing vector in Lucene for entity {} of type {}", entityId, entityType);
 
             String vectorId = UUID.randomUUID().toString();
-            Document document = buildDocument(vectorId, entityType, entityId, content, embedding, metadata);
+            long nowMillis = System.currentTimeMillis();
+            Document document = buildDocument(vectorId, entityType, entityId, content, embedding, metadata, nowMillis, nowMillis);
 
             indexWriter.addDocument(document);
             indexWriter.commit();
@@ -426,6 +435,9 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                                String content, List<Double> embedding, Map<String, Object> metadata) {
         try {
             log.debug("Updating vector {} in Lucene for entity {} of type {}", vectorId, entityId, entityType);
+
+            long preservedCreatedAtMillis = findCreatedAtMillisByVectorId(vectorId).orElse(System.currentTimeMillis());
+            long nowMillis = System.currentTimeMillis();
             
             Term term = new Term(VECTOR_ID_FIELD, vectorId);
             long deletedCount = indexWriter.deleteDocuments(term);
@@ -435,7 +447,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                 return false;
             }
 
-            Document document = buildDocument(vectorId, entityType, entityId, content, embedding, metadata);
+            Document document = buildDocument(vectorId, entityType, entityId, content, embedding, metadata, preservedCreatedAtMillis, nowMillis);
 
             indexWriter.addDocument(document);
             indexWriter.commit();
@@ -450,8 +462,26 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         }
     }
 
+    @Override
+    public boolean supportsVectorScan() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMetadataFiltering() {
+        // Metadata is stored as JSON (StoredField) and not indexed for filtering yet.
+        // scan(...) uses the default in-memory filtering implementation.
+        return false;
+    }
+
+    @Override
+    public VectorScanPage scan(VectorScanRequest request) {
+        return VectorDatabaseService.super.scan(request);
+    }
+
     private Document buildDocument(String vectorId, String entityType, String entityId, String content,
-                                   List<Double> embedding, Map<String, Object> metadata) {
+                                   List<Double> embedding, Map<String, Object> metadata,
+                                   long createdAtMillis, long updatedAtMillis) {
         Document doc = new Document();
 
         doc.add(new StringField(VECTOR_ID_FIELD, vectorId, Field.Store.YES));
@@ -477,12 +507,40 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
             doc.add(new StoredField("metadata", metadataJson));
         }
 
-        long currentTime = System.currentTimeMillis();
-        doc.add(new StringField("storedAt", String.valueOf(currentTime), Field.Store.YES));
-        doc.add(new StringField("createdAt", String.valueOf(currentTime), Field.Store.YES));
-        doc.add(new StringField("updatedAt", String.valueOf(currentTime), Field.Store.YES));
+        doc.add(new StringField("storedAt", String.valueOf(updatedAtMillis), Field.Store.YES));
+        doc.add(new StringField(CREATED_AT_FIELD, String.valueOf(createdAtMillis), Field.Store.YES));
+        doc.add(new StringField(UPDATED_AT_FIELD, String.valueOf(updatedAtMillis), Field.Store.YES));
+
+        doc.add(new LongPoint(CREATED_AT_MILLIS_FIELD, createdAtMillis));
+        doc.add(new LongPoint(UPDATED_AT_MILLIS_FIELD, updatedAtMillis));
+        doc.add(new NumericDocValuesField(CREATED_AT_MILLIS_FIELD, createdAtMillis));
+        doc.add(new NumericDocValuesField(UPDATED_AT_MILLIS_FIELD, updatedAtMillis));
 
         return doc;
+    }
+
+    private Optional<Long> findCreatedAtMillisByVectorId(String vectorId) {
+        if (vectorId == null || vectorId.isBlank() || indexSearcher == null) {
+            return Optional.empty();
+        }
+        try {
+            Term term = new Term(VECTOR_ID_FIELD, vectorId);
+            Query query = new TermQuery(term);
+
+            TopDocs topDocs = indexSearcher.search(query, 1);
+            if (topDocs.totalHits.value <= 0) {
+                return Optional.empty();
+            }
+
+            Document doc = indexSearcher.doc(topDocs.scoreDocs[0].doc);
+            String raw = doc.get(CREATED_AT_FIELD);
+            if (raw == null || raw.isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(Long.parseLong(raw));
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
     }
     
     @Override
@@ -773,8 +831,8 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                 .content(doc.get("content"))
                 .embedding(embedding)
                 .metadata(metadata)
-                .createdAt(parseTimestamp(doc.get("createdAt")))
-                .updatedAt(parseTimestamp(doc.get("updatedAt")))
+                .createdAt(parseTimestamp(doc.get(CREATED_AT_FIELD)))
+                .updatedAt(parseTimestamp(doc.get(UPDATED_AT_FIELD)))
                 .active(true)
                 .version(1)
                 .build();

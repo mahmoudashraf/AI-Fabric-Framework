@@ -4,6 +4,8 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
@@ -47,6 +49,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -60,6 +63,7 @@ import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.time.LocalDateTime;
 
 /**
  * Milvus-backed implementation of {@link VectorDatabaseService}.
@@ -102,6 +106,16 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         if (!"default".equalsIgnoreCase(requestedDatabase)) {
             log.info("Milvus SDK 2.4.x uses the active server database; requested '{}'", requestedDatabase);
         }
+    }
+
+    @Override
+    public boolean supportsVectorScan() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMetadataFiltering() {
+        return true;
     }
 
     private ConnectParam buildConnectParam() {
@@ -464,6 +478,73 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             records.add(toVectorRecord(collection, wrapper, i));
         }
         return records;
+    }
+
+    @Override
+    public VectorScanPage scan(VectorScanRequest request) {
+        if (request == null || request.getEntityType() == null || request.getEntityType().isBlank()) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .hasMore(false)
+                .nextCursor(null)
+                .build();
+        }
+
+        String collection = toCollectionName(normalizeEntityTypeToken(request.getEntityType()));
+        if (!collectionExists(collection)) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .hasMore(false)
+                .nextCursor(null)
+                .build();
+        }
+        ensureCollectionLoaded(collection);
+
+        int limit = request.getLimit() != null && request.getLimit() > 0 ? request.getLimit() : 200;
+        long offset = decodeOffsetCursor(request.getCursor());
+        long queryLimit = Math.min(Integer.MAX_VALUE, (long) limit + 1);
+
+        String expr = buildScanExpr(request.getMetadataEquals());
+
+        QueryParam.Builder queryBuilder = QueryParam.newBuilder()
+            .withCollectionName(collection)
+            .withConsistencyLevel(ConsistencyLevelEnum.STRONG)
+            .withIgnoreGrowing(false)
+            .withExpr(expr)
+            .withOffset(offset)
+            .withLimit(queryLimit)
+            .addOutField(FIELD_VECTOR_ID)
+            .addOutField(FIELD_ENTITY_ID)
+            .addOutField(FIELD_METADATA);
+
+        if (request.isIncludeContent()) {
+            queryBuilder.addOutField(FIELD_CONTENT);
+        }
+        if (request.isIncludeEmbedding()) {
+            queryBuilder.addOutField(FIELD_VECTOR);
+        }
+
+        R<QueryResults> response = client.query(queryBuilder.build());
+        verifySuccess(response, "scan vectors");
+
+        QueryResultsWrapper wrapper = new QueryResultsWrapper(response.getData());
+        long rowCount = wrapper.getRowCount();
+        boolean hasMore = rowCount > limit;
+        int returned = (int) Math.min(rowCount, limit);
+
+        List<VectorRecord> records = new ArrayList<>(returned);
+        for (int i = 0; i < returned; i++) {
+            VectorRecord record = toVectorRecord(collection, wrapper, i);
+            records.add(applyScanProjection(record, request));
+        }
+
+        String nextCursor = hasMore ? encodeOffsetCursor(offset + returned) : null;
+
+        return VectorScanPage.builder()
+            .vectors(records)
+            .hasMore(hasMore)
+            .nextCursor(nextCursor)
+            .build();
     }
 
     @Override
@@ -870,7 +951,12 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         try {
             FieldDataWrapper idWrapper = wrapper.getFieldWrapper(FIELD_VECTOR_ID);
             FieldDataWrapper entityWrapper = wrapper.getFieldWrapper(FIELD_ENTITY_ID);
-            FieldDataWrapper vectorWrapper = wrapper.getFieldWrapper(FIELD_VECTOR);
+            FieldDataWrapper vectorWrapper;
+            try {
+                vectorWrapper = wrapper.getFieldWrapper(FIELD_VECTOR);
+            } catch (ParamException ex) {
+                vectorWrapper = null;
+            }
 
             FieldDataWrapper contentWrapper;
             FieldDataWrapper metadataWrapper;
@@ -903,13 +989,17 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             Object metadataRaw = metadataWrapper != null ? metadataWrapper.valueByIdx(index) : null;
             Map<String, Object> metadata = parseMetadata(metadataRaw);
 
-            Object vectorValue = vectorWrapper.valueByIdx(index);
-            if (!(vectorValue instanceof List<?> floatsRaw)) {
-                throw new AIServiceException("Unexpected Milvus embedding payload type: " + vectorValue);
-            }
-            List<Double> embedding = new ArrayList<>(floatsRaw.size());
-            for (Object entry : floatsRaw) {
-                embedding.add(((Number) entry).doubleValue());
+            List<Double> embedding = Collections.emptyList();
+            if (vectorWrapper != null) {
+                Object vectorValue = vectorWrapper.valueByIdx(index);
+                if (!(vectorValue instanceof List<?> floatsRaw)) {
+                    throw new AIServiceException("Unexpected Milvus embedding payload type: " + vectorValue);
+                }
+                List<Double> parsed = new ArrayList<>(floatsRaw.size());
+                for (Object entry : floatsRaw) {
+                    parsed.add(((Number) entry).doubleValue());
+                }
+                embedding = parsed;
             }
 
             return VectorRecord.builder()
@@ -919,9 +1009,95 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
                 .content(content)
                 .embedding(embedding)
                 .metadata(metadata)
+                .createdAt(readTimestamp(metadata, "_indexedCreatedAt"))
+                .updatedAt(readTimestamp(metadata, "_indexedUpdatedAt"))
                 .build();
         } catch (ParamException | IllegalResponseException ex) {
             throw new AIServiceException("Failed to parse Milvus query response", ex);
+        }
+    }
+
+    private static String buildScanExpr(Map<String, Object> metadataEquals) {
+        StringBuilder expr = new StringBuilder();
+        expr.append(FIELD_VECTOR_ID).append(" != \"\"");
+
+        if (metadataEquals == null || metadataEquals.isEmpty()) {
+            return expr.toString();
+        }
+
+        metadataEquals.forEach((key, value) -> {
+            if (key == null || value == null) {
+                return;
+            }
+            String needle = "\"" + key + "\":\"" + escapeLikeValue(value.toString()) + "\"";
+            expr.append(" && ").append(FIELD_METADATA).append(" like \"%").append(needle).append("%\"");
+        });
+
+        return expr.toString();
+    }
+
+    private static String escapeLikeValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\"", "\\\"");
+    }
+
+    private static String encodeOffsetCursor(long offset) {
+        if (offset <= 0) {
+            return null;
+        }
+        String raw = "offset:" + offset;
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static long decodeOffsetCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return 0L;
+        }
+        try {
+            String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            if (!raw.startsWith("offset:")) {
+                return 0L;
+            }
+            return Long.parseLong(raw.substring("offset:".length()));
+        } catch (Exception ex) {
+            return 0L;
+        }
+    }
+
+    private VectorRecord applyScanProjection(VectorRecord record, VectorScanRequest request) {
+        if (record == null || request == null) {
+            return record;
+        }
+        if (request.isIncludeContent() && request.isIncludeEmbedding() && request.isIncludeMetadata()) {
+            return record;
+        }
+        return VectorRecord.builder()
+            .vectorId(record.getVectorId())
+            .entityType(record.getEntityType())
+            .entityId(record.getEntityId())
+            .content(request.isIncludeContent() ? record.getContent() : null)
+            .embedding(request.isIncludeEmbedding() ? record.getEmbedding() : List.of())
+            .metadata(request.isIncludeMetadata() ? record.getMetadata() : Map.of())
+            .createdAt(record.getCreatedAt())
+            .updatedAt(record.getUpdatedAt())
+            .similarityScore(record.getSimilarityScore())
+            .build();
+    }
+
+    private static LocalDateTime readTimestamp(Map<String, Object> metadata, String key) {
+        if (metadata == null || key == null) {
+            return null;
+        }
+        Object raw = metadata.get(key);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(raw.toString());
+        } catch (Exception ex) {
+            return null;
         }
     }
 

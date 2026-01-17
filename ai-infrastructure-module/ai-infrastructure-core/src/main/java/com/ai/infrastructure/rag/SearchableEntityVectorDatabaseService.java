@@ -5,6 +5,8 @@ import com.ai.infrastructure.dto.AIEntityConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
@@ -34,6 +36,16 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
         this.delegate = delegate;
         this.storageStrategy = storageStrategy;
         this.configurationLoader = configurationLoader;
+    }
+
+    @Override
+    public boolean supportsVectorScan() {
+        return delegate.supportsVectorScan();
+    }
+
+    @Override
+    public boolean supportsMetadataFiltering() {
+        return delegate.supportsMetadataFiltering();
     }
 
     @Override
@@ -139,6 +151,11 @@ public class SearchableEntityVectorDatabaseService implements VectorDatabaseServ
     @Override
     public boolean vectorExists(String entityType, String entityId) {
         return delegate.vectorExists(entityType, entityId);
+    }
+
+    @Override
+    public VectorScanPage scan(VectorScanRequest request) {
+        return delegate.scan(request);
     }
 
     @Override
