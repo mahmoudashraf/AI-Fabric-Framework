@@ -12,7 +12,6 @@ import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,15 +65,11 @@ public class RealAPIActionFlowIntegrationTest {
     private TestProductRepository productRepository;
 
     @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
-
-    @Autowired
     private ResponseSanitizationProperties sanitizationProperties;
 
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }
@@ -91,7 +86,7 @@ public class RealAPIActionFlowIntegrationTest {
             new BigDecimal("149.50")
         );
         String entityId = legacyDevice.getId().toString();
-        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId)).isPresent();
+        assertThat(vectorManagementService.vectorExists("test-product", entityId)).isTrue();
 
         String userId = "real-action-removal-user";
         String query = """
@@ -151,9 +146,9 @@ public class RealAPIActionFlowIntegrationTest {
                 .as("Action should be marked as successful")
                 .isTrue();
             // Verify the primary action result: vector should be removed
-            assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId))
-                .as("Vector should be removed from storage")
-                .isEmpty();
+            assertThat(vectorManagementService.vectorExists("test-product", entityId))
+                .as("Vector should be removed from vector store")
+                .isFalse();
         } else {
             assertThat(data).isNotNull();
             Object actionValue = data.get("action");
@@ -172,9 +167,9 @@ public class RealAPIActionFlowIntegrationTest {
                     .as("Action should be marked as successful")
                     .isTrue();
                 // Verify the primary action result: vector should be removed
-                assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId))
-                    .as("Vector should be removed from storage")
-                    .isEmpty();
+                assertThat(vectorManagementService.vectorExists("test-product", entityId))
+                    .as("Vector should be removed from vector store")
+                    .isFalse();
             } else {
                 assertThat(actionResult).isNotNull();
                 assertThat(actionResult.get("success")).isEqualTo(Boolean.TRUE);
@@ -186,11 +181,11 @@ public class RealAPIActionFlowIntegrationTest {
                 assertThat(actionData.get("removed")).isEqualTo(Boolean.TRUE);
                 assertThat(actionResult.getOrDefault("message", "")).asString().doesNotContain("5204");
 
-                assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId)).isEmpty();
+                assertThat(vectorManagementService.vectorExists("test-product", entityId)).isFalse();
             }
         }
 
-        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId)).isEmpty();
+        assertThat(vectorManagementService.vectorExists("test-product", entityId)).isFalse();
 
         // Verify suggestions don't contain PII if present
         if (payload.containsKey("suggestions")) {
@@ -353,12 +348,12 @@ public class RealAPIActionFlowIntegrationTest {
                 .doesNotContain("555-991-2045");
         }
 
-        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", playbook.getId().toString()))
+        assertThat(vectorManagementService.vectorExists("test-product", playbook.getId().toString()))
             .as("vectors should be cleared for playbook")
-            .isEmpty();
-        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", diagnostics.getId().toString()))
+            .isFalse();
+        assertThat(vectorManagementService.vectorExists("test-product", diagnostics.getId().toString()))
             .as("vectors should be cleared for diagnostics")
-            .isEmpty();
+            .isFalse();
 
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(history).isNotEmpty();

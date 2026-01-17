@@ -17,7 +17,7 @@ import java.lang.annotation.Target;
  * <ul>
  *   <li>Extracted and stored as structured JSON metadata</li>
  *   <li>Included in LLM prompts for contextual understanding</li>
- *   <li>Stored in {@link com.ai.infrastructure.entity.AISearchableEntity} metadata field</li>
+ *   <li>Stored as vector metadata in the vector database</li>
  *   <li>NOT embedded or indexed in vector database (reduces cost and complexity)</li>
  * </ul>
  * </p>
@@ -77,7 +77,6 @@ import java.lang.annotation.Target;
  * @since 2.0.0
  * @see com.ai.infrastructure.annotation.AISearchable
  * @see com.ai.infrastructure.annotation.AICapable
- * @see com.ai.infrastructure.entity.AISearchableEntity
  */
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)

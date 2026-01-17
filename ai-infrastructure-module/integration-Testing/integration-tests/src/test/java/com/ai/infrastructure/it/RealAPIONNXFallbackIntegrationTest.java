@@ -10,7 +10,6 @@ import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,15 +60,11 @@ public class RealAPIONNXFallbackIntegrationTest {
     private TestProductRepository productRepository;
 
     @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
-
-    @Autowired
     private ResponseSanitizationProperties sanitizationProperties;
 
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }
@@ -133,8 +128,8 @@ public class RealAPIONNXFallbackIntegrationTest {
         System.out.println("\n=== Phase 3: Vector Creation and Storage ===");
         
         // Verify vectors are created
-        long vectorCount = storageStrategy.findByEntityType("test-product").size();
-        System.out.println("✅ Vectors indexed in storage strategy: " + vectorCount);
+        long vectorCount = vectorManagementService.getVectorCountByEntityType("test-product");
+        System.out.println("✅ Vectors indexed in vector store: " + vectorCount);
         assertThat(vectorCount).isGreaterThanOrEqualTo(3L);
 
         System.out.println("\n=== Phase 4: Orchestration with Current Provider ===");
@@ -287,4 +282,3 @@ public class RealAPIONNXFallbackIntegrationTest {
         return product;
     }
 }
-

@@ -14,7 +14,6 @@ import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,15 +79,11 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
     private TestProductRepository productRepository;
 
     @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
-
-    @Autowired
     private ResponseSanitizationProperties sanitizationProperties;
 
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }
@@ -109,10 +104,10 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         );
 
         String entityId = baseline.getId().toString();
-        var baselineEntity = storageStrategy.findByEntityTypeAndEntityId("test-product", entityId)
-            .orElseThrow(() -> new AssertionError("baseline searchable entity missing"));
-        assertThat(baselineEntity.getVectorId()).isNotNull();
-        assertThat(baselineEntity.getVectorId()).isNotEmpty();
+        var baselineVector = vectorManagementService.getVector("test-product", entityId)
+            .orElseThrow(() -> new AssertionError("baseline vector missing"));
+        assertThat(baselineVector.getVectorId()).isNotNull();
+        assertThat(baselineVector.getVectorId()).isNotEmpty();
 
         String userId = "real-action-error-user";
         // Test that when only subscription actions are advertised, an unrelated request is treated as OUT_OF_SCOPE
@@ -274,9 +269,9 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         }
 
         // Verify vector still exists (wasn't cleared by invalid action)
-        assertThat(storageStrategy.findByEntityTypeAndEntityId("test-product", entityId))
+        assertThat(vectorManagementService.vectorExists("test-product", entityId))
             .as("vector should remain intact when action fails")
-            .isPresent();
+            .isTrue();
 
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(history).isNotEmpty();

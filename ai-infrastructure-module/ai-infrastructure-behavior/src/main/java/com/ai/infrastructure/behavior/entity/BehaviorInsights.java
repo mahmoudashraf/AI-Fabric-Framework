@@ -169,7 +169,7 @@ public class BehaviorInsights {
     }
     
     /**
-     * Framework uses this to build searchable content for AISearchableEntity.
+     * Framework uses this to build searchable content for vector indexing.
      */
     public String getSearchableContent() {
         return String.format(

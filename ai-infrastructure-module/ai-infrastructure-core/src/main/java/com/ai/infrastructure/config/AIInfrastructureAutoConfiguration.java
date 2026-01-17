@@ -21,8 +21,6 @@ import com.ai.infrastructure.embedding.EmbeddingProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.ai.infrastructure.vector.VectorDatabaseServiceAdapter;
 import com.ai.infrastructure.health.AIHealthIndicator;
-import com.ai.infrastructure.storage.AIStorageProperties;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.validation.AIProviderConfigValidator;
 import com.ai.infrastructure.http.AIHttpClientFactory;
 import com.ai.infrastructure.http.AIHttpClientProperties;
@@ -87,7 +85,6 @@ import java.util.stream.Collectors;
 	        OrchestrationResultNormalizationProperties.class,
 	        IntentHistoryProperties.class,
 	        SecurityProperties.class,
-	        AIStorageProperties.class,
             AIHttpClientProperties.class
 		    })
 @ComponentScan(
@@ -107,7 +104,6 @@ import java.util.stream.Collectors;
         }
 	    )
 	)
-@Import(AISearchableStorageStrategyAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     
@@ -229,11 +225,10 @@ public class AIInfrastructureAutoConfiguration {
 	    public AICapabilityService aiCapabilityService(
 	            AIEmbeddingService embeddingService,
             AICoreService aiCoreService,
-            AISearchableEntityStorageStrategy storageStrategy,
             AIEntityConfigurationLoader entityConfigurationLoader,
             VectorManagementService vectorManagementService,
             AnnotationFieldScanner annotationFieldScanner) {
-        return new AICapabilityService(embeddingService, aiCoreService, storageStrategy, entityConfigurationLoader, vectorManagementService, annotationFieldScanner);
+        return new AICapabilityService(embeddingService, aiCoreService, entityConfigurationLoader, vectorManagementService, annotationFieldScanner);
     }
     
     @Bean

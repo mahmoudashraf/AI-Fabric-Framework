@@ -538,7 +538,7 @@ MigrationRequest request = MigrationRequest.builder()
 
 ### Reindexing Existing Entities
 
-By default, migration skips entities already in `AISearchableEntity` storage. To force reindexing:
+By default, migration skips entities already present in the vector database (by `entityType` + `entityId`). To force reindexing:
 
 ```java
 MigrationRequest request = MigrationRequest.builder()
@@ -1151,4 +1151,3 @@ A: Use date range filters to chunk into smaller jobs.
 ---
 
 *This guide reflects the actual implementation in the codebase. For framework-wide features (indexing, embeddings, search), refer to the main AI Infrastructure documentation.*
-

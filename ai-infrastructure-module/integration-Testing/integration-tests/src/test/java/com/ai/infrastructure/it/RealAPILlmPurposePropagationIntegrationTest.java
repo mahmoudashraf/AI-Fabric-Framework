@@ -14,7 +14,6 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,8 +66,6 @@ public class RealAPILlmPurposePropagationIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private TestProductRepository productRepository;
@@ -84,7 +81,6 @@ public class RealAPILlmPurposePropagationIntegrationTest {
         assumeRealApiConfigured();
         Mockito.reset(aiCoreService, intentQueryExtractor);
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
     }
 

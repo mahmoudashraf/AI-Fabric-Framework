@@ -24,7 +24,6 @@ import com.ai.infrastructure.relationship.it.repository.DocumentRepository;
 import com.ai.infrastructure.relationship.it.repository.ProductRepository;
 import com.ai.infrastructure.relationship.it.repository.TransactionRepository;
 import com.ai.infrastructure.relationship.it.repository.UserRepository;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -86,9 +85,6 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
     @Autowired
     private AccountRepository accountRepository;
 
-    @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
 
@@ -102,7 +98,6 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        searchableEntityRepository.deleteAllInBatch();
         productRepository.deleteAllInBatch();
         brandRepository.deleteAllInBatch();
         documentRepository.deleteAllInBatch();
@@ -669,8 +664,6 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         ProductEntity redRunner = product("Red Runner Running Shoes", "red", BigDecimal.valueOf(110), "ACTIVE", nike);
 
         productRepository.saveAll(List.of(blueRunner, redRunner));
-        indexProduct(blueRunner);
-        indexProduct(redRunner);
         blueRunnerId = blueRunner.getId();
 
         // Seed users and documents
@@ -723,21 +716,6 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         product.setBrand(brand);
         brand.getProducts().add(product);
         return product;
-    }
-
-    private void indexProduct(ProductEntity product) {
-        searchableEntityRepository.save(
-            com.ai.infrastructure.entity.AISearchableEntity.builder()
-                .entityType("product")
-                .entityId(product.getId())
-                .searchableContent("%s (%s) - $%s".formatted(product.getName(), product.getColor(), product.getPrice()))
-                .metadata("""
-                    {"brand":"%s","status":"%s"}
-                    """.formatted(product.getBrand().getName(), product.getStatus()))
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build()
-        );
     }
 
     @TestConfiguration

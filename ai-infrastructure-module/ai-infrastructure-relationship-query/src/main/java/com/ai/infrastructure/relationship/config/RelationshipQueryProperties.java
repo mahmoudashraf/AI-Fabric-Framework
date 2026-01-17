@@ -53,7 +53,7 @@ public class RelationshipQueryProperties {
     private boolean fallbackToVectorSearch = true;
 
     /**
-     * Last-resort fallback that replays cached AISearchableEntity rows when everything else fails.
+     * Last-resort fallback that returns a best-effort response when all other strategies fail.
      */
     private boolean fallbackToSimpleSearch = true;
 

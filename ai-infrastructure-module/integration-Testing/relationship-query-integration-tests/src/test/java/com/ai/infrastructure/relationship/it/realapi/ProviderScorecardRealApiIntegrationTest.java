@@ -6,7 +6,6 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.dto.FilterCondition;
 import com.ai.infrastructure.relationship.dto.FilterOperator;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
@@ -22,7 +21,6 @@ import com.ai.infrastructure.relationship.it.repository.BrandRepository;
 import com.ai.infrastructure.relationship.it.repository.ProductRepository;
 import com.ai.infrastructure.relationship.it.repository.TransactionRepository;
 import com.ai.infrastructure.relationship.model.ReturnMode;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -99,9 +97,6 @@ class ProviderScorecardRealApiIntegrationTest {
 
     @Autowired
     private AccountRepository accountRepository;
-
-    @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
 
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
@@ -821,7 +816,6 @@ class ProviderScorecardRealApiIntegrationTest {
     }
 
     private void seedFixtures() {
-        searchableEntityRepository.deleteAllInBatch();
         productRepository.deleteAllInBatch();
         brandRepository.deleteAllInBatch();
         transactionRepository.deleteAllInBatch();
@@ -845,9 +839,6 @@ class ProviderScorecardRealApiIntegrationTest {
         ProductEntity adidasBlue = product("Adidas Flex Shoes", "blue", BigDecimal.valueOf(95), "ACTIVE", adidas);
         ProductEntity adidasRunner = product("Adidas Runner Shoes Elite", "red", BigDecimal.valueOf(110), "ACTIVE", adidas);
         productRepository.saveAll(List.of(nikeBlueRunner, adidasBlue, adidasRunner));
-        indexProduct(nikeBlueRunner);
-        indexProduct(adidasBlue);
-        indexProduct(adidasRunner);
 
         // Financial fraud fixtures (mirror counterparty)
         AccountEntity origin = account("origin-account.ownerName", "high-risk region", BigDecimal.valueOf(0.83));
@@ -865,7 +856,6 @@ class ProviderScorecardRealApiIntegrationTest {
         suspiciousWire.setSourceAccount(origin);
         suspiciousWire.setDestinationAccount(destination);
         suspiciousWire = transactionRepository.save(suspiciousWire);
-        indexTransaction(suspiciousWire);
     }
 
     private ProductEntity product(String name, String color, BigDecimal price, String status, BrandEntity brand) {
@@ -887,38 +877,4 @@ class ProviderScorecardRealApiIntegrationTest {
         return account;
     }
 
-    private void indexProduct(ProductEntity product) {
-        searchableEntityRepository.save(
-            AISearchableEntity.builder()
-                .entityType("product")
-                .entityId(product.getId())
-                .searchableContent("%s (%s) - $%s".formatted(product.getName(), product.getColor(), product.getPrice()))
-                .metadata("""
-                    {"brand":"%s","status":"%s"}
-                    """.formatted(product.getBrand().getName(), product.getStatus()))
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build()
-        );
-    }
-
-    private void indexTransaction(TransactionEntity transaction) {
-        searchableEntityRepository.save(
-            AISearchableEntity.builder()
-                .entityType("transaction")
-                .entityId(transaction.getId())
-                .searchableContent("%s - %s %s"
-                    .formatted(transaction.getTitle(), transaction.getChannel(), transaction.getAmount()))
-                .metadata("""
-                    {"status":"%s","destinationRegion":"%s","sourceRegion":"%s"}
-                    """.formatted(
-                        transaction.getStatus(),
-                        transaction.getDestinationAccount().getRegion(),
-                        transaction.getSourceAccount().getRegion()
-                    ))
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build()
-        );
-    }
 }

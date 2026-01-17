@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test class to verify the vector storage migration is working correctly.
- * This test verifies that vectors are now stored in the external vector database
- * instead of directly in the AISearchableEntity.
+ * This test verifies that vectors are stored in the vector database via {@link VectorManagementService},
+ * with no relational searchable-entity cache involved.
  */
 @SpringBootTest(classes = TestConfiguration.class)
 @Import(TestConfiguration.class)

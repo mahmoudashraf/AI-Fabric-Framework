@@ -16,8 +16,8 @@ import com.ai.infrastructure.migration.domain.MigrationJob;
 import com.ai.infrastructure.migration.domain.MigrationRequest;
 import com.ai.infrastructure.migration.domain.MigrationStatus;
 import com.ai.infrastructure.migration.repository.MigrationJobRepository;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.AICapabilityService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -51,7 +51,7 @@ class DataMigrationServiceTest {
     @Mock private AIEntityConfigurationLoader configLoader;
     @Mock private EntityRepositoryRegistry repositoryRegistry;
     @Mock private MigrationJobRepository jobRepository;
-    @Mock private AISearchableEntityStorageStrategy storageStrategy;
+    @Mock private VectorDatabaseService vectorDatabaseService;
     @Mock private MigrationProgressTracker progressTracker;
     @Mock private AICapabilityService capabilityService;
     @Mock private ExecutorService executorService;
@@ -262,8 +262,7 @@ class DataMigrationServiceTest {
         when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
         when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
         when(capabilityService.resolveEntityId(entity)).thenReturn(entity.id);
-        when(storageStrategy.findByEntityTypeAndEntityId("demo", entity.id))
-            .thenReturn(Optional.of(new com.ai.infrastructure.entity.AISearchableEntity()));
+        when(vectorDatabaseService.vectorExists("demo", entity.id)).thenReturn(true);
 
         DataMigrationService service = service();
         service.startMigration(MigrationRequest.builder().entityType("demo").reindexExisting(false).batchSize(10).build());
@@ -282,7 +281,7 @@ class DataMigrationServiceTest {
         when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
         when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
         when(capabilityService.resolveEntityId(entity)).thenReturn(entity.id);
-        when(storageStrategy.findByEntityTypeAndEntityId("demo", entity.id)).thenReturn(Optional.empty());
+        when(vectorDatabaseService.vectorExists("demo", entity.id)).thenReturn(false);
 
         DataMigrationService service = service();
         service.startMigration(MigrationRequest.builder().entityType("demo").reindexExisting(false).batchSize(10).build());
@@ -309,8 +308,7 @@ class DataMigrationServiceTest {
         when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
         when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
         when(capabilityService.resolveEntityId(entity)).thenReturn(entity.id);
-        when(storageStrategy.findByEntityTypeAndEntityId("demo", entity.id))
-            .thenReturn(Optional.of(new com.ai.infrastructure.entity.AISearchableEntity())); // already indexed
+        when(vectorDatabaseService.vectorExists("demo", entity.id)).thenReturn(true);
 
         DataMigrationService service = service();
         service.startMigration(MigrationRequest.builder().entityType("demo").reindexExisting(true).batchSize(10).build());
@@ -329,7 +327,7 @@ class DataMigrationServiceTest {
         when(repositoryRegistry.getRegistration("demo")).thenReturn(new EntityRegistration("demo", DemoEntity.class, repo));
         when(configLoader.getEntityConfig("demo")).thenReturn(aiConfig());
         when(capabilityService.resolveEntityId(entity)).thenReturn(entity.id);
-        when(storageStrategy.findByEntityTypeAndEntityId("demo", entity.id)).thenReturn(Optional.empty());
+        when(vectorDatabaseService.vectorExists("demo", entity.id)).thenReturn(false);
         when(queueService.enqueue(any(IndexingRequest.class))).thenThrow(new RuntimeException("queue down"));
 
         DataMigrationService service = service();
@@ -350,7 +348,7 @@ class DataMigrationServiceTest {
             configLoader,
             repositoryRegistry,
             jobRepository,
-            storageStrategy,
+            vectorDatabaseService,
             progressTracker,
             migrationProperties,
             indexingProperties,
@@ -497,7 +495,7 @@ class DataMigrationServiceTest {
             configLoader,
             repositoryRegistry,
             jobRepository,
-            storageStrategy,
+            vectorDatabaseService,
             progressTracker,
             migrationProperties,
             indexingProperties,

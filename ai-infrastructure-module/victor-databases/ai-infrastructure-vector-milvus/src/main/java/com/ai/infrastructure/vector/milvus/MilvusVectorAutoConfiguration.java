@@ -2,10 +2,7 @@ package com.ai.infrastructure.vector.milvus;
 
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.rag.SearchableEntityVectorDatabaseService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -32,9 +29,7 @@ public class MilvusVectorAutoConfiguration {
     @Primary
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "milvus")
     @ConditionalOnMissingBean(VectorDatabaseService.class)
-    public VectorDatabaseService milvusVectorDatabaseService(MilvusVectorDatabaseService delegate,
-                                                             AISearchableEntityStorageStrategy storageStrategy,
-                                                             AIEntityConfigurationLoader configurationLoader) {
-        return new SearchableEntityVectorDatabaseService(delegate, storageStrategy, configurationLoader);
+    public VectorDatabaseService milvusVectorDatabaseService(MilvusVectorDatabaseService delegate) {
+        return delegate;
     }
 }

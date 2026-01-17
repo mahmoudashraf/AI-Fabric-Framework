@@ -13,7 +13,6 @@ import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import org.assertj.core.api.Assertions;
@@ -71,13 +70,10 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
     @Autowired
     private TestProductRepository productRepository;
 
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
 
     @BeforeEach
     void setUp() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
     }
 

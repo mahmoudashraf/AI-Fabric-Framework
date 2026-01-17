@@ -4,13 +4,10 @@ import com.ai.infrastructure.dto.AIEntityConfig;
 import com.ai.infrastructure.dto.AISearchableField;
 import com.ai.infrastructure.dto.AIEmbeddableField;
 import com.ai.infrastructure.dto.AIMetadataField;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.processor.AnnotationFieldScanner;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
-import com.ai.infrastructure.util.MetadataJsonSerializer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,20 +30,17 @@ public class AICapabilityService {
     
     private final AIEmbeddingService embeddingService;
     private final AICoreService aiCoreService;
-    private final AISearchableEntityStorageStrategy storageStrategy;
     private final AIEntityConfigurationLoader configurationLoader;
     private final VectorManagementService vectorManagementService;
     private final AnnotationFieldScanner annotationFieldScanner;
     
     public AICapabilityService(AIEmbeddingService embeddingService,
                               AICoreService aiCoreService,
-                              AISearchableEntityStorageStrategy storageStrategy,
                               AIEntityConfigurationLoader configurationLoader,
                               VectorManagementService vectorManagementService,
                               AnnotationFieldScanner annotationFieldScanner) {
         this.embeddingService = embeddingService;
         this.aiCoreService = aiCoreService;
-        this.storageStrategy = storageStrategy;
         this.configurationLoader = configurationLoader;
         this.vectorManagementService = Objects.requireNonNull(vectorManagementService,
             "VectorManagementService must be configured for AICapabilityService");
@@ -186,7 +180,7 @@ public class AICapabilityService {
                 log.debug("Analysis feature disabled for entity type: {}", config.getEntityType());
                 return;
             }
-            
+
             // Extract content for analysis
             String content = extractSearchableContent(entity, config);
             
@@ -198,8 +192,8 @@ public class AICapabilityService {
             // Perform AI analysis
             String analysis = aiCoreService.generateText("Analyze this " + config.getEntityType() + " content: " + content);
             
-            // Store analysis result
-            storeAnalysisResult(entity, config, analysis);
+            // Best-effort persistence: attach analysis to vector metadata when a vector exists.
+            persistAnalysisToVector(entity, config, analysis);
             
         } catch (Exception e) {
             log.error("Error analyzing entity", e);
@@ -220,9 +214,11 @@ public class AICapabilityService {
                 log.warn("No entity ID found for removal");
                 return;
             }
-            
-            // Remove from searchable entity storage
-            storageStrategy.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
+
+            boolean removed = vectorManagementService.removeVector(config.getEntityType(), entityId);
+            if (!removed) {
+                log.debug("Vector not found for removal: {}:{}", config.getEntityType(), entityId);
+            }
             
         } catch (Exception e) {
             log.error("Error removing entity from search index", e);
@@ -251,9 +247,6 @@ public class AICapabilityService {
             } else {
                 log.warn("Vector not found in vector database for entity {} of type {}", entityId, config.getEntityType());
             }
-            
-            // Remove from searchable entity storage
-            storageStrategy.deleteByEntityTypeAndEntityId(config.getEntityType(), entityId);
             
         } catch (Exception e) {
             log.error("Error cleaning up embeddings for entity", e);
@@ -345,7 +338,7 @@ public class AICapabilityService {
         try {
             String entityId = getEntityId(entity);
             if (entityId == null) {
-                log.warn("No entity ID found for storing searchable entity");
+                log.warn("No entity ID found for storing vector");
                 return;
             }
             
@@ -364,25 +357,8 @@ public class AICapabilityService {
                 return;
             }
             
-            AISearchableEntity searchableEntity = storageStrategy
-                .findByEntityTypeAndEntityId(config.getEntityType(), entityId)
-                .orElseGet(() -> AISearchableEntity.builder()
-                    .entityType(config.getEntityType())
-                    .entityId(entityId)
-                    .createdAt(java.time.LocalDateTime.now())
-                    .build());
-
-            String metadataJson = MetadataJsonSerializer.serialize(metadata, config);
-            searchableEntity.setSearchableContent(content);
-            searchableEntity.setVectorId(vectorId);
-            searchableEntity.setVectorUpdatedAt(java.time.LocalDateTime.now());
-            searchableEntity.setMetadata(metadataJson);
-            searchableEntity.setUpdatedAt(java.time.LocalDateTime.now());
-
-            storageStrategy.save(searchableEntity);
-            
         } catch (Exception e) {
-            log.error("Error storing searchable entity", e);
+            log.error("Error storing vector", e);
         }
     }
     
@@ -421,24 +397,34 @@ public class AICapabilityService {
         return metadata;
     }
     
-    private void storeAnalysisResult(Object entity, AIEntityConfig config, String analysis) {
-        try {
-            String entityId = getEntityId(entity);
-            if (entityId == null) {
-                log.warn("No entity ID found for storing analysis result");
-                return;
-            }
-            
-            storageStrategy.findByEntityTypeAndEntityId(config.getEntityType(), entityId)
-                .ifPresent(entityToUpdate -> {
-                    entityToUpdate.setAiAnalysis(analysis);
-                    entityToUpdate.setUpdatedAt(java.time.LocalDateTime.now());
-                    storageStrategy.save(entityToUpdate);
-                });
-
-        } catch (Exception e) {
-            log.error("Error storing analysis result", e);
+    private void persistAnalysisToVector(Object entity, AIEntityConfig config, String analysis) {
+        String entityId = getEntityId(entity);
+        if (entityId == null) {
+            log.warn("No entity ID found for analysis persistence");
+            return;
         }
+
+        Optional<com.ai.infrastructure.dto.VectorRecord> existing = vectorManagementService.getVector(config.getEntityType(), entityId);
+        if (existing.isEmpty()) {
+            log.debug("No vector exists for {}:{}; skipping analysis persistence", config.getEntityType(), entityId);
+            return;
+        }
+
+        Map<String, Object> metadata = extractMetadata(entity, config);
+        metadata.put("aiAnalysis", analysis);
+
+        String content = extractSearchableContent(entity, config);
+        if (content == null || content.isBlank()) {
+            content = existing.get().getContent();
+        }
+
+        List<Double> embedding = embeddingService.generateEmbedding(
+            com.ai.infrastructure.dto.AIEmbeddingRequest.builder()
+                .text(content != null ? content : "")
+                .build()
+        ).getEmbedding();
+
+        vectorManagementService.updateVector(config.getEntityType(), entityId, content, embedding, metadata);
     }
     
     
@@ -449,12 +435,11 @@ public class AICapabilityService {
     public void removeEntityFromIndex(String entityId, String entityType) {
         try {
             log.debug("Removing entity from AI index: {} of type {}", entityId, entityType);
-            
-            Optional<AISearchableEntity> searchableEntity = storageStrategy
-                .findByEntityTypeAndEntityId(entityType, entityId);
 
-            searchableEntity.ifPresentOrElse(storageStrategy::delete,
-                () -> log.warn("Entity not found in AI index: {} of type {}", entityId, entityType));
+            boolean removed = vectorManagementService.removeVector(entityType, entityId);
+            if (!removed) {
+                log.warn("Vector not found for removal: {} of type {}", entityId, entityType);
+            }
             
         } catch (Exception e) {
             log.error("Error removing entity from AI index", e);

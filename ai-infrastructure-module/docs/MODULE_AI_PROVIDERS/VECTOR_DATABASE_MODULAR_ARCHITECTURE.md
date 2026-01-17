@@ -46,7 +46,7 @@ ai-infrastructure-module/
 - Lazily provisions collections per entity type, creating IVF_FLAT indexes and loading them automatically.
 - Configuration block (`ai.milvus`): `host`, `port`, `username`, `password`, `databaseName`, `secure`, `timeout`.
 
-Each module contributes an auto-configuration entry under `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`, exposing both the raw delegate (`VectorDatabaseService` implementation) and the shared `SearchableEntityVectorDatabaseService` wrapper when selected with `ai.vector-db.type`.
+Each module contributes an auto-configuration entry under `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`, exposing a `VectorDatabaseService` implementation when selected with `ai.vector-db.type`.
 
 ## Configuration
 
@@ -109,7 +109,7 @@ The next vector integrations share the same packaging conventions used for Lucen
 
 1. Create Maven module (`ai-infrastructure-vector-<provider>`), add to parent `<modules>` list and dependency management.
 2. Implement `<Provider>VectorDatabaseService` with full CRUD/search parity.
-3. Add `<Provider>VectorAutoConfiguration` that exposes delegate plus `SearchableEntityVectorDatabaseService` wrapper.
+3. Add `<Provider>VectorAutoConfiguration` that exposes the `VectorDatabaseService` bean.
 4. Provide configuration section in `CONFIGURATION_REFERENCE.md` and sample YAML in `integration-tests` resources.
 5. Extend integration test matrix with provider-specific profile and smoke test (can be profile-disabled until CI infra is available).
 6. Document environment prerequisites (container image, env vars) in this roadmap and `INTEGRATION_TEST_CHANGES.md`.

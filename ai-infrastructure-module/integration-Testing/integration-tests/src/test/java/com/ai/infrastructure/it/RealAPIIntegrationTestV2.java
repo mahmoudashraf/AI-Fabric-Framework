@@ -1,12 +1,11 @@
 package com.ai.infrastructure.it;
 
-import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.it.entity.V2AnnotatedProduct;
 import com.ai.infrastructure.it.repository.V2AnnotatedProductRepository;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,9 +48,6 @@ public class RealAPIIntegrationTestV2 {
     private AICapabilityService capabilityService;
 
     @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
-
-    @Autowired
     private VectorManagementService vectorManagementService;
 
     @Autowired
@@ -60,7 +56,6 @@ public class RealAPIIntegrationTestV2 {
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         v2ProductRepository.deleteAll();
     }
 
@@ -82,17 +77,15 @@ public class RealAPIIntegrationTestV2 {
         capabilityService.processEntityForAI(product, "test-product");
 
         // Then
-        List<AISearchableEntity> entities = storageStrategy.findByEntityType("test-product");
+        List<VectorRecord> entities = vectorManagementService.getVectorsByEntityType("test-product");
         assertThat(entities).hasSize(1);
 
-        AISearchableEntity stored = entities.getFirst();
+        VectorRecord stored = entities.getFirst();
 
         // v2 requirement: the embedded/indexed searchable content is driven by @AISearchable, not YAML fields.
-        assertThat(stored.getSearchableContent()).isEqualTo(v2SearchableOnly);
+        assertThat(stored.getContent()).isEqualTo(v2SearchableOnly);
 
         // v2 requirement: @AIContext contributes metadata (without being embedded).
-        assertThat(stored.getMetadata()).contains("\"owner\"");
-        assertThat(stored.getMetadata()).contains(v2ContextOwner);
+        assertThat(stored.getMetadata()).containsEntry("owner", v2ContextOwner);
     }
 }
-
