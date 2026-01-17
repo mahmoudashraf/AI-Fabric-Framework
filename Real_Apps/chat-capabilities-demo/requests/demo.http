@@ -1,0 +1,34 @@
+@baseUrl = http://localhost:8096
+
+### Health
+GET {{baseUrl}}/actuator/health
+
+### Start / continue a conversation (anonymous session)
+POST {{baseUrl}}/api/chat/query
+Content-Type: application/json
+
+{
+  "sessionId": "anon-demo-session-1",
+  "conversationId": "chat-demo-1",
+  "query": "How are you today? Reply with a single short sentence."
+}
+
+### Follow-up (same conversation)
+POST {{baseUrl}}/api/chat/query
+Content-Type: application/json
+
+{
+  "sessionId": "anon-demo-session-1",
+  "conversationId": "chat-demo-1",
+  "query": "What did I ask you earlier? Reply with a single short sentence."
+}
+
+### Inspect stored conversation (ownerId = sessionId for anonymous)
+GET {{baseUrl}}/api/chat/conversations/chat-demo-1?ownerId=anon-demo-session-1
+
+### List conversations for an owner
+GET {{baseUrl}}/api/chat/conversations?ownerId=anon-demo-session-1
+
+### Delete a conversation (ownerId required)
+DELETE {{baseUrl}}/api/chat/conversations/chat-demo-1?ownerId=anon-demo-session-1
+

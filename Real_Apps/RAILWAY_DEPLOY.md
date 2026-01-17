@@ -25,6 +25,9 @@ All apps use `server.port: ${PORT:...}` so Railway can inject `PORT`.
 - `it-support-action-bot`:
   - `OPENAI_ENABLED=true`
   - `OPENAI_API_KEY=...`
+- `chat-capabilities-demo`:
+  - `OPENAI_ENABLED=true`
+  - `OPENAI_API_KEY=...`
 - `sub-management-hub` / `sub-management-hub-simple`:
   - `COHERE_ENABLED=true`
   - `COHERE_API_KEY=...`
@@ -44,4 +47,3 @@ All apps use `server.port: ${PORT:...}` so Railway can inject `PORT`.
     - `AI_PROVIDERS_QDRANT_HOST=...`
     - `AI_PROVIDERS_QDRANT_GRPC_PORT=6334`
     - Optional: `AI_PROVIDERS_QDRANT_API_KEY=...`
-

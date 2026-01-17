@@ -148,3 +148,57 @@ jobs:
               repo: context.repo.repo,
               body: testResults
             });
+
+  real-apps-build:
+    name: Build Real Apps (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - behavior-churn-signals
+          - cloud-qdrant-openai-vector-search
+          - it-support-action-bot
+          - migration-enabled-product-catalog
+          - privacy-first-customer-facing-support
+          - relationship-query-crm-insights
+          - smart-faq-assistant
+          - sub-management-hub
+          - sub-management-hub-simple
+          - chat-capabilities-demo
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-real-apps-${{ matrix.app }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-real-apps-${{ matrix.app }}-
+            ${{ runner.os }}-maven-real-apps-
+            ${{ runner.os }}-maven-
+
+      - name: Install AI Fabric Framework (skip tests)
+        run: |
+          mvn -f ai-infrastructure-module/pom.xml -B -V -DskipTests install \
+            -pl '!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
+            -am
+        env:
+          MAVEN_OPTS: "-Xmx2g"
+
+      - name: Build Real App (skip tests)
+        run: |
+          mvn -f "Real_Apps/${{ matrix.app }}/pom.xml" -B -V -DskipTests package
+        env:
+          MAVEN_OPTS: "-Xmx2g"
