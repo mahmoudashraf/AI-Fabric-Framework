@@ -354,6 +354,9 @@ class IntentQueryExtractorRelationshipValidationTest {
         Intent intent = response.getIntents().get(0);
         assertThat(intent.getActionParams())
             .containsEntry("query", "find products under $100");
+        assertThat(intent.getGenerationInstructions())
+            .isEqualTo("explain why they are good options");
+        assertThat(intent.requiresGenerationOrDefault(false)).isTrue();
     }
 
     @Test

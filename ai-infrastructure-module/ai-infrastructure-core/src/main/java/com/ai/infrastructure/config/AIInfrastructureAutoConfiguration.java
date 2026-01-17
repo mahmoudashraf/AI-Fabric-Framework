@@ -81,6 +81,7 @@ import java.util.stream.Collectors;
             VectorDatabaseConfig.class,
             ProgressiveIntentExtractionProperties.class,
             VectorSpaceRoutingProperties.class,
+            RelationshipQueryPostActionGenerationProperties.class,
 	        SmartSuggestionsProperties.class,
 	        ResponseSanitizationProperties.class,
 	        OrchestrationResultNormalizationProperties.class,

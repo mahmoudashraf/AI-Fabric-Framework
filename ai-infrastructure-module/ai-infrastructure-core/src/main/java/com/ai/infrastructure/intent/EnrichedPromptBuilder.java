@@ -133,7 +133,11 @@ public class EnrichedPromptBuilder {
         prompt.append("     * Do NOT rewrite the user's query or add constraints that the user did not ask for.\n");
         prompt.append("   - Examples:\n");
         prompt.append("     * {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find all brands\",\"entityTypes\":[\"brand\"],\"limit\":20}}\n");
-        prompt.append("     * For user message \"relationship_query: find all brands and then summarize\": set actionParams.query=\"find all brands\".\n\n");
+        prompt.append("     * For user message \"relationship_query: find all brands and then summarize\": set actionParams.query=\"find all brands\", requiresGeneration=true, generationInstructions=\"summarize\".\n");
+        prompt.append("   - If the user requests a post-action summary/explanation (\"then summarize\", \"and explain why\", etc.):\n");
+        prompt.append("     * Keep actionParams.query purely relational.\n");
+        prompt.append("     * Set requiresGeneration=true.\n");
+        prompt.append("     * Put the non-relational directive into generationInstructions (short, user-aligned).\n\n");
 
         prompt.append("10. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
     }
@@ -160,6 +164,7 @@ public class EnrichedPromptBuilder {
                   "vectorSpace": "policies | faq | ...",
                   "requiresRetrieval": true,
                   "requiresGeneration": false,
+                  "generationInstructions": "optional follow-up generation instructions",
                   "needsAdvancedRAG": false,
                   "optimizedQuery": "Product entities with price_usd < 60.00 AND stock_status = 'in_stock'",
                   "nextStepRecommended": {

@@ -12,7 +12,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -205,14 +204,19 @@ public class IntentExtractionPostProcessor {
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
         Object rawQuery = mutable.get("query");
-        String normalizedQuery;
+        RelationshipQueryDirectiveSplitter.SplitResult split;
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            normalizedQuery = normalizeRelationshipQueryText(text);
+            split = RelationshipQueryDirectiveSplitter.split(text);
         } else {
-            normalizedQuery = normalizeRelationshipQueryText(originalQuery);
+            split = RelationshipQueryDirectiveSplitter.split(originalQuery);
         }
-        if (StringUtils.hasText(normalizedQuery)) {
-            mutable.put("query", normalizedQuery);
+        if (split != null && StringUtils.hasText(split.relationalQuery())) {
+            mutable.put("query", split.relationalQuery());
+        }
+        if (split != null && StringUtils.hasText(split.generationInstructions())
+            && !StringUtils.hasText(intent.getGenerationInstructions())) {
+            intent.setGenerationInstructions(split.generationInstructions());
+            intent.setRequiresGeneration(true);
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");
@@ -239,58 +243,5 @@ public class IntentExtractionPostProcessor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
-    }
-
-    private String normalizeRelationshipQueryText(String query) {
-        if (!StringUtils.hasText(query)) {
-            return null;
-        }
-        String trimmed = query.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
-        for (String prefix : prefixes) {
-            if (lower.startsWith(prefix)) {
-                String withoutPrefix = trimmed.substring(prefix.length()).trim();
-                return stripTrailingNonRelationalDirective(withoutPrefix);
-            }
-        }
-        return stripTrailingNonRelationalDirective(trimmed);
-    }
-
-    private String stripTrailingNonRelationalDirective(String text) {
-        if (!StringUtils.hasText(text)) {
-            return text;
-        }
-        String trimmed = text.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-
-        int idx = lower.indexOf(" and then ");
-        int boundaryLen = " and then ".length();
-        if (idx < 0) {
-            idx = lower.indexOf(" then ");
-            boundaryLen = " then ".length();
-        }
-        if (idx < 0) {
-            return trimmed;
-        }
-
-        String after = lower.substring(idx + boundaryLen);
-        boolean looksNonRelational =
-            after.contains("summariz")
-                || after.contains("explain")
-                || after.contains(" why ")
-                || after.startsWith("why ")
-                || after.contains("describe")
-                || after.contains("analyz")
-                || after.contains("recommend")
-                || after.contains("write ")
-                || after.contains("generate ")
-                || after.contains("tell me");
-
-        if (!looksNonRelational) {
-            return trimmed;
-        }
-
-        return trimmed.substring(0, idx).trim();
     }
 }

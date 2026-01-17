@@ -428,6 +428,16 @@ ai:
       enabled: true
       enable-vector-search: true
       enable-query-caching: true
+
+      # Optional: relationship_query -> summarization chaining (orchestrator)
+      # When enabled and the extracted intent sets requiresGeneration=true (and/or provides generationInstructions),
+      # the orchestrator will run a post-action LLM generation step grounded in the action results.
+      post-action-generation:
+        enabled: false
+        max-items: 10
+        max-chars: 12000
+        temperature: 0.2
+        # max-tokens: 600   # Optional override; null uses provider defaults
       
       # Smart fallbacks
       fallback-to-metadata: true
@@ -819,4 +829,3 @@ The Relationship Query Module transforms how you interact with data:
 - ✅ **100% type-safe** results
 
 **Your data relationships. Your questions. Our intelligence.**
-

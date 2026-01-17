@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
@@ -17,6 +18,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -115,7 +117,9 @@ class IntentHandlingStepFanOutTest {
             mock(AIServiceConfig.class),
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
-            new RankBasedMerger()
+            new RankBasedMerger(),
+            new ObjectMapper(),
+            new RelationshipQueryPostActionGenerationProperties()
         );
 
         Intent intent = Intent.builder()
@@ -162,7 +166,9 @@ class IntentHandlingStepFanOutTest {
             mock(AIServiceConfig.class),
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
-            new RankBasedMerger()
+            new RankBasedMerger(),
+            new ObjectMapper(),
+            new RelationshipQueryPostActionGenerationProperties()
         );
 
         Intent intent = Intent.builder()
@@ -199,7 +205,9 @@ class IntentHandlingStepFanOutTest {
             mock(AIServiceConfig.class),
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
-            new RankBasedMerger()
+            new RankBasedMerger(),
+            new ObjectMapper(),
+            new RelationshipQueryPostActionGenerationProperties()
         );
     }
 

@@ -18,6 +18,8 @@ import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ai.infrastructure.intent.orchestration.pipeline.DefaultOrchestrationPipeline;
 import com.ai.infrastructure.intent.orchestration.pipeline.Pipeline;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -163,7 +165,7 @@ class RAGOrchestratorTest {
             new IntentExtractionStep(intentQueryExtractor, progressiveEngineProvider),
             new VectorSpaceResolutionStep(vectorSpaceRouter),
             new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider,
-                vectorSpaceRoutingProperties, rankBasedMerger),
+                vectorSpaceRoutingProperties, rankBasedMerger, new ObjectMapper(), new RelationshipQueryPostActionGenerationProperties()),
             new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
             new MetadataBuildingStep(),
             new SmartSuggestionsStep(smartSuggestionsProperties, ragProviderProvider),
