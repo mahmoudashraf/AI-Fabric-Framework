@@ -25,6 +25,9 @@ import org.springframework.test.context.ActiveProfiles;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,6 +41,7 @@ class ECommerceRealApiIntegrationTest {
 
     private static final String QUERY = "Show me blue shoes under $100 from Nike";
     private static final String CROSS_BRAND_QUERY = "Show active Nike or Adidas runner shoes priced between $80 and $120 available in red or blue";
+    private static final Pattern PRODUCT_CONTENT_PATTERN = Pattern.compile("^(.*) \\((.*)\\) - \\$(.*)$");
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -111,8 +115,15 @@ class ECommerceRealApiIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
         assertThat(rag.getDocuments()).isNotEmpty();
-        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(nikeProductId));
-        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(adidasRunnerId));
+        assertThat(rag.getDocuments()).allSatisfy(doc -> {
+            assertThat(doc.getMetadata()).isNotNull();
+            assertThat(doc.getMetadata().get("brand")).isIn("Nike", "Adidas");
+            assertThat(doc.getMetadata().get("status")).isEqualTo("ACTIVE");
+
+            ParsedProduct parsed = parseProductContent(doc.getContent());
+            assertThat(parsed.color()).isIn("red", "blue");
+            assertThat(parsed.price()).isBetween(BigDecimal.valueOf(80), BigDecimal.valueOf(120));
+        });
     }
 
     private void seedCatalog() {
@@ -166,4 +177,19 @@ class ECommerceRealApiIntegrationTest {
                 .build()
         );
     }
+
+    private ParsedProduct parseProductContent(String content) {
+        assertThat(content).isNotBlank();
+        Matcher matcher = PRODUCT_CONTENT_PATTERN.matcher(content.trim());
+        assertThat(matcher.matches())
+            .as("content should match '%s' but was '%s'".formatted(PRODUCT_CONTENT_PATTERN, content))
+            .isTrue();
+
+        String name = matcher.group(1).trim();
+        String color = matcher.group(2).trim().toLowerCase(Locale.ROOT);
+        BigDecimal price = new BigDecimal(matcher.group(3).trim());
+        return new ParsedProduct(name, color, price);
+    }
+
+    private record ParsedProduct(String name, String color, BigDecimal price) {}
 }
