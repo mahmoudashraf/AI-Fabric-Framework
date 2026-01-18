@@ -731,8 +731,25 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
         try {
             Query query = new TermQuery(new Term(ENTITY_TYPE_FIELD, entityType));
 
-            TopDocs topDocs = indexSearcher.search(query, 0); // Only count, don't retrieve
-            return topDocs.totalHits.value;
+            if (indexSearcher == null) {
+                log.debug("IndexSearcher not initialized; vector count for entity type {} is 0", entityType);
+                return 0;
+            }
+
+            try {
+                // Lucene provides a dedicated count() API; using search(query, 0) can return 0 hits.
+                return (long) indexSearcher.count(query);
+            } catch (org.apache.lucene.store.AlreadyClosedException e) {
+                // IndexReader was closed during count (concurrency issue) - refresh and retry once
+                log.debug("IndexReader closed during count, refreshing and retrying for entity type {}", entityType);
+                synchronized (this) {
+                    refreshReader();
+                    if (indexSearcher == null) {
+                        return 0;
+                    }
+                    return (long) indexSearcher.count(query);
+                }
+            }
             
         } catch (Exception e) {
             log.error("Error getting vector count by entity type from Lucene", e);
