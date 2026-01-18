@@ -316,7 +316,6 @@ private final ConcurrentHashMap<String, List<Double>> embeddingCache = new Concu
    - `RAGService` - Basic RAG implementation
    - `VectorDatabaseService` - Vector DB abstraction
    - `VectorSearchService` - Vector search
-   - `SearchableEntityVectorDatabaseService`
 
 3. **Configuration**:
    - `AIInfrastructureAutoConfiguration`
@@ -326,7 +325,7 @@ private final ConcurrentHashMap<String, List<Double>> embeddingCache = new Concu
 4. **Core DTOs**:
    - Request/Response objects
    - Core domain models
-   - `AIEntityConfig`, `AISearchableEntity`
+   - `AIEntityConfig`
 
 5. **Provider Management**:
    - `AIProviderManager`
@@ -349,7 +348,6 @@ private final ConcurrentHashMap<String, List<Double>> embeddingCache = new Concu
    - `AISecurityService` (basic checks only)
 
 9. **Repositories**:
-   - `AISearchableEntityRepository`
    - `IndexingQueueRepository`
    - Entity repositories
 

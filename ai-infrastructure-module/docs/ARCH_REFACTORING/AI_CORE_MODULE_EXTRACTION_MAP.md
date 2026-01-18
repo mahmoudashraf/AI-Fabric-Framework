@@ -67,7 +67,6 @@
 ✅ RAGService.java
 ✅ VectorDatabaseService.java
 ✅ VectorSearchService.java
-✅ SearchableEntityVectorDatabaseService.java
 ✅ VectorDatabase.java (interface)
 ✅ VectorDatabaseServiceAdapter.java
 ```
@@ -136,7 +135,6 @@
 
 #### Entities (4 files)
 ```
-✅ AISearchableEntity.java
 ✅ IndexingQueueEntry.java
 ✅ IntentHistory.java
 ✅ AIInfrastructureProfile.java
@@ -144,7 +142,6 @@
 
 #### Repositories (4 files)
 ```
-✅ AISearchableEntityRepository.java
 ✅ IndexingQueueRepository.java
 ✅ IntentHistoryRepository.java
 ✅ AIInfrastructureProfileRepository.java

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Data Migration Module is a production-ready system for bulk indexing and migrating existing entities into the AI Infrastructure's searchable entity store. It enables asynchronous, resumable, and filtered migration of JPA entities into the vector search and relationship query systems.
+The Data Migration Module is a production-ready system for bulk indexing and migrating existing entities into the AI Infrastructure’s vector database index. It enables asynchronous, resumable, and filtered migration of JPA entities into the vector search and relationship query systems.
 
 ### What This Module Does
 

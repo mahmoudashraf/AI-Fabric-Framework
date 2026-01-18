@@ -23,6 +23,8 @@ import org.springframework.test.context.ActiveProfiles;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -48,9 +50,6 @@ class ECommerceRealApiIntegrationTest {
 
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
-
-    private String nikeProductId;
-    private String adidasRunnerId;
 
     @BeforeEach
     void setUp() {
@@ -83,8 +82,11 @@ class ECommerceRealApiIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
         assertThat(rag.getDocuments()).isNotEmpty();
-        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(nikeProductId));
-        assertThat(rag.getDocuments()).anySatisfy(doc -> {
+        assertThat(rag.getDocuments()).allSatisfy(doc -> {
+            assertThat(doc.getMetadata()).isNotNull();
+            assertThat(doc.getMetadata().get("brand")).isEqualTo("Nike");
+            assertThat(doc.getMetadata().get("status")).isEqualTo("ACTIVE");
+
             ParsedProduct parsed = parseProductContent(doc.getContent());
             assertThat(parsed.name()).containsIgnoringCase("Blue Runner");
             assertThat(parsed.color()).isEqualTo("blue");
@@ -138,8 +140,6 @@ class ECommerceRealApiIntegrationTest {
         ProductEntity adidasRunner = product("Adidas Runner Shoes Elite", "red", BigDecimal.valueOf(110), "ACTIVE", adidas);
 
         productRepository.saveAll(List.of(nikeBlueRunner, nikePremiumBoot, nikeRedRunner, adidasBlue, adidasRunner));
-        nikeProductId = nikeBlueRunner.getId();
-        adidasRunnerId = adidasRunner.getId();
     }
 
     private ProductEntity product(String name, String color, BigDecimal price, String status, BrandEntity brand) {
@@ -155,12 +155,48 @@ class ECommerceRealApiIntegrationTest {
 
     private ParsedProduct parseProductContent(String content) {
         assertThat(content).isNotBlank();
+
+        ParsedProduct parsed = parseProductContentPattern(content);
+        if (parsed != null) {
+            return parsed;
+        }
+
         String[] tokens = content.trim().split("\\s+");
         assertThat(tokens.length).isGreaterThanOrEqualTo(3);
-        String color = tokens[tokens.length - 2].trim().toLowerCase(Locale.ROOT);
-        BigDecimal price = new BigDecimal(tokens[tokens.length - 1].trim());
+
+        String rawColor = tokens[tokens.length - 2].trim();
+        String color = rawColor.replaceAll("[^A-Za-z]", "").toLowerCase(Locale.ROOT);
+
+        String rawPrice = tokens[tokens.length - 1].trim();
+        String normalizedPrice = rawPrice.replaceAll("[^0-9.\\-]", "");
+        BigDecimal price = new BigDecimal(normalizedPrice);
+
         String name = String.join(" ", java.util.Arrays.copyOf(tokens, tokens.length - 2)).trim();
         return new ParsedProduct(name, color, price);
+    }
+
+    private ParsedProduct parseProductContentPattern(String content) {
+        String trimmed = content.trim();
+
+        Pattern parenthesesPattern = Pattern.compile("^(?<name>.*)\\((?<color>[^)]+)\\)\\s*-\\s*\\$?(?<price>[0-9]+(?:\\.[0-9]+)?)\\s*$");
+        Matcher parentheses = parenthesesPattern.matcher(trimmed);
+        if (parentheses.matches()) {
+            String name = parentheses.group("name").trim();
+            String color = parentheses.group("color").trim().toLowerCase(Locale.ROOT);
+            BigDecimal price = new BigDecimal(parentheses.group("price"));
+            return new ParsedProduct(name, color, price);
+        }
+
+        Pattern tokensPattern = Pattern.compile("^(?<name>.*)\\s+(?<color>[A-Za-z]+)\\s+\\$?(?<price>[0-9]+(?:\\.[0-9]+)?)\\s*$");
+        Matcher tokens = tokensPattern.matcher(trimmed);
+        if (tokens.matches()) {
+            String name = tokens.group("name").trim();
+            String color = tokens.group("color").trim().toLowerCase(Locale.ROOT);
+            BigDecimal price = new BigDecimal(tokens.group("price"));
+            return new ParsedProduct(name, color, price);
+        }
+
+        return null;
     }
 
     private record ParsedProduct(String name, String color, BigDecimal price) {}

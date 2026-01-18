@@ -49,9 +49,6 @@ class LawFirmRealApiIntegrationTest {
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
 
-    private String q4ContractId;
-    private String archivedContractId;
-
     @BeforeEach
     void setUp() {
         documentRepository.deleteAllInBatch();
@@ -83,9 +80,11 @@ class LawFirmRealApiIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
         assertThat(rag.getDocuments()).isNotEmpty();
-        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(q4ContractId));
-        assertThat(rag.getDocuments()).anySatisfy(doc ->
-            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023"));
+        assertThat(rag.getDocuments()).anySatisfy(doc -> {
+            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023");
+            assertThat(doc.getMetadata()).isNotNull();
+            assertThat(doc.getMetadata().get("author")).isEqualTo("John Smith");
+        });
     }
 
     @Test
@@ -106,9 +105,12 @@ class LawFirmRealApiIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
         assertThat(rag.getDocuments()).isNotEmpty();
-        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(archivedContractId));
-        assertThat(rag.getDocuments()).anySatisfy(doc ->
-            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023 (Archive)"));
+        assertThat(rag.getDocuments()).anySatisfy(doc -> {
+            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023 (Archive)");
+            assertThat(doc.getMetadata()).isNotNull();
+            assertThat(doc.getMetadata().get("status")).isEqualTo("ARCHIVED");
+            assertThat(doc.getMetadata().get("author")).isEqualTo("John Smith");
+        });
     }
 
     private void seedLawFirmData() {
@@ -149,8 +151,6 @@ class LawFirmRealApiIntegrationTest {
         );
 
         documentRepository.saveAll(List.of(q4Contract, q3Contract, archived, janeContract));
-        q4ContractId = q4Contract.getId();
-        archivedContractId = archived.getId();
     }
 
     private DocumentEntity createDocument(String title,
