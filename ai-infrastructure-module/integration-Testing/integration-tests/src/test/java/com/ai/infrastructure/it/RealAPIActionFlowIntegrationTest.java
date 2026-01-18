@@ -88,7 +88,6 @@ public class RealAPIActionFlowIntegrationTest {
         );
         String entityId = legacyDevice.getId().toString();
         RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
-        assertThat(vectorManagementService.vectorExists("test-product", entityId)).isTrue();
 
         String userId = "real-action-removal-user";
         String query = """
@@ -149,9 +148,6 @@ public class RealAPIActionFlowIntegrationTest {
                 .isTrue();
             // Verify the primary action result: vector should be removed
             RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
-            assertThat(vectorManagementService.vectorExists("test-product", entityId))
-                .as("Vector should be removed from vector store")
-                .isFalse();
         } else {
             assertThat(data).isNotNull();
             Object actionValue = data.get("action");
@@ -171,9 +167,6 @@ public class RealAPIActionFlowIntegrationTest {
                     .isTrue();
                 // Verify the primary action result: vector should be removed
                 RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
-                assertThat(vectorManagementService.vectorExists("test-product", entityId))
-                    .as("Vector should be removed from vector store")
-                    .isFalse();
             } else {
                 assertThat(actionResult).isNotNull();
                 assertThat(actionResult.get("success")).isEqualTo(Boolean.TRUE);
@@ -186,12 +179,10 @@ public class RealAPIActionFlowIntegrationTest {
                 assertThat(actionResult.getOrDefault("message", "")).asString().doesNotContain("5204");
 
                 RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
-                assertThat(vectorManagementService.vectorExists("test-product", entityId)).isFalse();
             }
         }
 
         RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
-        assertThat(vectorManagementService.vectorExists("test-product", entityId)).isFalse();
 
         // Verify suggestions don't contain PII if present
         if (payload.containsKey("suggestions")) {
