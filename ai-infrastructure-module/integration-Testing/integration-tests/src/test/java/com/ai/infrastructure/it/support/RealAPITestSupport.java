@@ -173,43 +173,60 @@ public final class RealAPITestSupport {
                                          String entityType,
                                          String entityId,
                                          Duration timeout) {
-        awaitVectorState(vectorManagementService, entityType, entityId, true, timeout);
+        awaitVectorState(vectorManagementService, entityType, entityId, true, 3, timeout);
     }
 
     public static void awaitVectorMissing(VectorManagementService vectorManagementService,
                                           String entityType,
                                           String entityId,
                                           Duration timeout) {
-        awaitVectorState(vectorManagementService, entityType, entityId, false, timeout);
+        awaitVectorState(vectorManagementService, entityType, entityId, false, 5, timeout);
     }
 
     private static void awaitVectorState(VectorManagementService vectorManagementService,
                                          String entityType,
                                          String entityId,
                                          boolean expectedExists,
+                                         int requiredConsecutiveReads,
                                          Duration timeout) {
         if (vectorManagementService == null) {
             return;
         }
 
-        awaitCondition(
-            "vectorExists(" + entityType + ", " + entityId + ") == " + expectedExists,
+        String description = "vectorExists(" + entityType + ", " + entityId + ") == " + expectedExists;
+        awaitStableCondition(description,
             () -> vectorManagementService.vectorExists(entityType, entityId) == expectedExists,
-            timeout
-        );
+            requiredConsecutiveReads,
+            timeout);
     }
 
-    private static void awaitCondition(String description, Supplier<Boolean> condition, Duration timeout) {
+    /**
+     * Await a condition that must be satisfied consistently for {@code requiredConsecutiveReads}
+     * to avoid false positives caused by transient backend errors (e.g., vector DB eventual consistency
+     * or HTTP timeouts) being interpreted as "vector missing".
+     */
+    private static void awaitStableCondition(String description,
+                                             Supplier<Boolean> condition,
+                                             int requiredConsecutiveReads,
+                                             Duration timeout) {
         long deadline = System.nanoTime() + timeout.toNanos();
         boolean last = false;
+        int consecutiveSuccesses = 0;
+        int required = Math.max(1, requiredConsecutiveReads);
         while (System.nanoTime() < deadline) {
             try {
                 last = Boolean.TRUE.equals(condition.get());
             } catch (Exception ignored) {
                 last = false;
             }
+
             if (last) {
-                return;
+                consecutiveSuccesses++;
+                if (consecutiveSuccesses >= required) {
+                    return;
+                }
+            } else {
+                consecutiveSuccesses = 0;
             }
 
             try {

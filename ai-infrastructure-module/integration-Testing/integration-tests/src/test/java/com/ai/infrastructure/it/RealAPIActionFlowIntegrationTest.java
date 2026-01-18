@@ -356,12 +356,6 @@ public class RealAPIActionFlowIntegrationTest {
 
         RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", playbook.getId().toString(), Duration.ofSeconds(20));
         RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", diagnostics.getId().toString(), Duration.ofSeconds(20));
-        assertThat(vectorManagementService.vectorExists("test-product", playbook.getId().toString()))
-            .as("vectors should be cleared for playbook")
-            .isFalse();
-        assertThat(vectorManagementService.vectorExists("test-product", diagnostics.getId().toString()))
-            .as("vectors should be cleared for diagnostics")
-            .isFalse();
 
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(history).isNotEmpty();

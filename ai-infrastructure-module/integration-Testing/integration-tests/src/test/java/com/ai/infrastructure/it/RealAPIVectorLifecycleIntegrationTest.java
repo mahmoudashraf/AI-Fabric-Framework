@@ -103,12 +103,6 @@ public class RealAPIVectorLifecycleIntegrationTest {
         // Verify vectors exist after creation
         RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", productId1, Duration.ofSeconds(20));
         RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", productId2, Duration.ofSeconds(20));
-        assertThat(vectorManagementService.vectorExists("test-product", productId1))
-            .as("Vector should exist after product creation")
-            .isTrue();
-        assertThat(vectorManagementService.vectorExists("test-product", productId2))
-            .as("Vector should exist after product creation")
-            .isTrue();
 
         System.out.println("✅ Both vectors created successfully");
 

@@ -1,5 +1,6 @@
 package com.ai.infrastructure.service;
 
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
@@ -25,13 +26,23 @@ import java.util.Optional;
  * @version 1.0.0
  */
 @Slf4j
-@RequiredArgsConstructor
 public class VectorManagementService {
 
     private static final String INDEXED_CREATED_AT_KEY = "_indexedCreatedAt";
     private static final String INDEXED_UPDATED_AT_KEY = "_indexedUpdatedAt";
     
     private final VectorDatabaseService vectorDatabaseService;
+    private final AIEntityConfigurationLoader entityConfigurationLoader;
+
+    public VectorManagementService(VectorDatabaseService vectorDatabaseService) {
+        this(vectorDatabaseService, null);
+    }
+
+    public VectorManagementService(VectorDatabaseService vectorDatabaseService,
+                                   AIEntityConfigurationLoader entityConfigurationLoader) {
+        this.vectorDatabaseService = vectorDatabaseService;
+        this.entityConfigurationLoader = entityConfigurationLoader;
+    }
 
     private Map<String, Object> ensureIndexTimestamps(Map<String, Object> metadata,
                                                       LocalDateTime now,
@@ -438,8 +449,24 @@ public class VectorManagementService {
     public long clearAllVectors() {
         try {
             log.debug("Clearing all vectors from database");
+            // Prefer clearing only entity types managed by this framework (from configuration),
+            // which is deterministic for providers that do not reliably enumerate namespaces.
+            if (entityConfigurationLoader != null
+                && entityConfigurationLoader.getSupportedEntityTypes() != null
+                && !entityConfigurationLoader.getSupportedEntityTypes().isEmpty()) {
+                long cleared = 0L;
+                for (String entityType : entityConfigurationLoader.getSupportedEntityTypes()) {
+                    if (entityType == null || entityType.isBlank()) {
+                        continue;
+                    }
+                    cleared += vectorDatabaseService.clearVectorsByEntityType(entityType);
+                }
+                log.debug("Successfully cleared {} vectors from database (per-entity-type)", cleared);
+                return cleared;
+            }
+
             long clearedCount = vectorDatabaseService.clearVectors();
-            log.debug("Successfully cleared {} vectors from database", clearedCount);
+            log.debug("Successfully cleared {} vectors from database (global)", clearedCount);
             return clearedCount;
         } catch (Exception e) {
             log.error("Error clearing all vectors", e);

@@ -423,9 +423,10 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         while (matched.size() < limit + 1) {
             ListResponse response;
             try {
+                int pageSize = Math.min(500, Math.max(1, limit));
                 response = token == null
-                    ? index.list(namespace, Math.min(500, Math.max(100, limit)))
-                    : index.list(namespace, Math.min(500, Math.max(100, limit)), token);
+                    ? index.list(namespace, pageSize)
+                    : index.list(namespace, pageSize, token);
             } catch (Exception ex) {
                 if (isNamespaceNotFound(ex)) {
                     return VectorScanPage.builder()
@@ -560,9 +561,6 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             if (stats != null) {
                 NamespaceSummary summary = stats.getNamespacesOrDefault(namespace, NamespaceSummary.getDefaultInstance());
                 count = summary.getVectorCount();
-                if (count <= 0) {
-                    return 0L;
-                }
             }
         } catch (Exception ex) {
             // best-effort; still attempt deletion

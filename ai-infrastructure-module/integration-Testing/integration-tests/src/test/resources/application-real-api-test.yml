@@ -42,6 +42,12 @@ test:
 # AI Configuration for Real API Testing
 ai:
   enabled: true
+  vector-db:
+    operations:
+      # Pinecone deleteAll() is eventually consistent; tests that clear then immediately upsert
+      # can race the async deletion. Give CI/local enough time to observe namespace empty.
+      await-clear-consistency: true
+      await-clear-timeout-ms: 120000
   orchestration:
     result-normalization:
       enabled: true

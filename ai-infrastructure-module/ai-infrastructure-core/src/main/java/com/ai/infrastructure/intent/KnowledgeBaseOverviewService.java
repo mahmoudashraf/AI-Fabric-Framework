@@ -93,6 +93,18 @@ public class KnowledgeBaseOverviewService {
             }
             try {
                 long count = vectorDatabaseService.getVectorCountByEntityType(entityType);
+                if (count <= 0 && vectorDatabaseService.supportsVectorScan()) {
+                    // Some backends (notably remote providers) expose eventual consistency for "count" endpoints.
+                    // Fall back to a lightweight presence check so routing doesn't incorrectly conclude that only
+                    // one vector space exists right after indexing.
+                    com.ai.infrastructure.dto.VectorScanPage page = vectorDatabaseService.scan(
+                        com.ai.infrastructure.dto.VectorScanRequest.builder()
+                            .entityType(entityType)
+                            .limit(1)
+                            .build()
+                    );
+                    count = (page == null || page.getVectors() == null || page.getVectors().isEmpty()) ? 0L : 1L;
+                }
                 if (count > 0) {
                     counts.put(entityType.toLowerCase(Locale.ROOT), count);
                 }

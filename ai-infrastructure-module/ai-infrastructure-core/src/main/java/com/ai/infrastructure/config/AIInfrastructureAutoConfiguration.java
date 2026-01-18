@@ -216,8 +216,9 @@ public class AIInfrastructureAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @Conditional(VectorDbConfiguredCondition.class)
-    public VectorManagementService vectorManagementService(VectorDatabaseService vectorDatabaseService) {
-        return new VectorManagementService(vectorDatabaseService);
+    public VectorManagementService vectorManagementService(VectorDatabaseService vectorDatabaseService,
+                                                           AIEntityConfigurationLoader entityConfigurationLoader) {
+        return new VectorManagementService(vectorDatabaseService, entityConfigurationLoader);
     }
     
 	    @Bean

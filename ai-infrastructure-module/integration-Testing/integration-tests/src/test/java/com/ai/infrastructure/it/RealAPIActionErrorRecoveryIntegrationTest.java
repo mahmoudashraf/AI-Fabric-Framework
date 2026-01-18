@@ -105,6 +105,7 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         );
 
         String entityId = baseline.getId().toString();
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
         var baselineVector = vectorManagementService.getVector("test-product", entityId)
             .orElseThrow(() -> new AssertionError("baseline vector missing"));
         assertThat(baselineVector.getVectorId()).isNotNull();
