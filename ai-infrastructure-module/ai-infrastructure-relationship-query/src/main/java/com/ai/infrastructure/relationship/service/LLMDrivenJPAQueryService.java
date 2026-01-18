@@ -111,6 +111,9 @@ public class LLMDrivenJPAQueryService {
 
             List<String> warnings = new LinkedList<>();
             List<RAGResponse.RAGDocument> documents = materializeDocuments(plan, traversal, entityIds, returnMode, options, warnings);
+            if (documents.isEmpty()) {
+                warnings.add("No results found.");
+            }
             long duration = Math.max(0, (System.nanoTime() - startNano) / 1_000_000);
 
             recordExecutionMetrics(mode, duration, documents.size(), plan.isNeedsSemanticSearch() || mode == QueryMode.ENHANCED);
@@ -123,7 +126,7 @@ public class LLMDrivenJPAQueryService {
                 .totalResults(entityIds.size())
                 .returnedResults(documents.size())
                 .hybridSearchUsed(mode == QueryMode.ENHANCED)
-                .success(!documents.isEmpty())
+                .success(true)
                 .processingTimeMs(duration)
                 .confidenceScore(plan.getConfidenceScore())
                 .warnings(warnings)
