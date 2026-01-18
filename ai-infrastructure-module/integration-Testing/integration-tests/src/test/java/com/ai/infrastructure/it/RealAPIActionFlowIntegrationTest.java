@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +87,7 @@ public class RealAPIActionFlowIntegrationTest {
             new BigDecimal("149.50")
         );
         String entityId = legacyDevice.getId().toString();
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", entityId)).isTrue();
 
         String userId = "real-action-removal-user";
@@ -146,6 +148,7 @@ public class RealAPIActionFlowIntegrationTest {
                 .as("Action should be marked as successful")
                 .isTrue();
             // Verify the primary action result: vector should be removed
+            RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
             assertThat(vectorManagementService.vectorExists("test-product", entityId))
                 .as("Vector should be removed from vector store")
                 .isFalse();
@@ -167,6 +170,7 @@ public class RealAPIActionFlowIntegrationTest {
                     .as("Action should be marked as successful")
                     .isTrue();
                 // Verify the primary action result: vector should be removed
+                RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
                 assertThat(vectorManagementService.vectorExists("test-product", entityId))
                     .as("Vector should be removed from vector store")
                     .isFalse();
@@ -181,10 +185,12 @@ public class RealAPIActionFlowIntegrationTest {
                 assertThat(actionData.get("removed")).isEqualTo(Boolean.TRUE);
                 assertThat(actionResult.getOrDefault("message", "")).asString().doesNotContain("5204");
 
+                RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
                 assertThat(vectorManagementService.vectorExists("test-product", entityId)).isFalse();
             }
         }
 
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", entityId)).isFalse();
 
         // Verify suggestions don't contain PII if present
@@ -348,6 +354,8 @@ public class RealAPIActionFlowIntegrationTest {
                 .doesNotContain("555-991-2045");
         }
 
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", playbook.getId().toString(), Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", diagnostics.getId().toString(), Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", playbook.getId().toString()))
             .as("vectors should be cleared for playbook")
             .isFalse();

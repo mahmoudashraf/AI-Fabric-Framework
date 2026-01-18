@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -100,6 +101,8 @@ public class RealAPIVectorLifecycleIntegrationTest {
         String productId2 = product2.getId().toString();
 
         // Verify vectors exist after creation
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", productId1, Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", productId2, Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", productId1))
             .as("Vector should exist after product creation")
             .isTrue();
@@ -133,11 +136,13 @@ public class RealAPIVectorLifecycleIntegrationTest {
         assertThat(removeResult.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         // Verify vector was removed
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", productId1, Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", productId1))
             .as("Vector should be removed after remove_vector action")
             .isFalse();
         
         // Verify second vector still exists
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", productId2, Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", productId2))
             .as("Other vector should remain intact")
             .isTrue();
@@ -154,6 +159,8 @@ public class RealAPIVectorLifecycleIntegrationTest {
         assertThat(clearResult.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         // Verify all vectors cleared
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", productId1, Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", productId2, Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", productId1))
             .as("Vector should be cleared")
             .isFalse();
@@ -170,6 +177,8 @@ public class RealAPIVectorLifecycleIntegrationTest {
         capabilityService.processEntityForAI(product2, "test-product");
 
         // Verify vectors exist again
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", productId1, Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", productId2, Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", productId1))
             .as("Vector should be rebuilt after reprocessing")
             .isTrue();

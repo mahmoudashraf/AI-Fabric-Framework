@@ -4,6 +4,7 @@ import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.VectorDatabaseConfig;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -23,8 +24,8 @@ public class WeaviateVectorAutoConfiguration {
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "weaviate")
     public WeaviateVectorDatabaseService weaviateVectorDatabaseDelegate(AIProviderConfig providerConfig,
-                                                                        VectorDatabaseConfig vectorDatabaseConfig) {
-        return new WeaviateVectorDatabaseService(providerConfig, vectorDatabaseConfig);
+                                                                        ObjectProvider<VectorDatabaseConfig> vectorDatabaseConfig) {
+        return new WeaviateVectorDatabaseService(providerConfig, vectorDatabaseConfig.getIfAvailable());
     }
 
     @Bean

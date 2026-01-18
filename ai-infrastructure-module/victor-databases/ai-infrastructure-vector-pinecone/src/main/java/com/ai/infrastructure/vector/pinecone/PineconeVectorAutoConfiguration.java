@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 
@@ -25,7 +26,7 @@ public class PineconeVectorAutoConfiguration {
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
     public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config,
-                                                                        VectorDatabaseConfig vectorDatabaseConfig,
+                                                                        ObjectProvider<VectorDatabaseConfig> vectorDatabaseConfig,
                                                                         Environment environment) {
         AIProviderConfig.PineconeConfig pinecone = config.getPinecone();
 
@@ -60,7 +61,7 @@ public class PineconeVectorAutoConfiguration {
             }
         }
 
-        return new PineconeVectorDatabaseService(config, vectorDatabaseConfig);
+        return new PineconeVectorDatabaseService(config, vectorDatabaseConfig.getIfAvailable());
     }
 
     @Bean

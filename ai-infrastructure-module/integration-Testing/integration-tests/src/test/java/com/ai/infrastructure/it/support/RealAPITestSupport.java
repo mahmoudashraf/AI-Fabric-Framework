@@ -1,6 +1,10 @@
 package com.ai.infrastructure.it.support;
 
+import com.ai.infrastructure.service.VectorManagementService;
 import org.springframework.util.StringUtils;
+
+import java.time.Duration;
+import java.util.function.Supplier;
 
 /**
  * Utility methods shared across Real API integration tests.
@@ -163,5 +167,61 @@ public final class RealAPITestSupport {
             System.setProperty("ai.providers.llm-provider", "azure");
         }
         // If no provider found, leave unset (ONNX/REST don't need LLM provider)
+    }
+
+    public static void awaitVectorExists(VectorManagementService vectorManagementService,
+                                         String entityType,
+                                         String entityId,
+                                         Duration timeout) {
+        awaitVectorState(vectorManagementService, entityType, entityId, true, timeout);
+    }
+
+    public static void awaitVectorMissing(VectorManagementService vectorManagementService,
+                                          String entityType,
+                                          String entityId,
+                                          Duration timeout) {
+        awaitVectorState(vectorManagementService, entityType, entityId, false, timeout);
+    }
+
+    private static void awaitVectorState(VectorManagementService vectorManagementService,
+                                         String entityType,
+                                         String entityId,
+                                         boolean expectedExists,
+                                         Duration timeout) {
+        if (vectorManagementService == null) {
+            return;
+        }
+
+        awaitCondition(
+            "vectorExists(" + entityType + ", " + entityId + ") == " + expectedExists,
+            () -> vectorManagementService.vectorExists(entityType, entityId) == expectedExists,
+            timeout
+        );
+    }
+
+    private static void awaitCondition(String description, Supplier<Boolean> condition, Duration timeout) {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        boolean last = false;
+        while (System.nanoTime() < deadline) {
+            try {
+                last = Boolean.TRUE.equals(condition.get());
+            } catch (Exception ignored) {
+                last = false;
+            }
+            if (last) {
+                return;
+            }
+
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+
+        if (!last) {
+            throw new AssertionError("Timed out waiting for condition: " + description);
+        }
     }
 }

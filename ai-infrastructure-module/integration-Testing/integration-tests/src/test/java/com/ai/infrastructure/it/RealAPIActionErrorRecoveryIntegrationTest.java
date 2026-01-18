@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -269,6 +270,7 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         }
 
         // Verify vector still exists (wasn't cleared by invalid action)
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
         assertThat(vectorManagementService.vectorExists("test-product", entityId))
             .as("vector should remain intact when action fails")
             .isTrue();
