@@ -204,14 +204,15 @@ public class DynamicJPAQueryBuilder {
             }
             case LIKE -> {
                 if (value instanceof String str) {
-                    parameters.put(parameterName, str.toLowerCase(Locale.ROOT));
+                    parameters.put(parameterName, ensureLikePattern(str.toLowerCase(Locale.ROOT)));
                     yield "LOWER(%s) LIKE :%s".formatted(fieldName, parameterName);
                 }
                 parameters.put(parameterName, value);
                 yield "%s LIKE :%s".formatted(fieldName, parameterName);
             }
             case ILIKE -> {
-                parameters.put(parameterName, value != null ? value.toString().toLowerCase(Locale.ROOT) : null);
+                String lowered = value != null ? value.toString().toLowerCase(Locale.ROOT) : null;
+                parameters.put(parameterName, ensureLikePattern(lowered));
                 yield "LOWER(%s) LIKE :%s".formatted(fieldName, parameterName);
             }
             case IN, NOT_IN -> buildCollectionPredicate(operator, fieldName, parameterName, value, condition, parameters);
@@ -219,6 +220,22 @@ public class DynamicJPAQueryBuilder {
             case EXISTS -> "%s IS NOT NULL".formatted(fieldName);
             case NOT_EXISTS -> "%s IS NULL".formatted(fieldName);
         };
+    }
+
+    private String ensureLikePattern(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String text = raw.trim();
+        if (text.isEmpty()) {
+            return raw;
+        }
+        // If the caller already specified LIKE wildcards, keep it as-is.
+        if (text.indexOf('%') >= 0 || text.indexOf('_') >= 0) {
+            return text;
+        }
+        // Default to "contains" semantics for LIKE filters coming from NL queries.
+        return "%" + text + "%";
     }
 
     private String buildCollectionPredicate(FilterOperator operator,

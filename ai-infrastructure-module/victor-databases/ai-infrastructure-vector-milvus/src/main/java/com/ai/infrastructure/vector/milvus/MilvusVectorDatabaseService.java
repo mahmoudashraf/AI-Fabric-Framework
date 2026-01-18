@@ -566,12 +566,9 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             return false;
         }
 
-        // Avoid blocking transactional work on Milvus load operations. If the collection is not yet
-        // loaded, treat this as "not found" and let storeVector() upsert idempotently.
-        if (!Boolean.TRUE.equals(loadedCollections.get(collection))) {
-            return false;
-        }
-
+        // vectorExists() is used in tests and in higher-level services to validate indexing outcomes.
+        // Ensure the collection is loaded so the subsequent query can reflect the latest write state.
+        ensureCollectionLoaded(collection);
         return getVectorByEntity(entityType, entityId).isPresent();
     }
 
