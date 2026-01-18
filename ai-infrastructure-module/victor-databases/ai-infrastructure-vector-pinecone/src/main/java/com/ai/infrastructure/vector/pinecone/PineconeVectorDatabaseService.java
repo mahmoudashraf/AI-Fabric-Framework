@@ -144,7 +144,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         String namespace = extractNamespace(vectorId);
         FetchResponse response;
         try {
-            response = index.fetch(List.of(vectorId), namespace);
+            response = withPineconeRetry("fetch", () -> index.fetch(List.of(vectorId), namespace));
         } catch (Exception ex) {
             // Missing namespaces are common for fresh indexes and should be treated as "not found".
             if (isNamespaceNotFound(ex)) {
@@ -507,7 +507,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     public long getVectorCountByEntityType(String entityType) {
         ensureEnabled();
         String namespace = namespace(entityType);
-        DescribeIndexStatsResponse stats = index.describeIndexStats();
+        DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
         if (stats == null) {
             return 0L;
         }
@@ -523,7 +523,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     @Override
     public long clearVectors() {
         ensureEnabled();
-        DescribeIndexStatsResponse stats = index.describeIndexStats();
+        DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
         if (stats == null) {
             return 0L;
         }
@@ -534,7 +534,10 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             int count = entry.getValue() != null ? entry.getValue().getVectorCount() : 0;
             cleared += count;
             try {
-                index.deleteAll(namespace);
+                withPineconeRetry("deleteAll", () -> {
+                    index.deleteAll(namespace);
+                    return null;
+                });
                 awaitNamespaceCleared(namespace);
             } catch (Exception ex) {
                 // Pinecone can return NOT_FOUND when a namespace doesn't exist (race/empty namespace).
@@ -553,7 +556,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         String namespace = namespace(entityType);
         long count = 0L;
         try {
-            DescribeIndexStatsResponse stats = index.describeIndexStats();
+            DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
             if (stats != null) {
                 NamespaceSummary summary = stats.getNamespacesOrDefault(namespace, NamespaceSummary.getDefaultInstance());
                 count = summary.getVectorCount();
@@ -566,7 +569,10 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         try {
-            index.deleteAll(namespace);
+            withPineconeRetry("deleteAll", () -> {
+                index.deleteAll(namespace);
+                return null;
+            });
             awaitNamespaceCleared(namespace);
         } catch (Exception ex) {
             if (!isNamespaceNotFound(ex)) {
@@ -597,12 +603,9 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
         while (System.currentTimeMillis() < deadlineMs) {
             try {
-                DescribeIndexStatsResponse refreshed = index.describeIndexStats();
-                if (refreshed == null) {
-                    return;
-                }
-                NamespaceSummary summary = refreshed.getNamespacesOrDefault(namespace, NamespaceSummary.getDefaultInstance());
-                if (summary == null || summary.getVectorCount() <= 0) {
+                // Stats can lag behind deleteAll() for a while. Prefer listing, which reflects read visibility.
+                ListResponse listed = withPineconeRetry("list", () -> index.list(namespace, 1));
+                if (listed == null || listed.getVectorsCount() == 0) {
                     return;
                 }
             } catch (Exception ex) {
@@ -622,7 +625,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     @Override
     public Map<String, Object> getStatistics() {
         ensureEnabled();
-        DescribeIndexStatsResponse stats = index.describeIndexStats();
+        DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("type", "pinecone");
@@ -859,7 +862,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         try {
-            DescribeIndexStatsResponse stats = index.describeIndexStats();
+            DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
             cached = stats != null && stats.getDimension() == 0;
         } catch (Exception ex) {
             cached = false;
@@ -871,7 +874,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
     private boolean shouldRetryAsSparse(Exception ex) {
         try {
-            DescribeIndexStatsResponse stats = index.describeIndexStats();
+            DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
             if (stats != null && stats.getDimension() == 0) {
                 return true;
             }

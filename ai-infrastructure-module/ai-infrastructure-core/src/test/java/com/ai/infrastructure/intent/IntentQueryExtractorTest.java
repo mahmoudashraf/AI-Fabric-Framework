@@ -83,6 +83,43 @@ class IntentQueryExtractorTest {
     }
 
     @Test
+    void shouldTolerateJsonWithCommentsAndTrailingCommas() {
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
+
+        String json = """
+            {
+              // Some providers may include comments in JSON-like responses.
+              "intents": [
+                {
+                  "type": "ACTION",
+                  "intent": "cancel_subscription",
+                  "confidence": 0.92,
+                  "action": "cancel_subscription",
+                  "actionParams": {"reason": "too expensive"},
+                  "requiresRetrieval": false,
+                }
+              ],
+              "isCompound": false,
+              "orchestrationStrategy": null,
+            }
+            """;
+
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            objectMapper
+        );
+
+        MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
+        assertThat(response.getIntents()).hasSize(1);
+        assertThat(response.getIntents().getFirst().getIntent()).isEqualTo("cancel_subscription");
+    }
+
+    @Test
     void shouldRequestJsonOnlyResponseFormatFromProvider() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
 
