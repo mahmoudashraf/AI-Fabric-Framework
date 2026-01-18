@@ -37,6 +37,25 @@ public class VectorDatabaseConfig {
      * Memory-specific configuration
      */
     private MemoryConfig memory = new MemoryConfig();
+
+    /**
+     * Operational options for vector lifecycle operations.
+     */
+    private OperationsConfig operations = new OperationsConfig();
+
+    @Data
+    public static class OperationsConfig {
+        /**
+         * When clearing vectors from remote backends, optionally wait for eventual consistency
+         * (i.e., poll until counts reach zero) to avoid delete/write races in tests and automation.
+         */
+        private Boolean awaitClearConsistency = true;
+
+        /**
+         * Maximum time (ms) to wait for clear operations to become visible.
+         */
+        private Long awaitClearTimeoutMs = 30_000L;
+    }
     
     @Data
     public static class LuceneConfig {

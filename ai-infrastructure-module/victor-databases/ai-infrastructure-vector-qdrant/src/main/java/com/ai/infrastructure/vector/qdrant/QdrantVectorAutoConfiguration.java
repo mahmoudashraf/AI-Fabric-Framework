@@ -2,6 +2,7 @@ package com.ai.infrastructure.vector.qdrant;
 
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.config.VectorDatabaseConfig;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -21,8 +22,9 @@ public class QdrantVectorAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "qdrant")
-    public QdrantVectorDatabaseService qdrantVectorDatabaseDelegate(AIProviderConfig providerConfig) {
-        return new QdrantVectorDatabaseService(providerConfig);
+    public QdrantVectorDatabaseService qdrantVectorDatabaseDelegate(AIProviderConfig providerConfig,
+                                                                    VectorDatabaseConfig vectorDatabaseConfig) {
+        return new QdrantVectorDatabaseService(providerConfig, vectorDatabaseConfig);
     }
 
     @Bean

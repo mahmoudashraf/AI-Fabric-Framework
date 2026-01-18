@@ -1,6 +1,7 @@
 package com.ai.infrastructure.vector.pinecone;
 
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.config.VectorDatabaseConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
@@ -62,6 +63,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         Set.of("entityType", "entityId", "content", EMBEDDING_BASE64_FIELD, EMBEDDING_DIM_FIELD);
 
     private final AIProviderConfig.PineconeConfig config;
+    private final VectorDatabaseConfig vectorDatabaseConfig;
     private final String indexName;
     private final PineconeConnection connection;
     private final Index index;
@@ -69,11 +71,18 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     private volatile Boolean sparseIndex;
 
     public PineconeVectorDatabaseService(AIProviderConfig providerConfig) {
-        this(providerConfig, Index::new);
+        this(providerConfig, null, Index::new);
     }
 
     public PineconeVectorDatabaseService(AIProviderConfig providerConfig, PineconeIndexFactory indexFactory) {
+        this(providerConfig, null, indexFactory);
+    }
+
+    public PineconeVectorDatabaseService(AIProviderConfig providerConfig,
+                                         VectorDatabaseConfig vectorDatabaseConfig,
+                                         PineconeIndexFactory indexFactory) {
         this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
+        this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
         this.indexName = resolveIndexName(this.config);
         this.connection = buildConnection(this.config, this.indexName);
         this.index = Objects.requireNonNull(indexFactory, "Pinecone indexFactory must be provided")
@@ -83,6 +92,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
     PineconeVectorDatabaseService(AIProviderConfig providerConfig, PineconeConnection connection, Index index) {
         this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
+        this.vectorDatabaseConfig = new VectorDatabaseConfig();
         this.indexName = resolveIndexName(this.config);
         this.connection = Objects.requireNonNull(connection, "Pinecone connection must be provided");
         this.index = Objects.requireNonNull(index, "Pinecone index must be provided");
@@ -516,10 +526,12 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
         long cleared = 0;
         for (Map.Entry<String, NamespaceSummary> entry : stats.getNamespacesMap().entrySet()) {
+            String namespace = entry.getKey();
             int count = entry.getValue() != null ? entry.getValue().getVectorCount() : 0;
             cleared += count;
             try {
-                index.deleteAll(entry.getKey());
+                index.deleteAll(namespace);
+                awaitNamespaceCleared(namespace);
             } catch (Exception ex) {
                 // Pinecone can return NOT_FOUND when a namespace doesn't exist (race/empty namespace).
                 // Clearing is best-effort; ignore "namespace not found" and continue.
@@ -551,12 +563,56 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
         try {
             index.deleteAll(namespace);
+            awaitNamespaceCleared(namespace);
         } catch (Exception ex) {
             if (!isNamespaceNotFound(ex)) {
                 throw new AIServiceException("Failed to clear vectors for entity type", ex);
             }
         }
         return count;
+    }
+
+    /**
+     * Pinecone namespace deletions are asynchronous; poll until the namespace is empty so tests/CI don't race deletes.
+     */
+    private void awaitNamespaceCleared(String namespace) {
+        if (!StringUtils.hasText(namespace)) {
+            return;
+        }
+
+        if (vectorDatabaseConfig != null && vectorDatabaseConfig.getOperations() != null
+            && Boolean.FALSE.equals(vectorDatabaseConfig.getOperations().getAwaitClearConsistency())) {
+            return;
+        }
+
+        long timeoutMs = vectorDatabaseConfig != null && vectorDatabaseConfig.getOperations() != null
+            ? Math.max(1L, vectorDatabaseConfig.getOperations().getAwaitClearTimeoutMs())
+            : 30_000L;
+        long deadlineMs = System.currentTimeMillis() + timeoutMs;
+        long sleepMs = 250;
+
+        while (System.currentTimeMillis() < deadlineMs) {
+            try {
+                DescribeIndexStatsResponse refreshed = index.describeIndexStats();
+                if (refreshed == null) {
+                    return;
+                }
+                NamespaceSummary summary = refreshed.getNamespacesOrDefault(namespace, NamespaceSummary.getDefaultInstance());
+                if (summary == null || summary.getVectorCount() <= 0) {
+                    return;
+                }
+            } catch (Exception ex) {
+                if (isNamespaceNotFound(ex)) {
+                    return;
+                }
+                // best-effort polling
+            }
+
+            sleepQuietly(sleepMs);
+            sleepMs = Math.min(2000, sleepMs * 2);
+        }
+
+        log.warn("Timed out waiting for Pinecone namespace '{}' to clear", namespace);
     }
     
     @Override

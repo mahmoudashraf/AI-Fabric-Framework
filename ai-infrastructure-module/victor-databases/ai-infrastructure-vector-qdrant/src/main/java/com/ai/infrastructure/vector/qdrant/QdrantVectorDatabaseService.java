@@ -1,6 +1,7 @@
 package com.ai.infrastructure.vector.qdrant;
 
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.config.VectorDatabaseConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
@@ -51,11 +52,17 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     private static final Set<String> RESERVED_PAYLOAD_FIELDS = Set.of("entityType", "entityId", "content", EMBEDDING_PAYLOAD_FIELD);
 
     private final AIProviderConfig.QdrantConfig config;
+    private final VectorDatabaseConfig vectorDatabaseConfig;
     private final QdrantClient qdrantClient;
     private final ConcurrentMap<String, Boolean> collectionCache = new ConcurrentHashMap<>();
 
     public QdrantVectorDatabaseService(AIProviderConfig providerConfig) {
+        this(providerConfig, null);
+    }
+
+    public QdrantVectorDatabaseService(AIProviderConfig providerConfig, VectorDatabaseConfig vectorDatabaseConfig) {
         this.config = Objects.requireNonNull(providerConfig.getQdrant(), "Qdrant configuration must be present");
+        this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
         this.qdrantClient = new QdrantClient(buildGrpcClient(config));
     }
 
@@ -547,8 +554,50 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         if (!collectionExists(entityType)) {
             return 0L;
         }
+        long before = 0L;
+        try {
+            before = getVectorCountByEntityType(entityType);
+        } catch (Exception ignored) {
+        }
+
         await(qdrantClient.deleteAsync(entityType, Common.Filter.newBuilder().build()), "delete all points");
-        return 0;
+        awaitCollectionCleared(entityType);
+        return before;
+    }
+
+    /**
+     * Qdrant deletions can be eventually consistent; poll until the collection is empty so tests/CI don't race deletes.
+     */
+    private void awaitCollectionCleared(String entityType) {
+        if (entityType == null || entityType.isBlank()) {
+            return;
+        }
+
+        if (vectorDatabaseConfig != null && vectorDatabaseConfig.getOperations() != null
+            && Boolean.FALSE.equals(vectorDatabaseConfig.getOperations().getAwaitClearConsistency())) {
+            return;
+        }
+
+        long timeoutMs = vectorDatabaseConfig != null && vectorDatabaseConfig.getOperations() != null
+            ? Math.max(1L, vectorDatabaseConfig.getOperations().getAwaitClearTimeoutMs())
+            : 20_000L;
+        long deadlineMs = System.currentTimeMillis() + timeoutMs;
+        long sleepMs = 200;
+        while (System.currentTimeMillis() < deadlineMs) {
+            try {
+                if (getVectorCountByEntityType(entityType) <= 0) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                Thread.sleep(sleepMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            sleepMs = Math.min(1500, sleepMs * 2);
+        }
     }
 
     private void ensureEnabled() {

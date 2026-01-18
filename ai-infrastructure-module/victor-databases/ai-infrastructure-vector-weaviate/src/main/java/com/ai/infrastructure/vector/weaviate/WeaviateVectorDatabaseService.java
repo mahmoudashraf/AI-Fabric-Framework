@@ -1,6 +1,7 @@
 package com.ai.infrastructure.vector.weaviate;
 
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.config.VectorDatabaseConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
@@ -61,13 +62,19 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     private static final String PROPERTY_META_PREFIX = "meta_";
 
     private final AIProviderConfig.WeaviateConfig config;
+    private final VectorDatabaseConfig vectorDatabaseConfig;
     private final WeaviateClient client;
     private final Set<String> knownClasses = ConcurrentHashMap.newKeySet(); // cache of class names
     private final Set<String> knownEntityTypes = ConcurrentHashMap.newKeySet(); // cache of original entity types
     private final ConcurrentMap<String, Set<String>> knownPropertiesByClass = new ConcurrentHashMap<>();
 
     public WeaviateVectorDatabaseService(AIProviderConfig providerConfig) {
+        this(providerConfig, null);
+    }
+
+    public WeaviateVectorDatabaseService(AIProviderConfig providerConfig, VectorDatabaseConfig vectorDatabaseConfig) {
         this.config = Objects.requireNonNull(providerConfig.getWeaviate(), "Weaviate configuration must be present");
+        this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
         this.client = buildClient(config);
     }
 
@@ -550,7 +557,37 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
 
         List<VectorRecord> records = getVectorsByEntityType(entityType);
         records.forEach(record -> deleteById(className, record.getVectorId()));
+        awaitClassCleared(entityType);
         return records.size();
+    }
+
+    private void awaitClassCleared(String entityType) {
+        if (vectorDatabaseConfig != null && vectorDatabaseConfig.getOperations() != null
+            && Boolean.FALSE.equals(vectorDatabaseConfig.getOperations().getAwaitClearConsistency())) {
+            return;
+        }
+
+        long timeoutMs = vectorDatabaseConfig != null && vectorDatabaseConfig.getOperations() != null
+            ? Math.max(1L, vectorDatabaseConfig.getOperations().getAwaitClearTimeoutMs())
+            : 20_000L;
+        long deadlineMs = System.currentTimeMillis() + timeoutMs;
+        long sleepMs = 200;
+        while (System.currentTimeMillis() < deadlineMs) {
+            try {
+                if (getVectorCountByEntityType(entityType) <= 0) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Thread.sleep(sleepMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            sleepMs = Math.min(1500, sleepMs * 2);
+        }
     }
 
     private void ensureEnabled() {

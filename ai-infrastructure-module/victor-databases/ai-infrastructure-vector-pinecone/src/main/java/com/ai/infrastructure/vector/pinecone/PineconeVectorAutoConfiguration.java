@@ -2,6 +2,7 @@ package com.ai.infrastructure.vector.pinecone;
 
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.config.VectorDatabaseConfig;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -23,7 +24,9 @@ public class PineconeVectorAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "ai.vector-db.type", havingValue = "pinecone")
-    public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config, Environment environment) {
+    public PineconeVectorDatabaseService pineconeVectorDatabaseDelegate(AIProviderConfig config,
+                                                                        VectorDatabaseConfig vectorDatabaseConfig,
+                                                                        Environment environment) {
         AIProviderConfig.PineconeConfig pinecone = config.getPinecone();
 
         // Relationship-query realapi tests (and some apps) configure Pinecone under `ai.vector-db.pinecone.*`.
@@ -57,7 +60,7 @@ public class PineconeVectorAutoConfiguration {
             }
         }
 
-        return new PineconeVectorDatabaseService(config);
+        return new PineconeVectorDatabaseService(config, vectorDatabaseConfig);
     }
 
     @Bean
