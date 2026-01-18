@@ -74,6 +74,10 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         this(providerConfig, null, Index::new);
     }
 
+    public PineconeVectorDatabaseService(AIProviderConfig providerConfig, VectorDatabaseConfig vectorDatabaseConfig) {
+        this(providerConfig, vectorDatabaseConfig, Index::new);
+    }
+
     public PineconeVectorDatabaseService(AIProviderConfig providerConfig, PineconeIndexFactory indexFactory) {
         this(providerConfig, null, indexFactory);
     }
