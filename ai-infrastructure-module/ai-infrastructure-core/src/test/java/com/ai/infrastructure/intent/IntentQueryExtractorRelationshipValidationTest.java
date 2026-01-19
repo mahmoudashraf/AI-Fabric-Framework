@@ -217,7 +217,7 @@ class IntentQueryExtractorRelationshipValidationTest {
     }
 
     @Test
-    @DisplayName("Should default relationship_query actionParams.query when missing (and strip hint prefix)")
+    @DisplayName("Should default relationship_query actionParams.query when missing (no heuristics)")
     void shouldDefaultRelationshipQueryWhenMissing() {
         // Arrange
         String json = """
@@ -247,12 +247,12 @@ class IntentQueryExtractorRelationshipValidationTest {
 
         // Assert
         Intent intent = response.getIntents().get(0);
-        assertThat(intent.getActionParams()).containsEntry("query", "find all brands");
+        assertThat(intent.getActionParams()).containsEntry("query", "relationship query: find all brands");
     }
 
     @Test
-    @DisplayName("Should strip relationship_query hint prefix even when LLM provides query")
-    void shouldStripHintPrefixWhenProvidedByLLM() {
+    @DisplayName("Should preserve relationship_query actionParams.query provided by LLM")
+    void shouldPreserveQueryWhenProvidedByLLM() {
         // Arrange
         String json = """
             {
@@ -282,7 +282,7 @@ class IntentQueryExtractorRelationshipValidationTest {
 
         // Assert
         Intent intent = response.getIntents().get(0);
-        assertThat(intent.getActionParams()).containsEntry("query", "find all brands");
+        assertThat(intent.getActionParams()).containsEntry("query", "relationship query: find all brands");
     }
 
     @Test
@@ -319,12 +319,12 @@ class IntentQueryExtractorRelationshipValidationTest {
         // Assert
         Intent intent = response.getIntents().get(0);
         assertThat(intent.getActionParams())
-            .containsEntry("query", "find transactions over $10000");
+            .containsEntry("query", "relationship query: find transactions over $10000");
     }
 
     @Test
-    @DisplayName("Should strip trailing non-relational directives from relationship_query actionParams.query")
-    void shouldStripTrailingNonRelationalDirectiveFromRelationshipQueryText() {
+    @DisplayName("Should preserve original relationship_query query text when actionParams.query missing")
+    void shouldPreserveOriginalQueryWhenMissingQueryParam() {
         // Arrange
         String json = """
             {
@@ -353,7 +353,7 @@ class IntentQueryExtractorRelationshipValidationTest {
         // Assert
         Intent intent = response.getIntents().get(0);
         assertThat(intent.getActionParams())
-            .containsEntry("query", "find products under $100");
+            .containsEntry("query", "relationship query: find products under $100 and then explain why they are good options");
     }
 
     @Test

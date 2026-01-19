@@ -34,7 +34,6 @@ public class IntentExtractionPostProcessor {
         }
 
         response.normalize();
-        forceExplicitRelationshipQueryDirective(response, originalQuery);
         coerceMisclassifiedActionIntents(response);
         validateResponse(response, originalQuery);
 
@@ -43,60 +42,6 @@ public class IntentExtractionPostProcessor {
         }
 
         return response;
-    }
-
-    /**
-     * Deterministic override: if the user explicitly prefixes the query with
-     * {@code relationship_query:} / {@code relationship query:} / {@code relationship-query:},
-     * we treat the request as an explicit invocation of the {@code relationship_query} action.
-     *
-     * <p>This keeps the "hint prefix" contract stable even when LLM intent extraction is flaky.</p>
-     */
-    private void forceExplicitRelationshipQueryDirective(MultiIntentResponse response, String originalQuery) {
-        if (response == null || !StringUtils.hasText(originalQuery)) {
-            return;
-        }
-
-        String trimmed = originalQuery.trim();
-        if (trimmed.isEmpty()) {
-            return;
-        }
-
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
-        boolean prefixed = false;
-        for (String prefix : prefixes) {
-            if (lower.startsWith(prefix)) {
-                prefixed = true;
-                break;
-            }
-        }
-        if (!prefixed) {
-            return;
-        }
-
-        RelationshipQueryTextParser.Parts parts = RelationshipQueryTextParser.split(trimmed);
-        if (!StringUtils.hasText(parts.relationalQuery())) {
-            return;
-        }
-
-        boolean requiresGeneration = StringUtils.hasText(parts.generationInstructions());
-        Intent forced = Intent.builder()
-            .type(IntentType.ACTION)
-            .action("relationship_query")
-            .confidence(1.0d)
-            .requiresRetrieval(false)
-            .requiresGeneration(requiresGeneration)
-            .generationInstructions(parts.generationInstructions())
-            .actionParams(Map.of(
-                "query", parts.relationalQuery(),
-                "entityTypes", List.of()
-            ))
-            .build();
-
-        response.setIntents(List.of(forced));
-        response.setCompound(false);
-        response.setOrchestrationStrategy("DIRECT_ACTION");
     }
 
     /**
@@ -205,23 +150,6 @@ public class IntentExtractionPostProcessor {
 
         Map<String, Object> params = intent.getActionParams();
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
-
-        Object rawQuery = mutable.get("query");
-        RelationshipQueryTextParser.Parts parts;
-        if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            parts = RelationshipQueryTextParser.split(text);
-        } else {
-            parts = RelationshipQueryTextParser.split(originalQuery);
-        }
-        if (StringUtils.hasText(parts.relationalQuery())) {
-            mutable.put("query", parts.relationalQuery());
-        }
-        if (StringUtils.hasText(parts.generationInstructions()) && !StringUtils.hasText(intent.getGenerationInstructions())) {
-            intent.setGenerationInstructions(parts.generationInstructions());
-            if (!Boolean.TRUE.equals(intent.getRequiresGeneration())) {
-                intent.setRequiresGeneration(true);
-            }
-        }
 
         Object rawEntityTypes = mutable.get("entityTypes");
 

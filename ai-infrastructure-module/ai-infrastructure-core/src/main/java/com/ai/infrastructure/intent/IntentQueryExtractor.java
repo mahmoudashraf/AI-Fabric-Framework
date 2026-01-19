@@ -322,24 +322,14 @@ public class IntentQueryExtractor {
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
         // The relationship_query action handler requires actionParams.query.
-        // Some providers omit it, and some include the hint prefix inside it. We normalize deterministically:
-        // - If present: strip known hint prefixes and trim.
-        // - If missing/blank: derive from the original user query (also stripping hint prefixes).
+        // Some providers omit it. We do NOT attempt to parse/strip natural-language directives here.
+        // The intent extraction model is responsible for splitting relational actionParams.query from any
+        // post-action generation request (requiresGeneration + generationInstructions).
         Object rawQuery = mutable.get("query");
-        RelationshipQueryTextParser.Parts parts;
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            parts = RelationshipQueryTextParser.split(text);
-        } else {
-            parts = RelationshipQueryTextParser.split(originalQuery);
-        }
-        if (StringUtils.hasText(parts.relationalQuery())) {
-            mutable.put("query", parts.relationalQuery());
-        }
-        if (StringUtils.hasText(parts.generationInstructions()) && !StringUtils.hasText(intent.getGenerationInstructions())) {
-            intent.setGenerationInstructions(parts.generationInstructions());
-            if (!Boolean.TRUE.equals(intent.getRequiresGeneration())) {
-                intent.setRequiresGeneration(true);
-            }
+            mutable.put("query", text.trim());
+        } else if (StringUtils.hasText(originalQuery)) {
+            mutable.put("query", originalQuery.trim());
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");

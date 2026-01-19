@@ -12,7 +12,6 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.intent.RelationshipQueryTextParser;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -491,27 +490,6 @@ public class IntentHandlingStep implements PipelineStep {
         if (intent != null && StringUtils.hasText(intent.getGenerationInstructions())) {
             requested = true;
             instructions = intent.getGenerationInstructions();
-        }
-
-        if (!StringUtils.hasText(instructions) && pipelineContext != null && StringUtils.hasText(pipelineContext.getEffectiveQuery())) {
-            RelationshipQueryTextParser.Parts parts = RelationshipQueryTextParser.split(pipelineContext.getEffectiveQuery());
-            if (parts != null && StringUtils.hasText(parts.generationInstructions())) {
-                requested = true;
-                instructions = parts.generationInstructions();
-            }
-        }
-
-        // Ensure we never execute relationship_query with non-relational trailing directives.
-        Object rawQuery = params != null ? params.get("query") : null;
-        if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            RelationshipQueryTextParser.Parts parts = RelationshipQueryTextParser.split(text);
-            if (parts != null && StringUtils.hasText(parts.relationalQuery())) {
-                params.put("query", parts.relationalQuery());
-            }
-            if (!StringUtils.hasText(instructions) && parts != null && StringUtils.hasText(parts.generationInstructions())) {
-                requested = true;
-                instructions = parts.generationInstructions();
-            }
         }
 
         return new ResolvedPostActionGeneration(requested, instructions);
