@@ -140,7 +140,7 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
             .active(true)
             .build());
         capabilityService.processEntityForAI(product, "test-product");
-        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", product.getId().toString(), Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", product.getId().toString(), Duration.ofSeconds(60));
 
         TestArticle article = articleRepository.save(TestArticle.builder()
             .title("PrivacyGuard audit evidence checklist")
@@ -154,7 +154,7 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
             .viewCount(120)
             .build());
         capabilityService.processEntityForAI(article, "test-article");
-        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-article", article.getId().toString(), Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-article", article.getId().toString(), Duration.ofSeconds(60));
     }
 
     private void assumeRealApiConfigured() {

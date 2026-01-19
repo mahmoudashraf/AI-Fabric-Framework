@@ -27,12 +27,9 @@ public class ONNXAutoConfiguration {
     @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
     public EmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
         log.info("Creating ONNX Embedding Provider (primary/default)");
-        ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
-        if (!provider.isAvailable()) {
-            log.warn("WARNING: ONNX Embedding Provider is not available. Model file may be missing.");
-            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnx().getModelPath());
-        }
-        return provider;
+        // Availability is determined during the provider's @PostConstruct initialization. Checking here
+        // would always report "unavailable" and produce misleading warnings.
+        return new ONNXEmbeddingProvider(config);
     }
 
     @Bean(name = "onnxFallbackEmbeddingProvider")
@@ -40,11 +37,6 @@ public class ONNXAutoConfiguration {
     @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
     public EmbeddingProvider onnxFallbackEmbeddingProvider(AIProviderConfig config) {
         log.info("Creating ONNX fallback Embedding Provider");
-        ONNXEmbeddingProvider provider = new ONNXEmbeddingProvider(config);
-        if (!provider.isAvailable()) {
-            log.warn("WARNING: ONNX fallback provider is not available. Model file may be missing.");
-            log.warn("Please ensure the ONNX model file exists at: {}", config.getOnnx().getModelPath());
-        }
-        return provider;
+        return new ONNXEmbeddingProvider(config);
     }
 }

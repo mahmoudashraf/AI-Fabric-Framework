@@ -105,7 +105,7 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         );
 
         String entityId = baseline.getId().toString();
-        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(60));
         var baselineVector = vectorManagementService.getVector("test-product", entityId)
             .orElseThrow(() -> new AssertionError("baseline vector missing"));
         assertThat(baselineVector.getVectorId()).isNotNull();
@@ -271,7 +271,7 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
         }
 
         // Verify vector still exists (wasn't cleared by invalid action)
-        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(60));
         assertThat(vectorManagementService.vectorExists("test-product", entityId))
             .as("vector should remain intact when action fails")
             .isTrue();

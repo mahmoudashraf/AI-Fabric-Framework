@@ -87,7 +87,7 @@ public class RealAPIActionFlowIntegrationTest {
             new BigDecimal("149.50")
         );
         String entityId = legacyDevice.getId().toString();
-        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", entityId, Duration.ofSeconds(60));
 
         String userId = "real-action-removal-user";
         String query = """
@@ -147,7 +147,7 @@ public class RealAPIActionFlowIntegrationTest {
                 .as("Action should be marked as successful")
                 .isTrue();
             // Verify the primary action result: vector should be removed
-            RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
+            RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(60));
         } else {
             assertThat(data).isNotNull();
             Object actionValue = data.get("action");
@@ -166,7 +166,7 @@ public class RealAPIActionFlowIntegrationTest {
                     .as("Action should be marked as successful")
                     .isTrue();
                 // Verify the primary action result: vector should be removed
-                RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
+                RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(60));
             } else {
                 assertThat(actionResult).isNotNull();
                 assertThat(actionResult.get("success")).isEqualTo(Boolean.TRUE);
@@ -178,11 +178,11 @@ public class RealAPIActionFlowIntegrationTest {
                 assertThat(actionData.get("removed")).isEqualTo(Boolean.TRUE);
                 assertThat(actionResult.getOrDefault("message", "")).asString().doesNotContain("5204");
 
-                RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
+                RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(60));
             }
         }
 
-        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", entityId, Duration.ofSeconds(60));
 
         // Verify suggestions don't contain PII if present
         if (payload.containsKey("suggestions")) {
@@ -345,8 +345,8 @@ public class RealAPIActionFlowIntegrationTest {
                 .doesNotContain("555-991-2045");
         }
 
-        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", playbook.getId().toString(), Duration.ofSeconds(20));
-        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", diagnostics.getId().toString(), Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", playbook.getId().toString(), Duration.ofSeconds(60));
+        RealAPITestSupport.awaitVectorMissing(vectorManagementService, "test-product", diagnostics.getId().toString(), Duration.ofSeconds(60));
 
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(history).isNotEmpty();

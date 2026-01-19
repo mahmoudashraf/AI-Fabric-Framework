@@ -535,11 +535,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             int count = entry.getValue() != null ? entry.getValue().getVectorCount() : 0;
             cleared += count;
             try {
-                withPineconeRetry("deleteAll", () -> {
-                    index.deleteAll(namespace);
-                    return null;
-                });
-                awaitNamespaceCleared(namespace);
+                clearNamespace(namespace);
             } catch (Exception ex) {
                 // Pinecone can return NOT_FOUND when a namespace doesn't exist (race/empty namespace).
                 // Clearing is best-effort; ignore "namespace not found" and continue.
@@ -567,17 +563,84 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         try {
-            withPineconeRetry("deleteAll", () -> {
-                index.deleteAll(namespace);
-                return null;
-            });
-            awaitNamespaceCleared(namespace);
+            clearNamespace(namespace);
         } catch (Exception ex) {
             if (!isNamespaceNotFound(ex)) {
                 throw new AIServiceException("Failed to clear vectors for entity type", ex);
             }
         }
         return count;
+    }
+
+    /**
+     * Clear a namespace deterministically when configured to await clear consistency.
+     *
+     * <p>Pinecone's {@code deleteAll(namespace)} is asynchronous and can race with subsequent upserts in the
+     * same namespace. When deterministic clears are required (tests/CI, admin automation), prefer a
+     * synchronous delete-by-IDs loop so we do not leave a background delete task that can remove
+     * newly written vectors.</p>
+     */
+    private void clearNamespace(String namespace) {
+        if (!StringUtils.hasText(namespace)) {
+            return;
+        }
+
+        if (shouldAwaitClearConsistency()) {
+            clearNamespaceByListing(namespace);
+        } else {
+            withPineconeRetry("deleteAll", () -> {
+                index.deleteAll(namespace);
+                return null;
+            });
+        }
+
+        awaitNamespaceCleared(namespace);
+    }
+
+    private void clearNamespaceByListing(String namespace) {
+        long deadlineMs = System.currentTimeMillis() + resolveAwaitClearTimeoutMs();
+        long sleepMs = 250;
+
+        while (System.currentTimeMillis() < deadlineMs) {
+            ListResponse listed;
+            try {
+                listed = withPineconeRetry("list", () -> index.list(namespace, 100));
+            } catch (Exception ex) {
+                if (isNamespaceNotFound(ex)) {
+                    return;
+                }
+                throw ex;
+            }
+
+            if (listed == null || listed.getVectorsCount() == 0) {
+                return;
+            }
+
+            List<String> ids = listed.getVectorsList().stream()
+                .map(ListItem::getId)
+                .filter(StringUtils::hasText)
+                .toList();
+
+            if (ids.isEmpty()) {
+                return;
+            }
+
+            try {
+                withPineconeRetry("deleteByIds", () -> {
+                    index.deleteByIds(ids, namespace);
+                    return null;
+                });
+            } catch (Exception ex) {
+                if (!isNamespaceNotFound(ex)) {
+                    throw ex;
+                }
+            }
+
+            sleepQuietly(sleepMs);
+            sleepMs = Math.min(2000, sleepMs * 2);
+        }
+
+        log.warn("Timed out waiting for Pinecone namespace '{}' to clear via list+delete", namespace);
     }
 
     /**
@@ -588,15 +651,11 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             return;
         }
 
-        if (vectorDatabaseConfig != null && vectorDatabaseConfig.getOperations() != null
-            && Boolean.FALSE.equals(vectorDatabaseConfig.getOperations().getAwaitClearConsistency())) {
+        if (!shouldAwaitClearConsistency()) {
             return;
         }
 
-        long timeoutMs = vectorDatabaseConfig != null && vectorDatabaseConfig.getOperations() != null
-            ? Math.max(1L, vectorDatabaseConfig.getOperations().getAwaitClearTimeoutMs())
-            : 30_000L;
-        long deadlineMs = System.currentTimeMillis() + timeoutMs;
+        long deadlineMs = System.currentTimeMillis() + resolveAwaitClearTimeoutMs();
         long sleepMs = 250;
 
         while (System.currentTimeMillis() < deadlineMs) {
@@ -618,6 +677,23 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         log.warn("Timed out waiting for Pinecone namespace '{}' to clear", namespace);
+    }
+
+    private boolean shouldAwaitClearConsistency() {
+        return vectorDatabaseConfig == null
+            || vectorDatabaseConfig.getOperations() == null
+            || !Boolean.FALSE.equals(vectorDatabaseConfig.getOperations().getAwaitClearConsistency());
+    }
+
+    private long resolveAwaitClearTimeoutMs() {
+        if (vectorDatabaseConfig == null || vectorDatabaseConfig.getOperations() == null) {
+            return 30_000L;
+        }
+        Long configured = vectorDatabaseConfig.getOperations().getAwaitClearTimeoutMs();
+        if (configured == null) {
+            return 30_000L;
+        }
+        return Math.max(1L, configured);
     }
     
     @Override
