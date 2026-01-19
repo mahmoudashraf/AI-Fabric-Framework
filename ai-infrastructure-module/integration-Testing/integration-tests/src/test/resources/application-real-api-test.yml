@@ -42,6 +42,9 @@ test:
 # AI Configuration for Real API Testing
 ai:
   enabled: true
+  intent-extraction:
+    progressive:
+      enabled: true
   vector-db:
     operations:
       # Pinecone deleteAll() is eventually consistent; tests that clear then immediately upsert
