@@ -75,19 +75,21 @@ public class IntentExtractionPostProcessor {
             return;
         }
 
-        String normalizedQuery = normalizeRelationshipQueryText(trimmed);
-        if (!StringUtils.hasText(normalizedQuery)) {
+        RelationshipQueryTextParser.Parts parts = RelationshipQueryTextParser.split(trimmed);
+        if (!StringUtils.hasText(parts.relationalQuery())) {
             return;
         }
 
+        boolean requiresGeneration = StringUtils.hasText(parts.generationInstructions());
         Intent forced = Intent.builder()
             .type(IntentType.ACTION)
             .action("relationship_query")
             .confidence(1.0d)
             .requiresRetrieval(false)
-            .requiresGeneration(false)
+            .requiresGeneration(requiresGeneration)
+            .generationInstructions(parts.generationInstructions())
             .actionParams(Map.of(
-                "query", normalizedQuery,
+                "query", parts.relationalQuery(),
                 "entityTypes", List.of()
             ))
             .build();
@@ -205,14 +207,20 @@ public class IntentExtractionPostProcessor {
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
         Object rawQuery = mutable.get("query");
-        String normalizedQuery;
+        RelationshipQueryTextParser.Parts parts;
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            normalizedQuery = normalizeRelationshipQueryText(text);
+            parts = RelationshipQueryTextParser.split(text);
         } else {
-            normalizedQuery = normalizeRelationshipQueryText(originalQuery);
+            parts = RelationshipQueryTextParser.split(originalQuery);
         }
-        if (StringUtils.hasText(normalizedQuery)) {
-            mutable.put("query", normalizedQuery);
+        if (StringUtils.hasText(parts.relationalQuery())) {
+            mutable.put("query", parts.relationalQuery());
+        }
+        if (StringUtils.hasText(parts.generationInstructions()) && !StringUtils.hasText(intent.getGenerationInstructions())) {
+            intent.setGenerationInstructions(parts.generationInstructions());
+            if (!Boolean.TRUE.equals(intent.getRequiresGeneration())) {
+                intent.setRequiresGeneration(true);
+            }
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");
@@ -239,58 +247,5 @@ public class IntentExtractionPostProcessor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
-    }
-
-    private String normalizeRelationshipQueryText(String query) {
-        if (!StringUtils.hasText(query)) {
-            return null;
-        }
-        String trimmed = query.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
-        for (String prefix : prefixes) {
-            if (lower.startsWith(prefix)) {
-                String withoutPrefix = trimmed.substring(prefix.length()).trim();
-                return stripTrailingNonRelationalDirective(withoutPrefix);
-            }
-        }
-        return stripTrailingNonRelationalDirective(trimmed);
-    }
-
-    private String stripTrailingNonRelationalDirective(String text) {
-        if (!StringUtils.hasText(text)) {
-            return text;
-        }
-        String trimmed = text.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-
-        int idx = lower.indexOf(" and then ");
-        int boundaryLen = " and then ".length();
-        if (idx < 0) {
-            idx = lower.indexOf(" then ");
-            boundaryLen = " then ".length();
-        }
-        if (idx < 0) {
-            return trimmed;
-        }
-
-        String after = lower.substring(idx + boundaryLen);
-        boolean looksNonRelational =
-            after.contains("summariz")
-                || after.contains("explain")
-                || after.contains(" why ")
-                || after.startsWith("why ")
-                || after.contains("describe")
-                || after.contains("analyz")
-                || after.contains("recommend")
-                || after.contains("write ")
-                || after.contains("generate ")
-                || after.contains("tell me");
-
-        if (!looksNonRelational) {
-            return trimmed;
-        }
-
-        return trimmed.substring(0, idx).trim();
     }
 }

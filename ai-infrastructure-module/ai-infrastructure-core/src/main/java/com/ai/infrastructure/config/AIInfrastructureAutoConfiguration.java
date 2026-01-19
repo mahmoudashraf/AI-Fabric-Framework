@@ -80,6 +80,7 @@ import java.util.stream.Collectors;
 	        AIServiceConfig.class,
             VectorDatabaseConfig.class,
             ProgressiveIntentExtractionProperties.class,
+            RelationshipQueryPostActionGenerationProperties.class,
             VectorSpaceRoutingProperties.class,
 	        SmartSuggestionsProperties.class,
 	        ResponseSanitizationProperties.class,

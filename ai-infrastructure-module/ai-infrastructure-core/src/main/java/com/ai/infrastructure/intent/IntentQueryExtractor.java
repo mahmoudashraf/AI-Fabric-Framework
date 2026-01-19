@@ -326,14 +326,20 @@ public class IntentQueryExtractor {
         // - If present: strip known hint prefixes and trim.
         // - If missing/blank: derive from the original user query (also stripping hint prefixes).
         Object rawQuery = mutable.get("query");
-        String normalizedQuery = null;
+        RelationshipQueryTextParser.Parts parts;
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            normalizedQuery = normalizeRelationshipQueryText(text);
+            parts = RelationshipQueryTextParser.split(text);
         } else {
-            normalizedQuery = normalizeRelationshipQueryText(originalQuery);
+            parts = RelationshipQueryTextParser.split(originalQuery);
         }
-        if (StringUtils.hasText(normalizedQuery)) {
-            mutable.put("query", normalizedQuery);
+        if (StringUtils.hasText(parts.relationalQuery())) {
+            mutable.put("query", parts.relationalQuery());
+        }
+        if (StringUtils.hasText(parts.generationInstructions()) && !StringUtils.hasText(intent.getGenerationInstructions())) {
+            intent.setGenerationInstructions(parts.generationInstructions());
+            if (!Boolean.TRUE.equals(intent.getRequiresGeneration())) {
+                intent.setRequiresGeneration(true);
+            }
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");
@@ -360,69 +366,6 @@ public class IntentQueryExtractor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
-    }
-
-    private String normalizeRelationshipQueryText(String query) {
-        if (!StringUtils.hasText(query)) {
-            return null;
-        }
-        String trimmed = query.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        // Common hint used by tests and some callers to guide intent extraction.
-        // We store the actual query without the hint prefix for the relationship_query action handler.
-        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
-        for (String prefix : prefixes) {
-            if (lower.startsWith(prefix)) {
-                String withoutPrefix = trimmed.substring(prefix.length()).trim();
-                return stripTrailingNonRelationalDirective(withoutPrefix);
-            }
-        }
-        return stripTrailingNonRelationalDirective(trimmed);
-    }
-
-    /**
-     * Provider-agnostic normalization: when a user explicitly uses the "relationship query:" hint,
-     * they often append a non-relational follow-up request (e.g., "and then summarize/explain").
-     * The relationship_query action handler expects only the relational query text.
-     *
-     * <p>This is intentionally conservative: it only strips when a clear non-relational directive
-     * follows a "then/and then" boundary.</p>
-     */
-    private String stripTrailingNonRelationalDirective(String text) {
-        if (!StringUtils.hasText(text)) {
-            return text;
-        }
-        String trimmed = text.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-
-        int idx = lower.indexOf(" and then ");
-        int boundaryLen = " and then ".length();
-        if (idx < 0) {
-            idx = lower.indexOf(" then ");
-            boundaryLen = " then ".length();
-        }
-        if (idx < 0) {
-            return trimmed;
-        }
-
-        String after = lower.substring(idx + boundaryLen);
-        boolean looksNonRelational =
-            after.contains("summariz")
-                || after.contains("explain")
-                || after.contains(" why ")
-                || after.startsWith("why ")
-                || after.contains("describe")
-                || after.contains("analyz")
-                || after.contains("recommend")
-                || after.contains("write ")
-                || after.contains("generate ")
-                || after.contains("tell me");
-
-        if (!looksNonRelational) {
-            return trimmed;
-        }
-
-        return trimmed.substring(0, idx).trim();
     }
 
     @Deprecated(forRemoval = true)

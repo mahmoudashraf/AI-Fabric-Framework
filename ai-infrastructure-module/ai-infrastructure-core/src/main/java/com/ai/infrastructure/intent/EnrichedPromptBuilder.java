@@ -130,10 +130,11 @@ public class EnrichedPromptBuilder {
         prompt.append("   - actionParams.query is REQUIRED and MUST contain the natural-language relationship query to execute.\n");
         prompt.append("     * If the user's message starts with the hint prefix \"relationship_query:\", actionParams.query MUST be the text after that prefix.\n");
         prompt.append("     * If the user's message is compound, actionParams.query MUST contain ONLY the relational part (exclude unrelated tasks like summarization or other actions).\n");
+        prompt.append("     * If the user requests post-processing of the relational results (e.g., \"then summarize\", \"then explain\", \"then recommend\"), set requiresGeneration=true and put the instruction in generationInstructions.\n");
         prompt.append("     * Do NOT rewrite the user's query or add constraints that the user did not ask for.\n");
         prompt.append("   - Examples:\n");
         prompt.append("     * {\"type\":\"ACTION\",\"action\":\"relationship_query\",\"actionParams\":{\"query\":\"find all brands\",\"entityTypes\":[\"brand\"],\"limit\":20}}\n");
-        prompt.append("     * For user message \"relationship_query: find all brands and then summarize\": set actionParams.query=\"find all brands\".\n\n");
+        prompt.append("     * For user message \"relationship_query: find all brands and then summarize\": set actionParams.query=\"find all brands\", requiresGeneration=true, generationInstructions=\"summarize\".\n\n");
 
         prompt.append("10. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
     }
@@ -160,6 +161,7 @@ public class EnrichedPromptBuilder {
                   "vectorSpace": "policies | faq | ...",
                   "requiresRetrieval": true,
                   "requiresGeneration": false,
+                  "generationInstructions": "optional post-action generation instruction",
                   "needsAdvancedRAG": false,
                   "optimizedQuery": "Product entities with price_usd < 60.00 AND stock_status = 'in_stock'",
                   "nextStepRecommended": {

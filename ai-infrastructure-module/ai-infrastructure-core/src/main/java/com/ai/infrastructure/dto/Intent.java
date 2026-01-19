@@ -64,6 +64,16 @@ public class Intent {
     private Boolean requiresGeneration;
 
     /**
+     * Optional post-action generation instructions.
+     *
+     * <p>This is primarily used for chained requests such as "run relationship_query, then summarize/explain the results".
+     * When populated for {@link IntentType#ACTION} intents, the orchestrator may execute the action and then invoke the
+     * generation LLM using this instruction text plus the action output as grounded facts.</p>
+     */
+    @JsonAlias({"generation_instructions", "generationInstructions"})
+    private String generationInstructions;
+
+    /**
      * Whether this intent needs advanced RAG (query expansion, re-ranking, context optimization).
      *
      * <p>This value is expected to be produced by the intent extractor LLM. When absent (null),
@@ -158,6 +168,16 @@ public class Intent {
         }
         if (optimizedQuery != null && optimizedQuery.isBlank()) {
             optimizedQuery = null;
+        }
+        if (generationInstructions != null) {
+            String trimmed = generationInstructions.trim();
+            if (trimmed.isEmpty()) {
+                generationInstructions = null;
+            } else if (trimmed.length() > 1000) {
+                generationInstructions = trimmed.substring(0, 1000);
+            } else {
+                generationInstructions = trimmed;
+            }
         }
         if (nextStepRecommended != null && nextStepRecommended.getConfidence() != null) {
             double value = Math.max(0.0d, Math.min(1.0d, nextStepRecommended.getConfidence()));
