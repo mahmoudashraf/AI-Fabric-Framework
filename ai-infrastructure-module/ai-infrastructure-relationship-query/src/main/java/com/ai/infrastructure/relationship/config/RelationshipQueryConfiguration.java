@@ -6,6 +6,7 @@ import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
+import com.ai.infrastructure.relationship.action.RelationshipQueryActionHandler;
 import com.ai.infrastructure.relationship.service.DefaultRelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
@@ -16,6 +17,7 @@ import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
 import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
 import com.ai.infrastructure.relationship.service.RelationshipTraversalService;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
+import com.ai.infrastructure.relationship.spi.RelationshipQueryAccessControlPolicy;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
 import com.ai.infrastructure.rag.VectorDatabaseService;
@@ -27,6 +29,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
@@ -174,6 +177,20 @@ class RelationshipQueryConfiguration {
     @ConditionalOnMissingBean
     ReliableRelationshipQueryService reliableRelationshipQueryService(LLMDrivenJPAQueryService llmDrivenJPAQueryService) {
         return new ReliableRelationshipQueryService(llmDrivenJPAQueryService);
+    }
+
+    @Bean
+    @ConditionalOnBean({ReliableRelationshipQueryService.class, RelationshipQueryAccessControlPolicy.class})
+    @ConditionalOnProperty(
+        prefix = "ai.infrastructure.relationship",
+        name = "enable-orchestrator-integration",
+        havingValue = "true",
+        matchIfMissing = true
+    )
+    @ConditionalOnMissingBean
+    RelationshipQueryActionHandler relationshipQueryActionHandler(ReliableRelationshipQueryService queryService,
+                                                                  RelationshipQueryAccessControlPolicy accessControlPolicy) {
+        return new RelationshipQueryActionHandler(queryService, accessControlPolicy);
     }
 
     /**

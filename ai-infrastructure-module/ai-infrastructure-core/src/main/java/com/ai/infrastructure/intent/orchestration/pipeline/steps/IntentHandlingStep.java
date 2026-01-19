@@ -12,6 +12,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.intent.RelationshipQueryTextParser;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -276,7 +277,8 @@ public class IntentHandlingStep implements PipelineStep {
         String identifier = context.getIdentifier();
 
         Map<String, Object> effectiveParams = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
-        if (shouldRunPostActionGeneration(actionName, intent)) {
+        ResolvedPostActionGeneration postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
+        if (postActionRequest.shouldGenerate()) {
             // Post-action generation needs materialized content/metadata to stay grounded.
             // ReturnMode is an application-level parameter (not extracted by the LLM), so we apply it here.
             effectiveParams.putIfAbsent("returnMode", "FULL");
@@ -327,7 +329,8 @@ public class IntentHandlingStep implements PipelineStep {
                 intent,
                 actionResult,
                 context,
-                pipelineContext
+                pipelineContext,
+                postActionRequest
             );
             if (postActionGeneration != null) {
                 message = postActionGeneration.message();
@@ -370,8 +373,9 @@ public class IntentHandlingStep implements PipelineStep {
                                                                       Intent intent,
                                                                       ActionResult actionResult,
                                                                       OrchestrationContext context,
-                                                                      PipelineContext pipelineContext) {
-        if (!shouldRunPostActionGeneration(actionName, intent)) {
+                                                                      PipelineContext pipelineContext,
+                                                                      ResolvedPostActionGeneration request) {
+        if (request == null || !request.shouldGenerate()) {
             return null;
         }
         if (actionResult == null || !actionResult.isSuccess()) {
@@ -399,9 +403,10 @@ public class IntentHandlingStep implements PipelineStep {
             relationshipQueryPostActionGenerationProperties.getMaxItems(),
             relationshipQueryPostActionGenerationProperties.getMaxChars());
 
-        String instruction = StringUtils.hasText(intent.getGenerationInstructions())
-            ? intent.getGenerationInstructions()
-            : "Summarize the results for the user.";
+        String instruction = request.generationInstructions();
+        if (!StringUtils.hasText(instruction)) {
+            instruction = "Summarize the results for the user.";
+        }
         if (instruction.length() > 500) {
             instruction = instruction.substring(0, 500);
         }
@@ -467,6 +472,49 @@ public class IntentHandlingStep implements PipelineStep {
             return false;
         }
         return intent != null && Boolean.TRUE.equals(intent.getRequiresGeneration());
+    }
+
+    private ResolvedPostActionGeneration resolvePostActionGeneration(String actionName,
+                                                                     Intent intent,
+                                                                     PipelineContext pipelineContext,
+                                                                     Map<String, Object> params) {
+        if (!"relationship_query".equalsIgnoreCase(actionName)) {
+            return ResolvedPostActionGeneration.disabled();
+        }
+        if (relationshipQueryPostActionGenerationProperties == null || !relationshipQueryPostActionGenerationProperties.isEnabled()) {
+            return ResolvedPostActionGeneration.disabled();
+        }
+
+        String instructions = null;
+        boolean requested = intent != null && Boolean.TRUE.equals(intent.getRequiresGeneration());
+
+        if (intent != null && StringUtils.hasText(intent.getGenerationInstructions())) {
+            requested = true;
+            instructions = intent.getGenerationInstructions();
+        }
+
+        if (!StringUtils.hasText(instructions) && pipelineContext != null && StringUtils.hasText(pipelineContext.getEffectiveQuery())) {
+            RelationshipQueryTextParser.Parts parts = RelationshipQueryTextParser.split(pipelineContext.getEffectiveQuery());
+            if (parts != null && StringUtils.hasText(parts.generationInstructions())) {
+                requested = true;
+                instructions = parts.generationInstructions();
+            }
+        }
+
+        // Ensure we never execute relationship_query with non-relational trailing directives.
+        Object rawQuery = params != null ? params.get("query") : null;
+        if (rawQuery instanceof String text && StringUtils.hasText(text)) {
+            RelationshipQueryTextParser.Parts parts = RelationshipQueryTextParser.split(text);
+            if (parts != null && StringUtils.hasText(parts.relationalQuery())) {
+                params.put("query", parts.relationalQuery());
+            }
+            if (!StringUtils.hasText(instructions) && parts != null && StringUtils.hasText(parts.generationInstructions())) {
+                requested = true;
+                instructions = parts.generationInstructions();
+            }
+        }
+
+        return new ResolvedPostActionGeneration(requested, instructions);
     }
 
     private Map<String, Object> coerceToMap(Object value) {
@@ -588,6 +636,12 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private record PostActionGenerationOutcome(String summary, String message, Map<String, Object> metadata) {
+    }
+
+    private record ResolvedPostActionGeneration(boolean shouldGenerate, String generationInstructions) {
+        static ResolvedPostActionGeneration disabled() {
+            return new ResolvedPostActionGeneration(false, null);
+        }
     }
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {

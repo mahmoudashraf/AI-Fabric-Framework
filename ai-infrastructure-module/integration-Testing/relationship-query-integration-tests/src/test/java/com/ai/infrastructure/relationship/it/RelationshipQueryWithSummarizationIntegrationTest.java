@@ -4,6 +4,7 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -18,6 +19,7 @@ import com.ai.infrastructure.relationship.it.repository.ProductRepository;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -27,9 +29,11 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@SpringBootTest(
-    classes = RelationshipQueryIntegrationTestApplication.class,
-    properties = {
+    @SpringBootTest(
+        classes = RelationshipQueryIntegrationTestApplication.class,
+        properties = {
+        "ai.infrastructure.relationship.enabled=true",
+        "ai.infrastructure.relationship.enable-orchestrator-integration=true",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.datasource.url=jdbc:h2:mem:rq_summarization;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
         "spring.datasource.driverClassName=org.h2.Driver",
@@ -59,19 +63,21 @@ class RelationshipQueryWithSummarizationIntegrationTest {
         AIProvider testAiProvider() {
             return new TestAiProvider();
         }
+
+        @Bean
+        EntityAccessPolicy allowAllEntityAccessPolicy() {
+            return (userId, entity) -> true;
+        }
     }
 
-    private final BrandRepository brandRepository;
-    private final ProductRepository productRepository;
-    private final RAGOrchestrator orchestrator;
+    @Autowired
+    private BrandRepository brandRepository;
 
-    RelationshipQueryWithSummarizationIntegrationTest(BrandRepository brandRepository,
-                                                      ProductRepository productRepository,
-                                                      RAGOrchestrator orchestrator) {
-        this.brandRepository = brandRepository;
-        this.productRepository = productRepository;
-        this.orchestrator = orchestrator;
-    }
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private RAGOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
@@ -113,7 +119,16 @@ class RelationshipQueryWithSummarizationIntegrationTest {
         );
 
         Assertions.assertThat(result).isNotNull();
-        Assertions.assertThat(result.isSuccess()).isTrue();
+        Assertions.assertThat(result.isSuccess())
+            .withFailMessage(
+                "Expected orchestrator success but got type=%s success=%s message=%s dataKeys=%s metadataKeys=%s",
+                result.getType(),
+                result.isSuccess(),
+                result.getMessage(),
+                result.getData() != null ? result.getData().keySet() : null,
+                result.getMetadata() != null ? result.getMetadata().keySet() : null
+            )
+            .isTrue();
         Assertions.assertThat(result.getMessage()).containsIgnoringCase("nike");
         Assertions.assertThat(result.getMessage()).containsIgnoringCase("blue");
         Assertions.assertThat(result.getMessage()).contains("85");
@@ -281,4 +296,3 @@ class RelationshipQueryWithSummarizationIntegrationTest {
         }
     }
 }
-

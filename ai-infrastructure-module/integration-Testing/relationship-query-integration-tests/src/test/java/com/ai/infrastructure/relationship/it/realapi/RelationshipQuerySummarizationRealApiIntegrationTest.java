@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("realapi")
 @Import({
     BackendEnvTestConfiguration.class,
+    OrchestratorAccessPolicyRealApiIntegrationTest.PolicyConfig.class,
     TestRelationshipQueryAccessControlPolicy.class
 })
 @TestPropertySource(properties = {
@@ -217,4 +218,3 @@ class RelationshipQuerySummarizationRealApiIntegrationTest {
 
     private record ParsedProduct(String name, String color, BigDecimal price) {}
 }
-

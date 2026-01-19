@@ -10,14 +10,14 @@ import java.util.Locale;
  * <p>This parser keeps the relational query clean while preserving trailing non-relational directives
  * (e.g., "then summarize/explain") as generation instructions.</p>
  */
-final class RelationshipQueryTextParser {
+public final class RelationshipQueryTextParser {
 
     private static final String[] PREFIXES = { "relationship query:", "relationship_query:", "relationship-query:" };
 
     private RelationshipQueryTextParser() {
     }
 
-    static Parts split(String text) {
+    public static Parts split(String text) {
         if (!StringUtils.hasText(text)) {
             return new Parts(null, null);
         }
@@ -115,10 +115,9 @@ final class RelationshipQueryTextParser {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    record Parts(String relationalQuery, String generationInstructions) {
+    public record Parts(String relationalQuery, String generationInstructions) {
     }
 
     private record SplitResult(String relationalQuery, String generationInstructions) {
     }
 }
-

@@ -19,6 +19,12 @@ import org.springframework.context.annotation.Primary;
 @AutoConfiguration
 @AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @ConditionalOnClass(ONNXEmbeddingProvider.class)
+@ConditionalOnProperty(
+    prefix = "ai.service.features",
+    name = "enable-embeddings",
+    havingValue = "true",
+    matchIfMissing = true
+)
 public class ONNXAutoConfiguration {
 
     @Bean

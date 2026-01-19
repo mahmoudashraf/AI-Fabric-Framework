@@ -124,24 +124,36 @@ public class RelationshipQueryValidator {
                     try {
                         RelationshipMapping mapping = relationshipMapper.getRelationshipMapping(
                             path.getFromEntityType(),
-                            path.getToEntityType()
+                            path.getRelationshipType()
                         );
-                        if (mapping != null && StringUtils.hasText(mapping.fieldName())
-                            && !mapping.fieldName().equals(path.getRelationshipType())) {
+                        if (mapping != null && StringUtils.hasText(mapping.toEntityType())
+                            && !mapping.toEntityType().equalsIgnoreCase(path.getToEntityType())) {
+                            boolean sameBackingClass = false;
+                            try {
+                                String expectedClassName = relationshipMapper.getEntityClassName(mapping.toEntityType());
+                                String providedClassName = relationshipMapper.getEntityClassName(path.getToEntityType());
+                                sameBackingClass = expectedClassName != null && expectedClassName.equals(providedClassName);
+                            } catch (Exception ignored) {
+                                // fall through to strict mismatch error below
+                            }
+
+                            if (sameBackingClass) {
+                                continue;
+                            }
                             throw new RelationshipQueryValidationException(
-                                "Relationship path %s -> %s must use relationshipType '%s' (got '%s')"
+                                "Relationship path %s.%s must target '%s' (got '%s')"
                                     .formatted(
                                         path.getFromEntityType(),
-                                        path.getToEntityType(),
-                                        mapping.fieldName(),
-                                        path.getRelationshipType()
+                                        path.getRelationshipType(),
+                                        mapping.toEntityType(),
+                                        path.getToEntityType()
                                     )
                             );
                         }
                     } catch (IllegalArgumentException ex) {
                         throw new RelationshipQueryValidationException(
-                            "Relationship path %s -> %s is not registered"
-                                .formatted(path.getFromEntityType(), path.getToEntityType())
+                            "Relationship path %s.%s is not registered"
+                                .formatted(path.getFromEntityType(), path.getRelationshipType())
                         );
                     }
                 }
