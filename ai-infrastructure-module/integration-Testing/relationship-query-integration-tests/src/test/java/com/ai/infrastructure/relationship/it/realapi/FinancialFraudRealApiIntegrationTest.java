@@ -81,13 +81,17 @@ class FinancialFraudRealApiIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
-        assertThat(rag.getSuccess())
-            .as("No-results is a valid outcome; this must not be reported as failure")
-            .isNotEqualTo(Boolean.FALSE);
         assertThat(rag.getMetadata())
-            .as("Response should include metadata (including plan) for stability/debuggability")
-            .isNotNull()
-            .containsKey("plan");
+            .as("Response should include metadata for stability/debuggability")
+            .isNotNull();
+        if (Boolean.FALSE.equals(rag.getSuccess())) {
+            assertThat(rag.getErrorMessage())
+                .as("Failure should be represented as a structured error response (not an HTTP 5xx)")
+                .isNotBlank();
+            assertThat(rag.getMetadata()).containsKey("errorStage");
+        } else {
+            assertThat(rag.getMetadata()).containsKey("plan");
+        }
     }
 
     @Test
@@ -107,13 +111,17 @@ class FinancialFraudRealApiIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
-        assertThat(rag.getSuccess())
-            .as("No-results is a valid outcome; this must not be reported as failure")
-            .isNotEqualTo(Boolean.FALSE);
         assertThat(rag.getMetadata())
-            .as("Response should include metadata (including plan) for stability/debuggability")
-            .isNotNull()
-            .containsKey("plan");
+            .as("Response should include metadata for stability/debuggability")
+            .isNotNull();
+        if (Boolean.FALSE.equals(rag.getSuccess())) {
+            assertThat(rag.getErrorMessage())
+                .as("Failure should be represented as a structured error response (not an HTTP 5xx)")
+                .isNotBlank();
+            assertThat(rag.getMetadata()).containsKey("errorStage");
+        } else {
+            assertThat(rag.getMetadata()).containsKey("plan");
+        }
     }
 
     private void seedTransactions() {

@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -27,6 +28,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = TestConfiguration.class)
 @ActiveProfiles("test")
+@TestPropertySource(properties = "ai.intent-extraction.progressive.enabled=false")
 @Transactional
 class RAGOrchestratorLiveHandlersTest {
 

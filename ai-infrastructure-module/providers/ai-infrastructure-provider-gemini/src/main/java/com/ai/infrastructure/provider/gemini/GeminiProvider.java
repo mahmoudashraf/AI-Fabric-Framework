@@ -54,7 +54,7 @@ public class GeminiProvider implements AIProvider {
     private final AtomicReference<Double> averageResponseTime = new AtomicReference<>(0.0);
     
     private static final String GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
-    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final int MAX_RETRY_ATTEMPTS = 5;
     
     @Override
     public String getProviderName() {
@@ -384,7 +384,7 @@ public class GeminiProvider implements AIProvider {
                         backoffMs
                     );
                     sleepWithJitter(backoffMs);
-                    backoffMs = Math.min(3000, backoffMs * 2);
+                    backoffMs = Math.min(8000, backoffMs * 2);
                     continue;
                 }
                 throw ex;
@@ -399,7 +399,7 @@ public class GeminiProvider implements AIProvider {
                         ex.getMessage()
                     );
                     sleepWithJitter(backoffMs);
-                    backoffMs = Math.min(3000, backoffMs * 2);
+                    backoffMs = Math.min(8000, backoffMs * 2);
                     continue;
                 }
                 throw ex;

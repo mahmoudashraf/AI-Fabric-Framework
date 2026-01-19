@@ -34,6 +34,7 @@ public class IntentExtractionPostProcessor {
         }
 
         response.normalize();
+        forceExplicitRelationshipQueryDirective(response, originalQuery);
         coerceMisclassifiedActionIntents(response);
         validateResponse(response, originalQuery);
 
@@ -42,6 +43,58 @@ public class IntentExtractionPostProcessor {
         }
 
         return response;
+    }
+
+    /**
+     * Deterministic override: if the user explicitly prefixes the query with
+     * {@code relationship_query:} / {@code relationship query:} / {@code relationship-query:},
+     * we treat the request as an explicit invocation of the {@code relationship_query} action.
+     *
+     * <p>This keeps the "hint prefix" contract stable even when LLM intent extraction is flaky.</p>
+     */
+    private void forceExplicitRelationshipQueryDirective(MultiIntentResponse response, String originalQuery) {
+        if (response == null || !StringUtils.hasText(originalQuery)) {
+            return;
+        }
+
+        String trimmed = originalQuery.trim();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
+        boolean prefixed = false;
+        for (String prefix : prefixes) {
+            if (lower.startsWith(prefix)) {
+                prefixed = true;
+                break;
+            }
+        }
+        if (!prefixed) {
+            return;
+        }
+
+        String normalizedQuery = normalizeRelationshipQueryText(trimmed);
+        if (!StringUtils.hasText(normalizedQuery)) {
+            return;
+        }
+
+        Intent forced = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("relationship_query")
+            .confidence(1.0d)
+            .requiresRetrieval(false)
+            .requiresGeneration(false)
+            .actionParams(Map.of(
+                "query", normalizedQuery,
+                "entityTypes", List.of()
+            ))
+            .build();
+
+        response.setIntents(List.of(forced));
+        response.setCompound(false);
+        response.setOrchestrationStrategy("DIRECT_ACTION");
     }
 
     /**
@@ -241,4 +294,3 @@ public class IntentExtractionPostProcessor {
         return trimmed.substring(0, idx).trim();
     }
 }
-

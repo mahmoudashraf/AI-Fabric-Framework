@@ -3,7 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
-import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -79,7 +79,7 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
     private TestArticleRepository articleRepository;
 
     @MockBean
-    private IntentQueryExtractor intentQueryExtractor;
+    private ProgressiveIntentExtractionEngine progressiveIntentExtractionEngine;
 
     @Test
     void shouldReturnClarificationRequiredWhenVectorSpaceMissingAndPolicyRequiresClarification() {
@@ -95,8 +95,11 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
             .optimizedQuery("enterprise security suite incident response and privacy compliance audits")
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
-            .thenReturn(MultiIntentResponse.builder().intents(List.of(retrievalIntentMissingSpace)).build());
+        when(progressiveIntentExtractionEngine.extract(anyString(), any(OrchestrationContext.class)))
+            .thenReturn(new ProgressiveIntentExtractionEngine.ExtractionOutput(
+                MultiIntentResponse.builder().intents(List.of(retrievalIntentMissingSpace)).build(),
+                Map.of()
+            ));
 
         OrchestrationResult result = orchestrator.orchestrate(
             "Search the knowledge base for incident response and audit readiness and summarize findings.",

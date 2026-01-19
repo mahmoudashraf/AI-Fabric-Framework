@@ -5,7 +5,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -65,7 +65,7 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
     private RAGProvider ragProvider;
 
     @MockBean
-    private IntentQueryExtractor intentQueryExtractor;
+    private ProgressiveIntentExtractionEngine progressiveIntentExtractionEngine;
 
     @Autowired
     private TestProductRepository productRepository;
@@ -99,8 +99,11 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
             .requiresGeneration(true)
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
-            .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
+        when(progressiveIntentExtractionEngine.extract(anyString(), any(OrchestrationContext.class)))
+            .thenReturn(new ProgressiveIntentExtractionEngine.ExtractionOutput(
+                MultiIntentResponse.builder().intents(List.of(intent)).build(),
+                Map.of()
+            ));
 
         OrchestrationResult result = orchestrator.orchestrate("Suggest an affordable audio headset", "real-gen-routing-user");
 

@@ -27,6 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -43,6 +44,7 @@ import static org.mockito.Mockito.doReturn;
 
 @SpringBootTest(classes = TestConfiguration.class)
 @ActiveProfiles("test")
+@TestPropertySource(properties = "ai.intent-extraction.progressive.enabled=false")
 class RAGIntegrationFlowTest {
 
     private static final String ACTION_QUERY = "Please clear my index and remove card 4111-1111-1111-1111.";
