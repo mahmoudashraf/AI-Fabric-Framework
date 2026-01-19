@@ -24,6 +24,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class GovernanceVectorDatabaseServiceDecorator implements VectorDatabaseService {
 
+    private static final int CATALOG_WRITE_MAX_ATTEMPTS = 3;
+    private static final long CATALOG_WRITE_BACKOFF_MS = 50L;
+
     private final VectorDatabaseService delegate;
     private final ObjectProvider<IndexCatalog> indexCatalogProvider;
 
@@ -81,7 +84,8 @@ public class GovernanceVectorDatabaseServiceDecorator implements VectorDatabaseS
         if (removed) {
             IndexCatalog catalog = sqlCatalogOrNull();
             if (catalog != null) {
-                catalog.delete(entityType, entityId);
+                runCatalogWrite("catalog.delete(" + entityType + "," + entityId + ")",
+                    () -> catalog.delete(entityType, entityId));
             }
         }
         return removed;
@@ -95,7 +99,8 @@ public class GovernanceVectorDatabaseServiceDecorator implements VectorDatabaseS
             IndexCatalog catalog = sqlCatalogOrNull();
             if (catalog != null) {
                 VectorRecord record = existing.get();
-                catalog.delete(record.getEntityType(), record.getEntityId());
+                runCatalogWrite("catalog.delete(" + record.getEntityType() + "," + record.getEntityId() + ")",
+                    () -> catalog.delete(record.getEntityType(), record.getEntityId()));
             }
         }
         return removed;
@@ -144,7 +149,9 @@ public class GovernanceVectorDatabaseServiceDecorator implements VectorDatabaseS
 
         IndexCatalog catalog = sqlCatalogOrNull();
         if (catalog != null) {
-            existing.forEach(record -> catalog.delete(record.getEntityType(), record.getEntityId()));
+            existing.forEach(record ->
+                runCatalogWrite("catalog.delete(" + record.getEntityType() + "," + record.getEntityId() + ")",
+                    () -> catalog.delete(record.getEntityType(), record.getEntityId())));
         }
         return removed;
     }
@@ -247,14 +254,16 @@ public class GovernanceVectorDatabaseServiceDecorator implements VectorDatabaseS
             updatedAt = now;
         }
 
-        catalog.upsert(IndexCatalogEntry.builder()
+        IndexCatalogEntry entry = IndexCatalogEntry.builder()
             .entityType(entityType)
             .entityId(entityId)
             .vectorId(vectorId)
             .indexedCreatedAt(createdAt)
             .indexedUpdatedAt(updatedAt)
             .metadata(metadata)
-            .build());
+            .build();
+        runCatalogWrite("catalog.upsert(" + entityType + "," + entityId + ")",
+            () -> catalog.upsert(entry));
     }
 
     private IndexCatalog sqlCatalogOrNull() {
@@ -264,5 +273,39 @@ public class GovernanceVectorDatabaseServiceDecorator implements VectorDatabaseS
         }
         return catalog;
     }
-}
 
+    private void runCatalogWrite(String operation, Runnable runnable) {
+        if (runnable == null) {
+            return;
+        }
+
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= CATALOG_WRITE_MAX_ATTEMPTS; attempt++) {
+            try {
+                runnable.run();
+                return;
+            } catch (RuntimeException ex) {
+                last = ex;
+                if (attempt >= CATALOG_WRITE_MAX_ATTEMPTS) {
+                    break;
+                }
+                log.warn("Governance catalog write failed (attempt {}/{}): {} ({})",
+                    attempt, CATALOG_WRITE_MAX_ATTEMPTS, operation, ex.getMessage());
+                log.debug("Governance catalog write failure details", ex);
+                try {
+                    Thread.sleep(CATALOG_WRITE_BACKOFF_MS * attempt);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw ex;
+                }
+            }
+        }
+
+        if (last != null) {
+            log.error("Governance catalog write failed after {} attempts: {} ({})",
+                CATALOG_WRITE_MAX_ATTEMPTS, operation, last.getMessage());
+            log.debug("Governance catalog write failure details", last);
+            throw last;
+        }
+    }
+}

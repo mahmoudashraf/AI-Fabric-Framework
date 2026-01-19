@@ -28,6 +28,15 @@ Property: `ai.governance.catalog.mode`
 - `SQL`: persists a minimal catalog (entityType/entityId/vectorId/timestamps/metadata JSON)
 - `DISABLED`: disables catalog-driven governance workflows
 
+### SQL Catalog Consistency Notes
+
+When using `SQL` catalog mode, catalog updates are performed as part of vector lifecycle calls (store/update/remove).
+
+- The framework cannot provide true atomicity between **remote vector DB writes** and **local SQL catalog writes**.
+- The decorator retries SQL catalog writes a few times to reduce transient DB flakiness.
+- If the SQL catalog write still fails, the vector operation is treated as failed (exception propagates). This allows upstream retry logic (indexing queue) to retry idempotently and converge.
+- For the strongest operational consistency, prefer `AUTO`/`VECTOR` mode on providers that support scan + metadata filtering.
+
 ## Provider Capability Matrix (Scan/Filter/Timestamps)
 
 Governance `AUTO` prefers `VECTOR` only when:
@@ -96,4 +105,3 @@ ai:
     mode: REDACT
     detection-direction: INPUT_OUTPUT
 ```
-
