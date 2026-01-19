@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -74,19 +75,22 @@ public class IntentExtractionPostProcessor {
             return;
         }
 
-        String normalizedQuery = normalizeRelationshipQueryText(trimmed);
-        if (!StringUtils.hasText(normalizedQuery)) {
+        RelationshipQueryDirectiveSplitter.SplitResult split = RelationshipQueryDirectiveSplitter.split(trimmed);
+        if (split == null || !StringUtils.hasText(split.relationalQuery())) {
             return;
         }
+
+        boolean hasGenerationInstructions = split != null && StringUtils.hasText(split.generationInstructions());
 
         Intent forced = Intent.builder()
             .type(IntentType.ACTION)
             .action("relationship_query")
             .confidence(1.0d)
             .requiresRetrieval(false)
-            .requiresGeneration(false)
+            .requiresGeneration(hasGenerationInstructions)
+            .generationInstructions(hasGenerationInstructions ? split.generationInstructions() : null)
             .actionParams(Map.of(
-                "query", normalizedQuery,
+                "query", split.relationalQuery(),
                 "entityTypes", List.of()
             ))
             .build();
