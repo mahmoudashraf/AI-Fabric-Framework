@@ -23,6 +23,7 @@ Thumbs.db
 dev.env
 dev2.env
 dev*.env
+scripts/*.env
 
 # Logs
 *.log

@@ -603,6 +603,42 @@ public class RelationshipQueryPlanner {
 
     private String buildPrompt(String query, List<String> entityTypes, List<String> feedback) {
         String schemaDescription = schemaProvider.getSchemaDescription(entityTypes);
+
+        if (shouldUseCompactPrompt(feedback)) {
+            List<String> allowedTypes = CollectionUtils.isEmpty(entityTypes)
+                ? List.of()
+                : entityTypes.stream().filter(StringUtils::hasText).toList();
+
+            String allowedTypesLine = allowedTypes.isEmpty()
+                ? ""
+                : "Allowed entityTypes: " + String.join(", ", allowedTypes) + "\n";
+
+            return """
+                Return ONLY a valid JSON object (no markdown, no commentary).
+                Output MUST be a single-line minified JSON string (no newlines).
+
+                Keep the JSON extremely small (hard goal: <= 350 characters).
+                Emit ONLY the minimum required keys (omit everything else):
+                {"primaryEntityType":"...","candidateEntityTypes":["..."],"relationshipPaths":[],"directFilters":{},"confidence":0.7}
+
+                IMPORTANT shape rules:
+                - directFilters / relationshipFilters / metadataFilters MUST be JSON objects mapping entityType -> array of filter objects.
+                - A filter object shape is: {"field":"<fieldName>","operator":"EQUALS","value":<value>,"entityType":"<entityType>"}
+                - For cross-entity comparisons, set value to "<entity-slug>.<field>" (example: "destination-account.ownerName").
+                - To keep output small, omit "entityType" when it can be inferred (e.g., filters under directFilters.product).
+                - If unsure about relationships or filter fields, return empty relationshipPaths and empty directFilters.
+                - If the plan would require more than ONE relationshipPath, set relationshipPaths to [] and only use directFilters on the primary entity.
+                - If a constraint requires cross-entity equality and you cannot express it concisely, omit it (prefer a smaller valid plan over truncation).
+                - candidateEntityTypes MUST include primaryEntityType.
+                - Never invent entity types not listed below.
+
+                Schema:
+                %s
+
+                %sUser Query: "%s"
+                """.formatted(schemaDescription, allowedTypesLine, query);
+        }
+
         StringBuilder builder = new StringBuilder("""
             Analyze the user's request using the provided entity schema. Produce a JSON payload with:
             - primaryEntityType (snake-case)
@@ -630,6 +666,11 @@ public class RelationshipQueryPlanner {
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
             - If the user mentions a concept that is not represented as a schema field, do NOT invent a new field. Either omit that constraint or map it to an existing field (commonly "name") if appropriate.
 
+            Output requirements:
+            - Return ONLY a single-line minified JSON object (no markdown, no commentary, no leading/trailing text, no newlines).
+            - Keep the JSON as small as possible: omit optional keys when empty/unknown (e.g., relationshipFilters, metadataFilters, context).
+            - Omit filter "entityType" when it can be inferred from its parent map key (e.g., directFilters.product).
+
             Schema:
             """);
         builder.append(schemaDescription)
@@ -645,6 +686,25 @@ public class RelationshipQueryPlanner {
             builder.append("\nRespond with valid JSON only.\n");
         }
         return builder.toString();
+    }
+
+    private boolean shouldUseCompactPrompt(List<String> feedback) {
+        if (CollectionUtils.isEmpty(feedback)) {
+            return false;
+        }
+        for (String item : feedback) {
+            if (!StringUtils.hasText(item)) {
+                continue;
+            }
+            String normalized = item.toLowerCase(Locale.ROOT);
+            if (normalized.contains("truncated json")
+                || normalized.contains("unexpected end-of-input")
+                || normalized.contains("eof")
+                || normalized.contains("did not return json payload")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private RelationshipQueryPlan parsePlan(String rawResponse) throws Exception {
@@ -979,7 +1039,19 @@ public class RelationshipQueryPlanner {
     }
 
     private String sanitizePayload(String jsonPayload) {
-        return jsonPayload;
+        if (!StringUtils.hasText(jsonPayload)) {
+            return jsonPayload;
+        }
+
+        String sanitized = jsonPayload;
+
+        // Provider-agnostic repairs for common "almost JSON" mistakes seen in real API runs.
+        // Keep this conservative: only fix patterns that are invalid JSON and commonly appear as typos.
+        sanitized = sanitized.replaceAll("\"\\s*;(?=\\s*\\\")", "\",");
+        sanitized = sanitized.replaceAll("\"\\s*;(?=\\s*[}\\]])", "\"");
+        sanitized = sanitized.replaceAll(",\\s*([}\\]])", "$1");
+
+        return sanitized;
     }
 
     private String safeMessage(Exception ex) {

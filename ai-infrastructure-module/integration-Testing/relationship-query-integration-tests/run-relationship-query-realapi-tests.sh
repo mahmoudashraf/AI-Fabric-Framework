@@ -298,8 +298,10 @@ fi
 if [ "${CI:-false}" == "true" ] || [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
     print_info "Running in CI/CD - skipping dependency build check (already built by workflow)"
 else
-    PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-    CORE_TARGET="${PARENT_DIR}/ai-infrastructure-core/target"
+    # NOTE: The Maven reactor root is the ai-infrastructure-module directory (PROJECT_ROOT),
+    # not integration-Testing. Run builds from there so local execution matches CI.
+    PARENT_DIR="$PROJECT_ROOT"
+    CORE_TARGET="${PROJECT_ROOT}/ai-infrastructure-core/target"
     if [ ! -d "$CORE_TARGET" ] || [ ! -f "$CORE_TARGET/ai-infrastructure-core-*.jar" ] 2>/dev/null; then
         print_warning "Dependencies may not be built. Attempting to build..."
         cd "$PARENT_DIR" || exit 1
