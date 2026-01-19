@@ -39,6 +39,10 @@ spring:
   main:
     allow-bean-definition-overriding: true
 
+ai-infrastructure:
+  storage:
+    strategy: SINGLE_TABLE
+
 ai:
   providers:
     llm-provider: ${AI_INFRASTRUCTURE_LLM_PROVIDER:${LLM_PROVIDER:openai}}
