@@ -75,19 +75,22 @@ public class IntentExtractionPostProcessor {
             return;
         }
 
-        String normalizedQuery = normalizeRelationshipQueryText(trimmed);
-        if (!StringUtils.hasText(normalizedQuery)) {
+        RelationshipQueryDirectiveSplitter.SplitResult split = RelationshipQueryDirectiveSplitter.split(trimmed);
+        if (split == null || !StringUtils.hasText(split.relationalQuery())) {
             return;
         }
+
+        boolean hasGenerationInstructions = split != null && StringUtils.hasText(split.generationInstructions());
 
         Intent forced = Intent.builder()
             .type(IntentType.ACTION)
             .action("relationship_query")
             .confidence(1.0d)
             .requiresRetrieval(false)
-            .requiresGeneration(false)
+            .requiresGeneration(hasGenerationInstructions)
+            .generationInstructions(hasGenerationInstructions ? split.generationInstructions() : null)
             .actionParams(Map.of(
-                "query", normalizedQuery,
+                "query", split.relationalQuery(),
                 "entityTypes", List.of()
             ))
             .build();
@@ -205,14 +208,19 @@ public class IntentExtractionPostProcessor {
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
         Object rawQuery = mutable.get("query");
-        String normalizedQuery;
+        RelationshipQueryDirectiveSplitter.SplitResult split;
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            normalizedQuery = normalizeRelationshipQueryText(text);
+            split = RelationshipQueryDirectiveSplitter.split(text);
         } else {
-            normalizedQuery = normalizeRelationshipQueryText(originalQuery);
+            split = RelationshipQueryDirectiveSplitter.split(originalQuery);
         }
-        if (StringUtils.hasText(normalizedQuery)) {
-            mutable.put("query", normalizedQuery);
+        if (split != null && StringUtils.hasText(split.relationalQuery())) {
+            mutable.put("query", split.relationalQuery());
+        }
+        if (split != null && StringUtils.hasText(split.generationInstructions())
+            && !StringUtils.hasText(intent.getGenerationInstructions())) {
+            intent.setGenerationInstructions(split.generationInstructions());
+            intent.setRequiresGeneration(true);
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");
@@ -239,58 +247,5 @@ public class IntentExtractionPostProcessor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
-    }
-
-    private String normalizeRelationshipQueryText(String query) {
-        if (!StringUtils.hasText(query)) {
-            return null;
-        }
-        String trimmed = query.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
-        for (String prefix : prefixes) {
-            if (lower.startsWith(prefix)) {
-                String withoutPrefix = trimmed.substring(prefix.length()).trim();
-                return stripTrailingNonRelationalDirective(withoutPrefix);
-            }
-        }
-        return stripTrailingNonRelationalDirective(trimmed);
-    }
-
-    private String stripTrailingNonRelationalDirective(String text) {
-        if (!StringUtils.hasText(text)) {
-            return text;
-        }
-        String trimmed = text.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-
-        int idx = lower.indexOf(" and then ");
-        int boundaryLen = " and then ".length();
-        if (idx < 0) {
-            idx = lower.indexOf(" then ");
-            boundaryLen = " then ".length();
-        }
-        if (idx < 0) {
-            return trimmed;
-        }
-
-        String after = lower.substring(idx + boundaryLen);
-        boolean looksNonRelational =
-            after.contains("summariz")
-                || after.contains("explain")
-                || after.contains(" why ")
-                || after.startsWith("why ")
-                || after.contains("describe")
-                || after.contains("analyz")
-                || after.contains("recommend")
-                || after.contains("write ")
-                || after.contains("generate ")
-                || after.contains("tell me");
-
-        if (!looksNonRelational) {
-            return trimmed;
-        }
-
-        return trimmed.substring(0, idx).trim();
     }
 }

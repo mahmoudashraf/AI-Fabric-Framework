@@ -23,6 +23,8 @@ import java.util.Objects;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Intent {
 
+    private static final int MAX_GENERATION_INSTRUCTIONS_CHARS = 500;
+
     private IntentType type;
 
     /**
@@ -62,6 +64,15 @@ public class Intent {
      */
     @JsonAlias({"requires_generation"})
     private Boolean requiresGeneration;
+
+    /**
+     * Optional instructions for post-processing generation (e.g., summarize/explain results).
+     *
+     * <p>Used for chained execution scenarios where an ACTION produces structured facts and the
+     * system must run a follow-up generation step grounded in those facts.</p>
+     */
+    @JsonAlias({"generation_instructions", "generationInstructions"})
+    private String generationInstructions;
 
     /**
      * Whether this intent needs advanced RAG (query expansion, re-ranking, context optimization).
@@ -158,6 +169,16 @@ public class Intent {
         }
         if (optimizedQuery != null && optimizedQuery.isBlank()) {
             optimizedQuery = null;
+        }
+        if (generationInstructions != null) {
+            String trimmed = generationInstructions.trim();
+            if (trimmed.isEmpty()) {
+                generationInstructions = null;
+            } else if (trimmed.length() > MAX_GENERATION_INSTRUCTIONS_CHARS) {
+                generationInstructions = trimmed.substring(0, MAX_GENERATION_INSTRUCTIONS_CHARS);
+            } else {
+                generationInstructions = trimmed;
+            }
         }
         if (nextStepRecommended != null && nextStepRecommended.getConfidence() != null) {
             double value = Math.max(0.0d, Math.min(1.0d, nextStepRecommended.getConfidence()));

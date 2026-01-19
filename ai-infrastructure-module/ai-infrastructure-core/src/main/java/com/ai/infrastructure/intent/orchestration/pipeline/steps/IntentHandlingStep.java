@@ -1,7 +1,10 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.Intent;
@@ -15,6 +18,7 @@ import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResultNormalizer;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -25,6 +29,8 @@ import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -37,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -83,6 +90,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_ACTION_RESULT = "actionResult";
     private static final String DATA_KEY_CONFIRMATION_MESSAGE = "confirmationMessage";
     private static final String DATA_KEY_ANSWER = "answer";
+    private static final String DATA_KEY_SUMMARY = "summary";
     private static final String DATA_KEY_DOCUMENTS = "documents";
     private static final String DATA_KEY_RAG_RESPONSE = "ragResponse";
     private static final String DATA_KEY_REQUIRES_GENERATION = "requiresGeneration";
@@ -103,6 +111,17 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String METADATA_KEY_SESSION_ID = "sessionId";
     private static final String METADATA_KEY_AUTHENTICATED = "authenticated";
     private static final String METADATA_KEY_OPTIMIZED_QUERY = "optimizedQuery";
+
+    // Relationship query post-action generation metadata keys
+    private static final String METADATA_KEY_RQ_EXECUTED = "relationshipQuery.executed";
+    private static final String METADATA_KEY_RQ_TOTAL_RESULTS = "relationshipQuery.totalResults";
+    private static final String METADATA_KEY_RQ_RETURNED_RESULTS = "relationshipQuery.returnedResults";
+    private static final String METADATA_KEY_POST_ACTION_USED = "postActionGeneration.used";
+    private static final String METADATA_KEY_POST_ACTION_PURPOSE = "postActionGeneration.purpose";
+    private static final String METADATA_KEY_POST_ACTION_MODEL = "postActionGeneration.model";
+    private static final String METADATA_KEY_POST_ACTION_TRUNCATED = "postActionGeneration.truncated";
+
+    private static final String ACTION_NAME_RELATIONSHIP_QUERY = "relationship_query";
     
     // Metadata values
     private static final String METADATA_VALUE_ORCHESTRATOR = "orchestrator";
@@ -162,6 +181,8 @@ public class IntentHandlingStep implements PipelineStep {
     private final ObjectProvider<AdvancedRAGProvider> advancedRagProvider;
     private final VectorSpaceRoutingProperties vectorSpaceRoutingProperties;
     private final RankBasedMerger rankBasedMerger;
+    private final ObjectMapper objectMapper;
+    private final RelationshipQueryPostActionGenerationProperties relationshipQueryPostActionGenerationProperties;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -306,6 +327,107 @@ public class IntentHandlingStep implements PipelineStep {
             if (actionResult != null) {
                 data.put(DATA_KEY_ACTION_RESULT, actionResult);
             }
+
+            Map<String, Object> orchestrationMetadata = new LinkedHashMap<>();
+            boolean relationshipQueryAction = isRelationshipQueryAction(actionName);
+            RelationshipQueryActionFacts facts = relationshipQueryAction
+                ? extractRelationshipQueryFacts(actionResult, params, relationshipQueryPostActionGenerationProperties)
+                : null;
+            if (facts != null) {
+                orchestrationMetadata.put(METADATA_KEY_RQ_EXECUTED, true);
+                orchestrationMetadata.put(METADATA_KEY_RQ_TOTAL_RESULTS, facts.totalResults());
+                orchestrationMetadata.put(METADATA_KEY_RQ_RETURNED_RESULTS, facts.returnedResults());
+            }
+
+            if (success
+                && relationshipQueryAction
+                && relationshipQueryPostActionGenerationProperties != null
+                && relationshipQueryPostActionGenerationProperties.isEnabled()
+                && wantsPostActionGeneration(intent)) {
+
+                // Deterministic "no results" path: do not call the LLM.
+                if (facts == null || facts.totalResults() == 0 || facts.itemsIncluded() == 0) {
+                    String summary = (actionResult != null && StringUtils.hasText(actionResult.getMessage()))
+                        ? actionResult.getMessage()
+                        : "No results found.";
+                    data.put(DATA_KEY_SUMMARY, summary);
+                    orchestrationMetadata.put(METADATA_KEY_POST_ACTION_USED, false);
+                    orchestrationMetadata.put(METADATA_KEY_POST_ACTION_TRUNCATED, false);
+                    return OrchestrationResult.builder()
+                        .type(OrchestrationResultType.ACTION_EXECUTED)
+                        .success(true)
+                        .message(summary)
+                        .data(Collections.unmodifiableMap(data))
+                        .nextSteps(extractNextSteps(intent))
+                        .metadata(Collections.unmodifiableMap(orchestrationMetadata))
+                        .build();
+                }
+
+                try {
+                    String generationInstructions = StringUtils.hasText(intent.getGenerationInstructions())
+                        ? intent.getGenerationInstructions()
+                        : "Summarize the relationship query results.";
+
+                    String systemPrompt = """
+                        You are summarizing the results of a relationship query.
+                        Only use the facts provided in the JSON payload.
+                        Do NOT invent or assume missing fields. If the facts are insufficient, say so.
+                        If the results are truncated, acknowledge that only a subset was provided.
+                        """.trim();
+
+                    String prompt = "INSTRUCTIONS:\n"
+                        + generationInstructions
+                        + "\n\nFACTS_JSON:\n"
+                        + facts.factsJson();
+
+                    AIGenerationRequest request = AIGenerationRequest.builder()
+                        .entityId("relationship-query-summary-" + UUID.randomUUID())
+                        .entityType(ACTION_NAME_RELATIONSHIP_QUERY)
+                        .generationType("relationship_query_post_action_summary")
+                        .systemPrompt(systemPrompt)
+                        .prompt(prompt)
+                        .temperature(relationshipQueryPostActionGenerationProperties.getTemperature())
+                        .maxTokens(relationshipQueryPostActionGenerationProperties.getMaxTokens())
+                        .userId(identifier)
+                        .build();
+
+                    AIGenerationResponse generationResponse = aiCoreService.generateContent(request, LlmPurpose.GENERATION);
+                    String summary = generationResponse != null ? generationResponse.getContent() : null;
+                    if (!StringUtils.hasText(summary)) {
+                        throw new IllegalStateException("Empty generation response");
+                    }
+
+                    data.put(DATA_KEY_SUMMARY, summary);
+                    orchestrationMetadata.put(METADATA_KEY_POST_ACTION_USED, true);
+                    orchestrationMetadata.put(METADATA_KEY_POST_ACTION_PURPOSE, LlmPurpose.GENERATION.name());
+                    orchestrationMetadata.put(METADATA_KEY_POST_ACTION_MODEL, generationResponse != null ? generationResponse.getModel() : null);
+                    orchestrationMetadata.put(METADATA_KEY_POST_ACTION_TRUNCATED, facts.truncated());
+
+                    return OrchestrationResult.builder()
+                        .type(OrchestrationResultType.ACTION_EXECUTED)
+                        .success(true)
+                        .message(summary)
+                        .data(Collections.unmodifiableMap(data))
+                        .nextSteps(extractNextSteps(intent))
+                        .metadata(Collections.unmodifiableMap(orchestrationMetadata))
+                        .build();
+                } catch (Exception ex) {
+                    Map<String, Object> errorData = new LinkedHashMap<>(data);
+                    errorData.put("generationError", ex.getMessage());
+                    orchestrationMetadata.put(METADATA_KEY_POST_ACTION_USED, true);
+                    orchestrationMetadata.put(METADATA_KEY_POST_ACTION_PURPOSE, LlmPurpose.GENERATION.name());
+
+                    return OrchestrationResult.builder()
+                        .type(OrchestrationResultType.ERROR)
+                        .success(false)
+                        .message("Failed to generate summary: " + ex.getMessage())
+                        .errorCode(OrchestrationResultNormalizer.ERROR_CODE_GENERATION_FAILED)
+                        .data(Collections.unmodifiableMap(errorData))
+                        .nextSteps(extractNextSteps(intent))
+                        .metadata(Collections.unmodifiableMap(orchestrationMetadata))
+                        .build();
+                }
+            }
             
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.ACTION_EXECUTED)
@@ -313,6 +435,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .message(actionResult != null ? actionResult.getMessage() : null)
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
+                .metadata(orchestrationMetadata.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(orchestrationMetadata))
                 .build();
         } catch (Exception ex) {
             log.error("Action handler {} threw exception executing '{}': {}", 
@@ -1145,5 +1268,182 @@ public class IntentHandlingStep implements PipelineStep {
             log.debug("Unable to resolve metadata for action {}: {}", actionName, ex.getMessage());
             return null;
         }
+    }
+
+    private boolean isRelationshipQueryAction(String actionName) {
+        return StringUtils.hasText(actionName) && ACTION_NAME_RELATIONSHIP_QUERY.equalsIgnoreCase(actionName.trim());
+    }
+
+    private boolean wantsPostActionGeneration(Intent intent) {
+        if (intent == null) {
+            return false;
+        }
+        return intent.requiresGenerationOrDefault(false) || StringUtils.hasText(intent.getGenerationInstructions());
+    }
+
+    private record RelationshipQueryActionFacts(
+        String factsJson,
+        int totalResults,
+        int returnedResults,
+        int itemsIncluded,
+        boolean truncated
+    ) {}
+
+    @SuppressWarnings("unchecked")
+    private RelationshipQueryActionFacts extractRelationshipQueryFacts(ActionResult actionResult,
+                                                                     Map<String, Object> actionParams,
+                                                                     RelationshipQueryPostActionGenerationProperties props) {
+        if (actionResult == null || actionResult.getData() == null) {
+            return new RelationshipQueryActionFacts("{}", 0, 0, 0, false);
+        }
+
+        if (!(actionResult.getData() instanceof Map<?, ?> raw)) {
+            String fallbackJson;
+            try {
+                fallbackJson = objectMapper.writeValueAsString(Map.of("data", actionResult.getData()));
+            } catch (Exception ex) {
+                fallbackJson = "{}";
+            }
+            return new RelationshipQueryActionFacts(fallbackJson, 0, 0, 0, false);
+        }
+
+        Map<String, Object> data = (Map<String, Object>) raw;
+        int totalResults = intOrDefault(data.get("totalResults"), 0);
+        int returnedResults = intOrDefault(data.get("returnedResults"), 0);
+
+        List<?> rawDocuments = (data.get(DATA_KEY_DOCUMENTS) instanceof List<?> list) ? list : List.of();
+
+        int maxItems = props != null ? props.getMaxItems() : 10;
+        int maxChars = props != null ? props.getMaxChars() : 12_000;
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (Object entry : rawDocuments) {
+            if (docs.size() >= maxItems) {
+                break;
+            }
+            Map<String, Object> mapped = simplifyRelationshipQueryDocument(entry);
+            if (mapped != null && !mapped.isEmpty()) {
+                docs.add(mapped);
+            }
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("action", ACTION_NAME_RELATIONSHIP_QUERY);
+        if (actionParams != null && !actionParams.isEmpty()) {
+            Object query = actionParams.get("query");
+            Object entityTypes = actionParams.get("entityTypes");
+            if (query != null) {
+                payload.put("query", String.valueOf(query));
+            }
+            if (entityTypes != null) {
+                payload.put("entityTypes", entityTypes);
+            }
+        }
+        payload.put("totalResults", totalResults);
+        payload.put("returnedResults", returnedResults);
+
+        boolean truncated = rawDocuments.size() > docs.size();
+        payload.put("documents", List.copyOf(docs));
+
+        String json = "{}";
+        boolean truncatedForChars = false;
+        try {
+            json = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            // keep fallback "{}"
+        }
+
+        // Enforce maxChars by reducing documents (maintains valid JSON).
+        while (StringUtils.hasText(json) && json.length() > maxChars && !docs.isEmpty()) {
+            docs.remove(docs.size() - 1);
+            payload.put("documents", List.copyOf(docs));
+            truncatedForChars = true;
+            try {
+                json = objectMapper.writeValueAsString(payload);
+            } catch (JsonProcessingException ex) {
+                json = "{}";
+                break;
+            }
+        }
+
+        truncated = truncated || truncatedForChars;
+        return new RelationshipQueryActionFacts(json, totalResults, returnedResults, docs.size(), truncated);
+    }
+
+    private int intOrDefault(Object value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception ex) {
+            return fallback;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> simplifyRelationshipQueryDocument(Object entry) {
+        if (entry == null) {
+            return Map.of();
+        }
+
+        String id = null;
+        String title = null;
+        String type = null;
+        Double score = null;
+        String content = null;
+
+        if (entry instanceof RAGResponse.RAGDocument doc) {
+            id = doc.getId();
+            title = doc.getTitle();
+            type = doc.getType();
+            score = doc.getScore();
+            content = doc.getContent();
+        } else if (entry instanceof Map<?, ?> map) {
+            Object rawId = map.get("id");
+            Object rawTitle = map.get("title");
+            Object rawType = map.get("type");
+            Object rawScore = map.get("score");
+            Object rawContent = map.get("content");
+
+            id = rawId != null ? String.valueOf(rawId) : null;
+            title = rawTitle != null ? String.valueOf(rawTitle) : null;
+            type = rawType != null ? String.valueOf(rawType) : null;
+            if (rawScore instanceof Number n) {
+                score = n.doubleValue();
+            } else if (rawScore != null) {
+                try {
+                    score = Double.parseDouble(String.valueOf(rawScore));
+                } catch (Exception ignore) {
+                    score = null;
+                }
+            }
+            content = rawContent != null ? String.valueOf(rawContent) : null;
+        } else {
+            content = String.valueOf(entry);
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (StringUtils.hasText(id)) {
+            out.put("id", id);
+        }
+        if (StringUtils.hasText(title)) {
+            out.put("title", title);
+        }
+        if (StringUtils.hasText(type)) {
+            out.put("type", type);
+        }
+        if (score != null) {
+            out.put("score", score);
+        }
+        if (StringUtils.hasText(content)) {
+            int max = 500;
+            String snippet = content.length() > max ? content.substring(0, max) : content;
+            out.put("contentSnippet", snippet);
+        }
+        return Map.copyOf(out);
     }
 }

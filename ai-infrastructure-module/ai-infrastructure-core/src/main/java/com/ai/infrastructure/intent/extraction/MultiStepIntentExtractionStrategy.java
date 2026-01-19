@@ -144,6 +144,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             Rules:
             - Keep it simple and deterministic.
             - Do NOT invent action names; for ACTION use actionHint only.
+            - requiresGeneration may be true for ACTION when the user explicitly requests post-action summarization/explanation of action results.
             - If unsure, prefer INFORMATION with requiresRetrieval=false and requiresGeneration=false.
 
             USER REQUEST:
