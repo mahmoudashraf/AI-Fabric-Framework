@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -14,13 +15,13 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,13 +29,13 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -67,8 +68,6 @@ public class RealAPILlmPurposePropagationIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private TestProductRepository productRepository;
@@ -79,12 +78,14 @@ public class RealAPILlmPurposePropagationIntegrationTest {
     @SpyBean
     private IntentQueryExtractor intentQueryExtractor;
 
+    @MockBean
+    private ProgressiveIntentExtractionEngine progressiveIntentExtractionEngine;
+
     @BeforeEach
     void setUp() {
         assumeRealApiConfigured();
-        Mockito.reset(aiCoreService, intentQueryExtractor);
+        Mockito.reset(aiCoreService, intentQueryExtractor, progressiveIntentExtractionEngine);
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
     }
 
@@ -113,9 +114,11 @@ public class RealAPILlmPurposePropagationIntegrationTest {
             .requiresGeneration(true)
             .build();
 
-        doReturn(MultiIntentResponse.builder().intents(List.of(intent)).build())
-            .when(intentQueryExtractor)
-            .extract(eq("force-generation-purpose"), any(OrchestrationContext.class));
+        org.mockito.Mockito.when(progressiveIntentExtractionEngine.extract(eq("force-generation-purpose"), any(OrchestrationContext.class)))
+            .thenReturn(new ProgressiveIntentExtractionEngine.ExtractionOutput(
+                MultiIntentResponse.builder().intents(List.of(intent)).build(),
+                Map.of()
+            ));
 
         OrchestrationResult result = orchestrator.orchestrate("force-generation-purpose", "purpose-generation-user");
         assertThat(result).isNotNull();

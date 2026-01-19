@@ -1,8 +1,7 @@
 package com.ai.infrastructure.intent;
 
-import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import lombok.extern.slf4j.Slf4j;
 import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
 import org.springframework.context.annotation.Conditional;
@@ -26,26 +25,23 @@ import java.util.stream.Collectors;
 public class KnowledgeBaseOverviewService {
 
     private final VectorDatabaseService vectorDatabaseService;
-    private final AISearchableEntityStorageStrategy storageStrategy;
+    private final AIEntityConfigurationLoader configurationLoader;
 
     public KnowledgeBaseOverviewService(VectorDatabaseService vectorDatabaseService,
-                                        AISearchableEntityStorageStrategy storageStrategy) {
+                                        AIEntityConfigurationLoader configurationLoader) {
         this.vectorDatabaseService = vectorDatabaseService;
-        this.storageStrategy = storageStrategy;
+        this.configurationLoader = configurationLoader;
     }
 
     public KnowledgeBaseOverview getOverview() {
         Map<String, Object> stats = safeStatistics();
         Map<String, Long> documentsByType = deriveDocumentsByType(stats);
         if (documentsByType.isEmpty()) {
-            documentsByType = fallbackDocumentsByType();
+            documentsByType = deriveDocumentsByTypeFromProvider();
         }
 
         long totalDocuments = deriveTotalDocuments(stats, documentsByType);
-        LocalDateTime lastUpdated = storageStrategy
-            .findFirstByVectorUpdatedAtIsNotNullOrderByVectorUpdatedAtDesc()
-            .map(AISearchableEntity::getVectorUpdatedAt)
-            .orElse(null);
+        LocalDateTime lastUpdated = deriveLastUpdated(documentsByType.keySet().stream().toList());
 
         KnowledgeBaseOverview overview = KnowledgeBaseOverview.builder()
             .totalIndexedDocuments(totalDocuments)
@@ -85,19 +81,38 @@ public class KnowledgeBaseOverviewService {
         return Collections.emptyMap();
     }
 
-    private Map<String, Long> fallbackDocumentsByType() {
-        List<AISearchableEntity> entities = storageStrategy.findByVectorIdIsNotNull();
-        if (entities.isEmpty()) {
+    private Map<String, Long> deriveDocumentsByTypeFromProvider() {
+        if (configurationLoader == null || configurationLoader.getSupportedEntityTypes().isEmpty()) {
             return Collections.emptyMap();
         }
-        return entities.stream()
-            .filter(entity -> entity.getEntityType() != null)
-            .collect(Collectors.toMap(
-                entity -> entity.getEntityType().toLowerCase(Locale.ROOT),
-                entity -> 1L,
-                Long::sum,
-                LinkedHashMap::new
-            ));
+
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (String entityType : configurationLoader.getSupportedEntityTypes()) {
+            if (entityType == null || entityType.isBlank()) {
+                continue;
+            }
+            try {
+                long count = vectorDatabaseService.getVectorCountByEntityType(entityType);
+                if (count <= 0 && vectorDatabaseService.supportsVectorScan()) {
+                    // Some backends (notably remote providers) expose eventual consistency for "count" endpoints.
+                    // Fall back to a lightweight presence check so routing doesn't incorrectly conclude that only
+                    // one vector space exists right after indexing.
+                    com.ai.infrastructure.dto.VectorScanPage page = vectorDatabaseService.scan(
+                        com.ai.infrastructure.dto.VectorScanRequest.builder()
+                            .entityType(entityType)
+                            .limit(1)
+                            .build()
+                    );
+                    count = (page == null || page.getVectors() == null || page.getVectors().isEmpty()) ? 0L : 1L;
+                }
+                if (count > 0) {
+                    counts.put(entityType.toLowerCase(Locale.ROOT), count);
+                }
+            } catch (Exception ex) {
+                log.debug("Failed to compute vector count for entity type {}", entityType, ex);
+            }
+        }
+        return counts;
     }
 
     private long deriveTotalDocuments(Map<String, Object> stats, Map<String, Long> documentsByType) {
@@ -113,7 +128,41 @@ public class KnowledgeBaseOverviewService {
             return documentsByType.values().stream().mapToLong(Long::longValue).sum();
         }
 
-        return storageStrategy.countByVectorIdIsNotNull();
+        return 0L;
+    }
+
+    private LocalDateTime deriveLastUpdated(List<String> entityTypes) {
+        if (entityTypes == null || entityTypes.isEmpty()) {
+            return null;
+        }
+
+        LocalDateTime latest = null;
+        for (String entityType : entityTypes) {
+            if (entityType == null || entityType.isBlank()) {
+                continue;
+            }
+            try {
+                List<com.ai.infrastructure.dto.VectorRecord> vectors = vectorDatabaseService.getVectorsByEntityType(entityType);
+                if (vectors == null || vectors.isEmpty()) {
+                    continue;
+                }
+                for (com.ai.infrastructure.dto.VectorRecord record : vectors) {
+                    if (record == null) {
+                        continue;
+                    }
+                    LocalDateTime timestamp = record.getUpdatedAt() != null ? record.getUpdatedAt() : record.getCreatedAt();
+                    if (timestamp == null) {
+                        continue;
+                    }
+                    if (latest == null || timestamp.isAfter(latest)) {
+                        latest = timestamp;
+                    }
+                }
+            } catch (Exception ex) {
+                log.debug("Failed to compute lastUpdated for entity type {}", entityType, ex);
+            }
+        }
+        return latest;
     }
 
     private Optional<Long> extractLong(Object value) {

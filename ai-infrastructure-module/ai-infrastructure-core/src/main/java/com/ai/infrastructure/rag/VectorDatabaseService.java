@@ -3,12 +3,20 @@ package com.ai.infrastructure.rag;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Vector Database Service Interface
@@ -21,6 +29,20 @@ import java.util.Optional;
  * @version 2.0.0
  */
 public interface VectorDatabaseService {
+
+    /**
+     * Capability check: does this provider support paged scan operations?
+     */
+    default boolean supportsVectorScan() {
+        return false;
+    }
+
+    /**
+     * Capability check: does this provider support efficient metadata filtering during scans?
+     */
+    default boolean supportsMetadataFiltering() {
+        return false;
+    }
     
     /**
      * Store a vector in the database
@@ -205,6 +227,132 @@ public interface VectorDatabaseService {
      * @return true if the vector exists
      */
     boolean vectorExists(String entityType, String entityId);
+
+    /**
+     * Paged scan over vectors for a given entityType, optionally filtered by metadata.
+     *
+     * <p>Providers may override for efficient server-side scans. The default implementation falls back to
+     * {@link #getVectorsByEntityType(String)} and performs filtering + paging in-memory.</p>
+     */
+    default VectorScanPage scan(VectorScanRequest request) {
+        if (request == null || request.getEntityType() == null || request.getEntityType().isBlank()) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .nextCursor(null)
+                .hasMore(false)
+                .build();
+        }
+
+        int limit = request.getLimit() != null && request.getLimit() > 0 ? request.getLimit() : 200;
+        int offset = decodeOffsetCursor(request.getCursor());
+
+        List<VectorRecord> all = getVectorsByEntityType(request.getEntityType());
+        if (all == null || all.isEmpty()) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .nextCursor(null)
+                .hasMore(false)
+                .build();
+        }
+
+        Map<String, Object> metadataEquals = request.getMetadataEquals();
+
+        // Stable ordering so cursor paging is deterministic.
+        List<VectorRecord> filtered = all.stream()
+            .filter(Objects::nonNull)
+            .filter(record -> metadataEquals == null || metadataEquals.isEmpty() || metadataMatches(record.getMetadata(), metadataEquals))
+            .sorted(Comparator
+                .comparing((VectorRecord r) -> r.getUpdatedAt() != null ? r.getUpdatedAt() : r.getCreatedAt(),
+                    Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(r -> r.getVectorId() != null ? r.getVectorId() : "", Comparator.naturalOrder())
+            )
+            .collect(Collectors.toList());
+
+        if (offset >= filtered.size()) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .nextCursor(null)
+                .hasMore(false)
+                .build();
+        }
+
+        int end = Math.min(filtered.size(), offset + limit);
+        List<VectorRecord> page = new ArrayList<>(filtered.subList(offset, end));
+
+        // Strip heavy fields if requested.
+        if (!request.isIncludeEmbedding() || !request.isIncludeContent() || !request.isIncludeMetadata()) {
+            page = page.stream()
+                .map(record -> VectorRecord.builder()
+                    .vectorId(record.getVectorId())
+                    .entityType(record.getEntityType())
+                    .entityId(record.getEntityId())
+                    .content(request.isIncludeContent() ? record.getContent() : null)
+                    .embedding(request.isIncludeEmbedding() ? record.getEmbedding() : null)
+                    .metadata(request.isIncludeMetadata() ? record.getMetadata() : null)
+                    .aiAnalysis(record.getAiAnalysis())
+                    .createdAt(record.getCreatedAt())
+                    .updatedAt(record.getUpdatedAt())
+                    .vectorMetadata(record.getVectorMetadata())
+                    .similarityScore(record.getSimilarityScore())
+                    .active(record.getActive())
+                    .version(record.getVersion())
+                    .build())
+                .collect(Collectors.toList());
+        }
+
+        boolean hasMore = end < filtered.size();
+        String nextCursor = hasMore ? encodeOffsetCursor(end) : null;
+
+        return VectorScanPage.builder()
+            .vectors(page)
+            .nextCursor(nextCursor)
+            .hasMore(hasMore)
+            .build();
+    }
+
+    private static boolean metadataMatches(Map<String, Object> recordMetadata, Map<String, Object> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return true;
+        }
+        if (recordMetadata == null || recordMetadata.isEmpty()) {
+            return false;
+        }
+        for (Map.Entry<String, Object> entry : filters.entrySet()) {
+            String key = entry.getKey();
+            Object expected = entry.getValue();
+            Object actual = recordMetadata.get(key);
+            if (expected == null) {
+                if (actual != null) {
+                    return false;
+                }
+            } else if (actual == null) {
+                return false;
+            } else if (!String.valueOf(expected).equals(String.valueOf(actual))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String encodeOffsetCursor(int offset) {
+        String raw = "offset:" + offset;
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static int decodeOffsetCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return 0;
+        }
+        try {
+            String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            if (raw.startsWith("offset:")) {
+                return Integer.parseInt(raw.substring("offset:".length()));
+            }
+            return 0;
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
     
     /**
      * Get statistics about the vector store

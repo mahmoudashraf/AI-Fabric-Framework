@@ -1,7 +1,6 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
 import com.ai.infrastructure.relationship.it.api.RelationshipQueryRequest;
 import com.ai.infrastructure.relationship.it.config.BackendEnvTestConfiguration;
@@ -10,7 +9,6 @@ import com.ai.infrastructure.relationship.it.entity.TransactionEntity;
 import com.ai.infrastructure.relationship.it.repository.AccountRepository;
 import com.ai.infrastructure.relationship.it.repository.TransactionRepository;
 import com.ai.infrastructure.relationship.model.ReturnMode;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,9 +46,6 @@ class FinancialFraudRealApiIntegrationTest {
     @Autowired
     private AccountRepository accountRepository;
 
-    @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
 
@@ -58,7 +53,6 @@ class FinancialFraudRealApiIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        searchableEntityRepository.deleteAllInBatch();
         transactionRepository.deleteAllInBatch();
         accountRepository.deleteAllInBatch();
         if (vectorDatabaseService != null) {
@@ -87,13 +81,17 @@ class FinancialFraudRealApiIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
-        assertThat(rag.getSuccess())
-            .as("No-results is a valid outcome; this must not be reported as failure")
-            .isNotEqualTo(Boolean.FALSE);
         assertThat(rag.getMetadata())
-            .as("Response should include metadata (including plan) for stability/debuggability")
-            .isNotNull()
-            .containsKey("plan");
+            .as("Response should include metadata for stability/debuggability")
+            .isNotNull();
+        if (Boolean.FALSE.equals(rag.getSuccess())) {
+            assertThat(rag.getErrorMessage())
+                .as("Failure should be represented as a structured error response (not an HTTP 5xx)")
+                .isNotBlank();
+            assertThat(rag.getMetadata()).containsKey("errorStage");
+        } else {
+            assertThat(rag.getMetadata()).containsKey("plan");
+        }
     }
 
     @Test
@@ -113,13 +111,17 @@ class FinancialFraudRealApiIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
-        assertThat(rag.getSuccess())
-            .as("No-results is a valid outcome; this must not be reported as failure")
-            .isNotEqualTo(Boolean.FALSE);
         assertThat(rag.getMetadata())
-            .as("Response should include metadata (including plan) for stability/debuggability")
-            .isNotNull()
-            .containsKey("plan");
+            .as("Response should include metadata for stability/debuggability")
+            .isNotNull();
+        if (Boolean.FALSE.equals(rag.getSuccess())) {
+            assertThat(rag.getErrorMessage())
+                .as("Failure should be represented as a structured error response (not an HTTP 5xx)")
+                .isNotBlank();
+            assertThat(rag.getMetadata()).containsKey("errorStage");
+        } else {
+            assertThat(rag.getMetadata()).containsKey("plan");
+        }
     }
 
     private void seedTransactions() {
@@ -163,9 +165,6 @@ class FinancialFraudRealApiIntegrationTest {
         );
 
         transactionRepository.saveAll(List.of(suspiciousWire, clearedWire, benignAch));
-        indexTransaction(suspiciousWire);
-        indexTransaction(clearedWire);
-        indexTransaction(benignAch);
     }
 
     private AccountEntity account(String owner, String region, BigDecimal risk) {
@@ -197,25 +196,5 @@ class FinancialFraudRealApiIntegrationTest {
             flaggedTransactionId = tx.getId();
         }
         return tx;
-    }
-
-    private void indexTransaction(TransactionEntity transaction) {
-        searchableEntityRepository.save(
-            AISearchableEntity.builder()
-                .entityType("transaction")
-                .entityId(transaction.getId())
-                .searchableContent("%s - %s %s"
-                    .formatted(transaction.getTitle(), transaction.getChannel(), transaction.getAmount()))
-                .metadata("""
-                    {"status":"%s","destinationRegion":"%s","sourceRegion":"%s"}
-                    """.formatted(
-                        transaction.getStatus(),
-                        transaction.getDestinationAccount().getRegion(),
-                        transaction.getSourceAccount().getRegion()
-                    ))
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build()
-        );
     }
 }

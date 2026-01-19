@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Data Migration Module is a production-ready system for bulk indexing and migrating existing entities into the AI Infrastructure's searchable entity store. It enables asynchronous, resumable, and filtered migration of JPA entities into the vector search and relationship query systems.
+The Data Migration Module is a production-ready system for bulk indexing and migrating existing entities into the AI Infrastructure’s vector database index. It enables asynchronous, resumable, and filtered migration of JPA entities into the vector search and relationship query systems.
 
 ### What This Module Does
 
@@ -538,7 +538,7 @@ MigrationRequest request = MigrationRequest.builder()
 
 ### Reindexing Existing Entities
 
-By default, migration skips entities already in `AISearchableEntity` storage. To force reindexing:
+By default, migration skips entities already present in the vector database (by `entityType` + `entityId`). To force reindexing:
 
 ```java
 MigrationRequest request = MigrationRequest.builder()
@@ -1151,4 +1151,3 @@ A: Use date range filters to chunk into smaller jobs.
 ---
 
 *This guide reflects the actual implementation in the codebase. For framework-wide features (indexing, embeddings, search), refer to the main AI Infrastructure documentation.*
-

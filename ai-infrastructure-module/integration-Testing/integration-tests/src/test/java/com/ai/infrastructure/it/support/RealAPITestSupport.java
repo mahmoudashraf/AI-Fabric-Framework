@@ -1,6 +1,10 @@
 package com.ai.infrastructure.it.support;
 
+import com.ai.infrastructure.service.VectorManagementService;
 import org.springframework.util.StringUtils;
+
+import java.time.Duration;
+import java.util.function.Supplier;
 
 /**
  * Utility methods shared across Real API integration tests.
@@ -163,5 +167,78 @@ public final class RealAPITestSupport {
             System.setProperty("ai.providers.llm-provider", "azure");
         }
         // If no provider found, leave unset (ONNX/REST don't need LLM provider)
+    }
+
+    public static void awaitVectorExists(VectorManagementService vectorManagementService,
+                                         String entityType,
+                                         String entityId,
+                                         Duration timeout) {
+        awaitVectorState(vectorManagementService, entityType, entityId, true, 3, timeout);
+    }
+
+    public static void awaitVectorMissing(VectorManagementService vectorManagementService,
+                                          String entityType,
+                                          String entityId,
+                                          Duration timeout) {
+        awaitVectorState(vectorManagementService, entityType, entityId, false, 5, timeout);
+    }
+
+    private static void awaitVectorState(VectorManagementService vectorManagementService,
+                                         String entityType,
+                                         String entityId,
+                                         boolean expectedExists,
+                                         int requiredConsecutiveReads,
+                                         Duration timeout) {
+        if (vectorManagementService == null) {
+            return;
+        }
+
+        String description = "vectorExists(" + entityType + ", " + entityId + ") == " + expectedExists;
+        awaitStableCondition(description,
+            () -> vectorManagementService.vectorExists(entityType, entityId) == expectedExists,
+            requiredConsecutiveReads,
+            timeout);
+    }
+
+    /**
+     * Await a condition that must be satisfied consistently for {@code requiredConsecutiveReads}
+     * to avoid false positives caused by transient backend errors (e.g., vector DB eventual consistency
+     * or HTTP timeouts) being interpreted as "vector missing".
+     */
+    private static void awaitStableCondition(String description,
+                                             Supplier<Boolean> condition,
+                                             int requiredConsecutiveReads,
+                                             Duration timeout) {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        boolean last = false;
+        int consecutiveSuccesses = 0;
+        int required = Math.max(1, requiredConsecutiveReads);
+        while (System.nanoTime() < deadline) {
+            try {
+                last = Boolean.TRUE.equals(condition.get());
+            } catch (Exception ignored) {
+                last = false;
+            }
+
+            if (last) {
+                consecutiveSuccesses++;
+                if (consecutiveSuccesses >= required) {
+                    return;
+                }
+            } else {
+                consecutiveSuccesses = 0;
+            }
+
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+
+        if (!last) {
+            throw new AssertionError("Timed out waiting for condition: " + description);
+        }
     }
 }

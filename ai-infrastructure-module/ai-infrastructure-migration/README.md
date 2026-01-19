@@ -279,7 +279,7 @@ public void migrateTenant(String tenantId) {
 │  INDEXING QUEUE (AI Infrastructure Core)            │
 │  🧠 Generates embeddings                            │
 │  🔍 Indexes for vector search                       │
-│  💾 Stores in searchable entity store               │
+│  💾 Upserts into the vector database                │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -832,4 +832,3 @@ System.out.println("Progress: " + progress.getPercentComplete() + "%");
 - ✅ **100%** resumable from any failure point
 
 **Your data deserves better than shell scripts. Give it the migration it deserves.**
-

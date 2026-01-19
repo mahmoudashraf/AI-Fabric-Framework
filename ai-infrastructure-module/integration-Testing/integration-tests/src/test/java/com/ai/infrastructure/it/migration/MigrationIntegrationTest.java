@@ -6,7 +6,7 @@ import com.ai.infrastructure.migration.service.DataMigrationService;
 import com.ai.infrastructure.migration.repository.MigrationJobRepository;
 import com.ai.infrastructure.indexing.queue.IndexingQueueService;
 import com.ai.infrastructure.indexing.IndexingRequest;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,12 +49,12 @@ class MigrationIntegrationTest {
     private IndexingQueueService queueService;
 
     @MockBean
-    private AISearchableEntityStorageStrategy storageStrategy;
+    private VectorDatabaseService vectorDatabaseService;
 
     @BeforeEach
     void cleanState() {
         repository.deleteAll();
-        Mockito.reset(queueService, storageStrategy);
+        Mockito.reset(queueService, vectorDatabaseService);
     }
 
     private void stubQueueLeaseNoop() {
@@ -66,8 +66,8 @@ class MigrationIntegrationTest {
         repository.save(new TestMigrationEntity("id-1", LocalDateTime.now().minusDays(1)));
         repository.save(new TestMigrationEntity("id-2", LocalDateTime.now().minusDays(2)));
 
-        when(storageStrategy.findByEntityTypeAndEntityId("mig-test", "id-1")).thenReturn(Optional.empty());
-        when(storageStrategy.findByEntityTypeAndEntityId("mig-test", "id-2")).thenReturn(Optional.empty());
+        when(vectorDatabaseService.vectorExists("mig-test", "id-1")).thenReturn(false);
+        when(vectorDatabaseService.vectorExists("mig-test", "id-2")).thenReturn(false);
         stubQueueLeaseNoop();
 
         MigrationRequest request = MigrationRequest.builder()
@@ -98,8 +98,7 @@ class MigrationIntegrationTest {
         repository.save(new TestMigrationEntity("id-3", LocalDateTime.now().minusHours(3)));
 
         // already indexed
-        when(storageStrategy.findByEntityTypeAndEntityId("mig-test", "id-3"))
-            .thenReturn(Optional.of(new com.ai.infrastructure.entity.AISearchableEntity()));
+        when(vectorDatabaseService.vectorExists("mig-test", "id-3")).thenReturn(true);
 
         MigrationRequest skip = MigrationRequest.builder()
             .entityType("mig-test")
@@ -140,10 +139,10 @@ class MigrationIntegrationTest {
         repository.save(oldEntity);
         repository.save(newEntity);
 
-        when(storageStrategy.findByEntityTypeAndEntityId("mig-test", "old-1")).thenReturn(Optional.empty());
-        when(storageStrategy.findByEntityTypeAndEntityId("mig-test", "new-1")).thenReturn(Optional.empty());
-        Mockito.lenient().when(storageStrategy.findByEntityTypeAndEntityId(Mockito.eq("mig-test"), Mockito.anyString()))
-            .thenReturn(Optional.empty());
+        when(vectorDatabaseService.vectorExists("mig-test", "old-1")).thenReturn(false);
+        when(vectorDatabaseService.vectorExists("mig-test", "new-1")).thenReturn(false);
+        Mockito.lenient().when(vectorDatabaseService.vectorExists(Mockito.eq("mig-test"), Mockito.anyString()))
+            .thenReturn(false);
 
         MigrationRequest request = MigrationRequest.builder()
             .entityType("mig-test")
@@ -174,8 +173,8 @@ class MigrationIntegrationTest {
     void cancelMidRunStopsEnqueue() throws Exception {
         repository.save(new TestMigrationEntity("c1", LocalDateTime.now().minusDays(1)));
         repository.save(new TestMigrationEntity("c2", LocalDateTime.now().minusDays(1)));
-        when(storageStrategy.findByEntityTypeAndEntityId(Mockito.eq("mig-test"), Mockito.anyString()))
-            .thenReturn(Optional.empty());
+        when(vectorDatabaseService.vectorExists(Mockito.eq("mig-test"), Mockito.anyString()))
+            .thenReturn(false);
         stubQueueLeaseNoop();
 
         CountDownLatch firstEnqueue = new CountDownLatch(1);
@@ -209,8 +208,8 @@ class MigrationIntegrationTest {
     @Test
     void failurePathMovesJobToFailed() {
         repository.save(new TestMigrationEntity("f1", LocalDateTime.now().minusDays(1)));
-        when(storageStrategy.findByEntityTypeAndEntityId(Mockito.eq("mig-test"), Mockito.anyString()))
-            .thenReturn(Optional.empty());
+        when(vectorDatabaseService.vectorExists(Mockito.eq("mig-test"), Mockito.anyString()))
+            .thenReturn(false);
         stubQueueLeaseNoop();
 
         Mockito.doThrow(new IllegalStateException("enqueue-fail"))
@@ -246,8 +245,8 @@ class MigrationIntegrationTest {
     void pauseAndResumeProcessesRemaining() {
         repository.save(new TestMigrationEntity("p1", LocalDateTime.now().minusDays(1)));
         repository.save(new TestMigrationEntity("p2", LocalDateTime.now().minusDays(1)));
-        when(storageStrategy.findByEntityTypeAndEntityId(Mockito.eq("mig-test"), Mockito.anyString()))
-            .thenReturn(Optional.empty());
+        when(vectorDatabaseService.vectorExists(Mockito.eq("mig-test"), Mockito.anyString()))
+            .thenReturn(false);
         stubQueueLeaseNoop();
 
         MigrationRequest req = MigrationRequest.builder()

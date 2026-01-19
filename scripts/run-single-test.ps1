@@ -15,7 +15,6 @@ $OPENAI_KEY = "sk-proj-YOUR-API-KEY-HERE"                       # Change this to
 $LLM_PROVIDER = "openai"
 $EMBEDDING_PROVIDER = "onnx"
 $VECTOR_DB = "lucene"
-$STORAGE_STRATEGY = "SINGLE_TABLE"
 
 # Maven Configuration
 $MAVEN_PROFILE = "realapi"
@@ -59,7 +58,7 @@ Write-ColorOutput "   Maven Profile: $MAVEN_PROFILE" "White"
 Write-ColorOutput "   LLM Provider: $LLM_PROVIDER" "White"
 Write-ColorOutput "   Embedding: $EMBEDDING_PROVIDER" "White"
 Write-ColorOutput "   Vector DB: $VECTOR_DB" "White"
-Write-ColorOutput "   Storage: $STORAGE_STRATEGY`n" "White"
+Write-ColorOutput "" "White"
 
 # Set environment variables
 $env:OPENAI_API_KEY = $OPENAI_KEY
@@ -78,7 +77,6 @@ $MAVEN_CMD = @(
     "-Dai.providers.llm-provider=$LLM_PROVIDER",
     "-Dai.providers.embedding-provider=$EMBEDDING_PROVIDER",
     "-Dai.vector-db.type=$VECTOR_DB",
-    "-Dai-infrastructure.storage.strategy=$STORAGE_STRATEGY",
     "-DforkCount=$FORK_COUNT",
     "-DreuseForks=$REUSE_FORKS",
     "-Dlogging.level.root=$LOG_LEVEL"
@@ -116,4 +114,3 @@ try {
     Write-ColorOutput "`n❌ Error executing Maven: $_" "Red"
     exit 1
 }
-

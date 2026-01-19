@@ -55,7 +55,7 @@ class DynamicJPAQueryBuilderTest {
         JpqlQuery query = builder.buildQuery(plan);
 
         assertThat(query.getJpql()).contains("FROM Document");
-        assertThat(query.getJpql()).contains("JOIN root.createdBy");
+        assertThat(query.getJpql()).contains("JOIN FETCH root.createdBy");
         assertThat(query.getJpql()).contains("root.status = :p1");
         assertThat(query.getParameters()).containsEntry("p1", "ACTIVE");
     }
@@ -80,6 +80,28 @@ class DynamicJPAQueryBuilderTest {
 
         assertThat(query.getJpql()).contains("root.status = :p1");
         assertThat(query.getJpql()).doesNotContain("document.status");
+    }
+
+    @Test
+    void shouldWrapLikeFiltersWithWildcardsWhenMissing() {
+        RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
+            .originalQuery("Find documents whose title mentions archive")
+            .primaryEntityType("document")
+            .directFilters(Map.of(
+                "document", List.of(
+                    FilterCondition.builder()
+                        .field("title")
+                        .operator(FilterOperator.LIKE)
+                        .value("archive")
+                        .build()
+                )
+            ))
+            .build();
+
+        JpqlQuery query = builder.buildQuery(plan);
+
+        assertThat(query.getJpql()).contains("LOWER(root.title) LIKE :p1");
+        assertThat(query.getParameters()).containsEntry("p1", "%archive%");
     }
 
     @AICapable(entityType = "document")

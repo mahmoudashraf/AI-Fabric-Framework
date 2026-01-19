@@ -58,7 +58,6 @@ class ComplianceCheckProviderIntegrationTest {
                 .compliant(false)
                 .violations(List.of("GDPR_ARTICLE_5", "PCI_DSS"))
                 .details("Shared data outside approved region")
-                .timestamp(LocalDateTime.of(2025, 1, 1, 12, 0))
                 .build());
 
         AIComplianceResponse response = complianceService.checkCompliance(baseRequest("req-violation"));

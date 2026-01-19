@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test class to verify the vector storage migration is working correctly.
- * This test verifies that vectors are now stored in the external vector database
- * instead of directly in the AISearchableEntity.
+ * This test verifies that vectors are stored in the vector database via {@link VectorManagementService},
+ * with no relational searchable-entity cache involved.
  */
 @SpringBootTest(classes = TestConfiguration.class)
 @Import(TestConfiguration.class)
@@ -54,7 +54,9 @@ public class VectorStorageMigrationTest {
         assertEquals(entityId, retrievedVector.getEntityId(), "Entity ID should match");
         assertEquals(content, retrievedVector.getContent(), "Content should match");
         assertEquals(embedding, retrievedVector.getEmbedding(), "Embedding should match");
-        assertEquals(metadata, retrievedVector.getMetadata(), "Metadata should match");
+        assertNotNull(retrievedVector.getMetadata(), "Metadata should not be null");
+        assertEquals("test", retrievedVector.getMetadata().get("source"), "Metadata field 'source' should match");
+        assertEquals("1.0", retrievedVector.getMetadata().get("version"), "Metadata field 'version' should match");
 
         // Test searching vectors
         AISearchRequest searchRequest = AISearchRequest.builder()

@@ -1,7 +1,7 @@
 package com.ai.infrastructure.relationship.usecases;
 
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
@@ -21,14 +21,14 @@ import com.ai.infrastructure.relationship.integration.repository.ProductReposito
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
+import com.ai.infrastructure.relationship.service.DefaultRelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
+import com.ai.infrastructure.relationship.service.RelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -49,7 +49,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -80,10 +79,7 @@ class ECommerceProductDiscoveryTest {
     private BrandRepository brandRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
+    private AIEntityConfigurationLoader configurationLoader;
 
     @Autowired
     private RelationshipQueryPlanner planner;
@@ -118,16 +114,12 @@ class ECommerceProductDiscoveryTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     private LLMDrivenJPAQueryService llmDrivenJPAQueryService;
     private String nikeBlueRunnerId;
 
     @BeforeEach
     void setUp() {
         Mockito.reset(planner);
-        searchableEntityRepository.deleteAll();
         productRepository.deleteAll();
         brandRepository.deleteAll();
         if (vectorDatabaseService != null) {
@@ -149,10 +141,7 @@ class ECommerceProductDiscoveryTest {
         schemaProvider.refreshSchema();
 
         var jpaTraversalService = new com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService(entityManager);
-        var metadataTraversalService = new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
-            storageStrategy,
-            objectMapper
-        );
+        RelationshipQueryDocumentMapper documentMapper = new DefaultRelationshipQueryDocumentMapper(null, configurationLoader);
 
         llmDrivenJPAQueryService = new LLMDrivenJPAQueryService(
             planner,
@@ -161,8 +150,7 @@ class ECommerceProductDiscoveryTest {
             relationshipQueryProperties,
             relationshipModuleMetadata,
             jpaTraversalService,
-            metadataTraversalService,
-            storageStrategy,
+            documentMapper,
             vectorDatabaseService,
             aiEmbeddingService,
             queryCache,
@@ -248,11 +236,6 @@ class ECommerceProductDiscoveryTest {
 
         nikeBlueRunnerId = blueRunner.getId();
 
-        indexProduct(blueRunner, "nike", "blue", 85);
-        indexProduct(premiumBoot, "nike", "blue", 180);
-        indexProduct(redRunner, "nike", "red", 90);
-        indexProduct(adidasBlue, "adidas", "blue", 95);
-
         entityRelationshipMapper.registerEntityType(ProductEntity.class);
         entityRelationshipMapper.registerEntityType(BrandEntity.class);
         try {
@@ -269,18 +252,6 @@ class ECommerceProductDiscoveryTest {
         product.setBrand(brand);
         brand.getProducts().add(product);
         return productRepository.save(product);
-    }
-
-    private void indexProduct(ProductEntity product, String brand, String color, double price) {
-        AISearchableEntity entity = AISearchableEntity.builder()
-            .entityType("product")
-            .entityId(product.getId())
-            .searchableContent(product.getName())
-            .metadata("{\"brand\":\"%s\",\"color\":\"%s\",\"price\":%s}".formatted(brand, color, price))
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
-        searchableEntityRepository.save(entity);
     }
 
     @TestConfiguration

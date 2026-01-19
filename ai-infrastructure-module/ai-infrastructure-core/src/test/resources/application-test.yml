@@ -4,6 +4,10 @@ spring:
       enabled: false
 
 ai:
+  intent-extraction:
+    progressive:
+      enabled: false
+
   vector-db:
     type: memory
 

@@ -19,7 +19,6 @@ import com.ai.infrastructure.it.RealAPIProgressiveMultiStepComplexScenariosInteg
 import com.ai.infrastructure.it.RealAPIVectorSpaceClarificationPolicyIntegrationTest;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.it.RealAPIMultiProviderFailoverIntegrationTest;
-import com.ai.infrastructure.it.RealAPICreativeAIScenariosIntegrationTest;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DynamicTest;
 import org.springframework.util.StringUtils;
@@ -69,7 +68,6 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPIMultiProviderFailoverIntegrationTest.class,
         RealAPISmartSuggestionsIntegrationTest.class,
         RealAPIPIIEdgeSpectrumIntegrationTest.class,
-        RealAPICreativeAIScenariosIntegrationTest.class,
         RealAPIProgressiveMultiStepComplexScenariosIntegrationTest.class
     };
 
@@ -92,7 +90,6 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPISmartSuggestionsIntegrationTest.class,
         RealAPIPIIEdgeSpectrumIntegrationTest.class,
         IndexingStrategyIntegrationTest.class,
-        RealAPICreativeAIScenariosIntegrationTest.class
     };
 
     @Override
@@ -306,11 +303,6 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     }
 
     @Override
-    protected List<String> storageStrategies() {
-        return List.of("PER_TYPE_TABLE", "SINGLE_TABLE", "CUSTOM");
-    }
-
-    @Override
     protected List<ProviderCombination> resolveProviderMatrix() {
         List<ProviderCombination> available = availableProviderCombinations();
 
@@ -322,9 +314,7 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
             return available;
         }
 
-        List<ProviderCombination> requested = parseMatrixSpec(matrixSpec).stream()
-            .filter(combo -> storageStrategies().contains(combo.storageStrategy()))
-            .toList();
+        List<ProviderCombination> requested = parseMatrixSpec(matrixSpec);
 
         LinkedHashSet<ProviderCombination> availableSet = new LinkedHashSet<>(available);
         List<ProviderCombination> accepted = requested.stream()
@@ -351,19 +341,22 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
                 String[] parts = entry.split(":");
                 if (parts.length < 2 || parts.length > 4) {
                     throw new IllegalArgumentException(
-                        "Invalid provider matrix entry: '" + entry + "'. Expected llm:embedding[:vectordb][:storageStrategy]");
+                        "Invalid provider matrix entry: '" + entry + "'. Expected llm:embedding[:vectordb] (optional deprecated ':storageStrategy' is ignored)");
                 }
 
                 String llm = parts[0].trim();
                 String embedding = parts[1].trim();
                 String vectorDb = parts.length >= 3 ? parts[2].trim() : null;
-                String storageStrategy = parts.length == 4 ? parts[3].trim() : defaultStorageStrategy();
-
-                if (!StringUtils.hasText(storageStrategy)) {
-                    storageStrategy = defaultStorageStrategy();
+                if (parts.length == 4) {
+                    String ignoredStorage = parts[3].trim();
+                    if (StringUtils.hasText(ignoredStorage)) {
+                        // Backward compatibility for older scripts/workflows that included storage strategy.
+                        // Storage strategy is no longer used after AISearchableEntity removal.
+                        log.warn("Ignoring deprecated provider-matrix storage strategy segment '{}' in entry '{}'", ignoredStorage, entry);
+                    }
                 }
 
-                return new ProviderCombination(llm, embedding, vectorDb, storageStrategy);
+                return new ProviderCombination(llm, embedding, vectorDb);
             })
             .collect(Collectors.toCollection(ArrayList::new));
     }

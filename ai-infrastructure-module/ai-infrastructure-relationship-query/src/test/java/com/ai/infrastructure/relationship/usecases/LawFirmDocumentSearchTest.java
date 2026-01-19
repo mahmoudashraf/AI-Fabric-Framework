@@ -1,7 +1,7 @@
 package com.ai.infrastructure.relationship.usecases;
 
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
@@ -21,14 +21,14 @@ import com.ai.infrastructure.relationship.integration.repository.UserRepository;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
+import com.ai.infrastructure.relationship.service.DefaultRelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
+import com.ai.infrastructure.relationship.service.RelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -80,10 +80,7 @@ class LawFirmDocumentSearchTest {
     private UserRepository userRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
+    private AIEntityConfigurationLoader configurationLoader;
 
     @Autowired
     private RelationshipQueryPlanner planner;
@@ -118,16 +115,12 @@ class LawFirmDocumentSearchTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     private LLMDrivenJPAQueryService llmDrivenJPAQueryService;
     private String q4ContractId;
 
     @BeforeEach
     void setUp() {
         Mockito.reset(planner);
-        searchableEntityRepository.deleteAll();
         documentRepository.deleteAll();
         userRepository.deleteAll();
         if (vectorDatabaseService != null) {
@@ -149,10 +142,7 @@ class LawFirmDocumentSearchTest {
         schemaProvider.refreshSchema();
 
         var jpaTraversalService = new com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService(entityManager);
-        var metadataTraversalService = new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
-            storageStrategy,
-            objectMapper
-        );
+        RelationshipQueryDocumentMapper documentMapper = new DefaultRelationshipQueryDocumentMapper(null, configurationLoader);
 
         llmDrivenJPAQueryService = new LLMDrivenJPAQueryService(
             planner,
@@ -161,8 +151,7 @@ class LawFirmDocumentSearchTest {
             relationshipQueryProperties,
             relationshipModuleMetadata,
             jpaTraversalService,
-            metadataTraversalService,
-            storageStrategy,
+            documentMapper,
             vectorDatabaseService,
             aiEmbeddingService,
             queryCache,
@@ -250,11 +239,6 @@ class LawFirmDocumentSearchTest {
 
         q4ContractId = q4Contract.getId();
 
-        indexDocument(q4Contract, "john-smith", "2023-Q4");
-        indexDocument(q3Contract, "john-smith", "2023-Q3");
-        indexDocument(archivedContract, "john-smith", "2023-Q4");
-        indexDocument(otherClientContract, "jane-doe", "2023-Q4");
-
         entityRelationshipMapper.registerEntityType(DocumentEntity.class);
         entityRelationshipMapper.registerEntityType(UserEntity.class);
         entityRelationshipMapper.registerRelationship("document", "user", "author", RelationshipDirection.FORWARD, false);
@@ -267,18 +251,6 @@ class LawFirmDocumentSearchTest {
         document.setAuthor(author);
         author.getDocuments().add(document);
         return document;
-    }
-
-    private void indexDocument(DocumentEntity document, String client, String quarter) {
-        AISearchableEntity entity = AISearchableEntity.builder()
-            .entityType("document")
-            .entityId(document.getId())
-            .searchableContent(document.getTitle())
-            .metadata("{\"client\":\"%s\",\"quarter\":\"%s\"}".formatted(client, quarter))
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
-        searchableEntityRepository.save(entity);
     }
 
     @TestConfiguration

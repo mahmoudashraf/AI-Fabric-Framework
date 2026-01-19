@@ -1,7 +1,7 @@
 package com.ai.infrastructure.relationship.usecases;
 
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
@@ -21,14 +21,14 @@ import com.ai.infrastructure.relationship.integration.repository.PatientReposito
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
+import com.ai.infrastructure.relationship.service.DefaultRelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
 import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
+import com.ai.infrastructure.relationship.service.RelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -49,7 +49,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -80,10 +79,7 @@ class MedicalCaseFinderTest {
     private PatientRepository patientRepository;
 
     @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
+    private AIEntityConfigurationLoader configurationLoader;
 
     @Autowired
     private RelationshipQueryPlanner planner;
@@ -118,16 +114,12 @@ class MedicalCaseFinderTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     private LLMDrivenJPAQueryService llmDrivenJPAQueryService;
     private String oncologyCaseId;
 
     @BeforeEach
     void setUp() {
         Mockito.reset(planner);
-        searchableEntityRepository.deleteAll();
         medicalCaseRepository.deleteAll();
         patientRepository.deleteAll();
         if (vectorDatabaseService != null) {
@@ -149,10 +141,7 @@ class MedicalCaseFinderTest {
         schemaProvider.refreshSchema();
 
         var jpaTraversalService = new com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService(entityManager);
-        var metadataTraversalService = new com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService(
-            storageStrategy,
-            objectMapper
-        );
+        RelationshipQueryDocumentMapper documentMapper = new DefaultRelationshipQueryDocumentMapper(null, configurationLoader);
 
         llmDrivenJPAQueryService = new LLMDrivenJPAQueryService(
             planner,
@@ -161,8 +150,7 @@ class MedicalCaseFinderTest {
             relationshipQueryProperties,
             relationshipModuleMetadata,
             jpaTraversalService,
-            metadataTraversalService,
-            storageStrategy,
+            documentMapper,
             vectorDatabaseService,
             aiEmbeddingService,
             queryCache,
@@ -273,10 +261,6 @@ class MedicalCaseFinderTest {
 
         oncologyCaseId = activeOncology.getId();
 
-        indexCase(activeOncology, "oncology", "immunotherapy", "ACTIVE", "alice carter");
-        indexCase(inactiveOncology, "oncology", "radiation", "CLOSED", "alice carter");
-        indexCase(cardiologyBob, "cardiology", "statin", "ACTIVE", "bob jensen");
-
         entityRelationshipMapper.registerEntityType(MedicalCaseEntity.class);
         entityRelationshipMapper.registerEntityType(PatientEntity.class);
         try {
@@ -293,19 +277,6 @@ class MedicalCaseFinderTest {
         medicalCase.setPatient(patient);
         patient.getMedicalCases().add(medicalCase);
         return medicalCaseRepository.save(medicalCase);
-    }
-
-    private void indexCase(MedicalCaseEntity medicalCase, String specialty, String therapy, String status, String patientName) {
-        AISearchableEntity entity = AISearchableEntity.builder()
-            .entityType("medical-case")
-            .entityId(medicalCase.getId())
-            .searchableContent(medicalCase.getTitle())
-            .metadata("{\"specialty\":\"%s\",\"therapy\":\"%s\",\"status\":\"%s\",\"patient\":\"%s\"}"
-                .formatted(specialty, therapy, status, patientName))
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
-        searchableEntityRepository.save(entity);
     }
 
     @TestConfiguration

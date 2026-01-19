@@ -16,7 +16,7 @@ import com.ai.infrastructure.migration.domain.MigrationProgress;
 import com.ai.infrastructure.migration.domain.MigrationRequest;
 import com.ai.infrastructure.migration.domain.MigrationStatus;
 import com.ai.infrastructure.migration.repository.MigrationJobRepository;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -42,7 +42,7 @@ public class DataMigrationService {
     private final AIEntityConfigurationLoader configLoader;
     private final EntityRepositoryRegistry repositoryRegistry;
     private final MigrationJobRepository jobRepository;
-    private final AISearchableEntityStorageStrategy searchableEntityStorageStrategy;
+    private final VectorDatabaseService vectorDatabaseService;
     private final MigrationProgressTracker progressTracker;
     private final MigrationProperties migrationProperties;
     private final AIIndexingProperties indexingProperties;
@@ -57,7 +57,7 @@ public class DataMigrationService {
         AIEntityConfigurationLoader configLoader,
         EntityRepositoryRegistry repositoryRegistry,
         MigrationJobRepository jobRepository,
-        AISearchableEntityStorageStrategy searchableEntityStorageStrategy,
+        VectorDatabaseService vectorDatabaseService,
         MigrationProgressTracker progressTracker,
         MigrationProperties migrationProperties,
         AIIndexingProperties indexingProperties,
@@ -71,7 +71,7 @@ public class DataMigrationService {
         this.configLoader = configLoader;
         this.repositoryRegistry = repositoryRegistry;
         this.jobRepository = jobRepository;
-        this.searchableEntityStorageStrategy = searchableEntityStorageStrategy;
+        this.vectorDatabaseService = vectorDatabaseService;
         this.progressTracker = progressTracker;
         this.migrationProperties = migrationProperties;
         this.indexingProperties = indexingProperties;
@@ -350,9 +350,7 @@ public class DataMigrationService {
     }
 
     private boolean alreadyIndexed(String entityType, String entityId) {
-        return searchableEntityStorageStrategy
-            .findByEntityTypeAndEntityId(entityType, entityId)
-            .isPresent();
+        return vectorDatabaseService.vectorExists(entityType, entityId);
     }
 
     private void enqueueForIndexing(Object entity, AIEntityConfig config) throws Exception {

@@ -3,7 +3,7 @@ package com.ai.infrastructure.it;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
-import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -15,7 +15,6 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -71,8 +71,6 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private TestProductRepository productRepository;
@@ -81,7 +79,7 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
     private TestArticleRepository articleRepository;
 
     @MockBean
-    private IntentQueryExtractor intentQueryExtractor;
+    private ProgressiveIntentExtractionEngine progressiveIntentExtractionEngine;
 
     @Test
     void shouldReturnClarificationRequiredWhenVectorSpaceMissingAndPolicyRequiresClarification() {
@@ -97,8 +95,11 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
             .optimizedQuery("enterprise security suite incident response and privacy compliance audits")
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
-            .thenReturn(MultiIntentResponse.builder().intents(List.of(retrievalIntentMissingSpace)).build());
+        when(progressiveIntentExtractionEngine.extract(anyString(), any(OrchestrationContext.class)))
+            .thenReturn(new ProgressiveIntentExtractionEngine.ExtractionOutput(
+                MultiIntentResponse.builder().intents(List.of(retrievalIntentMissingSpace)).build(),
+                Map.of()
+            ));
 
         OrchestrationResult result = orchestrator.orchestrate(
             "Search the knowledge base for incident response and audit readiness and summarize findings.",
@@ -128,7 +129,6 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
 
     private void seedMultipleVectorSpaces() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
         articleRepository.deleteAll();
 
@@ -143,6 +143,7 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
             .active(true)
             .build());
         capabilityService.processEntityForAI(product, "test-product");
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", product.getId().toString(), Duration.ofSeconds(60));
 
         TestArticle article = articleRepository.save(TestArticle.builder()
             .title("PrivacyGuard audit evidence checklist")
@@ -156,6 +157,7 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
             .viewCount(120)
             .build());
         capabilityService.processEntityForAI(article, "test-article");
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-article", article.getId().toString(), Duration.ofSeconds(60));
     }
 
     private void assumeRealApiConfigured() {

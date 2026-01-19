@@ -13,7 +13,6 @@ import com.ai.infrastructure.it.repository.TestUserRepository;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -113,8 +112,6 @@ public class RealAPIProgressiveMultiStepComplexScenariosIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
 
     @Autowired
     private TestProductRepository productRepository;
@@ -199,7 +196,6 @@ public class RealAPIProgressiveMultiStepComplexScenariosIntegrationTest {
 
     private void resetAndSeedKnowledgeBase() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
         articleRepository.deleteAll();
         userRepository.deleteAll();

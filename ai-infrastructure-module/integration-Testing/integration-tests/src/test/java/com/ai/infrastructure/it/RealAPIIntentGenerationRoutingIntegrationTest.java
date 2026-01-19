@@ -5,7 +5,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -13,7 +13,6 @@ import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.it.support.RealAPITestSupport;
 import org.assertj.core.api.Assertions;
@@ -66,18 +65,15 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
     private RAGProvider ragProvider;
 
     @MockBean
-    private IntentQueryExtractor intentQueryExtractor;
+    private ProgressiveIntentExtractionEngine progressiveIntentExtractionEngine;
 
     @Autowired
     private TestProductRepository productRepository;
 
-    @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
 
     @BeforeEach
     void setUp() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
     }
 
@@ -103,8 +99,11 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
             .requiresGeneration(true)
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
-            .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
+        when(progressiveIntentExtractionEngine.extract(anyString(), any(OrchestrationContext.class)))
+            .thenReturn(new ProgressiveIntentExtractionEngine.ExtractionOutput(
+                MultiIntentResponse.builder().intents(List.of(intent)).build(),
+                Map.of()
+            ));
 
         OrchestrationResult result = orchestrator.orchestrate("Suggest an affordable audio headset", "real-gen-routing-user");
 

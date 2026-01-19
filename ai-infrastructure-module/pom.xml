@@ -32,6 +32,7 @@
         <module>ai-infrastructure-core</module>
         <module>ai-infrastructure-indexing</module>
         <module>ai-infrastructure-pii</module>
+        <module>ai-infrastructure-governance</module>
         <module>ai-fabric-starter</module>
         <module>ai-fabric-provider-starter</module>
         <module>ai-infrastructure-rag</module>
@@ -317,6 +318,17 @@
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-surefire-plugin</artifactId>
             <version>3.0.0</version>
+            <configuration>
+                <argLine>-Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+            </configuration>
+        </plugin>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>3.0.0</version>
+            <configuration>
+                <argLine>-Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+            </configuration>
         </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

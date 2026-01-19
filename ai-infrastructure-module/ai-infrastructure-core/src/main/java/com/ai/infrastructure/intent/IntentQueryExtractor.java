@@ -11,6 +11,7 @@ import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,7 +49,11 @@ public class IntentQueryExtractor {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, true)
             .configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true)
-            .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
+            .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
+            // Some providers (and some model outputs) may include Java-style comments or trailing commas.
+            // Be tolerant here; schema validation happens after parsing.
+            .configure(JsonReadFeature.ALLOW_JAVA_COMMENTS.mappedFeature(), true)
+            .configure(JsonReadFeature.ALLOW_TRAILING_COMMA.mappedFeature(), true);
     }
 
     public MultiIntentResponse extract(String query, OrchestrationContext context) {

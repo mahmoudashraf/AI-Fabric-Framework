@@ -26,7 +26,12 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "ai.intent-extraction.progressive", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(
+    prefix = "ai.intent-extraction.progressive",
+    name = "enabled",
+    havingValue = "true",
+    matchIfMissing = true
+)
 public class ProgressiveIntentExtractionEngine {
 
     private static final String METADATA_KEY_ATTEMPTS = "attempts";

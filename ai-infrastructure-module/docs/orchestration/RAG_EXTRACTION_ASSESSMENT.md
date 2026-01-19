@@ -49,7 +49,7 @@ Extraction difficulty: LOW ✅
 
 | Category | Files | Description |
 |----------|-------|-------------|
-| RAG Services | 4 | `RAGService`, `AdvancedRAGService`, `VectorDatabaseService`, `SearchableEntityVectorDatabaseService` |
+| RAG Services | 3 | `RAGService`, `AdvancedRAGService`, `VectorDatabaseService` |
 | DTOs | 4 | `RAGRequest`, `RAGResponse`, `AdvancedRAGRequest`, `AdvancedRAGResponse` |
 | Vector Infrastructure | 3 | `VectorDatabase`, `VectorDatabaseServiceAdapter`, `VectorSearchService` |
 | Configuration | 2 | `VectorDatabaseConfig`, related properties |

@@ -24,7 +24,7 @@
 #   # Run with vector database specification
 #   ./run-provider-matrix-tests.sh "openai:onnx" "pinecone"
 #   ./run-provider-matrix-tests.sh "openai:onnx:memory"
-#   ./run-provider-matrix-tests.sh "openai:onnx:lucene:SINGLE_TABLE"
+#   ./run-provider-matrix-tests.sh "openai:onnx:lucene"
 #
 #   # Run specific test chunk (faster execution)
 #   ./run-provider-matrix-tests.sh "openai:onnx" "" "core"
@@ -504,7 +504,7 @@ fi
 # Auto-configure OpenAI embedding dimensions for Lucene compatibility
 # OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
 # Check if we're using OpenAI embeddings with Lucene vector database
-# Matrix spec format: "llm:embedding" or "llm:embedding:vectordb" or "llm:embedding:vectordb:storage"
+# Matrix spec format: "llm:embedding" or "llm:embedding:vectordb" (optional deprecated ":storageStrategy" is ignored)
 # Check if embedding provider is "openai" (second field in colon-separated spec)
 if [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
     # Check if EMBEDDING_PROVIDER is explicitly set to "openai"

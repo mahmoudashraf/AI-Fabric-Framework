@@ -36,9 +36,9 @@ public class JpaRelationshipTraversalService implements RelationshipTraversalSer
     }
 
     @Override
-    public List<String> traverse(RelationshipQueryPlan plan, JpqlQuery query) {
+    public TraversalResult traverse(RelationshipQueryPlan plan, JpqlQuery query) {
         if (!supports(plan) || query == null || query.getJpql() == null) {
-            return Collections.emptyList();
+            return TraversalResult.empty();
         }
 
         Query jpaQuery = entityManager.createQuery(query.getJpql());
@@ -51,18 +51,20 @@ public class JpaRelationshipTraversalService implements RelationshipTraversalSer
 
         List<?> results = jpaQuery.getResultList();
         if (results.isEmpty()) {
-            return Collections.emptyList();
+            return TraversalResult.empty();
         }
 
         PersistenceUnitUtil util = entityManager.getEntityManagerFactory().getPersistenceUnitUtil();
+        List<Object> entities = new ArrayList<>(results.size());
         List<String> entityIds = new ArrayList<>(results.size());
         for (Object entity : results) {
             Object identifier = util.getIdentifier(entity);
             if (identifier != null) {
+                entities.add(entity);
                 entityIds.add(identifier.toString());
             }
         }
 
-        return entityIds;
+        return TraversalResult.entities(entities, entityIds);
     }
 }

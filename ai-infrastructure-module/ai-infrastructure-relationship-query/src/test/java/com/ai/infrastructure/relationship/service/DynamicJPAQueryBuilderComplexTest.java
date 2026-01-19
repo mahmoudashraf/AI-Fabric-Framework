@@ -68,8 +68,8 @@ class DynamicJPAQueryBuilderComplexTest {
         JpqlQuery query = builder.buildQuery(plan);
 
         assertThat(query.getJpql()).contains("SELECT DISTINCT root FROM Document root");
-        assertThat(query.getJpql()).contains("JOIN root.createdBy");
-        assertThat(query.getJpql()).contains("LEFT JOIN root.project");
+        assertThat(query.getJpql()).contains("JOIN FETCH root.createdBy");
+        assertThat(query.getJpql()).contains("LEFT JOIN FETCH root.project");
         assertThat(query.getJpql()).contains("root.status = :p1");
         assertThat(query.getJpql()).contains("LOWER(us1.email) LIKE :p2");
         assertThat(query.getParameters()).hasSize(2);

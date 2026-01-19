@@ -1,17 +1,16 @@
 package com.ai.infrastructure.relationship.service;
 
-import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.relationship.dto.FilterCondition;
+import com.ai.infrastructure.relationship.dto.FilterOperator;
 import com.ai.infrastructure.relationship.dto.JpqlQuery;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
-import com.ai.infrastructure.relationship.dto.FilterOperator;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,19 +19,16 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Fallback traversal strategy that inspects indexed metadata when direct JPA joins are insufficient.
+ * Fallback traversal strategy that inspects vector metadata when direct JPA joins are insufficient.
+ *
+ * <p>This implementation relies on {@link VectorDatabaseService} as the single source of truth.</p>
  */
 public class MetadataRelationshipTraversalService implements RelationshipTraversalService {
 
-    private static final TypeReference<Map<String, Object>> MAP_REFERENCE = new TypeReference<>() {};
+    private final VectorDatabaseService vectorDatabaseService;
 
-    private final AISearchableEntityStorageStrategy storageStrategy;
-    private final ObjectMapper objectMapper;
-
-    public MetadataRelationshipTraversalService(AISearchableEntityStorageStrategy storageStrategy,
-                                                ObjectMapper objectMapper) {
-        this.storageStrategy = Objects.requireNonNull(storageStrategy);
-        this.objectMapper = Objects.requireNonNull(objectMapper);
+    public MetadataRelationshipTraversalService(VectorDatabaseService vectorDatabaseService) {
+        this.vectorDatabaseService = Objects.requireNonNull(vectorDatabaseService);
     }
 
     @Override
@@ -46,53 +42,85 @@ public class MetadataRelationshipTraversalService implements RelationshipTravers
     }
 
     @Override
-    public List<String> traverse(RelationshipQueryPlan plan, JpqlQuery query) {
+    public TraversalResult traverse(RelationshipQueryPlan plan, JpqlQuery query) {
         if (!supports(plan)) {
-            return Collections.emptyList();
+            return TraversalResult.empty();
         }
 
-        List<AISearchableEntity> candidates = storageStrategy.findByEntityType(plan.getPrimaryEntityType());
-        if (candidates.isEmpty()) {
-            return Collections.emptyList();
-        }
+        String entityType = plan.getPrimaryEntityType();
+        Integer limit = query != null ? query.getLimit() : null;
 
         List<FilterCondition> filterConditions = mergeFilters(plan);
         if (filterConditions.isEmpty()) {
-            return extractIds(candidates, query != null ? query.getLimit() : null);
+            return TraversalResult.ids(scanIds(entityType, limit));
         }
 
         List<String> matches = new ArrayList<>();
-        for (AISearchableEntity entity : candidates) {
-            if (!StringUtils.hasText(entity.getMetadata())) {
-                continue;
-            }
-            try {
-                Map<String, Object> metadata = objectMapper.readValue(entity.getMetadata(), MAP_REFERENCE);
-                if (matches(metadata, filterConditions)) {
-                    matches.add(entity.getEntityId());
-                }
-            } catch (IOException ignored) {
-                // Skip malformed metadata entries
-            }
-            if (query != null && query.getLimit() != null && matches.size() >= query.getLimit()) {
-                break;
-            }
-        }
+        String cursor = null;
+        do {
+            VectorScanPage page = vectorDatabaseService.scan(VectorScanRequest.builder()
+                .entityType(entityType)
+                .cursor(cursor)
+                .limit(limit != null ? Math.min(limit, 500) : 500)
+                .includeContent(false)
+                .includeEmbedding(false)
+                .includeMetadata(true)
+                .build());
 
-        return matches;
+            List<VectorRecord> vectors = page != null ? page.getVectors() : null;
+            if (vectors != null) {
+                for (VectorRecord record : vectors) {
+                    if (record == null || !StringUtils.hasText(record.getEntityId())) {
+                        continue;
+                    }
+                    Map<String, Object> metadata = record.getMetadata();
+                    if (matches(metadata, filterConditions)) {
+                        matches.add(record.getEntityId());
+                    }
+                    if (limit != null && matches.size() >= limit) {
+                        return TraversalResult.ids(matches);
+                    }
+                }
+            }
+
+            cursor = page != null ? page.getNextCursor() : null;
+        } while (cursor != null);
+
+        return TraversalResult.ids(matches);
     }
 
-    private List<String> extractIds(List<AISearchableEntity> entities, Integer limit) {
-        if (entities.isEmpty()) {
+    private List<String> scanIds(String entityType, Integer limit) {
+        if (!StringUtils.hasText(entityType)) {
             return Collections.emptyList();
         }
+
         List<String> ids = new ArrayList<>();
-        for (AISearchableEntity entity : entities) {
-            ids.add(entity.getEntityId());
-            if (limit != null && ids.size() >= limit) {
-                break;
+        String cursor = null;
+        do {
+            VectorScanPage page = vectorDatabaseService.scan(VectorScanRequest.builder()
+                .entityType(entityType)
+                .cursor(cursor)
+                .limit(limit != null ? Math.min(limit - ids.size(), 500) : 500)
+                .includeContent(false)
+                .includeEmbedding(false)
+                .includeMetadata(false)
+                .build());
+
+            List<VectorRecord> vectors = page != null ? page.getVectors() : null;
+            if (vectors != null) {
+                for (VectorRecord record : vectors) {
+                    if (record != null && StringUtils.hasText(record.getEntityId())) {
+                        ids.add(record.getEntityId());
+                    }
+                    if (limit != null && ids.size() >= limit) {
+                        return ids;
+                    }
+                }
             }
-        }
+
+            cursor = page != null ? page.getNextCursor() : null;
+        } while (cursor != null);
+
         return ids;
     }
 
@@ -220,7 +248,6 @@ public class MetadataRelationshipTraversalService implements RelationshipTravers
                     return true;
                 }
             }
-            return false;
         }
         return Objects.equals(normalize(candidate), normalize(expected));
     }
@@ -229,6 +256,10 @@ public class MetadataRelationshipTraversalService implements RelationshipTravers
         if (value == null) {
             return null;
         }
-        return value.toString().trim().toLowerCase(Locale.ROOT);
+        String text = String.valueOf(value);
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        return text.toLowerCase(Locale.ROOT);
     }
 }

@@ -10,7 +10,6 @@ import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,15 +58,11 @@ public class RealAPIHybridRetrievalToggleIntegrationTest {
     private TestProductRepository productRepository;
 
     @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
-
-    @Autowired
     private ResponseSanitizationProperties sanitizationProperties;
 
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }

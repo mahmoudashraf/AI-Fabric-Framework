@@ -1,7 +1,6 @@
 package com.ai.infrastructure.relationship.it.realapi;
 
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.it.RelationshipQueryIntegrationTestApplication;
 import com.ai.infrastructure.relationship.it.api.RelationshipQueryRequest;
 import com.ai.infrastructure.relationship.it.entity.DocumentEntity;
@@ -9,7 +8,6 @@ import com.ai.infrastructure.relationship.it.entity.UserEntity;
 import com.ai.infrastructure.relationship.it.repository.DocumentRepository;
 import com.ai.infrastructure.relationship.it.repository.UserRepository;
 import com.ai.infrastructure.relationship.model.ReturnMode;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,18 +46,11 @@ class LawFirmRealApiIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
     @Autowired(required = false)
     private VectorDatabaseService vectorDatabaseService;
 
-    private String q4ContractId;
-    private String archivedContractId;
-
     @BeforeEach
     void setUp() {
-        searchableEntityRepository.deleteAllInBatch();
         documentRepository.deleteAllInBatch();
         userRepository.deleteAllInBatch();
         if (vectorDatabaseService != null) {
@@ -89,9 +80,11 @@ class LawFirmRealApiIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
         assertThat(rag.getDocuments()).isNotEmpty();
-        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(q4ContractId));
-        assertThat(rag.getDocuments()).anySatisfy(doc ->
-            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023"));
+        assertThat(rag.getDocuments()).anySatisfy(doc -> {
+            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023");
+            assertThat(doc.getMetadata()).isNotNull();
+            assertThat(doc.getMetadata().get("author")).isEqualTo("John Smith");
+        });
     }
 
     @Test
@@ -112,9 +105,12 @@ class LawFirmRealApiIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         RAGResponse rag = response.getBody();
         assertThat(rag.getDocuments()).isNotEmpty();
-        assertThat(rag.getDocuments()).anySatisfy(doc -> assertThat(doc.getId()).isEqualTo(archivedContractId));
-        assertThat(rag.getDocuments()).anySatisfy(doc ->
-            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023 (Archive)"));
+        assertThat(rag.getDocuments()).anySatisfy(doc -> {
+            assertThat(doc.getContent()).contains("Contract - John Smith - Q4 2023 (Archive)");
+            assertThat(doc.getMetadata()).isNotNull();
+            assertThat(doc.getMetadata().get("status")).isEqualTo("ARCHIVED");
+            assertThat(doc.getMetadata().get("author")).isEqualTo("John Smith");
+        });
     }
 
     private void seedLawFirmData() {
@@ -155,12 +151,6 @@ class LawFirmRealApiIntegrationTest {
         );
 
         documentRepository.saveAll(List.of(q4Contract, q3Contract, archived, janeContract));
-        indexDocument(q4Contract);
-        indexDocument(q3Contract);
-        indexDocument(archived);
-        indexDocument(janeContract);
-        q4ContractId = q4Contract.getId();
-        archivedContractId = archived.getId();
     }
 
     private DocumentEntity createDocument(String title,
@@ -174,20 +164,5 @@ class LawFirmRealApiIntegrationTest {
         document.setCreationDate(creationDate);
         author.getDocuments().add(document);
         return document;
-    }
-
-    private void indexDocument(DocumentEntity document) {
-        searchableEntityRepository.save(
-            AISearchableEntity.builder()
-                .entityType("document")
-                .entityId(document.getId())
-                .searchableContent(document.getTitle())
-                .metadata("""
-                    {"status":"%s","authorId":"%s"}
-                    """.formatted(document.getStatus(), document.getAuthor().getId()))
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build()
-        );
     }
 }

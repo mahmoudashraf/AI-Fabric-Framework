@@ -43,7 +43,7 @@ public class BehaviorAnalysisWorker {
             batchSize, maxDuration, processingDelay);
 
         for (int i = 0; i < batchSize; i++) {
-            if (Duration.between(startTime, Instant.now()).compareTo(maxDuration) > 0) {
+            if (i > 0 && Duration.between(startTime, Instant.now()).compareTo(maxDuration) > 0) {
                 log.warn("Max duration exceeded, stopping scheduled run (processed={})", processedCount);
                 break;
             }

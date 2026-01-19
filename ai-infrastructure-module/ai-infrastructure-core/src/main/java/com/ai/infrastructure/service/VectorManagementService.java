@@ -1,5 +1,6 @@
 package com.ai.infrastructure.service;
 
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
@@ -8,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,10 +26,38 @@ import java.util.Optional;
  * @version 1.0.0
  */
 @Slf4j
-@RequiredArgsConstructor
 public class VectorManagementService {
+
+    private static final String INDEXED_CREATED_AT_KEY = "_indexedCreatedAt";
+    private static final String INDEXED_UPDATED_AT_KEY = "_indexedUpdatedAt";
     
     private final VectorDatabaseService vectorDatabaseService;
+    private final AIEntityConfigurationLoader entityConfigurationLoader;
+
+    public VectorManagementService(VectorDatabaseService vectorDatabaseService) {
+        this(vectorDatabaseService, null);
+    }
+
+    public VectorManagementService(VectorDatabaseService vectorDatabaseService,
+                                   AIEntityConfigurationLoader entityConfigurationLoader) {
+        this.vectorDatabaseService = vectorDatabaseService;
+        this.entityConfigurationLoader = entityConfigurationLoader;
+    }
+
+    private Map<String, Object> ensureIndexTimestamps(Map<String, Object> metadata,
+                                                      LocalDateTime now,
+                                                      LocalDateTime createdAtHint) {
+        Map<String, Object> safeMetadata = metadata == null ? Map.of() : metadata;
+        Map<String, Object> enriched = new LinkedHashMap<>(safeMetadata);
+
+        if (!enriched.containsKey(INDEXED_CREATED_AT_KEY)) {
+            LocalDateTime createdAt = createdAtHint != null ? createdAtHint : now;
+            enriched.put(INDEXED_CREATED_AT_KEY, createdAt.toString());
+        }
+
+        enriched.put(INDEXED_UPDATED_AT_KEY, now.toString());
+        return enriched;
+    }
     
     /**
      * Store a vector for an entity
@@ -42,6 +74,7 @@ public class VectorManagementService {
                              List<Double> embedding, Map<String, Object> metadata) {
         try {
             log.debug("Storing vector for entity {} of type {}", entityId, entityType);
+            LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
             
             // Check if vector already exists
             if (vectorDatabaseService.vectorExists(entityType, entityId)) {
@@ -50,7 +83,8 @@ public class VectorManagementService {
             }
             
             // Store new vector
-            String vectorId = vectorDatabaseService.storeVector(entityType, entityId, content, embedding, metadata);
+            Map<String, Object> enriched = ensureIndexTimestamps(metadata, now, now);
+            String vectorId = vectorDatabaseService.storeVector(entityType, entityId, content, embedding, enriched);
             log.debug("Successfully stored vector {} for entity {} of type {}", vectorId, entityId, entityType);
             
             return vectorId;
@@ -76,14 +110,29 @@ public class VectorManagementService {
                               List<Double> embedding, Map<String, Object> metadata) {
         try {
             log.debug("Updating vector for entity {} of type {}", entityId, entityType);
+            LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
             
-            // Get existing vector
-            Optional<VectorRecord> existingVector = vectorDatabaseService.getVectorByEntity(entityType, entityId);
+            // Get existing vector (if any) to preserve vectorId when possible.
+            Optional<VectorRecord> existingVectorOpt = vectorDatabaseService.getVectorByEntity(entityType, entityId);
+            LocalDateTime createdAtHint = existingVectorOpt.map(VectorRecord::getCreatedAt).orElse(null);
+            Map<String, Object> enriched = ensureIndexTimestamps(metadata, now, createdAtHint);
 
-            String newVectorId = vectorDatabaseService.storeVector(entityType, entityId, content, embedding, metadata);
+            // Prefer in-place update when provider supports it.
+            if (existingVectorOpt.isPresent() && existingVectorOpt.get().getVectorId() != null) {
+                String existingVectorId = existingVectorOpt.get().getVectorId();
+                boolean updated = vectorDatabaseService.updateVector(existingVectorId, entityType, entityId, content, embedding, enriched);
+                if (updated) {
+                    log.debug("Updated vector {} for entity {} of type {}", existingVectorId, entityId, entityType);
+                    return existingVectorId;
+                }
+                log.warn("Vector {} for entity {}:{} could not be updated in-place; falling back to store+remove",
+                    existingVectorId, entityType, entityId);
+            }
+
+            String newVectorId = vectorDatabaseService.storeVector(entityType, entityId, content, embedding, enriched);
             log.debug("Stored new vector {} for entity {} of type {}", newVectorId, entityId, entityType);
 
-            existingVector
+            existingVectorOpt
                 .map(VectorRecord::getVectorId)
                 .filter(previousVectorId -> previousVectorId != null && !previousVectorId.equals(newVectorId))
                 .ifPresent(previousVectorId -> {
@@ -227,7 +276,34 @@ public class VectorManagementService {
     public List<String> batchStoreVectors(List<VectorRecord> vectors) {
         try {
             log.debug("Batch storing {} vectors", vectors.size());
-            List<String> vectorIds = vectorDatabaseService.batchStoreVectors(vectors);
+            LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+            List<VectorRecord> enriched = vectors.stream()
+                .map(record -> {
+                    if (record == null) {
+                        return null;
+                    }
+                    LocalDateTime createdAt = record.getCreatedAt() != null ? record.getCreatedAt() : now;
+                    Map<String, Object> updatedMetadata = ensureIndexTimestamps(record.getMetadata(), now, createdAt);
+                    return VectorRecord.builder()
+                        .vectorId(record.getVectorId())
+                        .entityType(record.getEntityType())
+                        .entityId(record.getEntityId())
+                        .content(record.getContent())
+                        .embedding(record.getEmbedding())
+                        .metadata(updatedMetadata)
+                        .aiAnalysis(record.getAiAnalysis())
+                        .createdAt(createdAt)
+                        .updatedAt(now)
+                        .vectorMetadata(record.getVectorMetadata())
+                        .similarityScore(record.getSimilarityScore())
+                        .active(record.getActive())
+                        .version(record.getVersion())
+                        .build();
+                })
+                .filter(r -> r != null)
+                .toList();
+
+            List<String> vectorIds = vectorDatabaseService.batchStoreVectors(enriched);
             log.debug("Successfully batch stored {} vectors", vectorIds.size());
             return vectorIds;
         } catch (Exception e) {
@@ -246,7 +322,34 @@ public class VectorManagementService {
     public int batchUpdateVectors(List<VectorRecord> vectors) {
         try {
             log.debug("Batch updating {} vectors", vectors.size());
-            int updatedCount = vectorDatabaseService.batchUpdateVectors(vectors);
+            LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+            List<VectorRecord> enriched = vectors.stream()
+                .map(record -> {
+                    if (record == null) {
+                        return null;
+                    }
+                    LocalDateTime createdAt = record.getCreatedAt() != null ? record.getCreatedAt() : now;
+                    Map<String, Object> updatedMetadata = ensureIndexTimestamps(record.getMetadata(), now, createdAt);
+                    return VectorRecord.builder()
+                        .vectorId(record.getVectorId())
+                        .entityType(record.getEntityType())
+                        .entityId(record.getEntityId())
+                        .content(record.getContent())
+                        .embedding(record.getEmbedding())
+                        .metadata(updatedMetadata)
+                        .aiAnalysis(record.getAiAnalysis())
+                        .createdAt(createdAt)
+                        .updatedAt(now)
+                        .vectorMetadata(record.getVectorMetadata())
+                        .similarityScore(record.getSimilarityScore())
+                        .active(record.getActive())
+                        .version(record.getVersion())
+                        .build();
+                })
+                .filter(r -> r != null)
+                .toList();
+
+            int updatedCount = vectorDatabaseService.batchUpdateVectors(enriched);
             log.debug("Successfully batch updated {} vectors", updatedCount);
             return updatedCount;
         } catch (Exception e) {
@@ -346,8 +449,24 @@ public class VectorManagementService {
     public long clearAllVectors() {
         try {
             log.debug("Clearing all vectors from database");
+            // Prefer clearing only entity types managed by this framework (from configuration),
+            // which is deterministic for providers that do not reliably enumerate namespaces.
+            if (entityConfigurationLoader != null
+                && entityConfigurationLoader.getSupportedEntityTypes() != null
+                && !entityConfigurationLoader.getSupportedEntityTypes().isEmpty()) {
+                long cleared = 0L;
+                for (String entityType : entityConfigurationLoader.getSupportedEntityTypes()) {
+                    if (entityType == null || entityType.isBlank()) {
+                        continue;
+                    }
+                    cleared += vectorDatabaseService.clearVectorsByEntityType(entityType);
+                }
+                log.debug("Successfully cleared {} vectors from database (per-entity-type)", cleared);
+                return cleared;
+            }
+
             long clearedCount = vectorDatabaseService.clearVectors();
-            log.debug("Successfully cleared {} vectors from database", clearedCount);
+            log.debug("Successfully cleared {} vectors from database (global)", clearedCount);
             return clearedCount;
         } catch (Exception e) {
             log.error("Error clearing all vectors", e);

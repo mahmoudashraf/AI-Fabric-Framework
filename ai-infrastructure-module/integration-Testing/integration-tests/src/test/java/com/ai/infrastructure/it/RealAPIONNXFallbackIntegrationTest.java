@@ -10,7 +10,6 @@ import com.ai.infrastructure.it.support.RealAPITestSupport;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +22,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -61,15 +61,11 @@ public class RealAPIONNXFallbackIntegrationTest {
     private TestProductRepository productRepository;
 
     @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
-
-    @Autowired
     private ResponseSanitizationProperties sanitizationProperties;
 
     @BeforeEach
     public void setUp() {
         vectorManagementService.clearAllVectors();
-        storageStrategy.deleteAll();
         productRepository.deleteAll();
         intentHistoryRepository.deleteAll();
     }
@@ -132,10 +128,15 @@ public class RealAPIONNXFallbackIntegrationTest {
 
         System.out.println("\n=== Phase 3: Vector Creation and Storage ===");
         
-        // Verify vectors are created
-        long vectorCount = storageStrategy.findByEntityType("test-product").size();
-        System.out.println("✅ Vectors indexed in storage strategy: " + vectorCount);
-        assertThat(vectorCount).isGreaterThanOrEqualTo(3L);
+        // Verify vectors are created (remote providers can be eventually consistent for counts).
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", product1.getId().toString(), Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", product2.getId().toString(), Duration.ofSeconds(20));
+        RealAPITestSupport.awaitVectorExists(vectorManagementService, "test-product", product3.getId().toString(), Duration.ofSeconds(20));
+
+        List<com.ai.infrastructure.dto.VectorRecord> vectors = vectorManagementService.getVectorsByEntityType("test-product");
+        System.out.println("✅ Vectors indexed in vector store: " + (vectors != null ? vectors.size() : 0));
+        assertThat(vectors).isNotNull();
+        assertThat(vectors.size()).isGreaterThanOrEqualTo(3);
 
         System.out.println("\n=== Phase 4: Orchestration with Current Provider ===");
         
@@ -287,4 +288,3 @@ public class RealAPIONNXFallbackIntegrationTest {
         return product;
     }
 }
-

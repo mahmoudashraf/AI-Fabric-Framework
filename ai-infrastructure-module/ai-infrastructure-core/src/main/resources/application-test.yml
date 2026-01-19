@@ -1,5 +1,9 @@
 # Test Configuration - Vector Database and OpenAI
 ai:
+  intent-extraction:
+    progressive:
+      enabled: false
+
   pii-detection:
     enabled: true
     mode: DETECT_ONLY

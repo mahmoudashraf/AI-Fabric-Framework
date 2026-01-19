@@ -1,23 +1,23 @@
 package com.ai.infrastructure.intent;
 
-import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class KnowledgeBaseOverviewServiceTest {
 
     @Test
-    void shouldBuildOverviewFromStatisticsAndRepositoryFallbacks() {
+    void shouldBuildOverviewFromStatistics() {
         VectorDatabaseService vectorDatabaseService = Mockito.mock(VectorDatabaseService.class);
-        AISearchableEntityStorageStrategy storageStrategy = Mockito.mock(AISearchableEntityStorageStrategy.class);
+        AIEntityConfigurationLoader configurationLoader = Mockito.mock(AIEntityConfigurationLoader.class);
 
         Mockito.when(vectorDatabaseService.getStatistics()).thenReturn(Map.of(
             "totalVectors", 12,
@@ -25,10 +25,12 @@ class KnowledgeBaseOverviewServiceTest {
         ));
 
         LocalDateTime updatedAt = LocalDateTime.now();
-        Mockito.when(storageStrategy.findFirstByVectorUpdatedAtIsNotNullOrderByVectorUpdatedAtDesc())
-            .thenReturn(Optional.of(AISearchableEntity.builder().vectorUpdatedAt(updatedAt).build()));
+        Mockito.when(vectorDatabaseService.getVectorsByEntityType("faq"))
+            .thenReturn(List.of(VectorRecord.builder().updatedAt(updatedAt).build()));
+        Mockito.when(vectorDatabaseService.getVectorsByEntityType("policies"))
+            .thenReturn(List.of());
 
-        KnowledgeBaseOverviewService service = new KnowledgeBaseOverviewService(vectorDatabaseService, storageStrategy);
+        KnowledgeBaseOverviewService service = new KnowledgeBaseOverviewService(vectorDatabaseService, configurationLoader);
 
         KnowledgeBaseOverview overview = service.getOverview();
 
@@ -37,3 +39,4 @@ class KnowledgeBaseOverviewServiceTest {
         assertThat(overview.getLastIndexUpdateTime()).isEqualTo(updatedAt);
     }
 }
+

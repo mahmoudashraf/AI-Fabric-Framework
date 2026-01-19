@@ -277,7 +277,7 @@ public class RelationshipQueryPlanner {
                                               List<String> feedback) throws Exception {
         String prompt = buildPrompt(query, entityTypes, feedback);
         AIGenerationResponse response = aiCoreService.generateContent(buildRequest(query, prompt));
-        RelationshipQueryPlan plan = parsePlan(response.getContent());
+        RelationshipQueryPlan plan = parsePlan(response.getContent(), query, entityTypes);
         applyDefaults(plan, fallback);
         sanitizeHallucinatedFilters(plan, query);
         normalizeCrossEntityValueReferences(plan);
@@ -603,6 +603,42 @@ public class RelationshipQueryPlanner {
 
     private String buildPrompt(String query, List<String> entityTypes, List<String> feedback) {
         String schemaDescription = schemaProvider.getSchemaDescription(entityTypes);
+
+        if (shouldUseCompactPrompt(feedback)) {
+            List<String> allowedTypes = CollectionUtils.isEmpty(entityTypes)
+                ? List.of()
+                : entityTypes.stream().filter(StringUtils::hasText).toList();
+
+            String allowedTypesLine = allowedTypes.isEmpty()
+                ? ""
+                : "Allowed entityTypes: " + String.join(", ", allowedTypes) + "\n";
+
+            return """
+                Return ONLY a valid JSON object (no markdown, no commentary).
+                Output MUST be a single-line minified JSON string (no newlines).
+
+                Keep the JSON extremely small (hard goal: <= 350 characters).
+                Emit ONLY the minimum required keys (omit everything else):
+                {"primaryEntityType":"...","candidateEntityTypes":["..."],"relationshipPaths":[],"directFilters":{},"confidence":0.7}
+
+                IMPORTANT shape rules:
+                - directFilters / relationshipFilters / metadataFilters MUST be JSON objects mapping entityType -> array of filter objects.
+                - A filter object shape is: {"field":"<fieldName>","operator":"EQUALS","value":<value>,"entityType":"<entityType>"}
+                - For cross-entity comparisons, set value to "<entity-slug>.<field>" (example: "destination-account.ownerName").
+                - To keep output small, omit "entityType" when it can be inferred (e.g., filters under directFilters.product).
+                - If unsure about relationships or filter fields, return empty relationshipPaths and empty directFilters.
+                - If the plan would require more than ONE relationshipPath, set relationshipPaths to [] and only use directFilters on the primary entity.
+                - If a constraint requires cross-entity equality and you cannot express it concisely, omit it (prefer a smaller valid plan over truncation).
+                - candidateEntityTypes MUST include primaryEntityType.
+                - Never invent entity types not listed below.
+
+                Schema:
+                %s
+
+                %sUser Query: "%s"
+                """.formatted(schemaDescription, allowedTypesLine, query);
+        }
+
         StringBuilder builder = new StringBuilder("""
             Analyze the user's request using the provided entity schema. Produce a JSON payload with:
             - primaryEntityType (snake-case)
@@ -630,6 +666,11 @@ public class RelationshipQueryPlanner {
             - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
             - If the user mentions a concept that is not represented as a schema field, do NOT invent a new field. Either omit that constraint or map it to an existing field (commonly "name") if appropriate.
 
+            Output requirements:
+            - Return ONLY a single-line minified JSON object (no markdown, no commentary, no leading/trailing text, no newlines).
+            - Keep the JSON as small as possible: omit optional keys when empty/unknown (e.g., relationshipFilters, metadataFilters, context).
+            - Omit filter "entityType" when it can be inferred from its parent map key (e.g., directFilters.product).
+
             Schema:
             """);
         builder.append(schemaDescription)
@@ -647,7 +688,44 @@ public class RelationshipQueryPlanner {
         return builder.toString();
     }
 
-    private RelationshipQueryPlan parsePlan(String rawResponse) throws Exception {
+    private boolean shouldUseCompactPrompt(List<String> feedback) {
+        if (CollectionUtils.isEmpty(feedback)) {
+            return false;
+        }
+        for (String item : feedback) {
+            if (!StringUtils.hasText(item)) {
+                continue;
+            }
+            String normalized = item.toLowerCase(Locale.ROOT);
+            if (normalized.contains("truncated json")
+                || normalized.contains("unexpected end-of-input")
+                || normalized.contains("eof")
+                || normalized.contains("did not return json payload")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private RelationshipQueryPlan parsePlan(String rawResponse, String originalQuery, List<String> entityTypes) throws Exception {
+        try {
+            return parsePlanPayload(rawResponse);
+        } catch (Exception parseException) {
+            // Provider-agnostic resilience: attempt a bounded structural repair pass when parsing fails.
+            // This helps when providers emit truncated or slightly malformed JSON (common in real API runs).
+            try {
+                String repaired = repairPlanPayload(rawResponse, originalQuery, entityTypes, parseException);
+                if (StringUtils.hasText(repaired)) {
+                    return parsePlanPayload(repaired);
+                }
+            } catch (Exception repairException) {
+                parseException.addSuppressed(repairException);
+            }
+            throw parseException;
+        }
+    }
+
+    private RelationshipQueryPlan parsePlanPayload(String rawResponse) throws Exception {
         StructuredJsonExtraction extraction = structuredJsonExtractor.extractFirstJson(rawResponse);
         if (!extraction.jsonFound() || !StringUtils.hasText(extraction.payload())) {
             throw new IllegalStateException("LLM did not return JSON payload");
@@ -663,6 +741,101 @@ public class RelationshipQueryPlanner {
             }
             throw ex;
         }
+    }
+
+    private String repairPlanPayload(String rawResponse,
+                                    String originalQuery,
+                                    List<String> entityTypes,
+                                    Exception failure) {
+        if (!StringUtils.hasText(rawResponse) || !StringUtils.hasText(originalQuery)) {
+            return null;
+        }
+
+        RelationshipQueryProperties.LlmProperties llm = properties.getLlm();
+        Map<String, Object> parameters = new LinkedHashMap<>(StructuredJsonProviderHints.jsonObjectResponseParameters());
+        parameters.put("min_confidence", llm.getMinConfidence());
+
+        String schema = schemaProvider.getSchemaDescription(entityTypes);
+        List<String> allowedTypes = CollectionUtils.isEmpty(entityTypes)
+            ? List.of()
+            : entityTypes.stream().filter(StringUtils::hasText).map(String::trim).toList();
+
+        String allowedTypesLine = allowedTypes.isEmpty()
+            ? ""
+            : "Allowed entityTypes: " + String.join(", ", allowedTypes) + "\n";
+
+        String prompt = """
+            You are repairing a malformed assistant response that was supposed to be a RelationshipQueryPlan JSON object.
+            Return ONLY a single JSON object. Do NOT wrap in markdown. Do NOT add commentary.
+            Output MUST be valid JSON that can be parsed.
+
+            REQUIRED KEYS (others allowed but keep it minimal):
+            - primaryEntityType (string)
+            - candidateEntityTypes (array)
+            - relationshipPaths (array)
+            - directFilters (object)
+            - relationshipFilters (object)
+            - metadataFilters (object)
+            - needsSemanticSearch (boolean)
+            - queryStrategy (string)
+            - confidence (number 0..1)
+
+            %sSchema:
+            %s
+
+            Original user query:
+            "%s"
+
+            Malformed assistant payload:
+            %s
+
+            If the payload is truncated or cannot be repaired, return a safe minimal plan:
+            {"primaryEntityType":"%s","candidateEntityTypes":["%s"],"relationshipPaths":[],"directFilters":{},"relationshipFilters":{},"metadataFilters":{},"needsSemanticSearch":false,"queryStrategy":"RELATIONSHIP","confidence":0.25}
+            """.formatted(
+            allowedTypesLine,
+            schema,
+            originalQuery,
+            structuredJsonExtractor.stripCodeFences(rawResponse),
+            safePrimaryEntity(entityTypes),
+            safePrimaryEntity(entityTypes)
+        );
+
+        AIGenerationRequest request = AIGenerationRequest.builder()
+            .entityId("relationship-query-" + UUID.randomUUID() + "-repair")
+            .entityType("relationship-query")
+            .generationType("planning_repair")
+            .prompt(prompt)
+            .systemPrompt("Return ONLY a JSON object.")
+            .model(llm.getModel())
+            .temperature(0.0)
+            .maxTokens(Math.min(1200, llm.getMaxTokens()))
+            .parameters(parameters)
+            .purpose("relationship-query-plan-repair")
+            .userId("relationship-module")
+            .build();
+
+        try {
+            AIGenerationResponse response = aiCoreService.generateContent(request);
+            if (response == null || !StringUtils.hasText(response.getContent())) {
+                return null;
+            }
+            StructuredJsonExtraction repaired = structuredJsonExtractor.extractFirstJson(response.getContent());
+            return repaired.jsonFound() ? repaired.payload() : null;
+        } catch (Exception ex) {
+            log.warn("Relationship query plan repair failed: {} (originalFailure={})", ex.getMessage(), safeMessage(failure));
+            return null;
+        }
+    }
+
+    private String safePrimaryEntity(List<String> entityTypes) {
+        if (!CollectionUtils.isEmpty(entityTypes)) {
+            for (String type : entityTypes) {
+                if (StringUtils.hasText(type)) {
+                    return type.trim().toLowerCase(Locale.ROOT);
+                }
+            }
+        }
+        return "document";
     }
 
     private double normalizeConfidence(Double confidence) {
@@ -979,7 +1152,19 @@ public class RelationshipQueryPlanner {
     }
 
     private String sanitizePayload(String jsonPayload) {
-        return jsonPayload;
+        if (!StringUtils.hasText(jsonPayload)) {
+            return jsonPayload;
+        }
+
+        String sanitized = jsonPayload;
+
+        // Provider-agnostic repairs for common "almost JSON" mistakes seen in real API runs.
+        // Keep this conservative: only fix patterns that are invalid JSON and commonly appear as typos.
+        sanitized = sanitized.replaceAll("\"\\s*;(?=\\s*\\\")", "\",");
+        sanitized = sanitized.replaceAll("\"\\s*;(?=\\s*[}\\]])", "\"");
+        sanitized = sanitized.replaceAll(",\\s*([}\\]])", "$1");
+
+        return sanitized;
     }
 
     private String safeMessage(Exception ex) {

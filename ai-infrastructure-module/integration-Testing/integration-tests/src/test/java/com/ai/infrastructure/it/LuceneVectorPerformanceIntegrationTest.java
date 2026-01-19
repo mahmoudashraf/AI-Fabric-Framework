@@ -2,7 +2,6 @@ package com.ai.infrastructure.it;
 
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
-import com.ai.infrastructure.repository.AISearchableEntityRepository;
 import com.ai.infrastructure.service.VectorManagementService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -19,7 +18,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,7 +25,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes = TestApplication.class)
@@ -42,9 +39,6 @@ class LuceneVectorPerformanceIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
-    @Autowired
-    private AISearchableEntityRepository searchableEntityRepository;
-
     @DynamicPropertySource
     static void dynamicProperties(DynamicPropertyRegistry registry) {
         registry.add("ai.vector-db.lucene.index-path", () -> INDEX_PATH);
@@ -53,7 +47,6 @@ class LuceneVectorPerformanceIntegrationTest {
     @AfterEach
     void tearDown() {
         vectorManagementService.clearAllVectors();
-        searchableEntityRepository.deleteAll();
     }
 
     @AfterAll
@@ -82,9 +75,6 @@ class LuceneVectorPerformanceIntegrationTest {
             "Initial performance vector",
             syntheticEmbedding(VECTOR_DIMENSION, 1), Map.of("version", 1));
 
-        await().atMost(Duration.ofSeconds(5)).until(() ->
-            searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isPresent());
-
         vectorManagementService.storeVector(entityType, entityId,
             "Updated performance vector", syntheticEmbedding(VECTOR_DIMENSION, 2), Map.of("version", 2));
 
@@ -100,8 +90,6 @@ class LuceneVectorPerformanceIntegrationTest {
 
         assertFalse(vectorManagementService.vectorExists(entityType, entityId),
             "Vector should be removed from Lucene");
-        assertTrue(searchableEntityRepository.findByEntityTypeAndEntityId(entityType, entityId).isEmpty(),
-            "Searchable entity should be removed after vector deletion");
     }
 
     @Test
@@ -134,8 +122,8 @@ class LuceneVectorPerformanceIntegrationTest {
         assertTrue(averageSearchMs < 150,
             () -> "Average search latency should remain below 150ms but was " + averageSearchMs + "ms");
 
-        long indexedCount = searchableEntityRepository.countByEntityTypeAndVectorIdIsNotNull(entityType);
-        assertEquals(10_000, indexedCount, "All vectors should be indexed with searchable entities");
+        long indexedCount = vectorManagementService.getVectorCountByEntityType(entityType);
+        assertEquals(10_000, indexedCount, "All vectors should be indexed");
     }
 
     @Test
@@ -158,7 +146,6 @@ class LuceneVectorPerformanceIntegrationTest {
                     + "ms with measured " + avgLatencyMs + "ms");
 
             vectorManagementService.clearVectorsByEntityType(entityType);
-            searchableEntityRepository.deleteByEntityType(entityType);
         }
 
         assertEquals(4, latencies.size(), "Latency map should capture all dataset sizes");
@@ -170,9 +157,6 @@ class LuceneVectorPerformanceIntegrationTest {
                 "Synthetic performance content " + i,
                 syntheticEmbedding(dimension, i), Map.of("batch", count));
         }
-
-        await().atMost(Duration.ofSeconds(10)).until(() ->
-            searchableEntityRepository.countByEntityTypeAndVectorIdIsNotNull(entityType) >= count);
     }
 
     private long measureAverageSearchLatency(String entityType, List<Double> queryVector, int limit, int iterations) {

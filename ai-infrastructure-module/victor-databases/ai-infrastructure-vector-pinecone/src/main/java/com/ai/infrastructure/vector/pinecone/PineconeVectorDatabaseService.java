@@ -1,9 +1,12 @@
 package com.ai.infrastructure.vector.pinecone;
 
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.config.VectorDatabaseConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
+import com.ai.infrastructure.dto.VectorScanPage;
+import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.util.MetadataJsonSerializer;
@@ -60,6 +63,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         Set.of("entityType", "entityId", "content", EMBEDDING_BASE64_FIELD, EMBEDDING_DIM_FIELD);
 
     private final AIProviderConfig.PineconeConfig config;
+    private final VectorDatabaseConfig vectorDatabaseConfig;
     private final String indexName;
     private final PineconeConnection connection;
     private final Index index;
@@ -67,11 +71,22 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     private volatile Boolean sparseIndex;
 
     public PineconeVectorDatabaseService(AIProviderConfig providerConfig) {
-        this(providerConfig, Index::new);
+        this(providerConfig, null, Index::new);
+    }
+
+    public PineconeVectorDatabaseService(AIProviderConfig providerConfig, VectorDatabaseConfig vectorDatabaseConfig) {
+        this(providerConfig, vectorDatabaseConfig, Index::new);
     }
 
     public PineconeVectorDatabaseService(AIProviderConfig providerConfig, PineconeIndexFactory indexFactory) {
+        this(providerConfig, null, indexFactory);
+    }
+
+    public PineconeVectorDatabaseService(AIProviderConfig providerConfig,
+                                         VectorDatabaseConfig vectorDatabaseConfig,
+                                         PineconeIndexFactory indexFactory) {
         this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
+        this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
         this.indexName = resolveIndexName(this.config);
         this.connection = buildConnection(this.config, this.indexName);
         this.index = Objects.requireNonNull(indexFactory, "Pinecone indexFactory must be provided")
@@ -81,10 +96,21 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
     PineconeVectorDatabaseService(AIProviderConfig providerConfig, PineconeConnection connection, Index index) {
         this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
+        this.vectorDatabaseConfig = new VectorDatabaseConfig();
         this.indexName = resolveIndexName(this.config);
         this.connection = Objects.requireNonNull(connection, "Pinecone connection must be provided");
         this.index = Objects.requireNonNull(index, "Pinecone index must be provided");
         log.info("Pinecone client configured for index '{}'", indexName);
+    }
+
+    @Override
+    public boolean supportsVectorScan() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMetadataFiltering() {
+        return false;
     }
 
     @Override
@@ -118,7 +144,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         String namespace = extractNamespace(vectorId);
         FetchResponse response;
         try {
-            response = index.fetch(List.of(vectorId), namespace);
+            response = withPineconeRetry("fetch", () -> index.fetch(List.of(vectorId), namespace));
         } catch (Exception ex) {
             // Missing namespaces are common for fresh indexes and should be treated as "not found".
             if (isNamespaceNotFound(ex)) {
@@ -377,6 +403,95 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         return records;
     }
 
+    @Override
+    public VectorScanPage scan(VectorScanRequest request) {
+        ensureEnabled();
+        if (request == null || !StringUtils.hasText(request.getEntityType())) {
+            return VectorScanPage.builder()
+                .vectors(List.of())
+                .hasMore(false)
+                .nextCursor(null)
+                .build();
+        }
+
+        String namespace = namespace(request.getEntityType());
+        int limit = request.getLimit() != null && request.getLimit() > 0 ? request.getLimit() : 200;
+
+        String token = decodeListTokenCursor(request.getCursor());
+        final List<VectorRecord> matched = new ArrayList<>(limit + 1);
+
+        while (matched.size() < limit + 1) {
+            ListResponse response;
+            try {
+                int pageSize = Math.min(500, Math.max(1, limit));
+                response = token == null
+                    ? index.list(namespace, pageSize)
+                    : index.list(namespace, pageSize, token);
+            } catch (Exception ex) {
+                if (isNamespaceNotFound(ex)) {
+                    return VectorScanPage.builder()
+                        .vectors(List.of())
+                        .hasMore(false)
+                        .nextCursor(null)
+                        .build();
+                }
+                throw new AIServiceException("Pinecone list failed", ex);
+            }
+
+            if (response == null) {
+                break;
+            }
+
+            List<String> ids = response.getVectorsList().stream()
+                .map(ListItem::getId)
+                .filter(StringUtils::hasText)
+                .limit(1000)
+                .toList();
+
+            if (!ids.isEmpty()) {
+                for (List<String> chunk : chunk(ids, 100)) {
+                    FetchResponse fetch;
+                    try {
+                        fetch = index.fetch(chunk, namespace);
+                    } catch (Exception ex) {
+                        if (isNamespaceNotFound(ex)) {
+                            return VectorScanPage.builder()
+                                .vectors(List.of())
+                                .hasMore(false)
+                                .nextCursor(null)
+                                .build();
+                        }
+                        throw new AIServiceException("Pinecone fetch failed", ex);
+                    }
+                    if (fetch == null) {
+                        continue;
+                    }
+                    fetch.getVectorsMap().values().forEach(vector -> {
+                        VectorRecord record = toVectorRecord(vector, namespace);
+                        if (matchesMetadata(record, request.getMetadataEquals())) {
+                            matched.add(applyScanProjection(record, request));
+                        }
+                    });
+                }
+            }
+
+            token = response.hasPagination() ? response.getPagination().getNext() : null;
+            if (!StringUtils.hasText(token)) {
+                token = null;
+                break;
+            }
+        }
+
+        boolean hasMore = matched.size() > limit || token != null;
+        List<VectorRecord> pageVectors = matched.size() > limit ? matched.subList(0, limit) : matched;
+
+        return VectorScanPage.builder()
+            .vectors(pageVectors)
+            .hasMore(hasMore && token != null)
+            .nextCursor(token != null ? encodeListTokenCursor(token) : null)
+            .build();
+    }
+
     private AISearchResponse emptySearchResponse(AISearchRequest request, String namespace, long startMs) {
         return AISearchResponse.builder()
             .results(List.of())
@@ -393,7 +508,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     public long getVectorCountByEntityType(String entityType) {
         ensureEnabled();
         String namespace = namespace(entityType);
-        DescribeIndexStatsResponse stats = index.describeIndexStats();
+        DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
         if (stats == null) {
             return 0L;
         }
@@ -409,17 +524,18 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     @Override
     public long clearVectors() {
         ensureEnabled();
-        DescribeIndexStatsResponse stats = index.describeIndexStats();
+        DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
         if (stats == null) {
             return 0L;
         }
 
         long cleared = 0;
         for (Map.Entry<String, NamespaceSummary> entry : stats.getNamespacesMap().entrySet()) {
+            String namespace = entry.getKey();
             int count = entry.getValue() != null ? entry.getValue().getVectorCount() : 0;
             cleared += count;
             try {
-                index.deleteAll(entry.getKey());
+                clearNamespace(namespace);
             } catch (Exception ex) {
                 // Pinecone can return NOT_FOUND when a namespace doesn't exist (race/empty namespace).
                 // Clearing is best-effort; ignore "namespace not found" and continue.
@@ -437,20 +553,17 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         String namespace = namespace(entityType);
         long count = 0L;
         try {
-            DescribeIndexStatsResponse stats = index.describeIndexStats();
+            DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
             if (stats != null) {
                 NamespaceSummary summary = stats.getNamespacesOrDefault(namespace, NamespaceSummary.getDefaultInstance());
                 count = summary.getVectorCount();
-                if (count <= 0) {
-                    return 0L;
-                }
             }
         } catch (Exception ex) {
             // best-effort; still attempt deletion
         }
 
         try {
-            index.deleteAll(namespace);
+            clearNamespace(namespace);
         } catch (Exception ex) {
             if (!isNamespaceNotFound(ex)) {
                 throw new AIServiceException("Failed to clear vectors for entity type", ex);
@@ -458,11 +571,135 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
         return count;
     }
+
+    /**
+     * Clear a namespace deterministically when configured to await clear consistency.
+     *
+     * <p>Pinecone's {@code deleteAll(namespace)} is asynchronous and can race with subsequent upserts in the
+     * same namespace. When deterministic clears are required (tests/CI, admin automation), prefer a
+     * synchronous delete-by-IDs loop so we do not leave a background delete task that can remove
+     * newly written vectors.</p>
+     */
+    private void clearNamespace(String namespace) {
+        if (!StringUtils.hasText(namespace)) {
+            return;
+        }
+
+        if (shouldAwaitClearConsistency()) {
+            clearNamespaceByListing(namespace);
+        } else {
+            withPineconeRetry("deleteAll", () -> {
+                index.deleteAll(namespace);
+                return null;
+            });
+        }
+
+        awaitNamespaceCleared(namespace);
+    }
+
+    private void clearNamespaceByListing(String namespace) {
+        long deadlineMs = System.currentTimeMillis() + resolveAwaitClearTimeoutMs();
+        long sleepMs = 250;
+
+        while (System.currentTimeMillis() < deadlineMs) {
+            ListResponse listed;
+            try {
+                listed = withPineconeRetry("list", () -> index.list(namespace, 100));
+            } catch (Exception ex) {
+                if (isNamespaceNotFound(ex)) {
+                    return;
+                }
+                throw ex;
+            }
+
+            if (listed == null || listed.getVectorsCount() == 0) {
+                return;
+            }
+
+            List<String> ids = listed.getVectorsList().stream()
+                .map(ListItem::getId)
+                .filter(StringUtils::hasText)
+                .toList();
+
+            if (ids.isEmpty()) {
+                return;
+            }
+
+            try {
+                withPineconeRetry("deleteByIds", () -> {
+                    index.deleteByIds(ids, namespace);
+                    return null;
+                });
+            } catch (Exception ex) {
+                if (!isNamespaceNotFound(ex)) {
+                    throw ex;
+                }
+            }
+
+            sleepQuietly(sleepMs);
+            sleepMs = Math.min(2000, sleepMs * 2);
+        }
+
+        log.warn("Timed out waiting for Pinecone namespace '{}' to clear via list+delete", namespace);
+    }
+
+    /**
+     * Pinecone namespace deletions are asynchronous; poll until the namespace is empty so tests/CI don't race deletes.
+     */
+    private void awaitNamespaceCleared(String namespace) {
+        if (!StringUtils.hasText(namespace)) {
+            return;
+        }
+
+        if (!shouldAwaitClearConsistency()) {
+            return;
+        }
+
+        long deadlineMs = System.currentTimeMillis() + resolveAwaitClearTimeoutMs();
+        long sleepMs = 250;
+
+        while (System.currentTimeMillis() < deadlineMs) {
+            try {
+                // Stats can lag behind deleteAll() for a while. Prefer listing, which reflects read visibility.
+                ListResponse listed = withPineconeRetry("list", () -> index.list(namespace, 1));
+                if (listed == null || listed.getVectorsCount() == 0) {
+                    return;
+                }
+            } catch (Exception ex) {
+                if (isNamespaceNotFound(ex)) {
+                    return;
+                }
+                // best-effort polling
+            }
+
+            sleepQuietly(sleepMs);
+            sleepMs = Math.min(2000, sleepMs * 2);
+        }
+
+        log.warn("Timed out waiting for Pinecone namespace '{}' to clear", namespace);
+    }
+
+    private boolean shouldAwaitClearConsistency() {
+        return vectorDatabaseConfig == null
+            || vectorDatabaseConfig.getOperations() == null
+            || !Boolean.FALSE.equals(vectorDatabaseConfig.getOperations().getAwaitClearConsistency());
+    }
+
+    private long resolveAwaitClearTimeoutMs() {
+        if (vectorDatabaseConfig == null || vectorDatabaseConfig.getOperations() == null) {
+            return 30_000L;
+        }
+        Long configured = vectorDatabaseConfig.getOperations().getAwaitClearTimeoutMs();
+        if (configured == null) {
+            return 30_000L;
+        }
+        return Math.max(1L, configured);
+    }
     
     @Override
     public Map<String, Object> getStatistics() {
         ensureEnabled();
-        DescribeIndexStatsResponse stats = index.describeIndexStats();
+        DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("type", "pinecone");
@@ -699,7 +936,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         }
 
         try {
-            DescribeIndexStatsResponse stats = index.describeIndexStats();
+            DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
             cached = stats != null && stats.getDimension() == 0;
         } catch (Exception ex) {
             cached = false;
@@ -711,7 +948,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
     private boolean shouldRetryAsSparse(Exception ex) {
         try {
-            DescribeIndexStatsResponse stats = index.describeIndexStats();
+            DescribeIndexStatsResponse stats = withPineconeRetry("describeIndexStats", index::describeIndexStats);
             if (stats != null && stats.getDimension() == 0) {
                 return true;
             }
@@ -1036,6 +1273,9 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
         List<Double> embedding = extractEmbedding(vector, allMetadata);
 
+        LocalDateTime createdAt = readTimestamp(metadata, "_indexedCreatedAt");
+        LocalDateTime updatedAt = readTimestamp(metadata, "_indexedUpdatedAt");
+
         return VectorRecord.builder()
             .vectorId(vector.getId())
             .entityType(entityType)
@@ -1043,8 +1283,87 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             .content(content)
             .embedding(embedding)
             .metadata(metadata)
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
+            .createdAt(createdAt)
+            .updatedAt(updatedAt)
+            .build();
+    }
+
+    private static LocalDateTime readTimestamp(Map<String, Object> metadata, String key) {
+        if (metadata == null || key == null) {
+            return null;
+        }
+        Object raw = metadata.get(key);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(raw.toString());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static boolean matchesMetadata(VectorRecord record, Map<String, Object> metadataEquals) {
+        if (metadataEquals == null || metadataEquals.isEmpty()) {
+            return true;
+        }
+        if (record == null || record.getMetadata() == null) {
+            return false;
+        }
+        for (Map.Entry<String, Object> entry : metadataEquals.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            Object expected = entry.getValue();
+            Object actual = record.getMetadata().get(entry.getKey());
+            if (!Objects.equals(String.valueOf(expected), String.valueOf(actual))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String encodeListTokenCursor(String token) {
+        if (!StringUtils.hasText(token)) {
+            return null;
+        }
+        String raw = "token:" + token;
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static String decodeListTokenCursor(String cursor) {
+        if (!StringUtils.hasText(cursor)) {
+            return null;
+        }
+        try {
+            String raw = new String(Base64.getUrlDecoder().decode(cursor), java.nio.charset.StandardCharsets.UTF_8);
+            if (!raw.startsWith("token:")) {
+                return null;
+            }
+            String token = raw.substring("token:".length());
+            return StringUtils.hasText(token) ? token : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static VectorRecord applyScanProjection(VectorRecord record, VectorScanRequest request) {
+        if (record == null || request == null) {
+            return record;
+        }
+        if (request.isIncludeContent() && request.isIncludeEmbedding() && request.isIncludeMetadata()) {
+            return record;
+        }
+        return VectorRecord.builder()
+            .vectorId(record.getVectorId())
+            .entityType(record.getEntityType())
+            .entityId(record.getEntityId())
+            .content(request.isIncludeContent() ? record.getContent() : null)
+            .embedding(request.isIncludeEmbedding() ? record.getEmbedding() : List.of())
+            .metadata(request.isIncludeMetadata() ? record.getMetadata() : Map.of())
+            .createdAt(record.getCreatedAt())
+            .updatedAt(record.getUpdatedAt())
+            .similarityScore(record.getSimilarityScore())
             .build();
     }
 

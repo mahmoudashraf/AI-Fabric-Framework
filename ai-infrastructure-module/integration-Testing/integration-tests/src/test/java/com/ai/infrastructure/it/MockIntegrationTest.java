@@ -1,9 +1,8 @@
 package com.ai.infrastructure.it;
 
-import com.ai.infrastructure.entity.AISearchableEntity;
+import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.service.AICapabilityService;
 import com.ai.infrastructure.service.VectorManagementService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import com.ai.infrastructure.it.entity.TestProduct;
 import com.ai.infrastructure.it.entity.TestUser;
 import com.ai.infrastructure.it.entity.TestArticle;
@@ -11,7 +10,6 @@ import com.ai.infrastructure.it.repository.TestProductRepository;
 import com.ai.infrastructure.it.repository.TestUserRepository;
 import com.ai.infrastructure.it.repository.TestArticleRepository;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,9 +46,6 @@ public class MockIntegrationTest {
     private AICapabilityService capabilityService;
 
     @Autowired
-    private AISearchableEntityStorageStrategy storageStrategy;
-
-    @Autowired
     private TestProductRepository productRepository;
 
     @Autowired
@@ -62,25 +57,28 @@ public class MockIntegrationTest {
     @Autowired
     private VectorManagementService vectorManagementService;
 
-    private List<AISearchableEntity> entities(String entityType) {
-        return storageStrategy.findByEntityType(entityType);
+    private static final List<String> INDEXED_TYPES = List.of("test-product", "test-user", "test-article");
+
+    private List<VectorRecord> entities(String entityType) {
+        return vectorManagementService.getVectorsByEntityType(entityType);
     }
 
-    private List<AISearchableEntity> allEntities() {
-        return storageStrategy.findByVectorIdIsNotNull();
+    private List<VectorRecord> allEntities() {
+        return INDEXED_TYPES.stream()
+            .flatMap(type -> entities(type).stream())
+            .toList();
     }
 
-    private List<AISearchableEntity> searchContent(String snippet) {
+    private List<VectorRecord> searchContent(String snippet) {
         String needle = snippet.toLowerCase();
         return allEntities().stream()
-            .filter(e -> e.getSearchableContent() != null && e.getSearchableContent().toLowerCase().contains(needle))
+            .filter(e -> e.getContent() != null && e.getContent().toLowerCase().contains(needle))
             .toList();
     }
 
     @BeforeEach
     public void setUp() {
-        // Clean up before each test
-        storageStrategy.deleteAll();
+        vectorManagementService.clearAllVectors();
         productRepository.deleteAll();
         userRepository.deleteAll();
         articleRepository.deleteAll();
@@ -107,22 +105,22 @@ public class MockIntegrationTest {
         capabilityService.processEntityForAI(product, "test-product");
 
         // Then - Verify AI processing
-        List<AISearchableEntity> searchableEntities = entities("test-product");
+        List<VectorRecord> searchableEntities = entities("test-product");
         assertEquals(1, searchableEntities.size(), "Should process one product");
 
-        AISearchableEntity entity = searchableEntities.get(0);
+        VectorRecord entity = searchableEntities.get(0);
         assertNotNull(entity.getVectorId(), "Should have vector ID");
         assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
         
         // Verify vector exists in vector database
         assertTrue(entity.getVectorId().length() >= 30, "Should have substantial embeddings");
-        assertNotNull(entity.getSearchableContent(), "Should have searchable content");
-        assertTrue(entity.getSearchableContent().contains("AI-Powered"), "Should contain product name");
-        assertTrue(entity.getSearchableContent().contains("smartwatch"), "Should contain description");
+        assertNotNull(entity.getContent(), "Should have searchable content");
+        assertTrue(entity.getContent().contains("AI-Powered"), "Should contain product name");
+        assertTrue(entity.getContent().contains("smartwatch"), "Should contain description");
 
         System.out.println("✅ Mock Embedding Generation Test Passed");
         System.out.println("   - Vector ID: " + entity.getVectorId().length());
-        System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
+        System.out.println("   - Searchable content length: " + entity.getContent().length());
     }
 
     @Test
@@ -147,20 +145,20 @@ public class MockIntegrationTest {
         capabilityService.processEntityForAI(user, "test-user");
 
         // Then - Verify AI processing
-        List<AISearchableEntity> searchableEntities = entities("test-user");
+        List<VectorRecord> searchableEntities = entities("test-user");
         assertEquals(1, searchableEntities.size(), "Should process one user");
 
-        AISearchableEntity entity = searchableEntities.get(0);
+        VectorRecord entity = searchableEntities.get(0);
         assertNotNull(entity.getVectorId(), "Should have vector ID");
         assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
         
-        assertNotNull(entity.getSearchableContent(), "Should have searchable content");
-        assertTrue(entity.getSearchableContent().contains("John Doe"), "Should contain user name");
-        assertTrue(entity.getSearchableContent().contains("AI and machine learning"), "Should contain bio content");
+        assertNotNull(entity.getContent(), "Should have searchable content");
+        assertTrue(entity.getContent().contains("John Doe"), "Should contain user name");
+        assertTrue(entity.getContent().contains("AI and machine learning"), "Should contain bio content");
 
         System.out.println("✅ Mock User Processing Test Passed");
         System.out.println("   - Vector ID: " + entity.getVectorId().length());
-        System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
+        System.out.println("   - Searchable content length: " + entity.getContent().length());
     }
 
     @Test
@@ -185,20 +183,20 @@ public class MockIntegrationTest {
         capabilityService.processEntityForAI(article, "test-article");
 
         // Then - Verify AI processing
-        List<AISearchableEntity> searchableEntities = entities("test-article");
+        List<VectorRecord> searchableEntities = entities("test-article");
         assertEquals(1, searchableEntities.size(), "Should process one article");
 
-        AISearchableEntity entity = searchableEntities.get(0);
+        VectorRecord entity = searchableEntities.get(0);
         assertNotNull(entity.getVectorId(), "Should have vector ID");
         assertFalse(entity.getVectorId().isEmpty(), "Vector ID should not be empty");
         
-        assertNotNull(entity.getSearchableContent(), "Should have searchable content");
-        assertTrue(entity.getSearchableContent().contains("Artificial Intelligence"), "Should contain title");
-        assertTrue(entity.getSearchableContent().contains("healthcare"), "Should contain content");
+        assertNotNull(entity.getContent(), "Should have searchable content");
+        assertTrue(entity.getContent().contains("Artificial Intelligence"), "Should contain title");
+        assertTrue(entity.getContent().contains("healthcare"), "Should contain content");
 
         System.out.println("✅ Mock Article Processing Test Passed");
         System.out.println("   - Vector ID: " + entity.getVectorId().length());
-        System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
+        System.out.println("   - Searchable content length: " + entity.getContent().length());
     }
 
     @Test
@@ -252,19 +250,19 @@ public class MockIntegrationTest {
         }
 
         // Then - Test various search scenarios
-        List<AISearchableEntity> allEntities = entities("test-product");
+        List<VectorRecord> allEntities = entities("test-product");
         assertEquals(2, allEntities.size(), "Should have two products");
 
         // Search for AI-related content
-        List<AISearchableEntity> aiResults = searchContent("AI");
+        List<VectorRecord> aiResults = searchContent("AI");
         assertFalse(aiResults.isEmpty(), "Should find AI-related content");
         assertTrue(aiResults.size() >= 2, "Should find multiple AI-related results");
 
         // Search for specific terms
-        List<AISearchableEntity> laptopResults = searchContent("laptop");
+        List<VectorRecord> laptopResults = searchContent("laptop");
         assertFalse(laptopResults.isEmpty(), "Should find laptop-related content");
 
-        List<AISearchableEntity> dataResults = searchContent("data scientist");
+        List<VectorRecord> dataResults = searchContent("data scientist");
         assertFalse(dataResults.isEmpty(), "Should find data scientist content");
 
         System.out.println("✅ Mock Search Functionality Test Passed");
@@ -363,19 +361,19 @@ public class MockIntegrationTest {
         capabilityService.processEntityForAI(featuredProduct, "test-product");
 
         // Then - Verify comprehensive search capabilities
-        List<AISearchableEntity> allEntities = allEntities();
+        List<VectorRecord> allEntities = allEntities();
         assertEquals(3, allEntities.size(), "Should process all three entities");
 
         // Search for machine learning content across all entities
-        List<AISearchableEntity> mlResults = searchContent("machine learning");
+        List<VectorRecord> mlResults = searchContent("machine learning");
         assertTrue(mlResults.size() >= 2, "Should find ML content in multiple entities");
 
         // Search for e-commerce content
-        List<AISearchableEntity> ecommerceResults = searchContent("e-commerce");
+        List<VectorRecord> ecommerceResults = searchContent("e-commerce");
         assertFalse(ecommerceResults.isEmpty(), "Should find e-commerce content");
 
         // Search for recommendation content
-        List<AISearchableEntity> recommendationResults = searchContent("recommendation");
+        List<VectorRecord> recommendationResults = searchContent("recommendation");
         assertFalse(recommendationResults.isEmpty(), "Should find recommendation content");
 
         System.out.println("✅ Mock Multi-Entity Workflow Test Passed");
@@ -406,10 +404,10 @@ public class MockIntegrationTest {
         capabilityService.processEntityForAI(product, "test-product");
 
         // Then - Verify AI analysis and metadata
-        List<AISearchableEntity> entities = entities("test-product");
+        List<VectorRecord> entities = entities("test-product");
         assertEquals(1, entities.size(), "Should process one product");
 
-        AISearchableEntity entity = entities.get(0);
+        VectorRecord entity = entities.get(0);
         
         // Verify embeddings
         assertNotNull(entity.getVectorId(), "Should have vector ID");
@@ -418,16 +416,16 @@ public class MockIntegrationTest {
         assertTrue(entity.getVectorId().length() >= 30, "Should have substantial embeddings");
 
         // Verify searchable content
-        assertNotNull(entity.getSearchableContent(), "Should have searchable content");
-        assertTrue(entity.getSearchableContent().length() > 50, "Should have substantial searchable content");
-        assertTrue(entity.getSearchableContent().contains("AI Camera"), "Should contain product name");
-        assertTrue(entity.getSearchableContent().contains("object recognition"), "Should contain key features");
+        assertNotNull(entity.getContent(), "Should have searchable content");
+        assertTrue(entity.getContent().length() > 50, "Should have substantial searchable content");
+        assertTrue(entity.getContent().contains("AI Camera"), "Should contain product name");
+        assertTrue(entity.getContent().contains("object recognition"), "Should contain key features");
 
         // Verify metadata
         assertNotNull(entity.getMetadata(), "Should have metadata");
-        assertTrue(entity.getMetadata().contains("category"), "Should have category metadata");
-        assertTrue(entity.getMetadata().contains("brand"), "Should have brand metadata");
-        assertTrue(entity.getMetadata().contains("price"), "Should have price metadata");
+        assertTrue(entity.getMetadata().containsKey("category"), "Should have category metadata");
+        assertTrue(entity.getMetadata().containsKey("brand"), "Should have brand metadata");
+        assertTrue(entity.getMetadata().containsKey("price"), "Should have price metadata");
 
         // Verify timestamps
         assertNotNull(entity.getCreatedAt(), "Should have creation timestamp");
@@ -435,8 +433,8 @@ public class MockIntegrationTest {
 
         System.out.println("✅ Mock AI Analysis and Metadata Test Passed");
         System.out.println("   - Vector ID: " + entity.getVectorId().length());
-        System.out.println("   - Searchable content length: " + entity.getSearchableContent().length());
-        System.out.println("   - Metadata length: " + entity.getMetadata().length());
+        System.out.println("   - Searchable content length: " + entity.getContent().length());
+        System.out.println("   - Metadata size: " + entity.getMetadata().size());
         System.out.println("   - Created at: " + entity.getCreatedAt());
     }
 
@@ -476,15 +474,15 @@ public class MockIntegrationTest {
         }
 
         // Then - Verify all products were processed
-        List<AISearchableEntity> allEntities = entities("test-product");
+        List<VectorRecord> allEntities = entities("test-product");
         assertEquals(3, allEntities.size(), "Should process all three products");
 
         // Verify each entity has proper processing
-        for (AISearchableEntity entity : allEntities) {
+        for (VectorRecord entity : allEntities) {
             assertNotNull(entity.getVectorId(), "Each entity should have embeddings");
             assertTrue(entity.getVectorId().length() >= 30, "Each entity should have substantial embeddings");
-            assertNotNull(entity.getSearchableContent(), "Each entity should have searchable content");
-            assertTrue(entity.getSearchableContent().contains("AI Product"), "Each entity should contain product name");
+            assertNotNull(entity.getContent(), "Each entity should have searchable content");
+            assertTrue(entity.getContent().contains("AI Product"), "Each entity should contain product name");
         }
 
         System.out.println("✅ Mock Batch Processing Test Passed");

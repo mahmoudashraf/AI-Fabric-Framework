@@ -10,6 +10,13 @@ ai-entities:
     searchable-fields:
       - name: title
         include-in-rag: true
+    metadata-fields:
+      - name: status
+        type: string
+        include-in-search: true
+      - name: author.fullName
+        type: string
+        include-in-search: true
   product:
     features:
       - embedding
@@ -17,6 +24,17 @@ ai-entities:
     searchable-fields:
       - name: name
         include-in-rag: true
+      - name: color
+        include-in-rag: true
+      - name: price
+        include-in-rag: true
+    metadata-fields:
+      - name: brand.name
+        type: string
+        include-in-search: true
+      - name: status
+        type: string
+        include-in-search: true
   transaction:
     features:
       - embedding
@@ -24,3 +42,16 @@ ai-entities:
     searchable-fields:
       - name: title
         include-in-rag: true
+    metadata-fields:
+      - name: channel
+        type: string
+        include-in-search: true
+      - name: status
+        type: string
+        include-in-search: true
+      - name: sourceAccount.region
+        type: string
+        include-in-search: true
+      - name: destinationAccount.region
+        type: string
+        include-in-search: true

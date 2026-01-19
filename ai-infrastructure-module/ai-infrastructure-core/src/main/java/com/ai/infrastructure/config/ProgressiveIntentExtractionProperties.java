@@ -20,7 +20,7 @@ public class ProgressiveIntentExtractionProperties {
     /**
      * Enable progressive fallback (compound → repair → multi-step).
      */
-    private boolean enabled = false;
+    private boolean enabled = true;
 
     /**
      * Enable repair step for structurally invalid outputs.
@@ -52,4 +52,3 @@ public class ProgressiveIntentExtractionProperties {
     @Max(10)
     private int maxTotalLlmCalls = 5;
 }
-

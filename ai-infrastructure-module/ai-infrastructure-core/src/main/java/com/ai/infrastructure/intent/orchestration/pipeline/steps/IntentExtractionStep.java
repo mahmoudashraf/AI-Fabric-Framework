@@ -1,5 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
@@ -10,6 +12,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Pipeline step that extracts user intent from the query using LLM analysis.
@@ -104,26 +110,39 @@ public class IntentExtractionStep implements PipelineStep {
         MultiIntentResponse intentResponse;
         PipelineContext updatedContext = context;
 
-        if (engine != null) {
-            ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract(
-                processedQuery,
-                context.getOrchestrationContext()
-            );
-            intentResponse = output != null ? output.response() : null;
-            if (output != null && output.diagnostics() != null && !output.diagnostics().isEmpty()) {
-                updatedContext = updatedContext.withMetadata("extractionDiagnostics", output.diagnostics());
+        try {
+            if (engine != null) {
+                ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract(
+                    processedQuery,
+                    context.getOrchestrationContext()
+                );
+                intentResponse = output != null ? output.response() : null;
+                if (output != null && output.diagnostics() != null && !output.diagnostics().isEmpty()) {
+                    updatedContext = updatedContext.withMetadata("extractionDiagnostics", output.diagnostics());
+                }
+            } else {
+                intentResponse = intentQueryExtractor.extract(
+                    processedQuery,
+                    context.getOrchestrationContext()
+                );
             }
-        } else {
-            intentResponse = intentQueryExtractor.extract(
-                processedQuery,
-                context.getOrchestrationContext()
+        } catch (Exception ex) {
+            log.warn("Intent extraction failed for request {}: {}", context.getRequestId(), ex.getMessage());
+            updatedContext = updatedContext.withMetadata(
+                "intentExtractionError",
+                Map.of("message", ex.getMessage(), "fallback", true)
             );
+            intentResponse = fallbackIntentResponse("Intent extraction failed: " + safeMessage(ex));
         }
         
         if (!intentResponse.hasIntents()) {
             log.warn("No intents extracted for query '{}' in request {}", 
                 processedQuery, context.getRequestId());
-            return updatedContext.terminate(OrchestrationResult.error(ERROR_MSG_NO_INTENT));
+            updatedContext = updatedContext.withMetadata(
+                "intentExtractionError",
+                Map.of("message", ERROR_MSG_NO_INTENT, "fallback", true)
+            );
+            intentResponse = fallbackIntentResponse(ERROR_MSG_NO_INTENT);
         }
         
         int intentCount = intentResponse.getIntents().size();
@@ -135,5 +154,31 @@ public class IntentExtractionStep implements PipelineStep {
         return updatedContext.toBuilder()
             .intentResponse(intentResponse)
             .build();
+    }
+
+    private MultiIntentResponse fallbackIntentResponse(String reason) {
+        Intent fallbackIntent = Intent.builder()
+            .type(IntentType.OUT_OF_SCOPE)
+            .intent("out_of_scope")
+            .confidence(0.0d)
+            .requiresRetrieval(false)
+            .requiresGeneration(false)
+            .actionParams(Map.of("reason", StringUtils.hasText(reason) ? reason : "unknown"))
+            .build();
+
+        return MultiIntentResponse.builder()
+            .intents(List.of(fallbackIntent))
+            .compound(false)
+            .orchestrationStrategy("ADMIT_UNKNOWN")
+            .metadata(Map.of("fallback", true))
+            .build();
+    }
+
+    private String safeMessage(Exception ex) {
+        if (ex == null) {
+            return "unknown";
+        }
+        String message = ex.getMessage();
+        return StringUtils.hasText(message) ? message : ex.getClass().getSimpleName();
     }
 }

@@ -34,15 +34,6 @@ on:
           - normal
           - verbose
           - debug
-      storage_strategy:
-        description: 'Storage strategy for AISearchableEntity'
-        required: false
-        default: 'SINGLE_TABLE'
-        type: choice
-        options:
-          - SINGLE_TABLE
-          - PER_TYPE_TABLE
-          - CUSTOM
       run_openai_lucene:
         description: 'Also run OpenAI + ONNX + Lucene'
         required: false
@@ -157,7 +148,6 @@ jobs:
 
     env:
       MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level || 'normal' }}
-      AI_INFRASTRUCTURE_STORAGE_STRATEGY: ${{ github.event.inputs.storage_strategy || 'SINGLE_TABLE' }}
 
       # Prefer workflow_dispatch inputs, fall back to repo secrets.
       OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
@@ -215,7 +205,7 @@ jobs:
           else
             export AI_PROVIDERS_PINECONE_ENABLED="false"
           fi
-          bash run-provider-matrix-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}:${AI_INFRASTRUCTURE_STORAGE_STRATEGY}" "" "all"
+          bash run-provider-matrix-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}" "" "all"
 
       - name: Run relationship-query suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})
         run: |

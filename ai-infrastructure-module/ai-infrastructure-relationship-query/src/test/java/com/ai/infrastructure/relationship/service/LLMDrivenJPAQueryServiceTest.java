@@ -5,7 +5,6 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.entity.AISearchableEntity;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
@@ -16,7 +15,6 @@ import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,9 +50,7 @@ class LLMDrivenJPAQueryServiceTest {
     @Mock
     private RelationshipTraversalService jpaTraversalService;
     @Mock
-    private RelationshipTraversalService metadataTraversalService;
-    @Mock
-    private AISearchableEntityStorageStrategy storageStrategy;
+    private RelationshipQueryDocumentMapper documentMapper;
     @Mock
     private VectorDatabaseService vectorDatabaseService;
     @Mock
@@ -71,7 +67,7 @@ class LLMDrivenJPAQueryServiceTest {
     @BeforeEach
     void setUp() {
         properties = new RelationshipQueryProperties();
-        properties.setDefaultReturnMode(ReturnMode.FULL);
+        properties.setDefaultReturnMode(ReturnMode.IDS);
         properties.setEnableVectorSearch(true);
         moduleMetadata = RelationshipModuleMetadata.from(properties);
 
@@ -82,8 +78,7 @@ class LLMDrivenJPAQueryServiceTest {
             properties,
             moduleMetadata,
             jpaTraversalService,
-            metadataTraversalService,
-            storageStrategy,
+            documentMapper,
             vectorDatabaseService,
             embeddingService,
             queryCache,
@@ -99,9 +94,15 @@ class LLMDrivenJPAQueryServiceTest {
 
         when(planner.planQuery(eq("find documents"), anyList())).thenReturn(plan);
         when(queryBuilder.buildQuery(plan)).thenReturn(jpqlQuery);
-        when(jpaTraversalService.traverse(plan, jpqlQuery)).thenReturn(List.of("doc-1"));
-        when(storageStrategy.findByEntityTypeAndEntityId("document", "doc-1"))
-            .thenReturn(Optional.of(searchableEntity("doc-1", "Finance doc", "{\"status\":\"active\"}")));
+        Object entity = new Object();
+        when(jpaTraversalService.traverse(plan, jpqlQuery))
+            .thenReturn(TraversalResult.entities(List.of(entity), List.of("doc-1")));
+        when(documentMapper.map(eq("document"), eq(entity), eq("doc-1")))
+            .thenReturn(Optional.of(RAGResponse.RAGDocument.builder()
+                .id("doc-1")
+                .content("Finance doc")
+                .metadata(Map.of("status", "active"))
+                .build()));
 
         QueryOptions options = QueryOptions.builder()
             .returnMode(ReturnMode.FULL)
@@ -113,7 +114,6 @@ class LLMDrivenJPAQueryServiceTest {
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getDocuments().get(0).getMetadata()).containsEntry("status", "active");
         assertThat(response.getEntityType()).isEqualTo("document");
-        verify(metadataTraversalService, never()).traverse(any(), any());
     }
 
     @Test
@@ -130,30 +130,26 @@ class LLMDrivenJPAQueryServiceTest {
 
         assertThat(response.getDocuments()).extracting(RAGResponse.RAGDocument::getId).containsExactly("cached-1");
         verify(jpaTraversalService, never()).traverse(any(), any());
-        verify(metadataTraversalService, never()).traverse(any(), any());
         verify(queryCache, never()).putQueryResult(anyString(), any());
     }
 
     @Test
-    void shouldFallbackToMetadataWhenJpaReturnsEmpty() {
+    void shouldReturnEmptyWhenJpaReturnsEmpty() {
         RelationshipQueryPlan plan = basePlan();
         JpqlQuery jpqlQuery = defaultQuery();
 
         when(planner.planQuery(eq("needs fallback"), anyList())).thenReturn(plan);
         when(queryBuilder.buildQuery(plan)).thenReturn(jpqlQuery);
-        when(jpaTraversalService.traverse(plan, jpqlQuery)).thenReturn(List.of());
-        when(metadataTraversalService.traverse(plan, jpqlQuery)).thenReturn(List.of("meta-1"));
+        when(jpaTraversalService.traverse(plan, jpqlQuery)).thenReturn(TraversalResult.empty());
 
         RAGResponse response = service.executeRelationshipQuery("needs fallback", List.of("document"), QueryOptions.defaults());
 
-        assertThat(response.getDocuments()).extracting(RAGResponse.RAGDocument::getId).containsExactly("meta-1");
-        verify(metadataTraversalService).traverse(plan, jpqlQuery);
+        assertThat(response.getDocuments()).isEmpty();
     }
 
     @Test
     void shouldRerankWithVectorsWhenPlanRequiresSemanticSearch() {
         when(queryCache.isEnabled()).thenReturn(true);
-        when(queryCache.getQueryResult(anyString())).thenReturn(Optional.empty());
         when(queryCache.getEmbedding(anyString())).thenReturn(Optional.empty());
 
         RelationshipQueryPlan plan = RelationshipQueryPlan.builder()
@@ -166,7 +162,10 @@ class LLMDrivenJPAQueryServiceTest {
 
         when(planner.planQuery(eq("vector query"), anyList())).thenReturn(plan);
         when(queryBuilder.buildQuery(plan)).thenReturn(jpqlQuery);
-        when(jpaTraversalService.traverse(plan, jpqlQuery)).thenReturn(List.of("doc-1"));
+        Object docEntity = new Object();
+        Object vecEntity = new Object();
+        when(jpaTraversalService.traverse(plan, jpqlQuery))
+            .thenReturn(TraversalResult.entities(List.of(docEntity, vecEntity), List.of("doc-1", "vec-1")));
 
         AIEmbeddingResponse embeddingResponse = AIEmbeddingResponse.builder()
             .embedding(List.of(0.1, 0.2, 0.3))
@@ -179,10 +178,10 @@ class LLMDrivenJPAQueryServiceTest {
         when(vectorDatabaseService.searchByEntityType(eq(embeddingResponse.getEmbedding()), eq("document"), anyInt(), anyDouble()))
             .thenReturn(vectorResponse);
 
-        when(storageStrategy.findByEntityTypeAndEntityId("document", "vec-1"))
-            .thenReturn(Optional.of(searchableEntity("vec-1", "Vector doc", null)));
-        when(storageStrategy.findByEntityTypeAndEntityId("document", "doc-1"))
-            .thenReturn(Optional.of(searchableEntity("doc-1", "JPA doc", null)));
+        when(documentMapper.map(eq("document"), eq(docEntity), eq("doc-1")))
+            .thenReturn(Optional.of(RAGResponse.RAGDocument.builder().id("doc-1").content("JPA doc").build()));
+        when(documentMapper.map(eq("document"), eq(vecEntity), eq("vec-1")))
+            .thenReturn(Optional.of(RAGResponse.RAGDocument.builder().id("vec-1").content("Vector doc").build()));
 
         QueryOptions options = QueryOptions.builder()
             .returnMode(ReturnMode.FULL)
@@ -223,12 +222,4 @@ class LLMDrivenJPAQueryServiceTest {
             .build();
     }
 
-    private AISearchableEntity searchableEntity(String id, String content, String metadata) {
-        return AISearchableEntity.builder()
-            .entityType("document")
-            .entityId(id)
-            .searchableContent(content)
-            .metadata(metadata)
-            .build();
-    }
 }

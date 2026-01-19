@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
  * <ul>
  *   <li>Extracted and combined into searchable content</li>
  *   <li>Embedded using the configured embedding provider (ONNX, OpenAI, etc.)</li>
- *   <li>Stored in {@link com.ai.infrastructure.entity.AISearchableEntity}</li>
+ *   <li>Stored in the vector database as the vector content</li>
  *   <li>Indexed in the vector database for semantic search</li>
  * </ul>
  * </p>
@@ -59,7 +59,6 @@ import java.lang.annotation.Target;
  * @since 2.0.0
  * @see com.ai.infrastructure.annotation.AIContext
  * @see com.ai.infrastructure.annotation.AICapable
- * @see com.ai.infrastructure.entity.AISearchableEntity
  */
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)

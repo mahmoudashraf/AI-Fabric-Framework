@@ -54,7 +54,7 @@ public class GeminiProvider implements AIProvider {
     private final AtomicReference<Double> averageResponseTime = new AtomicReference<>(0.0);
     
     private static final String GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
-    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final int MAX_RETRY_ATTEMPTS = 5;
     
     @Override
     public String getProviderName() {
@@ -100,14 +100,19 @@ public class GeminiProvider implements AIProvider {
             Map<String, Object> content = new HashMap<>();
 
             Map<String, Object> requestParams = request.getParameters() != null ? request.getParameters() : Map.of();
-            boolean jsonRequested = isJsonResponseRequested(requestParams);
+            boolean jsonMimeTypeRequested = isJsonMimeTypeRequested(requestParams);
 
             // Add system instruction if present (Gemini uses systemInstruction in generationConfig)
             String systemPrompt = request.getSystemPrompt() != null ? request.getSystemPrompt() : "";
+
+            boolean jsonOnlyTask = jsonMimeTypeRequested
+                || hasOpenAIStyleJsonHint(requestParams)
+                || isJsonOnlySystemPrompt(systemPrompt)
+                || isJsonTaskGenerationType(request.getGenerationType());
             
             // For JSON-sensitive tasks, enhance the system prompt to be very explicit about JSON-only responses.
             // (Additionally, set generationConfig.responseMimeType to application/json when requested.)
-            if (jsonRequested || (request.getGenerationType() != null && request.getGenerationType().contains("intent_extraction"))) {
+            if (jsonOnlyTask || (request.getGenerationType() != null && request.getGenerationType().contains("intent_extraction"))) {
                 String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
                     "You MUST respond with ONLY valid JSON. No markdown code blocks (no ```json or ```), " +
                     "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
@@ -139,7 +144,9 @@ public class GeminiProvider implements AIProvider {
             }
 
             // Gemini supports enforcing JSON output via responseMimeType.
-            if (jsonRequested) {
+            // Only enable this when explicitly requested for Gemini (response_mime_type / responseMimeType).
+            // OpenAI's response_format hints are provider-specific and can unintentionally constrain Gemini output.
+            if (jsonMimeTypeRequested) {
                 generationConfig.put("responseMimeType", "application/json");
             }
             
@@ -377,7 +384,7 @@ public class GeminiProvider implements AIProvider {
                         backoffMs
                     );
                     sleepWithJitter(backoffMs);
-                    backoffMs = Math.min(3000, backoffMs * 2);
+                    backoffMs = Math.min(8000, backoffMs * 2);
                     continue;
                 }
                 throw ex;
@@ -392,7 +399,7 @@ public class GeminiProvider implements AIProvider {
                         ex.getMessage()
                     );
                     sleepWithJitter(backoffMs);
-                    backoffMs = Math.min(3000, backoffMs * 2);
+                    backoffMs = Math.min(8000, backoffMs * 2);
                     continue;
                 }
                 throw ex;
@@ -465,26 +472,58 @@ public class GeminiProvider implements AIProvider {
         return null;
     }
 
-    private boolean isJsonResponseRequested(Map<String, Object> parameters) {
+    private boolean isJsonMimeTypeRequested(Map<String, Object> parameters) {
         if (parameters == null || parameters.isEmpty()) {
             return false;
         }
+        Object responseMimeType = parameters.get("response_mime_type");
+        if (responseMimeType == null) {
+            responseMimeType = parameters.get("responseMimeType");
+        }
+        if (responseMimeType == null) {
+            return false;
+        }
+        String value = String.valueOf(responseMimeType).trim().toLowerCase();
+        return value.contains("json");
+    }
 
+    private boolean hasOpenAIStyleJsonHint(Map<String, Object> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return false;
+        }
         Object responseFormat = parameters.get("response_format");
         if (responseFormat == null) {
             responseFormat = parameters.get("responseFormat");
         }
         if (responseFormat == null) {
-            responseFormat = parameters.get("response_mime_type");
-        }
-        if (responseFormat == null) {
-            responseFormat = parameters.get("responseMimeType");
-        }
-        if (responseFormat == null) {
             return false;
         }
 
-        String value = String.valueOf(responseFormat).trim().toLowerCase();
-        return value.contains("json");
+        if (responseFormat instanceof Map<?, ?> map) {
+            Object type = map.get("type");
+            if (type == null) {
+                type = map.get("Type");
+            }
+            return type != null && String.valueOf(type).trim().toLowerCase().contains("json");
+        }
+
+        return String.valueOf(responseFormat).trim().toLowerCase().contains("json");
+    }
+
+    private boolean isJsonOnlySystemPrompt(String systemPrompt) {
+        if (systemPrompt == null || systemPrompt.isBlank()) {
+            return false;
+        }
+        return systemPrompt.toLowerCase().contains("json");
+    }
+
+    private boolean isJsonTaskGenerationType(String generationType) {
+        if (generationType == null || generationType.isBlank()) {
+            return false;
+        }
+        String value = generationType.toLowerCase();
+        return value.contains("planning")
+            || value.contains("intent_extraction")
+            || value.contains("intent-extraction");
     }
 }

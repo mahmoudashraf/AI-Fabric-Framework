@@ -9,12 +9,18 @@ import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.util.StringUtils;
 
 /**
- * Activates vector-related infrastructure when {@code ai.vector-db.type} is set.
+ * Activates vector-related infrastructure when {@code ai.vector-db.type} is set and search is not
+ * explicitly disabled via {@code ai.service.features.enable-search=false}.
  */
 public class VectorDbConfiguredCondition implements Condition {
 
     @Override
     public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+        String searchEnabled = context.getEnvironment().getProperty("ai.service.features.enable-search");
+        if (StringUtils.hasText(searchEnabled) && !Boolean.parseBoolean(searchEnabled.trim())) {
+            return false;
+        }
+
         String type = context.getEnvironment().getProperty("ai.vector-db.type");
         if (StringUtils.hasText(type) && !"false".equalsIgnoreCase(type.trim())) {
             return true;

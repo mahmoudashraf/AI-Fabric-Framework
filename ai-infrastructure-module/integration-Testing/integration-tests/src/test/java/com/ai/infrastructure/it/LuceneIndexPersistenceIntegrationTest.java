@@ -48,9 +48,6 @@ class LuceneIndexPersistenceIntegrationTest {
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
 
-    // Removed direct injection of LuceneVectorDatabaseService to avoid UnsatisfiedDependency exception
-    // because the bean is wrapped by SearchableEntityVectorDatabaseService.
-
     @BeforeEach
     void setUp() {
         vectorManagementService.clearVectorsByEntityType(ENTITY_TYPE);
@@ -136,14 +133,19 @@ class LuceneIndexPersistenceIntegrationTest {
 
     private void restartLuceneService() {
         VectorDatabaseService current = vectorDatabaseService;
-        // Unwrap SearchableEntityVectorDatabaseService if present
-        while (current.getClass().getName().contains("SearchableEntityVectorDatabaseService")) {
+        // Unwrap common decorators (e.g., governance) if present.
+        while (true) {
             try {
                 java.lang.reflect.Field delegateField = current.getClass().getDeclaredField("delegate");
                 delegateField.setAccessible(true);
-                current = (VectorDatabaseService) delegateField.get(current);
+                Object delegate = delegateField.get(current);
+                if (delegate instanceof VectorDatabaseService next) {
+                    current = next;
+                    continue;
+                }
+                break;
             } catch (Exception e) {
-                throw new RuntimeException("Failed to unwrap vector service to access Lucene delegate", e);
+                break;
             }
         }
 

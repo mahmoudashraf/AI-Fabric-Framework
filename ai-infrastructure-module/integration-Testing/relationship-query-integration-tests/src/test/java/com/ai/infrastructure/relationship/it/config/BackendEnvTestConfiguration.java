@@ -2,23 +2,10 @@ package com.ai.infrastructure.relationship.it.config;
 
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
-import com.ai.infrastructure.core.AIEmbeddingService;
-import com.ai.infrastructure.relationship.cache.QueryCache;
-import com.ai.infrastructure.relationship.config.RelationshipModuleMetadata;
-import com.ai.infrastructure.relationship.metrics.QueryMetrics;
-import com.ai.infrastructure.relationship.service.DynamicJPAQueryBuilder;
 import com.ai.infrastructure.relationship.service.EntityRelationshipMapper;
 import com.ai.infrastructure.relationship.service.JpaRelationshipTraversalService;
-import com.ai.infrastructure.relationship.service.LLMDrivenJPAQueryService;
-import com.ai.infrastructure.relationship.service.MetadataRelationshipTraversalService;
-import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
 import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
 import com.ai.infrastructure.relationship.service.RelationshipTraversalService;
-import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
-import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.storage.strategy.AISearchableEntityStorageStrategy;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
@@ -28,13 +15,11 @@ import jakarta.annotation.Nullable;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.DependsOn;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.StringUtils;
 import java.time.Duration;
@@ -184,70 +169,6 @@ public class BackendEnvTestConfiguration {
     @Bean(name = "jpaRelationshipTraversalService")
     RelationshipTraversalService testJpaRelationshipTraversalService(EntityManagerFactory entityManagerFactory) {
         return new JpaRelationshipTraversalService(entityManagerFactory.createEntityManager());
-    }
-
-    @Bean(name = "metadataRelationshipTraversalService")
-    RelationshipTraversalService testMetadataRelationshipTraversalService(AISearchableEntityStorageStrategy storageStrategy,
-                                                                          ObjectMapper objectMapper) {
-        return new MetadataRelationshipTraversalService(storageStrategy, objectMapper);
-    }
-
-    @Bean
-    @Primary
-    LLMDrivenJPAQueryService testLLMDrivenJPAQueryService(RelationshipQueryPlanner planner,
-                                                          DynamicJPAQueryBuilder queryBuilder,
-                                                          RelationshipQueryValidator validator,
-                                                          RelationshipQueryProperties properties,
-                                                          RelationshipModuleMetadata metadata,
-                                                          @Qualifier("jpaRelationshipTraversalService") RelationshipTraversalService jpaTraversalService,
-                                                          @Qualifier("metadataRelationshipTraversalService") RelationshipTraversalService metadataTraversalService,
-                                                          AISearchableEntityStorageStrategy storageStrategy,
-                                                          @Nullable VectorDatabaseService vectorDatabaseService,
-                                                          @Nullable AIEmbeddingService embeddingService,
-                                                          QueryCache queryCache,
-                                                          QueryMetrics queryMetrics) {
-        return new LLMDrivenJPAQueryService(
-            planner,
-            queryBuilder,
-            validator,
-            properties,
-            metadata,
-            jpaTraversalService,
-            metadataTraversalService,
-            storageStrategy,
-            vectorDatabaseService,
-            embeddingService,
-            queryCache,
-            queryMetrics
-        );
-    }
-
-    @Bean
-    @Primary
-    ReliableRelationshipQueryService testReliableRelationshipQueryService(LLMDrivenJPAQueryService llmDrivenJPAQueryService,
-                                                                          RelationshipQueryPlanner planner,
-                                                                          @Qualifier("metadataRelationshipTraversalService") RelationshipTraversalService metadataTraversalService,
-                                                                          @Nullable VectorDatabaseService vectorDatabaseService,
-                                                                          @Nullable AIEmbeddingService embeddingService,
-                                                                          AISearchableEntityStorageStrategy storageStrategy,
-                                                                          RelationshipQueryValidator validator,
-                                                                          RelationshipQueryProperties properties,
-                                                                          RelationshipModuleMetadata metadata,
-                                                                          QueryCache queryCache,
-                                                                          QueryMetrics queryMetrics) {
-        return new ReliableRelationshipQueryService(
-            llmDrivenJPAQueryService,
-            planner,
-            metadataTraversalService,
-            vectorDatabaseService,
-            embeddingService,
-            storageStrategy,
-            validator,
-            properties,
-            metadata,
-            queryCache,
-            queryMetrics
-        );
     }
 
     @Bean

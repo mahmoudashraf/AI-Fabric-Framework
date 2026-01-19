@@ -37,11 +37,15 @@ public record IndexingConfiguration(
             return candidate;
         }
 
-        candidate = switch (operation) {
-            case CREATE -> normalize(onCreateStrategy);
-            case UPDATE -> normalize(onUpdateStrategy);
-            case DELETE -> normalize(onDeleteStrategy);
-        };
+        if (operation == IndexingOperation.CREATE) {
+            candidate = normalize(onCreateStrategy);
+        } else if (operation == IndexingOperation.UPDATE) {
+            candidate = normalize(onUpdateStrategy);
+        } else if (operation == IndexingOperation.DELETE) {
+            candidate = normalize(onDeleteStrategy);
+        } else {
+            candidate = null;
+        }
 
         if (candidate != null) {
             return candidate;
