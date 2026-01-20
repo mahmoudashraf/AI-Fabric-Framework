@@ -1,7 +1,19 @@
 # Intent Extraction Provider Shape-Drift Normalization — Change Plan
 
 ## Status
-Proposed
+In Progress
+
+## Implementation Notes (2026-01-20)
+Implemented (core):
+- Deterministic normalization in `IntentExtractionPostProcessor`:
+  - `CANONICALIZE_ACTION_NAME` (ensures action aliases don’t break downstream action-specific logic).
+  - `RELATIONSHIP_QUERY_DEFAULT_QUERY_PARAM` + `RELATIONSHIP_QUERY_STRIP_HINT_PREFIX` (protocol-level hint handling).
+  - `RELATIONSHIP_QUERY_COERCE_POST_ACTION_INSTRUCTIONS` (nextStepRecommended.query → generationInstructions when vectorSpace is absent).
+  - `NORMALIZE_ENTITY_TYPES` (coerce to `List<String>`, trim, lowercase, remove blanks).
+- Normalization diagnostics surfaced via response metadata and progressive extraction attempt events.
+
+Still planned:
+- Prompt hardening to reduce the need for normalization across providers.
 
 ## Problem
 Different LLM providers (and even the same provider across models/versions) can express the **same intent** using **different fields** or incomplete shapes. This causes:
@@ -175,4 +187,3 @@ Default behavior should be ON (framework reliability), but allow targeted switch
   - `generationInstructions`, or
   - `nextStepRecommended.query` (no vectorSpace).
 - Diagnostics show a declining rate of repairs as prompts improve.
-

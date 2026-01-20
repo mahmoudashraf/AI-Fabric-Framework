@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Progressive intent extraction with a bounded fallback ladder.
@@ -39,6 +40,7 @@ public class ProgressiveIntentExtractionEngine {
     private final ProgressiveIntentExtractionProperties properties;
     private final CompoundIntentExtractionStrategy compoundStrategy;
     private final RepairIntentExtractionStrategy repairStrategy;
+    private final CompletionIntentExtractionStrategy completionStrategy;
     private final MultiStepIntentExtractionStrategy multiStepStrategy;
     private final IntentExtractionPostProcessor postProcessor;
     private final IntentExtractionValidator validator;
@@ -78,6 +80,13 @@ public class ProgressiveIntentExtractionEngine {
             return new ExtractionOutput(fallback, diagnostics("fallback", attemptEvents, totalLlmCalls));
         }
 
+        ExtractionAttempt latestAttempt = compoundAttempt;
+
+        boolean completionEnabled = "completion".equals(forceMode)
+            || properties == null
+            || properties.isCompletionEnabled();
+        int completionMaxAttempts = properties != null ? properties.getCompletionMaxAttempts() : 1;
+
         boolean repairEnabled = properties != null && properties.isRepairEnabled();
         boolean shouldAttemptRepair = (forceMode.isEmpty() || "auto".equals(forceMode) || "repair".equals(forceMode));
         if (shouldAttemptRepair
@@ -93,6 +102,7 @@ public class ProgressiveIntentExtractionEngine {
                 totalLlmCalls += rawRepairAttempt.getLlmCalls();
                 ExtractionAttempt repairAttempt = assessAttempt(rawRepairAttempt, query);
                 attemptEvents.add(toAttemptEvent(repairAttempt));
+                latestAttempt = repairAttempt;
 
                 if (repairAttempt.isSuccess()) {
                     MultiIntentResponse finalized = repairAttempt.getResponse();
@@ -104,6 +114,46 @@ public class ProgressiveIntentExtractionEngine {
 
         if ("repair".equals(forceMode)) {
             MultiIntentResponse fallback = safeDefault("Forced repair mode failed");
+            return new ExtractionOutput(fallback, diagnostics("fallback", attemptEvents, totalLlmCalls));
+        }
+
+        ExtractionAttempt attemptForCompletion = latestAttempt != null ? latestAttempt : compoundAttempt;
+
+        boolean shouldAttemptCompletion = (forceMode.isEmpty() || "auto".equals(forceMode) || "completion".equals(forceMode));
+        if (shouldAttemptCompletion
+            && completionEnabled
+            && attemptForCompletion != null
+            && attemptForCompletion.getValidationResult() != null
+            && (attemptForCompletion.getValidationResult().errorCategory() == IntentExtractionValidator.ErrorCategory.INCOMPLETE
+                || attemptForCompletion.getValidationResult().errorCategory() == IntentExtractionValidator.ErrorCategory.UNSAFE)
+            && totalLlmCalls < maxCalls) {
+
+            int maxAttempts = Math.max("completion".equals(forceMode) ? 1 : 0, completionMaxAttempts);
+            ExtractionAttempt current = attemptForCompletion;
+
+            for (int attempt = 0; attempt < maxAttempts && totalLlmCalls < maxCalls; attempt++) {
+                ExtractionAttempt rawCompletionAttempt = completionStrategy.attemptComplete(query, safeContext, current);
+                totalLlmCalls += rawCompletionAttempt.getLlmCalls();
+                ExtractionAttempt completed = assessAttempt(rawCompletionAttempt, query);
+                attemptEvents.add(toAttemptEvent(completed));
+
+                if (completed.isSuccess()) {
+                    MultiIntentResponse finalized = completed.getResponse();
+                    Map<String, Object> diagnostics = diagnostics("completion", attemptEvents, totalLlmCalls);
+                    return new ExtractionOutput(finalized, diagnostics);
+                }
+
+                current = completed;
+                if (current.getValidationResult() == null
+                    || (current.getValidationResult().errorCategory() != IntentExtractionValidator.ErrorCategory.INCOMPLETE
+                        && current.getValidationResult().errorCategory() != IntentExtractionValidator.ErrorCategory.UNSAFE)) {
+                    break;
+                }
+            }
+        }
+
+        if ("completion".equals(forceMode)) {
+            MultiIntentResponse fallback = safeDefault("Forced completion mode failed");
             return new ExtractionOutput(fallback, diagnostics("fallback", attemptEvents, totalLlmCalls));
         }
 
@@ -251,9 +301,27 @@ public class ProgressiveIntentExtractionEngine {
             if (validation.warnings() != null && !validation.warnings().isEmpty()) {
                 event.put("warnings", List.copyOf(validation.warnings()));
             }
+            if (validation.issues() != null && !validation.issues().isEmpty()) {
+                List<String> issueCodes = validation.issues().stream()
+                    .filter(Objects::nonNull)
+                    .map(IntentExtractionValidator.ValidationIssue::code)
+                    .filter(Objects::nonNull)
+                    .map(Enum::name)
+                    .distinct()
+                    .toList();
+                if (!issueCodes.isEmpty()) {
+                    event.put("issueCodes", issueCodes);
+                }
+            }
         }
         if (attempt.getErrorMessage() != null) {
             event.put("errorMessage", attempt.getErrorMessage());
+        }
+        if (attempt.getResponse() != null && attempt.getResponse().getMetadata() != null) {
+            Object normalization = attempt.getResponse().getMetadata().get("normalization");
+            if (normalization != null) {
+                event.put("normalization", normalization);
+            }
         }
         return Collections.unmodifiableMap(event);
     }

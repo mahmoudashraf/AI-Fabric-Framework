@@ -26,11 +26,14 @@ class ProgressiveIntentExtractionEngineTest {
         ProgressiveIntentExtractionProperties properties = new ProgressiveIntentExtractionProperties();
         properties.setRepairEnabled(true);
         properties.setRepairMaxAttempts(1);
+        properties.setCompletionEnabled(true);
+        properties.setCompletionMaxAttempts(1);
         properties.setMultiStepEnabled(true);
         properties.setMaxTotalLlmCalls(5);
 
         CompoundIntentExtractionStrategy compound = mock(CompoundIntentExtractionStrategy.class);
         RepairIntentExtractionStrategy repair = mock(RepairIntentExtractionStrategy.class);
+        CompletionIntentExtractionStrategy completion = mock(CompletionIntentExtractionStrategy.class);
         MultiStepIntentExtractionStrategy multiStep = mock(MultiStepIntentExtractionStrategy.class);
         IntentExtractionPostProcessor postProcessor = mock(IntentExtractionPostProcessor.class);
         IntentExtractionValidator validator = mock(IntentExtractionValidator.class);
@@ -56,6 +59,7 @@ class ProgressiveIntentExtractionEngineTest {
             properties,
             compound,
             repair,
+            completion,
             multiStep,
             postProcessor,
             validator
@@ -70,6 +74,7 @@ class ProgressiveIntentExtractionEngineTest {
         assertThat(output.diagnostics()).containsEntry("llmCalls", 1);
 
         verify(repair, never()).attemptRepair(anyString(), any(), any());
+        verify(completion, never()).attemptComplete(anyString(), any(), any());
         verify(multiStep, never()).attemptExtract(anyString(), any());
     }
 
@@ -78,11 +83,14 @@ class ProgressiveIntentExtractionEngineTest {
         ProgressiveIntentExtractionProperties properties = new ProgressiveIntentExtractionProperties();
         properties.setRepairEnabled(true);
         properties.setRepairMaxAttempts(1);
+        properties.setCompletionEnabled(true);
+        properties.setCompletionMaxAttempts(1);
         properties.setMultiStepEnabled(true);
         properties.setMaxTotalLlmCalls(5);
 
         CompoundIntentExtractionStrategy compound = mock(CompoundIntentExtractionStrategy.class);
         RepairIntentExtractionStrategy repair = mock(RepairIntentExtractionStrategy.class);
+        CompletionIntentExtractionStrategy completion = mock(CompletionIntentExtractionStrategy.class);
         MultiStepIntentExtractionStrategy multiStep = mock(MultiStepIntentExtractionStrategy.class);
         IntentExtractionPostProcessor postProcessor = mock(IntentExtractionPostProcessor.class);
         IntentExtractionValidator validator = mock(IntentExtractionValidator.class);
@@ -121,6 +129,7 @@ class ProgressiveIntentExtractionEngineTest {
             properties,
             compound,
             repair,
+            completion,
             multiStep,
             postProcessor,
             validator
@@ -130,6 +139,7 @@ class ProgressiveIntentExtractionEngineTest {
 
         assertThat(output.diagnostics()).containsEntry("extractionPath", "repair");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 2);
+        verify(completion, never()).attemptComplete(anyString(), any(), any());
         verify(multiStep, never()).attemptExtract(anyString(), any());
     }
 
@@ -138,11 +148,14 @@ class ProgressiveIntentExtractionEngineTest {
         ProgressiveIntentExtractionProperties properties = new ProgressiveIntentExtractionProperties();
         properties.setRepairEnabled(true);
         properties.setRepairMaxAttempts(1);
+        properties.setCompletionEnabled(true);
+        properties.setCompletionMaxAttempts(1);
         properties.setMultiStepEnabled(true);
         properties.setMaxTotalLlmCalls(5);
 
         CompoundIntentExtractionStrategy compound = mock(CompoundIntentExtractionStrategy.class);
         RepairIntentExtractionStrategy repair = mock(RepairIntentExtractionStrategy.class);
+        CompletionIntentExtractionStrategy completion = mock(CompletionIntentExtractionStrategy.class);
         MultiStepIntentExtractionStrategy multiStep = mock(MultiStepIntentExtractionStrategy.class);
         IntentExtractionPostProcessor postProcessor = mock(IntentExtractionPostProcessor.class);
         IntentExtractionValidator validator = mock(IntentExtractionValidator.class);
@@ -194,6 +207,7 @@ class ProgressiveIntentExtractionEngineTest {
             properties,
             compound,
             repair,
+            completion,
             multiStep,
             postProcessor,
             validator
@@ -204,5 +218,83 @@ class ProgressiveIntentExtractionEngineTest {
         assertThat(output.diagnostics()).containsEntry("extractionPath", "multi_step");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 4);
         verify(multiStep).attemptExtract(anyString(), any(OrchestrationContext.class));
+    }
+
+    @Test
+    void shouldAttemptCompletionWhenCompoundIsContractIncomplete() {
+        ProgressiveIntentExtractionProperties properties = new ProgressiveIntentExtractionProperties();
+        properties.setRepairEnabled(true);
+        properties.setRepairMaxAttempts(1);
+        properties.setCompletionEnabled(true);
+        properties.setCompletionMaxAttempts(1);
+        properties.setMultiStepEnabled(true);
+        properties.setMaxTotalLlmCalls(5);
+
+        CompoundIntentExtractionStrategy compound = mock(CompoundIntentExtractionStrategy.class);
+        RepairIntentExtractionStrategy repair = mock(RepairIntentExtractionStrategy.class);
+        CompletionIntentExtractionStrategy completion = mock(CompletionIntentExtractionStrategy.class);
+        MultiStepIntentExtractionStrategy multiStep = mock(MultiStepIntentExtractionStrategy.class);
+        IntentExtractionPostProcessor postProcessor = mock(IntentExtractionPostProcessor.class);
+        IntentExtractionValidator validator = mock(IntentExtractionValidator.class);
+
+        MultiIntentResponse incomplete = MultiIntentResponse.builder()
+            .intents(List.of(Intent.builder()
+                .type(IntentType.ACTION)
+                .action("relationship_query")
+                .actionParams(java.util.Map.of())
+                .build()))
+            .build();
+
+        ExtractionAttempt rawCompound = ExtractionAttempt.builder()
+            .success(true)
+            .response(incomplete)
+            .strategyName("compound")
+            .llmCalls(1)
+            .build();
+
+        MultiIntentResponse completedResponse = MultiIntentResponse.builder()
+            .intents(List.of(Intent.builder().type(IntentType.INFORMATION).intent("refund_policy").build()))
+            .build();
+
+        ExtractionAttempt rawCompletion = ExtractionAttempt.builder()
+            .success(true)
+            .response(completedResponse)
+            .strategyName("completion")
+            .llmCalls(1)
+            .build();
+
+        when(compound.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(rawCompound);
+        when(completion.attemptComplete(anyString(), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(rawCompletion);
+        when(postProcessor.postProcess(any(MultiIntentResponse.class), anyString()))
+            .thenReturn(incomplete)
+            .thenReturn(completedResponse);
+
+        IntentExtractionValidator.ValidationResult incompleteValidation = new IntentExtractionValidator.ValidationResult(
+            false,
+            IntentExtractionValidator.ErrorCategory.INCOMPLETE,
+            List.of("missing params"),
+            List.of()
+        );
+        when(validator.validate(any(MultiIntentResponse.class)))
+            .thenReturn(incompleteValidation)
+            .thenReturn(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()));
+
+        ProgressiveIntentExtractionEngine engine = new ProgressiveIntentExtractionEngine(
+            properties,
+            compound,
+            repair,
+            completion,
+            multiStep,
+            postProcessor,
+            validator
+        );
+
+        ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract("q", OrchestrationContext.forUser("user"));
+
+        assertThat(output.diagnostics()).containsEntry("extractionPath", "completion");
+        assertThat(output.diagnostics()).containsEntry("llmCalls", 2);
+        verify(repair, never()).attemptRepair(anyString(), any(), any());
+        verify(multiStep, never()).attemptExtract(anyString(), any());
+        verify(completion).attemptComplete(anyString(), any(), any());
     }
 }

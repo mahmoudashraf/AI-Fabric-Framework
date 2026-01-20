@@ -1,7 +1,19 @@
 # Progressive Intent Extraction — Resilience & “Smart” Upgrades (No Substring Heuristics) — Change Plan
 
 ## Status
-Proposed
+In Progress
+
+## Implementation Notes (2026-01-20)
+Implemented:
+- Typed, deterministic validator issues (`IssueCode`, `Severity`, `ErrorCategory`) and action required-parameter validation via `AIActionMetaData.requiredParameters`.
+- Progressive gating updated to post-process first, then validate (avoids extra LLM calls when deterministic normalization can fix the shape).
+- Multi-step extraction extended to optionally fill `actionParams` using registered action metadata (bounded by `maxTotalLlmCalls`).
+- New completion step (`CompletionIntentExtractionStrategy`) for contract-incomplete / unsafe outputs, wired into `ProgressiveIntentExtractionEngine` with `ai.intent-extraction.progressive.completion*` properties.
+- Diagnostics enriched with validation `issueCodes` and normalization rule IDs per attempt.
+
+Still planned:
+- Prompt hardening to reduce repair/completion rates across providers.
+- Provider matrix scorecard reporting for repair/completion usage rates.
 
 ## Problem
 Intent extraction currently depends on LLMs producing a perfectly shaped JSON response in a single shot. In practice, providers vary in:
@@ -178,4 +190,3 @@ Under `ai.intent-extraction.diagnostics.*`:
   - extraction success rate ↑
   - average llmCalls bounded and predictable
   - completion usage primarily for providers with known drift.
-
