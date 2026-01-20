@@ -111,7 +111,10 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
     @Test
     @DisplayName("Should use LLM-provided relational part for compound messages (avoid including unrelated tasks)")
     void shouldUseRelationalPartQueryForCompoundMessage() {
-        stubIntentExtractionWithExplicitQuery("find all brands");
+        stubIntentExtractionWithExplicitQueryAndGenerationInstructions(
+            "find all brands",
+            "Summarize them."
+        );
         stubRelationshipPlanNoFilters();
 
         OrchestrationResult result = orchestrator.orchestrate(
@@ -228,6 +231,39 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
               "orchestrationStrategy": "DIRECT_ACTION"
             }
             """.formatted(query)).build();
+
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction".equals(req.getGenerationType())
+        ), eq(LlmPurpose.ORCHESTRATION))).thenReturn(response);
+
+        when(aiCoreService.generateContent(argThat(req ->
+            req != null && "intent_extraction".equals(req.getGenerationType())
+        ))).thenReturn(response);
+    }
+
+    private void stubIntentExtractionWithExplicitQueryAndGenerationInstructions(String query, String generationInstructions) {
+        AIGenerationResponse response = AIGenerationResponse.builder().content("""
+            {
+              "intents": [
+                {
+                  "type": "ACTION",
+                  "intent": "relationship_query",
+                  "confidence": 0.95,
+                  "action": "relationship_query",
+                  "actionParams": {
+                    "query": "%s",
+                    "entityTypes": ["brand"],
+                    "limit": 20
+                  },
+                  "requiresRetrieval": true,
+                  "requiresGeneration": true,
+                  "generationInstructions": "%s"
+                }
+              ],
+              "isCompound": false,
+              "orchestrationStrategy": "DIRECT_ACTION"
+            }
+            """.formatted(query, generationInstructions)).build();
 
         when(aiCoreService.generateContent(argThat(req ->
             req != null && "intent_extraction".equals(req.getGenerationType())
