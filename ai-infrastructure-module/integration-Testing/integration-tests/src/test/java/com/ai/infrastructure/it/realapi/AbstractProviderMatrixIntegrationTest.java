@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -52,6 +53,8 @@ abstract class AbstractProviderMatrixIntegrationTest {
     private static final String VECTORDB_PROPERTY = "ai.vector-db.type";
     private final AtomicInteger testCount = new AtomicInteger(0);
     private final AtomicInteger successCount = new AtomicInteger(0);
+    private final List<CombinationScore> scores = Collections.synchronizedList(new ArrayList<>());
+    private volatile Path scorecardPath;
 
     @TestFactory
 	    Stream<DynamicTest> providerMatrix() {
@@ -83,6 +86,8 @@ abstract class AbstractProviderMatrixIntegrationTest {
 
         testCount.set(0);
         successCount.set(0);
+        scores.clear();
+        scorecardPath = initScorecardPath();
 
         return filteredCombinations.stream()
             .map(combo -> DynamicTest.dynamicTest(
@@ -185,48 +190,69 @@ abstract class AbstractProviderMatrixIntegrationTest {
                 summary.getTestsFoundCount(), summary.getTotalFailureCount(), 
                 summary.getTestsSkippedCount(), summary.getTestsAbortedCount());
 
-            if (summary.getTotalFailureCount() > 0) {
-                String failures = summary.getFailures().stream()
-                    .map(failure -> {
-                        String testName = failure.getTestIdentifier().getDisplayName();
-                        Throwable ex = failure.getException();
-                        String errorMsg = ex != null ? ex.getMessage() : "Unknown error";
-                        String errorType = ex != null ? ex.getClass().getSimpleName() : "UnknownException";
+            String failures = summary.getFailures().stream()
+                .map(failure -> {
+                    String testName = failure.getTestIdentifier().getDisplayName();
+                    Throwable ex = failure.getException();
+                    String errorMsg = ex != null ? ex.getMessage() : "Unknown error";
+                    String errorType = ex != null ? ex.getClass().getSimpleName() : "UnknownException";
 
-                        String location = "";
-                        if (ex != null) {
-                            StackTraceElement[] stack = ex.getStackTrace();
-                            if (stack != null) {
-                                for (StackTraceElement el : stack) {
-                                    if (el == null) {
-                                        continue;
-                                    }
-                                    String cn = el.getClassName();
-                                    if (cn != null && cn.startsWith("com.ai.infrastructure")) {
-                                        location = " @ " + el.getFileName() + ":" + el.getLineNumber();
-                                        break;
-                                    }
+                    String location = "";
+                    if (ex != null) {
+                        StackTraceElement[] stack = ex.getStackTrace();
+                        if (stack != null) {
+                            for (StackTraceElement el : stack) {
+                                if (el == null) {
+                                    continue;
+                                }
+                                String cn = el.getClassName();
+                                if (cn != null && cn.startsWith("com.ai.infrastructure")) {
+                                    location = " @ " + el.getFileName() + ":" + el.getLineNumber();
+                                    break;
                                 }
                             }
                         }
-                        // Truncate very long error messages
-                        if (errorMsg != null && errorMsg.length() > 200) {
-                            errorMsg = errorMsg.substring(0, 197) + "...";
-                        }
-                        return testName + " -> " + errorType + ": " + errorMsg + location;
-                    })
-                    .collect(Collectors.joining(System.lineSeparator()));
-                
-                log.error("✗ FAILED: {} ({} ms)", combo.displayName(), duration);
-                log.error("Provider combination: LLM={}, Embedding={}, VectorDB={}",
-                    combo.llmProvider(), combo.embeddingProvider(), 
-                    combo.vectorDbProvider() != null ? combo.vectorDbProvider() : "default");
+                    }
+                    // Truncate very long error messages
+                    if (errorMsg != null && errorMsg.length() > 200) {
+                        errorMsg = errorMsg.substring(0, 197) + "...";
+                    }
+                    return testName + " -> " + errorType + ": " + errorMsg + location;
+                })
+                .collect(Collectors.joining(System.lineSeparator()));
 
-                OrchestrationResultDebugSnapshotStore.Snapshot snapshot = OrchestrationResultDebugSnapshotStore.getLast();
-                if (snapshot != null) {
-                    log.error("Last normalized result snapshot: {}", snapshot);
-                } else {
-                    log.error("Last normalized result snapshot: (none captured)");
+            OrchestrationResultDebugSnapshotStore.Snapshot snapshot = OrchestrationResultDebugSnapshotStore.getLast();
+            if (snapshot != null) {
+                log.info("Last normalized result snapshot: {}", snapshot);
+            }
+
+            CombinationScore score = CombinationScore.from(combo, summary, duration, failures, snapshot);
+            scores.add(score);
+            writeScorecardQuietly();
+
+            boolean hasFailures = summary.getTotalFailureCount() > 0;
+            boolean insufficientData = score.consideredTests() < minimumConsideredTests();
+
+            if ((hasFailures || insufficientData) && !score.meetsThreshold(minimumSuccessRate(), minimumConsideredTests())) {
+                log.error("✗ FAILED: {} ({} ms) successRate={} threshold={} consideredTests={} (succeeded={}, failed={}, skipped={}, aborted={})",
+                    combo.displayName(),
+                    duration,
+                    String.format("%.2f", score.successRate()),
+                    String.format("%.2f", minimumSuccessRate()),
+                    score.consideredTests(),
+                    score.testsSucceeded(),
+                    score.testsFailed(),
+                    score.testsSkipped(),
+                    score.testsAborted());
+                if (insufficientData) {
+                    log.error("Insufficient data: consideredTests={} is below minimumConsideredTests={}",
+                        score.consideredTests(), minimumConsideredTests());
+                }
+                log.error("Provider combination: LLM={}, Embedding={}, VectorDB={}",
+                    combo.llmProvider(), combo.embeddingProvider(),
+                    combo.vectorDbProvider() != null ? combo.vectorDbProvider() : "default");
+                if (StringUtils.hasText(failures)) {
+                    log.error("Failures:\n{}", failures);
                 }
 
                 List<OrchestrationResultDebugSnapshotStore.Snapshot> recent = OrchestrationResultDebugSnapshotStore.getRecent();
@@ -235,7 +261,7 @@ abstract class AbstractProviderMatrixIntegrationTest {
                     log.error("Recent normalized result snapshots (last {}): {}", (recent.size() - from),
                         recent.subList(from, recent.size()));
                 }
-                
+
                 String snapshotLine = snapshot != null
                     ? "Last normalized result snapshot: " + snapshot
                     : "Last normalized result snapshot: (none captured)";
@@ -246,6 +272,15 @@ abstract class AbstractProviderMatrixIntegrationTest {
                     System.lineSeparator() + failures);
             }
 
+            if (summary.getTotalFailureCount() > 0) {
+                log.warn("⚠ SOFT FAIL (within threshold): {} successRate={} threshold={} consideredTests={} (failed={})",
+                    combo.displayName(),
+                    String.format("%.2f", score.successRate()),
+                    String.format("%.2f", minimumSuccessRate()),
+                    score.consideredTests(),
+                    score.testsFailed());
+            }
+
             log.info("✓ Combination completed successfully in {} ms. Tests: {}, Failures: {}, Skipped: {}",
                 duration, summary.getTestsFoundCount(), summary.getTotalFailureCount(), summary.getTestsSkippedCount());
             successCount.incrementAndGet();
@@ -253,6 +288,267 @@ abstract class AbstractProviderMatrixIntegrationTest {
 
         } finally {
             clearProviderProperties(combo);
+        }
+    }
+
+    protected double minimumSuccessRate() {
+        String raw = firstNonBlank(
+            System.getProperty("ai.providers.matrix.minimum-success-rate"),
+            System.getenv("AI_PROVIDERS_MATRIX_MINIMUM_SUCCESS_RATE")
+        );
+        if (!StringUtils.hasText(raw)) {
+            return 1.0d;
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (Exception ignored) {
+            return 1.0d;
+        }
+    }
+
+    protected int minimumConsideredTests() {
+        String raw = firstNonBlank(
+            System.getProperty("ai.providers.matrix.minimum-considered-tests"),
+            System.getenv("AI_PROVIDERS_MATRIX_MINIMUM_CONSIDERED_TESTS")
+        );
+        if (!StringUtils.hasText(raw)) {
+            return 1;
+        }
+        try {
+            return Math.max(1, Integer.parseInt(raw.trim()));
+        } catch (Exception ignored) {
+            return 1;
+        }
+    }
+
+    private Path initScorecardPath() {
+        String fileName = suiteDisplayName()
+            .toLowerCase()
+            .replace(' ', '-')
+            .replace('/', '-')
+            .replace('\\', '-')
+            + "-provider-matrix-scorecard-" + Instant.now().toEpochMilli() + ".json";
+        return Path.of("target", "provider-matrix-reports", fileName);
+    }
+
+    private void writeScorecardQuietly() {
+        Path path = scorecardPath;
+        if (path == null) {
+            return;
+        }
+        try {
+            writeScorecard(path);
+        } catch (Exception e) {
+            log.warn("Failed to write provider matrix scorecard: {}", e.getMessage());
+        }
+    }
+
+    private void writeScorecard(Path path) throws IOException {
+        Files.createDirectories(path.getParent());
+
+        StringBuilder json = new StringBuilder(1024);
+        json.append("{\n");
+        json.append("  \"suite\": ").append(toJsonString(suiteDisplayName())).append(",\n");
+        json.append("  \"minimumSuccessRate\": ").append(minimumSuccessRate()).append(",\n");
+        json.append("  \"minimumConsideredTests\": ").append(minimumConsideredTests()).append(",\n");
+        json.append("  \"generatedAt\": ").append(toJsonString(Instant.now().toString())).append(",\n");
+        json.append("  \"summaryByLlmProvider\": {\n");
+
+        synchronized (scores) {
+            Map<String, AggregateScore> byLlm = new java.util.LinkedHashMap<>();
+            for (CombinationScore score : scores) {
+                AggregateScore current = byLlm.get(score.llmProvider());
+                if (current == null) {
+                    current = new AggregateScore(0, 0, 0, 0);
+                }
+                byLlm.put(score.llmProvider(), current.add(score));
+            }
+
+            int idx = 0;
+            for (Map.Entry<String, AggregateScore> entry : byLlm.entrySet()) {
+                json.append("    ")
+                    .append(toJsonString(entry.getKey()))
+                    .append(": ")
+                    .append(entry.getValue().toJson());
+                if (idx < byLlm.size() - 1) {
+                    json.append(",");
+                }
+                json.append("\n");
+                idx++;
+            }
+        }
+
+        json.append("  },\n");
+        json.append("  \"combinations\": [\n");
+
+        synchronized (scores) {
+            for (int i = 0; i < scores.size(); i++) {
+                CombinationScore score = scores.get(i);
+                json.append(score.toJson("    "));
+                if (i < scores.size() - 1) {
+                    json.append(",");
+                }
+                json.append("\n");
+            }
+        }
+
+        json.append("  ]\n");
+        json.append("}\n");
+
+        Files.writeString(path, json.toString());
+    }
+
+    private static String toJsonString(String value) {
+        if (value == null) {
+            return "null";
+        }
+        String escaped = value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t");
+        return "\"" + escaped + "\"";
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private record CombinationScore(
+        String combination,
+        String llmProvider,
+        String embeddingProvider,
+        String vectorDbProvider,
+        long durationMs,
+        long testsFound,
+        long testsSucceeded,
+        long testsFailed,
+        long testsSkipped,
+        long testsAborted,
+        double successRate,
+        String failures,
+        String lastSnapshot
+    ) {
+        static CombinationScore from(ProviderCombination combo,
+                                     TestExecutionSummary summary,
+                                     long durationMs,
+                                     String failures,
+                                     OrchestrationResultDebugSnapshotStore.Snapshot snapshot) {
+            long succeeded = safeCount(summary::getTestsSucceededCount);
+            long failed = safeCount(summary::getTestsFailedCount);
+            long skipped = safeCount(summary::getTestsSkippedCount);
+            long aborted = safeCount(summary::getTestsAbortedCount);
+            long found = safeCount(summary::getTestsFoundCount);
+
+            long considered = Math.max(0, succeeded + failed);
+            double rate = considered == 0 ? 1.0d : ((double) succeeded / (double) considered);
+
+            String vector = combo.vectorDbProvider() != null ? combo.vectorDbProvider() : "default";
+            return new CombinationScore(
+                combo.displayName(),
+                combo.llmProvider(),
+                combo.embeddingProvider(),
+                vector,
+                durationMs,
+                found,
+                succeeded,
+                failed,
+                skipped,
+                aborted,
+                rate,
+                StringUtils.hasText(failures) ? failures : null,
+                snapshot != null ? snapshot.toString() : null
+            );
+        }
+
+        boolean meetsThreshold(double threshold, int minimumConsideredTests) {
+            long considered = consideredTests();
+            if (considered < minimumConsideredTests) {
+                return false;
+            }
+            return successRate >= threshold;
+        }
+
+        long consideredTests() {
+            return Math.max(0, testsSucceeded + testsFailed);
+        }
+
+        String toJson(String indent) {
+            String pad = indent != null ? indent : "";
+            StringBuilder sb = new StringBuilder(256);
+            sb.append(pad).append("{\n");
+            sb.append(pad).append("  \"combination\": ").append(toJsonString(combination)).append(",\n");
+            sb.append(pad).append("  \"llmProvider\": ").append(toJsonString(llmProvider)).append(",\n");
+            sb.append(pad).append("  \"embeddingProvider\": ").append(toJsonString(embeddingProvider)).append(",\n");
+            sb.append(pad).append("  \"vectorDbProvider\": ").append(toJsonString(vectorDbProvider)).append(",\n");
+            sb.append(pad).append("  \"durationMs\": ").append(durationMs).append(",\n");
+            sb.append(pad).append("  \"testsFound\": ").append(testsFound).append(",\n");
+            sb.append(pad).append("  \"testsSucceeded\": ").append(testsSucceeded).append(",\n");
+            sb.append(pad).append("  \"testsFailed\": ").append(testsFailed).append(",\n");
+            sb.append(pad).append("  \"testsSkipped\": ").append(testsSkipped).append(",\n");
+            sb.append(pad).append("  \"testsAborted\": ").append(testsAborted).append(",\n");
+            sb.append(pad).append("  \"consideredTests\": ").append(consideredTests()).append(",\n");
+            sb.append(pad).append("  \"successRate\": ").append(String.format("%.4f", successRate)).append(",\n");
+            sb.append(pad).append("  \"lastSnapshot\": ").append(lastSnapshot != null ? toJsonString(lastSnapshot) : "null").append(",\n");
+            sb.append(pad).append("  \"failures\": ").append(failures != null ? toJsonString(failures) : "null").append("\n");
+            sb.append(pad).append("}");
+            return sb.toString();
+        }
+
+        private static long safeCount(CountSupplier supplier) {
+            try {
+                return supplier.get();
+            } catch (Throwable ignored) {
+                return 0;
+            }
+        }
+
+        @FunctionalInterface
+        private interface CountSupplier {
+            long get();
+        }
+    }
+
+    private record AggregateScore(long testsSucceeded,
+                                  long testsFailed,
+                                  long testsSkipped,
+                                  long testsAborted) {
+        AggregateScore add(CombinationScore score) {
+            return new AggregateScore(
+                testsSucceeded + score.testsSucceeded(),
+                testsFailed + score.testsFailed(),
+                testsSkipped + score.testsSkipped(),
+                testsAborted + score.testsAborted()
+            );
+        }
+
+        long consideredTests() {
+            return Math.max(0, testsSucceeded + testsFailed);
+        }
+
+        double successRate() {
+            long considered = consideredTests();
+            return considered == 0 ? 1.0d : ((double) testsSucceeded / (double) considered);
+        }
+
+        String toJson() {
+            return "{"
+                + "\"testsSucceeded\":" + testsSucceeded
+                + ",\"testsFailed\":" + testsFailed
+                + ",\"testsSkipped\":" + testsSkipped
+                + ",\"testsAborted\":" + testsAborted
+                + ",\"consideredTests\":" + consideredTests()
+                + ",\"successRate\":" + String.format("%.4f", successRate())
+                + "}";
         }
     }
 

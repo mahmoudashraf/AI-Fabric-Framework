@@ -144,6 +144,16 @@ on:
           - vector
           - intent-actions
           - advanced
+      realapi_minimum_success_rate:
+        description: 'RealAPI provider-matrix minimum success rate (0.0–1.0). Set to 1.0 for strict mode.'
+        required: false
+        type: string
+        default: '0.85'
+      realapi_minimum_considered_tests:
+        description: 'RealAPI provider-matrix minimum considered tests (succeeded+failed) required to apply the threshold.'
+        required: false
+        type: string
+        default: '20'
 
 jobs:
   # ==============================================================================
@@ -276,10 +286,10 @@ jobs:
                 "name": "${{ github.event.inputs.embedding_provider }}",
                 "model": "${EMBEDDING_MODEL:-default}",
                 "configured": true
-	              },
-	              "vector_database": "${{ github.event.inputs.vector_database }}",
-	              "persistence_database": "${{ github.event.inputs.persistence_database }}"
-	            },
+              },
+              "vector_database": "${{ github.event.inputs.vector_database }}",
+              "persistence_database": "${{ github.event.inputs.persistence_database }}"
+            },
             "test_configuration": {
               "test_chunk": "${{ github.event.inputs.test_chunk }}",
               "timeout_minutes": "${{ github.event.inputs.timeout_minutes }}",
@@ -332,10 +342,10 @@ jobs:
           ### Vector Database
           - **Type**: \`${{ github.event.inputs.vector_database }}\`
           
-	          ### Persistence Database
-	          - **Type**: \`${{ github.event.inputs.persistence_database }}\`
-	          
-	          ## Test Configuration
+          ### Persistence Database
+          - **Type**: \`${{ github.event.inputs.persistence_database }}\`
+          
+          ## Test Configuration
           
           - **Test Chunk**: \`${{ github.event.inputs.test_chunk }}\`
           - **Timeout**: \`${{ github.event.inputs.timeout_minutes }}\` minutes
@@ -555,7 +565,7 @@ jobs:
           fi
           export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
           
-	          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}" "" "${{ github.event.inputs.test_chunk }}"
+          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
@@ -576,6 +586,8 @@ jobs:
           AI_PROVIDERS_PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
           AI_PROVIDERS_PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
+          AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE: ${{ github.event.inputs.realapi_minimum_success_rate }}
+          AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS: ${{ github.event.inputs.realapi_minimum_considered_tests }}
           # Allow run step to override the effective level (e.g. for Anthropic).
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
           # NOTE:
@@ -622,6 +634,7 @@ jobs:
           path: |
             ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/
             ai-infrastructure-module/integration-Testing/integration-tests/target/failsafe-reports/
+            ai-infrastructure-module/integration-Testing/integration-tests/target/provider-matrix-reports/
           retention-days: 30
 
       - name: Upload test execution evidence
@@ -1336,10 +1349,10 @@ jobs:
                 "embedding": {
                     "name": "${{ github.event.inputs.embedding_provider }}",
                     "model": "${{ github.event.inputs.embedding_model != '' && github.event.inputs.embedding_model || 'default' }}"
-	                },
-	                "vector_database": "${{ github.event.inputs.vector_database }}",
-	                "persistence_database": "${{ github.event.inputs.persistence_database }}"
-	            },
+                },
+                "vector_database": "${{ github.event.inputs.vector_database }}",
+                "persistence_database": "${{ github.event.inputs.persistence_database }}"
+            },
               "test_configuration": {
                   "test_chunk": "${{ github.event.inputs.test_chunk }}",
                   "timeout_minutes": "${{ github.event.inputs.timeout_minutes }}",

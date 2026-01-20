@@ -39,6 +39,16 @@ on:
         required: false
         default: false
         type: boolean
+      realapi_minimum_success_rate:
+        description: 'RealAPI provider-matrix minimum success rate (0.0–1.0). Set to 1.0 for strict mode.'
+        required: false
+        type: string
+        default: '0.85'
+      realapi_minimum_considered_tests:
+        description: 'RealAPI provider-matrix minimum considered tests (succeeded+failed) required to apply the threshold.'
+        required: false
+        type: string
+        default: '20'
 
 jobs:
   resolve-matrix:
@@ -148,6 +158,8 @@ jobs:
 
     env:
       MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level || 'normal' }}
+      AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE: ${{ github.event.inputs.realapi_minimum_success_rate }}
+      AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS: ${{ github.event.inputs.realapi_minimum_considered_tests }}
 
       # Prefer workflow_dispatch inputs, fall back to repo secrets.
       OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
@@ -206,6 +218,15 @@ jobs:
             export AI_PROVIDERS_PINECONE_ENABLED="false"
           fi
           bash run-provider-matrix-tests.sh "${{ matrix.llm }}:${{ matrix.embedding }}:${{ matrix.vector_db }}" "" "all"
+
+      - name: Upload provider-matrix scorecards
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: provider-matrix-scorecards-${{ matrix.name }}
+          path: |
+            ai-infrastructure-module/integration-Testing/integration-tests/target/provider-matrix-reports/
+          retention-days: 30
 
       - name: Run relationship-query suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})
         run: |
