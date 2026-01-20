@@ -28,6 +28,12 @@ TEST_RUNNER="${TEST_RUNNER:-auto}" # auto|surefire|failsafe
 OPENAI_KEY_FILE="${OPENAI_KEY_FILE:-dev2.env}"
 OPENAI_KEY="${OPENAI_KEY:-}"
 
+# Gemini defaults (first line contains the key)
+GEMINI_KEY_FILE="${GEMINI_KEY_FILE:-scripts/gemini.env}"
+
+# Cohere defaults (first line contains the key)
+COHERE_KEY_FILE="${COHERE_KEY_FILE:-scripts/cohere.env}"
+
 # Pinecone defaults (keep aligned with our manual workflow defaults)
 PINECONE_KEY_FILE="${PINECONE_KEY_FILE:-dev.env}"
 PINECONE_DEFAULT_INDEX_NAME="${PINECONE_DEFAULT_INDEX_NAME:-ai-fabric}"
@@ -186,11 +192,27 @@ if [ "${LLM_PROVIDER:-}" = "anthropic" ] || [[ "${MATRIX_SPEC:-}" == anthropic:*
 fi
 
 if [ "${LLM_PROVIDER:-}" = "gemini" ] || [[ "${MATRIX_SPEC:-}" == gemini:* ]]; then
+  if [ -z "${GEMINI_API_KEY:-}" ]; then
+    if GEMINI_KEY_FILE_RESOLVED="$(resolve_repo_file "$GEMINI_KEY_FILE")"; then
+      KEY_FROM_FILE="$(head -n 1 "$GEMINI_KEY_FILE_RESOLVED" | tr -d '\r' | xargs)"
+      if [ -n "$KEY_FROM_FILE" ]; then
+        export GEMINI_API_KEY="$KEY_FROM_FILE"
+      fi
+    fi
+  fi
   export GEMINI_ENABLED="${GEMINI_ENABLED:-true}"
   export AI_INFRASTRUCTURE_GEMINI_ENABLED="${AI_INFRASTRUCTURE_GEMINI_ENABLED:-true}"
 fi
 
 if [ "${LLM_PROVIDER:-}" = "cohere" ] || [[ "${MATRIX_SPEC:-}" == cohere:* ]]; then
+  if [ -z "${COHERE_API_KEY:-}" ]; then
+    if COHERE_KEY_FILE_RESOLVED="$(resolve_repo_file "$COHERE_KEY_FILE")"; then
+      KEY_FROM_FILE="$(head -n 1 "$COHERE_KEY_FILE_RESOLVED" | tr -d '\r' | xargs)"
+      if [ -n "$KEY_FROM_FILE" ]; then
+        export COHERE_API_KEY="$KEY_FROM_FILE"
+      fi
+    fi
+  fi
   export COHERE_ENABLED="${COHERE_ENABLED:-true}"
   export AI_INFRASTRUCTURE_COHERE_ENABLED="${AI_INFRASTRUCTURE_COHERE_ENABLED:-true}"
 fi

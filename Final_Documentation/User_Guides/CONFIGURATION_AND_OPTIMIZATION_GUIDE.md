@@ -7,6 +7,13 @@ This guide is for application teams integrating the AI Fabric Framework (the `ai
 
 If you are looking for why these choices were made, see:
 - `Final_Documentation/ADRs/ADR-0001-Externalize-Prompt-Templates.md`
+- `Final_Documentation/ADRs/ADR-0006-Progressive-Intent-Extraction-Default-On.md`
+- `Final_Documentation/ADRs/ADR-0007-Relationship-Query-Plan-Repair-And-Structured-Failures.md`
+
+Companion user guides:
+- `Final_Documentation/User_Guides/GOVERNANCE_AND_COMPLIANCE_GUIDE.md`
+- `Final_Documentation/User_Guides/MIGRATION_GUIDE_REMOVE_AISEARCHABLEENTITY.md`
+- `Final_Documentation/User_Guides/REALAPI_PROVIDER_MATRIX_TESTING_GUIDE.md`
 
 ---
 
@@ -124,4 +131,3 @@ The multi-step intent extraction prompts are currently embedded in code for corr
 
 Planned work is tracked here:
 - `changes/PROMPT_TEMPLATES_EXTERNALIZATION_CHANGE_PLAN.md`
-

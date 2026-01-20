@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
@@ -115,7 +116,8 @@ class IntentHandlingStepFanOutTest {
             mock(AIServiceConfig.class),
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
-            new RankBasedMerger()
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties()
         );
 
         Intent intent = Intent.builder()
@@ -162,7 +164,8 @@ class IntentHandlingStepFanOutTest {
             mock(AIServiceConfig.class),
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
-            new RankBasedMerger()
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties()
         );
 
         Intent intent = Intent.builder()
@@ -199,7 +202,8 @@ class IntentHandlingStepFanOutTest {
             mock(AIServiceConfig.class),
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
-            new RankBasedMerger()
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties()
         );
     }
 

@@ -72,8 +72,8 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should default relationship_query actionParams.query when missing and strip the hint prefix")
-    void shouldDefaultQueryWhenMissingAndStripPrefix() {
+    @DisplayName("Should default relationship_query actionParams.query when missing (strip hint prefixes)")
+    void shouldDefaultQueryWhenMissingStrippingHintPrefix() {
         stubIntentExtractionMissingQuery();
         stubRelationshipPlanNoFilters();
 
@@ -86,7 +86,14 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
                 .build()
         );
 
-        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.isSuccess())
+            .withFailMessage("Expected orchestration success but got type=%s success=%s message=%s dataKeys=%s metadataKeys=%s",
+                result.getType(),
+                result.isSuccess(),
+                result.getMessage(),
+                result.getData() != null ? result.getData().keySet() : null,
+                result.getMetadata() != null ? result.getMetadata().keySet() : null)
+            .isTrue();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
@@ -116,7 +123,14 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
                 .build()
         );
 
-        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.isSuccess())
+            .withFailMessage("Expected orchestration success but got type=%s success=%s message=%s dataKeys=%s metadataKeys=%s",
+                result.getType(),
+                result.isSuccess(),
+                result.getMessage(),
+                result.getData() != null ? result.getData().keySet() : null,
+                result.getMetadata() != null ? result.getMetadata().keySet() : null)
+            .isTrue();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
@@ -129,7 +143,7 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should strip hint prefix even when LLM provides actionParams.query with the prefix")
+    @DisplayName("Should strip relationship-query hint prefix from actionParams.query when provided")
     void shouldStripHintPrefixWhenProvidedByLLM() {
         stubIntentExtractionWithExplicitQuery("relationship query: find all brands");
         stubRelationshipPlanNoFilters();
@@ -143,7 +157,14 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
                 .build()
         );
 
-        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.isSuccess())
+            .withFailMessage("Expected orchestration success but got type=%s success=%s message=%s dataKeys=%s metadataKeys=%s",
+                result.getType(),
+                result.isSuccess(),
+                result.getMessage(),
+                result.getData() != null ? result.getData().keySet() : null,
+                result.getMetadata() != null ? result.getMetadata().keySet() : null)
+            .isTrue();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");

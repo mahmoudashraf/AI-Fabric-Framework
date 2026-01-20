@@ -322,18 +322,17 @@ public class IntentQueryExtractor {
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
         // The relationship_query action handler requires actionParams.query.
-        // Some providers omit it, and some include the hint prefix inside it. We normalize deterministically:
-        // - If present: strip known hint prefixes and trim.
-        // - If missing/blank: derive from the original user query (also stripping hint prefixes).
+        // Some providers omit it. We do NOT attempt to parse/strip natural-language directives here.
+        // The intent extraction model is responsible for splitting relational actionParams.query from any
+        // post-action generation request (requiresGeneration + generationInstructions).
         Object rawQuery = mutable.get("query");
-        String normalizedQuery = null;
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            normalizedQuery = normalizeRelationshipQueryText(text);
-        } else {
-            normalizedQuery = normalizeRelationshipQueryText(originalQuery);
-        }
-        if (StringUtils.hasText(normalizedQuery)) {
-            mutable.put("query", normalizedQuery);
+            mutable.put("query", RelationshipQueryHintPrefix.stripIfPresent(text));
+        } else if (StringUtils.hasText(originalQuery)) {
+            String stripped = RelationshipQueryHintPrefix.stripIfPresent(originalQuery);
+            if (StringUtils.hasText(stripped)) {
+                mutable.put("query", stripped);
+            }
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");
@@ -360,69 +359,6 @@ public class IntentQueryExtractor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
-    }
-
-    private String normalizeRelationshipQueryText(String query) {
-        if (!StringUtils.hasText(query)) {
-            return null;
-        }
-        String trimmed = query.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        // Common hint used by tests and some callers to guide intent extraction.
-        // We store the actual query without the hint prefix for the relationship_query action handler.
-        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
-        for (String prefix : prefixes) {
-            if (lower.startsWith(prefix)) {
-                String withoutPrefix = trimmed.substring(prefix.length()).trim();
-                return stripTrailingNonRelationalDirective(withoutPrefix);
-            }
-        }
-        return stripTrailingNonRelationalDirective(trimmed);
-    }
-
-    /**
-     * Provider-agnostic normalization: when a user explicitly uses the "relationship query:" hint,
-     * they often append a non-relational follow-up request (e.g., "and then summarize/explain").
-     * The relationship_query action handler expects only the relational query text.
-     *
-     * <p>This is intentionally conservative: it only strips when a clear non-relational directive
-     * follows a "then/and then" boundary.</p>
-     */
-    private String stripTrailingNonRelationalDirective(String text) {
-        if (!StringUtils.hasText(text)) {
-            return text;
-        }
-        String trimmed = text.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-
-        int idx = lower.indexOf(" and then ");
-        int boundaryLen = " and then ".length();
-        if (idx < 0) {
-            idx = lower.indexOf(" then ");
-            boundaryLen = " then ".length();
-        }
-        if (idx < 0) {
-            return trimmed;
-        }
-
-        String after = lower.substring(idx + boundaryLen);
-        boolean looksNonRelational =
-            after.contains("summariz")
-                || after.contains("explain")
-                || after.contains(" why ")
-                || after.startsWith("why ")
-                || after.contains("describe")
-                || after.contains("analyz")
-                || after.contains("recommend")
-                || after.contains("write ")
-                || after.contains("generate ")
-                || after.contains("tell me");
-
-        if (!looksNonRelational) {
-            return trimmed;
-        }
-
-        return trimmed.substring(0, idx).trim();
     }
 
     @Deprecated(forRemoval = true)

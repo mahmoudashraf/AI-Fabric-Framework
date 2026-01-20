@@ -176,6 +176,39 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         }
     }
 
+    @Override
+    protected double minimumSuccessRate() {
+        String raw = System.getProperty("ai.providers.real-api.minimum-success-rate");
+        if (!StringUtils.hasText(raw)) {
+            raw = System.getenv("AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE");
+        }
+        if (StringUtils.hasText(raw)) {
+            try {
+                return Double.parseDouble(raw.trim());
+            } catch (Exception ignored) {
+                // fall through to default
+            }
+        }
+        return 0.85d;
+    }
+
+    @Override
+    protected int minimumConsideredTests() {
+        // Avoid treating tiny suites / assumption-heavy runs as "85% passed".
+        String raw = System.getProperty("ai.providers.real-api.minimum-considered-tests");
+        if (!StringUtils.hasText(raw)) {
+            raw = System.getenv("AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS");
+        }
+        if (StringUtils.hasText(raw)) {
+            try {
+                return Math.max(1, Integer.parseInt(raw.trim()));
+            } catch (Exception ignored) {
+                // fall through to default
+            }
+        }
+        return 20;
+    }
+
     private boolean isPineconeConfiguredForTests() {
         // Vector DB selection is handled separately via ai.vector-db.type, but if pinecone is selected
         // we need enough configuration to build the Pinecone client during Spring context startup.

@@ -144,6 +144,16 @@ on:
           - vector
           - intent-actions
           - advanced
+      realapi_minimum_success_rate:
+        description: 'RealAPI provider-matrix minimum success rate (0.0–1.0). Set to 1.0 for strict mode.'
+        required: false
+        type: string
+        default: '0.85'
+      realapi_minimum_considered_tests:
+        description: 'RealAPI provider-matrix minimum considered tests (succeeded+failed) required to apply the threshold.'
+        required: false
+        type: string
+        default: '20'
 
 jobs:
   # ==============================================================================
@@ -276,10 +286,10 @@ jobs:
                 "name": "${{ github.event.inputs.embedding_provider }}",
                 "model": "${EMBEDDING_MODEL:-default}",
                 "configured": true
-	              },
-	              "vector_database": "${{ github.event.inputs.vector_database }}",
-	              "persistence_database": "${{ github.event.inputs.persistence_database }}"
-	            },
+              },
+              "vector_database": "${{ github.event.inputs.vector_database }}",
+              "persistence_database": "${{ github.event.inputs.persistence_database }}"
+            },
             "test_configuration": {
               "test_chunk": "${{ github.event.inputs.test_chunk }}",
               "timeout_minutes": "${{ github.event.inputs.timeout_minutes }}",
@@ -332,10 +342,10 @@ jobs:
           ### Vector Database
           - **Type**: \`${{ github.event.inputs.vector_database }}\`
           
-	          ### Persistence Database
-	          - **Type**: \`${{ github.event.inputs.persistence_database }}\`
-	          
-	          ## Test Configuration
+          ### Persistence Database
+          - **Type**: \`${{ github.event.inputs.persistence_database }}\`
+          
+          ## Test Configuration
           
           - **Test Chunk**: \`${{ github.event.inputs.test_chunk }}\`
           - **Timeout**: \`${{ github.event.inputs.timeout_minutes }}\` minutes
@@ -555,7 +565,7 @@ jobs:
           fi
           export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES"
           
-	          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}" "" "${{ github.event.inputs.test_chunk }}"
+          bash run-provider-matrix-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}" "" "${{ github.event.inputs.test_chunk }}"
         env:
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
@@ -576,6 +586,8 @@ jobs:
           AI_PROVIDERS_PINECONE_INDEX_NAME: ${{ github.event.inputs.pinecone_index_name || vars.PINECONE_INDEX_NAME }}
           AI_PROVIDERS_PINECONE_API_HOST: ${{ github.event.inputs.pinecone_host || vars.PINECONE_API_HOST }}
           AI_INFRASTRUCTURE_PERSISTENCE_DATABASE: ${{ github.event.inputs.persistence_database }}
+          AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE: ${{ github.event.inputs.realapi_minimum_success_rate }}
+          AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS: ${{ github.event.inputs.realapi_minimum_considered_tests }}
           # Allow run step to override the effective level (e.g. for Anthropic).
           MAVEN_LOGGING_LEVEL: ${{ github.event.inputs.logging_level }}
           # NOTE:
@@ -622,6 +634,7 @@ jobs:
           path: |
             ai-infrastructure-module/integration-Testing/integration-tests/target/surefire-reports/
             ai-infrastructure-module/integration-Testing/integration-tests/target/failsafe-reports/
+            ai-infrastructure-module/integration-Testing/integration-tests/target/provider-matrix-reports/
           retention-days: 30
 
       - name: Upload test execution evidence
@@ -778,6 +791,8 @@ jobs:
           
           bash run-relationship-query-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
+          AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE: ${{ github.event.inputs.realapi_minimum_success_rate }}
+          AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS: ${{ github.event.inputs.realapi_minimum_considered_tests }}
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
           # Needed when embedding_provider=openai to satisfy startup validation.
@@ -811,59 +826,52 @@ jobs:
         if: always()
         run: |
           set -e
-          SCORECARD_ROOT="ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-scorecards"
-          echo "## Relationship Query Provider Scorecard (Evidence)" >> "$GITHUB_STEP_SUMMARY"
+          SCORECARD_ROOT="ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-matrix-reports"
+          echo "## Relationship Query RealAPI Scorecard" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [ ! -d "$SCORECARD_ROOT" ]; then
-            echo "_No scorecard output found (provider-scorecards directory missing)._ " >> "$GITHUB_STEP_SUMMARY"
+            echo "_No scorecard output found (provider-matrix-reports directory missing)._ " >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           
-          # Pick the most recent run directory (best-effort).
-          LATEST_DIR="$(ls -td "$SCORECARD_ROOT"/* 2>/dev/null | head -n 1 || true)"
-          if [ -z "$LATEST_DIR" ] || [ ! -d "$LATEST_DIR" ]; then
-            echo "_No scorecard output found (no run directories)._ " >> "$GITHUB_STEP_SUMMARY"
+          SCORECARD_JSON="$(ls -t "$SCORECARD_ROOT"/relationship-query-realapi-*.json 2>/dev/null | head -n 1 || true)"
+          if [ -z "$SCORECARD_JSON" ] || [ ! -f "$SCORECARD_JSON" ]; then
+            echo "_No relationship-query scorecard JSON found under:_ \`$SCORECARD_ROOT\`" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           
-          SUMMARY_JSON="$LATEST_DIR/summary.json"
-          if [ ! -f "$SUMMARY_JSON" ]; then
-            echo "_No scorecard summary.json found at:_ \`$SUMMARY_JSON\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          
-          SUMMARY_JSON="$SUMMARY_JSON" python3 << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          SCORECARD_JSON="$SCORECARD_JSON" python3 << 'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
           import os
           from pathlib import Path
           
-          p = Path(os.environ["SUMMARY_JSON"])
+          p = Path(os.environ["SCORECARD_JSON"])
           data = json.loads(p.read_text())
           
-          provider = data.get("provider", "unknown")
-          scenario_set = data.get("scenarioSetId", "unknown")
-          run_id = data.get("runId", p.parent.name)
-          attempts = data.get("totalAttempts", 0)
-          correct = data.get("correctAttempts", 0)
-          correct_rate = data.get("correctRate", 0.0)
-          unexpected_zero = data.get("unexpectedZeroResultsAttempts", 0)
-          error_attempts = data.get("errorAttempts", 0)
-          p50 = data.get("latencyP50Ms", 0)
-          p95 = data.get("latencyP95Ms", 0)
+          provider = data.get("provider") or {}
+          thresholds = data.get("thresholds") or {}
+          results = data.get("results") or {}
+          decision = data.get("decision") or {}
+
+          llm = provider.get("llm") or "unknown"
+          embedding = provider.get("embedding") or "unknown"
+          vector_db = provider.get("vectorDb") or "unknown"
           
-          print(f"- **Provider**: `{provider}`")
-          print(f"- **Scenario set**: `{scenario_set}`")
-          print(f"- **Run ID**: `{run_id}`")
+          print(f"- **Provider**: `{llm}:{embedding}:{vector_db}`")
+          print(f"- **Scorecard**: `{p.as_posix()}`")
           print("")
           print("| Metric | Value |")
           print("|---|---:|")
-          print(f"| Attempts | {attempts} |")
-          print(f"| Correct | {correct} |")
-          print(f"| Correct rate | {correct_rate:.2%} |")
-          print(f"| Unexpected 0 results | {unexpected_zero} |")
-          print(f"| Error attempts | {error_attempts} |")
-          print(f"| Latency p50 (ms) | {p50} |")
-          print(f"| Latency p95 (ms) | {p95} |")
+          print(f"| Minimum success rate | {thresholds.get('minimumSuccessRate')} |")
+          print(f"| Minimum considered tests | {thresholds.get('minimumConsideredTests')} |")
+          print(f"| Considered tests | {results.get('consideredTests')} |")
+          print(f"| Passed | {results.get('passed')} |")
+          print(f"| Failed | {results.get('failed')} |")
+          print(f"| Skipped | {results.get('skipped')} |")
+          print(f"| Success rate | {results.get('successRate')} |")
+          print(f"| Gate passed | {decision.get('passed')} |")
+          if decision.get("reason"):
+              print(f"| Reason | {decision.get('reason')} |")
           print("")
           PY
           
@@ -969,7 +977,7 @@ jobs:
           path: |
             ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/surefire-reports/
             ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/failsafe-reports/
-            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-scorecards/
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-matrix-reports/
           retention-days: 30
 
       - name: Publish Test Results
@@ -1086,6 +1094,8 @@ jobs:
 
           bash run-chat-session-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
+          AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE: ${{ github.event.inputs.realapi_minimum_success_rate }}
+          AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS: ${{ github.event.inputs.realapi_minimum_considered_tests }}
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key || secrets.OPENAI_API_KEY }}
           OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
@@ -1120,6 +1130,7 @@ jobs:
           path: |
             ai-infrastructure-module/integration-Testing/chat-session-integration-tests/target/surefire-reports/
             ai-infrastructure-module/integration-Testing/chat-session-integration-tests/target/failsafe-reports/
+            ai-infrastructure-module/integration-Testing/chat-session-integration-tests/target/provider-matrix-reports/
           retention-days: 30
 
       - name: Publish Test Results
@@ -1250,6 +1261,8 @@ jobs:
           
           bash run-behavior-realapi-tests.sh "${{ github.event.inputs.llm_provider }}:${{ github.event.inputs.embedding_provider }}:${{ github.event.inputs.vector_database }}"
         env:
+          AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE: ${{ github.event.inputs.realapi_minimum_success_rate }}
+          AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS: ${{ github.event.inputs.realapi_minimum_considered_tests }}
           TESTCONTAINERS_RYUK_DISABLED: false
           OPENAI_API_KEY: ${{ github.event.inputs.openai_api_key }}
           OPENAI_ENABLED: ${{ (github.event.inputs.llm_provider == 'openai' || github.event.inputs.embedding_provider == 'openai') && 'true' || 'false' }}
@@ -1277,6 +1290,7 @@ jobs:
           path: |
             ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/surefire-reports/
             ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/failsafe-reports/
+            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/provider-matrix-reports/
           retention-days: 30
 
       - name: Publish Test Results
@@ -1336,10 +1350,10 @@ jobs:
                 "embedding": {
                     "name": "${{ github.event.inputs.embedding_provider }}",
                     "model": "${{ github.event.inputs.embedding_model != '' && github.event.inputs.embedding_model || 'default' }}"
-	                },
-	                "vector_database": "${{ github.event.inputs.vector_database }}",
-	                "persistence_database": "${{ github.event.inputs.persistence_database }}"
-	            },
+                },
+                "vector_database": "${{ github.event.inputs.vector_database }}",
+                "persistence_database": "${{ github.event.inputs.persistence_database }}"
+            },
               "test_configuration": {
                   "test_chunk": "${{ github.event.inputs.test_chunk }}",
                   "timeout_minutes": "${{ github.event.inputs.timeout_minutes }}",

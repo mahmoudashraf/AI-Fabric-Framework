@@ -24,7 +24,7 @@
 #   - Dependencies built by workflow (CI) or locally (script will try to build)
 ###############################################################################
 
-set -e
+set -euo pipefail
 
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
@@ -34,6 +34,8 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${PROJECT_ROOT}/.." && pwd)"
+FAILSAFE_EVALUATOR="${REPO_ROOT}/scripts/evaluate-failsafe-success-rate.sh"
 
 # Use SPRING_PROFILES_ACTIVE if set (e.g., from GitHub Actions), otherwise default to realapi
 MAVEN_PROFILE="${SPRING_PROFILES_ACTIVE:-realapi}"
@@ -62,20 +64,20 @@ check_provider_api_keys() {
     # Check LLM provider API key
     case "$llm_provider" in
         openai)
-            [ -z "$OPENAI_API_KEY" ] && missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)") || providers_checked+=("OpenAI LLM")
+            [ -z "${OPENAI_API_KEY:-}" ] && missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)") || providers_checked+=("OpenAI LLM")
             ;;
         anthropic)
-            [ -z "$ANTHROPIC_API_KEY" ] && missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)") || providers_checked+=("Anthropic LLM")
+            [ -z "${ANTHROPIC_API_KEY:-}" ] && missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)") || providers_checked+=("Anthropic LLM")
             ;;
         gemini)
-            [ -z "$GEMINI_API_KEY" ] && missing_keys+=("GEMINI_API_KEY (for Gemini LLM)") || providers_checked+=("Gemini LLM")
+            [ -z "${GEMINI_API_KEY:-}" ] && missing_keys+=("GEMINI_API_KEY (for Gemini LLM)") || providers_checked+=("Gemini LLM")
             ;;
         cohere)
-            [ -z "$COHERE_API_KEY" ] && missing_keys+=("COHERE_API_KEY (for Cohere LLM)") || providers_checked+=("Cohere LLM")
+            [ -z "${COHERE_API_KEY:-}" ] && missing_keys+=("COHERE_API_KEY (for Cohere LLM)") || providers_checked+=("Cohere LLM")
             ;;
         azure)
-            [ -z "$AZURE_API_KEY" ] && missing_keys+=("AZURE_API_KEY (for Azure LLM)") || \
-            ([ -z "$AZURE_ENDPOINT" ] && missing_keys+=("AZURE_ENDPOINT (for Azure LLM)") || providers_checked+=("Azure LLM"))
+            [ -z "${AZURE_API_KEY:-}" ] && missing_keys+=("AZURE_API_KEY (for Azure LLM)") || \
+            ([ -z "${AZURE_ENDPOINT:-}" ] && missing_keys+=("AZURE_ENDPOINT (for Azure LLM)") || providers_checked+=("Azure LLM"))
             ;;
         onnx|rest)
             providers_checked+=("$llm_provider LLM (no API key required)")
@@ -88,20 +90,20 @@ check_provider_api_keys() {
     # Check Embedding provider API key
     case "$embedding_provider" in
         openai)
-            [ -z "$OPENAI_API_KEY" ] && missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)") || providers_checked+=("OpenAI Embedding")
+            [ -z "${OPENAI_API_KEY:-}" ] && missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)") || providers_checked+=("OpenAI Embedding")
             ;;
         anthropic)
-            [ -z "$ANTHROPIC_API_KEY" ] && missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)") || providers_checked+=("Anthropic Embedding")
+            [ -z "${ANTHROPIC_API_KEY:-}" ] && missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)") || providers_checked+=("Anthropic Embedding")
             ;;
         gemini)
-            [ -z "$GEMINI_API_KEY" ] && missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)") || providers_checked+=("Gemini Embedding")
+            [ -z "${GEMINI_API_KEY:-}" ] && missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)") || providers_checked+=("Gemini Embedding")
             ;;
         cohere)
-            [ -z "$COHERE_API_KEY" ] && missing_keys+=("COHERE_API_KEY (for Cohere Embedding)") || providers_checked+=("Cohere Embedding")
+            [ -z "${COHERE_API_KEY:-}" ] && missing_keys+=("COHERE_API_KEY (for Cohere Embedding)") || providers_checked+=("Cohere Embedding")
             ;;
         azure)
-            [ -z "$AZURE_API_KEY" ] && missing_keys+=("AZURE_API_KEY (for Azure Embedding)") || \
-            ([ -z "$AZURE_ENDPOINT" ] && missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)") || providers_checked+=("Azure Embedding"))
+            [ -z "${AZURE_API_KEY:-}" ] && missing_keys+=("AZURE_API_KEY (for Azure Embedding)") || \
+            ([ -z "${AZURE_ENDPOINT:-}" ] && missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)") || providers_checked+=("Azure Embedding"))
             ;;
         onnx|rest)
             providers_checked+=("$embedding_provider Embedding (no API key required)")
@@ -167,12 +169,13 @@ if [ -n "$VECTOR_DB" ]; then
 fi
 export AI_INFRASTRUCTURE_LLM_PROVIDER="${AI_INFRASTRUCTURE_LLM_PROVIDER:-$LLM_PROVIDER}"
 export AI_INFRASTRUCTURE_EMBEDDING_PROVIDER="${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:-$EMBEDDING_PROVIDER}"
+export AI_INFRASTRUCTURE_VECTOR_DATABASE="${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}"
 
 print_header "Test Configuration"
 print_info "Test Module: $TEST_MODULE"
 print_info "Maven Profile: $MAVEN_PROFILE"
 print_info "Providers: ${AI_INFRASTRUCTURE_LLM_PROVIDER}:${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER}"
-if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
+if [ -n "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" ]; then
   print_info "Vector DB: $AI_INFRASTRUCTURE_VECTOR_DATABASE"
 fi
 print_info "Test Classes: *IT.java / *IntegrationIT.java (failsafe)"
@@ -250,7 +253,7 @@ esac
 # Auto-configure OpenAI embedding dimensions for Lucene compatibility
 # OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
 # Check if we're using OpenAI embeddings with Lucene vector database
-if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
+if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" == "lucene" ]; then
     CMD="$CMD -Dai.providers.openai.embedding-dimensions=512"
     print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility"
 fi
@@ -258,11 +261,52 @@ fi
 CMD="$CMD failsafe:integration-test failsafe:verify"
 echo -e "${BLUE}Command:${NC} $CMD"
 
-start_time=$(date +%s)
-if eval "$CMD"; then
-  end_time=$(date +%s); duration=$((end_time-start_time))
-  print_success "All tests passed (${duration}s)"; exit 0
-else
-  end_time=$(date +%s); duration=$((end_time-start_time))
-  print_error "Tests failed (${duration}s)"; exit 1
+if [ ! -f "$FAILSAFE_EVALUATOR" ]; then
+  print_error "Missing failsafe evaluator script: $FAILSAFE_EVALUATOR"
+  exit 1
 fi
+
+print_info "RealAPI thresholds: minSuccessRate=${AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE:-0.85}, minConsideredTests=${AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS:-20}"
+
+start_time=$(date +%s)
+set +e
+eval "$CMD -Dmaven.test.failure.ignore=true"
+mvn_exit=$?
+set -e
+
+end_time=$(date +%s)
+duration=$((end_time-start_time))
+
+if [ $mvn_exit -ne 0 ]; then
+  print_error "Behavior RealAPI suite failed to execute (${duration}s)"
+  exit $mvn_exit
+fi
+
+REPORTS_DIR="${SCRIPT_DIR}/target/failsafe-reports"
+SCORECARD_DIR="${SCRIPT_DIR}/target/provider-matrix-reports"
+SCORECARD_FILE="behavior-realapi-${AI_INFRASTRUCTURE_LLM_PROVIDER}-${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER}-${AI_INFRASTRUCTURE_VECTOR_DATABASE:-none}.json"
+SCORECARD_PATH="${SCORECARD_DIR}/${SCORECARD_FILE}"
+
+set +e
+bash "$FAILSAFE_EVALUATOR" \
+  --reports-dir "$REPORTS_DIR" \
+  --scorecard-path "$SCORECARD_PATH" \
+  --suite "$TEST_MODULE" \
+  --llm "${AI_INFRASTRUCTURE_LLM_PROVIDER:-}" \
+  --embedding "${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:-}" \
+  --vector-db "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" \
+  --min-success-rate "${AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE:-0.85}" \
+  --min-considered-tests "${AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS:-20}"
+gate_exit=$?
+set -e
+
+print_info "Duration: ${duration}s"
+print_info "Scorecard: ${SCORECARD_PATH}"
+
+if [ $gate_exit -eq 0 ]; then
+  print_success "Behavior RealAPI suite meets thresholds"
+  exit 0
+fi
+
+print_error "Behavior RealAPI suite below thresholds (exit=${gate_exit})"
+exit 1

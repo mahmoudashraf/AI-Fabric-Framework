@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,6 @@ public class IntentExtractionPostProcessor {
         }
 
         response.normalize();
-        forceExplicitRelationshipQueryDirective(response, originalQuery);
         coerceMisclassifiedActionIntents(response);
         validateResponse(response, originalQuery);
 
@@ -43,58 +43,6 @@ public class IntentExtractionPostProcessor {
         }
 
         return response;
-    }
-
-    /**
-     * Deterministic override: if the user explicitly prefixes the query with
-     * {@code relationship_query:} / {@code relationship query:} / {@code relationship-query:},
-     * we treat the request as an explicit invocation of the {@code relationship_query} action.
-     *
-     * <p>This keeps the "hint prefix" contract stable even when LLM intent extraction is flaky.</p>
-     */
-    private void forceExplicitRelationshipQueryDirective(MultiIntentResponse response, String originalQuery) {
-        if (response == null || !StringUtils.hasText(originalQuery)) {
-            return;
-        }
-
-        String trimmed = originalQuery.trim();
-        if (trimmed.isEmpty()) {
-            return;
-        }
-
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
-        boolean prefixed = false;
-        for (String prefix : prefixes) {
-            if (lower.startsWith(prefix)) {
-                prefixed = true;
-                break;
-            }
-        }
-        if (!prefixed) {
-            return;
-        }
-
-        String normalizedQuery = normalizeRelationshipQueryText(trimmed);
-        if (!StringUtils.hasText(normalizedQuery)) {
-            return;
-        }
-
-        Intent forced = Intent.builder()
-            .type(IntentType.ACTION)
-            .action("relationship_query")
-            .confidence(1.0d)
-            .requiresRetrieval(false)
-            .requiresGeneration(false)
-            .actionParams(Map.of(
-                "query", normalizedQuery,
-                "entityTypes", List.of()
-            ))
-            .build();
-
-        response.setIntents(List.of(forced));
-        response.setCompound(false);
-        response.setOrchestrationStrategy("DIRECT_ACTION");
     }
 
     /**
@@ -201,18 +149,19 @@ public class IntentExtractionPostProcessor {
             return;
         }
 
+        coerceRelationshipQueryPostActionSummaryRequest(intent);
+
         Map<String, Object> params = intent.getActionParams();
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
         Object rawQuery = mutable.get("query");
-        String normalizedQuery;
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            normalizedQuery = normalizeRelationshipQueryText(text);
-        } else {
-            normalizedQuery = normalizeRelationshipQueryText(originalQuery);
-        }
-        if (StringUtils.hasText(normalizedQuery)) {
-            mutable.put("query", normalizedQuery);
+            mutable.put("query", RelationshipQueryHintPrefix.stripIfPresent(text));
+        } else if (StringUtils.hasText(originalQuery)) {
+            String stripped = RelationshipQueryHintPrefix.stripIfPresent(originalQuery);
+            if (StringUtils.hasText(stripped)) {
+                mutable.put("query", stripped);
+            }
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");
@@ -241,56 +190,37 @@ public class IntentExtractionPostProcessor {
         intent.setActionParams(mutable);
     }
 
-    private String normalizeRelationshipQueryText(String query) {
-        if (!StringUtils.hasText(query)) {
-            return null;
-        }
-        String trimmed = query.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        String[] prefixes = { "relationship query:", "relationship_query:", "relationship-query:" };
-        for (String prefix : prefixes) {
-            if (lower.startsWith(prefix)) {
-                String withoutPrefix = trimmed.substring(prefix.length()).trim();
-                return stripTrailingNonRelationalDirective(withoutPrefix);
-            }
-        }
-        return stripTrailingNonRelationalDirective(trimmed);
-    }
-
-    private String stripTrailingNonRelationalDirective(String text) {
-        if (!StringUtils.hasText(text)) {
-            return text;
-        }
-        String trimmed = text.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-
-        int idx = lower.indexOf(" and then ");
-        int boundaryLen = " and then ".length();
-        if (idx < 0) {
-            idx = lower.indexOf(" then ");
-            boundaryLen = " then ".length();
-        }
-        if (idx < 0) {
-            return trimmed;
+    private void coerceRelationshipQueryPostActionSummaryRequest(Intent intent) {
+        if (intent == null) {
+            return;
         }
 
-        String after = lower.substring(idx + boundaryLen);
-        boolean looksNonRelational =
-            after.contains("summariz")
-                || after.contains("explain")
-                || after.contains(" why ")
-                || after.startsWith("why ")
-                || after.contains("describe")
-                || after.contains("analyz")
-                || after.contains("recommend")
-                || after.contains("write ")
-                || after.contains("generate ")
-                || after.contains("tell me");
-
-        if (!looksNonRelational) {
-            return trimmed;
+        if (StringUtils.hasText(intent.getGenerationInstructions())) {
+            intent.setRequiresGeneration(true);
+            return;
+        }
+        if (Boolean.TRUE.equals(intent.getRequiresGeneration())) {
+            return;
         }
 
-        return trimmed.substring(0, idx).trim();
+        NextStepRecommendation next = intent.getNextStepRecommended();
+        if (next == null) {
+            return;
+        }
+
+        // If the model recommends a follow-up that targets a vector space, keep it as a smart suggestion.
+        // Post-action generation should be grounded in the already retrieved SQL results, not trigger retrieval.
+        if (StringUtils.hasText(next.getVectorSpace())) {
+            return;
+        }
+        if (!StringUtils.hasText(next.getQuery())) {
+            return;
+        }
+
+        // Provider-agnostic: some models represent "then summarize/explain the results" as nextStepRecommended
+        // instead of the dedicated post-action generation fields. Convert it into a post-action generation request
+        // for relationship_query so the pipeline can run a grounded summary after executing the action.
+        intent.setRequiresGeneration(true);
+        intent.setGenerationInstructions(next.getQuery().trim());
     }
 }

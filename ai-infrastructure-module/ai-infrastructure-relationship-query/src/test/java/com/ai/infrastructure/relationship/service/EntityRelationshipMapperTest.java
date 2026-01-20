@@ -52,7 +52,9 @@ class EntityRelationshipMapperTest {
         );
 
         assertThat(mapping.direction()).isEqualTo(RelationshipDirection.REVERSE);
-        assertThat(mapper.getRelationshipFieldName("document", "user")).isEqualTo("createdBy");
+        RelationshipMapping resolved = mapper.getRelationshipMapping("document", "createdBy");
+        assertThat(resolved.fieldName()).isEqualTo("createdBy");
+        assertThat(resolved.toEntityType()).isEqualTo("user");
     }
 
     @Test

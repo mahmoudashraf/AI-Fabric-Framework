@@ -144,13 +144,35 @@ public class EntityRelationshipMapper {
             optional
         );
 
-        RelationshipKey key = RelationshipKey.of(fromEntityType, toEntityType);
+        RelationshipKey key = RelationshipKey.of(fromEntityType, mapping.fieldName());
         relationshipMappings.compute(key, (k, existing) -> {
-            if (existing != null && !existing.fieldName().equals(mapping.fieldName())) {
-                throw new IllegalStateException(
-                    "Relationship %s -> %s already mapped to field '%s'"
-                        .formatted(fromEntityType, toEntityType, existing.fieldName())
+            if (existing != null) {
+                if (existing.toEntityType().equals(mapping.toEntityType())) {
+                    return existing;
+                }
+
+                EntityMapping existingTarget = entityMappings.get(existing.toEntityType());
+                EntityMapping requestedTarget = entityMappings.get(mapping.toEntityType());
+                boolean sameBackingClass = existingTarget != null
+                    && requestedTarget != null
+                    && existingTarget.className().equals(requestedTarget.className());
+
+                if (!sameBackingClass) {
+                    throw new IllegalStateException(
+                        "Relationship %s.%s already mapped to '%s' (cannot remap to '%s')"
+                            .formatted(fromEntityType, mapping.fieldName(), existing.toEntityType(), toEntityType)
+                    );
+                }
+
+                log.debug(
+                    "Remapping relationship {}.{} from {} to {} (same backing class: {})",
+                    fromEntityType,
+                    mapping.fieldName(),
+                    existing.toEntityType(),
+                    mapping.toEntityType(),
+                    existingTarget.className()
                 );
+                return mapping;
             }
             if (existing == null && log.isDebugEnabled()) {
                 log.debug("Registered relationship {} -> {} via {}", fromEntityType, toEntityType, fieldName);
@@ -160,16 +182,16 @@ public class EntityRelationshipMapper {
         return relationshipMappings.get(key);
     }
 
-    public RelationshipMapping getRelationshipMapping(String fromEntityType, String toEntityType) {
-        RelationshipKey key = RelationshipKey.of(fromEntityType, toEntityType);
+    public RelationshipMapping getRelationshipMapping(String fromEntityType, String relationshipFieldName) {
+        RelationshipKey key = RelationshipKey.of(fromEntityType, relationshipFieldName);
         return Optional.ofNullable(relationshipMappings.get(key))
             .orElseThrow(() -> new IllegalArgumentException(
-                "Unknown relationship '%s' -> '%s'".formatted(fromEntityType, toEntityType)
+                "Unknown relationship '%s.%s'".formatted(fromEntityType, relationshipFieldName)
             ));
     }
 
-    public String getRelationshipFieldName(String fromEntityType, String toEntityType) {
-        return getRelationshipMapping(fromEntityType, toEntityType).fieldName();
+    public String getRelationshipFieldName(String fromEntityType, String relationshipFieldName) {
+        return getRelationshipMapping(fromEntityType, relationshipFieldName).fieldName();
     }
 
     public List<RelationshipMapping> getAllRelationshipMappings() {
@@ -224,11 +246,11 @@ public class EntityRelationshipMapper {
         return idx >= 0 ? className.substring(idx + 1) : className;
     }
 
-    private record RelationshipKey(String from, String to) {
-        static RelationshipKey of(String from, String to) {
+    private record RelationshipKey(String from, String relationshipFieldName) {
+        static RelationshipKey of(String from, String relationshipFieldName) {
             return new RelationshipKey(
                 from == null ? null : from.trim().toLowerCase(Locale.ROOT),
-                to == null ? null : to.trim().toLowerCase(Locale.ROOT)
+                relationshipFieldName == null ? null : relationshipFieldName.trim().toLowerCase(Locale.ROOT)
             );
         }
     }
