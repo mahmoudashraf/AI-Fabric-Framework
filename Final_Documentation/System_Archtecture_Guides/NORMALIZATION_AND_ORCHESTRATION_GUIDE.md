@@ -170,9 +170,102 @@ When real provider credentials are required:
 
 ---
 
-## 7) Related docs / next steps
+## 7) Progressive intent extraction integration
+
+### How progressive extraction works with normalization
+
+The **Progressive Intent Extraction Engine** (compound → repair → **completion** → multi-step) is tightly integrated with the normalization layer:
+
+1. **Each extraction attempt** goes through:
+   - Parse (LLM output → `MultiIntentResponse`)
+   - **Post-process** (deterministic normalization, no LLM calls)
+   - Validate (contract checks)
+   - Assess (determine error category)
+
+2. **Normalization runs before validation** to reduce unnecessary LLM calls:
+   - Deterministic fixes (action name canonicalization, hint stripping) applied first
+   - Validation sees normalized input
+   - Only invoke next extraction strategy if validation still fails
+
+3. **New completion step** (introduced in PR #123):
+   - Fills **contract-incomplete** but **structurally valid** outputs
+   - Uses action metadata (required parameters) to guide LLM
+   - Triggered when `errorCategory == INCOMPLETE` or `UNSAFE`
+   - Example: missing `actionParams.query` for `relationship_query` action
+
+### Completion vs repair
+
+| Aspect | Repair | Completion |
+|--------|--------|------------|
+| **Fixes** | Structural errors (JSON/schema) | Contract-incomplete fields |
+| **Error Category** | STRUCTURAL | INCOMPLETE, UNSAFE |
+| **Example** | Missing closing brace | Missing required parameter |
+| **Prompt** | "Fix JSON structure" | "Fill missing required fields" |
+
+### Configuration additions (PR #123)
+
+```yaml
+ai:
+  intent-extraction:
+    progressive:
+      # New: enable completion step
+      completionEnabled: true
+
+      # New: max completion attempts (0-3)
+      completionMaxAttempts: 1
+```
+
+### Normalization metadata in diagnostics
+
+When debug snapshots are enabled, extraction diagnostics include normalization metadata:
+
+```json
+{
+  "extractionPath": "completion",
+  "attempts": [
+    {
+      "strategy": "compound",
+      "normalization": {
+        "appliedRules": ["ACTION_NAME_CANONICALIZED"],
+        "ruleCount": 1
+      }
+    }
+  ]
+}
+```
+
+This helps diagnose:
+- Which normalization rules were needed
+- Whether normalization fixed provider drift
+- Patterns across different providers
+
+### Best practices
+
+1. **Keep normalization deterministic** (no LLM calls)
+   - Normalization happens inside the progressive ladder
+   - Must be fast and predictable
+   - Test that normalization is idempotent
+
+2. **Use validation issue codes** to guide next strategy
+   - STRUCTURAL → repair
+   - INCOMPLETE/UNSAFE → completion
+   - OTHER → next strategy
+
+3. **Monitor extraction paths** to optimize prompts
+   - High completion rate → improve compound prompts
+   - High repair rate → review JSON schema clarity
+   - High multi-step rate → query complexity or provider quality
+
+**Related Guide:** `PROGRESSIVE_INTENT_EXTRACTION_USER_GUIDE.md`, `PROGRESSIVE_INTENT_EXTRACTION_ARCHITECTURE_GUIDE.md`
+
+---
+
+## 8) Related docs / next steps
 - Orchestration contract + rules: `ORCHESTRATION_RESULT_NORMALIZATION.md`
 - Pipeline overview: `PIPELINE_ARCHITECTURE.md`
 - Step-by-step reference: `PIPELINE_STEPS_REFERENCE.md`
-- Progressive extraction plan (compound → repair → multi-step): `PROGRESSIVE_INTENT_EXTRACTION_FALLBACK_PLAN.md`
+- Progressive extraction (compound → repair → completion → multi-step):
+  - User Guide: `PROGRESSIVE_INTENT_EXTRACTION_USER_GUIDE.md`
+  - Architecture: `PROGRESSIVE_INTENT_EXTRACTION_ARCHITECTURE_GUIDE.md`
+  - Change plan: `changes/PROGRESSIVE_INTENT_EXTRACTION_RESILIENCE_ENGINE_CHANGE_PLAN.md`
 
