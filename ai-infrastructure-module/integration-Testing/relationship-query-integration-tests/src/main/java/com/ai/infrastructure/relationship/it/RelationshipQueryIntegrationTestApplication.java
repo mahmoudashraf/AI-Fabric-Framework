@@ -2,14 +2,11 @@ package com.ai.infrastructure.relationship.it;
 
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
-import com.ai.infrastructure.relationship.config.RelationshipQueryAutoConfiguration;
 import com.ai.infrastructure.spi.RAGProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
@@ -20,14 +17,7 @@ import java.util.Map;
  * Minimal Spring Boot application exposing the relationship query module through
  * HTTP endpoints for real API integration tests.
  */
-@SpringBootApplication(scanBasePackages = {
-    "com.ai.infrastructure",
-    "com.ai.infrastructure.relationship"
-})
-@Import({
-    AIInfrastructureAutoConfiguration.class,
-    RelationshipQueryAutoConfiguration.class
-})
+@SpringBootApplication
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
     "com.ai.infrastructure.relationship.it.entity"
