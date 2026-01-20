@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Describes an action exposed to the RAG orchestrator.
@@ -30,7 +31,20 @@ public class AIActionMetaData {
     @Builder.Default
     private Map<String, String> parameters = Collections.emptyMap();
 
+    /**
+     * Parameter names that must be provided for the action to execute safely.
+     *
+     * <p>This is used for deterministic validation and provider-agnostic intent extraction fallbacks.
+     * It should not be inferred from human-readable parameter descriptions.</p>
+     */
+    @Builder.Default
+    private Set<String> requiredParameters = Collections.emptySet();
+
     public void setParameters(Map<String, String> parameters) {
         this.parameters = parameters == null ? Collections.emptyMap() : Map.copyOf(parameters);
+    }
+
+    public void setRequiredParameters(Set<String> requiredParameters) {
+        this.requiredParameters = requiredParameters == null ? Collections.emptySet() : Set.copyOf(requiredParameters);
     }
 }

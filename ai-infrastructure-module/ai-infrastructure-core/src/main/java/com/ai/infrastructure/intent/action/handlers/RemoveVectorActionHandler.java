@@ -31,6 +31,7 @@ public class RemoveVectorActionHandler implements ActionHandler {
                 "entityType", "string (required)",
                 "entityId", "string (required)"
             ))
+            .requiredParameters(java.util.Set.of("entityType", "entityId"))
             .build();
     }
 

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Registry that discovers {@link ActionHandler} beans and exposes utilities to look them up by action name.
@@ -107,6 +108,10 @@ public class ActionHandlerRegistry {
 
             if (metadata.getParameters() != null) {
                 builder.parameters(metadata.getParameters());
+            }
+            Set<String> required = metadata.getRequiredParameters();
+            if (required != null && !required.isEmpty()) {
+                builder.requiredParameters(required);
             }
             return builder.build();
         } catch (Exception ex) {

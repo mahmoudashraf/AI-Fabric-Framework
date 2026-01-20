@@ -100,7 +100,14 @@ public class IntentExtractionPostProcessor {
                 throw new AIServiceException("Intent is missing a valid type attribute");
             }
             if (!intent.hasMeaningfulName()) {
-                throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
+                // Provider-agnostic tolerance: some models emit OUT_OF_SCOPE without a stable name.
+                // For OUT_OF_SCOPE we do not require `intent` / `action` because execution does not depend on it.
+                if (intent.getType() == IntentType.OUT_OF_SCOPE) {
+                    intent.setIntent("out_of_scope");
+                    intent.setAction(null);
+                } else {
+                    throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
+                }
             }
             validateRelationshipActionParams(intent, originalQuery);
             if (intent.getRequiresRetrieval() == null) {

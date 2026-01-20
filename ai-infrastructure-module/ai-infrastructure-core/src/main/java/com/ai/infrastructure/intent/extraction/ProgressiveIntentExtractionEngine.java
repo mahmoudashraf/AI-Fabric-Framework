@@ -41,6 +41,7 @@ public class ProgressiveIntentExtractionEngine {
     private final RepairIntentExtractionStrategy repairStrategy;
     private final MultiStepIntentExtractionStrategy multiStepStrategy;
     private final IntentExtractionPostProcessor postProcessor;
+    private final IntentExtractionValidator validator;
 
     public record ExtractionOutput(MultiIntentResponse response, Map<String, Object> diagnostics) {}
 
@@ -60,12 +61,13 @@ public class ProgressiveIntentExtractionEngine {
 
         ExtractionAttempt compoundAttempt = null;
         if (!"multi_step".equals(forceMode)) {
-            compoundAttempt = compoundStrategy.attemptExtract(query, safeContext);
-            totalLlmCalls += compoundAttempt.getLlmCalls();
+            ExtractionAttempt rawAttempt = compoundStrategy.attemptExtract(query, safeContext);
+            totalLlmCalls += rawAttempt.getLlmCalls();
+            compoundAttempt = assessAttempt(rawAttempt, query);
             attemptEvents.add(toAttemptEvent(compoundAttempt));
 
             if (compoundAttempt.isSuccess()) {
-                MultiIntentResponse finalized = finalizeResponse(compoundAttempt.getResponse(), query);
+                MultiIntentResponse finalized = compoundAttempt.getResponse();
                 Map<String, Object> diagnostics = diagnostics("compound", attemptEvents, totalLlmCalls);
                 return new ExtractionOutput(finalized, diagnostics);
             }
@@ -87,12 +89,13 @@ public class ProgressiveIntentExtractionEngine {
             int configuredAttempts = properties != null ? properties.getRepairMaxAttempts() : 1;
             int maxRepairAttempts = Math.max("repair".equals(forceMode) ? 1 : 0, configuredAttempts);
             for (int attempt = 0; attempt < maxRepairAttempts && totalLlmCalls < maxCalls; attempt++) {
-                ExtractionAttempt repairAttempt = repairStrategy.attemptRepair(query, safeContext, compoundAttempt);
-                totalLlmCalls += repairAttempt.getLlmCalls();
+                ExtractionAttempt rawRepairAttempt = repairStrategy.attemptRepair(query, safeContext, compoundAttempt);
+                totalLlmCalls += rawRepairAttempt.getLlmCalls();
+                ExtractionAttempt repairAttempt = assessAttempt(rawRepairAttempt, query);
                 attemptEvents.add(toAttemptEvent(repairAttempt));
 
                 if (repairAttempt.isSuccess()) {
-                    MultiIntentResponse finalized = finalizeResponse(repairAttempt.getResponse(), query);
+                    MultiIntentResponse finalized = repairAttempt.getResponse();
                     Map<String, Object> diagnostics = diagnostics("repair", attemptEvents, totalLlmCalls);
                     return new ExtractionOutput(finalized, diagnostics);
                 }
@@ -106,13 +109,15 @@ public class ProgressiveIntentExtractionEngine {
 
         boolean multiStepEnabled = "multi_step".equals(forceMode) || properties == null || properties.isMultiStepEnabled();
         int remainingCalls = maxCalls - totalLlmCalls;
-        if (multiStepEnabled && remainingCalls >= 2) {
-            ExtractionAttempt multiStepAttempt = multiStepStrategy.attemptExtract(query, safeContext);
-            totalLlmCalls += multiStepAttempt.getLlmCalls();
+        // Multi-step extraction can use up to 3 LLM calls: classify + select actions + fill action params.
+        if (multiStepEnabled && remainingCalls >= 3) {
+            ExtractionAttempt rawMultiStepAttempt = multiStepStrategy.attemptExtract(query, safeContext);
+            totalLlmCalls += rawMultiStepAttempt.getLlmCalls();
+            ExtractionAttempt multiStepAttempt = assessAttempt(rawMultiStepAttempt, query);
             attemptEvents.add(toAttemptEvent(multiStepAttempt));
 
             if (multiStepAttempt.isSuccess()) {
-                MultiIntentResponse finalized = finalizeResponse(multiStepAttempt.getResponse(), query);
+                MultiIntentResponse finalized = multiStepAttempt.getResponse();
                 Map<String, Object> diagnostics = diagnostics("multi_step", attemptEvents, totalLlmCalls);
                 return new ExtractionOutput(finalized, diagnostics);
             }
@@ -122,17 +127,72 @@ public class ProgressiveIntentExtractionEngine {
         return new ExtractionOutput(fallback, diagnostics("fallback", attemptEvents, totalLlmCalls));
     }
 
-    private MultiIntentResponse finalizeResponse(MultiIntentResponse response, String originalQuery) {
-        try {
-            MultiIntentResponse processed = postProcessor.postProcess(response, originalQuery);
-            if (processed == null || !processed.hasIntents()) {
-                return safeDefault("Extraction produced empty intents");
-            }
-            return processed;
-        } catch (Exception ex) {
-            log.warn("Post-processing failed, returning fallback intent: {}", ex.getMessage());
-            return safeDefault("Post-processing failed: " + ex.getMessage());
+    private ExtractionAttempt assessAttempt(ExtractionAttempt attempt, String originalQuery) {
+        if (attempt == null) {
+            return null;
         }
+
+        MultiIntentResponse response = attempt.getResponse();
+        if (response == null) {
+            return attempt;
+        }
+
+        MultiIntentResponse processed;
+        try {
+            processed = postProcessor.postProcess(response, originalQuery);
+        } catch (Exception ex) {
+            log.warn("Post-processing failed for strategy '{}': {}", attempt.getStrategyName(), ex.getMessage());
+            IntentExtractionValidator.ValidationResult validation = new IntentExtractionValidator.ValidationResult(
+                false,
+                IntentExtractionValidator.ErrorCategory.OTHER,
+                List.of("Post-processing failed: " + ex.getMessage()),
+                List.of()
+            );
+            return ExtractionAttempt.builder()
+                .success(false)
+                .response(null)
+                .validationResult(validation)
+                .rawContent(attempt.getRawContent())
+                .generationRequest(attempt.getGenerationRequest())
+                .errorMessage(attempt.getErrorMessage())
+                .exception(attempt.getException())
+                .strategyName(attempt.getStrategyName())
+                .llmCalls(attempt.getLlmCalls())
+                .build();
+        }
+
+        if (processed == null || !processed.hasIntents()) {
+            IntentExtractionValidator.ValidationResult validation = new IntentExtractionValidator.ValidationResult(
+                false,
+                IntentExtractionValidator.ErrorCategory.STRUCTURAL,
+                List.of("Extraction produced empty intents after post-processing"),
+                List.of()
+            );
+            return ExtractionAttempt.builder()
+                .success(false)
+                .response(processed)
+                .validationResult(validation)
+                .rawContent(attempt.getRawContent())
+                .generationRequest(attempt.getGenerationRequest())
+                .errorMessage(attempt.getErrorMessage())
+                .exception(attempt.getException())
+                .strategyName(attempt.getStrategyName())
+                .llmCalls(attempt.getLlmCalls())
+                .build();
+        }
+
+        IntentExtractionValidator.ValidationResult validation = validator.validate(processed);
+        return ExtractionAttempt.builder()
+            .success(validation.valid())
+            .response(processed)
+            .validationResult(validation)
+            .rawContent(attempt.getRawContent())
+            .generationRequest(attempt.getGenerationRequest())
+            .errorMessage(attempt.getErrorMessage())
+            .exception(attempt.getException())
+            .strategyName(attempt.getStrategyName())
+            .llmCalls(attempt.getLlmCalls())
+            .build();
     }
 
     private MultiIntentResponse safeDefault(String reason) {

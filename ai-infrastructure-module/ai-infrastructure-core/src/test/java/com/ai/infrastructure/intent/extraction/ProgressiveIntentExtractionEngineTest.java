@@ -33,6 +33,7 @@ class ProgressiveIntentExtractionEngineTest {
         RepairIntentExtractionStrategy repair = mock(RepairIntentExtractionStrategy.class);
         MultiStepIntentExtractionStrategy multiStep = mock(MultiStepIntentExtractionStrategy.class);
         IntentExtractionPostProcessor postProcessor = mock(IntentExtractionPostProcessor.class);
+        IntentExtractionValidator validator = mock(IntentExtractionValidator.class);
 
         MultiIntentResponse response = MultiIntentResponse.builder()
             .intents(List.of(Intent.builder().type(IntentType.INFORMATION).intent("refund_policy").build()))
@@ -48,13 +49,16 @@ class ProgressiveIntentExtractionEngineTest {
 
         when(compound.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
         when(postProcessor.postProcess(any(MultiIntentResponse.class), anyString())).thenReturn(response);
+        when(validator.validate(any(MultiIntentResponse.class)))
+            .thenReturn(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()));
 
         ProgressiveIntentExtractionEngine engine = new ProgressiveIntentExtractionEngine(
             properties,
             compound,
             repair,
             multiStep,
-            postProcessor
+            postProcessor,
+            validator
         );
 
         ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract("q", OrchestrationContext.forUser("user"));
@@ -81,6 +85,7 @@ class ProgressiveIntentExtractionEngineTest {
         RepairIntentExtractionStrategy repair = mock(RepairIntentExtractionStrategy.class);
         MultiStepIntentExtractionStrategy multiStep = mock(MultiStepIntentExtractionStrategy.class);
         IntentExtractionPostProcessor postProcessor = mock(IntentExtractionPostProcessor.class);
+        IntentExtractionValidator validator = mock(IntentExtractionValidator.class);
 
         ExtractionAttempt compoundAttempt = ExtractionAttempt.builder()
             .success(false)
@@ -109,13 +114,16 @@ class ProgressiveIntentExtractionEngineTest {
         when(compound.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
         when(repair.attemptRepair(anyString(), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(repairAttempt);
         when(postProcessor.postProcess(any(MultiIntentResponse.class), anyString())).thenReturn(repaired);
+        when(validator.validate(any(MultiIntentResponse.class)))
+            .thenReturn(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()));
 
         ProgressiveIntentExtractionEngine engine = new ProgressiveIntentExtractionEngine(
             properties,
             compound,
             repair,
             multiStep,
-            postProcessor
+            postProcessor,
+            validator
         );
 
         ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract("q", OrchestrationContext.forUser("user"));
@@ -137,6 +145,7 @@ class ProgressiveIntentExtractionEngineTest {
         RepairIntentExtractionStrategy repair = mock(RepairIntentExtractionStrategy.class);
         MultiStepIntentExtractionStrategy multiStep = mock(MultiStepIntentExtractionStrategy.class);
         IntentExtractionPostProcessor postProcessor = mock(IntentExtractionPostProcessor.class);
+        IntentExtractionValidator validator = mock(IntentExtractionValidator.class);
 
         ExtractionAttempt compoundAttempt = ExtractionAttempt.builder()
             .success(false)
@@ -178,13 +187,16 @@ class ProgressiveIntentExtractionEngineTest {
         when(repair.attemptRepair(anyString(), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(repairAttempt);
         when(multiStep.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(multiStepAttempt);
         when(postProcessor.postProcess(any(MultiIntentResponse.class), anyString())).thenReturn(multiStepResponse);
+        when(validator.validate(any(MultiIntentResponse.class)))
+            .thenReturn(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()));
 
         ProgressiveIntentExtractionEngine engine = new ProgressiveIntentExtractionEngine(
             properties,
             compound,
             repair,
             multiStep,
-            postProcessor
+            postProcessor,
+            validator
         );
 
         ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract("q", OrchestrationContext.forUser("user"));
@@ -194,4 +206,3 @@ class ProgressiveIntentExtractionEngineTest {
         verify(multiStep).attemptExtract(anyString(), any(OrchestrationContext.class));
     }
 }
-

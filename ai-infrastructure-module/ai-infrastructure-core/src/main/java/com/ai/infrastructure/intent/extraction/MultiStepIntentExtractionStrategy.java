@@ -26,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -49,6 +50,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
 
     record ClassificationResult(ClassificationResponse response, int llmCalls) {}
     record ActionSelectionResult(Map<Integer, String> mappings, int llmCalls) {}
+    record ActionParamsFillResult(Map<Integer, Map<String, Object>> paramsByIntentIndex, int llmCalls) {}
 
     static class LlmCallFailureException extends RuntimeException {
         private final int llmCalls;
@@ -83,7 +85,10 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             llmCalls += selection.llmCalls();
             Map<Integer, String> selectedActions = selection.mappings();
 
-            MultiIntentResponse response = buildResponse(query, classification, selectedActions);
+            ActionParamsFillResult paramFill = fillActionParamsIfNeeded(query, context, classification, selectedActions);
+            llmCalls += paramFill.llmCalls();
+
+            MultiIntentResponse response = buildResponse(query, classification, selectedActions, paramFill.paramsByIntentIndex());
             IntentExtractionValidator.ValidationResult validation = validator.validate(response);
 
             return ExtractionAttempt.builder()
@@ -134,6 +139,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                   "actionHint": "short verb phrase (only when type=ACTION)",
                   "requiresRetrieval": true,
                   "requiresGeneration": false,
+                  "generationInstructions": "optional follow-up instruction when requiresGeneration is true",
                   "needsAdvancedRAG": false,
                   "optimizedQuery": "optional optimized query",
                   "vectorSpace": "optional domain hint"
@@ -296,6 +302,166 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         return new ActionSelectionResult(Collections.unmodifiableMap(out), llmCalls);
     }
 
+    private ActionParamsFillResult fillActionParamsIfNeeded(String query,
+                                                            OrchestrationContext context,
+                                                            ClassificationResponse classification,
+                                                            Map<Integer, String> selectedActions) {
+        if (classification == null || CollectionUtils.isEmpty(classification.getIntents())) {
+            return new ActionParamsFillResult(Map.of(), 0);
+        }
+        if (selectedActions == null || selectedActions.isEmpty()) {
+            return new ActionParamsFillResult(Map.of(), 0);
+        }
+
+        List<AIActionMetaData> actions = actionHandlerRegistry != null ? actionHandlerRegistry.getAllMetadata() : List.of();
+        if (actions.isEmpty()) {
+            return new ActionParamsFillResult(Map.of(), 0);
+        }
+
+        Map<String, AIActionMetaData> metadataByName = new LinkedHashMap<>();
+        for (AIActionMetaData meta : actions) {
+            if (meta == null || !StringUtils.hasText(meta.getName())) {
+                continue;
+            }
+            metadataByName.put(meta.getName(), meta);
+        }
+
+        StringBuilder tasks = new StringBuilder();
+        for (Map.Entry<Integer, String> entry : selectedActions.entrySet()) {
+            Integer index = entry.getKey();
+            String action = entry.getValue();
+            if (index == null || index < 0 || !StringUtils.hasText(action)) {
+                continue;
+            }
+
+            AIActionMetaData meta = metadataByName.get(action);
+            Map<String, String> params = meta != null ? meta.getParameters() : Map.of();
+            if ((meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty())
+                && (params == null || params.isEmpty())) {
+                continue;
+            }
+            String required = meta != null && meta.getRequiredParameters() != null && !meta.getRequiredParameters().isEmpty()
+                ? String.join(", ", meta.getRequiredParameters())
+                : "";
+
+            tasks.append("- intentIndex=").append(index)
+                .append(" action=").append(action)
+                .append(" requiredParams=[").append(required).append("]")
+                .append(" allowedParams=").append(params != null ? params.keySet() : Set.of())
+                .append("\n");
+        }
+
+        if (tasks.isEmpty()) {
+            return new ActionParamsFillResult(Map.of(), 0);
+        }
+
+        StringBuilder specs = new StringBuilder();
+        for (AIActionMetaData meta : actions) {
+            if (meta == null || !StringUtils.hasText(meta.getName())) {
+                continue;
+            }
+            specs.append("- action=").append(meta.getName()).append("\n");
+            if (meta.getRequiredParameters() != null && !meta.getRequiredParameters().isEmpty()) {
+                specs.append("  required: ").append(String.join(", ", meta.getRequiredParameters())).append("\n");
+            } else {
+                specs.append("  required: (none)\n");
+            }
+            if (meta.getParameters() != null && !meta.getParameters().isEmpty()) {
+                for (Map.Entry<String, String> param : meta.getParameters().entrySet()) {
+                    if (param.getKey() == null) {
+                        continue;
+                    }
+                    specs.append("  - ").append(param.getKey()).append(": ").append(param.getValue() != null ? param.getValue() : "").append("\n");
+                }
+            }
+        }
+
+        String prompt = """
+            You are filling actionParams for already selected, registered actions.
+            Output MUST be valid JSON and MUST match:
+
+            {
+              "mappings": [
+                {"intentIndex": 0, "actionParams": {"param": "value"}}
+              ]
+            }
+
+            Rules:
+            - Only include keys that are valid for that action's allowed parameters.
+            - Include ALL required parameters when possible.
+            - If you cannot infer a required parameter from the user request, omit that mapping entirely.
+            - Do NOT invent action names or additional intents.
+            - Do NOT include markdown or commentary.
+
+            ACTION SPECS:
+            %s
+
+            TASKS (fill params for these indices):
+            %s
+
+            USER REQUEST:
+            %s
+            """.formatted(specs, tasks, query);
+
+        AIGenerationRequest request = AIGenerationRequest.builder()
+            .entityId("intent-" + UUID.randomUUID())
+            .entityType(ENTITY_TYPE)
+            .generationType(GENERATION_TYPE + "_fill_params")
+            .systemPrompt("Return JSON only.")
+            .prompt(prompt)
+            .parameters(jsonSupport.jsonOnlyResponseParameters())
+            .userId(context != null ? context.getUserId() : null)
+            .build();
+
+        int llmCalls = 1;
+        AIGenerationResponse response;
+        try {
+            response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+        } catch (Exception ex) {
+            throw new LlmCallFailureException(llmCalls, ex);
+        }
+
+        String content = response != null ? response.getContent() : null;
+        if (!StringUtils.hasText(content)) {
+            return new ActionParamsFillResult(Map.of(), llmCalls);
+        }
+
+        String sanitized = jsonSupport.stripCodeFences(content);
+        ActionParamsFillResponse parsed;
+        try {
+            parsed = jsonSupport.objectMapper().readValue(sanitized, ActionParamsFillResponse.class);
+        } catch (Exception ex) {
+            log.warn("Failed to parse actionParams fill JSON: {}", ex.getMessage());
+            return new ActionParamsFillResult(Map.of(), llmCalls);
+        }
+
+        if (parsed == null || CollectionUtils.isEmpty(parsed.getMappings())) {
+            return new ActionParamsFillResult(Map.of(), llmCalls);
+        }
+
+        Map<Integer, Map<String, Object>> out = new LinkedHashMap<>();
+        for (ActionParamsMapping mapping : parsed.getMappings()) {
+            if (mapping == null || mapping.getIntentIndex() == null || mapping.getIntentIndex() < 0) {
+                continue;
+            }
+            if (mapping.getActionParams() == null || mapping.getActionParams().isEmpty()) {
+                continue;
+            }
+            Map<String, Object> cleaned = new LinkedHashMap<>();
+            mapping.getActionParams().forEach((key, value) -> {
+                if (!StringUtils.hasText(key) || value == null) {
+                    return;
+                }
+                cleaned.put(key, value);
+            });
+            if (!cleaned.isEmpty()) {
+                out.put(mapping.getIntentIndex(), Collections.unmodifiableMap(cleaned));
+            }
+        }
+
+        return new ActionParamsFillResult(Collections.unmodifiableMap(out), llmCalls);
+    }
+
     private String normalizeActionName(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -315,7 +481,8 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
 
     private MultiIntentResponse buildResponse(String query,
                                               ClassificationResponse classification,
-                                              Map<Integer, String> selectedActions) {
+                                              Map<Integer, String> selectedActions,
+                                              Map<Integer, Map<String, Object>> filledParams) {
         List<Intent> intents = new ArrayList<>(classification.getIntents().size());
         for (int i = 0; i < classification.getIntents().size(); i++) {
             ClassificationIntent classified = classification.getIntents().get(i);
@@ -334,6 +501,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 .confidence(classified.getConfidence())
                 .requiresRetrieval(classified.getRequiresRetrieval())
                 .requiresGeneration(classified.getRequiresGeneration())
+                .generationInstructions(StringUtils.hasText(classified.getGenerationInstructions()) ? classified.getGenerationInstructions() : null)
                 .needsAdvancedRAG(classified.getNeedsAdvancedRAG())
                 .optimizedQuery(StringUtils.hasText(classified.getOptimizedQuery()) ? classified.getOptimizedQuery() : null)
                 .vectorSpace(StringUtils.hasText(classified.getVectorSpace()) ? classified.getVectorSpace() : null);
@@ -349,6 +517,10 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                     builder.requiresGeneration(false);
                 } else {
                     builder.action(selected);
+                    Map<String, Object> params = filledParams != null ? filledParams.get(i) : null;
+                    if (params != null && !params.isEmpty()) {
+                        builder.actionParams(params);
+                    }
                 }
             } else if (type == IntentType.OUT_OF_SCOPE) {
                 builder.actionParams(Map.of("reason", "Classified as out of scope by multi-step fallback"));
@@ -412,6 +584,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         private Double confidence;
         private Boolean requiresRetrieval;
         private Boolean requiresGeneration;
+        private String generationInstructions;
         private Boolean needsAdvancedRAG;
         private String optimizedQuery;
         private String vectorSpace;
@@ -425,6 +598,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             copy.confidence = this.confidence;
             copy.requiresRetrieval = this.requiresRetrieval;
             copy.requiresGeneration = this.requiresGeneration;
+            copy.generationInstructions = this.generationInstructions;
             copy.needsAdvancedRAG = this.needsAdvancedRAG;
             copy.optimizedQuery = this.optimizedQuery;
             copy.vectorSpace = this.vectorSpace;
@@ -443,5 +617,18 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     static class ActionMapping {
         private Integer intentIndex;
         private String selectedAction;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class ActionParamsFillResponse {
+        private List<ActionParamsMapping> mappings = new ArrayList<>();
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class ActionParamsMapping {
+        private Integer intentIndex;
+        private Map<String, Object> actionParams = new LinkedHashMap<>();
     }
 }
