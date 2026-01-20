@@ -10,6 +10,7 @@ Implemented:
 - Multi-step extraction extended to optionally fill `actionParams` using registered action metadata (bounded by `maxTotalLlmCalls`).
 - New completion step (`CompletionIntentExtractionStrategy`) for contract-incomplete / unsafe outputs, wired into `ProgressiveIntentExtractionEngine` with `ai.intent-extraction.progressive.completion*` properties.
 - Diagnostics enriched with validation `issueCodes` and normalization rule IDs per attempt.
+- CI debug snapshots enriched with safe extraction diagnostics when `ai.orchestration.result-normalization.debugSnapshotEnabled=true`.
 
 Still planned:
 - Prompt hardening to reduce repair/completion rates across providers.

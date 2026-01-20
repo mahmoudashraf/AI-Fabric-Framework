@@ -11,6 +11,8 @@ Implemented (core):
   - `RELATIONSHIP_QUERY_COERCE_POST_ACTION_INSTRUCTIONS` (nextStepRecommended.query → generationInstructions when vectorSpace is absent).
   - `NORMALIZE_ENTITY_TYPES` (coerce to `List<String>`, trim, lowercase, remove blanks).
 - Normalization diagnostics surfaced via response metadata and progressive extraction attempt events.
+- Parsing tolerance hardened in `IntentExtractionJsonSupport` (comments + trailing commas) to reduce provider-specific JSON failures without semantic heuristics.
+- CI debug snapshots enriched with safe extraction diagnostics (path/issue codes/normalization rules) via `OrchestrationResultDebugSnapshotStore` when `ai.orchestration.result-normalization.debugSnapshotEnabled=true`.
 
 Still planned:
 - Prompt hardening to reduce the need for normalization across providers.

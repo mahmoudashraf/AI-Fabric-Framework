@@ -18,7 +18,7 @@ import org.springframework.validation.annotation.Validated;
 public class ProgressiveIntentExtractionProperties {
 
     /**
-     * Enable progressive fallback (compound → repair → multi-step).
+     * Enable progressive fallback (compound → repair → completion → multi-step).
      */
     private boolean enabled = true;
 
