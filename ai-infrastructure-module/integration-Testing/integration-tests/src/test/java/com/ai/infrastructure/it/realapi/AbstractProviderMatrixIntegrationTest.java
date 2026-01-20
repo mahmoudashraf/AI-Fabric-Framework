@@ -379,6 +379,33 @@ abstract class AbstractProviderMatrixIntegrationTest {
         }
 
         json.append("  },\n");
+        json.append("  \"summaryByExtractionPath\": {\n");
+
+        synchronized (scores) {
+            Map<String, Long> byPath = new java.util.LinkedHashMap<>();
+            for (CombinationScore score : scores) {
+                String pathValue = score.extractionPath();
+                if (!StringUtils.hasText(pathValue)) {
+                    continue;
+                }
+                byPath.put(pathValue, byPath.getOrDefault(pathValue, 0L) + 1L);
+            }
+
+            int idx = 0;
+            for (Map.Entry<String, Long> entry : byPath.entrySet()) {
+                json.append("    ")
+                    .append(toJsonString(entry.getKey()))
+                    .append(": ")
+                    .append(entry.getValue());
+                if (idx < byPath.size() - 1) {
+                    json.append(",");
+                }
+                json.append("\n");
+                idx++;
+            }
+        }
+
+        json.append("  },\n");
         json.append("  \"combinations\": [\n");
 
         synchronized (scores) {
@@ -411,6 +438,24 @@ abstract class AbstractProviderMatrixIntegrationTest {
         return "\"" + escaped + "\"";
     }
 
+    private static String toJsonStringList(List<String> values) {
+        if (values == null) {
+            return "null";
+        }
+        if (values.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            sb.append(toJsonString(values.get(i)));
+            if (i < values.size() - 1) {
+                sb.append(",");
+            }
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
     private static String firstNonBlank(String... values) {
         if (values == null) {
             return null;
@@ -436,7 +481,11 @@ abstract class AbstractProviderMatrixIntegrationTest {
         long testsAborted,
         double successRate,
         String failures,
-        String lastSnapshot
+        String lastSnapshot,
+        String extractionPath,
+        Integer llmCalls,
+        List<String> issueCodes,
+        List<String> normalizationRules
     ) {
         static CombinationScore from(ProviderCombination combo,
                                      TestExecutionSummary summary,
@@ -466,7 +515,11 @@ abstract class AbstractProviderMatrixIntegrationTest {
                 aborted,
                 rate,
                 StringUtils.hasText(failures) ? failures : null,
-                snapshot != null ? snapshot.toString() : null
+                snapshot != null ? snapshot.toString() : null,
+                snapshot != null ? snapshot.extractionPath() : null,
+                snapshot != null ? snapshot.llmCalls() : null,
+                snapshot != null ? snapshot.issueCodes() : null,
+                snapshot != null ? snapshot.normalizationRules() : null
             );
         }
 
@@ -499,6 +552,10 @@ abstract class AbstractProviderMatrixIntegrationTest {
             sb.append(pad).append("  \"consideredTests\": ").append(consideredTests()).append(",\n");
             sb.append(pad).append("  \"successRate\": ").append(String.format("%.4f", successRate)).append(",\n");
             sb.append(pad).append("  \"lastSnapshot\": ").append(lastSnapshot != null ? toJsonString(lastSnapshot) : "null").append(",\n");
+            sb.append(pad).append("  \"extractionPath\": ").append(extractionPath != null ? toJsonString(extractionPath) : "null").append(",\n");
+            sb.append(pad).append("  \"llmCalls\": ").append(llmCalls != null ? llmCalls : "null").append(",\n");
+            sb.append(pad).append("  \"issueCodes\": ").append(toJsonStringList(issueCodes)).append(",\n");
+            sb.append(pad).append("  \"normalizationRules\": ").append(toJsonStringList(normalizationRules)).append(",\n");
             sb.append(pad).append("  \"failures\": ").append(failures != null ? toJsonString(failures) : "null").append("\n");
             sb.append(pad).append("}");
             return sb.toString();

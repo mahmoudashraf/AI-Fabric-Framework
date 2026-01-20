@@ -150,6 +150,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             Rules:
             - Keep it simple and deterministic.
             - Do NOT invent action names; for ACTION use actionHint only.
+            - If the user asks to execute something AND then summarize/explain/recommend/translate the results, set requiresGeneration=true and put that instruction in generationInstructions.
             - If unsure, prefer INFORMATION with requiresRetrieval=false and requiresGeneration=false.
 
             USER REQUEST:
@@ -390,6 +391,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             - Only include keys that are valid for that action's allowed parameters.
             - Include ALL required parameters when possible.
             - If you cannot infer a required parameter from the user request, omit that mapping entirely.
+            - For relationship_query: actionParams.query MUST contain ONLY the natural-language relationship query. If the user request includes a relationship-query hint prefix (e.g., \"relationship_query:\"), do NOT include that prefix inside actionParams.query.
             - Do NOT invent action names or additional intents.
             - Do NOT include markdown or commentary.
 

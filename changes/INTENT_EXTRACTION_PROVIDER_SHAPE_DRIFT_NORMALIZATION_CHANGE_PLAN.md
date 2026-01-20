@@ -13,9 +13,10 @@ Implemented (core):
 - Normalization diagnostics surfaced via response metadata and progressive extraction attempt events.
 - Parsing tolerance hardened in `IntentExtractionJsonSupport` (comments + trailing commas) to reduce provider-specific JSON failures without semantic heuristics.
 - CI debug snapshots enriched with safe extraction diagnostics (path/issue codes/normalization rules) via `OrchestrationResultDebugSnapshotStore` when `ai.orchestration.result-normalization.debugSnapshotEnabled=true`.
+- Prompt hardening (no heuristics): clarified relationship-query prefix handling and post-action generation field usage in extraction/completion prompts.
 
 Still planned:
-- Prompt hardening to reduce the need for normalization across providers.
+- Further prompt hardening to reduce the need for normalization across providers.
 
 ## Problem
 Different LLM providers (and even the same provider across models/versions) can express the **same intent** using **different fields** or incomplete shapes. This causes:

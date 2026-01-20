@@ -80,6 +80,7 @@ public class CompletionIntentExtractionStrategy {
             - Fix ONLY the missing/invalid contract fields listed in VALIDATION ISSUES.
             - Do NOT invent new actions. ACTION names MUST come from the allowed actions list.
             - Do NOT guess vectorSpace or other routing values. Leave them null/empty if not explicit.
+            - For relationship_query: actionParams.query is REQUIRED and MUST NOT include the hint prefix (e.g., \"relationship_query:\"). If missing, derive it from the user request after the prefix.
             - If required info is missing from the user request, choose a safe fallback (OUT_OF_SCOPE) and include a helpful nextStepRecommended.query asking for the missing information.
             - Output MUST be a single JSON object matching the schema above. No markdown. No commentary.
             """;
@@ -216,4 +217,3 @@ public class CompletionIntentExtractionStrategy {
         }
     }
 }
-

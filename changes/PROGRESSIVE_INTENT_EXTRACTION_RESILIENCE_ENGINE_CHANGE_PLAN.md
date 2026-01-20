@@ -11,10 +11,11 @@ Implemented:
 - New completion step (`CompletionIntentExtractionStrategy`) for contract-incomplete / unsafe outputs, wired into `ProgressiveIntentExtractionEngine` with `ai.intent-extraction.progressive.completion*` properties.
 - Diagnostics enriched with validation `issueCodes` and normalization rule IDs per attempt.
 - CI debug snapshots enriched with safe extraction diagnostics when `ai.orchestration.result-normalization.debugSnapshotEnabled=true`.
+- Prompt hardening (no heuristics): strengthened contract guidance for post-action generation (`generationInstructions`) and relationship-query hint handling.
 
 Still planned:
-- Prompt hardening to reduce repair/completion rates across providers.
-- Provider matrix scorecard reporting for repair/completion usage rates.
+- Further prompt hardening as more provider drift patterns are observed.
+- Provider matrix scorecard aggregation for repair/completion usage rates beyond the last snapshot per run.
 
 ## Problem
 Intent extraction currently depends on LLMs producing a perfectly shaped JSON response in a single shot. In practice, providers vary in:
