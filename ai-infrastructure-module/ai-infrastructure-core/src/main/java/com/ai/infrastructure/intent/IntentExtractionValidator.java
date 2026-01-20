@@ -29,6 +29,17 @@ public class IntentExtractionValidator {
     private final ActionHandlerRegistry actionHandlerRegistry;
 
     public ValidationResult validate(MultiIntentResponse response) {
+        return validate(response, null);
+    }
+
+    /**
+     * Validate an extraction response using optional original-query context.
+     *
+     * <p>This method must remain deterministic and must not call any LLMs. The original query is only used
+     * for contract-level checks (e.g., a hinted {@code relationship_query: ...} message that appears to
+     * include additional, non-relational instructions).</p>
+     */
+    public ValidationResult validate(MultiIntentResponse response, String originalQuery) {
         List<ValidationIssue> issues = new ArrayList<>();
 
         if (response == null) {
@@ -42,13 +53,13 @@ public class IntentExtractionValidator {
         }
 
         for (int i = 0; i < response.getIntents().size(); i++) {
-            validateIntent(response.getIntents().get(i), i, issues);
+            validateIntent(response.getIntents().get(i), i, issues, originalQuery);
         }
 
         return toResult(issues);
     }
 
-    private void validateIntent(Intent intent, int index, List<ValidationIssue> issues) {
+    private void validateIntent(Intent intent, int index, List<ValidationIssue> issues, String originalQuery) {
         if (intent == null) {
             issues.add(ValidationIssue.error(IssueCode.INTENT_NULL, index, null, "Intent is null"));
             return;
@@ -64,13 +75,13 @@ public class IntentExtractionValidator {
         }
 
         if (intent.getType() == IntentType.ACTION) {
-            validateActionIntent(intent, index, issues);
+            validateActionIntent(intent, index, issues, originalQuery);
         } else if (intent.getType() == IntentType.INFORMATION) {
             validateInformationIntent(intent, index, issues);
         }
     }
 
-    private void validateActionIntent(Intent intent, int index, List<ValidationIssue> issues) {
+    private void validateActionIntent(Intent intent, int index, List<ValidationIssue> issues, String originalQuery) {
         String actionName = StringUtils.hasText(intent.getAction())
             ? intent.getAction()
             : intent.getIntent();
@@ -95,6 +106,10 @@ public class IntentExtractionValidator {
             return;
         }
 
+        if ("relationship_query".equalsIgnoreCase(canonical)) {
+            validateRelationshipQueryPostActionContract(intent, index, originalQuery, issues);
+        }
+
         Set<String> required = meta != null ? meta.getRequiredParameters() : Collections.emptySet();
         if (required == null || required.isEmpty()) {
             return;
@@ -115,6 +130,69 @@ public class IntentExtractionValidator {
                 ));
             }
         }
+    }
+
+    private void validateRelationshipQueryPostActionContract(Intent intent,
+                                                            int index,
+                                                            String originalQuery,
+                                                            List<ValidationIssue> issues) {
+        if (!StringUtils.hasText(originalQuery) || intent == null || issues == null) {
+            return;
+        }
+
+        String stripped = RelationshipQueryHintPrefix.stripIfPresent(originalQuery);
+        if (!StringUtils.hasText(stripped)) {
+            return;
+        }
+
+        // Only attempt this check when the user explicitly used the relationship-query hint prefix.
+        // This avoids punishing normal relationship_query extraction where the model may rewrite queries.
+        String trimmedOriginal = originalQuery.trim();
+        boolean hinted = trimmedOriginal.regionMatches(true, 0, "relationship_query:", 0, "relationship_query:".length())
+            || trimmedOriginal.regionMatches(true, 0, "relationship query:", 0, "relationship query:".length())
+            || trimmedOriginal.regionMatches(true, 0, "relationship-query:", 0, "relationship-query:".length());
+        if (!hinted) {
+            return;
+        }
+
+        Map<String, Object> params = intent.getActionParams();
+        Object q = params != null ? params.get("query") : null;
+        if (!(q instanceof String actionQuery) || !StringUtils.hasText(actionQuery)) {
+            return;
+        }
+
+        boolean alreadyRequested = Boolean.TRUE.equals(intent.getRequiresGeneration()) || StringUtils.hasText(intent.getGenerationInstructions());
+        if (alreadyRequested) {
+            return;
+        }
+
+        String normalizedHinted = normalizeForPrefixCompare(stripped);
+        String normalizedAction = normalizeForPrefixCompare(actionQuery);
+        if (!StringUtils.hasText(normalizedHinted) || !StringUtils.hasText(normalizedAction)) {
+            return;
+        }
+
+        // If the hinted query begins with the relational part but has a trailing remainder, the extractor likely
+        // dropped a post-action instruction (e.g., "then summarize/explain/translate...").
+        // Mark this as INCOMPLETE so the progressive completion step can ask the LLM to repair the contract.
+        if (normalizedHinted.startsWith(normalizedAction) && normalizedHinted.length() > normalizedAction.length() + 5) {
+            issues.add(ValidationIssue.error(
+                IssueCode.RELATIONSHIP_QUERY_HINTED_TAIL_MISSING,
+                index,
+                "generationInstructions",
+                "Hinted relationship_query message appears to include trailing instructions beyond actionParams.query. " +
+                    "Ensure actionParams.query contains only the relational query and move any post-action request into generationInstructions (requiresGeneration=true)."
+            ));
+        }
+    }
+
+    private String normalizeForPrefixCompare(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String trimmed = value.trim().toLowerCase(Locale.ROOT);
+        // Collapse whitespace so "Nike  and   then" doesn't defeat prefix detection.
+        return trimmed.replaceAll("\\s+", " ");
     }
 
     private void validateInformationIntent(Intent intent, int index, List<ValidationIssue> issues) {
@@ -151,6 +229,7 @@ public class IntentExtractionValidator {
         ACTION_REGISTRY_UNAVAILABLE,
         ACTION_UNREGISTERED,
         ACTION_REQUIRED_PARAM_MISSING,
+        RELATIONSHIP_QUERY_HINTED_TAIL_MISSING,
         INFORMATION_MISSING_VECTOR_SPACE
     }
 
@@ -225,7 +304,7 @@ public class IntentExtractionValidator {
                 case ACTION_UNREGISTERED -> {
                     return ErrorCategory.UNSAFE;
                 }
-                case ACTION_REQUIRED_PARAM_MISSING -> {
+                case ACTION_REQUIRED_PARAM_MISSING, RELATIONSHIP_QUERY_HINTED_TAIL_MISSING -> {
                     return ErrorCategory.INCOMPLETE;
                 }
                 default -> {

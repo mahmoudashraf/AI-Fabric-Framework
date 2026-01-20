@@ -231,7 +231,7 @@ public class ProgressiveIntentExtractionEngine {
                 .build();
         }
 
-        IntentExtractionValidator.ValidationResult validation = validator.validate(processed);
+        IntentExtractionValidator.ValidationResult validation = validator.validate(processed, originalQuery);
         return ExtractionAttempt.builder()
             .success(validation.valid())
             .response(processed)
