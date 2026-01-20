@@ -1,0 +1,86 @@
+package com.ai.infrastructure.intent;
+
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.IntentType;
+import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.NextStepRecommendation;
+import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class IntentExtractionPostProcessorRelationshipQueryTest {
+
+    @Test
+    void shouldConvertNextStepQueryIntoPostActionGenerationRequest() {
+        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        when(registry.findMetadata("relationship_query"))
+            .thenReturn(Optional.of(AIActionMetaData.builder().name("relationship_query").build()));
+
+        IntentExtractionPostProcessor processor = new IntentExtractionPostProcessor(registry);
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .intent("relationship_query")
+            .action("relationship_query")
+            .requiresRetrieval(true)
+            .requiresGeneration(false)
+            .actionParams(Map.of("entityTypes", List.of("product")))
+            .nextStepRecommended(NextStepRecommendation.builder()
+                .intent("any_follow_up")
+                .query("Explain the results in one sentence.")
+                .confidence(0.9d)
+                .vectorSpace(null)
+                .build())
+            .build();
+
+        MultiIntentResponse processed = processor.postProcess(
+            MultiIntentResponse.builder().intents(List.of(intent)).build(),
+            "relationship_query: show me products and then summarize"
+        );
+
+        Intent out = processed.getIntents().getFirst();
+        assertThat(out.getRequiresGeneration()).isTrue();
+        assertThat(out.getGenerationInstructions()).isEqualTo("Explain the results in one sentence.");
+    }
+
+    @Test
+    void shouldNotConvertNextStepWhenVectorSpaceIsPresent() {
+        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        when(registry.findMetadata("relationship_query"))
+            .thenReturn(Optional.of(AIActionMetaData.builder().name("relationship_query").build()));
+
+        IntentExtractionPostProcessor processor = new IntentExtractionPostProcessor(registry);
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .intent("relationship_query")
+            .action("relationship_query")
+            .requiresRetrieval(true)
+            .requiresGeneration(false)
+            .actionParams(Map.of("entityTypes", List.of("product")))
+            .nextStepRecommended(NextStepRecommendation.builder()
+                .intent("search_kb")
+                .query("Find the refund policy")
+                .vectorSpace("policies")
+                .confidence(0.9d)
+                .build())
+            .build();
+
+        MultiIntentResponse processed = processor.postProcess(
+            MultiIntentResponse.builder().intents(List.of(intent)).build(),
+            "relationship_query: show me products"
+        );
+
+        Intent out = processed.getIntents().getFirst();
+        assertThat(out.getRequiresGeneration()).isFalse();
+        assertThat(out.getGenerationInstructions()).isNull();
+    }
+}

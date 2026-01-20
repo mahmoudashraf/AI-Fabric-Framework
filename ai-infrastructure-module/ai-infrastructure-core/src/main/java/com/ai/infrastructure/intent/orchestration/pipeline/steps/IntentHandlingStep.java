@@ -417,7 +417,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         String systemPrompt = """
-            You are an assistant that summarizes relationship query results.
+            You are an assistant responding to a user's follow-up request about relationship query results.
             Use ONLY the FACTS provided by the system.
             Do NOT invent entities, numbers, or attributes that are not in FACTS.
             If FACTS are insufficient, say so clearly.

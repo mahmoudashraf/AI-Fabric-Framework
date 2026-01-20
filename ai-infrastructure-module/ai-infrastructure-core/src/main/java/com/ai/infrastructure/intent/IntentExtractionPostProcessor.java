@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import lombok.RequiredArgsConstructor;
@@ -148,6 +149,8 @@ public class IntentExtractionPostProcessor {
             return;
         }
 
+        coerceRelationshipQueryPostActionSummaryRequest(intent);
+
         Map<String, Object> params = intent.getActionParams();
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
@@ -185,5 +188,39 @@ public class IntentExtractionPostProcessor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
+    }
+
+    private void coerceRelationshipQueryPostActionSummaryRequest(Intent intent) {
+        if (intent == null) {
+            return;
+        }
+
+        if (StringUtils.hasText(intent.getGenerationInstructions())) {
+            intent.setRequiresGeneration(true);
+            return;
+        }
+        if (Boolean.TRUE.equals(intent.getRequiresGeneration())) {
+            return;
+        }
+
+        NextStepRecommendation next = intent.getNextStepRecommended();
+        if (next == null) {
+            return;
+        }
+
+        // If the model recommends a follow-up that targets a vector space, keep it as a smart suggestion.
+        // Post-action generation should be grounded in the already retrieved SQL results, not trigger retrieval.
+        if (StringUtils.hasText(next.getVectorSpace())) {
+            return;
+        }
+        if (!StringUtils.hasText(next.getQuery())) {
+            return;
+        }
+
+        // Provider-agnostic: some models represent "then summarize/explain the results" as nextStepRecommended
+        // instead of the dedicated post-action generation fields. Convert it into a post-action generation request
+        // for relationship_query so the pipeline can run a grounded summary after executing the action.
+        intent.setRequiresGeneration(true);
+        intent.setGenerationInstructions(next.getQuery().trim());
     }
 }
