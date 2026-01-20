@@ -64,20 +64,20 @@ check_provider_api_keys() {
     # Check LLM provider API key
     case "$llm_provider" in
         openai)
-            [ -z "$OPENAI_API_KEY" ] && missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)") || providers_checked+=("OpenAI LLM")
+            [ -z "${OPENAI_API_KEY:-}" ] && missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)") || providers_checked+=("OpenAI LLM")
             ;;
         anthropic)
-            [ -z "$ANTHROPIC_API_KEY" ] && missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)") || providers_checked+=("Anthropic LLM")
+            [ -z "${ANTHROPIC_API_KEY:-}" ] && missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)") || providers_checked+=("Anthropic LLM")
             ;;
         gemini)
-            [ -z "$GEMINI_API_KEY" ] && missing_keys+=("GEMINI_API_KEY (for Gemini LLM)") || providers_checked+=("Gemini LLM")
+            [ -z "${GEMINI_API_KEY:-}" ] && missing_keys+=("GEMINI_API_KEY (for Gemini LLM)") || providers_checked+=("Gemini LLM")
             ;;
         cohere)
-            [ -z "$COHERE_API_KEY" ] && missing_keys+=("COHERE_API_KEY (for Cohere LLM)") || providers_checked+=("Cohere LLM")
+            [ -z "${COHERE_API_KEY:-}" ] && missing_keys+=("COHERE_API_KEY (for Cohere LLM)") || providers_checked+=("Cohere LLM")
             ;;
         azure)
-            [ -z "$AZURE_API_KEY" ] && missing_keys+=("AZURE_API_KEY (for Azure LLM)") || \
-            ([ -z "$AZURE_ENDPOINT" ] && missing_keys+=("AZURE_ENDPOINT (for Azure LLM)") || providers_checked+=("Azure LLM"))
+            [ -z "${AZURE_API_KEY:-}" ] && missing_keys+=("AZURE_API_KEY (for Azure LLM)") || \
+            ([ -z "${AZURE_ENDPOINT:-}" ] && missing_keys+=("AZURE_ENDPOINT (for Azure LLM)") || providers_checked+=("Azure LLM"))
             ;;
         onnx|rest)
             providers_checked+=("$llm_provider LLM (no API key required)")
@@ -90,20 +90,20 @@ check_provider_api_keys() {
     # Check Embedding provider API key
     case "$embedding_provider" in
         openai)
-            [ -z "$OPENAI_API_KEY" ] && missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)") || providers_checked+=("OpenAI Embedding")
+            [ -z "${OPENAI_API_KEY:-}" ] && missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)") || providers_checked+=("OpenAI Embedding")
             ;;
         anthropic)
-            [ -z "$ANTHROPIC_API_KEY" ] && missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)") || providers_checked+=("Anthropic Embedding")
+            [ -z "${ANTHROPIC_API_KEY:-}" ] && missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)") || providers_checked+=("Anthropic Embedding")
             ;;
         gemini)
-            [ -z "$GEMINI_API_KEY" ] && missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)") || providers_checked+=("Gemini Embedding")
+            [ -z "${GEMINI_API_KEY:-}" ] && missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)") || providers_checked+=("Gemini Embedding")
             ;;
         cohere)
-            [ -z "$COHERE_API_KEY" ] && missing_keys+=("COHERE_API_KEY (for Cohere Embedding)") || providers_checked+=("Cohere Embedding")
+            [ -z "${COHERE_API_KEY:-}" ] && missing_keys+=("COHERE_API_KEY (for Cohere Embedding)") || providers_checked+=("Cohere Embedding")
             ;;
         azure)
-            [ -z "$AZURE_API_KEY" ] && missing_keys+=("AZURE_API_KEY (for Azure Embedding)") || \
-            ([ -z "$AZURE_ENDPOINT" ] && missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)") || providers_checked+=("Azure Embedding"))
+            [ -z "${AZURE_API_KEY:-}" ] && missing_keys+=("AZURE_API_KEY (for Azure Embedding)") || \
+            ([ -z "${AZURE_ENDPOINT:-}" ] && missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)") || providers_checked+=("Azure Embedding"))
             ;;
         onnx|rest)
             providers_checked+=("$embedding_provider Embedding (no API key required)")
@@ -169,12 +169,13 @@ if [ -n "$VECTOR_DB" ]; then
 fi
 export AI_INFRASTRUCTURE_LLM_PROVIDER="${AI_INFRASTRUCTURE_LLM_PROVIDER:-$LLM_PROVIDER}"
 export AI_INFRASTRUCTURE_EMBEDDING_PROVIDER="${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:-$EMBEDDING_PROVIDER}"
+export AI_INFRASTRUCTURE_VECTOR_DATABASE="${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}"
 
 print_header "Test Configuration"
 print_info "Test Module: $TEST_MODULE"
 print_info "Maven Profile: $MAVEN_PROFILE"
 print_info "Providers: ${AI_INFRASTRUCTURE_LLM_PROVIDER}:${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER}"
-if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
+if [ -n "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" ]; then
   print_info "Vector DB: $AI_INFRASTRUCTURE_VECTOR_DATABASE"
 fi
 print_info "Test Classes: *IT.java / *IntegrationIT.java (failsafe)"
@@ -252,7 +253,7 @@ esac
 # Auto-configure OpenAI embedding dimensions for Lucene compatibility
 # OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
 # Check if we're using OpenAI embeddings with Lucene vector database
-if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
+if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" == "lucene" ]; then
     CMD="$CMD -Dai.providers.openai.embedding-dimensions=512"
     print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility"
 fi

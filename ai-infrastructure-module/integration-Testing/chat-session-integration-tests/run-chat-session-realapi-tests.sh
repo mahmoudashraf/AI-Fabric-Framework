@@ -79,24 +79,24 @@ check_provider_api_keys() {
   local missing=()
 
   case "$llm_provider" in
-    openai) [ -z "$OPENAI_API_KEY" ] && missing+=("OPENAI_API_KEY") ;;
-    anthropic) [ -z "$ANTHROPIC_API_KEY" ] && missing+=("ANTHROPIC_API_KEY") ;;
-    gemini) [ -z "$GEMINI_API_KEY" ] && missing+=("GEMINI_API_KEY") ;;
-    cohere) [ -z "$COHERE_API_KEY" ] && missing+=("COHERE_API_KEY") ;;
+    openai) [ -z "${OPENAI_API_KEY:-}" ] && missing+=("OPENAI_API_KEY") ;;
+    anthropic) [ -z "${ANTHROPIC_API_KEY:-}" ] && missing+=("ANTHROPIC_API_KEY") ;;
+    gemini) [ -z "${GEMINI_API_KEY:-}" ] && missing+=("GEMINI_API_KEY") ;;
+    cohere) [ -z "${COHERE_API_KEY:-}" ] && missing+=("COHERE_API_KEY") ;;
     azure)
-      [ -z "$AZURE_API_KEY" ] && missing+=("AZURE_API_KEY")
-      [ -z "$AZURE_ENDPOINT" ] && missing+=("AZURE_ENDPOINT")
+      [ -z "${AZURE_API_KEY:-}" ] && missing+=("AZURE_API_KEY")
+      [ -z "${AZURE_ENDPOINT:-}" ] && missing+=("AZURE_ENDPOINT")
       ;;
   esac
 
   case "$embedding_provider" in
-    openai) [ -z "$OPENAI_API_KEY" ] && missing+=("OPENAI_API_KEY") ;;
-    anthropic) [ -z "$ANTHROPIC_API_KEY" ] && missing+=("ANTHROPIC_API_KEY") ;;
-    gemini) [ -z "$GEMINI_API_KEY" ] && missing+=("GEMINI_API_KEY") ;;
-    cohere) [ -z "$COHERE_API_KEY" ] && missing+=("COHERE_API_KEY") ;;
+    openai) [ -z "${OPENAI_API_KEY:-}" ] && missing+=("OPENAI_API_KEY") ;;
+    anthropic) [ -z "${ANTHROPIC_API_KEY:-}" ] && missing+=("ANTHROPIC_API_KEY") ;;
+    gemini) [ -z "${GEMINI_API_KEY:-}" ] && missing+=("GEMINI_API_KEY") ;;
+    cohere) [ -z "${COHERE_API_KEY:-}" ] && missing+=("COHERE_API_KEY") ;;
     azure)
-      [ -z "$AZURE_API_KEY" ] && missing+=("AZURE_API_KEY")
-      [ -z "$AZURE_ENDPOINT" ] && missing+=("AZURE_ENDPOINT")
+      [ -z "${AZURE_API_KEY:-}" ] && missing+=("AZURE_API_KEY")
+      [ -z "${AZURE_ENDPOINT:-}" ] && missing+=("AZURE_ENDPOINT")
       ;;
   esac
 

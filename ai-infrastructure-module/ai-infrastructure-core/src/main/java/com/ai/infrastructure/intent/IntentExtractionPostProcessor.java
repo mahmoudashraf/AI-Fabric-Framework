@@ -151,6 +151,16 @@ public class IntentExtractionPostProcessor {
         Map<String, Object> params = intent.getActionParams();
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
+        Object rawQuery = mutable.get("query");
+        if (rawQuery instanceof String text && StringUtils.hasText(text)) {
+            mutable.put("query", RelationshipQueryHintPrefix.stripIfPresent(text));
+        } else if (StringUtils.hasText(originalQuery)) {
+            String stripped = RelationshipQueryHintPrefix.stripIfPresent(originalQuery);
+            if (StringUtils.hasText(stripped)) {
+                mutable.put("query", stripped);
+            }
+        }
+
         Object rawEntityTypes = mutable.get("entityTypes");
 
         List<String> normalizedEntityTypes;

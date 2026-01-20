@@ -106,44 +106,44 @@ check_provider_api_keys() {
     local providers_checked=()
     
     # Check LLM provider API key
-    case "$llm_provider" in
-        openai)
-            if [ -z "$OPENAI_API_KEY" ]; then
-                missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)")
-            else
-                providers_checked+=("OpenAI LLM")
-            fi
-            ;;
-        anthropic)
-            if [ -z "$ANTHROPIC_API_KEY" ]; then
-                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)")
-            else
-                providers_checked+=("Anthropic LLM")
-            fi
-            ;;
-        gemini)
-            if [ -z "$GEMINI_API_KEY" ]; then
-                missing_keys+=("GEMINI_API_KEY (for Gemini LLM)")
-            else
-                providers_checked+=("Gemini LLM")
-            fi
-            ;;
-        cohere)
-            if [ -z "$COHERE_API_KEY" ]; then
-                missing_keys+=("COHERE_API_KEY (for Cohere LLM)")
-            else
-                providers_checked+=("Cohere LLM")
-            fi
-            ;;
-        azure)
-            if [ -z "$AZURE_API_KEY" ]; then
-                missing_keys+=("AZURE_API_KEY (for Azure LLM)")
-            elif [ -z "$AZURE_ENDPOINT" ]; then
-                missing_keys+=("AZURE_ENDPOINT (for Azure LLM)")
-            else
-                providers_checked+=("Azure LLM")
-            fi
-            ;;
+	    case "$llm_provider" in
+	        openai)
+	            if [ -z "${OPENAI_API_KEY:-}" ]; then
+	                missing_keys+=("OPENAI_API_KEY (for OpenAI LLM)")
+	            else
+	                providers_checked+=("OpenAI LLM")
+	            fi
+	            ;;
+	        anthropic)
+	            if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+	                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic LLM)")
+	            else
+	                providers_checked+=("Anthropic LLM")
+	            fi
+	            ;;
+	        gemini)
+	            if [ -z "${GEMINI_API_KEY:-}" ]; then
+	                missing_keys+=("GEMINI_API_KEY (for Gemini LLM)")
+	            else
+	                providers_checked+=("Gemini LLM")
+	            fi
+	            ;;
+	        cohere)
+	            if [ -z "${COHERE_API_KEY:-}" ]; then
+	                missing_keys+=("COHERE_API_KEY (for Cohere LLM)")
+	            else
+	                providers_checked+=("Cohere LLM")
+	            fi
+	            ;;
+	        azure)
+	            if [ -z "${AZURE_API_KEY:-}" ]; then
+	                missing_keys+=("AZURE_API_KEY (for Azure LLM)")
+	            elif [ -z "${AZURE_ENDPOINT:-}" ]; then
+	                missing_keys+=("AZURE_ENDPOINT (for Azure LLM)")
+	            else
+	                providers_checked+=("Azure LLM")
+	            fi
+	            ;;
         onnx|rest)
             providers_checked+=("$llm_provider LLM (no API key required)")
             ;;
@@ -153,44 +153,44 @@ check_provider_api_keys() {
     esac
     
     # Check Embedding provider API key
-    case "$embedding_provider" in
-        openai)
-            if [ -z "$OPENAI_API_KEY" ]; then
-                missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)")
-            else
-                providers_checked+=("OpenAI Embedding")
-            fi
-            ;;
-        anthropic)
-            if [ -z "$ANTHROPIC_API_KEY" ]; then
-                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)")
-            else
-                providers_checked+=("Anthropic Embedding")
-            fi
-            ;;
-        gemini)
-            if [ -z "$GEMINI_API_KEY" ]; then
-                missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)")
-            else
-                providers_checked+=("Gemini Embedding")
-            fi
-            ;;
-        cohere)
-            if [ -z "$COHERE_API_KEY" ]; then
-                missing_keys+=("COHERE_API_KEY (for Cohere Embedding)")
-            else
-                providers_checked+=("Cohere Embedding")
-            fi
-            ;;
-        azure)
-            if [ -z "$AZURE_API_KEY" ]; then
-                missing_keys+=("AZURE_API_KEY (for Azure Embedding)")
-            elif [ -z "$AZURE_ENDPOINT" ]; then
-                missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)")
-            else
-                providers_checked+=("Azure Embedding")
-            fi
-            ;;
+	    case "$embedding_provider" in
+	        openai)
+	            if [ -z "${OPENAI_API_KEY:-}" ]; then
+	                missing_keys+=("OPENAI_API_KEY (for OpenAI Embedding)")
+	            else
+	                providers_checked+=("OpenAI Embedding")
+	            fi
+	            ;;
+	        anthropic)
+	            if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+	                missing_keys+=("ANTHROPIC_API_KEY (for Anthropic Embedding)")
+	            else
+	                providers_checked+=("Anthropic Embedding")
+	            fi
+	            ;;
+	        gemini)
+	            if [ -z "${GEMINI_API_KEY:-}" ]; then
+	                missing_keys+=("GEMINI_API_KEY (for Gemini Embedding)")
+	            else
+	                providers_checked+=("Gemini Embedding")
+	            fi
+	            ;;
+	        cohere)
+	            if [ -z "${COHERE_API_KEY:-}" ]; then
+	                missing_keys+=("COHERE_API_KEY (for Cohere Embedding)")
+	            else
+	                providers_checked+=("Cohere Embedding")
+	            fi
+	            ;;
+	        azure)
+	            if [ -z "${AZURE_API_KEY:-}" ]; then
+	                missing_keys+=("AZURE_API_KEY (for Azure Embedding)")
+	            elif [ -z "${AZURE_ENDPOINT:-}" ]; then
+	                missing_keys+=("AZURE_ENDPOINT (for Azure Embedding)")
+	            else
+	                providers_checked+=("Azure Embedding")
+	            fi
+	            ;;
         onnx|rest)
             providers_checked+=("$embedding_provider Embedding (no API key required)")
             ;;
@@ -263,13 +263,14 @@ fi
 # Default providers if not set
 export AI_INFRASTRUCTURE_LLM_PROVIDER="${AI_INFRASTRUCTURE_LLM_PROVIDER:-$LLM_PROVIDER}"
 export AI_INFRASTRUCTURE_EMBEDDING_PROVIDER="${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:-$EMBEDDING_PROVIDER}"
+export AI_INFRASTRUCTURE_VECTOR_DATABASE="${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}"
 
 print_header "Test Configuration"
 print_info "Test Module: $TEST_MODULE"
 print_info "Maven Profile: $MAVEN_PROFILE"
 print_info "Spring Profiles: $SPRING_PROFILE"
 print_info "Provider Matrix: ${AI_INFRASTRUCTURE_LLM_PROVIDER}:${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER}"
-if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
+if [ -n "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" ]; then
     print_info "Vector DB: $AI_INFRASTRUCTURE_VECTOR_DATABASE"
 fi
 print_info "Test Classes: All *RealApiIntegrationTest.java in realapi/ directory"
@@ -331,7 +332,7 @@ MAVEN_COMMAND="$MAVEN_COMMAND -DreuseForks=false"
 # Ensure the vector DB type is explicitly set as a system property so:
 # - Spring Boot auto-configurations match on `ai.vector-db.type`
 # - TestcontainersInitializer treats container types as explicitly specified (even if profiles are misconfigured)
-if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
+if [ -n "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.vector-db.type=${AI_INFRASTRUCTURE_VECTOR_DATABASE}"
 fi
 
@@ -407,7 +408,7 @@ esac
 # Auto-configure OpenAI embedding dimensions for Lucene compatibility
 # OpenAI embeddings default to 1536 dimensions, but Lucene supports max 1024
 # Check if we're using OpenAI embeddings with Lucene vector database
-if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "$AI_INFRASTRUCTURE_VECTOR_DATABASE" == "lucene" ]; then
+if [ "$EMBEDDING_PROVIDER" == "openai" ] && [ "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" == "lucene" ]; then
     MAVEN_COMMAND="$MAVEN_COMMAND -Dai.providers.openai.embedding-dimensions=512"
     print_info "Auto-configured OpenAI embedding dimensions to 512 for Lucene compatibility"
 fi
@@ -426,7 +427,7 @@ CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -DreuseForks=false"
 CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.realapi.connectivity.check=true"
 CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dtest=RealApiConnectivityVerificationTest"
 
-if [ -n "$AI_INFRASTRUCTURE_VECTOR_DATABASE" ]; then
+if [ -n "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" ]; then
     CONNECTIVITY_COMMAND="$CONNECTIVITY_COMMAND -Dai.vector-db.type=${AI_INFRASTRUCTURE_VECTOR_DATABASE}"
 fi
 

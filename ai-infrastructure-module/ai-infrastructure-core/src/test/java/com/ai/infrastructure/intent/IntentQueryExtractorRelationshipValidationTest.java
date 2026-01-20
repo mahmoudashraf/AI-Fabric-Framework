@@ -217,7 +217,7 @@ class IntentQueryExtractorRelationshipValidationTest {
     }
 
     @Test
-    @DisplayName("Should default relationship_query actionParams.query when missing (no heuristics)")
+    @DisplayName("Should default relationship_query actionParams.query when missing (strip hint prefixes)")
     void shouldDefaultRelationshipQueryWhenMissing() {
         // Arrange
         String json = """
@@ -247,11 +247,11 @@ class IntentQueryExtractorRelationshipValidationTest {
 
         // Assert
         Intent intent = response.getIntents().get(0);
-        assertThat(intent.getActionParams()).containsEntry("query", "relationship query: find all brands");
+        assertThat(intent.getActionParams()).containsEntry("query", "find all brands");
     }
 
     @Test
-    @DisplayName("Should preserve relationship_query actionParams.query provided by LLM")
+    @DisplayName("Should strip relationship_query hint prefixes from actionParams.query when provided by LLM")
     void shouldPreserveQueryWhenProvidedByLLM() {
         // Arrange
         String json = """
@@ -282,7 +282,7 @@ class IntentQueryExtractorRelationshipValidationTest {
 
         // Assert
         Intent intent = response.getIntents().get(0);
-        assertThat(intent.getActionParams()).containsEntry("query", "relationship query: find all brands");
+        assertThat(intent.getActionParams()).containsEntry("query", "find all brands");
     }
 
     @Test
@@ -319,7 +319,7 @@ class IntentQueryExtractorRelationshipValidationTest {
         // Assert
         Intent intent = response.getIntents().get(0);
         assertThat(intent.getActionParams())
-            .containsEntry("query", "relationship query: find transactions over $10000");
+            .containsEntry("query", "find transactions over $10000");
     }
 
     @Test
@@ -353,7 +353,7 @@ class IntentQueryExtractorRelationshipValidationTest {
         // Assert
         Intent intent = response.getIntents().get(0);
         assertThat(intent.getActionParams())
-            .containsEntry("query", "relationship query: find products under $100 and then explain why they are good options");
+            .containsEntry("query", "find products under $100 and then explain why they are good options");
     }
 
     @Test

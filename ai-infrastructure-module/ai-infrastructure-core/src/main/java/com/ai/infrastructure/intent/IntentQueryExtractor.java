@@ -327,9 +327,12 @@ public class IntentQueryExtractor {
         // post-action generation request (requiresGeneration + generationInstructions).
         Object rawQuery = mutable.get("query");
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            mutable.put("query", text.trim());
+            mutable.put("query", RelationshipQueryHintPrefix.stripIfPresent(text));
         } else if (StringUtils.hasText(originalQuery)) {
-            mutable.put("query", originalQuery.trim());
+            String stripped = RelationshipQueryHintPrefix.stripIfPresent(originalQuery);
+            if (StringUtils.hasText(stripped)) {
+                mutable.put("query", stripped);
+            }
         }
 
         Object rawEntityTypes = mutable.get("entityTypes");
