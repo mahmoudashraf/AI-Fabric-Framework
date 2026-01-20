@@ -17,11 +17,10 @@ public class OrchestrationResultNormalizationProperties {
     private boolean enabled = true;
 
     /**
-     * When enabled, capture a minimal "last result" snapshot (type/success/errorCode only)
+     * When enabled, capture a minimal "last result" snapshot (type/success/errorCode plus safe diagnostics)
      * to help CI logs surface canonical error codes on failures.
      *
      * <p>Intentionally excludes message/data to avoid leaking PII or provider content.</p>
      */
     private boolean debugSnapshotEnabled = false;
 }
-

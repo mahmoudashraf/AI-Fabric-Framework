@@ -165,7 +165,7 @@ class RAGOrchestratorTest {
             new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider,
                 vectorSpaceRoutingProperties, rankBasedMerger, new com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties()),
             new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
-            new MetadataBuildingStep(),
+            new MetadataBuildingStep(normalizationProperties),
             new SmartSuggestionsStep(smartSuggestionsProperties, ragProviderProvider),
             new ResponseSanitizationStep(responseSanitizer),
             new HistoryPersistenceStep(intentHistoryService)

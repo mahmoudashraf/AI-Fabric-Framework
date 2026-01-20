@@ -52,6 +52,39 @@ class IntentExtractionPostProcessorRelationshipQueryTest {
     }
 
     @Test
+    void shouldCanonicalizeActionNameAliasesForPostActionGeneration() {
+        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        when(registry.findMetadata("relationship query"))
+            .thenReturn(Optional.of(AIActionMetaData.builder().name("relationship_query").build()));
+
+        IntentExtractionPostProcessor processor = new IntentExtractionPostProcessor(registry);
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .intent("relationship query")
+            .action("relationship query")
+            .requiresRetrieval(true)
+            .requiresGeneration(true)
+            .actionParams(Map.of("entityTypes", List.of("product")))
+            .build();
+
+        MultiIntentResponse processed = processor.postProcess(
+            MultiIntentResponse.builder().intents(List.of(intent)).build(),
+            "relationship query: show me products"
+        );
+
+        Intent out = processed.getIntents().getFirst();
+        assertThat(out.getAction()).isEqualTo("relationship_query");
+        assertThat(processed.getMetadata()).containsKey("normalization");
+        Object normalization = processed.getMetadata().get("normalization");
+        assertThat(normalization).isInstanceOf(Map.class);
+        Object rules = ((Map<?, ?>) normalization).get("appliedRules");
+        assertThat(rules).isInstanceOf(List.class);
+        List<String> ruleIds = ((List<?>) rules).stream().map(Object::toString).toList();
+        assertThat(ruleIds).contains("CANONICALIZE_ACTION_NAME");
+    }
+
+    @Test
     void shouldNotConvertNextStepWhenVectorSpaceIsPresent() {
         ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
         when(registry.findMetadata("relationship_query"))

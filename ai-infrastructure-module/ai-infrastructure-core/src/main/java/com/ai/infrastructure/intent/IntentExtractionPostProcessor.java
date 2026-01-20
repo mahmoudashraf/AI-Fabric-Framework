@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -27,6 +28,10 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class IntentExtractionPostProcessor {
 
+    private static final String METADATA_KEY_NORMALIZATION = "normalization";
+    private static final String NORMALIZATION_KEY_RULES = "appliedRules";
+    private static final String NORMALIZATION_KEY_RULE_COUNT = "ruleCount";
+
     private final ActionHandlerRegistry actionHandlerRegistry;
 
     public MultiIntentResponse postProcess(MultiIntentResponse response, String originalQuery) {
@@ -34,9 +39,12 @@ public class IntentExtractionPostProcessor {
             throw new AIServiceException("Intent extraction response is null");
         }
 
+        List<String> appliedRules = new ArrayList<>();
+
         response.normalize();
-        coerceMisclassifiedActionIntents(response);
-        validateResponse(response, originalQuery);
+        coerceMisclassifiedActionIntents(response, appliedRules);
+        validateResponse(response, originalQuery, appliedRules);
+        attachNormalizationDiagnostics(response, appliedRules);
 
         if (!response.hasIntents()) {
             log.warn("Intent extractor returned no intents for query '{}'", originalQuery);
@@ -51,7 +59,7 @@ public class IntentExtractionPostProcessor {
      * (requiresRetrieval + requiresGeneration + vectorSpace), treat it as INFORMATION instead so the
      * pipeline can satisfy it via retrieval/generation rather than failing with ACTION_NOT_FOUND.
      */
-    private void coerceMisclassifiedActionIntents(MultiIntentResponse response) {
+    private void coerceMisclassifiedActionIntents(MultiIntentResponse response, List<String> appliedRules) {
         if (response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
             return;
         }
@@ -83,11 +91,12 @@ public class IntentExtractionPostProcessor {
                 );
                 intent.setType(IntentType.INFORMATION);
                 intent.setAction(null);
+                recordRule(appliedRules, "COERCE_MISCLASSIFIED_ACTION_TO_INFORMATION");
             }
         }
     }
 
-    private void validateResponse(MultiIntentResponse response, String originalQuery) {
+    private void validateResponse(MultiIntentResponse response, String originalQuery, List<String> appliedRules) {
         if (response.getIntents() == null) {
             response.setIntents(List.of());
         }
@@ -100,9 +109,17 @@ public class IntentExtractionPostProcessor {
                 throw new AIServiceException("Intent is missing a valid type attribute");
             }
             if (!intent.hasMeaningfulName()) {
-                throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
+                // Provider-agnostic tolerance: some models emit OUT_OF_SCOPE without a stable name.
+                // For OUT_OF_SCOPE we do not require `intent` / `action` because execution does not depend on it.
+                if (intent.getType() == IntentType.OUT_OF_SCOPE) {
+                    intent.setIntent("out_of_scope");
+                    intent.setAction(null);
+                } else {
+                    throw new AIServiceException("Intent is missing the 'intent' or 'action' field");
+                }
             }
-            validateRelationshipActionParams(intent, originalQuery);
+            canonicalizeActionName(intent, appliedRules);
+            validateRelationshipActionParams(intent, originalQuery, appliedRules);
             if (intent.getRequiresRetrieval() == null) {
                 intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
             }
@@ -130,7 +147,7 @@ public class IntentExtractionPostProcessor {
         return "ADMIT_UNKNOWN";
     }
 
-    private void validateRelationshipActionParams(Intent intent, String originalQuery) {
+    private void validateRelationshipActionParams(Intent intent, String originalQuery, List<String> appliedRules) {
         if (intent.getType() != IntentType.ACTION) {
             return;
         }
@@ -149,17 +166,22 @@ public class IntentExtractionPostProcessor {
             return;
         }
 
-        coerceRelationshipQueryPostActionSummaryRequest(intent);
+        coerceRelationshipQueryPostActionSummaryRequest(intent, appliedRules);
 
         Map<String, Object> params = intent.getActionParams();
         Map<String, Object> mutable = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
 
         Object rawQuery = mutable.get("query");
         if (rawQuery instanceof String text && StringUtils.hasText(text)) {
-            mutable.put("query", RelationshipQueryHintPrefix.stripIfPresent(text));
+            String stripped = RelationshipQueryHintPrefix.stripIfPresent(text);
+            if (!Objects.equals(text, stripped)) {
+                recordRule(appliedRules, "RELATIONSHIP_QUERY_STRIP_HINT_PREFIX");
+            }
+            mutable.put("query", stripped);
         } else if (StringUtils.hasText(originalQuery)) {
             String stripped = RelationshipQueryHintPrefix.stripIfPresent(originalQuery);
             if (StringUtils.hasText(stripped)) {
+                recordRule(appliedRules, "RELATIONSHIP_QUERY_DEFAULT_QUERY_PARAM");
                 mutable.put("query", stripped);
             }
         }
@@ -187,10 +209,13 @@ public class IntentExtractionPostProcessor {
         }
 
         mutable.put("entityTypes", normalizedEntityTypes);
+        if (!Objects.equals(rawEntityTypes, normalizedEntityTypes)) {
+            recordRule(appliedRules, "NORMALIZE_ENTITY_TYPES");
+        }
         intent.setActionParams(mutable);
     }
 
-    private void coerceRelationshipQueryPostActionSummaryRequest(Intent intent) {
+    private void coerceRelationshipQueryPostActionSummaryRequest(Intent intent, List<String> appliedRules) {
         if (intent == null) {
             return;
         }
@@ -222,5 +247,61 @@ public class IntentExtractionPostProcessor {
         // for relationship_query so the pipeline can run a grounded summary after executing the action.
         intent.setRequiresGeneration(true);
         intent.setGenerationInstructions(next.getQuery().trim());
+        recordRule(appliedRules, "RELATIONSHIP_QUERY_COERCE_POST_ACTION_INSTRUCTIONS");
+    }
+
+    private void canonicalizeActionName(Intent intent, List<String> appliedRules) {
+        if (intent == null || intent.getType() != IntentType.ACTION) {
+            return;
+        }
+        if (actionHandlerRegistry == null) {
+            return;
+        }
+
+        String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
+        if (!StringUtils.hasText(actionName)) {
+            return;
+        }
+
+        var metadataOpt = actionHandlerRegistry.findMetadata(actionName);
+        if (metadataOpt == null || metadataOpt.isEmpty()) {
+            return;
+        }
+
+        String canonical = metadataOpt.get().getName();
+        if (!StringUtils.hasText(canonical)) {
+            return;
+        }
+        if (!canonical.equals(intent.getAction())) {
+            intent.setAction(canonical);
+            recordRule(appliedRules, "CANONICALIZE_ACTION_NAME");
+        }
+    }
+
+    private void attachNormalizationDiagnostics(MultiIntentResponse response, List<String> appliedRules) {
+        if (response == null || appliedRules == null || appliedRules.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> normalization = Map.of(
+            NORMALIZATION_KEY_RULES, List.copyOf(appliedRules),
+            NORMALIZATION_KEY_RULE_COUNT, appliedRules.size()
+        );
+
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (response.getMetadata() != null && !response.getMetadata().isEmpty()) {
+            merged.putAll(response.getMetadata());
+        }
+        merged.put(METADATA_KEY_NORMALIZATION, normalization);
+        response.setMetadata(Map.copyOf(merged));
+    }
+
+    private void recordRule(List<String> appliedRules, String ruleId) {
+        if (appliedRules == null || !StringUtils.hasText(ruleId)) {
+            return;
+        }
+        if (!appliedRules.contains(ruleId)) {
+            appliedRules.add(ruleId);
+        }
     }
 }

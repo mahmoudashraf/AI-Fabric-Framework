@@ -40,7 +40,7 @@ class IntentExtractionValidatorTest {
     }
 
     @Test
-    void shouldWarnWhenActionNotRegisteredButNotFail() {
+    void shouldFailWhenActionNotRegistered() {
         ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
         when(registry.findHandler(anyString())).thenReturn(Optional.empty());
         IntentExtractionValidator validator = new IntentExtractionValidator(registry);
@@ -55,8 +55,9 @@ class IntentExtractionValidatorTest {
 
         IntentExtractionValidator.ValidationResult result = validator.validate(response);
 
-        assertThat(result.valid()).isTrue();
-        assertThat(result.warnings()).isNotEmpty();
+        assertThat(result.valid()).isFalse();
+        assertThat(result.errorCategory()).isEqualTo(IntentExtractionValidator.ErrorCategory.UNSAFE);
+        assertThat(result.errors()).isNotEmpty();
     }
 
     @Test
@@ -78,4 +79,3 @@ class IntentExtractionValidatorTest {
         assertThat(result.errors()).isNotEmpty();
     }
 }
-

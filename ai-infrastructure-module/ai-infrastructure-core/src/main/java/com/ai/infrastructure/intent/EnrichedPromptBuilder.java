@@ -132,6 +132,7 @@ public class EnrichedPromptBuilder {
         prompt.append("     * If the user's message starts with a relationship-query hint prefix, actionParams.query MUST be the text after that prefix (do NOT include the prefix inside actionParams.query).\n");
         prompt.append("     * If the user's message is compound, actionParams.query MUST contain ONLY the relational part (exclude unrelated tasks like summarization, explanation, translation, or other actions).\n");
         prompt.append("     * If the user requests post-processing of the relational results in ANY language (e.g., summarize/explain/recommend/translate), set requiresGeneration=true and put the instruction in generationInstructions.\n");
+        prompt.append("     * Do NOT encode post-action generation requests inside nextStepRecommended. Use generationInstructions for immediate post-action generation.\n");
         prompt.append("     * Do NOT include post-processing instructions inside actionParams.query.\n");
         prompt.append("     * Do NOT rewrite the user's query or add constraints that the user did not ask for.\n");
         prompt.append("   - Examples:\n");

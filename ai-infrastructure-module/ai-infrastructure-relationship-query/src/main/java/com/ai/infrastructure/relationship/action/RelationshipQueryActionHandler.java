@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * ActionHandler bridge that lets the orchestrator execute relationship queries.
@@ -103,6 +104,7 @@ public class RelationshipQueryActionHandler implements ActionHandler {
                 PARAM_RETURN_MODE, "IDS or FULL (optional, default IDS)",
                 PARAM_SIMILARITY_THRESHOLD, "Vector similarity threshold 0-1 (optional, used when ENHANCED mode is active)"
             ))
+            .requiredParameters(Set.of(PARAM_QUERY))
             .build();
     }
 

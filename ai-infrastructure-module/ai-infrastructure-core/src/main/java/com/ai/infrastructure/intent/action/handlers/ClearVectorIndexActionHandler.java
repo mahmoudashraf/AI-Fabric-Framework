@@ -27,6 +27,7 @@ public class ClearVectorIndexActionHandler implements ActionHandler {
             .description("Remove all vectors from the configured vector database.")
             .category("vector")
             .parameters(Map.of())
+            .requiredParameters(java.util.Set.of())
             .build();
     }
 

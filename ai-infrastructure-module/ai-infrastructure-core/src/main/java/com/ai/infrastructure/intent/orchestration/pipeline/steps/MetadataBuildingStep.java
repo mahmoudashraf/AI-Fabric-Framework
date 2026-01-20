@@ -1,9 +1,12 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
+import com.ai.infrastructure.config.OrchestrationResultNormalizationProperties;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResultDebugSnapshotStore;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -29,6 +32,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class MetadataBuildingStep implements PipelineStep {
     
     // =========================================================================
@@ -46,6 +50,8 @@ public class MetadataBuildingStep implements PipelineStep {
     private static final String METADATA_KEY_COMPOUND = "compound";
     private static final String METADATA_KEY_AUTHENTICATED = "authenticated";
     private static final String METADATA_KEY_INTENT_METADATA = "intentMetadata";
+
+    private final OrchestrationResultNormalizationProperties normalizationProperties;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -115,8 +121,12 @@ public class MetadataBuildingStep implements PipelineStep {
         if (intentResponse != null && !CollectionUtils.isEmpty(intentResponse.getMetadata())) {
             metadata.put(METADATA_KEY_INTENT_METADATA, intentResponse.getMetadata());
         }
-        
+
         result.setMetadata(Collections.unmodifiableMap(metadata));
+
+        if (normalizationProperties != null && normalizationProperties.isDebugSnapshotEnabled()) {
+            OrchestrationResultDebugSnapshotStore.record(context.getRequestId(), result);
+        }
         
         log.debug("Built metadata with {} entries for request {}", 
             metadata.size(), context.getRequestId());

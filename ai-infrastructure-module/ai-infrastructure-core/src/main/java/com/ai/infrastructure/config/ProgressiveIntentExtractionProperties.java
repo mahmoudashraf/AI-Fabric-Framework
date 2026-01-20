@@ -10,7 +10,7 @@ import org.springframework.validation.annotation.Validated;
  * Configuration for progressive intent extraction.
  *
  * <p>Progressive intent extraction applies a bounded fallback ladder:
- * compound → repair → multi-step.</p>
+ * compound → repair → completion → multi-step.</p>
  */
 @Data
 @Validated
@@ -18,7 +18,7 @@ import org.springframework.validation.annotation.Validated;
 public class ProgressiveIntentExtractionProperties {
 
     /**
-     * Enable progressive fallback (compound → repair → multi-step).
+     * Enable progressive fallback (compound → repair → completion → multi-step).
      */
     private boolean enabled = true;
 
@@ -40,8 +40,20 @@ public class ProgressiveIntentExtractionProperties {
     private boolean multiStepEnabled = true;
 
     /**
+     * Enable completion step for contract-incomplete but structurally valid outputs.
+     */
+    private boolean completionEnabled = true;
+
+    /**
+     * Maximum completion attempts.
+     */
+    @Min(0)
+    @Max(3)
+    private int completionMaxAttempts = 1;
+
+    /**
      * Force a specific extraction mode for debugging.
-     * Allowed values: compound, repair, multi_step, auto (or blank/null).
+     * Allowed values: compound, repair, completion, multi_step, auto (or blank/null).
      */
     private String forceMode;
 
