@@ -226,6 +226,9 @@ jobs:
           name: provider-matrix-scorecards-${{ matrix.name }}
           path: |
             ai-infrastructure-module/integration-Testing/integration-tests/target/provider-matrix-reports/
+            ai-infrastructure-module/integration-Testing/relationship-query-integration-tests/target/provider-matrix-reports/
+            ai-infrastructure-module/integration-Testing/chat-session-integration-tests/target/provider-matrix-reports/
+            ai-infrastructure-module/integration-Testing/behavior-integration-tests/target/provider-matrix-reports/
           retention-days: 30
 
       - name: Run relationship-query suite (${{ matrix.llm }} + ${{ matrix.embedding }} + ${{ matrix.vector_db }})

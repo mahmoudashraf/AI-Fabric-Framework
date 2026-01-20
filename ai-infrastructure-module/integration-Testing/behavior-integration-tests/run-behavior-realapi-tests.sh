@@ -24,7 +24,7 @@
 #   - Dependencies built by workflow (CI) or locally (script will try to build)
 ###############################################################################
 
-set -e
+set -euo pipefail
 
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
@@ -34,6 +34,8 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${PROJECT_ROOT}/.." && pwd)"
+FAILSAFE_EVALUATOR="${REPO_ROOT}/scripts/evaluate-failsafe-success-rate.sh"
 
 # Use SPRING_PROFILES_ACTIVE if set (e.g., from GitHub Actions), otherwise default to realapi
 MAVEN_PROFILE="${SPRING_PROFILES_ACTIVE:-realapi}"
@@ -258,11 +260,52 @@ fi
 CMD="$CMD failsafe:integration-test failsafe:verify"
 echo -e "${BLUE}Command:${NC} $CMD"
 
-start_time=$(date +%s)
-if eval "$CMD"; then
-  end_time=$(date +%s); duration=$((end_time-start_time))
-  print_success "All tests passed (${duration}s)"; exit 0
-else
-  end_time=$(date +%s); duration=$((end_time-start_time))
-  print_error "Tests failed (${duration}s)"; exit 1
+if [ ! -f "$FAILSAFE_EVALUATOR" ]; then
+  print_error "Missing failsafe evaluator script: $FAILSAFE_EVALUATOR"
+  exit 1
 fi
+
+print_info "RealAPI thresholds: minSuccessRate=${AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE:-0.85}, minConsideredTests=${AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS:-20}"
+
+start_time=$(date +%s)
+set +e
+eval "$CMD -Dmaven.test.failure.ignore=true"
+mvn_exit=$?
+set -e
+
+end_time=$(date +%s)
+duration=$((end_time-start_time))
+
+if [ $mvn_exit -ne 0 ]; then
+  print_error "Behavior RealAPI suite failed to execute (${duration}s)"
+  exit $mvn_exit
+fi
+
+REPORTS_DIR="${SCRIPT_DIR}/target/failsafe-reports"
+SCORECARD_DIR="${SCRIPT_DIR}/target/provider-matrix-reports"
+SCORECARD_FILE="behavior-realapi-${AI_INFRASTRUCTURE_LLM_PROVIDER}-${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER}-${AI_INFRASTRUCTURE_VECTOR_DATABASE:-none}.json"
+SCORECARD_PATH="${SCORECARD_DIR}/${SCORECARD_FILE}"
+
+set +e
+bash "$FAILSAFE_EVALUATOR" \
+  --reports-dir "$REPORTS_DIR" \
+  --scorecard-path "$SCORECARD_PATH" \
+  --suite "$TEST_MODULE" \
+  --llm "${AI_INFRASTRUCTURE_LLM_PROVIDER:-}" \
+  --embedding "${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:-}" \
+  --vector-db "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" \
+  --min-success-rate "${AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE:-0.85}" \
+  --min-considered-tests "${AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS:-20}"
+gate_exit=$?
+set -e
+
+print_info "Duration: ${duration}s"
+print_info "Scorecard: ${SCORECARD_PATH}"
+
+if [ $gate_exit -eq 0 ]; then
+  print_success "Behavior RealAPI suite meets thresholds"
+  exit 0
+fi
+
+print_error "Behavior RealAPI suite below thresholds (exit=${gate_exit})"
+exit 1

@@ -16,7 +16,7 @@
 #   - Provider credentials via env vars (e.g., OPENAI_API_KEY)
 ###############################################################################
 
-set -e
+set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,6 +26,8 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${PROJECT_ROOT}/.." && pwd)"
+FAILSAFE_EVALUATOR="${REPO_ROOT}/scripts/evaluate-failsafe-success-rate.sh"
 
 MAVEN_PROFILE="realapi"
 SPRING_PROFILE="${SPRING_PROFILES_ACTIVE:-realapi}"
@@ -171,14 +173,52 @@ echo "  $MAVEN_COMMAND"
 echo ""
 
 start_time=$(date +%s)
-if eval "$MAVEN_COMMAND"; then
-  end_time=$(date +%s)
-  duration=$((end_time - start_time))
-  print_success "All RealAPI chat-session tests passed (${duration}s)"
-  exit 0
-else
-  end_time=$(date +%s)
-  duration=$((end_time - start_time))
-  print_error "Chat-session RealAPI tests failed (${duration}s)"
+
+if [ ! -f "$FAILSAFE_EVALUATOR" ]; then
+  print_error "Missing failsafe evaluator script: $FAILSAFE_EVALUATOR"
   exit 1
 fi
+
+print_info "RealAPI thresholds: minSuccessRate=${AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE:-0.85}, minConsideredTests=${AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS:-20}"
+
+set +e
+eval "$MAVEN_COMMAND -Dmaven.test.failure.ignore=true"
+mvn_exit=$?
+set -e
+
+end_time=$(date +%s)
+duration=$((end_time - start_time))
+
+if [ $mvn_exit -ne 0 ]; then
+  print_error "Chat-session RealAPI tests failed to execute (${duration}s)"
+  exit $mvn_exit
+fi
+
+REPORTS_DIR="${SCRIPT_DIR}/target/failsafe-reports"
+SCORECARD_DIR="${SCRIPT_DIR}/target/provider-matrix-reports"
+SCORECARD_FILE="chat-session-realapi-${AI_INFRASTRUCTURE_LLM_PROVIDER}-${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER}-${AI_INFRASTRUCTURE_VECTOR_DATABASE:-none}.json"
+SCORECARD_PATH="${SCORECARD_DIR}/${SCORECARD_FILE}"
+
+set +e
+bash "$FAILSAFE_EVALUATOR" \
+  --reports-dir "$REPORTS_DIR" \
+  --scorecard-path "$SCORECARD_PATH" \
+  --suite "chat-session-integration-tests" \
+  --llm "${AI_INFRASTRUCTURE_LLM_PROVIDER:-}" \
+  --embedding "${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:-}" \
+  --vector-db "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" \
+  --min-success-rate "${AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE:-0.85}" \
+  --min-considered-tests "${AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS:-20}"
+gate_exit=$?
+set -e
+
+print_info "Duration: ${duration}s"
+print_info "Scorecard: ${SCORECARD_PATH}"
+
+if [ $gate_exit -eq 0 ]; then
+  print_success "Chat-session RealAPI suite meets thresholds"
+  exit 0
+fi
+
+print_error "Chat-session RealAPI suite below thresholds (exit=${gate_exit})"
+exit 1

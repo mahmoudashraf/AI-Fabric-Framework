@@ -34,7 +34,7 @@
 #   AI_INFRASTRUCTURE_VECTOR_DATABASE, and AI_INFRASTRUCTURE_PERSISTENCE_DATABASE.
 ###############################################################################
 
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -46,6 +46,8 @@ NC='\033[0m' # No Color
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${PROJECT_ROOT}/.." && pwd)"
+FAILSAFE_EVALUATOR="${REPO_ROOT}/scripts/evaluate-failsafe-success-rate.sh"
 
 # Configuration
 # - Maven profile controls which Maven executions run (RealAPI tests live under the `realapi` Maven profile).
@@ -505,25 +507,55 @@ echo -e "${BLUE}Command:${NC}"
 echo "  $MAVEN_COMMAND"
 echo ""
 
-# Execute the tests
 start_time=$(date +%s)
 
-if eval "$MAVEN_COMMAND"; then
-    end_time=$(date +%s)
-    duration=$((end_time - start_time))
-    
-    print_header "Test Execution Complete"
-    print_success "All tests passed"
-    print_info "Duration: ${duration}s"
-    
-    exit 0
-else
-    end_time=$(date +%s)
-    duration=$((end_time - start_time))
-    
-    print_header "Test Execution Failed"
-    print_error "Some tests failed or errored"
-    print_info "Duration: ${duration}s"
-    
+if [ ! -f "$FAILSAFE_EVALUATOR" ]; then
+    print_error "Missing failsafe evaluator script: $FAILSAFE_EVALUATOR"
     exit 1
 fi
+
+print_info "RealAPI thresholds: minSuccessRate=${AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE:-0.85}, minConsideredTests=${AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS:-20}"
+
+set +e
+eval "$MAVEN_COMMAND -Dmaven.test.failure.ignore=true"
+mvn_exit=$?
+set -e
+
+end_time=$(date +%s)
+duration=$((end_time - start_time))
+
+if [ $mvn_exit -ne 0 ]; then
+    print_header "Test Execution Failed"
+    print_error "Maven execution failed (${duration}s)"
+    exit $mvn_exit
+fi
+
+REPORTS_DIR="${SCRIPT_DIR}/target/failsafe-reports"
+SCORECARD_DIR="${SCRIPT_DIR}/target/provider-matrix-reports"
+SCORECARD_FILE="relationship-query-realapi-${AI_INFRASTRUCTURE_LLM_PROVIDER}-${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER}-${AI_INFRASTRUCTURE_VECTOR_DATABASE:-none}.json"
+SCORECARD_PATH="${SCORECARD_DIR}/${SCORECARD_FILE}"
+
+set +e
+bash "$FAILSAFE_EVALUATOR" \
+    --reports-dir "$REPORTS_DIR" \
+    --scorecard-path "$SCORECARD_PATH" \
+    --suite "$TEST_MODULE" \
+    --llm "${AI_INFRASTRUCTURE_LLM_PROVIDER:-}" \
+    --embedding "${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:-}" \
+    --vector-db "${AI_INFRASTRUCTURE_VECTOR_DATABASE:-}" \
+    --min-success-rate "${AI_PROVIDERS_REAL_API_MINIMUM_SUCCESS_RATE:-0.85}" \
+    --min-considered-tests "${AI_PROVIDERS_REAL_API_MINIMUM_CONSIDERED_TESTS:-20}"
+gate_exit=$?
+set -e
+
+print_header "Test Execution Complete"
+print_info "Duration: ${duration}s"
+print_info "Scorecard: ${SCORECARD_PATH}"
+
+if [ $gate_exit -eq 0 ]; then
+    print_success "Relationship-query RealAPI suite meets thresholds"
+    exit 0
+fi
+
+print_error "Relationship-query RealAPI suite below thresholds (exit=${gate_exit})"
+exit 1
