@@ -44,6 +44,9 @@
 - `Real_Apps/cloud-qdrant-openai-vector-search/`
   - Scenario: “cloud semantic search” (Postgres + Qdrant + OpenAI embeddings).
   - Demonstrates annotation-driven indexing/embeddings with external vector DB + minimal YAML for enablement/metadata.
+- `Real_Apps/chat-capabilities-demo/`
+  - Scenario: “chat-session” (conversation enrichment + turn recording) wired into orchestration via `conversationId`.
+  - Default stack: H2 + chat-session module; optional ONNX+Lucene included for local embeddings.
 
 ## How To Create A New Real App
 

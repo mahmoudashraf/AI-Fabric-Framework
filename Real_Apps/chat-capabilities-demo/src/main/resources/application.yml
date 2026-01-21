@@ -1,0 +1,56 @@
+server:
+  port: ${PORT:8096}
+
+spring:
+  application:
+    name: chat-capabilities-demo
+  datasource:
+    url: jdbc:h2:file:./data/chat-capabilities.db
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+ai:
+  enabled: true
+
+  chat:
+    enabled: true
+    window-size: 12
+    max-context-chars: 8000
+    auto-create-sessions: true
+
+  providers:
+    llm-provider: openai
+    embedding-provider: onnx
+    openai:
+      enabled: ${OPENAI_ENABLED:false}
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      timeout: 45
+
+  vector-db:
+    type: lucene
+
+  service:
+    features:
+      enable-generation: true
+      enable-embeddings: true
+      enable-search: false
+      enable-rag: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.ai.fabric.realapps.chat: INFO
+    com.ai.infrastructure: INFO
+
