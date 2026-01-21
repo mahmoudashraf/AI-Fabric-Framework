@@ -1,6 +1,9 @@
 package com.ai.infrastructure.intent.action;
 
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Contract implemented by user-defined action handlers. Each handler manages exactly one action.
@@ -36,6 +39,26 @@ public interface ActionHandler {
      * @return structured result describing the outcome
      */
     ActionResult executeAction(Map<String, Object> params, String userId);
+
+    /**
+     * Provide a bounded, explicitly shaped facts payload that is safe to send to an LLM after the action executes.
+     *
+     * <p>Framework behavior:</p>
+     * <ul>
+     *   <li>If this method returns {@link Optional#empty()}, the framework will not run post-action generation.</li>
+     *   <li>Returned facts are treated as the <strong>only</strong> source of truth for grounded generation.</li>
+     * </ul>
+     *
+     * <p>This method must be side-effect free and must not re-run the action. It is invoked only after
+     * {@link #executeAction(Map, String)} returns.</p>
+     *
+     * @param actionResult result returned by {@link #executeAction(Map, String)}
+     * @param context      orchestration context for the request
+     * @return an optional facts map (primitive/map/list structures recommended); empty disables post-action generation
+     */
+    default Optional<Map<String, Object>> buildPostActionLlmFacts(ActionResult actionResult, OrchestrationContext context) {
+        return Optional.empty();
+    }
 
     /**
      * Fallback invoked when {@link #executeAction(Map, String)} raises an exception.

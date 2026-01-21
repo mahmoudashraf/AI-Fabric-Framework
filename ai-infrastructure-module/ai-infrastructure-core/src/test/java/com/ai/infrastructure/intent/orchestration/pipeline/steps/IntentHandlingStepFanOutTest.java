@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.config.PostActionGenerationProperties;
 import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.AICoreService;
@@ -18,6 +19,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -117,7 +119,9 @@ class IntentHandlingStepFanOutTest {
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
             new RankBasedMerger(),
-            new RelationshipQueryPostActionGenerationProperties()
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper())
         );
 
         Intent intent = Intent.builder()
@@ -165,7 +169,9 @@ class IntentHandlingStepFanOutTest {
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
             new RankBasedMerger(),
-            new RelationshipQueryPostActionGenerationProperties()
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper())
         );
 
         Intent intent = Intent.builder()
@@ -203,7 +209,9 @@ class IntentHandlingStepFanOutTest {
             providerOf((AdvancedRAGProvider) null),
             routingProperties,
             new RankBasedMerger(),
-            new RelationshipQueryPostActionGenerationProperties()
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper())
         );
     }
 

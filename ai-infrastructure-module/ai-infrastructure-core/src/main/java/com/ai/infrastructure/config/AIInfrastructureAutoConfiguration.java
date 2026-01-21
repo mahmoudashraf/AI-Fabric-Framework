@@ -75,12 +75,13 @@ import java.util.stream.Collectors;
     org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration.class,
     org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration.class
 })
-	    @EnableConfigurationProperties({
+	        @EnableConfigurationProperties({
 	        AIProviderConfig.class,
 	        AIServiceConfig.class,
             VectorDatabaseConfig.class,
             ProgressiveIntentExtractionProperties.class,
             RelationshipQueryPostActionGenerationProperties.class,
+            PostActionGenerationProperties.class,
             VectorSpaceRoutingProperties.class,
 	        SmartSuggestionsProperties.class,
 	        ResponseSanitizationProperties.class,
