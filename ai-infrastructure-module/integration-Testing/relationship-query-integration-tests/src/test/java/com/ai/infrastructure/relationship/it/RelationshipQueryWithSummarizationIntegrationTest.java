@@ -224,7 +224,8 @@ class RelationshipQueryWithSummarizationIntegrationTest {
                       "action": "relationship_query",
                       "actionParams": {
                         "query": "Show me blue shoes under $100 from Nike",
-                        "entityTypes": ["product"]
+                        "entityTypes": ["product"],
+                        "returnMode": "FULL"
                       },
                       "vectorSpace": null,
                       "requiresRetrieval": false,
