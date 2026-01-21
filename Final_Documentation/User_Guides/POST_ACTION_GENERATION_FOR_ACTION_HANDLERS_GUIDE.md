@@ -96,3 +96,5 @@ ai:
 
 That path is intentionally separate because it needs query-specific materialization (`returnMode=FULL`) and a facts payload derived from relational results.
 
+Important:
+- The framework does **not** silently change `relationship_query` parameters. If you want post-action summarization, set `returnMode=FULL` explicitly in your application/request flow.

@@ -213,6 +213,117 @@ class IntentHandlingStepPostActionGenerationTest {
         assertThat(result.getData()).containsKey("postActionGeneration");
     }
 
+    @Test
+    void shouldSkipPostActionGenerationWhenHandlerFactsBuilderThrows() {
+        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        ActionHandler handler = mock(ActionHandler.class);
+        when(registry.findHandler("test_action")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed("user-1")).thenReturn(true);
+
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("OK")
+            .build();
+        when(handler.executeAction(any(), eq("user-1"))).thenReturn(actionResult);
+        when(handler.buildPostActionLlmFacts(eq(actionResult), any()))
+            .thenThrow(new RuntimeException("oops"));
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+
+        PostActionGenerationProperties properties = new PostActionGenerationProperties();
+        properties.setEnabled(true);
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf((RAGProvider) null),
+            aiCoreService,
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            properties,
+            providerOf(new ObjectMapper())
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("test_action")
+            .requiresGeneration(true)
+            .actionParams(Map.of())
+            .build();
+
+        PipelineContext context = PipelineContext.from("Do the thing", OrchestrationContext.forUser("user-1"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isEqualTo("OK");
+        assertThat(result.getData()).containsKey("postActionGeneration");
+
+        verify(aiCoreService, never()).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION));
+    }
+
+    @Test
+    void shouldNotReplaceActionMessageWhenGenerationReturnsEmptyContent() {
+        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        ActionHandler handler = mock(ActionHandler.class);
+        when(registry.findHandler("test_action")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed("user-1")).thenReturn(true);
+
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("OK")
+            .build();
+        when(handler.executeAction(any(), eq("user-1"))).thenReturn(actionResult);
+        when(handler.buildPostActionLlmFacts(eq(actionResult), any())).thenReturn(Optional.of(Map.of("status", "ok")));
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenReturn(AIGenerationResponse.builder().content("  ").build());
+
+        PostActionGenerationProperties properties = new PostActionGenerationProperties();
+        properties.setEnabled(true);
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf((RAGProvider) null),
+            aiCoreService,
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            properties,
+            providerOf(new ObjectMapper())
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("test_action")
+            .requiresGeneration(true)
+            .actionParams(Map.of())
+            .build();
+
+        PipelineContext context = PipelineContext.from("Do the thing", OrchestrationContext.forUser("user-1"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isEqualTo("OK");
+        assertThat(result.getData()).containsKey("postActionGeneration");
+    }
+
     private <T> ObjectProvider<T> providerOf(T value) {
         @SuppressWarnings("unchecked")
         ObjectProvider<T> provider = mock(ObjectProvider.class);
