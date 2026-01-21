@@ -61,6 +61,11 @@
             <artifactId>ai-infrastructure-chat-session</artifactId>
             <version>1.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-governance</artifactId>
+            <version>1.0.0</version>
+        </dependency>
 
         <!-- Optional local vector search (ONNX + Lucene) -->
         <dependency>
