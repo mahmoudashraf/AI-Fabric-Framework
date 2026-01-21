@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.config.PostActionGenerationProperties;
 import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
@@ -32,6 +33,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -167,6 +170,8 @@ public class IntentHandlingStep implements PipelineStep {
     private final VectorSpaceRoutingProperties vectorSpaceRoutingProperties;
     private final RankBasedMerger rankBasedMerger;
     private final RelationshipQueryPostActionGenerationProperties relationshipQueryPostActionGenerationProperties;
+    private final PostActionGenerationProperties postActionGenerationProperties;
+    private final ObjectProvider<ObjectMapper> objectMapperProvider;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -277,7 +282,7 @@ public class IntentHandlingStep implements PipelineStep {
 
         Map<String, Object> effectiveParams = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
         ResolvedPostActionGeneration postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
-        if (postActionRequest.shouldGenerate()) {
+        if (postActionRequest.shouldGenerate() && "relationship_query".equalsIgnoreCase(actionName)) {
             // Post-action generation needs materialized content/metadata to stay grounded.
             // ReturnMode is an application-level parameter (not extracted by the LLM), so we apply it here.
             effectiveParams.putIfAbsent("returnMode", "FULL");
@@ -325,6 +330,7 @@ public class IntentHandlingStep implements PipelineStep {
 
             PostActionGenerationOutcome postActionGeneration = maybeGeneratePostActionSummary(
                 actionName,
+                handler,
                 intent,
                 actionResult,
                 context,
@@ -369,6 +375,7 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private PostActionGenerationOutcome maybeGeneratePostActionSummary(String actionName,
+                                                                      ActionHandler handler,
                                                                       Intent intent,
                                                                       ActionResult actionResult,
                                                                       OrchestrationContext context,
@@ -379,6 +386,10 @@ public class IntentHandlingStep implements PipelineStep {
         }
         if (actionResult == null || !actionResult.isSuccess()) {
             return null;
+        }
+
+        if (!"relationship_query".equalsIgnoreCase(actionName)) {
+            return maybeGenerateGenericPostActionSummary(handler, actionName, request, actionResult, context, pipelineContext);
         }
 
         Map<String, Object> actionData = coerceToMap(actionResult.getData());
@@ -437,7 +448,21 @@ public class IntentHandlingStep implements PipelineStep {
             .userId(context != null ? context.getIdentifier() : null)
             .build();
 
-        AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest, LlmPurpose.GENERATION);
+        AIGenerationResponse generationResponse;
+        try {
+            generationResponse = aiCoreService.generateContent(generationRequest, LlmPurpose.GENERATION);
+        } catch (Exception ex) {
+            Map<String, Object> metadata = Map.of(
+                "used", false,
+                "skippedReason", "generation_failed",
+                "error", ex.getMessage(),
+                "includedItems", facts.includedItems(),
+                "truncated", facts.truncated()
+            );
+            String message = StringUtils.hasText(actionResult.getMessage()) ? actionResult.getMessage() : null;
+            return new PostActionGenerationOutcome(null, message, metadata);
+        }
+
         String summary = generationResponse != null ? generationResponse.getContent() : null;
         if (!StringUtils.hasText(summary)) {
             Map<String, Object> metadata = Map.of(
@@ -463,25 +488,19 @@ public class IntentHandlingStep implements PipelineStep {
         return new PostActionGenerationOutcome(message, message, Collections.unmodifiableMap(metadata));
     }
 
-    private boolean shouldRunPostActionGeneration(String actionName, Intent intent) {
-        if (!"relationship_query".equalsIgnoreCase(actionName)) {
-            return false;
-        }
-        if (relationshipQueryPostActionGenerationProperties == null || !relationshipQueryPostActionGenerationProperties.isEnabled()) {
-            return false;
-        }
-        return intent != null && Boolean.TRUE.equals(intent.getRequiresGeneration());
-    }
-
     private ResolvedPostActionGeneration resolvePostActionGeneration(String actionName,
                                                                      Intent intent,
                                                                      PipelineContext pipelineContext,
                                                                      Map<String, Object> params) {
-        if (!"relationship_query".equalsIgnoreCase(actionName)) {
-            return ResolvedPostActionGeneration.disabled();
-        }
-        if (relationshipQueryPostActionGenerationProperties == null || !relationshipQueryPostActionGenerationProperties.isEnabled()) {
-            return ResolvedPostActionGeneration.disabled();
+        boolean isRelationshipQuery = "relationship_query".equalsIgnoreCase(actionName);
+        if (isRelationshipQuery) {
+            if (relationshipQueryPostActionGenerationProperties == null || !relationshipQueryPostActionGenerationProperties.isEnabled()) {
+                return ResolvedPostActionGeneration.disabled();
+            }
+        } else {
+            if (postActionGenerationProperties == null || !postActionGenerationProperties.isEnabled()) {
+                return ResolvedPostActionGeneration.disabled();
+            }
         }
 
         String instructions = null;
@@ -493,6 +512,112 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         return new ResolvedPostActionGeneration(requested, instructions);
+    }
+
+    private PostActionGenerationOutcome maybeGenerateGenericPostActionSummary(ActionHandler handler,
+                                                                             String actionName,
+                                                                             ResolvedPostActionGeneration request,
+                                                                             ActionResult actionResult,
+                                                                             OrchestrationContext context,
+                                                                             PipelineContext pipelineContext) {
+        if (handler == null || postActionGenerationProperties == null || !postActionGenerationProperties.isEnabled()) {
+            return null;
+        }
+
+        Optional<Map<String, Object>> factsOpt;
+        try {
+            factsOpt = handler.buildPostActionLlmFacts(actionResult, context);
+        } catch (Exception ex) {
+            log.warn("Action handler {} failed to build post-action facts for '{}': {}",
+                handler.getClass().getName(), actionName, ex.getMessage());
+            factsOpt = Optional.empty();
+        }
+
+        Map<String, Object> factsMap = factsOpt != null ? factsOpt.orElse(null) : null;
+        if (factsMap == null || factsMap.isEmpty()) {
+            Map<String, Object> metadata = Map.of(
+                "used", false,
+                "skippedReason", "handler_opt_out"
+            );
+            return new PostActionGenerationOutcome(null, actionResult.getMessage(), metadata);
+        }
+
+        FactsPayload facts = buildFactsPayload(factsMap, postActionGenerationProperties.getMaxChars());
+
+        String instruction = request != null ? request.generationInstructions() : null;
+        if (!StringUtils.hasText(instruction)) {
+            instruction = "Summarize the action result for the user.";
+        }
+        if (instruction.length() > 500) {
+            instruction = instruction.substring(0, 500);
+        }
+
+        String systemPrompt = """
+            You are an assistant responding to a user's follow-up request after an action executed.
+            Use ONLY the FACTS provided by the system.
+            Do NOT invent entities, numbers, or attributes that are not in FACTS.
+            If FACTS are insufficient, say so clearly.
+            Keep the answer concise and grounded.
+            """;
+
+        String userPrompt = """
+            Action executed: %s
+            Instruction: %s
+
+            FACTS (bounded):
+            %s
+
+            Write the final response now.
+            """.formatted(actionName, instruction, facts.payload());
+
+        AIGenerationRequest generationRequest = AIGenerationRequest.builder()
+            .entityId("post-action-" + (pipelineContext != null ? pipelineContext.getRequestId() : UUID.randomUUID()))
+            .entityType(actionName)
+            .generationType("action_post_action_generation")
+            .systemPrompt(systemPrompt)
+            .prompt(userPrompt)
+            .temperature(postActionGenerationProperties.getTemperature())
+            .maxTokens(postActionGenerationProperties.getMaxTokens())
+            .userId(context != null ? context.getIdentifier() : null)
+            .build();
+
+        AIGenerationResponse generationResponse;
+        try {
+            generationResponse = aiCoreService.generateContent(generationRequest, LlmPurpose.GENERATION);
+        } catch (Exception ex) {
+            Map<String, Object> metadata = Map.of(
+                "used", false,
+                "skippedReason", "generation_failed",
+                "error", ex.getMessage(),
+                "includedItems", facts.includedItems(),
+                "truncated", facts.truncated()
+            );
+            return new PostActionGenerationOutcome(null, actionResult.getMessage(), metadata);
+        }
+
+        String summary = generationResponse != null ? generationResponse.getContent() : null;
+        if (!StringUtils.hasText(summary)) {
+            Map<String, Object> metadata = Map.of(
+                "used", false,
+                "skippedReason", "empty_generation_response",
+                "includedItems", facts.includedItems(),
+                "truncated", facts.truncated()
+            );
+            return new PostActionGenerationOutcome(null, actionResult.getMessage(), metadata);
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("used", true);
+        metadata.put("purpose", "GENERATION");
+        metadata.put("action", actionName);
+        metadata.put("includedItems", facts.includedItems());
+        metadata.put("truncated", facts.truncated());
+        if (generationResponse != null && StringUtils.hasText(generationResponse.getModel())) {
+            metadata.put("model", generationResponse.getModel());
+        }
+
+        String message = summary.trim();
+        return new PostActionGenerationOutcome(message, message, Collections.unmodifiableMap(metadata));
     }
 
     private Map<String, Object> coerceToMap(Object value) {
@@ -527,6 +652,36 @@ public class IntentHandlingStep implements PipelineStep {
         } catch (Exception ignored) {
             return fallback;
         }
+    }
+
+    private FactsPayload buildFactsPayload(Map<String, Object> facts, int maxChars) {
+        if (facts == null) {
+            return new FactsPayload("(no facts)", 0, false);
+        }
+
+        String payload;
+        try {
+            ObjectMapper mapper = objectMapperProvider != null ? objectMapperProvider.getIfAvailable() : null;
+            if (mapper != null) {
+                payload = mapper.writeValueAsString(facts);
+            } else {
+                payload = facts.toString();
+            }
+        } catch (Exception ex) {
+            payload = facts.toString();
+        }
+
+        boolean truncated = false;
+        String normalized = StringUtils.hasText(payload) ? payload.trim() : "";
+        if (StringUtils.hasText(normalized) && normalized.length() > maxChars) {
+            normalized = normalized.substring(0, maxChars);
+            truncated = true;
+        }
+        if (!StringUtils.hasText(normalized)) {
+            normalized = "(no serializable facts)";
+        }
+
+        return new FactsPayload(normalized, facts.size(), truncated);
     }
 
     private FactsPayload buildFactsPayload(List<?> documents, int maxItems, int maxChars) {

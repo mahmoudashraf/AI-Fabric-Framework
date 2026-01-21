@@ -1,7 +1,7 @@
 # Post-Action LLM Generation for Action Handlers — Change Plan
 
 ## Status
-Proposed
+Implemented (core support)
 
 ## Problem
 Today, “post-action generation” (sending action results to an LLM to produce a grounded summary/answer) is only supported for the `relationship_query` action via:
@@ -13,7 +13,7 @@ Framework users want the same capability for **custom actions** (and built-in no
 ## Goals
 - Allow an action handler to opt-in to “post-action generation” so the framework can:
   - execute the action,
-  - build a bounded “facts” payload from the action result,
+  - build a bounded “facts” payload from the action result (explicitly shaped by the handler),
   - call the LLM with `LlmPurpose.GENERATION`,
   - return the generated message alongside the raw `ActionResult`.
 - Keep this **LLM-driven** (no semantic substring parsing in code).
@@ -27,57 +27,41 @@ Framework users want the same capability for **custom actions** (and built-in no
 
 ## Proposed Design
 
-### 1) Configuration: enable by allowlist (and choose trigger mode)
-Add a generic configuration block (names tentative):
+### 1) Configuration: simple global gate
+Add a generic configuration block:
 
 - `ai.post-action-generation.enabled` (default `false`)
-- `ai.post-action-generation.enabled-actions` (list of action names)
-- `ai.post-action-generation.trigger-mode` (enum, default `INTENT_REQUESTED`)
-  - `INTENT_REQUESTED`: only run when `intent.requiresGeneration=true` or `intent.generationInstructions` is set
-  - `ALWAYS_FOR_ENABLED_ACTIONS`: run even if intent doesn’t request generation (uses a per-action default prompt)
-- `ai.post-action-generation.max-items` (default `10`)
 - `ai.post-action-generation.max-chars` (default `12000`)
-- `ai.post-action-generation.max-output-tokens` (default `800`)
+- `ai.post-action-generation.max-tokens` (default `800`)
 - `ai.post-action-generation.temperature` (default `0.2`)
 
-Optional per-action defaults (for `ALWAYS_FOR_ENABLED_ACTIONS`):
-- `ai.post-action-generation.actions.<actionName>.default-instructions` (string)
+### 2) Opt-in: action handler provides LLM-safe facts (explicit shaping)
+Add a default method on `ActionHandler`:
 
-### 2) SPI: pluggable “facts” extraction per action (no leaking raw objects)
-Introduce a new optional SPI (in core) that action handlers (or separate beans) can implement:
+- `Optional<Map<String,Object>> buildPostActionLlmFacts(ActionResult actionResult, OrchestrationContext ctx)`
 
-- `ActionPostActionFactsProvider`
-  - `String actionName()`
-  - `FactsPayload buildFacts(ActionResult actionResult, int maxItems, int maxChars, OrchestrationContext ctx)`
-
-Notes:
-- Provide a **safe default** provider that uses:
-  - `actionResult.message`, and
-  - a small, conservative serialization of `actionResult.data` (bounded, key allowlist, no deep object graphs).
-- Specialized providers can extract stable “facts” (e.g., documents list, IDs, key metadata) without relying on `toString()`.
+Rules:
+- If the method returns `Optional.empty()` (default), the framework does **not** run post-action generation.
+- This method must be **side-effect free** and must not re-run the action; it only shapes the already-produced `ActionResult`.
+- The returned map should contain primitives/maps/lists (bounded and safe).
 
 ### 3) Execution: generic post-action generation hook in `IntentHandlingStep`
-Generalize the current `relationship_query`-specific flow into a generic mechanism:
+Generalize the `relationship_query` flow with a new generic path:
 
-1) Execute the action handler → `ActionResult`
+1) Execute the action handler → `ActionResult` (executed **once**)
 2) Decide if post-action generation should run:
-   - action is in `enabled-actions`, and
-   - trigger-mode condition matches, and
+   - `ai.post-action-generation.enabled=true`
+   - intent requested generation (`requiresGeneration=true` or `generationInstructions` present)
+   - handler opted in by returning non-empty facts (`buildPostActionLlmFacts(...)`)
    - `ActionResult.success == true`
-3) Build a generation request:
-   - `instructions`:
-     - from `intent.generationInstructions` when present, else
-     - from `actions.<actionName>.default-instructions` (when trigger-mode is ALWAYS)
-   - `facts`:
-     - from the registered `ActionPostActionFactsProvider` for that action, else default provider
-4) Call `AICoreService.generateContent(..., LlmPurpose.GENERATION)`
-5) Return:
+3) Build a bounded facts payload (JSON when possible) and call `AICoreService.generateContent(..., LlmPurpose.GENERATION)`
+4) Return:
    - `actionResult` (raw)
-   - `postActionGeneration` (metadata: used, truncated, provider/model, includedItems)
+   - `postActionGeneration` (metadata: used, truncated, includedItems, model)
    - `summary` (generated content)
 
 ### 4) Security / Governance requirements
-- Facts payload must be bounded by `max-items/max-chars`.
+- Facts payload must be bounded by `max-chars`.
 - The generation prompt must be explicit:
   - “Use ONLY the provided facts. If facts are insufficient, say so.”
 - PII:
@@ -96,14 +80,12 @@ This change plan proposes option (1) first to minimize risk and keep the current
 ### Unit tests (core)
 - `IntentHandlingStep`:
   - runs post-action generation only when enabled and conditions met
-  - bounded payload (max chars/items) is enforced
+  - bounded payload (max chars) is enforced
   - generation failure doesn’t fail the action result
-- Facts providers:
-  - default facts provider does not explode on nested objects
-  - truncation metadata set correctly
+  - handler opt-out skips generation
 
 ### Integration tests
-- Add a small test action (or reuse an existing safe action) with a custom `ActionPostActionFactsProvider`.
+Add a small test action (or reuse an existing safe action) that overrides `buildPostActionLlmFacts(...)`.
 - Verify result contains:
   - `actionResult`
   - `postActionGeneration`
