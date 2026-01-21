@@ -2,6 +2,7 @@ package com.ai.infrastructure.it.realapi;
 
 import com.ai.infrastructure.it.IndexingStrategyIntegrationTest;
 import com.ai.infrastructure.it.RealAPIActionErrorRecoveryIntegrationTest;
+import com.ai.infrastructure.it.RealAPIActionPostActionGenerationIntegrationTest;
 import com.ai.infrastructure.it.RealAPIActionFlowIntegrationTest;
 import com.ai.infrastructure.it.RealAPIHybridRetrievalToggleIntegrationTest;
 import com.ai.infrastructure.it.RealAPIIntegrationTest;
@@ -59,6 +60,7 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
     private static final Class<?>[] CHUNK_INTENT_ACTIONS = {
         RealAPIIntentHistoryAggregationIntegrationTest.class,
         RealAPIActionErrorRecoveryIntegrationTest.class,
+        RealAPIActionPostActionGenerationIntegrationTest.class,
         RealAPIActionFlowIntegrationTest.class,
         RealAPIIntentGenerationRoutingIntegrationTest.class,
         RealAPIVectorSpaceClarificationPolicyIntegrationTest.class
@@ -83,6 +85,7 @@ public class RealAPIProviderMatrixIntegrationTest extends AbstractProviderMatrix
         RealAPIHybridRetrievalToggleIntegrationTest.class,
         RealAPIIntentHistoryAggregationIntegrationTest.class,
         RealAPIActionErrorRecoveryIntegrationTest.class,
+        RealAPIActionPostActionGenerationIntegrationTest.class,
         RealAPIActionFlowIntegrationTest.class,
         RealAPIIntentGenerationRoutingIntegrationTest.class,
         RealAPIVectorSpaceClarificationPolicyIntegrationTest.class,
