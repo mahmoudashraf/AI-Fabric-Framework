@@ -1,5 +1,6 @@
 server:
   port: ${PORT:8096}
+  forward-headers-strategy: framework
 
 spring:
   application:
@@ -16,6 +17,8 @@ spring:
 
 ai:
   enabled: true
+  config:
+    default-file: ai-entity-config.yml
 
   chat:
     enabled: true
@@ -25,23 +28,33 @@ ai:
 
   providers:
     llm-provider: openai
-    embedding-provider: onnx
+    embedding-provider: openai
     openai:
       enabled: ${OPENAI_ENABLED:false}
       api-key: ${OPENAI_API_KEY:}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
       model: ${OPENAI_MODEL:gpt-4o-mini}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
       timeout: 45
 
   vector-db:
     type: lucene
+    lucene:
+      index-path: ./data/lucene-vector-index
+
+  indexing:
+    enabled: true
+    async-worker:
+      enabled: true
+      fixed-delay: PT0.5S
+      batch-size: 25
 
   service:
     features:
-      enable-generation: true
-      enable-embeddings: true
-      enable-search: false
-      enable-rag: false
+      enable-generation: ${OPENAI_ENABLED:false}
+      enable-embeddings: ${OPENAI_ENABLED:false}
+      enable-search: true
+      enable-rag: true
 
 management:
   endpoints:
@@ -53,4 +66,3 @@ logging:
   level:
     com.ai.fabric.realapps.chat: INFO
     com.ai.infrastructure: INFO
-

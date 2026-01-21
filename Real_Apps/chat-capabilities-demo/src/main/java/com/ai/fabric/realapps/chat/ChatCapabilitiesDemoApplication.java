@@ -9,7 +9,8 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 @EnableAIInfrastructure
 @EntityScan(basePackages = {
     "com.ai.infrastructure.entity",
-    "com.ai.infrastructure.chat.domain"
+    "com.ai.infrastructure.chat.domain",
+    "com.ai.fabric.realapps.chat"
 })
 public class ChatCapabilitiesDemoApplication {
 

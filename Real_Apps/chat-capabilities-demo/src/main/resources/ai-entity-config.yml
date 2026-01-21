@@ -1,0 +1,48 @@
+ai-entities:
+  product:
+    entity-type: "product"
+    features: ["embedding", "search"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+
+    # Used when field-level annotations are not present.
+    searchable-fields:
+      - name: "sku"
+        weight: 1.5
+      - name: "name"
+        weight: 2.0
+      - name: "description"
+        weight: 1.7
+      - name: "category"
+        weight: 1.2
+      - name: "tags"
+        weight: 1.1
+      - name: "price"
+        weight: 1.0
+      - name: "currency"
+        weight: 0.6
+      - name: "inStockQty"
+        weight: 0.5
+
+    # Context/metadata fields stored alongside the vector (useful for UI and filtering).
+    metadata-fields:
+      - name: "category"
+        type: "string"
+      - name: "tags"
+        type: "string"
+
+    crud-operations:
+      create:
+        generate-embedding: false
+        index-for-search: true
+        enable-analysis: false
+      update:
+        generate-embedding: false
+        index-for-search: true
+        enable-analysis: false
+      delete:
+        index-for-search: false
+        remove-from-search: true
+        cleanup-embeddings: false
