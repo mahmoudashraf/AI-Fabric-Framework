@@ -65,7 +65,7 @@ public class Product {
 
     @AISearchable(weight = 0.5)
     @Column(nullable = false)
-    private Integer inStockQty = 0;
+    private Integer inStockQty = 100;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

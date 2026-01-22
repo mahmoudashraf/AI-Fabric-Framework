@@ -30,8 +30,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.beans.factory.ObjectProvider;
@@ -41,8 +39,6 @@ import java.time.Clock;
 
 @AutoConfiguration
 @AutoConfigurationPackage(basePackages = "com.ai.infrastructure.governance")
-@EntityScan(basePackages = "com.ai.infrastructure.governance")
-@EnableJpaRepositories(basePackages = "com.ai.infrastructure.governance")
 @EnableConfigurationProperties(AIGovernanceProperties.class)
 @EnableScheduling
 @ConditionalOnProperty(prefix = "ai.governance", name = "enabled", havingValue = "true")
