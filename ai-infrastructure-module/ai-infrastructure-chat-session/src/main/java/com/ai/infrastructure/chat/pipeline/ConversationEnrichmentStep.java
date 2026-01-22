@@ -3,6 +3,8 @@ package com.ai.infrastructure.chat.pipeline;
 import com.ai.infrastructure.chat.config.ChatSessionProperties;
 import com.ai.infrastructure.chat.exception.ChatSessionAccessDeniedException;
 import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.intent.action.PendingAction;
+import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -31,6 +33,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
 
     private final ChatSessionService chatSessionService;
     private final ChatSessionProperties properties;
+    private final PendingActionStore pendingActionStore;
 
     @Override
     public String getStepName() {
@@ -61,6 +64,39 @@ public class ConversationEnrichmentStep implements PipelineStep {
         }
 
         try {
+            PendingAction pending = pendingActionStore != null
+                ? pendingActionStore.peekPendingAction(conversationId, ownerId).orElse(null)
+                : null;
+            if (pending != null && StringUtils.hasText(pending.action())) {
+                String currentQuery = context.getEffectiveQuery();
+                String description = StringUtils.hasText(pending.description()) ? pending.description() : pending.action();
+                String enriched = """
+                    CONFIRMATION CONTEXT:
+                    A prior action is awaiting user confirmation.
+                    - pendingAction: %s
+                    - pendingDescription: %s
+
+                    Current user message:
+                    ---BEGIN MESSAGE---
+                    %s
+                    ---END MESSAGE---
+
+                    Determine whether the user is confirming (yes/proceed) or cancelling (no/abort) the pending action.
+                    If the message is unrelated, handle it normally without executing the pending action.
+                    """.formatted(pending.action(), description, currentQuery != null ? currentQuery : "");
+
+                Map<String, Object> chatMeta = new LinkedHashMap<>();
+                chatMeta.put("conversationId", conversationId);
+                chatMeta.put("historyChars", 0);
+                chatMeta.put("memoryStrategy", properties.getMemoryStrategy() != null ? properties.getMemoryStrategy().name() : null);
+                chatMeta.put("windowSize", properties.getWindowSize());
+
+                return context.toBuilder()
+                    .processedQuery(enriched)
+                    .metadata(mergeMetadata(context.getMetadata(), Map.of(METADATA_KEY_CHAT, chatMeta)))
+                    .build();
+            }
+
             String history = chatSessionService.getConversationContext(conversationId, ownerId);
             if (!StringUtils.hasText(history)) {
                 return context.withMetadata(METADATA_KEY_CHAT, Map.of(

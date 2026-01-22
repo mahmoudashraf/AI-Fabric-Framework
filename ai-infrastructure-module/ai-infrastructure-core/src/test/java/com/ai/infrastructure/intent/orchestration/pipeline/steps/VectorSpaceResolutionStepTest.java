@@ -1,8 +1,10 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
+import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -10,6 +12,7 @@ import com.ai.infrastructure.intent.vectorspace.RoutingResult;
 import com.ai.infrastructure.intent.vectorspace.RoutingStrategy;
 import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 
@@ -26,7 +29,11 @@ class VectorSpaceResolutionStepTest {
     @Test
     void shouldSkipWhenVectorSpaceAlreadyPresent() {
         VectorSpaceRouter router = mock(VectorSpaceRouter.class);
-        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(router);
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null)
+        );
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
@@ -49,7 +56,11 @@ class VectorSpaceResolutionStepTest {
     @Test
     void shouldSkipWhenIntentDoesNotRequireRetrieval() {
         VectorSpaceRouter router = mock(VectorSpaceRouter.class);
-        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(router);
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null)
+        );
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
@@ -81,7 +92,11 @@ class VectorSpaceResolutionStepTest {
             .rationale("test")
             .build());
 
-        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(router);
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null)
+        );
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
@@ -113,7 +128,11 @@ class VectorSpaceResolutionStepTest {
             .rationale("fan-out")
             .build());
 
-        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(router);
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null)
+        );
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
@@ -144,7 +163,11 @@ class VectorSpaceResolutionStepTest {
             .rationale("single candidate")
             .build());
 
-        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(router);
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null)
+        );
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
@@ -175,7 +198,11 @@ class VectorSpaceResolutionStepTest {
             .rationale("need clarification")
             .build());
 
-        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(router);
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null)
+        );
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
@@ -208,7 +235,11 @@ class VectorSpaceResolutionStepTest {
             .rationale("no overview")
             .build());
 
-        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(router);
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null)
+        );
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
@@ -228,5 +259,12 @@ class VectorSpaceResolutionStepTest {
         assertThat(updated.getEarlyTerminationResult()).isNotNull();
         assertThat(updated.getEarlyTerminationResult().getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
         assertThat(updated.getEarlyTerminationResult().getData()).containsEntry("candidateVectorSpaces", List.of());
+    }
+
+    private <T> ObjectProvider<T> providerOf(T value) {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<T> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(value);
+        return provider;
     }
 }

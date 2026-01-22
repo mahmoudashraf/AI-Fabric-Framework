@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -123,7 +124,15 @@ public class PipelineContext {
      */
     @Builder.Default
     private final Map<String, Object> smartSuggestion = new LinkedHashMap<>();
-    
+
+    /**
+     * Set of action names that have been explicitly confirmed for this request.
+     *
+     * <p>This is internal pipeline state (not user-supplied) used to prevent re-confirmation loops.</p>
+     */
+    @Builder.Default
+    private final Set<String> confirmedActions = Set.of();
+
     /**
      * The sanitized payload for the response.
      */
@@ -242,6 +251,16 @@ public class PipelineContext {
         return processedQuery != null && !processedQuery.isBlank() 
             ? processedQuery 
             : originalQuery;
+    }
+
+    /**
+     * True when the given action has already been explicitly confirmed in the current pipeline execution.
+     */
+    public boolean isActionConfirmed(String actionName) {
+        if (actionName == null || actionName.isBlank()) {
+            return false;
+        }
+        return confirmedActions != null && confirmedActions.contains(actionName.trim());
     }
     
     /**

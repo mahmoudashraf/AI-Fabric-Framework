@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent.orchestration;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
@@ -14,6 +15,8 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
+import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -157,16 +160,24 @@ class RAGOrchestratorTest {
             mock(ObjectProvider.class);
         lenient().when(progressiveEngineProvider.getIfAvailable()).thenReturn(null);
 
+        var orchestrationProperties = new OrchestrationProperties();
+        @SuppressWarnings("unchecked")
+        ObjectProvider<KnowledgeBaseOverviewService> overviewProvider = mock(ObjectProvider.class);
+        lenient().when(overviewProvider.getIfAvailable()).thenReturn(null);
+
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
             new IntentExtractionStep(intentQueryExtractor, progressiveEngineProvider),
-            new VectorSpaceResolutionStep(vectorSpaceRouter),
+            new VectorSpaceResolutionStep(vectorSpaceRouter, orchestrationProperties, overviewProvider),
             new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider,
                 vectorSpaceRoutingProperties, rankBasedMerger,
                 new com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties(),
                 new com.ai.infrastructure.config.PostActionGenerationProperties(),
-                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class)),
+                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class),
+                orchestrationProperties,
+                overviewProvider,
+                new InMemoryPendingActionStore()),
             new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
             new MetadataBuildingStep(normalizationProperties),
             new SmartSuggestionsStep(smartSuggestionsProperties, ragProviderProvider),

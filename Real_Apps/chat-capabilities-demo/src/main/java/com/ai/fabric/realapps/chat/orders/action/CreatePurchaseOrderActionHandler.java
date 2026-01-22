@@ -51,6 +51,11 @@ public class CreatePurchaseOrderActionHandler implements ActionHandler {
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         String sku = requiredString(params, "sku");
         int quantity = requiredInt(params, "quantity");
@@ -125,4 +130,3 @@ public class CreatePurchaseOrderActionHandler implements ActionHandler {
         return null;
     }
 }
-

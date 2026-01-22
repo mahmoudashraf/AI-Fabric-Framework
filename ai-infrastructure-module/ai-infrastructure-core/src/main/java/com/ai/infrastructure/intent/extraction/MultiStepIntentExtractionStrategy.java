@@ -566,6 +566,8 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             case INFORMATION -> "information_request";
             case OUT_OF_SCOPE -> "out_of_scope";
             case COMPOUND -> "compound";
+            case CONFIRMATION_POSITIVE -> "confirmation_positive";
+            case CONFIRMATION_NEGATIVE -> "confirmation_negative";
         };
     }
 

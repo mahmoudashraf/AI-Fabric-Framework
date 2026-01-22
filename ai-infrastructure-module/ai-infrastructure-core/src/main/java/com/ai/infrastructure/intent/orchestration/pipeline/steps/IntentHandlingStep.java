@@ -17,11 +17,16 @@ import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.PendingAction;
+import com.ai.infrastructure.intent.action.PendingActionStore;
+import com.ai.infrastructure.intent.KnowledgeBaseOverview;
+import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
@@ -45,6 +50,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.time.Instant;
 
 /**
  * Pipeline step that handles the extracted intents (ACTION, INFORMATION, etc.).
@@ -155,6 +161,8 @@ public class IntentHandlingStep implements PipelineStep {
 
     private static final int ADVANCED_QUERY_LENGTH_THRESHOLD = 50;
     private static final int ADVANCED_QUERY_WORD_THRESHOLD = 8;
+
+    private static final String DATA_KEY_CONFIRMATION_REQUIRED = "confirmationRequired";
     
     // Intent params key
     private static final String PARAM_KEY_INTENTS = "intents";
@@ -173,6 +181,9 @@ public class IntentHandlingStep implements PipelineStep {
     private final RelationshipQueryPostActionGenerationProperties relationshipQueryPostActionGenerationProperties;
     private final PostActionGenerationProperties postActionGenerationProperties;
     private final ObjectProvider<ObjectMapper> objectMapperProvider;
+    private final OrchestrationProperties orchestrationProperties;
+    private final ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider;
+    private final PendingActionStore pendingActionStore;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -209,7 +220,7 @@ public class IntentHandlingStep implements PipelineStep {
         
         MultiIntentResponse intentResponse = context.getIntentResponse();
         OrchestrationContext orchContext = context.getOrchestrationContext();
-        
+
         OrchestrationResult result;
         if (intentResponse.isCompound() || intentResponse.getIntents().size() > 1) {
             result = handleCompoundIntents(intentResponse, orchContext, context);
@@ -235,6 +246,8 @@ public class IntentHandlingStep implements PipelineStep {
         return switch (intent.getType()) {
             case ACTION -> handleAction(intent, context, pipelineContext);
             case INFORMATION -> handleInformation(intent, context, pipelineContext);
+            case CONFIRMATION_POSITIVE -> handleConfirmationPositive(context, pipelineContext);
+            case CONFIRMATION_NEGATIVE -> handleConfirmationNegative(context, pipelineContext);
             case OUT_OF_SCOPE -> handleOutOfScope(intent);
             case COMPOUND -> handleSyntheticCompound(intent, context, pipelineContext);
             default -> OrchestrationResult.error(ERROR_MSG_UNKNOWN_INTENT + intent.getType());
@@ -309,6 +322,48 @@ public class IntentHandlingStep implements PipelineStep {
             log.debug("Action handler {} failed to build confirmation message for '{}': {}",
                 handler.getClass().getName(), actionName, ex.getMessage());
         }
+
+        boolean requiresConfirmation = requiresActionConfirmation(handler);
+        boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
+        if (requiresConfirmation && !confirmedThisRequest) {
+            if (!context.hasConversation()) {
+                return OrchestrationResult.builder()
+                    .type(OrchestrationResultType.ERROR)
+                    .success(false)
+                    .message("Action confirmation requires conversationId")
+                    .nextSteps(extractNextSteps(intent))
+                    .build();
+            }
+
+            PendingAction pending = new PendingAction(
+                actionName,
+                Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)),
+                confirmationMessage,
+                Instant.now()
+            );
+            if (pendingActionStore != null) {
+                pendingActionStore.pushPendingAction(context.getConversationId(), identifier, pending);
+            }
+
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_ACTION, actionName);
+            data.put(DATA_KEY_CONFIRMATION_MESSAGE, confirmationMessage);
+            data.put(DATA_KEY_CONFIRMATION_REQUIRED, true);
+            data.put(DATA_KEY_METADATA, getMetadataForAction(actionName));
+
+            String message = StringUtils.hasText(confirmationMessage)
+                ? confirmationMessage
+                : "Please confirm to proceed.";
+
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CONFIRMATION_REQUIRED)
+                .success(false)
+                .message(message)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
         try {
             ActionResult actionResult = handler.executeAction(effectiveParams, identifier);
             boolean success = actionResult != null && actionResult.isSuccess();
@@ -368,6 +423,72 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
+    }
+
+    private boolean requiresActionConfirmation(ActionHandler handler) {
+        if (handler == null) {
+            return false;
+        }
+        boolean global = orchestrationProperties != null
+            && orchestrationProperties.getActions() != null
+            && orchestrationProperties.getActions().isRequireConfirmation();
+        return global || handler.requiresConfirmation();
+    }
+
+    private OrchestrationResult handleConfirmationPositive(OrchestrationContext context, PipelineContext pipelineContext) {
+        if (context == null || !context.hasConversation()) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ERROR)
+                .success(false)
+                .message("No conversationId available for confirmation")
+                .build();
+        }
+        if (pendingActionStore == null) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ERROR)
+                .success(false)
+                .message("Pending action storage is not configured")
+                .build();
+        }
+
+        PendingAction pending = pendingActionStore.popPendingAction(context.getConversationId(), context.getIdentifier()).orElse(null);
+        if (pending == null) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("There is no pending action to confirm.")
+                .build();
+        }
+
+        Intent synthetic = Intent.builder()
+            .type(com.ai.infrastructure.dto.IntentType.ACTION)
+            .action(pending.action())
+            .actionParams(pending.actionParams() != null ? pending.actionParams() : Map.of())
+            .build();
+
+        PipelineContext marked = pipelineContext != null
+            ? pipelineContext.toBuilder()
+            .confirmedActions(java.util.Set.of(pending.action()))
+            .build()
+            : pipelineContext;
+
+        return handleAction(synthetic, context, marked);
+    }
+
+    private OrchestrationResult handleConfirmationNegative(OrchestrationContext context, PipelineContext pipelineContext) {
+        if (context == null || !context.hasConversation() || pendingActionStore == null) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Okay — cancelled.")
+                .build();
+        }
+        pendingActionStore.popPendingAction(context.getConversationId(), context.getIdentifier());
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message("Okay — cancelled.")
+            .build();
     }
 
     private PostActionGenerationOutcome maybeGeneratePostActionSummary(String actionName,
@@ -777,8 +898,15 @@ public class IntentHandlingStep implements PipelineStep {
     }
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
-        boolean needsGeneration = intent.requiresGenerationOrDefault(false);
-        boolean requiresRetrieval = intent.requiresRetrievalOrDefault(true);
+        boolean deterministic = isDeterministicInformationMode();
+        boolean needsGeneration = deterministic || intent.requiresGenerationOrDefault(false);
+        boolean requiresRetrieval = deterministic || intent.requiresRetrievalOrDefault(true);
+
+        if (deterministic) {
+            // Override LLM-controlled flags for deterministic information flows.
+            intent.setRequiresGeneration(true);
+            intent.setRequiresRetrieval(true);
+        }
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
         String query = StringUtils.hasText(optimizedQuery)
@@ -806,7 +934,14 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
-        if (vectorSpaces.isEmpty()) {
+        if (vectorSpaces.isEmpty() && deterministic) {
+            List<String> allSpaces = resolveAllVectorSpaces();
+            if (!allSpaces.isEmpty()) {
+                vectorSpaces = allSpaces;
+                intent.setVectorSpace(String.join(",", allSpaces));
+            }
+        }
+        if (vectorSpaces.isEmpty() && !deterministic) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, List.of());
             return OrchestrationResult.builder()
@@ -819,7 +954,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         if (vectorSpaces.size() > 1) {
-            return handleInformationFanOut(intent, context, pipelineContext, needsGeneration, query, metadata, vectorSpaces);
+            return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, query, metadata, vectorSpaces);
         }
 
         if (shouldUseAdvancedRag(intent, needsGeneration, query, context)) {
@@ -968,6 +1103,7 @@ public class IntentHandlingStep implements PipelineStep {
     private OrchestrationResult handleInformationFanOut(Intent intent,
                                                         OrchestrationContext context,
                                                         PipelineContext pipelineContext,
+                                                        boolean deterministic,
                                                         boolean needsGeneration,
                                                         String query,
                                                         Map<String, Object> metadata,
@@ -1035,7 +1171,7 @@ public class IntentHandlingStep implements PipelineStep {
             ? vectorSpaceRoutingProperties.getClarificationThreshold()
             : 0.4d;
 
-        if (merged.isEmpty() || (bestScore != null && bestScore < threshold)) {
+        if (!deterministic && (merged.isEmpty() || (bestScore != null && bestScore < threshold))) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, vectorSpaces);
             data.put(DATA_KEY_ROUTING_STRATEGY, "FAN_OUT");
@@ -1114,6 +1250,42 @@ public class IntentHandlingStep implements PipelineStep {
             .data(Collections.unmodifiableMap(data))
             .nextSteps(extractNextSteps(intent))
             .build();
+    }
+
+    private boolean isDeterministicInformationMode() {
+        return orchestrationProperties != null
+            && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+    }
+
+    private List<String> resolveAllVectorSpaces() {
+        KnowledgeBaseOverviewService overviewService = knowledgeBaseOverviewServiceProvider != null
+            ? knowledgeBaseOverviewServiceProvider.getIfAvailable()
+            : null;
+        if (overviewService == null) {
+            return List.of();
+        }
+
+        KnowledgeBaseOverview overview = overviewService.getOverview();
+        if (overview == null) {
+            return List.of();
+        }
+
+        List<String> entityTypes = overview.getEntityTypes();
+        if (entityTypes == null || entityTypes.isEmpty()) {
+            Map<String, Long> byType = overview.getDocumentsByType();
+            if (byType != null && !byType.isEmpty()) {
+                entityTypes = byType.keySet().stream().toList();
+            }
+        }
+        if (entityTypes == null || entityTypes.isEmpty()) {
+            return List.of();
+        }
+
+        return entityTypes.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
     }
 
     private OrchestrationResult handleInformationAdvanced(Intent intent,

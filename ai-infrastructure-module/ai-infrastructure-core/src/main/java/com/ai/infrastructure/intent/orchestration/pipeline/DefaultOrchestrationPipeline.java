@@ -166,7 +166,7 @@ public class DefaultOrchestrationPipeline implements Pipeline {
         
         return result;
     }
-    
+
     /**
      * {@inheritDoc}
      */

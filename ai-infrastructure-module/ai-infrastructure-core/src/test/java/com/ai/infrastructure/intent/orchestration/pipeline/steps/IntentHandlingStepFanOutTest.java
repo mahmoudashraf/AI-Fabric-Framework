@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.AIServiceConfig;
+import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.PostActionGenerationProperties;
 import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
@@ -11,7 +12,9 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -121,7 +124,10 @@ class IntentHandlingStepFanOutTest {
             new RankBasedMerger(),
             new RelationshipQueryPostActionGenerationProperties(),
             new PostActionGenerationProperties(),
-            providerOf(new ObjectMapper())
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            new InMemoryPendingActionStore()
         );
 
         Intent intent = Intent.builder()
@@ -171,7 +177,10 @@ class IntentHandlingStepFanOutTest {
             new RankBasedMerger(),
             new RelationshipQueryPostActionGenerationProperties(),
             new PostActionGenerationProperties(),
-            providerOf(new ObjectMapper())
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            new InMemoryPendingActionStore()
         );
 
         Intent intent = Intent.builder()
@@ -211,7 +220,10 @@ class IntentHandlingStepFanOutTest {
             new RankBasedMerger(),
             new RelationshipQueryPostActionGenerationProperties(),
             new PostActionGenerationProperties(),
-            providerOf(new ObjectMapper())
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            new InMemoryPendingActionStore()
         );
     }
 

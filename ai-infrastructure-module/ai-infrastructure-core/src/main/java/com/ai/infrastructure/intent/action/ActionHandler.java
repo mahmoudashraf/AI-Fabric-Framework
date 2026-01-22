@@ -41,6 +41,18 @@ public interface ActionHandler {
     ActionResult executeAction(Map<String, Object> params, String userId);
 
     /**
+     * Indicates whether this action requires explicit user confirmation before execution.
+     *
+     * <p>When {@code true}, the framework stores the action as "pending" in the conversation metadata and
+     * asks the user to confirm (e.g., "yes" / "no") in a subsequent turn.</p>
+     *
+     * <p>Default is {@code false} to preserve backward compatibility.</p>
+     */
+    default boolean requiresConfirmation() {
+        return false;
+    }
+
+    /**
      * Provide a bounded, explicitly shaped facts payload that is safe to send to an LLM after the action executes.
      *
      * <p>Framework behavior:</p>

@@ -29,7 +29,7 @@ public class ChatSessionServiceImpl implements ChatSessionService {
     private final ChatSessionProperties properties;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public String getConversationContext(String conversationId, String ownerId) {
         if (!StringUtils.hasText(conversationId)) {
             return "";

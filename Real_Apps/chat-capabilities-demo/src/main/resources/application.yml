@@ -20,6 +20,14 @@ ai:
   config:
     default-file: ai-entity-config.yml
 
+  orchestration:
+    information-mode: DETERMINISTIC_RAG_GENERATE
+    actions:
+      require-confirmation: true
+
+  intent-extraction:
+    prompt-mode: MINIMAL_FOR_RAG
+
   chat:
     enabled: true
     window-size: 12

@@ -1,8 +1,11 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
+import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.KnowledgeBaseOverview;
+import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -11,6 +14,7 @@ import com.ai.infrastructure.intent.vectorspace.RoutingResult;
 import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -37,6 +41,8 @@ public class VectorSpaceResolutionStep implements PipelineStep {
     private static final String MSG_CLARIFICATION_PREFIX = "Which knowledge base domain should I search?";
 
     private final VectorSpaceRouter vectorSpaceRouter;
+    private final OrchestrationProperties orchestrationProperties;
+    private final ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider;
 
     @Override
     public String getStepName() {
@@ -55,6 +61,9 @@ public class VectorSpaceResolutionStep implements PipelineStep {
             return context;
         }
 
+        boolean deterministic = orchestrationProperties != null
+            && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+
         List<Map<String, Object>> routingEvents = new ArrayList<>();
         boolean anyUpdate = false;
 
@@ -62,6 +71,16 @@ public class VectorSpaceResolutionStep implements PipelineStep {
         for (int i = 0; i < intents.size(); i++) {
             Intent intent = intents.get(i);
             if (!requiresResolution(intent)) {
+                continue;
+            }
+
+            if (deterministic) {
+                List<String> allSpaces = resolveAllVectorSpaces();
+                if (!allSpaces.isEmpty()) {
+                    intent.setVectorSpace(String.join(",", allSpaces));
+                    anyUpdate = true;
+                }
+                // Deterministic mode must not terminate with clarification; leave vectorSpace blank if unknown.
                 continue;
             }
 
@@ -97,6 +116,37 @@ public class VectorSpaceResolutionStep implements PipelineStep {
         }
 
         return updated;
+    }
+
+    private List<String> resolveAllVectorSpaces() {
+        KnowledgeBaseOverviewService overviewService = knowledgeBaseOverviewServiceProvider != null
+            ? knowledgeBaseOverviewServiceProvider.getIfAvailable()
+            : null;
+        if (overviewService == null) {
+            return List.of();
+        }
+
+        KnowledgeBaseOverview overview = overviewService.getOverview();
+        if (overview == null) {
+            return List.of();
+        }
+
+        List<String> entityTypes = overview.getEntityTypes();
+        if (entityTypes == null || entityTypes.isEmpty()) {
+            var byType = overview.getDocumentsByType();
+            if (byType != null && !byType.isEmpty()) {
+                entityTypes = byType.keySet().stream().toList();
+            }
+        }
+        if (entityTypes == null || entityTypes.isEmpty()) {
+            return List.of();
+        }
+
+        return entityTypes.stream()
+            .filter(this::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
     }
 
     private boolean requiresResolution(Intent intent) {
