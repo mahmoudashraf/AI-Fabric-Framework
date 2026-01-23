@@ -54,6 +54,7 @@ public class ProductService {
                                  String description,
                                  String category,
                                  String tags,
+                                 String imageUrl,
                                  BigDecimal price,
                                  String currency,
                                  Integer inStockQty) {
@@ -81,6 +82,7 @@ public class ProductService {
         product.setDescription(description.trim());
         product.setCategory(StringUtils.hasText(category) ? category.trim() : null);
         product.setTags(StringUtils.hasText(tags) ? tags.trim() : null);
+        product.setImageUrl(StringUtils.hasText(imageUrl) ? imageUrl.trim() : null);
         product.setPrice(price);
         product.setCurrency(StringUtils.hasText(currency) ? currency.trim().toUpperCase() : "USD");
         product.setInStockQty(inStockQty != null ? Math.max(0, inStockQty) : 0);
@@ -96,6 +98,7 @@ public class ProductService {
                                  String description,
                                  String category,
                                  String tags,
+                                 String imageUrl,
                                  BigDecimal price,
                                  String currency,
                                  Integer inStockQty) {
@@ -122,6 +125,9 @@ public class ProductService {
         }
         if (tags != null) {
             product.setTags(StringUtils.hasText(tags) ? tags.trim() : null);
+        }
+        if (imageUrl != null) {
+            product.setImageUrl(StringUtils.hasText(imageUrl) ? imageUrl.trim() : null);
         }
         if (price != null) {
             product.setPrice(price);

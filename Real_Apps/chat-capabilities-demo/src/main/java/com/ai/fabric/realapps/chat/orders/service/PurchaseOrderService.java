@@ -2,7 +2,11 @@ package com.ai.fabric.realapps.chat.orders.service;
 
 import com.ai.fabric.realapps.chat.catalog.domain.Product;
 import com.ai.fabric.realapps.chat.catalog.service.ProductService;
+import com.ai.fabric.realapps.chat.cart.domain.Cart;
+import com.ai.fabric.realapps.chat.cart.domain.CartItem;
+import com.ai.fabric.realapps.chat.orders.domain.OrderItem;
 import com.ai.fabric.realapps.chat.orders.domain.PurchaseOrder;
+import com.ai.fabric.realapps.chat.orders.repo.OrderItemRepository;
 import com.ai.fabric.realapps.chat.orders.repo.PurchaseOrderRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
@@ -19,6 +23,7 @@ import org.springframework.util.StringUtils;
 public class PurchaseOrderService {
 
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final ProductService productService;
 
     @Transactional
@@ -83,7 +88,19 @@ public class PurchaseOrderService {
         order.setEmail(email.trim());
         order.setStatus(PurchaseOrder.Status.CREATED);
 
-        return purchaseOrderRepository.save(order);
+        PurchaseOrder saved = purchaseOrderRepository.save(order);
+
+        OrderItem item = new OrderItem();
+        item.setOrder(saved);
+        item.setSku(product.getSku());
+        item.setProductId(product.getId());
+        item.setProductName(product.getName());
+        item.setQuantity(quantity);
+        item.setUnitPrice(unitPrice);
+        item.setTotalPrice(totalPrice);
+        orderItemRepository.save(item);
+
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -122,6 +139,11 @@ public class PurchaseOrderService {
     }
 
     @Transactional(readOnly = true)
+    public PurchaseOrder resolveForUser(String orderNumberOrId, String userId) {
+        return getByOrderNumberOrIdForUser(orderNumberOrId, userId);
+    }
+
+    @Transactional(readOnly = true)
     public PurchaseOrder getForUserByReference(String userId, String orderNumberOrId) {
         return getByOrderNumberOrIdForUser(orderNumberOrId, userId);
     }
@@ -139,17 +161,151 @@ public class PurchaseOrderService {
 
         order.setStatus(PurchaseOrder.Status.CANCELLED);
 
-        productService.findBySku(order.getSku()).ifPresent(product -> {
-            Integer inStock = product.getInStockQty();
-            if (inStock == null) {
-                inStock = 0;
+        List<OrderItem> items = orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
+        if (items != null && !items.isEmpty()) {
+            for (OrderItem item : items) {
+                if (item == null) {
+                    continue;
+                }
+                String sku = item.getSku();
+                int restoreQty = item.getQuantity() != null ? item.getQuantity() : 0;
+                if (!StringUtils.hasText(sku) || restoreQty <= 0) {
+                    continue;
+                }
+                productService.findBySku(sku).ifPresent(product -> {
+                    Integer inStock = product.getInStockQty();
+                    if (inStock == null) {
+                        inStock = 0;
+                    }
+                    productService.updateProductStock(product.getSku(), inStock + restoreQty);
+                });
             }
-            Integer qty = order.getQuantity();
-            int restoreQty = qty != null ? qty : 0;
-            productService.updateProductStock(product.getSku(), inStock + restoreQty);
-        });
+        } else {
+            productService.findBySku(order.getSku()).ifPresent(product -> {
+                Integer inStock = product.getInStockQty();
+                if (inStock == null) {
+                    inStock = 0;
+                }
+                Integer qty = order.getQuantity();
+                int restoreQty = qty != null ? qty : 0;
+                productService.updateProductStock(product.getSku(), inStock + restoreQty);
+            });
+        }
 
         return purchaseOrderRepository.save(order);
+    }
+
+    @Transactional
+    public PurchaseOrder createFromCart(Cart cart, String shippingAddress, String email) {
+        if (cart == null) {
+            throw new IllegalArgumentException("cart is required");
+        }
+        if (!StringUtils.hasText(cart.getUserId())) {
+            throw new IllegalArgumentException("cart.userId is required");
+        }
+        if (!StringUtils.hasText(shippingAddress)) {
+            throw new IllegalArgumentException("shippingAddress is required");
+        }
+        if (!StringUtils.hasText(email)) {
+            throw new IllegalArgumentException("email is required");
+        }
+        if (cart.getItems() == null || cart.getItems().isEmpty()) {
+            throw new IllegalArgumentException("cart has no items");
+        }
+
+        String userId = cart.getUserId().trim();
+
+        BigDecimal total = BigDecimal.ZERO;
+        BigDecimal unitPriceForHeader = BigDecimal.ZERO;
+        String skuForHeader = "MULTI";
+        String nameForHeader = "Multiple items";
+        Long productIdForHeader = null;
+        int qtyForHeader = 0;
+        String currency = StringUtils.hasText(cart.getCurrency()) ? cart.getCurrency().trim().toUpperCase(Locale.ROOT) : "USD";
+
+        for (CartItem item : cart.getItems()) {
+            if (item == null) {
+                continue;
+            }
+            if (!StringUtils.hasText(item.getSku())) {
+                throw new IllegalArgumentException("cart item sku is required");
+            }
+            int qty = item.getQuantity() != null ? item.getQuantity() : 0;
+            if (qty <= 0) {
+                throw new IllegalArgumentException("cart item quantity must be > 0");
+            }
+
+            Product product = productService.findBySku(item.getSku())
+                .orElseThrow(() -> new EntityNotFoundException("Product not found for sku: " + item.getSku()));
+
+            Integer inStock = product.getInStockQty() != null ? product.getInStockQty() : 0;
+            if (inStock < qty) {
+                throw new IllegalArgumentException("Insufficient stock for sku '" + product.getSku()
+                    + "'. Available=" + inStock + " requested=" + qty);
+            }
+            if (product.getPrice() == null) {
+                throw new IllegalArgumentException("Product price is not set for sku: " + product.getSku());
+            }
+
+            BigDecimal rowTotal = product.getPrice().multiply(BigDecimal.valueOf(qty));
+            total = total.add(rowTotal);
+            qtyForHeader += qty;
+
+            // Update inventory per item
+            productService.updateProductStock(product.getSku(), inStock - qty);
+
+            // Header fields: keep first item for backwards compatibility with existing API fields.
+            if (productIdForHeader == null) {
+                productIdForHeader = product.getId();
+                skuForHeader = product.getSku();
+                nameForHeader = product.getName();
+                unitPriceForHeader = product.getPrice();
+            }
+        }
+
+        PurchaseOrder order = new PurchaseOrder();
+        order.setOrderNumber("PO-" + UUID.randomUUID());
+        order.setUserId(userId);
+        order.setSku(skuForHeader);
+        order.setProductId(productIdForHeader);
+        order.setProductName(nameForHeader);
+        order.setQuantity(qtyForHeader);
+        order.setUnitPrice(unitPriceForHeader);
+        order.setCurrency(currency);
+        order.setTotalPrice(total);
+        order.setShippingAddress(shippingAddress.trim());
+        order.setEmail(email.trim());
+        order.setStatus(PurchaseOrder.Status.CREATED);
+
+        PurchaseOrder saved = purchaseOrderRepository.save(order);
+
+        for (CartItem item : cart.getItems()) {
+            if (item == null) {
+                continue;
+            }
+            Product product = productService.findBySku(item.getSku())
+                .orElseThrow(() -> new EntityNotFoundException("Product not found for sku: " + item.getSku()));
+            int qty = item.getQuantity() != null ? item.getQuantity() : 0;
+            BigDecimal rowTotal = product.getPrice().multiply(BigDecimal.valueOf(qty));
+
+            OrderItem orderItem = new OrderItem();
+            orderItem.setOrder(saved);
+            orderItem.setSku(product.getSku());
+            orderItem.setProductId(product.getId());
+            orderItem.setProductName(product.getName());
+            orderItem.setQuantity(qty);
+            orderItem.setUnitPrice(product.getPrice());
+            orderItem.setTotalPrice(rowTotal);
+            orderItemRepository.save(orderItem);
+        }
+
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderItem> listItemsForUser(long orderId, String userId) {
+        PurchaseOrder order = getForUser(orderId, userId);
+        return orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
     }
 
     @Transactional

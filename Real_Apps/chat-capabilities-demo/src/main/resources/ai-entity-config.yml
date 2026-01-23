@@ -80,3 +80,41 @@ ai-entities:
         index-for-search: false
         remove-from-search: true
         cleanup-embeddings: false
+
+  review:
+    entity-type: "review"
+    features: ["embedding", "search"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+
+    searchable-fields:
+      - name: "text"
+        weight: 2.0
+      - name: "rating"
+        weight: 0.2
+      - name: "sku"
+        weight: 0.6
+
+    metadata-fields:
+      - name: "userId"
+        type: "string"
+      - name: "productId"
+        type: "string"
+      - name: "sku"
+        type: "string"
+
+    crud-operations:
+      create:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: false
+      update:
+        generate-embedding: true
+        index-for-search: true
+        enable-analysis: false
+      delete:
+        index-for-search: false
+        remove-from-search: true
+        cleanup-embeddings: false

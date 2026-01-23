@@ -59,6 +59,7 @@ public class ProductController {
             request.getDescription(),
             request.getCategory(),
             request.getTags(),
+            request.getImageUrl(),
             request.getPrice(),
             request.getCurrency(),
             request.getInStockQty()
@@ -75,6 +76,7 @@ public class ProductController {
             request.getDescription(),
             request.getCategory(),
             request.getTags(),
+            request.getImageUrl(),
             request.getPrice(),
             request.getCurrency(),
             request.getInStockQty()
@@ -96,6 +98,7 @@ public class ProductController {
         private String description;
         private String category;
         private String tags;
+        private String imageUrl;
         @NotNull
         private BigDecimal price;
         private String currency = "USD";
@@ -109,9 +112,9 @@ public class ProductController {
         private String description;
         private String category;
         private String tags;
+        private String imageUrl;
         private BigDecimal price;
         private String currency;
         private Integer inStockQty;
     }
 }
-

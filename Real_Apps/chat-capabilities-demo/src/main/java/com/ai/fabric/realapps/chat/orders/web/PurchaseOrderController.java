@@ -1,6 +1,7 @@
 package com.ai.fabric.realapps.chat.orders.web;
 
 import com.ai.fabric.realapps.chat.orders.domain.PurchaseOrder;
+import com.ai.fabric.realapps.chat.orders.domain.OrderItem;
 import com.ai.fabric.realapps.chat.orders.service.PurchaseOrderService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -27,5 +28,9 @@ public class PurchaseOrderController {
     public PurchaseOrder get(@PathVariable long id, @RequestParam("userId") String userId) {
         return purchaseOrderService.getForUser(id, userId);
     }
-}
 
+    @GetMapping("/{id}/items")
+    public List<OrderItem> listItems(@PathVariable long id, @RequestParam("userId") String userId) {
+        return purchaseOrderService.listItemsForUser(id, userId);
+    }
+}

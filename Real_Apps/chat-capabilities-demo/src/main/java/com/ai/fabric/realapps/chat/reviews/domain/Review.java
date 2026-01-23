@@ -1,4 +1,4 @@
-package com.ai.fabric.realapps.chat.catalog.domain;
+package com.ai.fabric.realapps.chat.reviews.domain;
 
 import com.ai.infrastructure.annotation.AICapable;
 import com.ai.infrastructure.annotation.AIContext;
@@ -12,7 +12,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
@@ -20,56 +19,36 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "product")
+@Table(name = "review")
 @AICapable(
-    entityType = "product",
+    entityType = "review",
     indexingStrategy = IndexingStrategy.ASYNC,
     onCreateStrategy = IndexingStrategy.SYNC,
     onUpdateStrategy = IndexingStrategy.ASYNC,
     onDeleteStrategy = IndexingStrategy.SYNC
 )
-public class Product {
+public class Review {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @AISearchable(weight = 1.6)
-    @Column(nullable = false, unique = true)
+    @AIContext(description = "User id who wrote the review")
+    @Column(nullable = false)
+    private String userId;
+
+    @AIContext(description = "Reviewed product id")
+    private Long productId;
+
+    @AIContext(description = "Reviewed product sku")
     private String sku;
 
-    @AISearchable(weight = 2.0)
     @Column(nullable = false)
-    private String name;
+    private Integer rating;
 
-    @AISearchable(weight = 1.7, maxLength = 20000)
+    @AISearchable(weight = 2.0, maxLength = 20000)
     @Column(columnDefinition = "TEXT", nullable = false)
-    private String description;
-
-    @AISearchable(weight = 1.2)
-    @AIContext(description = "Product category (e.g., Laptops, Headphones)")
-    private String category;
-
-    @AISearchable(weight = 1.1)
-    @AIContext(description = "Comma-separated tags")
-    @Column(columnDefinition = "TEXT")
-    private String tags;
-
-    @AIContext(description = "Public URL for the product image (not included in embeddings)")
-    @Column(columnDefinition = "TEXT")
-    private String imageUrl;
-
-    @AISearchable(weight = 1.0)
-    @Column(precision = 12, scale = 2)
-    private BigDecimal price;
-
-    @AISearchable(weight = 0.6)
-    @Column(nullable = false)
-    private String currency = "USD";
-
-    @AISearchable(weight = 0.5)
-    @Column(nullable = false)
-    private Integer inStockQty = 100;
+    private String text;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
@@ -93,3 +72,4 @@ public class Product {
         updatedAt = LocalDateTime.now();
     }
 }
+
