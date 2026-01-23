@@ -17,6 +17,7 @@ import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
+import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -81,7 +82,8 @@ class IntentHandlingStepPostActionGenerationTest {
             providerOf(new ObjectMapper()),
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
-            new InMemoryPendingActionStore()
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore()
         );
 
         Intent intent = Intent.builder()
@@ -142,7 +144,8 @@ class IntentHandlingStepPostActionGenerationTest {
             providerOf(new ObjectMapper()),
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
-            new InMemoryPendingActionStore()
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore()
         );
 
         Intent intent = Intent.builder()
@@ -201,7 +204,8 @@ class IntentHandlingStepPostActionGenerationTest {
             providerOf(new ObjectMapper()),
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
-            new InMemoryPendingActionStore()
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore()
         );
 
         Intent intent = Intent.builder()
@@ -258,7 +262,8 @@ class IntentHandlingStepPostActionGenerationTest {
             providerOf(new ObjectMapper()),
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
-            new InMemoryPendingActionStore()
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore()
         );
 
         Intent intent = Intent.builder()
@@ -318,7 +323,8 @@ class IntentHandlingStepPostActionGenerationTest {
             providerOf(new ObjectMapper()),
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
-            new InMemoryPendingActionStore()
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore()
         );
 
         Intent intent = Intent.builder()

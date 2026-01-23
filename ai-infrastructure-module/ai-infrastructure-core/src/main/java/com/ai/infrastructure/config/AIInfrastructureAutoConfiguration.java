@@ -28,6 +28,8 @@ import com.ai.infrastructure.http.DefaultAIHttpClientFactory;
 import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.action.PendingActionStore;
+import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
+import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.beans.factory.ObjectProvider;
@@ -215,6 +217,12 @@ public class AIInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean(PendingActionStore.class)
     public PendingActionStore defaultPendingActionStore() {
         return new InMemoryPendingActionStore();
+    }
+
+    @Bean(name = "defaultActionDraftStore")
+    @ConditionalOnMissingBean(ActionDraftStore.class)
+    public ActionDraftStore defaultActionDraftStore() {
+        return new InMemoryActionDraftStore();
     }
     
     // Vector database implementations are provided by dedicated vector modules

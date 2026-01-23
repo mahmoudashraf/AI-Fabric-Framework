@@ -5,6 +5,8 @@ import com.ai.infrastructure.chat.exception.ChatSessionAccessDeniedException;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
+import com.ai.infrastructure.intent.actiondraft.ActionDraft;
+import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -34,6 +36,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
     private final ChatSessionService chatSessionService;
     private final ChatSessionProperties properties;
     private final PendingActionStore pendingActionStore;
+    private final ActionDraftStore actionDraftStore;
 
     @Override
     public String getStepName() {
@@ -88,6 +91,57 @@ public class ConversationEnrichmentStep implements PipelineStep {
                 Map<String, Object> chatMeta = new LinkedHashMap<>();
                 chatMeta.put("conversationId", conversationId);
                 chatMeta.put("historyChars", 0);
+                chatMeta.put("memoryStrategy", properties.getMemoryStrategy() != null ? properties.getMemoryStrategy().name() : null);
+                chatMeta.put("windowSize", properties.getWindowSize());
+
+                return context.toBuilder()
+                    .processedQuery(enriched)
+                    .metadata(mergeMetadata(context.getMetadata(), Map.of(METADATA_KEY_CHAT, chatMeta)))
+                    .build();
+            }
+
+            ActionDraft draft = actionDraftStore != null
+                ? actionDraftStore.peekDraft(conversationId, ownerId).orElse(null)
+                : null;
+            if (draft != null && StringUtils.hasText(draft.action())) {
+                String history = chatSessionService.getConversationContext(conversationId, ownerId);
+                String currentQuery = context.getEffectiveQuery();
+                String missing = StringUtils.hasText(draft.missingSummary()) ? draft.missingSummary() : "required parameters";
+                String enriched = """
+                    INCOMPLETE ACTION CONTEXT:
+                    A prior action intent is awaiting missing required parameters.
+                    - action: %s
+                    - missing: %s
+                    - knownParams: %s
+
+                    Conversation History:
+                    ---BEGIN HISTORY---
+                    %s
+                    ---END HISTORY---
+
+                    Current user message:
+                    ---BEGIN MESSAGE---
+                    %s
+                    ---END MESSAGE---
+
+                    If the user provides the missing required parameters, rebuild the same action with merged params.
+                    If the user does not provide the missing parameters (e.g., says "thanks"), respond normally and do not execute any action.
+                    """.formatted(
+                    draft.action(),
+                    missing,
+                    draft.params() != null ? draft.params() : Map.of(),
+                    StringUtils.hasText(history) ? history : "",
+                    currentQuery != null ? currentQuery : ""
+                );
+
+                int maxChars = properties.getMaxContextChars();
+                if (enriched.length() > maxChars) {
+                    enriched = enriched.substring(enriched.length() - maxChars);
+                }
+
+                Map<String, Object> chatMeta = new LinkedHashMap<>();
+                chatMeta.put("conversationId", conversationId);
+                chatMeta.put("historyChars", StringUtils.hasText(history) ? history.length() : 0);
                 chatMeta.put("memoryStrategy", properties.getMemoryStrategy() != null ? properties.getMemoryStrategy().name() : null);
                 chatMeta.put("windowSize", properties.getWindowSize());
 

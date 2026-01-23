@@ -122,7 +122,7 @@ public class IntentExtractionValidator {
             }
             Object value = params != null ? params.get(param) : null;
             if (value == null || value.toString().isBlank()) {
-                issues.add(ValidationIssue.error(
+                issues.add(ValidationIssue.warn(
                     IssueCode.ACTION_REQUIRED_PARAM_MISSING,
                     index,
                     "actionParams." + param,

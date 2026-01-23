@@ -19,6 +19,8 @@ import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
+import com.ai.infrastructure.intent.actiondraft.ActionDraft;
+import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.KnowledgeBaseOverview;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -163,6 +165,8 @@ public class IntentHandlingStep implements PipelineStep {
     private static final int ADVANCED_QUERY_WORD_THRESHOLD = 8;
 
     private static final String DATA_KEY_CONFIRMATION_REQUIRED = "confirmationRequired";
+    private static final String DATA_KEY_MISSING_REQUIRED_PARAMETERS = "missingRequiredParameters";
+    private static final String DATA_KEY_PROVIDED_PARAMETERS = "providedParameters";
     
     // Intent params key
     private static final String PARAM_KEY_INTENTS = "intents";
@@ -184,6 +188,7 @@ public class IntentHandlingStep implements PipelineStep {
     private final OrchestrationProperties orchestrationProperties;
     private final ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider;
     private final PendingActionStore pendingActionStore;
+    private final ActionDraftStore actionDraftStore;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -312,6 +317,46 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
+
+        AIActionMetaData meta = getMetadataForAction(actionName);
+        List<String> missingRequired = findMissingRequiredParams(meta, effectiveParams);
+        if (!missingRequired.isEmpty()) {
+            if (context.hasConversation() && actionDraftStore != null) {
+                String missingSummary = String.join(", ", missingRequired);
+                ActionDraft draft = new ActionDraft(
+                    actionName,
+                    Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)),
+                    missingSummary,
+                    Instant.now(),
+                    Instant.now()
+                );
+                actionDraftStore.saveDraft(context.getConversationId(), identifier, draft);
+            }
+
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_ACTION, actionName);
+            data.put(DATA_KEY_MISSING_REQUIRED_PARAMETERS, List.copyOf(missingRequired));
+            data.put(DATA_KEY_PROVIDED_PARAMETERS, Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)));
+            if (meta != null) {
+                data.put(DATA_KEY_METADATA, meta);
+            }
+
+            String message = "To proceed, please provide: " + String.join(", ", missingRequired) + ".";
+            List<NextStepRecommendation> nextSteps = new ArrayList<>(extractNextSteps(intent));
+            nextSteps.add(NextStepRecommendation.builder()
+                .intent("provide_missing_action_params")
+                .query("Please provide: " + String.join(", ", missingRequired) + ".")
+                .rationale("These parameters are required to execute the requested action.")
+                .confidence(1.0d)
+                .build());
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message(message)
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(Collections.unmodifiableList(nextSteps))
+                .build();
+        }
         
         // Never let confirmation-message formatting crash the pipeline.
         // Some handlers validate required params inside getConfirmationMessage().
@@ -326,6 +371,9 @@ public class IntentHandlingStep implements PipelineStep {
         boolean requiresConfirmation = requiresActionConfirmation(handler);
         boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
         if (requiresConfirmation && !confirmedThisRequest) {
+            if (context.hasConversation() && actionDraftStore != null) {
+                actionDraftStore.clearDrafts(context.getConversationId(), identifier);
+            }
             if (!context.hasConversation()) {
                 return OrchestrationResult.builder()
                     .type(OrchestrationResultType.ERROR)
@@ -365,6 +413,9 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         try {
+            if (context.hasConversation() && actionDraftStore != null) {
+                actionDraftStore.clearDrafts(context.getConversationId(), identifier);
+            }
             ActionResult actionResult = handler.executeAction(effectiveParams, identifier);
             boolean success = actionResult != null && actionResult.isSuccess();
             
@@ -459,6 +510,9 @@ public class IntentHandlingStep implements PipelineStep {
                 .message("There is no pending action to confirm.")
                 .build();
         }
+        if (actionDraftStore != null) {
+            actionDraftStore.clearDrafts(context.getConversationId(), context.getIdentifier());
+        }
 
         Intent synthetic = Intent.builder()
             .type(com.ai.infrastructure.dto.IntentType.ACTION)
@@ -484,6 +538,9 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
         pendingActionStore.popPendingAction(context.getConversationId(), context.getIdentifier());
+        if (actionDraftStore != null) {
+            actionDraftStore.clearDrafts(context.getConversationId(), context.getIdentifier());
+        }
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
             .success(true)
@@ -1759,5 +1816,22 @@ public class IntentHandlingStep implements PipelineStep {
             log.debug("Unable to resolve metadata for action {}: {}", actionName, ex.getMessage());
             return null;
         }
+    }
+
+    private List<String> findMissingRequiredParams(AIActionMetaData meta, Map<String, Object> params) {
+        if (meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty()) {
+            return List.of();
+        }
+        List<String> missing = new ArrayList<>();
+        for (String required : meta.getRequiredParameters()) {
+            if (!StringUtils.hasText(required)) {
+                continue;
+            }
+            Object value = params != null ? params.get(required) : null;
+            if (value == null || value.toString().isBlank()) {
+                missing.add(required);
+            }
+        }
+        return missing;
     }
 }

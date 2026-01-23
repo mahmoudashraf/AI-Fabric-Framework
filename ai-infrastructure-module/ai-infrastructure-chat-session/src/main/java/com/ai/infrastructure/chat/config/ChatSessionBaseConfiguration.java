@@ -11,10 +11,12 @@ import com.ai.infrastructure.chat.service.ChatSessionServiceImpl;
 import com.ai.infrastructure.chat.spi.ChatSessionAccessControlPolicy;
 import com.ai.infrastructure.chat.spi.ChatSessionStorageProvider;
 import com.ai.infrastructure.chat.spi.IntentResolver;
+import com.ai.infrastructure.chat.storage.ChatSessionActionDraftStore;
 import com.ai.infrastructure.chat.storage.ChatSessionPendingActionStore;
 import com.ai.infrastructure.chat.strategy.MemoryStrategy;
 import com.ai.infrastructure.chat.strategy.SlidingWindowMemoryStrategy;
 import com.ai.infrastructure.intent.action.PendingActionStore;
+import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -55,8 +57,15 @@ class ChatSessionBaseConfiguration {
     @ConditionalOnBean(ChatSessionService.class)
     ConversationEnrichmentStep conversationEnrichmentStep(ChatSessionService chatSessionService,
                                                           ChatSessionProperties properties,
-                                                          PendingActionStore pendingActionStore) {
-        return new ConversationEnrichmentStep(chatSessionService, properties, pendingActionStore);
+                                                          PendingActionStore pendingActionStore,
+                                                          ActionDraftStore actionDraftStore) {
+        return new ConversationEnrichmentStep(chatSessionService, properties, pendingActionStore, actionDraftStore);
+    }
+
+    @Bean
+    @Primary
+    ActionDraftStore actionDraftStore(ChatSessionStorageProvider storageProvider) {
+        return new ChatSessionActionDraftStore(storageProvider);
     }
 
     @Bean

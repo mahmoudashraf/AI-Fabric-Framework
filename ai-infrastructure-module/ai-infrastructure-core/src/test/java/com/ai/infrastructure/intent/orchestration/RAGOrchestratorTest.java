@@ -17,6 +17,7 @@ import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
+import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
 import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.ActionHandler;
 import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
@@ -177,7 +178,8 @@ class RAGOrchestratorTest {
                 org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class),
                 orchestrationProperties,
                 overviewProvider,
-                new InMemoryPendingActionStore()),
+                new InMemoryPendingActionStore(),
+                new InMemoryActionDraftStore()),
             new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
             new MetadataBuildingStep(normalizationProperties),
             new SmartSuggestionsStep(smartSuggestionsProperties, ragProviderProvider),
