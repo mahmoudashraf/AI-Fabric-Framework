@@ -109,5 +109,78 @@ public class PurchaseOrderService {
         }
         return order;
     }
-}
 
+    @Transactional
+    public PurchaseOrder cancelForUser(String orderNumber, String userId) {
+        PurchaseOrder order = getByOrderNumberForUser(orderNumber, userId);
+
+        if (order.getStatus() == PurchaseOrder.Status.CANCELLED) {
+            throw new IllegalStateException("Order is already cancelled: " + order.getOrderNumber());
+        }
+        if (order.getStatus() == PurchaseOrder.Status.FULFILLED) {
+            throw new IllegalStateException("Order is already fulfilled and cannot be cancelled: " + order.getOrderNumber());
+        }
+
+        order.setStatus(PurchaseOrder.Status.CANCELLED);
+
+        productService.findBySku(order.getSku()).ifPresent(product -> {
+            Integer inStock = product.getInStockQty();
+            if (inStock == null) {
+                inStock = 0;
+            }
+            Integer qty = order.getQuantity();
+            int restoreQty = qty != null ? qty : 0;
+            productService.updateProductStock(product.getSku(), inStock + restoreQty);
+        });
+
+        return purchaseOrderRepository.save(order);
+    }
+
+    @Transactional
+    public PurchaseOrder updateDeliveryAddressForUser(String userId, String orderNumber, String newShippingAddress) {
+        if (!StringUtils.hasText(newShippingAddress)) {
+            throw new IllegalArgumentException("shippingAddress is required");
+        }
+
+        PurchaseOrder order = StringUtils.hasText(orderNumber)
+            ? getByOrderNumberForUser(orderNumber, userId)
+            : getCurrentCreatedOrderForUser(userId);
+
+        if (order.getStatus() == PurchaseOrder.Status.CANCELLED) {
+            throw new IllegalStateException("Order is cancelled: " + order.getOrderNumber());
+        }
+        if (order.getStatus() == PurchaseOrder.Status.FULFILLED) {
+            throw new IllegalStateException("Order is already fulfilled and cannot be changed: " + order.getOrderNumber());
+        }
+
+        order.setShippingAddress(newShippingAddress.trim());
+        return purchaseOrderRepository.save(order);
+    }
+
+    private PurchaseOrder getByOrderNumberForUser(String orderNumber, String userId) {
+        if (!StringUtils.hasText(userId)) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        if (!StringUtils.hasText(orderNumber)) {
+            throw new IllegalArgumentException("orderNumber is required");
+        }
+
+        String normalizedOrderNumber = orderNumber.trim();
+        PurchaseOrder order = purchaseOrderRepository.findByOrderNumber(normalizedOrderNumber)
+            .orElseThrow(() -> new EntityNotFoundException("Order not found: " + normalizedOrderNumber));
+
+        if (!userId.trim().equals(order.getUserId())) {
+            throw new EntityNotFoundException("Order not found: " + normalizedOrderNumber);
+        }
+
+        return order;
+    }
+
+    private PurchaseOrder getCurrentCreatedOrderForUser(String userId) {
+        if (!StringUtils.hasText(userId)) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        return purchaseOrderRepository.findFirstByUserIdAndStatusOrderByCreatedAtDesc(userId.trim(), PurchaseOrder.Status.CREATED)
+            .orElseThrow(() -> new EntityNotFoundException("No current order found for user: " + userId.trim()));
+    }
+}

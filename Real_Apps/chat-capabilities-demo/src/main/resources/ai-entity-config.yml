@@ -46,3 +46,37 @@ ai-entities:
         index-for-search: false
         remove-from-search: true
         cleanup-embeddings: false
+
+  policy:
+    entity-type: "policy"
+    features: ["embedding", "search"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+
+    searchable-fields:
+      - name: "title"
+        weight: 2.0
+      - name: "text"
+        weight: 1.7
+      - name: "classification"
+        weight: 1.2
+
+    metadata-fields:
+      - name: "classification"
+        type: "string"
+
+    crud-operations:
+      create:
+        generate-embedding: false
+        index-for-search: true
+        enable-analysis: false
+      update:
+        generate-embedding: false
+        index-for-search: true
+        enable-analysis: false
+      delete:
+        index-for-search: false
+        remove-from-search: true
+        cleanup-embeddings: false

@@ -10,5 +10,6 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     List<PurchaseOrder> findByUserIdOrderByCreatedAtDesc(String userId);
 
     Optional<PurchaseOrder> findByOrderNumber(String orderNumber);
-}
 
+    Optional<PurchaseOrder> findFirstByUserIdAndStatusOrderByCreatedAtDesc(String userId, PurchaseOrder.Status status);
+}
