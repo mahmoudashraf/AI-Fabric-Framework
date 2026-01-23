@@ -43,6 +43,11 @@ public class EscalateTicketActionHandler extends BaseActionHandler implements Ac
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         long ticketNumber = requireTicketNumber(params);
         String reason = stringParam(params, "reason");
@@ -67,4 +72,3 @@ public class EscalateTicketActionHandler extends BaseActionHandler implements Ac
             .build();
     }
 }
-

@@ -47,6 +47,11 @@ public class CreateTicketActionHandler extends BaseActionHandler implements Acti
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return false;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         String title = stringParam(params, "title");
         if (title == null || title.isBlank()) {
@@ -107,4 +112,3 @@ public class CreateTicketActionHandler extends BaseActionHandler implements Acti
         return candidate;
     }
 }
-

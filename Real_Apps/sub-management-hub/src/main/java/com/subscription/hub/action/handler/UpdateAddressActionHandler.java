@@ -68,6 +68,11 @@ public class UpdateAddressActionHandler extends BaseActionHandler implements Act
             addressType.toLowerCase()
         );
     }
+
+    @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
     
     @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {

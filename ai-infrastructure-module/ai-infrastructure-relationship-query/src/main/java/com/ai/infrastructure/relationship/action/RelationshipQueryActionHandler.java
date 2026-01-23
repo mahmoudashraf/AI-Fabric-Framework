@@ -243,6 +243,11 @@ public class RelationshipQueryActionHandler implements ActionHandler {
         return "Execute relationship query on " + entitySummary + ": \"" + query + "\"";
     }
 
+    @Override
+    public boolean requiresConfirmation() {
+        return false;
+    }
+
     private QueryOptions buildQueryOptions(Map<String, Object> params) {
         QueryOptions.QueryOptionsBuilder builder = QueryOptions.builder();
 

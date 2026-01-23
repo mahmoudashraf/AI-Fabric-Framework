@@ -183,6 +183,11 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
         }
 
         @Override
+        public boolean requiresConfirmation() {
+            return false;
+        }
+
+        @Override
         public ActionResult executeAction(Map<String, Object> params, String userId) {
             int count = executions.incrementAndGet();
             Object token = params != null ? params.get("verificationToken") : null;

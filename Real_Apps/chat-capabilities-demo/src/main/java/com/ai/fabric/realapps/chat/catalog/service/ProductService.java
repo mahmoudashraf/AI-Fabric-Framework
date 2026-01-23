@@ -37,10 +37,14 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Optional<Product> findBySku(String sku) {
-        if (!StringUtils.hasText(sku)) {
+        String normalized = SkuNormalizer.normalizeForLookup(sku);
+        if (!StringUtils.hasText(normalized)) {
             return Optional.empty();
         }
-        return productRepository.findBySku(sku.trim());
+
+        // Try exact match first (fast path), then case-insensitive.
+        return productRepository.findBySku(normalized)
+            .or(() -> productRepository.findBySkuIgnoreCase(normalized));
     }
 
     @Transactional
@@ -63,8 +67,11 @@ public class ProductService {
             throw new IllegalArgumentException("description is required");
         }
 
-        String normalizedSku = sku.trim();
-        if (productRepository.existsBySku(normalizedSku)) {
+        String normalizedSku = SkuNormalizer.normalize(sku);
+        if (!StringUtils.hasText(normalizedSku)) {
+            throw new IllegalArgumentException("sku is required");
+        }
+        if (productRepository.existsBySkuIgnoreCase(normalizedSku)) {
             throw new IllegalArgumentException("sku already exists: " + normalizedSku);
         }
 
@@ -95,8 +102,11 @@ public class ProductService {
         Product product = get(id);
 
         if (StringUtils.hasText(sku)) {
-            String normalizedSku = sku.trim();
-            if (!normalizedSku.equals(product.getSku()) && productRepository.existsBySku(normalizedSku)) {
+            String normalizedSku = SkuNormalizer.normalize(sku);
+            if (!StringUtils.hasText(normalizedSku)) {
+                throw new IllegalArgumentException("sku is required");
+            }
+            if (!equalsIgnoreCase(normalizedSku, product.getSku()) && productRepository.existsBySkuIgnoreCase(normalizedSku)) {
                 throw new IllegalArgumentException("sku already exists: " + normalizedSku);
             }
             product.setSku(normalizedSku);
@@ -129,11 +139,12 @@ public class ProductService {
     @Transactional
     @AIProcess(entityType = "product", processType = "update", generateEmbedding = true, indexForSearch = true)
     public Product updateProductStock(String sku, int newInStockQty) {
-        if (!StringUtils.hasText(sku)) {
+        String normalizedSku = SkuNormalizer.normalizeForLookup(sku);
+        if (!StringUtils.hasText(normalizedSku)) {
             throw new IllegalArgumentException("sku is required");
         }
-        Product product = productRepository.findBySku(sku.trim())
-            .orElseThrow(() -> new EntityNotFoundException("Product not found for sku: " + sku));
+        Product product = findBySku(normalizedSku)
+            .orElseThrow(() -> new EntityNotFoundException("Product not found for sku: " + normalizedSku));
         product.setInStockQty(Math.max(0, newInStockQty));
         return productRepository.save(product);
     }
@@ -196,5 +207,12 @@ public class ProductService {
 
     private Object firstNonNull(Object first, Object second) {
         return first != null ? first : second;
+    }
+
+    private boolean equalsIgnoreCase(String left, String right) {
+        if (left == null || right == null) {
+            return left == null && right == null;
+        }
+        return left.equalsIgnoreCase(right);
     }
 }

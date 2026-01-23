@@ -121,7 +121,11 @@ public class EnrichedPromptBuilder {
         prompt.append("7. For INFORMATION intents decide if LLM generation is needed.\n");
         prompt.append("   - Set requiresGeneration=true for synthesized answers (summaries, explanations, comparisons, recommendations) when using retrieved knowledge (requiresRetrieval=true).\n");
         prompt.append("   - Set requiresGeneration=false for pure retrieval/listing requests where the user wants records/results without synthesis.\n");
-        prompt.append("8. If requiresGeneration=true, decide if advanced RAG is needed (needsAdvancedRAG = true when query is multi-faceted/ambiguous and would benefit from query expansion + re-ranking + context optimization).\n");
+        prompt.append("8. requiresRetrieval MUST be set for INFORMATION intents:\n");
+        prompt.append("   - requiresRetrieval=true when the answer must be grounded in the indexed knowledge base.\n");
+        prompt.append("   - requiresRetrieval=false for simple conversational replies/acknowledgements (e.g., \"thanks\", \"ok\", greetings) where no retrieval is needed.\n");
+        prompt.append("   - When requiresRetrieval=false you MUST provide directAnswer (a short reply, 1 sentence).\n");
+        prompt.append("9. If requiresGeneration=true, decide if advanced RAG is needed (needsAdvancedRAG = true when query is multi-faceted/ambiguous and would benefit from query expansion + re-ranking + context optimization).\n");
         prompt.append("9. Action selection MUST be grounded in AVAILABLE ACTIONS and the user's request:\n");
         prompt.append("   - Only return intent.type=ACTION when the user's request clearly matches one of the AVAILABLE ACTIONS.\n");
         prompt.append("   - Choose the closest matching action by meaning; never pick an unrelated action just because it's available.\n");
@@ -198,6 +202,7 @@ public class EnrichedPromptBuilder {
                   "vectorSpace": "policies | faq | ...",
                   "requiresRetrieval": true,
                   "requiresGeneration": false,
+                  "directAnswer": "required when requiresRetrieval is false (short reply)",
                   "generationInstructions": "optional post-action generation instruction",
                   "needsAdvancedRAG": false,
                   "optimizedQuery": "Product entities with price_usd < 60.00 AND stock_status = 'in_stock'",
@@ -235,7 +240,9 @@ public class EnrichedPromptBuilder {
                   "action": "action_name_if_applicable",
                   "actionParams": {"key": "value"},
                   "vectorSpace": "optional_domain_or_entity_type",
-                  "optimizedQuery": "required_for_INFORMATION"
+                  "requiresRetrieval": true,
+                  "directAnswer": "required when requiresRetrieval is false (short reply)",
+                  "optimizedQuery": "required_for_INFORMATION_when_requiresRetrieval_true"
                 }
               ],
               "isCompound": false,

@@ -652,6 +652,11 @@ class RAGSixLayerIntegrationTest {
                 }
 
                 @Override
+                public boolean requiresConfirmation() {
+                    return false;
+                }
+
+                @Override
                 public ActionResult executeAction(Map<String, Object> params, String userId) {
                     throw new IllegalStateException("Card 4999-8888-7777-6666 failure for emergency@example.com");
                 }

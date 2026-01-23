@@ -45,12 +45,8 @@ public interface ActionHandler {
      *
      * <p>When {@code true}, the framework stores the action as "pending" in the conversation metadata and
      * asks the user to confirm (e.g., "yes" / "no") in a subsequent turn.</p>
-     *
-     * <p>Default is {@code false} to preserve backward compatibility.</p>
      */
-    default boolean requiresConfirmation() {
-        return false;
-    }
+    boolean requiresConfirmation();
 
     /**
      * Provide a bounded, explicitly shaped facts payload that is safe to send to an LLM after the action executes.

@@ -46,6 +46,11 @@ public class RemoveVectorActionHandler implements ActionHandler {
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         String entityType = value(params.get("entityType"));
         String entityId = value(params.get("entityId"));

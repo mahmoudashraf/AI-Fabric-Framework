@@ -196,6 +196,17 @@ public class IntentExtractionValidator {
     }
 
     private void validateInformationIntent(Intent intent, int index, List<ValidationIssue> issues) {
+        if (Boolean.FALSE.equals(intent.getRequiresRetrieval())) {
+            if (!StringUtils.hasText(intent.getDirectAnswer())) {
+                issues.add(ValidationIssue.warn(
+                    IssueCode.INFORMATION_DIRECT_ANSWER_MISSING,
+                    index,
+                    "directAnswer",
+                    "INFORMATION intent requiresRetrieval=false but directAnswer is missing"
+                ));
+            }
+            return;
+        }
         if (Boolean.TRUE.equals(intent.getRequiresRetrieval()) && !StringUtils.hasText(intent.getVectorSpace())) {
             issues.add(ValidationIssue.warn(
                 IssueCode.INFORMATION_MISSING_VECTOR_SPACE,
@@ -230,6 +241,7 @@ public class IntentExtractionValidator {
         ACTION_UNREGISTERED,
         ACTION_REQUIRED_PARAM_MISSING,
         RELATIONSHIP_QUERY_HINTED_TAIL_MISSING,
+        INFORMATION_DIRECT_ANSWER_MISSING,
         INFORMATION_MISSING_VECTOR_SPACE
     }
 

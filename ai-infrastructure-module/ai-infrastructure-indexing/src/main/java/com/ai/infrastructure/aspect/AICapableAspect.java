@@ -14,6 +14,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.util.StringUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -94,8 +95,13 @@ public class AICapableAspect {
             MethodSignature signature = (MethodSignature) joinPoint.getSignature();
             Method method = signature.getMethod();
             
-            // Get entity type from method name or class
-            String entityType = getEntityTypeFromMethod(method);
+            // Framework contract: @AIProcess must declare entityType explicitly.
+            String entityType = StringUtils.hasText(aiProcess.entityType()) ? aiProcess.entityType().trim() : null;
+            if (!StringUtils.hasText(entityType)) {
+                log.warn("Missing required @AIProcess(entityType=...) for method {}.{}; skipping AI processing for this invocation",
+                    method.getDeclaringClass().getSimpleName(), method.getName());
+                return joinPoint.proceed();
+            }
             
             // Load configuration for entity type
             AIEntityConfig config = configLoader.getEntityConfig(entityType);
@@ -126,22 +132,7 @@ public class AICapableAspect {
         if (!aiCapable.entityType().isEmpty()) {
             return aiCapable.entityType();
         }
-        return getEntityTypeFromMethod(method);
-    }
-    
-    private String getEntityTypeFromMethod(Method method) {
-        String methodName = method.getName().toLowerCase();
-        
-        if (methodName.contains("product")) {
-            return "product";
-        } else if (methodName.contains("user")) {
-            return "user";
-        } else if (methodName.contains("order")) {
-            return "order";
-        }
-        
-        // Default to method name
-        return methodName;
+        return null;
     }
     
     private void processBeforeMethod(ProceedingJoinPoint joinPoint, AIEntityConfig config, String entityType) {

@@ -139,6 +139,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                   "actionHint": "short verb phrase (only when type=ACTION)",
                   "requiresRetrieval": true,
                   "requiresGeneration": false,
+                  "directAnswer": "required when type=INFORMATION and requiresRetrieval=false (short reply)",
                   "generationInstructions": "optional follow-up instruction when requiresGeneration is true",
                   "needsAdvancedRAG": false,
                   "optimizedQuery": "optional optimized query",
@@ -151,7 +152,8 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             - Keep it simple and deterministic.
             - Do NOT invent action names; for ACTION use actionHint only.
             - If the user asks to execute something AND then summarize/explain/recommend/translate the results, set requiresGeneration=true and put that instruction in generationInstructions.
-            - If unsure, prefer INFORMATION with requiresRetrieval=false and requiresGeneration=false.
+            - For conversational acknowledgements/greetings (e.g., "thanks", "ok"), prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
+            - If unsure, prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
 
             USER REQUEST:
             %s
@@ -503,6 +505,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 .confidence(classified.getConfidence())
                 .requiresRetrieval(classified.getRequiresRetrieval())
                 .requiresGeneration(classified.getRequiresGeneration())
+                .directAnswer(StringUtils.hasText(classified.getDirectAnswer()) ? classified.getDirectAnswer() : null)
                 .generationInstructions(StringUtils.hasText(classified.getGenerationInstructions()) ? classified.getGenerationInstructions() : null)
                 .needsAdvancedRAG(classified.getNeedsAdvancedRAG())
                 .optimizedQuery(StringUtils.hasText(classified.getOptimizedQuery()) ? classified.getOptimizedQuery() : null)
@@ -588,6 +591,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         private Double confidence;
         private Boolean requiresRetrieval;
         private Boolean requiresGeneration;
+        private String directAnswer;
         private String generationInstructions;
         private Boolean needsAdvancedRAG;
         private String optimizedQuery;
@@ -602,6 +606,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             copy.confidence = this.confidence;
             copy.requiresRetrieval = this.requiresRetrieval;
             copy.requiresGeneration = this.requiresGeneration;
+            copy.directAnswer = this.directAnswer;
             copy.generationInstructions = this.generationInstructions;
             copy.needsAdvancedRAG = this.needsAdvancedRAG;
             copy.optimizedQuery = this.optimizedQuery;

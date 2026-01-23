@@ -60,6 +60,11 @@ public class SubscribeActionHandler extends BaseActionHandler implements ActionH
             billingCycle
         );
     }
+
+    @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
     
     @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {

@@ -22,8 +22,6 @@ ai:
 
   orchestration:
     information-mode: DETERMINISTIC_RAG_GENERATE
-    actions:
-      require-confirmation: true
 
   intent-extraction:
     prompt-mode: MINIMAL_FOR_RAG

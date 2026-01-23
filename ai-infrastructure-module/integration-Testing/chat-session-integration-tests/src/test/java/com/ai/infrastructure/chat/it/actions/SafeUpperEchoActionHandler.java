@@ -35,6 +35,11 @@ public class SafeUpperEchoActionHandler implements ActionHandler {
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return false;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         String message = params != null ? (String) params.get("message") : null;
         String echoed = StringUtils.hasText(message) ? message.toUpperCase(Locale.ROOT) : "OK";
@@ -54,4 +59,3 @@ public class SafeUpperEchoActionHandler implements ActionHandler {
             .build();
     }
 }
-

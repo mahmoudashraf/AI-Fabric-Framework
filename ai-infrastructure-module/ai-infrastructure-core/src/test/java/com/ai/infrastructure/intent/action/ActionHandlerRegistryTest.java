@@ -76,6 +76,11 @@ class ActionHandlerRegistryTest {
         }
 
         @Override
+        public boolean requiresConfirmation() {
+            return false;
+        }
+
+        @Override
         public ActionResult executeAction(Map<String, Object> params, String userId) {
             return ActionResult.builder().success(true).message("ok").build();
         }

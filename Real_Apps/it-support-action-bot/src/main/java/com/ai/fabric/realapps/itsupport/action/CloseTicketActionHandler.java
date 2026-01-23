@@ -43,6 +43,11 @@ public class CloseTicketActionHandler extends BaseActionHandler implements Actio
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         long ticketNumber = requireTicketNumber(params);
         String note = stringParam(params, "resolutionNote");
@@ -67,4 +72,3 @@ public class CloseTicketActionHandler extends BaseActionHandler implements Actio
             .build();
     }
 }
-

@@ -98,6 +98,17 @@ public class PurchaseOrderService {
     }
 
     @Transactional(readOnly = true)
+    public List<PurchaseOrder> listActiveForUser(String userId, int limit) {
+        if (!StringUtils.hasText(userId)) {
+            return List.of();
+        }
+        int effectiveLimit = limit <= 0 ? 25 : Math.min(limit, 200);
+        return purchaseOrderRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId.trim(), PurchaseOrder.Status.CREATED).stream()
+            .limit(effectiveLimit)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
     public PurchaseOrder getForUser(long id, String userId) {
         if (!StringUtils.hasText(userId)) {
             throw new IllegalArgumentException("userId is required");
@@ -110,9 +121,14 @@ public class PurchaseOrderService {
         return order;
     }
 
+    @Transactional(readOnly = true)
+    public PurchaseOrder getForUserByReference(String userId, String orderNumberOrId) {
+        return getByOrderNumberOrIdForUser(orderNumberOrId, userId);
+    }
+
     @Transactional
     public PurchaseOrder cancelForUser(String orderNumber, String userId) {
-        PurchaseOrder order = getByOrderNumberForUser(orderNumber, userId);
+        PurchaseOrder order = getByOrderNumberOrIdForUser(orderNumber, userId);
 
         if (order.getStatus() == PurchaseOrder.Status.CANCELLED) {
             throw new IllegalStateException("Order is already cancelled: " + order.getOrderNumber());
@@ -143,7 +159,7 @@ public class PurchaseOrderService {
         }
 
         PurchaseOrder order = StringUtils.hasText(orderNumber)
-            ? getByOrderNumberForUser(orderNumber, userId)
+            ? getByOrderNumberOrIdForUser(orderNumber, userId)
             : getCurrentCreatedOrderForUser(userId);
 
         if (order.getStatus() == PurchaseOrder.Status.CANCELLED) {
@@ -157,20 +173,25 @@ public class PurchaseOrderService {
         return purchaseOrderRepository.save(order);
     }
 
-    private PurchaseOrder getByOrderNumberForUser(String orderNumber, String userId) {
+    private PurchaseOrder getByOrderNumberOrIdForUser(String orderNumberOrId, String userId) {
         if (!StringUtils.hasText(userId)) {
             throw new IllegalArgumentException("userId is required");
         }
-        if (!StringUtils.hasText(orderNumber)) {
+        if (!StringUtils.hasText(orderNumberOrId)) {
             throw new IllegalArgumentException("orderNumber is required");
         }
 
-        String normalizedOrderNumber = orderNumber.trim();
-        PurchaseOrder order = purchaseOrderRepository.findByOrderNumber(normalizedOrderNumber)
-            .orElseThrow(() -> new EntityNotFoundException("Order not found: " + normalizedOrderNumber));
+        String normalized = orderNumberOrId.trim();
+        Long asId = parseLongIfDigitsOnly(normalized);
+        if (asId != null) {
+            return getForUser(asId, userId);
+        }
+
+        PurchaseOrder order = purchaseOrderRepository.findByOrderNumber(normalized)
+            .orElseThrow(() -> new EntityNotFoundException("Order not found: " + normalized));
 
         if (!userId.trim().equals(order.getUserId())) {
-            throw new EntityNotFoundException("Order not found: " + normalizedOrderNumber);
+            throw new EntityNotFoundException("Order not found: " + normalized);
         }
 
         return order;
@@ -182,5 +203,22 @@ public class PurchaseOrderService {
         }
         return purchaseOrderRepository.findFirstByUserIdAndStatusOrderByCreatedAtDesc(userId.trim(), PurchaseOrder.Status.CREATED)
             .orElseThrow(() -> new EntityNotFoundException("No current order found for user: " + userId.trim()));
+    }
+
+    private Long parseLongIfDigitsOnly(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        for (int i = 0; i < trimmed.length(); i++) {
+            if (!Character.isDigit(trimmed.charAt(i))) {
+                return null;
+            }
+        }
+        try {
+            return Long.parseLong(trimmed);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 }

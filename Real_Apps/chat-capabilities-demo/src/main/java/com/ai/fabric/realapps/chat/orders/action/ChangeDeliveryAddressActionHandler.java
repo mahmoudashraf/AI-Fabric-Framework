@@ -27,7 +27,8 @@ public class ChangeDeliveryAddressActionHandler implements ActionHandler {
             .category("commerce")
             .parameters(Map.of(
                 "shippingAddress", "New shipping address (required)",
-                "orderNumber", "Order number (optional; defaults to current order)"
+                "orderNumber", "Order number (PO-...) (optional if orderId is provided; defaults to current order)",
+                "orderId", "Order id (numeric) (optional if orderNumber is provided; defaults to current order)"
             ))
             .requiredParameters(Set.of("shippingAddress"))
             .build();
@@ -40,6 +41,10 @@ public class ChangeDeliveryAddressActionHandler implements ActionHandler {
 
     @Override
     public String getConfirmationMessage(Map<String, Object> params) {
+        String orderId = stringParam(params, "orderId");
+        if (StringUtils.hasText(orderId)) {
+            return "Change delivery address for order " + orderId.trim() + "?";
+        }
         String orderNumber = stringParam(params, "orderNumber");
         if (StringUtils.hasText(orderNumber)) {
             return "Change delivery address for order " + orderNumber.trim() + "?";
@@ -55,7 +60,8 @@ public class ChangeDeliveryAddressActionHandler implements ActionHandler {
     @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         String shippingAddress = requiredString(params, "shippingAddress");
-        String orderNumber = stringParam(params, "orderNumber");
+        String orderId = stringParam(params, "orderId");
+        String orderNumber = StringUtils.hasText(orderId) ? orderId : stringParam(params, "orderNumber");
 
         PurchaseOrder updated = purchaseOrderService.updateDeliveryAddressForUser(userId, orderNumber, shippingAddress);
 
@@ -94,4 +100,3 @@ public class ChangeDeliveryAddressActionHandler implements ActionHandler {
         return raw != null ? raw.toString() : null;
     }
 }
-

@@ -66,6 +66,11 @@ public class CancelSubscriptionActionHandler extends BaseActionHandler implement
             return "Are you sure you want to cancel your subscription? This action cannot be undone.";
         }
     }
+
+    @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
     
     @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {

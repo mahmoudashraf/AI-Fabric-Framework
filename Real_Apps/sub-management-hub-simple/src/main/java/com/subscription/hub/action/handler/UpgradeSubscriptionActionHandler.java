@@ -55,6 +55,11 @@ public class UpgradeSubscriptionActionHandler extends BaseActionHandler implemen
             "Are you sure you want to upgrade to this plan? Your billing will be updated accordingly."
         );
     }
+
+    @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
     
     @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {

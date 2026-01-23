@@ -12,4 +12,6 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     Optional<PurchaseOrder> findByOrderNumber(String orderNumber);
 
     Optional<PurchaseOrder> findFirstByUserIdAndStatusOrderByCreatedAtDesc(String userId, PurchaseOrder.Status status);
+
+    List<PurchaseOrder> findByUserIdAndStatusOrderByCreatedAtDesc(String userId, PurchaseOrder.Status status);
 }

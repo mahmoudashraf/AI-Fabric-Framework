@@ -64,6 +64,15 @@ public class Intent {
     private Boolean requiresGeneration;
 
     /**
+     * Direct short answer to return to the user when {@code requiresRetrieval=false}.
+     *
+     * <p>This allows the intent-extraction LLM to produce a brief reply (e.g., acknowledgements)
+     * without triggering retrieval or a second generation call.</p>
+     */
+    @JsonAlias({"direct_answer", "directAnswer"})
+    private String directAnswer;
+
+    /**
      * Optional post-action generation instructions.
      *
      * <p>This is primarily used for chained requests such as "run relationship_query, then summarize/explain the results".
@@ -168,6 +177,9 @@ public class Intent {
         }
         if (optimizedQuery != null && optimizedQuery.isBlank()) {
             optimizedQuery = null;
+        }
+        if (directAnswer != null && directAnswer.isBlank()) {
+            directAnswer = null;
         }
         if (generationInstructions != null) {
             String trimmed = generationInstructions.trim();

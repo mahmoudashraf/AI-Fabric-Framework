@@ -43,6 +43,11 @@ public class ClearVectorIndexActionHandler implements ActionHandler {
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         long removed = vectorDatabaseService.clearVectors();
         log.info("Cleared {} vectors from the vector database (requested by user={})", removed, userId);

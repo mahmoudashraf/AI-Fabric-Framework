@@ -370,17 +370,9 @@ public class IntentHandlingStep implements PipelineStep {
 
         boolean requiresConfirmation = requiresActionConfirmation(handler);
         boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
-        if (requiresConfirmation && !confirmedThisRequest) {
+        if (requiresConfirmation && !confirmedThisRequest && context.hasConversation()) {
             if (context.hasConversation() && actionDraftStore != null) {
                 actionDraftStore.clearDrafts(context.getConversationId(), identifier);
-            }
-            if (!context.hasConversation()) {
-                return OrchestrationResult.builder()
-                    .type(OrchestrationResultType.ERROR)
-                    .success(false)
-                    .message("Action confirmation requires conversationId")
-                    .nextSteps(extractNextSteps(intent))
-                    .build();
             }
 
             PendingAction pending = new PendingAction(
@@ -480,10 +472,7 @@ public class IntentHandlingStep implements PipelineStep {
         if (handler == null) {
             return false;
         }
-        boolean global = orchestrationProperties != null
-            && orchestrationProperties.getActions() != null
-            && orchestrationProperties.getActions().isRequireConfirmation();
-        return global || handler.requiresConfirmation();
+        return handler.requiresConfirmation();
     }
 
     private OrchestrationResult handleConfirmationPositive(OrchestrationContext context, PipelineContext pipelineContext) {
@@ -534,7 +523,7 @@ public class IntentHandlingStep implements PipelineStep {
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.INFORMATION_PROVIDED)
                 .success(true)
-                .message("Okay — cancelled.")
+                .message("Okay —  All sorted, You do not need to do any further action.")
                 .build();
         }
         pendingActionStore.popPendingAction(context.getConversationId(), context.getIdentifier());
@@ -544,7 +533,7 @@ public class IntentHandlingStep implements PipelineStep {
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
             .success(true)
-            .message("Okay — cancelled.")
+            .message("Okay —  All sorted, You do not need to do any further action.")
             .build();
     }
 
@@ -964,6 +953,12 @@ public class IntentHandlingStep implements PipelineStep {
             intent.setRequiresGeneration(true);
             intent.setRequiresRetrieval(true);
         }
+
+        // LLM-provided direct answer path: no retrieval, no second generation call.
+        if (!requiresRetrieval) {
+            return handleInformationDirectAnswer(intent, context, pipelineContext);
+        }
+
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
         String query = StringUtils.hasText(optimizedQuery)
@@ -984,10 +979,6 @@ public class IntentHandlingStep implements PipelineStep {
         if (pipelineContext != null && !pipelineContext.getDetectedPiiTypesView().isEmpty()) {
             metadata.put("piiProcessed", true);
             metadata.put("piiDetectedTypes", pipelineContext.getDetectedPiiTypesView());
-        }
-
-        if (!requiresRetrieval) {
-            return handleInformationGenerationOnly(intent, context, pipelineContext, generationOnlyQuery, metadata);
         }
 
         List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
@@ -1022,6 +1013,36 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         return handleInformationBasic(intent, context, pipelineContext, needsGeneration, query, metadata);
+    }
+
+    private OrchestrationResult handleInformationDirectAnswer(Intent intent,
+                                                             OrchestrationContext context,
+                                                             PipelineContext pipelineContext) {
+        String answer = intent != null && StringUtils.hasText(intent.getDirectAnswer())
+            ? intent.getDirectAnswer()
+            : "Okay.";
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put(DATA_KEY_ANSWER, answer);
+        data.put(DATA_KEY_DOCUMENTS, List.of());
+        data.put(DATA_KEY_RAG_RESPONSE, null);
+        data.put(DATA_KEY_REQUIRES_GENERATION, false);
+        data.put("requiresRetrieval", false);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put(METADATA_KEY_SOURCE, METADATA_VALUE_ORCHESTRATOR);
+        metadata.put(METADATA_KEY_USER_ID, context != null ? context.getIdentifier() : null);
+        metadata.put(METADATA_KEY_SESSION_ID, context != null ? context.getSessionId() : null);
+        metadata.put(METADATA_KEY_AUTHENTICATED, context != null && context.isAuthenticated());
+        data.put(DATA_KEY_METADATA, Collections.unmodifiableMap(metadata));
+
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message(answer)
+            .data(Collections.unmodifiableMap(data))
+            .nextSteps(extractNextSteps(intent))
+            .build();
     }
 
     private OrchestrationResult handleInformationGenerationOnly(Intent intent,
@@ -1828,7 +1849,36 @@ public class IntentHandlingStep implements PipelineStep {
                 continue;
             }
             Object value = params != null ? params.get(required) : null;
-            if (value == null || value.toString().isBlank()) {
+            if (value == null) {
+                missing.add(required);
+                continue;
+            }
+
+            String raw = value.toString();
+            if (!StringUtils.hasText(raw)) {
+                missing.add(required);
+                continue;
+            }
+
+            // Simple guardrail: if the value looks like instruction text ("required/optional/example"),
+            // treat it as missing and ask the user for the real value.
+            String lowered = raw.trim().toLowerCase(java.util.Locale.ROOT);
+            if (lowered.contains("required") || lowered.contains("optional") || lowered.contains("example") || lowered.contains("e.g")) {
+                missing.add(required);
+                continue;
+            }
+
+            // Guardrail: some intent extractors incorrectly "fill" missing values by copying the parameter
+            // description from action metadata. Treat that as missing so we ask the user for the real value.
+            Map<String, String> descriptions = meta.getParameters();
+            String description = descriptions != null ? descriptions.get(required) : null;
+            if (StringUtils.hasText(description) && raw.trim().equalsIgnoreCase(description.trim())) {
+                missing.add(required);
+                continue;
+            }
+
+            // Also treat "self-filled" placeholders like "shippingAddress" as missing.
+            if (raw.trim().equalsIgnoreCase(required.trim())) {
                 missing.add(required);
             }
         }

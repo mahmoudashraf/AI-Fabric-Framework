@@ -43,6 +43,11 @@ public class SetPriorityActionHandler extends BaseActionHandler implements Actio
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         long ticketNumber = requireTicketNumber(params);
         Ticket.Priority priority = parsePriority(stringParam(params, "priority"));
@@ -78,4 +83,3 @@ public class SetPriorityActionHandler extends BaseActionHandler implements Actio
         }
     }
 }
-

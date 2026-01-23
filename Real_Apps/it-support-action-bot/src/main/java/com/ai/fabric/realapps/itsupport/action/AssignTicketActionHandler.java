@@ -44,6 +44,11 @@ public class AssignTicketActionHandler extends BaseActionHandler implements Acti
     }
 
     @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
+
+    @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
         long ticketNumber = requireTicketNumber(params);
         String assignee = stringParam(params, "assigneeUsername");
@@ -69,4 +74,3 @@ public class AssignTicketActionHandler extends BaseActionHandler implements Acti
             .build();
     }
 }
-

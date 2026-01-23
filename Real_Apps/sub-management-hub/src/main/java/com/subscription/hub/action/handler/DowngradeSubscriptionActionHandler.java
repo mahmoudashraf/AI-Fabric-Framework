@@ -52,6 +52,11 @@ public class DowngradeSubscriptionActionHandler extends BaseActionHandler implem
     public String getConfirmationMessage(Map<String, Object> params) {
         return "Are you sure you want to downgrade? You may lose access to some features. This change will take effect on your next billing cycle.";
     }
+
+    @Override
+    public boolean requiresConfirmation() {
+        return true;
+    }
     
     @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {

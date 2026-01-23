@@ -18,10 +18,8 @@ public class OrchestrationProperties {
     private InformationMode informationMode = InformationMode.LLM_DRIVEN;
 
     /**
-     * Action-related orchestration behavior.
+     * How INFORMATION intents are handled.
      */
-    private Actions actions = new Actions();
-
     public enum InformationMode {
         /**
          * Current behavior: intent extraction controls requiresRetrieval/requiresGeneration and vectorSpace routing.
@@ -33,14 +31,5 @@ public class OrchestrationProperties {
          * Missing vectorSpace triggers fan-out across all known vector spaces (when available).
          */
         DETERMINISTIC_RAG_GENERATE
-    }
-
-    @Data
-    public static class Actions {
-
-        /**
-         * When enabled, ACTION intents return a confirmation-required response instead of executing immediately.
-         */
-        private boolean requireConfirmation = false;
     }
 }

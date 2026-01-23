@@ -23,10 +23,11 @@ public class CancelPurchaseOrderActionHandler implements ActionHandler {
     public AIActionMetaData getActionMetadata() {
         return AIActionMetaData.builder()
             .name("cancel_purchase_order")
-            .description("Cancel an existing purchase order by order number")
+            .description("Cancel an existing purchase order by order number (PO-...) or by order id")
             .category("commerce")
             .parameters(Map.of(
-                "orderNumber", "Order number (required)"
+                "orderNumber", "Order number (PO-...) (optional if orderId is provided)",
+                "orderId", "Order id (numeric) (optional if orderNumber is provided)"
             ))
             .requiredParameters(Set.of("orderNumber"))
             .build();
@@ -39,6 +40,10 @@ public class CancelPurchaseOrderActionHandler implements ActionHandler {
 
     @Override
     public String getConfirmationMessage(Map<String, Object> params) {
+        String orderId = stringParam(params, "orderId");
+        if (StringUtils.hasText(orderId)) {
+            return "Cancel order " + orderId.trim() + "?";
+        }
         String orderNumber = stringParam(params, "orderNumber");
         if (StringUtils.hasText(orderNumber)) {
             return "Cancel order " + orderNumber.trim() + "?";
@@ -53,9 +58,11 @@ public class CancelPurchaseOrderActionHandler implements ActionHandler {
 
     @Override
     public ActionResult executeAction(Map<String, Object> params, String userId) {
-        String orderNumber = requiredString(params, "orderNumber");
+        String orderId = stringParam(params, "orderId");
+        String orderNumber = stringParam(params, "orderNumber");
+        String orderNumberOrId = StringUtils.hasText(orderId) ? orderId : requiredString(params, "orderNumber");
 
-        PurchaseOrder cancelled = purchaseOrderService.cancelForUser(orderNumber, userId);
+        PurchaseOrder cancelled = purchaseOrderService.cancelForUser(orderNumberOrId, userId);
 
         return ActionResult.builder()
             .success(true)
@@ -91,4 +98,3 @@ public class CancelPurchaseOrderActionHandler implements ActionHandler {
         return raw != null ? raw.toString() : null;
     }
 }
-
