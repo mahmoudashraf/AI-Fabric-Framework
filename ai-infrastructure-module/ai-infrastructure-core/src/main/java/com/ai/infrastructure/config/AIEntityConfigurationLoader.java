@@ -210,6 +210,120 @@ public class AIEntityConfigurationLoader {
             config != null && config.getMetadataFields() != null ? config.getMetadataFields().size() : "null");
         return config;
     }
+
+    /**
+     * Merge additional metadata field definitions into an existing entity config.
+     *
+     * <p>Intended for annotation-driven @AIContext schemas, where YAML remains the
+     * primary source of truth. Existing fields are preserved (YAML wins), while
+     * missing fields are appended. If an existing field is missing a type, the
+     * provided type is applied.</p>
+     *
+     * @param entityType entity type key
+     * @param additionalFields additional metadata fields to merge
+     * @param createIfMissing when true, create a minimal config when none exists
+     * @return the updated config (or null if no config exists and createIfMissing=false)
+     */
+    public AIEntityConfig mergeMetadataFields(String entityType,
+                                              List<AIMetadataField> additionalFields,
+                                              boolean createIfMissing) {
+        if (entityType == null || entityType.isBlank()) {
+            return null;
+        }
+        if (additionalFields == null || additionalFields.isEmpty()) {
+            return entityConfigs.get(entityType);
+        }
+
+        return entityConfigs.compute(entityType, (key, existing) -> {
+            AIEntityConfig base = existing;
+            if (base == null) {
+                if (!createIfMissing) {
+                    return null;
+                }
+                base = createDefaultEntityConfig(key);
+            }
+
+            List<AIMetadataField> merged = mergeMetadataFieldLists(base.getMetadataFields(), additionalFields);
+            base.setMetadataFields(merged);
+            return base;
+        });
+    }
+
+    /**
+     * Convenience overload - does not create a config if missing.
+     */
+    public AIEntityConfig mergeMetadataFields(String entityType, List<AIMetadataField> additionalFields) {
+        return mergeMetadataFields(entityType, additionalFields, false);
+    }
+
+    private List<AIMetadataField> mergeMetadataFieldLists(List<AIMetadataField> existing,
+                                                          List<AIMetadataField> additional) {
+        LinkedHashMap<String, AIMetadataField> merged = new LinkedHashMap<>();
+
+        if (existing != null) {
+            for (AIMetadataField field : existing) {
+                if (field == null || field.getName() == null || field.getName().isBlank()) {
+                    continue;
+                }
+                merged.put(field.getName(), field);
+            }
+        }
+
+        for (AIMetadataField field : additional) {
+            if (field == null || field.getName() == null || field.getName().isBlank()) {
+                continue;
+            }
+
+            AIMetadataField current = merged.get(field.getName());
+            if (current == null) {
+                merged.put(field.getName(), field);
+                continue;
+            }
+
+            String currentType = current.getType();
+            String additionalType = field.getType();
+            boolean needsType = currentType == null || currentType.isBlank();
+            boolean hasAdditionalType = additionalType != null && !additionalType.isBlank();
+            if (needsType && hasAdditionalType) {
+                merged.put(field.getName(), AIMetadataField.builder()
+                    .name(current.getName())
+                    .type(additionalType)
+                    .includeInSearch(current.isIncludeInSearch())
+                    .build());
+            }
+        }
+
+        return merged.isEmpty() ? null : List.copyOf(merged.values());
+    }
+
+    private AIEntityConfig createDefaultEntityConfig(String entityType) {
+        // Minimal safe defaults for greenfield usage. YAML overrides remain preferred.
+        Map<String, AICrudOperation> crud = new LinkedHashMap<>();
+        for (String op : List.of("create", "update", "delete")) {
+            crud.put(op, AICrudOperation.builder()
+                .operation(op)
+                .generateEmbedding(true)
+                .indexForSearch(true)
+                .enableAnalysis(false)
+                .removeFromSearch(true)
+                .cleanupEmbeddings(true)
+                .build());
+        }
+
+        return AIEntityConfig.builder()
+            .entityType(entityType)
+            .features(List.of("embedding", "search"))
+            .autoProcess(true)
+            .enableSearch(true)
+            .enableRecommendations(false)
+            .autoEmbedding(true)
+            .indexable(true)
+            .searchableFields(null)
+            .embeddableFields(null)
+            .metadataFields(null)
+            .crudOperations(Collections.unmodifiableMap(crud))
+            .build();
+    }
     
     public boolean hasEntityConfig(String entityType) {
         return entityConfigs.containsKey(entityType);

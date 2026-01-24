@@ -50,6 +50,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.beans.factory.annotation.Value;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ai.infrastructure.config.condition.EmbeddingsFeatureEnabledCondition;
 import com.ai.infrastructure.config.condition.SearchFeatureEnabledCondition;
@@ -59,6 +60,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import jakarta.persistence.EntityManagerFactory;
 
 /**
  * Auto-configuration for AI Infrastructure module
@@ -231,6 +233,24 @@ public class AIInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean(name = "AIEntityConfigurationLoader")
     public AIEntityConfigurationLoader aiEntityConfigurationLoader(ResourceLoader resourceLoader) {
         return new AIEntityConfigurationLoader(resourceLoader);
+    }
+
+    @Bean
+    @ConditionalOnClass(EntityManagerFactory.class)
+    @ConditionalOnBean(EntityManagerFactory.class)
+    @ConditionalOnProperty(prefix = "ai.config.annotation-metadata", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public AnnotationMetadataEntityConfigRegistrar annotationMetadataEntityConfigRegistrar(
+        EntityManagerFactory entityManagerFactory,
+        AIEntityConfigurationLoader entityConfigurationLoader,
+        AnnotationFieldScanner annotationFieldScanner,
+        @Value("${ai.config.annotation-metadata.create-missing-entity-config:false}") boolean createMissingEntityConfig
+    ) {
+        return new AnnotationMetadataEntityConfigRegistrar(
+            entityManagerFactory,
+            entityConfigurationLoader,
+            annotationFieldScanner,
+            createMissingEntityConfig
+        );
     }
     
     @Bean
