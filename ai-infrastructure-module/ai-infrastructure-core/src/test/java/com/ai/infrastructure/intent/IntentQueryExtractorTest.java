@@ -8,7 +8,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -38,7 +38,7 @@ class IntentQueryExtractorTest {
     private EnrichedPromptBuilder enrichedPromptBuilder;
 
     @Mock
-    private ActionHandlerRegistry actionHandlerRegistry;
+    private AIActionRegistry actionHandlerRegistry;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

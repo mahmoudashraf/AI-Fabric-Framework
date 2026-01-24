@@ -7,25 +7,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Exposes {@link ActionHandler} beans as prompt-visible actions for intent extraction.
- *
- * <p>This prevents misleading prompts like "No actions are currently registered" when
- * action handlers are present in the Spring context.</p>
+ * Exposes {@link com.ai.infrastructure.intent.action.annotation.AIAction}-declared actions as prompt-visible actions for intent extraction.
  */
 @Service
 @RequiredArgsConstructor
-public class ActionHandlersAIActionProvider implements AIActionProvider {
+public class RegisteredActionsAIActionProvider implements AIActionProvider {
 
-    private final List<ActionHandler> actionHandlers;
+    private final AIActionRegistry actionRegistry;
 
     @Override
     public List<ActionInfo> getAvailableActions() {
-        if (actionHandlers == null || actionHandlers.isEmpty()) {
+        if (actionRegistry == null) {
             return List.of();
         }
-        return actionHandlers.stream()
-            .filter(Objects::nonNull)
-            .map(ActionHandler::getActionMetadata)
+        return actionRegistry.getAllMetadata().stream()
             .filter(Objects::nonNull)
             .map(meta -> ActionInfo.builder()
                 .name(meta.getName())
@@ -39,7 +34,7 @@ public class ActionHandlersAIActionProvider implements AIActionProvider {
 
     @Override
     public String getProviderName() {
-        return "action-handlers";
+        return "registered-actions";
     }
 }
 

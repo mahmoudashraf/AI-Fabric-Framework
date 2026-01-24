@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * Resolves a single positive confirmation ("yes") into the pending ACTION.
  */
-public class SingleConfirmationPositiveResolver extends AbstractConfirmationResolver {
+public class SingleConfirmationPositiveResolver extends ConfirmationResolverSupport {
 
     public SingleConfirmationPositiveResolver(PendingActionStore pendingActionStore) {
         super(pendingActionStore);
@@ -74,4 +74,3 @@ public class SingleConfirmationPositiveResolver extends AbstractConfirmationReso
         return "SingleConfirmationPositiveResolver";
     }
 }
-

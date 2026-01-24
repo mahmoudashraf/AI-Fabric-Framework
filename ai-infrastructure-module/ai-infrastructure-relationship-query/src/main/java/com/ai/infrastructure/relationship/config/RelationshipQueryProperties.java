@@ -26,7 +26,7 @@ public class RelationshipQueryProperties {
     private boolean enabled = true;
 
     /**
-     * Enable integration with the RAG orchestrator via ActionHandler.
+     * Enable integration with the RAG orchestrator via the registered {@code relationship_query} AI action.
      */
     private boolean enableOrchestratorIntegration = true;
 

@@ -1,67 +1,48 @@
 package com.ai.infrastructure.chat.it.actions;
 
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-@Component
-public class ConfirmableEchoActionHandler implements ActionHandler {
+@AIAction(
+    name = ConfirmableEchoActionHandler.ACTION_NAME,
+    description = "Test-only action that requires confirmation and echoes a message.",
+    category = "test",
+    requiresConfirmation = true
+)
+public class ConfirmableEchoActionHandler {
 
     public static final String ACTION_NAME = "confirmable_echo";
 
     private static final AtomicInteger EXECUTION_COUNT = new AtomicInteger(0);
 
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        return context != null && StringUtils.hasText(context.identifier());
     }
 
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name(ACTION_NAME)
-            .description("Test-only action that requires confirmation and echoes a message.")
-            .category("test")
-            .parameters(Map.of("message", "Text to echo back"))
-            .requiredParameters(java.util.Set.of("message"))
-            .build();
+    @ActionConfirmation
+    public String confirm(@Param(value = "message", required = true, description = "Text to echo back") String message) {
+        return "Confirm execute confirmable_echo(message=" + message + ")?";
     }
 
-    @Override
-    public boolean validateActionAllowed(String userId) {
-        return StringUtils.hasText(userId);
-    }
-
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        String message = params != null ? (String) params.get("message") : null;
-        return "Confirm execute confirmable_echo(message=" + (StringUtils.hasText(message) ? message : "ok") + ")?";
-    }
-
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
+    @ActionExecute
+    public ActionResult execute(@Param(value = "message", required = true, description = "Text to echo back") String message) {
         EXECUTION_COUNT.incrementAndGet();
         ConfirmableActionExecutionLog.record(ACTION_NAME);
 
-        String message = params != null ? (String) params.get("message") : null;
         String echoed = StringUtils.hasText(message) ? message : "ok";
         return ActionResult.builder()
             .success(true)
             .message("Echo: " + echoed)
             .data(Map.of("echo", echoed))
-            .build();
-    }
-
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        return ActionResult.builder()
-            .success(false)
-            .message("confirmable_echo failed: " + (e != null ? e.getMessage() : "unknown"))
-            .errorCode("CONFIRMABLE_ECHO_ERROR")
             .build();
     }
 

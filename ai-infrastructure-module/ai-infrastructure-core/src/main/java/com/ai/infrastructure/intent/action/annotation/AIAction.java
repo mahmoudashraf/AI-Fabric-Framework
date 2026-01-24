@@ -1,0 +1,44 @@
+package com.ai.infrastructure.intent.action.annotation;
+
+import org.springframework.stereotype.Component;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Declares an AI action that can be selected by the intent-extraction layer and executed by the orchestrator.
+ *
+ * <p>This is a Spring stereotype: annotating a class with {@code @AIAction} registers it as a bean.</p>
+ */
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Component
+public @interface AIAction {
+
+    /**
+     * Stable action identifier (e.g. {@code add_to_cart}).
+     */
+    String name();
+
+    /**
+     * Human-readable description used in prompts and API metadata.
+     */
+    String description();
+
+    /**
+     * Logical grouping (e.g. {@code commerce}, {@code support}).
+     */
+    String category() default "general";
+
+    /**
+     * Whether this action requires explicit user confirmation before execution.
+     *
+     * <p>Greenfield rule: must be specified explicitly per action (no global defaults/overrides).</p>
+     */
+    boolean requiresConfirmation();
+}
+

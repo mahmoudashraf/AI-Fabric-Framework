@@ -9,7 +9,7 @@ import com.ai.infrastructure.intent.EnrichedPromptBuilder;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +42,7 @@ public class CompletionIntentExtractionStrategy {
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
     private final IntentExtractionJsonSupport jsonSupport;
-    private final ActionHandlerRegistry actionHandlerRegistry;
+    private final AIActionRegistry actionHandlerRegistry;
     private final IntentExtractionValidator validator;
 
     public ExtractionAttempt attemptComplete(String query, OrchestrationContext context, ExtractionAttempt previousAttempt) {

@@ -41,10 +41,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.ai.infrastructure.intent.action.AIActionProvider;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
 import com.ai.infrastructure.intent.action.ActionInfo;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
+import org.mockito.Mockito;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = {TestApplication.class, RealAPIActionErrorRecoveryIntegrationTest.TestActionOverrides.class})
 @ActiveProfiles("real-api-test")
@@ -367,10 +370,15 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
 
         @Bean
         @Primary
-        public ActionHandlerRegistry actionHandlerRegistry() {
+        public AIActionRegistry aiActionRegistry() {
             // Ensure no unrelated action handlers can execute successfully in this test context.
             // If a provider still returns an ACTION intent, the orchestrator will deterministically report ACTION_NOT_FOUND.
-            return new ActionHandlerRegistry(List.of());
+            AIActionRegistry registry = Mockito.mock(AIActionRegistry.class);
+            when(registry.getAllMetadata()).thenReturn(List.of());
+            when(registry.getHandlerMap()).thenReturn(Map.of());
+            when(registry.findHandler(anyString())).thenReturn(Optional.empty());
+            when(registry.findMetadata(anyString())).thenReturn(Optional.empty());
+            return registry;
         }
     }
 }

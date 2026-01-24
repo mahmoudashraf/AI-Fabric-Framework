@@ -6,7 +6,7 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,7 +40,7 @@ class IntentQueryExtractorRelationshipValidationTest {
     private EnrichedPromptBuilder enrichedPromptBuilder;
 
     @Mock
-    private ActionHandlerRegistry actionHandlerRegistry;
+    private AIActionRegistry actionHandlerRegistry;
 
     private IntentQueryExtractor extractor;
 

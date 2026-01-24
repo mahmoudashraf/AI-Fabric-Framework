@@ -4,9 +4,12 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.ActionFacts;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -18,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,7 +31,6 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -137,15 +138,17 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
     }
 
     @TestConfiguration
+    @Import(PostActionGenerationDemoActionHandler.class)
     static class PostActionGenerationTestConfig {
-
-        @Bean
-        PostActionGenerationDemoActionHandler postActionGenerationDemoActionHandler() {
-            return new PostActionGenerationDemoActionHandler();
-        }
     }
 
-    static final class PostActionGenerationDemoActionHandler implements ActionHandler {
+    @AIAction(
+        name = PostActionGenerationDemoActionHandler.ACTION_NAME,
+        description = "Test-only action used to validate post-action generation grounded in handler facts.",
+        category = "test",
+        requiresConfirmation = false
+    )
+    static final class PostActionGenerationDemoActionHandler {
 
         static final String ACTION_NAME = "post_action_generation_demo";
 
@@ -159,41 +162,13 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
             return executions.get();
         }
 
-        @Override
-        public AIActionMetaData getActionMetadata() {
-            return AIActionMetaData.builder()
-                .name(ACTION_NAME)
-                .description("Test-only action used to validate post-action generation grounded in handler facts.")
-                .category("test")
-                .parameters(Map.of(
-                    "verificationToken", "String token that must be echoed back by the post-action generation call"
-                ))
-                .requiredParameters(Set.of("verificationToken"))
-                .build();
-        }
-
-        @Override
-        public boolean validateActionAllowed(String userId) {
-            return true;
-        }
-
-        @Override
-        public String getConfirmationMessage(Map<String, Object> params) {
-            return "Confirm post-action generation demo.";
-        }
-
-        @Override
-        public boolean requiresConfirmation() {
-            return false;
-        }
-
-        @Override
-        public ActionResult executeAction(Map<String, Object> params, String userId) {
+        @ActionExecute
+        public ActionResult execute(@Param(value = "verificationToken", required = true, description = "Token that must be echoed back by the post-action generation call") String verificationToken,
+                                    ActionContext context) {
             int count = executions.incrementAndGet();
-            Object token = params != null ? params.get("verificationToken") : null;
 
             Map<String, Object> data = new LinkedHashMap<>();
-            data.put("verificationToken", token != null ? token.toString() : null);
+            data.put("verificationToken", verificationToken);
             data.put("executionCount", count);
 
             return ActionResult.builder()
@@ -203,8 +178,8 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
                 .build();
         }
 
-        @Override
-        public Optional<Map<String, Object>> buildPostActionLlmFacts(ActionResult actionResult, OrchestrationContext context) {
+        @ActionFacts
+        public Optional<Map<String, Object>> facts(ActionResult actionResult, ActionContext context) {
             Map<String, Object> data = actionResult != null && actionResult.getData() instanceof Map<?, ?> map
                 ? coerceToStringKeyedMap(map)
                 : Map.of();
@@ -214,15 +189,6 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
                 "verificationToken", token != null ? token.toString() : "",
                 "executionCount", executions.get()
             ));
-        }
-
-        @Override
-        public ActionResult handleError(Exception e, String userId) {
-            return ActionResult.builder()
-                .success(false)
-                .message(e != null ? e.getMessage() : "error")
-                .errorCode("TEST_ERROR")
-                .build();
         }
 
         private Map<String, Object> coerceToStringKeyedMap(Map<?, ?> map) {

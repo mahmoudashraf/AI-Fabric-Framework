@@ -5,7 +5,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.exception.AIServiceException;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -32,7 +32,7 @@ public class IntentExtractionPostProcessor {
     private static final String NORMALIZATION_KEY_RULES = "appliedRules";
     private static final String NORMALIZATION_KEY_RULE_COUNT = "ruleCount";
 
-    private final ActionHandlerRegistry actionHandlerRegistry;
+    private final AIActionRegistry actionHandlerRegistry;
 
     public MultiIntentResponse postProcess(MultiIntentResponse response, String originalQuery) {
         if (response == null) {

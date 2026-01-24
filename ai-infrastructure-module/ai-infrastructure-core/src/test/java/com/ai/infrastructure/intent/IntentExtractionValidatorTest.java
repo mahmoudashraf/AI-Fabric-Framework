@@ -3,7 +3,7 @@ package com.ai.infrastructure.intent;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -18,7 +18,7 @@ class IntentExtractionValidatorTest {
 
     @Test
     void shouldFailStructurallyWhenResponseIsNull() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
         IntentExtractionValidator validator = new IntentExtractionValidator(registry);
 
         IntentExtractionValidator.ValidationResult result = validator.validate(null);
@@ -30,7 +30,7 @@ class IntentExtractionValidatorTest {
 
     @Test
     void shouldWarnButRemainValidWhenNoIntentsPresent() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
         IntentExtractionValidator validator = new IntentExtractionValidator(registry);
 
         IntentExtractionValidator.ValidationResult result = validator.validate(MultiIntentResponse.builder().intents(List.of()).build());
@@ -41,7 +41,7 @@ class IntentExtractionValidatorTest {
 
     @Test
     void shouldFailWhenActionNotRegistered() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
         when(registry.findHandler(anyString())).thenReturn(Optional.empty());
         IntentExtractionValidator validator = new IntentExtractionValidator(registry);
 
@@ -62,7 +62,7 @@ class IntentExtractionValidatorTest {
 
     @Test
     void shouldFailWhenIntentMissingType() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
         IntentExtractionValidator validator = new IntentExtractionValidator(registry);
 
         MultiIntentResponse response = MultiIntentResponse.builder()

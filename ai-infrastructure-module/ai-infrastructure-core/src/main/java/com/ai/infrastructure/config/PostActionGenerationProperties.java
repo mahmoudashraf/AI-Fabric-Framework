@@ -12,7 +12,7 @@ import org.springframework.validation.annotation.Validated;
  * Configuration for optional post-action LLM generation for action handlers.
  *
  * <p>When enabled, an ACTION intent may request an additional generation step (LLM purpose: {@code GENERATION})
- * grounded strictly in facts provided by the action handler via {@code ActionHandler.buildPostActionLlmFacts(...)}.</p>
+ * grounded strictly in facts provided by the action handler via {@code AIActionHandler.buildPostActionLlmFacts(...)}.</p>
  */
 @Data
 @Validated
@@ -53,4 +53,3 @@ public class PostActionGenerationProperties {
     @Max(300)
     private Integer timeoutSeconds;
 }
-
