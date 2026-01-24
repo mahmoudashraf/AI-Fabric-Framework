@@ -9,9 +9,10 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -631,44 +632,22 @@ class RAGSixLayerIntegrationTest {
         }
 
         @Bean
-        ActionHandler failingActionHandler() {
-            return new ActionHandler() {
-                @Override
-                public AIActionMetaData getActionMetadata() {
-                    return AIActionMetaData.builder()
-                        .name("raise_exception")
-                        .description("Throws for testing")
-                        .build();
-                }
+        RaiseExceptionAction raiseExceptionAction() {
+            return new RaiseExceptionAction();
+        }
 
-                @Override
-                public boolean validateActionAllowed(String userId) {
-                    return true;
-                }
+        @AIAction(
+            name = "raise_exception",
+            description = "Throws for testing",
+            category = "test",
+            requiresConfirmation = false
+        )
+        static class RaiseExceptionAction {
 
-                @Override
-                public String getConfirmationMessage(Map<String, Object> params) {
-                    return "Are you sure?";
-                }
-
-                @Override
-                public boolean requiresConfirmation() {
-                    return false;
-                }
-
-                @Override
-                public ActionResult executeAction(Map<String, Object> params, String userId) {
-                    throw new IllegalStateException("Card 4999-8888-7777-6666 failure for emergency@example.com");
-                }
-
-                @Override
-                public ActionResult handleError(Exception e, String userId) {
-                    return ActionResult.builder()
-                        .success(false)
-                        .message("Error processing 4999-8888-7777-6666 for emergency@example.com")
-                        .build();
-                }
-            };
+            @ActionExecute
+            public ActionResult execute(ActionContext actionContext) {
+                throw new IllegalStateException("Card 4999-8888-7777-6666 failure for emergency@example.com");
+            }
         }
     }
 

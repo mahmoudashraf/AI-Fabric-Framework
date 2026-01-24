@@ -1,68 +1,49 @@
 package com.ai.infrastructure.chat.it.actions;
 
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-@Component
-public class ConfirmableUpperEchoActionHandler implements ActionHandler {
+@AIAction(
+    name = ConfirmableUpperEchoActionHandler.ACTION_NAME,
+    description = "Test-only action that requires confirmation and uppercases the message.",
+    category = "test",
+    requiresConfirmation = true
+)
+public class ConfirmableUpperEchoActionHandler {
 
     public static final String ACTION_NAME = "confirmable_upper_echo";
 
     private static final AtomicInteger EXECUTION_COUNT = new AtomicInteger(0);
 
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        return context != null && StringUtils.hasText(context.identifier());
     }
 
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name(ACTION_NAME)
-            .description("Test-only action that requires confirmation and uppercases the message.")
-            .category("test")
-            .parameters(Map.of("message", "Text to uppercase"))
-            .requiredParameters(java.util.Set.of("message"))
-            .build();
+    @ActionConfirmation
+    public String confirm(@Param(value = "message", required = true, description = "Text to uppercase") String message) {
+        return "Confirm execute confirmable_upper_echo(message=" + message + ")?";
     }
 
-    @Override
-    public boolean validateActionAllowed(String userId) {
-        return StringUtils.hasText(userId);
-    }
-
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        String message = params != null ? (String) params.get("message") : null;
-        return "Confirm execute confirmable_upper_echo(message=" + (StringUtils.hasText(message) ? message : "ok") + ")?";
-    }
-
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
+    @ActionExecute
+    public ActionResult execute(@Param(value = "message", required = true, description = "Text to uppercase") String message) {
         EXECUTION_COUNT.incrementAndGet();
         ConfirmableActionExecutionLog.record(ACTION_NAME);
 
-        String message = params != null ? (String) params.get("message") : null;
         String upper = StringUtils.hasText(message) ? message.toUpperCase(Locale.ROOT) : "OK";
         return ActionResult.builder()
             .success(true)
             .message("Upper: " + upper)
             .data(Map.of("upper", upper))
-            .build();
-    }
-
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        return ActionResult.builder()
-            .success(false)
-            .message("confirmable_upper_echo failed: " + (e != null ? e.getMessage() : "unknown"))
-            .errorCode("CONFIRMABLE_UPPER_ECHO_ERROR")
             .build();
     }
 

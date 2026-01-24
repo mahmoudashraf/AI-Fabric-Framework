@@ -10,7 +10,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -41,7 +41,7 @@ class IntentHandlingStepDirectAnswerTest {
         AICoreService aiCoreService = mock(AICoreService.class);
 
         IntentHandlingStep step = new IntentHandlingStep(
-            mock(ActionHandlerRegistry.class),
+            mock(AIActionRegistry.class),
             providerOf(ragProvider),
             aiCoreService,
             mock(AIServiceConfig.class),
@@ -89,4 +89,3 @@ class IntentHandlingStepDirectAnswerTest {
         return provider;
     }
 }
-

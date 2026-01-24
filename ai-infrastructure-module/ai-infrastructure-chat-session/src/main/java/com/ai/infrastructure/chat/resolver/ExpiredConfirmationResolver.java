@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * Clears expired pending confirmations.
  */
-public class ExpiredConfirmationResolver extends AbstractConfirmationResolver {
+public class ExpiredConfirmationResolver extends ConfirmationResolverSupport {
 
     public ExpiredConfirmationResolver(PendingActionStore pendingActionStore) {
         super(pendingActionStore);
@@ -42,4 +42,3 @@ public class ExpiredConfirmationResolver extends AbstractConfirmationResolver {
         return "ExpiredConfirmationResolver";
     }
 }
-

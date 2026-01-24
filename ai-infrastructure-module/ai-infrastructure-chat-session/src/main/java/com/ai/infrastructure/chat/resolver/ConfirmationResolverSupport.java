@@ -15,18 +15,23 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-abstract class AbstractConfirmationResolver implements IntentResolver {
+/**
+ * Convenience base class for implementing confirmation-related {@link IntentResolver}s.
+ *
+ * <p>Intended for both framework-provided resolvers and application-level resolvers.</p>
+ */
+public abstract class ConfirmationResolverSupport implements IntentResolver {
 
     static final int DEFAULT_CONFIRMATION_TIMEOUT_MINUTES = 5;
 
     private final PendingActionStore pendingActionStore;
     private final Duration timeout;
 
-    protected AbstractConfirmationResolver(PendingActionStore pendingActionStore) {
+    protected ConfirmationResolverSupport(PendingActionStore pendingActionStore) {
         this(pendingActionStore, Duration.ofMinutes(DEFAULT_CONFIRMATION_TIMEOUT_MINUTES));
     }
 
-    protected AbstractConfirmationResolver(PendingActionStore pendingActionStore, Duration timeout) {
+    protected ConfirmationResolverSupport(PendingActionStore pendingActionStore, Duration timeout) {
         this.pendingActionStore = Objects.requireNonNull(pendingActionStore, "pendingActionStore");
         this.timeout = timeout != null ? timeout : Duration.ofMinutes(DEFAULT_CONFIRMATION_TIMEOUT_MINUTES);
     }
@@ -45,6 +50,16 @@ abstract class AbstractConfirmationResolver implements IntentResolver {
         }
         return pendingActionStore.popPendingAction(context.getOrchestrationContext().getConversationId(), context.getIdentifier())
             .orElse(null);
+    }
+
+    protected void pushPending(PipelineContext context, PendingAction pendingAction) {
+        if (pendingAction == null) {
+            return;
+        }
+        if (context == null || context.getOrchestrationContext() == null || !context.getOrchestrationContext().hasConversation()) {
+            return;
+        }
+        pendingActionStore.pushPendingAction(context.getOrchestrationContext().getConversationId(), context.getIdentifier(), pendingAction);
     }
 
     protected boolean isExpired(PendingAction pending) {
@@ -120,4 +135,3 @@ abstract class AbstractConfirmationResolver implements IntentResolver {
         return getResolverName();
     }
 }
-

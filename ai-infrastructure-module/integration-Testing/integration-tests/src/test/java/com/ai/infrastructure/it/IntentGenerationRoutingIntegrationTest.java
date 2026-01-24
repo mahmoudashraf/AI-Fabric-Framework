@@ -13,7 +13,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -73,7 +73,7 @@ class IntentGenerationRoutingIntegrationTest {
     private ResponseSanitizer responseSanitizer;
 
     @MockBean
-    private ActionHandlerRegistry actionHandlerRegistry;
+    private AIActionRegistry actionRegistry;
 
     @MockBean
     private AICoreService aiCoreService;
@@ -100,6 +100,7 @@ class IntentGenerationRoutingIntegrationTest {
                 .build()
         );
         when(responseSanitizer.sanitize(any(), any())).thenReturn(Map.of("sanitization", Map.of()));
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of());
     }
 
     @Test

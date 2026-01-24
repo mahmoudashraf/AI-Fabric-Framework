@@ -8,7 +8,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
@@ -35,12 +35,12 @@ public class IntentQueryExtractor {
 
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
-    private final ActionHandlerRegistry actionHandlerRegistry;
+    private final AIActionRegistry actionHandlerRegistry;
     private final ObjectMapper objectMapper;
 
     public IntentQueryExtractor(AICoreService aiCoreService,
                                 EnrichedPromptBuilder enrichedPromptBuilder,
-                                ActionHandlerRegistry actionHandlerRegistry,
+                                AIActionRegistry actionHandlerRegistry,
                                 ObjectMapper objectMapper) {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;

@@ -13,7 +13,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -116,7 +116,7 @@ class IntentHandlingStepFanOutTest {
         routingProperties.setFanOutTopKPerSpace(1);
 
         IntentHandlingStep step = new IntentHandlingStep(
-            mock(ActionHandlerRegistry.class),
+            mock(AIActionRegistry.class),
             providerOf(ragProvider),
             mock(AICoreService.class),
             mock(AIServiceConfig.class),
@@ -170,7 +170,7 @@ class IntentHandlingStepFanOutTest {
         routingProperties.setFanOutTopKPerSpace(2);
 
         IntentHandlingStep step = new IntentHandlingStep(
-            mock(ActionHandlerRegistry.class),
+            mock(AIActionRegistry.class),
             providerOf(ragProvider),
             aiCoreService,
             mock(AIServiceConfig.class),
@@ -214,7 +214,7 @@ class IntentHandlingStepFanOutTest {
         routingProperties.setFanOutTopKPerSpace(2);
         routingProperties.setFanOutRagThreshold(0.25d);
         return new IntentHandlingStep(
-            mock(ActionHandlerRegistry.class),
+            mock(AIActionRegistry.class),
             providerOf(ragProvider),
             aiCoreService,
             mock(AIServiceConfig.class),

@@ -5,7 +5,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -20,7 +20,7 @@ class IntentExtractionPostProcessorRelationshipQueryTest {
 
     @Test
     void shouldConvertNextStepQueryIntoPostActionGenerationRequest() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
         when(registry.findMetadata("relationship_query"))
             .thenReturn(Optional.of(AIActionMetaData.builder().name("relationship_query").build()));
 
@@ -53,7 +53,7 @@ class IntentExtractionPostProcessorRelationshipQueryTest {
 
     @Test
     void shouldCanonicalizeActionNameAliasesForPostActionGeneration() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
         when(registry.findMetadata("relationship query"))
             .thenReturn(Optional.of(AIActionMetaData.builder().name("relationship_query").build()));
 
@@ -86,7 +86,7 @@ class IntentExtractionPostProcessorRelationshipQueryTest {
 
     @Test
     void shouldNotConvertNextStepWhenVectorSpaceIsPresent() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
         when(registry.findMetadata("relationship_query"))
             .thenReturn(Optional.of(AIActionMetaData.builder().name("relationship_query").build()));
 

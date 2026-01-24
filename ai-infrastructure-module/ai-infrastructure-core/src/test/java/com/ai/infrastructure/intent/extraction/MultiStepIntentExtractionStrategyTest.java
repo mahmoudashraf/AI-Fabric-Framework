@@ -7,7 +7,7 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +33,7 @@ class MultiStepIntentExtractionStrategyTest {
     private AICoreService aiCoreService;
 
     @Mock
-    private ActionHandlerRegistry actionHandlerRegistry;
+    private AIActionRegistry actionHandlerRegistry;
 
     @Mock
     private IntentExtractionValidator validator;

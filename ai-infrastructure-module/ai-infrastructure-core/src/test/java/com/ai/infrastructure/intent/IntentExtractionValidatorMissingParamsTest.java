@@ -4,8 +4,8 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionHandler;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -21,8 +21,8 @@ class IntentExtractionValidatorMissingParamsTest {
 
     @Test
     void shouldTreatMissingRequiredActionParamsAsWarningSoProgressiveEngineCanAskClarification() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
-        ActionHandler handler = mock(ActionHandler.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
 
         AIActionMetaData meta = AIActionMetaData.builder()
             .name("create_purchase_order")
@@ -57,4 +57,3 @@ class IntentExtractionValidatorMissingParamsTest {
         );
     }
 }
-

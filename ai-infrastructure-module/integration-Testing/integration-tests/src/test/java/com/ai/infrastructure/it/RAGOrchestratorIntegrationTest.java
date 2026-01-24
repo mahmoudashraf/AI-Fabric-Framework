@@ -20,8 +20,8 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
-import com.ai.infrastructure.intent.action.ActionHandler;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionHandler;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -66,7 +66,7 @@ class RAGOrchestratorIntegrationTest {
     private IntentQueryExtractor intentQueryExtractor;
 
     @MockBean
-    private ActionHandlerRegistry actionHandlerRegistry;
+    private AIActionRegistry actionHandlerRegistry;
 
     @MockBean
     private RAGProvider ragProvider;
@@ -74,11 +74,11 @@ class RAGOrchestratorIntegrationTest {
     @MockBean
     private ResponseSanitizer responseSanitizer;
 
-    private ActionHandler actionHandler;
+    private AIActionHandler actionHandler;
 
     @BeforeEach
     void setupDefaults() {
-        actionHandler = mock(ActionHandler.class);
+        actionHandler = mock(AIActionHandler.class);
 
         when(securityService.analyzeRequest(any())).thenReturn(
             AISecurityResponse.builder()
@@ -138,7 +138,7 @@ class RAGOrchestratorIntegrationTest {
                 .message("done")
                 .build()
         );
-        when(actionHandler.getConfirmationMessage(any())).thenReturn("confirmed");
+        when(actionHandler.getConfirmationMessage(any(), any())).thenReturn("confirmed");
     }
 
     @Test

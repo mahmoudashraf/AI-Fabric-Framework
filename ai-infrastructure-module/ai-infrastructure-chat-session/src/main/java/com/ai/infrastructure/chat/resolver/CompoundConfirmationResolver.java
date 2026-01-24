@@ -14,7 +14,7 @@ import java.util.Objects;
 /**
  * Handles compound turns like "yes and show me laptops" when a pending action exists.
  */
-public class CompoundConfirmationResolver extends AbstractConfirmationResolver {
+public class CompoundConfirmationResolver extends ConfirmationResolverSupport {
 
     public CompoundConfirmationResolver(PendingActionStore pendingActionStore) {
         super(pendingActionStore);

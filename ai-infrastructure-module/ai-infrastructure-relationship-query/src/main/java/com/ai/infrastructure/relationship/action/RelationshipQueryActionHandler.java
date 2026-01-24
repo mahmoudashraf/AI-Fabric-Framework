@@ -1,9 +1,12 @@
 package com.ai.infrastructure.relationship.action;
 
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import com.ai.infrastructure.relationship.model.QueryMode;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
@@ -23,7 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * ActionHandler bridge that lets the orchestrator execute relationship queries.
+ * AI action that lets the orchestrator execute relationship queries.
  * 
  * <p><strong>REQUIREMENT:</strong> When orchestrator integration is enabled, users MUST provide
  * an implementation of {@link RelationshipQueryAccessControlPolicy}. The application will fail
@@ -38,7 +41,12 @@ import java.util.Set;
  * </p>
  */
 @Slf4j
-@Component
+@AIAction(
+    name = "relationship_query",
+    description = "Execute natural language relationship queries across entities",
+    category = "data_query",
+    requiresConfirmation = false
+)
 @RequiredArgsConstructor
 @ConditionalOnBean({ReliableRelationshipQueryService.class, RelationshipQueryAccessControlPolicy.class})
 @ConditionalOnProperty(
@@ -49,7 +57,7 @@ import java.util.Set;
 )
 // Access control policy is REQUIRED when orchestrator integration is enabled
 // Application will fail to start if no policy bean is provided
-public class RelationshipQueryActionHandler implements ActionHandler {
+public class RelationshipQueryActionHandler {
 
     // Action metadata
     private static final String ACTION_NAME = "relationship_query";
@@ -91,31 +99,19 @@ public class RelationshipQueryActionHandler implements ActionHandler {
     // Users must provide their own implementation of RelationshipQueryAccessControlPolicy
     private final RelationshipQueryAccessControlPolicy accessControlPolicy;
 
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name(ACTION_NAME)
-            .description("Execute natural language relationship queries across entities")
-            .category("data_query")
-            .parameters(Map.of(
-                PARAM_QUERY, "Natural language query (required)",
-                PARAM_ENTITY_TYPES, "List<String> entity types to target (required)",
-                PARAM_LIMIT, "Maximum number of results (optional, default " + DEFAULT_LIMIT + ")",
-                PARAM_RETURN_MODE, "IDS or FULL (optional, default IDS)",
-                PARAM_SIMILARITY_THRESHOLD, "Vector similarity threshold 0-1 (optional, used when ENHANCED mode is active)"
-            ))
-            .requiredParameters(Set.of(PARAM_QUERY))
-            .build();
-    }
-
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
+    @ActionExecute
+    public ActionResult execute(@Param(value = PARAM_QUERY, required = true, description = "Natural language query") String query,
+                                @Param(value = PARAM_ENTITY_TYPES, description = "List<String> entity types to target (optional; empty means auto-detect)") List<String> entityTypes,
+                                @Param(value = PARAM_LIMIT, description = "Maximum number of results (optional; default " + DEFAULT_LIMIT + ")", min = 1, max = 1000) Integer limit,
+                                @Param(value = PARAM_RETURN_MODE, description = "IDS or FULL (optional; default IDS)", allowedValues = {"IDS", "FULL"}) ReturnMode returnMode,
+                                @Param(value = PARAM_SIMILARITY_THRESHOLD, description = "Vector similarity threshold 0-1 (optional)") Double similarityThreshold,
+                                ActionContext actionContext) {
+        String userId = actionContext != null ? actionContext.identifier() : null;
         try {
-            String query = requireQuery(params);
-            List<String> entityTypes = requireEntityTypes(params);
-            List<String> allowedEntityTypes = filterAllowedEntityTypes(userId, entityTypes);
+            List<String> requestedEntityTypes = normalizeEntityTypes(entityTypes);
+            List<String> allowedEntityTypes = filterAllowedEntityTypes(userId, requestedEntityTypes);
 
-            boolean autoDetect = entityTypes.isEmpty();
+            boolean autoDetect = requestedEntityTypes.isEmpty();
             
             // SECURITY CRITICAL: Access control ALWAYS enforced, even for auto-detect
             // If user didn't specify entity types, use ONLY what policy allows
@@ -143,13 +139,13 @@ public class RelationshipQueryActionHandler implements ActionHandler {
                         .success(false)
                         .message("Access denied: You do not have permission to query the requested entity types")
                         .errorCode(ERROR_ACCESS_DENIED)
-                        .data(Map.of(DATA_KEY_REQUESTED_ENTITY_TYPES, entityTypes))
+                        .data(Map.of(DATA_KEY_REQUESTED_ENTITY_TYPES, requestedEntityTypes))
                         .build();
                 }
                 
-                if (allowedEntityTypes.size() < entityTypes.size()) {
+                if (allowedEntityTypes.size() < requestedEntityTypes.size()) {
                     // Some entity types denied - fail-closed for security
-                    List<String> denied = new ArrayList<>(entityTypes);
+                    List<String> denied = new ArrayList<>(requestedEntityTypes);
                     denied.removeAll(allowedEntityTypes);
                     log.warn("Access denied: user {} requested unauthorized entity types: {}", userId, denied);
                     return ActionResult.builder()
@@ -157,7 +153,7 @@ public class RelationshipQueryActionHandler implements ActionHandler {
                         .message("Access denied: You do not have permission to query some of the requested entity types")
                         .errorCode(ERROR_ACCESS_DENIED)
                         .data(Map.of(
-                            DATA_KEY_REQUESTED_ENTITY_TYPES, entityTypes,
+                            DATA_KEY_REQUESTED_ENTITY_TYPES, requestedEntityTypes,
                             DATA_KEY_ALLOWED_ENTITY_TYPES, allowedEntityTypes,
                             DATA_KEY_DENIED_ENTITY_TYPES, denied
                         ))
@@ -165,7 +161,7 @@ public class RelationshipQueryActionHandler implements ActionHandler {
                 }
             }
 
-            QueryOptions options = buildQueryOptions(params);
+            QueryOptions options = buildQueryOptions(limit, returnMode, similarityThreshold);
             // Always pass allowed entity types (never null, never unrestricted)
             RAGResponse response = queryService.execute(query, allowedEntityTypes, options);
 
@@ -185,7 +181,6 @@ public class RelationshipQueryActionHandler implements ActionHandler {
         }
     }
 
-    @Override
     public ActionResult handleError(Exception e, String userId) {
         log.error("Relationship query execution failed for user {}", userId, e);
 
@@ -225,82 +220,45 @@ public class RelationshipQueryActionHandler implements ActionHandler {
             .build();
     }
 
-    @Override
-    public boolean validateActionAllowed(String userId) {
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        String userId = context != null ? context.identifier() : null;
         if (userId == null || userId.isBlank()) {
             return false;
         }
-        
         // Policy is always present when orchestrator integration is enabled (enforced by @ConditionalOnBean)
         return accessControlPolicy.canUserExecuteRelationshipQueries(userId);
     }
 
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        String query = requireQuery(params);
-        List<String> entityTypes = requireEntityTypes(params);
-        String entitySummary = entityTypes.isEmpty() ? "auto-detected entities" : entityTypes.toString();
-        return "Execute relationship query on " + entitySummary + ": \"" + query + "\"";
-    }
-
-    @Override
-    public boolean requiresConfirmation() {
-        return false;
-    }
-
-    private QueryOptions buildQueryOptions(Map<String, Object> params) {
+    private QueryOptions buildQueryOptions(Integer limit, ReturnMode returnMode, Double similarityThreshold) {
         QueryOptions.QueryOptionsBuilder builder = QueryOptions.builder();
 
-        if (params.containsKey(PARAM_LIMIT)) {
-            builder.limit(parseInteger(params.get(PARAM_LIMIT), DEFAULT_LIMIT));
-        }
-        if (params.containsKey(PARAM_RETURN_MODE)) {
-            builder.returnMode(parseReturnMode(params.get(PARAM_RETURN_MODE)));
-        }
-        if (params.containsKey(PARAM_SIMILARITY_THRESHOLD)) {
-            builder.similarityThreshold(parseDouble(params.get(PARAM_SIMILARITY_THRESHOLD), null));
+        builder.limit(limit != null ? limit : DEFAULT_LIMIT);
+        builder.returnMode(returnMode != null ? returnMode : ReturnMode.IDS);
+        if (similarityThreshold != null) {
+            builder.similarityThreshold(similarityThreshold);
         }
 
         return builder.build();
     }
 
-    private String requireQuery(Map<String, Object> params) {
-        Object value = params != null ? params.get(PARAM_QUERY) : null;
-        if (value == null || value.toString().isBlank()) {
-            throw new IllegalArgumentException("'" + PARAM_QUERY + "' parameter is required for relationship_query");
-        }
-        return value.toString();
-    }
-
-    private List<String> requireEntityTypes(Map<String, Object> params) {
-        Object value = params != null ? params.get(PARAM_ENTITY_TYPES) : null;
-        if (value == null) {
+    private List<String> normalizeEntityTypes(List<String> entityTypes) {
+        if (entityTypes == null || entityTypes.isEmpty()) {
             log.warn("No entityTypes supplied for relationship_query; falling back to auto-detection");
             return List.of();
         }
 
-        if (value instanceof List<?> list) {
-            List<String> normalized = new ArrayList<>();
-            for (Object entry : list) {
-                if (entry == null) {
-                    continue;
-                }
-                String trimmed = entry.toString().trim();
-                if (!trimmed.isEmpty()) {
-                    normalized.add(trimmed.toLowerCase(Locale.ROOT));
-                }
+        List<String> normalized = new ArrayList<>();
+        for (String entry : entityTypes) {
+            if (entry == null) {
+                continue;
             }
-            return normalized;
+            String trimmed = entry.trim();
+            if (!trimmed.isEmpty()) {
+                normalized.add(trimmed.toLowerCase(Locale.ROOT));
+            }
         }
-
-        if (value instanceof String text) {
-            String trimmed = text.trim();
-            return trimmed.isEmpty()
-                ? List.of()
-                : List.of(trimmed.toLowerCase(Locale.ROOT));
-        }
-
-        throw new IllegalArgumentException("'" + PARAM_ENTITY_TYPES + "' must be a String or List<String>");
+        return normalized;
     }
 
     /**

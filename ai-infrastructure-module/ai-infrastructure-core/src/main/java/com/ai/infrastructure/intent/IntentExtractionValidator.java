@@ -4,7 +4,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -26,7 +26,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class IntentExtractionValidator {
 
-    private final ActionHandlerRegistry actionHandlerRegistry;
+    private final AIActionRegistry actionHandlerRegistry;
 
     public ValidationResult validate(MultiIntentResponse response) {
         return validate(response, null);

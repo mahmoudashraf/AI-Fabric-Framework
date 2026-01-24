@@ -13,8 +13,8 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
-import com.ai.infrastructure.intent.action.ActionHandler;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionHandler;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
@@ -45,18 +45,18 @@ class IntentHandlingStepPostActionGenerationTest {
 
     @Test
     void shouldGeneratePostActionSummaryWhenHandlerProvidesFacts() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
-        ActionHandler handler = mock(ActionHandler.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
         when(registry.findHandler("test_action")).thenReturn(Optional.of(handler));
-        when(handler.validateActionAllowed("user-1")).thenReturn(true);
-        when(handler.getConfirmationMessage(any())).thenReturn("Confirm?");
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+        when(handler.getConfirmationMessage(any(), any())).thenReturn("Confirm?");
 
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("OK")
             .data(Map.of("result", "value"))
             .build();
-        when(handler.executeAction(any(), eq("user-1"))).thenReturn(actionResult);
+        when(handler.executeAction(any(), any())).thenReturn(actionResult);
         when(handler.buildPostActionLlmFacts(eq(actionResult), any())).thenReturn(Optional.of(Map.of(
             "status", "ok",
             "result", "value"
@@ -108,22 +108,22 @@ class IntentHandlingStepPostActionGenerationTest {
         assertThat(result.getData()).containsKey("postActionGeneration");
         assertThat(result.getData()).containsKey("summary");
 
-        verify(handler).executeAction(any(), eq("user-1"));
+        verify(handler).executeAction(any(), any());
         verify(aiCoreService).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION));
     }
 
     @Test
     void shouldSkipPostActionGenerationWhenHandlerOptsOut() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
-        ActionHandler handler = mock(ActionHandler.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
         when(registry.findHandler("test_action")).thenReturn(Optional.of(handler));
-        when(handler.validateActionAllowed("user-1")).thenReturn(true);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
 
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("OK")
             .build();
-        when(handler.executeAction(any(), eq("user-1"))).thenReturn(actionResult);
+        when(handler.executeAction(any(), any())).thenReturn(actionResult);
         when(handler.buildPostActionLlmFacts(eq(actionResult), any())).thenReturn(Optional.empty());
 
         AICoreService aiCoreService = mock(AICoreService.class);
@@ -172,16 +172,16 @@ class IntentHandlingStepPostActionGenerationTest {
 
     @Test
     void shouldNotFailActionWhenPostActionGenerationThrows() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
-        ActionHandler handler = mock(ActionHandler.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
         when(registry.findHandler("test_action")).thenReturn(Optional.of(handler));
-        when(handler.validateActionAllowed("user-1")).thenReturn(true);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
 
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("OK")
             .build();
-        when(handler.executeAction(any(), eq("user-1"))).thenReturn(actionResult);
+        when(handler.executeAction(any(), any())).thenReturn(actionResult);
         when(handler.buildPostActionLlmFacts(eq(actionResult), any())).thenReturn(Optional.of(Map.of("status", "ok")));
 
         AICoreService aiCoreService = mock(AICoreService.class);
@@ -231,16 +231,16 @@ class IntentHandlingStepPostActionGenerationTest {
 
     @Test
     void shouldSkipPostActionGenerationWhenHandlerFactsBuilderThrows() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
-        ActionHandler handler = mock(ActionHandler.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
         when(registry.findHandler("test_action")).thenReturn(Optional.of(handler));
-        when(handler.validateActionAllowed("user-1")).thenReturn(true);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
 
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("OK")
             .build();
-        when(handler.executeAction(any(), eq("user-1"))).thenReturn(actionResult);
+        when(handler.executeAction(any(), any())).thenReturn(actionResult);
         when(handler.buildPostActionLlmFacts(eq(actionResult), any()))
             .thenThrow(new RuntimeException("oops"));
 
@@ -291,16 +291,16 @@ class IntentHandlingStepPostActionGenerationTest {
 
     @Test
     void shouldNotReplaceActionMessageWhenGenerationReturnsEmptyContent() {
-        ActionHandlerRegistry registry = mock(ActionHandlerRegistry.class);
-        ActionHandler handler = mock(ActionHandler.class);
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
         when(registry.findHandler("test_action")).thenReturn(Optional.of(handler));
-        when(handler.validateActionAllowed("user-1")).thenReturn(true);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
 
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("OK")
             .build();
-        when(handler.executeAction(any(), eq("user-1"))).thenReturn(actionResult);
+        when(handler.executeAction(any(), any())).thenReturn(actionResult);
         when(handler.buildPostActionLlmFacts(eq(actionResult), any())).thenReturn(Optional.of(Map.of("status", "ok")));
 
         AICoreService aiCoreService = mock(AICoreService.class);

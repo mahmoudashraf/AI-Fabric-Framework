@@ -14,8 +14,9 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionHandler;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
@@ -68,9 +69,9 @@ import java.time.Instant;
  * <p><strong>Order:</strong> 60 (after intent extraction)</p>
  * 
  * <p><strong>Security:</strong> Actions are blocked for anonymous users.
- * Action handlers must implement {@link ActionHandler#validateActionAllowed}.</p>
+ * Action handlers may declare {@code @ActionAllowed} for additional access control.</p>
  * 
- * @see ActionHandlerRegistry
+ * @see com.ai.infrastructure.intent.action.AIActionRegistry
  * @see RAGProvider
  * @see PipelineStep
  * @since 1.0
@@ -175,7 +176,7 @@ public class IntentHandlingStep implements PipelineStep {
     // Dependencies
     // =========================================================================
     
-    private final ActionHandlerRegistry actionHandlerRegistry;
+    private final AIActionRegistry actionHandlerRegistry;
     private final ObjectProvider<RAGProvider> ragProvider;
     private final AICoreService aiCoreService;
     private final AIServiceConfig aiServiceConfig;
@@ -274,7 +275,7 @@ public class IntentHandlingStep implements PipelineStep {
             return OrchestrationResult.error(ERROR_MSG_MISSING_ACTION_NAME);
         }
         
-        Optional<ActionHandler> maybeHandler = actionHandlerRegistry.findHandler(actionName);
+        Optional<AIActionHandler> maybeHandler = actionHandlerRegistry.findHandler(actionName);
         if (maybeHandler.isEmpty()) {
             // Deterministic contract: missing handler is a canonical ERROR with ACTION_NOT_FOUND.
             String message = ERROR_MSG_NO_HANDLER + actionName + "'";
@@ -295,14 +296,15 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
         
-        ActionHandler handler = maybeHandler.get();
+        AIActionHandler handler = maybeHandler.get();
         Map<String, Object> params = intent.getActionParams();
         String identifier = context.getIdentifier();
+        ActionContext actionContext = new ActionContext(context, pipelineContext);
 
         Map<String, Object> effectiveParams = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
         ResolvedPostActionGeneration postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
 
-        if (!handler.validateActionAllowed(identifier)) {
+        if (!handler.validateActionAllowed(actionContext)) {
             AIActionMetaData metadata = getMetadataForAction(actionName);
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_ACTION, actionName);
@@ -362,7 +364,7 @@ public class IntentHandlingStep implements PipelineStep {
         // Some handlers validate required params inside getConfirmationMessage().
         String confirmationMessage = null;
         try {
-            confirmationMessage = handler.getConfirmationMessage(effectiveParams);
+            confirmationMessage = handler.getConfirmationMessage(effectiveParams, actionContext);
         } catch (Exception ex) {
             log.debug("Action handler {} failed to build confirmation message for '{}': {}",
                 handler.getClass().getName(), actionName, ex.getMessage());
@@ -408,7 +410,7 @@ public class IntentHandlingStep implements PipelineStep {
             if (context.hasConversation() && actionDraftStore != null) {
                 actionDraftStore.clearDrafts(context.getConversationId(), identifier);
             }
-            ActionResult actionResult = handler.executeAction(effectiveParams, identifier);
+            ActionResult actionResult = handler.executeAction(effectiveParams, actionContext);
             boolean success = actionResult != null && actionResult.isSuccess();
             
             Map<String, Object> data = new LinkedHashMap<>();
@@ -451,7 +453,7 @@ public class IntentHandlingStep implements PipelineStep {
         } catch (Exception ex) {
             log.error("Action handler {} threw exception executing '{}': {}", 
                 handler.getClass().getName(), actionName, ex.getMessage(), ex);
-            ActionResult errorResult = handler.handleError(ex, identifier);
+            ActionResult errorResult = handler.handleError(ex, actionContext);
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_ACTION, actionName);
             data.put(DATA_KEY_METADATA, getMetadataForAction(actionName));
@@ -468,7 +470,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
     }
 
-    private boolean requiresActionConfirmation(ActionHandler handler) {
+    private boolean requiresActionConfirmation(AIActionHandler handler) {
         if (handler == null) {
             return false;
         }
@@ -538,7 +540,7 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private PostActionGenerationOutcome maybeGeneratePostActionSummary(String actionName,
-                                                                      ActionHandler handler,
+                                                                      AIActionHandler handler,
                                                                       Intent intent,
                                                                       ActionResult actionResult,
                                                                       OrchestrationContext context,
@@ -678,7 +680,7 @@ public class IntentHandlingStep implements PipelineStep {
         return new ResolvedPostActionGeneration(requested, instructions);
     }
 
-    private PostActionGenerationOutcome maybeGenerateGenericPostActionSummary(ActionHandler handler,
+    private PostActionGenerationOutcome maybeGenerateGenericPostActionSummary(AIActionHandler handler,
                                                                              String actionName,
                                                                              ResolvedPostActionGeneration request,
                                                                              ActionResult actionResult,
@@ -690,7 +692,7 @@ public class IntentHandlingStep implements PipelineStep {
 
         Optional<Map<String, Object>> factsOpt;
         try {
-            factsOpt = handler.buildPostActionLlmFacts(actionResult, context);
+            factsOpt = handler.buildPostActionLlmFacts(actionResult, new ActionContext(context, pipelineContext));
         } catch (Exception ex) {
             log.warn("Action handler {} failed to build post-action facts for '{}': {}",
                 handler.getClass().getName(), actionName, ex.getMessage());

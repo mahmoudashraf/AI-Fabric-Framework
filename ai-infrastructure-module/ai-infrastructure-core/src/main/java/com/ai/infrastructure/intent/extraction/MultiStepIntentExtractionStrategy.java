@@ -10,7 +10,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
@@ -44,7 +44,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     private static final String GENERATION_TYPE = "intent_extraction_multi_step";
 
     private final AICoreService aiCoreService;
-    private final ActionHandlerRegistry actionHandlerRegistry;
+    private final AIActionRegistry actionHandlerRegistry;
     private final IntentExtractionJsonSupport jsonSupport;
     private final IntentExtractionValidator validator;
 

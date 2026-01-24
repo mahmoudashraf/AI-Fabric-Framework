@@ -1,6 +1,8 @@
 package com.ai.infrastructure.intent.action.handlers;
 
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +31,7 @@ class VectorActionHandlersTest {
     void clearHandlerShouldReportRemovedCount() {
         when(vectorDatabaseService.clearVectors()).thenReturn(3L);
 
-        ActionResult result = clearHandler.executeAction(Map.of(), "user");
+        ActionResult result = clearHandler.execute(new ActionContext(OrchestrationContext.forUser("user"), null));
 
         verify(vectorDatabaseService).clearVectors();
         assertThat(result.isSuccess()).isTrue();
@@ -38,24 +40,19 @@ class VectorActionHandlersTest {
     }
 
     @Test
-    void removeHandlerShouldValidateParameters() {
-        ActionResult result = removeHandler.executeAction(Map.of(), "user");
-
-        assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getErrorCode()).isEqualTo("MISSING_PARAMETERS");
-    }
-
-    @Test
     void removeHandlerShouldCallVectorService() {
         when(vectorDatabaseService.removeVector("doc", "123")).thenReturn(true);
 
-        ActionResult result = removeHandler.executeAction(
-            Map.of("entityType", "doc", "entityId", "123"),
-            "user"
-        );
+        ActionResult result = removeHandler.execute("doc", "123", new ActionContext(OrchestrationContext.forUser("user"), null));
 
         verify(vectorDatabaseService).removeVector("doc", "123");
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).isEqualTo("Vector removed.");
+    }
+
+    @Test
+    void removeHandlerShouldBuildConfirmationMessage() {
+        String message = removeHandler.confirm("doc", "123");
+        assertThat(message).contains("doc:123");
     }
 }
