@@ -1,19 +1,27 @@
 package com.subscription.hub.action.handler;
 
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import com.subscription.hub.service.SubscriptionService;
 import com.subscription.hub.service.UserService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.UUID;
 
-@Component
+@AIAction(
+    name = "upgrade_subscription",
+    description = "Upgrade subscription to a higher tier plan",
+    category = "subscription",
+    requiresConfirmation = true
+)
 @Slf4j
-public class UpgradeSubscriptionActionHandler extends BaseActionHandler implements ActionHandler {
+public class UpgradeSubscriptionActionHandler extends BaseActionHandler {
     
     private final SubscriptionService subscriptionService;
     
@@ -22,22 +30,10 @@ public class UpgradeSubscriptionActionHandler extends BaseActionHandler implemen
         this.subscriptionService = subscriptionService;
     }
     
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("upgrade_subscription")
-            .description("Upgrade subscription to a higher tier plan")
-            .category("subscription")
-            .parameters(Map.of(
-                "subscriptionId", "UUID of the subscription to upgrade",
-                "newPlanId", "UUID of the new plan to upgrade to"
-            ))
-            .build();
-    }
-    
-    @Override
-    public boolean validateActionAllowed(String userId) {
-        if (userId == null) {
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        String userId = context != null ? context.userId() : null;
+        if (userId == null || userId.isBlank()) {
             return false;
         }
         try {
@@ -48,32 +44,22 @@ public class UpgradeSubscriptionActionHandler extends BaseActionHandler implemen
         }
     }
     
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        String newPlanId = (String) params.get("newPlanId");
-        return String.format(
-            "Are you sure you want to upgrade to this plan? Your billing will be updated accordingly."
-        );
+    @ActionConfirmation
+    public String confirm(
+        @Param(value = "subscriptionId", required = true, description = "UUID of the subscription to upgrade") String subscriptionId,
+        @Param(value = "newPlanId", required = true, description = "UUID of the new plan to upgrade to") String newPlanId
+    ) {
+        return "Are you sure you want to upgrade to this plan? Your billing will be updated accordingly.";
     }
 
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
-    }
-    
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
+    @ActionExecute
+    public ActionResult execute(
+        @Param(value = "subscriptionId", required = true, description = "UUID of the subscription to upgrade") String subscriptionId,
+        @Param(value = "newPlanId", required = true, description = "UUID of the new plan to upgrade to") String newPlanId,
+        ActionContext context
+    ) {
+        String userId = context != null ? context.userId() : null;
         try {
-            String subscriptionId = (String) params.get("subscriptionId");
-            String newPlanId = (String) params.get("newPlanId");
-            
-            if (subscriptionId == null || newPlanId == null) {
-                return ActionResult.builder()
-                    .success(false)
-                    .message("Subscription ID and new plan ID are required")
-                    .build();
-            }
-            
             var subscription = subscriptionService.upgrade(
                 UUID.fromString(subscriptionId),
                 UUID.fromString(newPlanId)
@@ -90,18 +76,11 @@ public class UpgradeSubscriptionActionHandler extends BaseActionHandler implemen
                 .build();
         } catch (Exception e) {
             log.error("Error upgrading subscription", e);
-            return handleError(e, userId);
+            return ActionResult.builder()
+                .success(false)
+                .message("Failed to upgrade subscription. " + e.getMessage())
+                .errorCode("UPGRADE_FAILED")
+                .build();
         }
-    }
-    
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        log.error("Error upgrading subscription for user: {}", userId, e);
-        
-        return ActionResult.builder()
-            .success(false)
-            .message("Failed to upgrade subscription. " + e.getMessage())
-            .errorCode("UPGRADE_FAILED")
-            .build();
     }
 }

@@ -2,73 +2,65 @@ package com.ai.fabric.realapps.itsupport.action;
 
 import com.ai.fabric.realapps.itsupport.domain.Ticket;
 import com.ai.fabric.realapps.itsupport.service.TicketService;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-@Component
+@AIAction(
+    name = "escalate_ticket",
+    description = "Escalate a ticket to an on-call escalation path",
+    category = "it-support",
+    requiresConfirmation = true
+)
 @RequiredArgsConstructor
 @Slf4j
-public class EscalateTicketActionHandler extends BaseActionHandler implements ActionHandler {
+public class EscalateTicketActionHandler {
 
     private final TicketService ticketService;
 
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("escalate_ticket")
-            .description("Escalate a ticket to an on-call escalation path")
-            .category("it-support")
-            .parameters(Map.of(
-                "ticketNumber", "Numeric ticket number (ex: 1002)",
-                "reason", "Why escalation is needed (optional)"
-            ))
-            .build();
-    }
-
-    @Override
-    public boolean validateActionAllowed(String userId) {
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        String userId = context != null ? context.userId() : null;
         return userId != null && !userId.isBlank();
     }
 
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        long ticketNumber = requireTicketNumber(params);
+    @ActionConfirmation
+    public String confirm(@Param(value = "ticketNumber", required = true, description = "Numeric ticket number (ex: 1002)") Long ticketNumber) {
         return "Escalate ticket " + ticketNumber + "?";
     }
 
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
-    }
-
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
-        long ticketNumber = requireTicketNumber(params);
-        String reason = stringParam(params, "reason");
-        Ticket updated = ticketService.escalate(ticketNumber, reason);
-        return ActionResult.builder()
-            .success(true)
-            .message("Ticket escalated")
-            .data(Map.of(
-                "ticketNumber", updated.getTicketNumber(),
-                "escalated", updated.isEscalated()
-            ))
-            .build();
-    }
-
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        log.error("Escalate failed for user {}", userId, e);
-        return ActionResult.builder()
-            .success(false)
-            .message("Failed to escalate ticket: " + e.getMessage())
-            .errorCode("ESCALATE_FAILED")
-            .build();
+    @ActionExecute
+    public ActionResult execute(
+        @Param(value = "ticketNumber", required = true, description = "Numeric ticket number (ex: 1002)") Long ticketNumber,
+        @Param(value = "reason", description = "Why escalation is needed (optional)") String reason,
+        ActionContext context
+    ) {
+        String userId = context != null ? context.userId() : null;
+        try {
+            Ticket updated = ticketService.escalate(ticketNumber, reason);
+            return ActionResult.builder()
+                .success(true)
+                .message("Ticket escalated")
+                .data(Map.of(
+                    "ticketNumber", updated.getTicketNumber(),
+                    "escalated", updated.isEscalated()
+                ))
+                .build();
+        } catch (Exception e) {
+            log.error("Escalate failed for user {}", userId, e);
+            return ActionResult.builder()
+                .success(false)
+                .message("Failed to escalate ticket: " + e.getMessage())
+                .errorCode("ESCALATE_FAILED")
+                .build();
+        }
     }
 }

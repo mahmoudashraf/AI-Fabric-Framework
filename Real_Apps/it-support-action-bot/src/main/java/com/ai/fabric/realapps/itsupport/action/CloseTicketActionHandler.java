@@ -2,73 +2,65 @@ package com.ai.fabric.realapps.itsupport.action;
 
 import com.ai.fabric.realapps.itsupport.domain.Ticket;
 import com.ai.fabric.realapps.itsupport.service.TicketService;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-@Component
+@AIAction(
+    name = "close_ticket",
+    description = "Close a ticket and add a resolution note",
+    category = "it-support",
+    requiresConfirmation = true
+)
 @RequiredArgsConstructor
 @Slf4j
-public class CloseTicketActionHandler extends BaseActionHandler implements ActionHandler {
+public class CloseTicketActionHandler {
 
     private final TicketService ticketService;
 
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("close_ticket")
-            .description("Close a ticket and add a resolution note")
-            .category("it-support")
-            .parameters(Map.of(
-                "ticketNumber", "Numeric ticket number (ex: 1003)",
-                "resolutionNote", "What fixed the issue (optional)"
-            ))
-            .build();
-    }
-
-    @Override
-    public boolean validateActionAllowed(String userId) {
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        String userId = context != null ? context.userId() : null;
         return userId != null && !userId.isBlank();
     }
 
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        long ticketNumber = requireTicketNumber(params);
+    @ActionConfirmation
+    public String confirm(@Param(value = "ticketNumber", required = true, description = "Numeric ticket number (ex: 1003)") Long ticketNumber) {
         return "Close ticket " + ticketNumber + "?";
     }
 
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
-    }
-
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
-        long ticketNumber = requireTicketNumber(params);
-        String note = stringParam(params, "resolutionNote");
-        Ticket updated = ticketService.close(ticketNumber, note);
-        return ActionResult.builder()
-            .success(true)
-            .message("Ticket closed")
-            .data(Map.of(
-                "ticketNumber", updated.getTicketNumber(),
-                "status", updated.getStatus().name()
-            ))
-            .build();
-    }
-
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        log.error("Close ticket failed for user {}", userId, e);
-        return ActionResult.builder()
-            .success(false)
-            .message("Failed to close ticket: " + e.getMessage())
-            .errorCode("CLOSE_TICKET_FAILED")
-            .build();
+    @ActionExecute
+    public ActionResult execute(
+        @Param(value = "ticketNumber", required = true, description = "Numeric ticket number (ex: 1003)") Long ticketNumber,
+        @Param(value = "resolutionNote", description = "What fixed the issue (optional)") String resolutionNote,
+        ActionContext context
+    ) {
+        String userId = context != null ? context.userId() : null;
+        try {
+            Ticket updated = ticketService.close(ticketNumber, resolutionNote);
+            return ActionResult.builder()
+                .success(true)
+                .message("Ticket closed")
+                .data(Map.of(
+                    "ticketNumber", updated.getTicketNumber(),
+                    "status", updated.getStatus().name()
+                ))
+                .build();
+        } catch (Exception e) {
+            log.error("Close ticket failed for user {}", userId, e);
+            return ActionResult.builder()
+                .success(false)
+                .message("Failed to close ticket: " + e.getMessage())
+                .errorCode("CLOSE_TICKET_FAILED")
+                .build();
+        }
     }
 }

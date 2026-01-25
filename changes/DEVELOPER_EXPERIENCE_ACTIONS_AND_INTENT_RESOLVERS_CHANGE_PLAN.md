@@ -1,7 +1,7 @@
 # Developer Experience: Actions + Confirmation Interceptors (V5) — Change Plan
 
 ## Status
-Implemented (core); integration tests + demos in progress
+Implemented (core); demos + integration tests in progress
 
 ## Source
 Based on: `ai-infrastructure-module/docs/DEVELOPER_EXPERIENCE_IMPROVEMENT_PLAN.md`
@@ -36,15 +36,23 @@ This plan focuses on **developer ergonomics** for:
 - Action authors no longer implement metadata builders or `Map<String,Object>` casting helpers.
 - Actions can explicitly opt into **no confirmation** with `requiresConfirmation = false`.
 
-### 2) Public support base for confirmation resolvers (interceptors)
-**New API (framework)**:
-- `ConfirmationResolverSupport` (public helper base to build app resolvers without touching framework internals)
+### 2) Annotation-driven confirmation interceptors (DX for interception flows)
+This complements the DX plan’s “interceptors” section by removing most of the boilerplate around writing a full
+`IntentResolver` class for common confirmation interception patterns (retention offers, upsells, etc).
 
-**Result**:
-- App resolvers like `CancellationRetentionOfferResolver` can use a stable helper API for:
-  - reading/writing pending confirmation state
-  - pushing an alternative action (offer) onto the confirmation flow
-  - safely reprompting the original action when the offer is rejected
+**New API (framework)** (in `ai-infrastructure-chat-session`):
+- `@AIConfirmationInterceptors` (class-level Spring stereotype)
+- `@OnPendingActionConfirmation(...)` (method-level rule declaration)
+- `ConfirmationInterceptionContext` (small helper context: pending stack ops + decision helpers)
+- `InterceptionDecision` (what intents to replace with + which actions are already confirmed)
+- `AnnotatedConfirmationInterceptorsResolver` (framework resolver that discovers and runs these handlers)
+
+**Key behaviors**:
+- Runs early (priority `8`) before the default confirmation resolvers.
+- Stores loop-guards in **pending action params** via `onceParam` (portable across stores).
+- Lets apps rewrite a confirmation turn into:
+  - a new ACTION intent (prompt or execute)
+  - an INFORMATION intent (short direct reply)
 
 ### 3) Greenfield cleanup
 Removed from `ai-infrastructure-core`:
@@ -62,10 +70,18 @@ Removed from `ai-infrastructure-core`:
 3. Optional: `@ActionConfirmation` / `@ActionFacts` / `@ActionAllowed`.
 
 ### Implementing a confirmation “interceptor” (retention offer)
+Recommended in apps: use the annotation API instead of writing a full `IntentResolver`.
+
 In the app (e.g. `Real_Apps/chat-capabilities-demo`):
-- Implement a resolver bean (recommended: extend `ConfirmationResolverSupport`)
-- When a cancel action is confirmed, push an “offer” pending action
-- When the offer is rejected, re-prompt the original cancel action explicitly
+- Create a bean annotated with `@AIConfirmationInterceptors`
+- Add methods annotated with `@OnPendingActionConfirmation(...)`
+- Return `InterceptionDecision` (use `ConfirmationInterceptionContext` helpers):
+  - `promptAction(action, params)` to route to another action (often with its own confirmation)
+  - `executeAction(action, params)` to execute immediately (marks action as confirmed for this request)
+  - `reply(text)` for short no-RAG/no-generation acknowledgements
+
+The demo retention flow was migrated from a hand-written resolver to this annotation API:
+- `Real_Apps/chat-capabilities-demo/.../CancellationRetentionOfferResolver.java`
 
 ---
 

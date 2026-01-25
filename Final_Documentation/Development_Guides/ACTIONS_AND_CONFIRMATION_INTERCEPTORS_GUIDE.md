@@ -24,8 +24,9 @@ When chat sessions are enabled, a dedicated pipeline step resolves confirmation 
 
 This is implemented in:
 - `ConfirmationResolutionStep` (runs before action execution in the pipeline)
-- `IntentResolver` SPI (your interceptors)
-- `ConfirmationResolverSupport` (helper base class for writing resolvers)
+- `AnnotatedConfirmationInterceptorsResolver` (recommended: runs `@OnPendingActionConfirmation` handlers)
+- `IntentResolver` SPI (advanced / full control)
+- `ConfirmationResolverSupport` (helper base class for manual resolvers)
 
 ---
 
@@ -155,75 +156,78 @@ Validation is enforced by the argument binder:
 
 ---
 
-## 5) Confirmation interceptors (IntentResolvers)
+## 5) Confirmation interceptors (recommended: annotations)
 
-### When should you write a resolver?
-Write an app resolver when you need conversation-specific control, for example:
+### When should you write an interceptor?
+Write an app interceptor when you need conversation-specific control, for example:
 - a retention offer (“instead of cancelling, apply 10% discount?”)
 - multi-step confirmations across several actions
 - special handling for compound confirmations (“yes and also …”)
 
-### Resolver interface
-Implement `IntentResolver`:
-- `canResolve(...)` decides whether your resolver handles the current turn
-- `resolve(...)` returns an updated `PipelineContext`
+### Recommended API: `@AIConfirmationInterceptors`
+This removes most of the boilerplate of writing a full `IntentResolver` class.
 
-Resolvers are executed by `ConfirmationResolutionStep` in ascending priority (lower = earlier).
+Create a Spring bean annotated with `@AIConfirmationInterceptors`, then add one or more handler methods annotated with:
+- `@OnPendingActionConfirmation(pendingActions=..., confirmation=...)`
 
-### Use `ConfirmationResolverSupport`
-Extend `ConfirmationResolverSupport` to avoid boilerplate for:
-- pending action stack ops (`peekPending`, `popPending`, `pushPending`)
-- checking confirmation intents (`hasPositiveConfirmation`, `hasNegativeConfirmation`)
-- marking an action confirmed for the current request (`markConfirmed`)
+Handler method signature:
+- input: `ConfirmationInterceptionContext`
+- output: `InterceptionDecision`
 
-### Template: retention offer interceptor
-High-level approach:
-1. Detect a *confirmed* cancel intent.
-2. Swap it into an “offer” action instead of executing cancel immediately.
-3. If offer is rejected, execute the original cancellation (or re-prompt it) explicitly.
+Key helpers on `ConfirmationInterceptionContext`:
+- Stack ops: `peekPending()`, `popPending()`, `pushPending()`
+- Loop guard stored in pending-action params: `onceParam = "_myFlag"` on the annotation
+- Decision helpers:
+  - `promptAction(name, params)` → returns an ACTION intent (not auto-confirmed)
+  - `executeAction(name, params)` → returns an ACTION intent and marks it confirmed for this request
+  - `reply(text)` → returns an INFORMATION direct reply (no RAG, no generation)
 
-Skeleton:
+### Example: retention offer (cancel → offer → accept/reject)
 
 ```java
-public class CancellationRetentionOfferResolver extends ConfirmationResolverSupport {
+import com.ai.infrastructure.chat.annotation.AIConfirmationInterceptors;
+import com.ai.infrastructure.chat.annotation.OnPendingActionConfirmation;
+import com.ai.infrastructure.chat.interception.ConfirmationInterceptionContext;
+import com.ai.infrastructure.chat.interception.InterceptionDecision;
+import com.ai.infrastructure.dto.IntentType;
 
-    public CancellationRetentionOfferResolver(PendingActionStore store) {
-        super(store);
+@AIConfirmationInterceptors
+public class CancellationRetentionOffer {
+
+    private static final String CANCEL = "cancel_purchase_order";
+    private static final String OFFER = "offer_order_discount";
+
+    // When user confirms cancellation, route them into the retention offer (only once).
+    @OnPendingActionConfirmation(
+        pendingActions = {CANCEL},
+        confirmation = IntentType.CONFIRMATION_POSITIVE,
+        onceParam = "_retentionOfferOffered"
+    )
+    public InterceptionDecision offer(ConfirmationInterceptionContext ctx) {
+        return ctx.promptAction(OFFER, java.util.Map.of("discountPercent", 10));
     }
 
-    @Override
-    public boolean canResolve(MultiIntentResponse response, Map<String, Object> sessionMetadata, PipelineContext ctx) {
-        PendingAction pending = peekPending(ctx);
-        return pending != null
-            && "cancel_order".equalsIgnoreCase(pending.action())
-            && hasPositiveConfirmation(response);
+    // If they accept the offer: execute it and clear the original cancellation from the stack.
+    @OnPendingActionConfirmation(pendingActions = {OFFER}, confirmation = IntentType.CONFIRMATION_POSITIVE)
+    public InterceptionDecision accept(ConfirmationInterceptionContext ctx) {
+        ctx.popPending(); // pop OFFER
+        ctx.popPending(); // pop CANCEL (if it’s underneath)
+        return ctx.executeAction(OFFER, java.util.Map.of("discountPercent", 10));
     }
 
-    @Override
-    public PipelineContext resolve(MultiIntentResponse response, Map<String, Object> sessionMetadata, PipelineContext ctx) {
-        // Implementation detail depends on your UX:
-        // - pop the cancel pending action
-        // - push an offer action as the new pending action (or return an offer ACTION intent)
-        // - ensure the original cancel action is still available if the offer is rejected
-        return ctx;
-    }
-
-    @Override
-    public int getPriority() {
-        return 1; // run before the default confirmation resolvers
-    }
-
-    @Override
-    public String getResolverName() {
-        return "CancellationRetentionOfferResolver";
+    // If they reject the offer: execute the original cancellation (already confirmed earlier).
+    @OnPendingActionConfirmation(pendingActions = {OFFER}, confirmation = IntentType.CONFIRMATION_NEGATIVE)
+    public InterceptionDecision reject(ConfirmationInterceptionContext ctx) {
+        ctx.popPending(); // pop OFFER
+        return ctx.executeAction(CANCEL, java.util.Map.of());
     }
 }
 ```
 
-See built-in resolvers for patterns:
-- `CompoundConfirmationResolver`
-- `SingleConfirmationPositiveResolver`
-- `ExpiredConfirmationResolver`
+### Advanced API: implement `IntentResolver` directly
+If you need full control (custom matching logic, compound confirmations, etc.), implement `IntentResolver`.
+For convenience, extend:
+- `ConfirmationResolverSupport`
 
 ---
 

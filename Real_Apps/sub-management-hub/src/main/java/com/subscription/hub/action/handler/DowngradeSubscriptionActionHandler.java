@@ -1,19 +1,27 @@
 package com.subscription.hub.action.handler;
 
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import com.subscription.hub.service.SubscriptionService;
 import com.subscription.hub.service.UserService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.UUID;
 
-@Component
+@AIAction(
+    name = "downgrade_subscription",
+    description = "Downgrade subscription to a lower tier plan",
+    category = "subscription",
+    requiresConfirmation = true
+)
 @Slf4j
-public class DowngradeSubscriptionActionHandler extends BaseActionHandler implements ActionHandler {
+public class DowngradeSubscriptionActionHandler extends BaseActionHandler {
     
     private final SubscriptionService subscriptionService;
     
@@ -22,22 +30,10 @@ public class DowngradeSubscriptionActionHandler extends BaseActionHandler implem
         this.subscriptionService = subscriptionService;
     }
     
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("downgrade_subscription")
-            .description("Downgrade subscription to a lower tier plan")
-            .category("subscription")
-            .parameters(Map.of(
-                "subscriptionId", "UUID of the subscription to downgrade",
-                "newPlanId", "UUID of the new plan to downgrade to"
-            ))
-            .build();
-    }
-    
-    @Override
-    public boolean validateActionAllowed(String userId) {
-        if (userId == null) {
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        String userId = context != null ? context.userId() : null;
+        if (userId == null || userId.isBlank()) {
             return false;
         }
         try {
@@ -48,29 +44,22 @@ public class DowngradeSubscriptionActionHandler extends BaseActionHandler implem
         }
     }
     
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
+    @ActionConfirmation
+    public String confirm(
+        @Param(value = "subscriptionId", required = true, description = "UUID of the subscription to downgrade") String subscriptionId,
+        @Param(value = "newPlanId", required = true, description = "UUID of the new plan to downgrade to") String newPlanId
+    ) {
         return "Are you sure you want to downgrade? You may lose access to some features. This change will take effect on your next billing cycle.";
     }
 
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
-    }
-    
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
+    @ActionExecute
+    public ActionResult execute(
+        @Param(value = "subscriptionId", required = true, description = "UUID of the subscription to downgrade") String subscriptionId,
+        @Param(value = "newPlanId", required = true, description = "UUID of the new plan to downgrade to") String newPlanId,
+        ActionContext context
+    ) {
+        String userId = context != null ? context.userId() : null;
         try {
-            String subscriptionId = (String) params.get("subscriptionId");
-            String newPlanId = (String) params.get("newPlanId");
-            
-            if (subscriptionId == null || newPlanId == null) {
-                return ActionResult.builder()
-                    .success(false)
-                    .message("Subscription ID and new plan ID are required")
-                    .build();
-            }
-            
             var subscription = subscriptionService.downgrade(
                 UUID.fromString(subscriptionId),
                 UUID.fromString(newPlanId)
@@ -87,18 +76,11 @@ public class DowngradeSubscriptionActionHandler extends BaseActionHandler implem
                 .build();
         } catch (Exception e) {
             log.error("Error downgrading subscription", e);
-            return handleError(e, userId);
+            return ActionResult.builder()
+                .success(false)
+                .message("Failed to downgrade subscription. " + e.getMessage())
+                .errorCode("DOWNGRADE_FAILED")
+                .build();
         }
-    }
-    
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        log.error("Error downgrading subscription for user: {}", userId, e);
-        
-        return ActionResult.builder()
-            .success(false)
-            .message("Failed to downgrade subscription. " + e.getMessage())
-            .errorCode("DOWNGRADE_FAILED")
-            .build();
     }
 }
