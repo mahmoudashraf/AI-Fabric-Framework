@@ -22,6 +22,14 @@ This document outlines the cleanup and restructuring tasks required before launc
 
 **Timeline**: 2-3 weeks before launch
 
+<<<<<<< Updated upstream
+=======
+**Implementation note (this repo)**: We are targeting a **monorepo** separation for beta. See:
+- `changes/release/MONOREPO_COMMUNITY_ENTERPRISE_SEPARATION_CHANGE_PLAN.md`
+- `changes/release/BETA_RELEASE_SCOPE_AND_GATES.md`
+- `changes/release/ARTIFACT_COORDINATES_AND_NAMING_FIXES_CHANGE_PLAN.md`
+
+>>>>>>> Stashed changes
 ---
 
 ## Table of Contents
