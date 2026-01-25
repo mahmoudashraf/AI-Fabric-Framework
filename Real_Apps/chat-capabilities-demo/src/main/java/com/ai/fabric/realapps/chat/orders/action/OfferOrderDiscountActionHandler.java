@@ -1,98 +1,66 @@
 package com.ai.fabric.realapps.chat.orders.action;
 
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-@Component
+@AIAction(
+    name = OfferOrderDiscountActionHandler.ACTION_NAME,
+    description = "Offer a retention discount to keep an order active instead of cancelling it",
+    category = "commerce",
+    requiresConfirmation = true
+)
 @Slf4j
-public class OfferOrderDiscountActionHandler implements ActionHandler {
+public class OfferOrderDiscountActionHandler {
 
     public static final String ACTION_NAME = "offer_order_discount";
 
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name(ACTION_NAME)
-            .description("Offer a retention discount to keep an order active instead of cancelling it")
-            .category("commerce")
-            .parameters(Map.of(
-                "orderNumber", "Order number (PO-...) (optional)",
-                "orderId", "Order id (numeric) (optional)",
-                "discountPercent", "Discount percent (optional; default 10)"
-            ))
-            .build();
-    }
-
-    @Override
-    public boolean validateActionAllowed(String userId) {
-        return StringUtils.hasText(userId);
-    }
-
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        int percent = intParam(params, "discountPercent", 10);
+    @ActionConfirmation
+    public String confirm(@Param(value = "discountPercent", description = "Discount percent") Integer discountPercent) {
+        int percent = discountPercent != null ? discountPercent : 10;
         return "Apply a " + percent + "% discount to keep your order instead of cancelling?";
     }
 
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
-    }
+    @ActionExecute
+    public ActionResult execute(
+        @Param(value = "orderNumber", description = "Order number (PO-...)") String orderNumber,
+        @Param(value = "orderId", description = "Order id (numeric)") Long orderId,
+        @Param(value = "discountPercent", description = "Discount percent") Integer discountPercent,
+        ActionContext context
+    ) {
+        String userId = context != null ? context.userId() : null;
+        try {
+            int percent = discountPercent != null ? discountPercent : 10;
+            String ref = StringUtils.hasText(orderNumber)
+                ? orderNumber.trim()
+                : (orderId != null ? String.valueOf(orderId) : "your order");
+            String coupon = percent >= 15 ? "SAVE15" : "SAVE10";
 
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
-        int percent = intParam(params, "discountPercent", 10);
-        String orderNumber = stringParam(params, "orderNumber");
-        String orderId = stringParam(params, "orderId");
+            log.info("Issued retention offer {}% (coupon={}) for user={} orderRef={}", percent, coupon, userId, ref);
 
-        String ref = StringUtils.hasText(orderNumber) ? orderNumber.trim() : (StringUtils.hasText(orderId) ? orderId.trim() : "your order");
-        String coupon = percent >= 15 ? "SAVE15" : "SAVE10";
-
-        log.info("Issued retention offer {}% (coupon={}) for user={} orderRef={}", percent, coupon, userId, ref);
-
-        return ActionResult.builder()
-            .success(true)
-            .message("Discount offer applied")
-            .data(Map.of(
-                "orderRef", ref,
-                "discountPercent", percent,
-                "couponCode", coupon,
-                "note", "This demo does not persist discounts to the order record."
-            ))
-            .build();
-    }
-
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        log.error("Offer discount failed for user {}", userId, e);
-        return ActionResult.builder()
-            .success(false)
-            .message("Failed to apply discount offer: " + (e != null ? e.getMessage() : "unknown"))
-            .errorCode("OFFER_ORDER_DISCOUNT_FAILED")
-            .build();
-    }
-
-    private String stringParam(Map<String, Object> params, String key) {
-        Object raw = params != null ? params.get(key) : null;
-        return raw != null ? raw.toString() : null;
-    }
-
-    private int intParam(Map<String, Object> params, String key, int defaultValue) {
-        Object raw = params != null ? params.get(key) : null;
-        if (raw instanceof Number number) {
-            return number.intValue();
+            return ActionResult.builder()
+                .success(true)
+                .message("Discount offer applied")
+                .data(Map.of(
+                    "orderRef", ref,
+                    "discountPercent", percent,
+                    "couponCode", coupon,
+                    "note", "This demo does not persist discounts to the order record."
+                ))
+                .build();
+        } catch (Exception e) {
+            log.error("Offer discount failed for user {}", userId, e);
+            return ActionResult.builder()
+                .success(false)
+                .message("Failed to apply discount offer: " + (e != null ? e.getMessage() : "unknown"))
+                .errorCode("OFFER_ORDER_DISCOUNT_FAILED")
+                .build();
         }
-        if (raw != null) {
-            try {
-                return Integer.parseInt(raw.toString());
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return defaultValue;
     }
 }
