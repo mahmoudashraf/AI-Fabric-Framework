@@ -24,7 +24,7 @@ import org.springframework.context.annotation.Bean;
     // IMPORTANT: Do not scan the entire `com.ai.infrastructure.it` package.
     // Test sources are on the classpath during `mvn test`, and broad scanning can
     // accidentally pick up nested `@TestConfiguration` classes from unrelated tests,
-    // overriding beans (e.g., AvailableActionsRegistry / ActionHandlerRegistry) and
+    // overriding beans (e.g., AvailableActionsRegistry / AIActionRegistry) and
     // breaking other integration tests (provider-matrix included).
     basePackages = {
         "com.ai.infrastructure.it.config",

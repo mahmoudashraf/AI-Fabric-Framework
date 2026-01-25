@@ -118,7 +118,7 @@ OrchestrationResult orchestrate(String query, OrchestrationContext context)
 
 5. **IntentExtractionStep**: Calls `IntentQueryExtractor.extract(query, context)` - terminates if no intents
 6. **IntentHandlingStep**: Routes based on intent type, prioritizing `processedQuery` from `PIIDetectionStep` (or `optimizedQuery` when provided) before the raw intent text:
-   - `ACTION`: Requires authenticated user; routed to `ActionHandlerRegistry`
+   - `ACTION`: Routed to `AIActionRegistry` (actions declared via `@AIAction`; access/confirmation is action-defined)
    - `INFORMATION`: Performs RAG via `RAGService.performRag()` or `performRAGQuery()` with the already-redacted query; RAG no longer runs PII detection
    - `COMPOUND`: Processes multiple intents sequentially
    - `OUT_OF_SCOPE`: Returns guidance message
@@ -233,17 +233,27 @@ public class CustomValidationStep implements PipelineStep {
 
 ### Adding Action Handlers
 
-Register via `ActionHandlerRegistry`:
+Register via `@AIAction` (greenfield):
 
 ```java
-@Component
-public class CancelSubscriptionHandler implements ActionHandler {
-    @Override
-    public String getActionName() { return "cancel_subscription"; }
-    
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
+import com.ai.infrastructure.intent.action.ActionContext;
+import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
+
+@AIAction(
+    name = "cancel_subscription",
+    description = "Cancel an active subscription",
+    category = "subscription",
+    requiresConfirmation = true
+)
+public class CancelSubscriptionAction {
+
+    @ActionExecute
+    public ActionResult execute(@Param(required = true) String subscriptionId, ActionContext ctx) {
         // Implementation
+        return ActionResult.builder().success(true).message("Cancelled.").build();
     }
 }
 ```

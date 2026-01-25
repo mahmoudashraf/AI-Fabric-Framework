@@ -21,7 +21,7 @@ The original `RAGOrchestrator` was a monolithic class with:
 // Before: Monolithic constructor
 public RAGOrchestrator(
     IntentQueryExtractor intentQueryExtractor,
-    ActionHandlerRegistry actionHandlerRegistry,
+    AIActionRegistry actionRegistry,
     RAGService ragService,
     ResponseSanitizer responseSanitizer,
     IntentHistoryService intentHistoryService,

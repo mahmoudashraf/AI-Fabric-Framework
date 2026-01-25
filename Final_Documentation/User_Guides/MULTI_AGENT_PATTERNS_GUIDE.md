@@ -1703,12 +1703,18 @@ public interface PipelineStep {
 }
 
 // Action handler agent
-public interface ActionHandler {
-    AIActionMetaData getActionMetadata();
-    boolean validateActionAllowed(String userId);
-    ActionResult executeAction(Map<String, Object> params, String userId);
-    ActionResult handleError(Exception e, String userId);
-    String getConfirmationMessage(Map<String, Object> params);
+// Actions are declared via annotations (greenfield)
+@AIAction(
+    name = "cancel_subscription",
+    description = "Cancel an active subscription",
+    category = "subscription",
+    requiresConfirmation = true
+)
+public class CancelSubscriptionAction {
+    @ActionExecute
+    public ActionResult execute(@Param(required = true) String subscriptionId, ActionContext ctx) {
+        return ActionResult.builder().success(true).message("Cancelled.").build();
+    }
 }
 
 // SPI integration agent

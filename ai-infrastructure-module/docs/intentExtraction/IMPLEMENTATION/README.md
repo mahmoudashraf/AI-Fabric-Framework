@@ -1,5 +1,11 @@
 # 🚀 Implementation Guide - Layer by Layer
 
+> **Status: LEGACY (pre-greenfield).**  
+> This folder describes the old `ActionHandler` / `ActionHandlerRegistry` approach and is kept for historical context.
+>
+> **Greenfield actions** are annotation-driven via `@AIAction` + `@ActionExecute` and discovered by `AIActionRegistry`.  
+> See: `Final_Documentation/Development_Guides/ACTIONS_AND_CONFIRMATION_INTERCEPTORS_GUIDE.md`.
+
 ## Quick Start
 
 This directory contains complete implementation guides for each layer of your RAG system.
@@ -10,7 +16,7 @@ IMPLEMENTATION/
 ├── COMPLETE_LAYER_GUIDE.md (START HERE - Overview of all 6 layers)
 ├── 01_PII_DETECTION_LAYER.md (Optional PII handling)
 ├── 02_INTENT_EXTRACTION_LAYER.md (Intent extraction with AvailableActions + Next-Step Generation)
-├── 03_RAG_ORCHESTRATOR_LAYER.md (Action handling via ActionHandler)
+├── 03_RAG_ORCHESTRATOR_LAYER.md (LEGACY: Action handling via ActionHandler)
 ├── 04_SMART_SUGGESTIONS_LAYER.md (Intelligent next-step recommendations - NEW!)
 └── Coming: Response Sanitization & Intent History layers
 ```
@@ -323,4 +329,3 @@ Refer to specific layer docs:
 ---
 
 **Start with COMPLETE_LAYER_GUIDE.md → Good luck!** 🎉
-

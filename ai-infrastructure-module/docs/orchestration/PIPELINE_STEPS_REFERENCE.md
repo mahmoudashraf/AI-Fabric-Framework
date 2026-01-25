@@ -13,7 +13,7 @@ This document provides a detailed reference for all pipeline steps in the orches
 | 30 | PIIDetectionStep | `.steps` | No | PIIDetectionService, PIIDetectionProperties |
 | 40 | ComplianceCheckStep | `.steps` | Yes | AIComplianceService |
 | 50 | IntentExtractionStep | `.steps` | Yes | IntentQueryExtractor |
-| 60 | IntentHandlingStep | `.steps` | Yes | ActionHandlerRegistry, RAGService |
+| 60 | IntentHandlingStep | `.steps` | Yes | AIActionRegistry, RAGService |
 | 70 | MetadataBuildingStep | `.steps` | No | None |
 | 80 | SmartSuggestionsStep | `.steps` | No | SmartSuggestionsProperties, RAGService |
 | 90 | ResponseSanitizationStep | `.steps` | No | ResponseSanitizer, PIIDetectionProperties |
@@ -247,7 +247,7 @@ Routes and processes extracted intents based on their type. This is the core bus
 
 | Dependency | Type | Description |
 |------------|------|-------------|
-| `ActionHandlerRegistry` | Registry | Registered action handlers |
+| `AIActionRegistry` | Registry | Registered `@AIAction` handlers |
 | `RAGService` | Service | RAG operations |
 
 ### Behavior
@@ -256,10 +256,10 @@ Routes based on intent type:
 
 #### ACTION Intent
 
-1. Checks if user is authenticated (blocks anonymous)
-2. Finds handler via `actionHandlerRegistry.findHandler(action)`
-3. Validates action allowed via `handler.validateActionAllowed(userId)`
-4. Executes via `handler.executeAction(params, userId)`
+1. Finds handler via `actionRegistry.findHandler(action)`
+2. Validates action allowed via `handler.validateActionAllowed(actionContext)` (userId/sessionId)
+3. If `requiresConfirmation=true`, returns `CONFIRMATION_REQUIRED` and stores a pending action
+4. Otherwise executes via `handler.executeAction(params, actionContext)`
 5. Returns `ACTION_EXECUTED` or `ACTION_DENIED`
 
 #### INFORMATION Intent

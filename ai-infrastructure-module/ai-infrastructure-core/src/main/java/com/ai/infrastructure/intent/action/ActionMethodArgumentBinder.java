@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
@@ -62,9 +64,14 @@ final class ActionMethodArgumentBinder {
                 throw new MissingActionParameterException(name);
             }
 
-            Object converted = convert(raw, parameter.getParameterizedType());
+            Object converted;
+            try {
+                converted = convert(raw, parameter.getParameterizedType());
+            } catch (RuntimeException ex) {
+                throw new InvalidActionParameterException(name, "cannot be converted to " + targetType.getSimpleName());
+            }
             if (converted != null) {
-                validate(converted, param, name);
+                validate(raw, converted, param, name, targetType);
             }
             args[i] = converted;
         }
@@ -104,7 +111,11 @@ final class ActionMethodArgumentBinder {
                 }
             }
             if (conversionService != null && conversionService.canConvert(raw.getClass(), clazz)) {
-                return conversionService.convert(raw, clazz);
+                try {
+                    return conversionService.convert(raw, clazz);
+                } catch (RuntimeException ex) {
+                    // Fall back to ObjectMapper coercion for edge cases (e.g. "1.0" -> Integer).
+                }
             }
         }
 
@@ -112,7 +123,7 @@ final class ActionMethodArgumentBinder {
         return objectMapper.convertValue(raw, javaType);
     }
 
-    private void validate(Object value, Param param, String name) {
+    private void validate(Object raw, Object value, Param param, String name, Class<?> targetType) {
         String stringValue = value.toString();
 
         if (StringUtils.hasText(param.pattern()) && !stringValue.matches(param.pattern())) {
@@ -129,14 +140,85 @@ final class ActionMethodArgumentBinder {
         }
 
         if (value instanceof Number number) {
-            long numeric = number.longValue();
-            if (param.min() != Long.MIN_VALUE && numeric < param.min()) {
+            if (!isFiniteNumber(number)) {
+                throw new InvalidActionParameterException(name, "must be a finite number");
+            }
+            if (isIntegerType(targetType) && !looksIntegral(raw)) {
+                throw new InvalidActionParameterException(name, "must be an integer");
+            }
+
+            BigDecimal numeric = toBigDecimal(number);
+            if (param.min() != Long.MIN_VALUE && numeric.compareTo(BigDecimal.valueOf(param.min())) < 0) {
                 throw new InvalidActionParameterException(name, "must be >= " + param.min());
             }
-            if (param.max() != Long.MAX_VALUE && numeric > param.max()) {
+            if (param.max() != Long.MAX_VALUE && numeric.compareTo(BigDecimal.valueOf(param.max())) > 0) {
                 throw new InvalidActionParameterException(name, "must be <= " + param.max());
             }
         }
+    }
+
+    private boolean isIntegerType(Class<?> type) {
+        if (type == null) {
+            return false;
+        }
+        return type == int.class
+            || type == Integer.class
+            || type == long.class
+            || type == Long.class
+            || type == short.class
+            || type == Short.class
+            || type == byte.class
+            || type == Byte.class
+            || type == BigInteger.class;
+    }
+
+    private boolean isFiniteNumber(Number number) {
+        if (number instanceof Double d) {
+            return Double.isFinite(d);
+        }
+        if (number instanceof Float f) {
+            return Float.isFinite(f);
+        }
+        return true;
+    }
+
+    private boolean looksIntegral(Object raw) {
+        if (raw == null) {
+            return true;
+        }
+        if (raw instanceof Byte || raw instanceof Short || raw instanceof Integer || raw instanceof Long || raw instanceof BigInteger) {
+            return true;
+        }
+        if (raw instanceof BigDecimal bd) {
+            return bd.stripTrailingZeros().scale() <= 0;
+        }
+        if (raw instanceof Number number) {
+            double d = number.doubleValue();
+            return Double.isFinite(d) && d == Math.rint(d);
+        }
+        if (raw instanceof CharSequence seq) {
+            String s = seq.toString().trim();
+            if (!StringUtils.hasText(s)) {
+                return true;
+            }
+            try {
+                BigDecimal bd = new BigDecimal(s);
+                return bd.stripTrailingZeros().scale() <= 0;
+            } catch (NumberFormatException ex) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private BigDecimal toBigDecimal(Number number) {
+        if (number instanceof BigDecimal bd) {
+            return bd;
+        }
+        if (number instanceof BigInteger bi) {
+            return new BigDecimal(bi);
+        }
+        return new BigDecimal(number.toString());
     }
 
     static final class MissingActionParameterException extends RuntimeException {
@@ -165,4 +247,3 @@ final class ActionMethodArgumentBinder {
         }
     }
 }
-

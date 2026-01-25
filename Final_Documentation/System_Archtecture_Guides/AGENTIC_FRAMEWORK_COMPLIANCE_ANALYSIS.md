@@ -129,23 +129,24 @@ Popular frameworks include:
 
 | Requirement | Status | Implementation |
 |-------------|--------|----------------|
-| Function Calling | ✅ Full | `ActionHandler` interface with structured parameters |
-| Tool Discovery | ✅ Full | `ActionHandlerRegistry` with automatic Spring discovery |
+| Function Calling | ✅ Full | `@AIAction` annotation + typed `@ActionExecute` parameters |
+| Tool Discovery | ✅ Full | `AIActionRegistry` auto-discovers all `@AIAction` beans |
 | Tool Metadata | ✅ Full | `AIActionMetaData` (name, description, parameters, category) |
 | External APIs | ✅ Full | Multiple LLM providers, vector DBs, REST integration |
 | Execution & Response | ✅ Full | `IntentHandlingStep` routes and processes tool results |
-| Error Handling | ✅ Full | `handleError()` in ActionHandler, structured error codes |
-| Validation | ✅ Full | `validateActionAllowed()` for permission checks |
-| Confirmation Flow | ✅ Full | `getConfirmationMessage()` for human-in-the-loop |
+| Error Handling | ✅ Full | `AIActionHandler.handleError(...)`, structured error codes |
+| Validation | ✅ Full | `@ActionAllowed` / `AIActionHandler.validateActionAllowed(...)` |
+| Confirmation Flow | ✅ Full | Per-action `requiresConfirmation` + `@ActionConfirmation` |
 
 #### Key Files
-- `/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/action/ActionHandler.java`
-- `/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/action/ActionHandlerRegistry.java`
+- `/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/action/annotation/AIAction.java`
+- `/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/action/AIActionRegistry.java`
+- `/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/action/AIActionHandler.java`
 - `/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/IntentHandlingStep.java`
 
 #### Strengths
-✅ **Clean Abstraction**: `ActionHandler` interface is simple yet powerful
-✅ **Automatic Discovery**: Spring-based registration, zero configuration
+✅ **Clean Abstraction**: Actions are declarative (`@AIAction`) with typed params
+✅ **Automatic Discovery**: Spring-based registration, zero configuration via `AIActionRegistry`
 ✅ **Provider Flexibility**: OpenAI, Anthropic, Azure, Cohere, Gemini, custom REST
 ✅ **Comprehensive Metadata**: LLM receives full action descriptions for better decision-making
 ✅ **Production-Ready**: Validation, confirmation, error handling built-in
