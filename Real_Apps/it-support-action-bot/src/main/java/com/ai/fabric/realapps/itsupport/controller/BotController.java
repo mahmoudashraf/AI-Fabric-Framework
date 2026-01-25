@@ -1,6 +1,6 @@
 package com.ai.fabric.realapps.itsupport.controller;
 
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -26,15 +25,15 @@ import java.util.UUID;
 public class BotController {
 
     private final ObjectProvider<RAGOrchestrator> orchestratorProvider;
-    private final ObjectProvider<ActionHandlerRegistry> actionHandlerRegistryProvider;
+    private final ObjectProvider<AIActionRegistry> actionRegistryProvider;
 
     @GetMapping("/actions")
     public ResponseEntity<Map<String, Object>> actions() {
-        ActionHandlerRegistry registry = actionHandlerRegistryProvider.getIfAvailable();
+        AIActionRegistry registry = actionRegistryProvider.getIfAvailable();
         if (registry == null) {
             return ResponseEntity.ok(Map.of(
                 "enabled", false,
-                "reason", "ActionHandlerRegistry bean not available"
+                "reason", "AIActionRegistry bean not available"
             ));
         }
         return ResponseEntity.ok(Map.of(
@@ -66,4 +65,3 @@ public class BotController {
         return ResponseEntity.ok(orchestrator.orchestrate(query, context));
     }
 }
-

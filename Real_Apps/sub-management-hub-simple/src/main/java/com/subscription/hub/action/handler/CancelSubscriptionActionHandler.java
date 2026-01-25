@@ -1,19 +1,27 @@
 package com.subscription.hub.action.handler;
 
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import com.subscription.hub.service.SubscriptionService;
 import com.subscription.hub.service.UserService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.UUID;
 
-@Component
+@AIAction(
+    name = "cancel_subscription",
+    description = "Cancel an active subscription",
+    category = "subscription",
+    requiresConfirmation = true
+)
 @Slf4j
-public class CancelSubscriptionActionHandler extends BaseActionHandler implements ActionHandler {
+public class CancelSubscriptionActionHandler extends BaseActionHandler {
     
     private final SubscriptionService subscriptionService;
     
@@ -22,22 +30,10 @@ public class CancelSubscriptionActionHandler extends BaseActionHandler implement
         this.subscriptionService = subscriptionService;
     }
     
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("cancel_subscription")
-            .description("Cancel an active subscription")
-            .category("subscription")
-            .parameters(Map.of(
-                "subscriptionId", "UUID of the subscription to cancel",
-                "reason", "Optional reason for cancellation"
-            ))
-            .build();
-    }
-    
-    @Override
-    public boolean validateActionAllowed(String userId) {
-        if (userId == null) {
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        String userId = context != null ? context.userId() : null;
+        if (userId == null || userId.isBlank()) {
             return false;
         }
         try {
@@ -48,9 +44,8 @@ public class CancelSubscriptionActionHandler extends BaseActionHandler implement
         }
     }
     
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        String subscriptionId = (String) params.get("subscriptionId");
+    @ActionConfirmation
+    public String confirm(@Param(value = "subscriptionId", description = "UUID of the subscription to cancel") String subscriptionId) {
         if (subscriptionId == null) {
             return "Are you sure you want to cancel your subscription? This action cannot be undone.";
         }
@@ -66,28 +61,20 @@ public class CancelSubscriptionActionHandler extends BaseActionHandler implement
             return "Are you sure you want to cancel your subscription? This action cannot be undone.";
         }
     }
-
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
-    }
     
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
+    @ActionExecute
+    public ActionResult execute(
+        @Param(value = "subscriptionId", required = true, description = "UUID of the subscription to cancel") String subscriptionId,
+        @Param(value = "reason", description = "Optional reason for cancellation") String reason,
+        ActionContext context
+    ) {
+        String userId = context != null ? context.userId() : null;
         try {
-            String subscriptionId = (String) params.get("subscriptionId");
-            if (subscriptionId == null) {
-                return ActionResult.builder()
-                    .success(false)
-                    .message("Subscription ID is required")
-                    .build();
-            }
-            
-            String reason = (String) params.getOrDefault("reason", "User requested");
+            String safeReason = reason != null && !reason.isBlank() ? reason : "User requested";
             
             var subscription = subscriptionService.unsubscribe(
                 UUID.fromString(subscriptionId),
-                reason
+                safeReason
             );
             
             return ActionResult.builder()
@@ -101,18 +88,11 @@ public class CancelSubscriptionActionHandler extends BaseActionHandler implement
                 .build();
         } catch (Exception e) {
             log.error("Error cancelling subscription", e);
-            return handleError(e, userId);
+            return ActionResult.builder()
+                .success(false)
+                .message("Failed to cancel subscription. Please contact support.")
+                .errorCode("CANCEL_FAILED")
+                .build();
         }
-    }
-    
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        log.error("Error cancelling subscription for user: {}", userId, e);
-        
-        return ActionResult.builder()
-            .success(false)
-            .message("Failed to cancel subscription. Please contact support.")
-            .errorCode("CANCEL_FAILED")
-            .build();
     }
 }

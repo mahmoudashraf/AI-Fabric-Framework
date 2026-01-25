@@ -1,22 +1,30 @@
 package com.subscription.hub.action.handler;
 
-import com.ai.infrastructure.intent.action.ActionHandler;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.annotation.AIAction;
+import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
+import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
+import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.Param;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.subscription.hub.entity.Address;
 import com.subscription.hub.service.SubscriptionService;
 import com.subscription.hub.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.UUID;
 
-@Component
+@AIAction(
+    name = "update_address",
+    description = "Update billing or shipping address",
+    category = "subscription",
+    requiresConfirmation = true
+)
 @Slf4j
-public class UpdateAddressActionHandler extends BaseActionHandler implements ActionHandler {
+public class UpdateAddressActionHandler extends BaseActionHandler {
     
     private final SubscriptionService subscriptionService;
     
@@ -29,27 +37,10 @@ public class UpdateAddressActionHandler extends BaseActionHandler implements Act
         this.subscriptionService = subscriptionService;
     }
     
-    @Override
-    public AIActionMetaData getActionMetadata() {
-        return AIActionMetaData.builder()
-            .name("update_address")
-            .description("Update billing or shipping address")
-            .category("subscription")
-            .parameters(Map.of(
-                "subscriptionId", "UUID of the subscription",
-                "addressType", "BILLING or SHIPPING",
-                "streetAddress", "Street address",
-                "city", "City",
-                "state", "State/Province",
-                "postalCode", "Postal/ZIP code",
-                "country", "Country"
-            ))
-            .build();
-    }
-    
-    @Override
-    public boolean validateActionAllowed(String userId) {
-        if (userId == null) {
+    @ActionAllowed
+    public boolean allowed(ActionContext context) {
+        String userId = context != null ? context.userId() : null;
+        if (userId == null || userId.isBlank()) {
             return false;
         }
         try {
@@ -60,42 +51,39 @@ public class UpdateAddressActionHandler extends BaseActionHandler implements Act
         }
     }
     
-    @Override
-    public String getConfirmationMessage(Map<String, Object> params) {
-        String addressType = (String) params.getOrDefault("addressType", "BILLING");
+    @ActionConfirmation
+    public String confirm(@Param(value = "addressType", description = "BILLING or SHIPPING") String addressType) {
+        String type = addressType != null && !addressType.isBlank() ? addressType : "BILLING";
         return String.format(
             "Are you sure you want to update your %s address?",
-            addressType.toLowerCase()
+            type.toLowerCase()
         );
     }
 
-    @Override
-    public boolean requiresConfirmation() {
-        return true;
-    }
-    
-    @Override
-    public ActionResult executeAction(Map<String, Object> params, String userId) {
+    @ActionExecute
+    public ActionResult execute(
+        @Param(value = "subscriptionId", required = true, description = "UUID of the subscription") String subscriptionId,
+        @Param(value = "addressType", description = "BILLING or SHIPPING") String addressType,
+        @Param(value = "streetAddress", required = true, description = "Street address") String streetAddress,
+        @Param(value = "city", required = true, description = "City") String city,
+        @Param(value = "state", required = true, description = "State/Province") String state,
+        @Param(value = "postalCode", required = true, description = "Postal/ZIP code") String postalCode,
+        @Param(value = "country", required = true, description = "Country") String country,
+        ActionContext context
+    ) {
+        String userId = context != null ? context.userId() : null;
         try {
-            String subscriptionId = (String) params.get("subscriptionId");
-            if (subscriptionId == null) {
-                return ActionResult.builder()
-                    .success(false)
-                    .message("Subscription ID is required")
-                    .build();
-            }
-            
-            String addressTypeStr = (String) params.getOrDefault("addressType", "BILLING");
-            Address.AddressType addressType = Address.AddressType.valueOf(addressTypeStr.toUpperCase());
+            String type = addressType != null && !addressType.isBlank() ? addressType : "BILLING";
+            Address.AddressType parsedType = Address.AddressType.valueOf(type.toUpperCase());
             
             // Build address from parameters
             Address address = Address.builder()
-                .streetAddress((String) params.get("streetAddress"))
-                .city((String) params.get("city"))
-                .state((String) params.get("state"))
-                .postalCode((String) params.get("postalCode"))
-                .country((String) params.get("country"))
-                .type(addressType)
+                .streetAddress(streetAddress)
+                .city(city)
+                .state(state)
+                .postalCode(postalCode)
+                .country(country)
+                .type(parsedType)
                 .build();
             
             // Validate address using PII detection service (if available)
@@ -119,7 +107,7 @@ public class UpdateAddressActionHandler extends BaseActionHandler implements Act
             
             var subscription = subscriptionService.updateAddress(
                 UUID.fromString(subscriptionId),
-                addressType,
+                parsedType,
                 address
             );
             
@@ -134,18 +122,11 @@ public class UpdateAddressActionHandler extends BaseActionHandler implements Act
                 .build();
         } catch (Exception e) {
             log.error("Error updating address", e);
-            return handleError(e, userId);
+            return ActionResult.builder()
+                .success(false)
+                .message("Failed to update address. " + e.getMessage())
+                .errorCode("UPDATE_ADDRESS_FAILED")
+                .build();
         }
-    }
-    
-    @Override
-    public ActionResult handleError(Exception e, String userId) {
-        log.error("Error updating address for user: {}", userId, e);
-        
-        return ActionResult.builder()
-            .success(false)
-            .message("Failed to update address. " + e.getMessage())
-            .errorCode("UPDATE_ADDRESS_FAILED")
-            .build();
     }
 }

@@ -1,6 +1,8 @@
 package com.subscription.hub.controller;
 
-import com.ai.infrastructure.intent.action.ActionHandlerRegistry;
+import com.ai.infrastructure.intent.action.AIActionHandler;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -36,7 +38,7 @@ public class NaturalLanguageController {
     private RAGOrchestrator ragOrchestrator;
     
     @Autowired(required = false)
-    private ActionHandlerRegistry actionHandlerRegistry;
+    private AIActionRegistry actionRegistry;
     
     @PostMapping
     public ResponseEntity<OrchestrationResult> query(
@@ -92,37 +94,65 @@ public class NaturalLanguageController {
             @Parameter(description = "Action request with 'action', 'params', 'userId', and 'confirmed'", required = true)
             @RequestBody Map<String, Object> request) {
         
-        if (actionHandlerRegistry == null) {
+        if (actionRegistry == null) {
             return ResponseEntity.badRequest()
                 .body(ActionResult.builder()
                     .success(false)
-                    .message("Action handler registry not configured")
+                    .message("AIActionRegistry not configured")
                     .build());
         }
         
         String action = (String) request.get("action");
+        @SuppressWarnings("unchecked")
         Map<String, Object> params = (Map<String, Object>) request.get("params");
         String userId = request.get("userId") != null ? request.get("userId").toString() : null;
-        Boolean confirmed = (Boolean) request.getOrDefault("confirmed", false);
-        
-        if (!confirmed) {
-            return ResponseEntity.badRequest()
-                .body(ActionResult.builder()
-                    .success(false)
-                    .message("Action requires confirmation")
-                    .build());
-        }
-        
-        var handler = actionHandlerRegistry.findHandler(action);
-        if (handler.isEmpty()) {
+        String sessionId = request.get("sessionId") != null ? request.get("sessionId").toString() : UUID.randomUUID().toString();
+        boolean confirmed = Boolean.TRUE.equals(request.get("confirmed"));
+
+        OrchestrationContext context = userId != null
+            ? OrchestrationContext.builder().userId(userId).sessionId(sessionId).build()
+            : OrchestrationContext.forSession(sessionId);
+
+        ActionContext actionContext = new ActionContext(context, null);
+
+        AIActionHandler handler = actionRegistry.findHandler(action).orElse(null);
+        if (handler == null) {
             return ResponseEntity.badRequest()
                 .body(ActionResult.builder()
                     .success(false)
                     .message("Action handler not found: " + action)
                     .build());
         }
-        
-        ActionResult result = handler.get().executeAction(params, userId);
-        return ResponseEntity.ok(result);
+
+        if (!handler.validateActionAllowed(actionContext)) {
+            return ResponseEntity.status(403)
+                .body(ActionResult.builder()
+                    .success(false)
+                    .message("Action not allowed")
+                    .errorCode("ACTION_DENIED")
+                    .build());
+        }
+
+        if (handler.requiresConfirmation() && !confirmed) {
+            String confirmationMessage = handler.getConfirmationMessage(params != null ? params : Map.of(), actionContext);
+            return ResponseEntity.badRequest()
+                .body(ActionResult.builder()
+                    .success(false)
+                    .message(confirmationMessage != null ? confirmationMessage : "Action requires confirmation")
+                    .errorCode("CONFIRMATION_REQUIRED")
+                    .build());
+        }
+
+        try {
+            ActionResult result = handler.executeAction(params != null ? params : Map.of(), actionContext);
+            return ResponseEntity.ok(result);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest()
+                .body(ActionResult.builder()
+                    .success(false)
+                    .message(ex.getMessage() != null ? ex.getMessage() : "Action failed")
+                    .errorCode("ACTION_EXECUTION_FAILED")
+                    .build());
+        }
     }
 }

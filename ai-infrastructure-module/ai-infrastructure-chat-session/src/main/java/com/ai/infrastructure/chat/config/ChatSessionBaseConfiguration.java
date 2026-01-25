@@ -3,6 +3,7 @@ package com.ai.infrastructure.chat.config;
 import com.ai.infrastructure.chat.pipeline.ConversationEnrichmentStep;
 import com.ai.infrastructure.chat.pipeline.ConfirmationResolutionStep;
 import com.ai.infrastructure.chat.pipeline.ConversationRecordingStep;
+import com.ai.infrastructure.chat.resolver.AnnotatedConfirmationInterceptorsResolver;
 import com.ai.infrastructure.chat.resolver.CompoundConfirmationResolver;
 import com.ai.infrastructure.chat.resolver.ExpiredConfirmationResolver;
 import com.ai.infrastructure.chat.resolver.SingleConfirmationPositiveResolver;
@@ -21,6 +22,7 @@ import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
@@ -71,6 +73,12 @@ class ChatSessionBaseConfiguration {
     @Bean
     ExpiredConfirmationResolver expiredConfirmationResolver(PendingActionStore pendingActionStore) {
         return new ExpiredConfirmationResolver(pendingActionStore);
+    }
+
+    @Bean
+    AnnotatedConfirmationInterceptorsResolver annotatedConfirmationInterceptorsResolver(PendingActionStore pendingActionStore,
+                                                                                       ApplicationContext applicationContext) {
+        return new AnnotatedConfirmationInterceptorsResolver(pendingActionStore, applicationContext);
     }
 
     @Bean
