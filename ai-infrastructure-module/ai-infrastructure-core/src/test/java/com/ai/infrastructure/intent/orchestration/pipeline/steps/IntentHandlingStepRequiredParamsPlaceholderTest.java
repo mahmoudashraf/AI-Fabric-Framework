@@ -150,6 +150,63 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
         assertThat(result.getData()).containsEntry("missingRequiredParameters", List.of("shippingAddress"));
     }
 
+    @Test
+    void shouldTreatEchoedUserQueryAsMissing() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(registry.findHandler("confirmable_echo")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+
+        AIActionMetaData meta = AIActionMetaData.builder()
+            .name("confirmable_echo")
+            .description("Echo a message back")
+            .category("test")
+            .parameters(Map.of(
+                "message", "Text to echo back (required)"
+            ))
+            .requiredParameters(Set.of("message"))
+            .build();
+        when(registry.findMetadata("confirmable_echo")).thenReturn(Optional.of(meta));
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf(mock(RAGProvider.class)),
+            mock(AICoreService.class),
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore()
+        );
+
+        String userMessage = "Use action 'confirmable_echo'.";
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("confirmable_echo")
+            .actionParams(Map.of(
+                "message", userMessage
+            ))
+            .build();
+
+        PipelineContext context = PipelineContext.from(userMessage, OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getData()).containsEntry("missingRequiredParameters", List.of("message"));
+    }
+
     private static <T> ObjectProvider<T> providerOf(T value) {
         return new ObjectProvider<>() {
             @Override

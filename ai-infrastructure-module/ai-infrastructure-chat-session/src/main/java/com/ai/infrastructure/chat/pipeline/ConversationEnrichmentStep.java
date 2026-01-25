@@ -75,8 +75,8 @@ public class ConversationEnrichmentStep implements PipelineStep {
                 String description = StringUtils.hasText(pending.description()) ? pending.description() : pending.action();
                 String enriched = """
                     CONFIRMATION CONTEXT:
-                    A prior action is awaiting user confirmation.
-                    - pendingAction: %s
+                    There is at least one prior action awaiting user confirmation.
+                    - pendingAction (most recent): %s
                     - pendingDescription: %s
 
                     Current user message:
@@ -84,8 +84,10 @@ public class ConversationEnrichmentStep implements PipelineStep {
                     %s
                     ---END MESSAGE---
 
-                    Determine whether the user is confirming (yes/proceed) or cancelling (no/abort) the pending action.
-                    If the message is unrelated, handle it normally without executing the pending action.
+                    Instructions:
+                    - Only treat the message as a confirmation/cancellation if it is clearly about the pending action (e.g., "yes", "no", "cancel").
+                    - Confirmations/cancellations apply ONLY to the most recent pending action shown above (LIFO).
+                    - If the user asks a new question or requests a different action, DO NOT confirm/cancel the pending action. Keep it pending and handle the new request normally.
                     """.formatted(pending.action(), description, currentQuery != null ? currentQuery : "");
 
                 Map<String, Object> chatMeta = new LinkedHashMap<>();

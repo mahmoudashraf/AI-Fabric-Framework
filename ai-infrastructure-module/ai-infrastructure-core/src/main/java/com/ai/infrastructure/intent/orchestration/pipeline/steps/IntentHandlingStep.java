@@ -321,7 +321,11 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         AIActionMetaData meta = getMetadataForAction(actionName);
-        List<String> missingRequired = findMissingRequiredParams(meta, effectiveParams);
+        boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
+        String originalQuery = pipelineContext != null ? pipelineContext.getOriginalQuery() : null;
+        String evidenceText = pipelineContext != null ? pipelineContext.getProcessedQuery() : null;
+        boolean skipEvidenceCheck = confirmedThisRequest || !context.hasConversation();
+        List<String> missingRequired = findMissingRequiredParams(meta, effectiveParams, originalQuery, evidenceText, skipEvidenceCheck);
         if (!missingRequired.isEmpty()) {
             if (context.hasConversation() && actionDraftStore != null) {
                 String missingSummary = String.join(", ", missingRequired);
@@ -360,18 +364,24 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
         
-        // Never let confirmation-message formatting crash the pipeline.
-        // Some handlers validate required params inside getConfirmationMessage().
+        boolean requiresConfirmation = requiresActionConfirmation(handler);
+
+        // Confirmation message is only meaningful for confirmable actions.
+        // For safe actions, expose a deterministic execution indicator (used by tests/UI).
         String confirmationMessage = null;
-        try {
-            confirmationMessage = handler.getConfirmationMessage(effectiveParams, actionContext);
-        } catch (Exception ex) {
-            log.debug("Action handler {} failed to build confirmation message for '{}': {}",
-                handler.getClass().getName(), actionName, ex.getMessage());
+        if (requiresConfirmation) {
+            // Never let confirmation-message formatting crash the pipeline.
+            // Some handlers validate required params inside getConfirmationMessage().
+            try {
+                confirmationMessage = handler.getConfirmationMessage(effectiveParams, actionContext);
+            } catch (Exception ex) {
+                log.debug("Action handler {} failed to build confirmation message for '{}': {}",
+                    handler.getClass().getName(), actionName, ex.getMessage());
+            }
+        } else {
+            confirmationMessage = "Executing " + actionName;
         }
 
-        boolean requiresConfirmation = requiresActionConfirmation(handler);
-        boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
         if (requiresConfirmation && !confirmedThisRequest && context.hasConversation()) {
             if (context.hasConversation() && actionDraftStore != null) {
                 actionDraftStore.clearDrafts(context.getConversationId(), identifier);
@@ -1834,10 +1844,18 @@ public class IntentHandlingStep implements PipelineStep {
         }
     }
 
-    private List<String> findMissingRequiredParams(AIActionMetaData meta, Map<String, Object> params) {
+    private List<String> findMissingRequiredParams(AIActionMetaData meta,
+                                                   Map<String, Object> params,
+                                                   String originalQuery,
+                                                   String evidenceText,
+                                                   boolean skipEvidenceCheck) {
         if (meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty()) {
             return List.of();
         }
+        String normalizedOriginalQuery = StringUtils.hasText(originalQuery) ? originalQuery.trim() : "";
+        String evidenceLower = StringUtils.hasText(evidenceText)
+            ? evidenceText.toLowerCase(java.util.Locale.ROOT)
+            : "";
         List<String> missing = new ArrayList<>();
         for (String required : meta.getRequiredParameters()) {
             if (!StringUtils.hasText(required)) {
@@ -1875,6 +1893,25 @@ public class IntentHandlingStep implements PipelineStep {
             // Also treat "self-filled" placeholders like "shippingAddress" as missing.
             if (raw.trim().equalsIgnoreCase(required.trim())) {
                 missing.add(required);
+                continue;
+            }
+
+            // Guardrail: if the model "filled" a required string param with the full user message,
+            // it is almost certainly an instruction echo, not a real parameter value.
+            if (value instanceof String && StringUtils.hasText(normalizedOriginalQuery)
+                && raw.trim().equalsIgnoreCase(normalizedOriginalQuery)) {
+                missing.add(required);
+                continue;
+            }
+
+            // Guardrail: if an extractor "filled" a required string param with a value that does not
+            // appear anywhere in the processed user prompt (current message + any included history),
+            // treat it as missing so we ask the user rather than executing on hallucinated values.
+            if (!skipEvidenceCheck && value instanceof String && StringUtils.hasText(evidenceLower)) {
+                String needle = raw.trim().toLowerCase(java.util.Locale.ROOT);
+                if (StringUtils.hasText(needle) && !evidenceLower.contains(needle)) {
+                    missing.add(required);
+                }
             }
         }
         return missing;

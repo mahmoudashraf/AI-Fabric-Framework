@@ -200,6 +200,7 @@ class RAGOrchestratorTest {
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
+        when(actionHandler.requiresConfirmation()).thenReturn(true);
         when(actionHandler.getConfirmationMessage(any(), any())).thenReturn("Confirm cancellation?");
         when(actionHandlerRegistry.findMetadata("cancel_subscription")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
@@ -258,6 +259,7 @@ class RAGOrchestratorTest {
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
+        when(actionHandler.requiresConfirmation()).thenReturn(true);
         when(actionHandler.getConfirmationMessage(any(), any())).thenReturn("Confirm?");
         when(actionHandlerRegistry.findMetadata("cancel_subscription")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any())).thenThrow(new IllegalStateException("boom"));
@@ -541,6 +543,7 @@ class RAGOrchestratorTest {
         when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class))).thenReturn(compound);
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
+        when(actionHandler.requiresConfirmation()).thenReturn(true);
         when(actionHandler.getConfirmationMessage(any(), any())).thenReturn("Confirm?");
         when(actionHandlerRegistry.findMetadata("cancel_subscription")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
@@ -572,6 +575,7 @@ class RAGOrchestratorTest {
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
+        when(actionHandler.requiresConfirmation()).thenReturn(true);
         when(actionHandler.getConfirmationMessage(any(), any())).thenReturn("Confirm?");
         when(actionHandlerRegistry.findMetadata("update_payment_method")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
@@ -612,6 +616,7 @@ class RAGOrchestratorTest {
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
+        when(actionHandler.requiresConfirmation()).thenReturn(true);
         when(actionHandler.getConfirmationMessage(any(), any())).thenReturn("Confirm?");
         when(actionHandlerRegistry.findMetadata("update_payment_method")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))
@@ -646,6 +651,7 @@ class RAGOrchestratorTest {
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
+        when(actionHandler.requiresConfirmation()).thenReturn(true);
         when(actionHandler.getConfirmationMessage(any(), any())).thenReturn("Confirm?");
         when(actionHandlerRegistry.findMetadata("update_payment_method")).thenReturn(Optional.empty());
         when(actionHandler.executeAction(any(), any()))

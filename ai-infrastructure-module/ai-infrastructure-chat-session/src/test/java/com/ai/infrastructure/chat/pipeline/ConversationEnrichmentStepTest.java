@@ -112,7 +112,7 @@ class ConversationEnrichmentStepTest {
 
         assertThat(updated.isShouldTerminate()).isFalse();
         assertThat(updated.getProcessedQuery()).contains("CONFIRMATION CONTEXT:");
-        assertThat(updated.getProcessedQuery()).contains("pendingAction:");
+        assertThat(updated.getProcessedQuery()).contains("pendingAction (most recent):");
         assertThat(updated.getProcessedQuery()).contains("create_purchase_order");
     }
 }
