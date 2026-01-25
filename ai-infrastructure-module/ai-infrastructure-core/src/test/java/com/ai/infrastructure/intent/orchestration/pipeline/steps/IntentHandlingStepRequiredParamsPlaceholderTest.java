@@ -207,6 +207,66 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
         assertThat(result.getData()).containsEntry("missingRequiredParameters", List.of("message"));
     }
 
+    @Test
+    void shouldAllowWholeUserMessageAsParamValueWhenItDoesNotLookLikeInstruction() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(registry.findHandler("change_delivery_address")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+        when(handler.executeAction(org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(ActionResult.builder().success(true).message("ok").build());
+
+        AIActionMetaData meta = AIActionMetaData.builder()
+            .name("change_delivery_address")
+            .description("Change delivery address")
+            .category("commerce")
+            .parameters(Map.of(
+                "shippingAddress", "New shipping address (required)"
+            ))
+            .requiredParameters(Set.of("shippingAddress"))
+            .build();
+        when(registry.findMetadata("change_delivery_address")).thenReturn(Optional.of(meta));
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf(mock(RAGProvider.class)),
+            mock(AICoreService.class),
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore()
+        );
+
+        // Simulate a single-value follow-up reply (email/address/etc.) where the entire user message is the value.
+        String userMessage = "16 dairy drive B2";
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("change_delivery_address")
+            .actionParams(Map.of(
+                "shippingAddress", userMessage
+            ))
+            .build();
+
+        PipelineContext context = PipelineContext.from(userMessage, OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
+    }
+
     private static <T> ObjectProvider<T> providerOf(T value) {
         return new ObjectProvider<>() {
             @Override
