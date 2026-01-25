@@ -62,7 +62,7 @@ Only 2 pipeline steps directly depend on `RAGService`:
 // IntentHandlingStep.java
 @RequiredArgsConstructor
 public class IntentHandlingStep implements PipelineStep {
-    private final ActionHandlerRegistry actionHandlerRegistry;
+    private final AIActionRegistry actionRegistry;
     private final RAGService ragService;  // ← RAG dependency
 }
 

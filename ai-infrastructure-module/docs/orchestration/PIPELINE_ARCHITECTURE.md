@@ -317,7 +317,7 @@ Steps can delegate to other services:
 @RequiredArgsConstructor
 public class IntentHandlingStep implements PipelineStep {
     
-    private final ActionHandlerRegistry actionHandlerRegistry;
+    private final AIActionRegistry actionRegistry;
     private final RAGService ragService;
     
     @Override

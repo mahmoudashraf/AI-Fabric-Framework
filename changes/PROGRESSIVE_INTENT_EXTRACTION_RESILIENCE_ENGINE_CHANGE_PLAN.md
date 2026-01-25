@@ -99,7 +99,7 @@ Enhance `MultiStepIntentExtractionStrategy` so it doesn’t just classify/select
 - complete `actionParams` for that action, using the action’s parameter spec.
 
 Approach:
-- Generate a per-action “parameter spec” from `ActionHandlerRegistry.getAllMetadata()`:
+- Generate a per-action “parameter spec” from `AIActionRegistry.getAllMetadata()`:
   - param names, descriptions, and required flags (where available).
 - Add an additional multi-step call only when needed (and budget allows):
   - `intent_extraction_multi_step_fill_params`

@@ -71,7 +71,7 @@ We need a **provider-agnostic, deterministic normalization layer** that repairs 
 
 ## Desired Normalized Contract (Internal)
 ### ACTION intents
-- `action` canonicalized to a registered action name (via `ActionHandlerRegistry` metadata), if possible
+- `action` canonicalized to a registered action name (via `AIActionRegistry` metadata), if possible
 - `actionParams` contains required params for the action (or the pipeline fails deterministically)
 
 ### relationship_query ACTION (special handling)
@@ -82,7 +82,7 @@ We need a **provider-agnostic, deterministic normalization layer** that repairs 
 ## Proposed Architecture
 ### Option A (Recommended): “Normalization Rules” inside IntentExtractionPostProcessor
 Add a small internal “rule set” that:
-- identifies canonical action via `ActionHandlerRegistry`,
+- identifies canonical action via `AIActionRegistry`,
 - repairs action params (required fields, canonical formats),
 - normalizes cross-field equivalents (e.g., nextStepRecommended.query → generationInstructions) **only for specific actions** where the follow-up is clearly post-action and does not require retrieval.
 
@@ -118,7 +118,7 @@ Document (in code + docs) the supported normalization rules:
 ### Phase 2 — Implement Deterministic Rules (Core)
 Add/update rules in `IntentExtractionPostProcessor`:
 1) `CANONICALIZE_ACTION_NAME`
-   - Use `ActionHandlerRegistry.findMetadata(actionName)` to map aliases to canonical action names.
+   - Use `AIActionRegistry.findMetadata(actionName)` to map aliases to canonical action names.
 2) `RELATIONSHIP_QUERY_DEFAULT_QUERY_PARAM`
    - If missing/blank `actionParams.query`, default from original user message *after stripping hint prefix*.
 3) `RELATIONSHIP_QUERY_STRIP_HINT_PREFIX`

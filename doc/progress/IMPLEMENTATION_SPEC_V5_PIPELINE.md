@@ -1134,43 +1134,43 @@ User sees: "Subscription cancelled successfully."
 
 ---
 
-### 10.3 Enhanced ActionHandler Interface
+### 10.3 Greenfield Actions: Annotation-Driven (`@AIAction`)
 
-**Current Interface:**
+Greenfield rule: applications **do not** implement a legacy `ActionHandler` / `ActionHandlerRegistry`.
+
+Instead, actions are declared as Spring beans using annotations:
+- `@AIAction` (required: `requiresConfirmation` must be specified explicitly)
+- `@ActionExecute` (required)
+- Optional: `@ActionConfirmation`, `@ActionAllowed`, `@ActionFacts`
+
+**Example action (app code):**
 ```java
-public interface ActionHandler {
-    AIActionMetaData getActionMetadata();
-    boolean validateActionAllowed(String userId);
-    String getConfirmationMessage(Map<String, Object> params);
-    ActionResult executeAction(Map<String, Object> params, String userId);
-    ActionResult handleError(Exception e, String userId);
+@AIAction(
+    name = "cancel_subscription",
+    description = "Cancel an active subscription",
+    category = "subscription",
+    requiresConfirmation = true
+)
+public class CancelSubscriptionAction {
+
+    @ActionAllowed
+    public boolean allowed(ActionContext ctx) { /* ... */ }
+
+    @ActionConfirmation
+    public String confirm(@Param(required = true) String subscriptionId) { /* ... */ }
+
+    @ActionExecute
+    public ActionResult execute(
+        @Param(required = true) String subscriptionId,
+        @Param String reason,
+        ActionContext ctx
+    ) { /* ... */ }
 }
 ```
 
-**Add Method:**
-```java
-public interface ActionHandler {
-    // ... existing methods ...
-
-    /**
-     * Indicates if this action requires explicit user confirmation.
-     *
-     * <p>When {@code true}:</p>
-     * <ul>
-     *   <li>First invocation stores action in conversation metadata</li>
-     *   <li>User must explicitly confirm (e.g., "yes", "confirm")</li>
-     *   <li>Second invocation executes the action</li>
-     * </ul>
-     *
-     * <p>When {@code false} (default): Action executes immediately.</p>
-     *
-     * @return true if confirmation is required, false otherwise
-     */
-    default boolean requiresConfirmation() {
-        return false;  // Default: no confirmation needed
-    }
-}
-```
+**Runtime contracts (framework):**
+- Discovery: `AIActionRegistry` auto-discovers all `@AIAction` beans.
+- Execution: the orchestrator executes actions via `AIActionHandler` (internal runtime interface).
 
 ---
 
@@ -2844,10 +2844,10 @@ User: "yes and also delete all my data"
 @Component  // That's it! Auto-discovered by Spring
 public class NestedConfirmationResolver extends AbstractConfirmationResolver {
 
-    private final ActionHandlerRegistry actionRegistry;
+    private final AIActionRegistry actionRegistry;
 
     public NestedConfirmationResolver(ChatSessionService chatSessionService,
-                                      ActionHandlerRegistry actionRegistry) {
+                                      AIActionRegistry actionRegistry) {
         super(chatSessionService);
         this.actionRegistry = actionRegistry;
     }
