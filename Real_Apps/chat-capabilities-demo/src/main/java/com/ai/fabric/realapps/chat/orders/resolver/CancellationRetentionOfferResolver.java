@@ -1,18 +1,16 @@
 package com.ai.fabric.realapps.chat.orders.resolver;
 
 import com.ai.fabric.realapps.chat.orders.action.OfferOrderDiscountActionHandler;
-import com.ai.infrastructure.chat.spi.IntentResolver;
+import com.ai.infrastructure.chat.resolver.ConfirmationResolverSupport;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
-import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -23,23 +21,21 @@ import org.springframework.util.StringUtils;
  * <p>This is intentionally app-specific policy (not a framework default).</p>
  */
 @Component
-public class CancellationRetentionOfferResolver implements IntentResolver {
+public class CancellationRetentionOfferResolver extends ConfirmationResolverSupport {
 
     private static final String INTERCEPT_ACTION = "cancel_purchase_order";
     private static final String OFFER_ACTION = OfferOrderDiscountActionHandler.ACTION_NAME;
     private static final String PARAM_RETENTION_OFFERED = "_retentionOfferOffered";
 
-    private final PendingActionStore pendingActionStore;
-
     public CancellationRetentionOfferResolver(PendingActionStore pendingActionStore) {
-        this.pendingActionStore = pendingActionStore;
+        super(pendingActionStore);
     }
 
     @Override
     public boolean canResolve(MultiIntentResponse intentResponse,
                              Map<String, Object> sessionMetadata,
                              PipelineContext context) {
-        if (pendingActionStore == null || context == null || context.getOrchestrationContext() == null || !context.getOrchestrationContext().hasConversation()) {
+        if (context == null || context.getOrchestrationContext() == null || !context.getOrchestrationContext().hasConversation()) {
             return false;
         }
         if (intentResponse == null || intentResponse.getIntents() == null || intentResponse.getIntents().isEmpty()) {
@@ -49,13 +45,7 @@ public class CancellationRetentionOfferResolver implements IntentResolver {
             return false;
         }
 
-        String conversationId = context.getOrchestrationContext().getConversationId();
-        String ownerId = context.getIdentifier();
-        if (!StringUtils.hasText(conversationId) || !StringUtils.hasText(ownerId)) {
-            return false;
-        }
-
-        PendingAction pending = pendingActionStore.peekPendingAction(conversationId, ownerId).orElse(null);
+        PendingAction pending = peekPending(context);
         if (pending == null || !StringUtils.hasText(pending.action())) {
             return false;
         }
@@ -87,10 +77,7 @@ public class CancellationRetentionOfferResolver implements IntentResolver {
     public PipelineContext resolve(MultiIntentResponse intentResponse,
                                    Map<String, Object> sessionMetadata,
                                    PipelineContext context) {
-        String conversationId = context.getOrchestrationContext().getConversationId();
-        String ownerId = context.getIdentifier();
-
-        PendingAction pending = pendingActionStore.peekPendingAction(conversationId, ownerId).orElse(null);
+        PendingAction pending = peekPending(context);
         if (pending == null) {
             return context;
         }
@@ -103,8 +90,8 @@ public class CancellationRetentionOfferResolver implements IntentResolver {
         if (only.getType() == IntentType.CONFIRMATION_POSITIVE && INTERCEPT_ACTION.equalsIgnoreCase(pending.action())) {
             // Mark the original pending action so we don't re-offer in a loop if user declines.
             PendingAction updated = markOfferAttempted(pending);
-            pendingActionStore.popPendingAction(conversationId, ownerId);
-            pendingActionStore.pushPendingAction(conversationId, ownerId, updated);
+            popPending(context);
+            pushPending(context, updated);
 
             Intent offer = Intent.builder()
                 .type(IntentType.ACTION)
@@ -126,15 +113,15 @@ public class CancellationRetentionOfferResolver implements IntentResolver {
         }
 
         if (only.getType() == IntentType.CONFIRMATION_POSITIVE && OFFER_ACTION.equalsIgnoreCase(pending.action())) {
-            PendingAction offer = pendingActionStore.popPendingAction(conversationId, ownerId).orElse(null);
+            PendingAction offer = popPending(context);
             if (offer == null) {
                 return context;
             }
 
             // If the previous pending action is the original cancellation, clear it.
-            PendingAction previous = pendingActionStore.peekPendingAction(conversationId, ownerId).orElse(null);
+            PendingAction previous = peekPending(context);
             if (previous != null && INTERCEPT_ACTION.equalsIgnoreCase(previous.action())) {
-                pendingActionStore.popPendingAction(conversationId, ownerId);
+                popPending(context);
             }
 
             Intent offerAction = Intent.builder()
@@ -157,15 +144,13 @@ public class CancellationRetentionOfferResolver implements IntentResolver {
         }
 
         if (only.getType() == IntentType.CONFIRMATION_NEGATIVE && OFFER_ACTION.equalsIgnoreCase(pending.action())) {
-            // Remove the offer; keep the original pending cancellation under it.
-            pendingActionStore.popPendingAction(conversationId, ownerId);
+            // Remove the offer.
+            popPending(context);
 
-            PendingAction cancel = pendingActionStore.peekPendingAction(conversationId, ownerId).orElse(null);
+            // If the previous pending action is the original cancellation, execute it now (already confirmed).
+            PendingAction cancel = peekPending(context);
             if (cancel != null && INTERCEPT_ACTION.equalsIgnoreCase(cancel.action())) {
-                // Re-ask for cancellation confirmation in a standard way:
-                // remove the old pending cancellation and re-emit it as an ACTION intent so the framework
-                // returns CONFIRMATION_REQUIRED (and re-pushes it) without treating this as "cancelled".
-                pendingActionStore.popPendingAction(conversationId, ownerId);
+                popPending(context);
 
                 Intent cancelAction = Intent.builder()
                     .type(IntentType.ACTION)
@@ -181,7 +166,7 @@ public class CancellationRetentionOfferResolver implements IntentResolver {
                     .metadata(intentResponse.getMetadata())
                     .build();
 
-                return context.toBuilder()
+                return markConfirmed(context, INTERCEPT_ACTION).toBuilder()
                     .intentResponse(updatedResponse)
                     .build();
             }
@@ -245,17 +230,5 @@ public class CancellationRetentionOfferResolver implements IntentResolver {
         }
         offerParams.put("discountPercent", 10);
         return offerParams;
-    }
-
-    private PipelineContext markConfirmed(PipelineContext context, String actionName) {
-        if (context == null || actionName == null || actionName.isBlank()) {
-            return context;
-        }
-        Set<String> current = context.getConfirmedActions() != null ? context.getConfirmedActions() : Set.of();
-        Set<String> updated = current.isEmpty()
-            ? Set.of(actionName)
-            : java.util.stream.Stream.concat(current.stream(), java.util.stream.Stream.of(actionName))
-                .collect(Collectors.toUnmodifiableSet());
-        return context.toBuilder().confirmedActions(updated).build();
     }
 }
