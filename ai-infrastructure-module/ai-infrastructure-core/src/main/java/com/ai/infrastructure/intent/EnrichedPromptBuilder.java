@@ -132,6 +132,10 @@ public class EnrichedPromptBuilder {
         prompt.append("   - Never invent actions that are not listed in AVAILABLE ACTIONS (examples of forbidden invented actions: \"summarize\", \"search\", \"lookup\", \"answer_question\").\n");
         prompt.append("   - If the user asks to summarize / explain / answer using the knowledge base, that is INFORMATION (set vectorSpace + requiresRetrieval and requiresGeneration as appropriate) NOT an ACTION.\n");
         prompt.append("   - If the user requests an ACTION and no AVAILABLE ACTION matches it, return intent.type=OUT_OF_SCOPE.\n");
+        prompt.append("   - ACTION PARAMETER RULES:\n");
+        prompt.append("     * Only populate actionParams with values the user explicitly provided (or unambiguous literals like email address, SKU, quantity).\n");
+        prompt.append("     * Never fabricate parameter values to satisfy required parameters. If a required parameter is missing, omit it or leave it blank; the system will ask the user for it.\n");
+        prompt.append("     * Do NOT copy parameter descriptions/examples into parameter values.\n");
         // Add entity types information - always include, even if empty
         prompt.append("10. When action == \"relationship_query\":\n");
         prompt.append("   - Extract entityTypes from the user request as an array of lower-case strings. ");
@@ -167,7 +171,11 @@ public class EnrichedPromptBuilder {
         prompt.append("6. vectorSpace is OPTIONAL. If you can confidently choose a single domain/entity type, set it.\n");
         prompt.append("   - If unsure, omit vectorSpace or leave it blank.\n");
         prompt.append("7. ACTION selection MUST be grounded in AVAILABLE ACTIONS. Never invent actions.\n");
-        prompt.append("8. When action == \"relationship_query\":\n");
+        prompt.append("8. ACTION PARAMETER RULES:\n");
+        prompt.append("   - Only populate actionParams with values the user explicitly provided (or unambiguous literals like email address, SKU, quantity).\n");
+        prompt.append("   - Never fabricate parameter values to satisfy required parameters. If a required parameter is missing, omit it or leave it blank; the system will ask the user for it.\n");
+        prompt.append("   - Do NOT copy parameter descriptions/examples into parameter values.\n");
+        prompt.append("9. When action == \"relationship_query\":\n");
         prompt.append("   - Extract entityTypes from the user request as an array of lower-case strings. ");
         if (context.getAvailableEntityTypes() != null && !context.getAvailableEntityTypes().isEmpty()) {
             prompt.append("Available entity types: ").append(String.join(", ", context.getAvailableEntityTypes())).append(". ");
