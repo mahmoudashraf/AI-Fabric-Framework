@@ -478,18 +478,11 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private OrchestrationResult handleConfirmationPositive(OrchestrationContext context, PipelineContext pipelineContext) {
-        if (context == null || !context.hasConversation()) {
+        if (context == null || !context.hasConversation() || pendingActionStore == null) {
             return OrchestrationResult.builder()
-                .type(OrchestrationResultType.ERROR)
-                .success(false)
-                .message("No conversationId available for confirmation")
-                .build();
-        }
-        if (pendingActionStore == null) {
-            return OrchestrationResult.builder()
-                .type(OrchestrationResultType.ERROR)
-                .success(false)
-                .message("Pending action storage is not configured")
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("There is no pending action to confirm.")
                 .build();
         }
 
