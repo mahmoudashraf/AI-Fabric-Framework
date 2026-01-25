@@ -1896,12 +1896,31 @@ public class IntentHandlingStep implements PipelineStep {
                 continue;
             }
 
-            // Guardrail: if the model "filled" a required string param with the full user message,
-            // it is almost certainly an instruction echo, not a real parameter value.
+            // Guardrail: some extractors will "fill" a required string param with the entire user message.
+            // This is often an instruction echo (e.g., "use action X"), but it can also be a valid single-value
+            // reply (e.g., the user only sends an email or an address).
+            //
+            // Treat it as missing ONLY when the message looks like it is describing the action/params.
             if (value instanceof String && StringUtils.hasText(normalizedOriginalQuery)
                 && raw.trim().equalsIgnoreCase(normalizedOriginalQuery)) {
-                missing.add(required);
-                continue;
+                String originalLower = normalizedOriginalQuery.toLowerCase(java.util.Locale.ROOT);
+                boolean looksLikeInstruction = false;
+                if (StringUtils.hasText(meta.getName())
+                    && originalLower.contains(meta.getName().toLowerCase(java.util.Locale.ROOT))) {
+                    looksLikeInstruction = true;
+                }
+                if (!looksLikeInstruction && descriptions != null && !descriptions.isEmpty()) {
+                    for (String key : descriptions.keySet()) {
+                        if (StringUtils.hasText(key) && originalLower.contains(key.toLowerCase(java.util.Locale.ROOT))) {
+                            looksLikeInstruction = true;
+                            break;
+                        }
+                    }
+                }
+                if (looksLikeInstruction) {
+                    missing.add(required);
+                    continue;
+                }
             }
 
             // Guardrail: if an extractor "filled" a required string param with a value that does not
