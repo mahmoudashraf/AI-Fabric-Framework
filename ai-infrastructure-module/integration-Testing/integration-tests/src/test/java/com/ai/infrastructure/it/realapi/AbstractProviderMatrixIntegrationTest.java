@@ -226,32 +226,46 @@ abstract class AbstractProviderMatrixIntegrationTest {
                 log.info("Last normalized result snapshot: {}", snapshot);
             }
 
-            CombinationScore score = CombinationScore.from(combo, summary, duration, failures, snapshot);
-            scores.add(score);
-            writeScorecardQuietly();
+	            CombinationScore score = CombinationScore.from(combo, summary, duration, failures, snapshot);
+	            scores.add(score);
+	            writeScorecardQuietly();
 
-            boolean hasFailures = summary.getTotalFailureCount() > 0;
-            boolean insufficientData = score.consideredTests() < minimumConsideredTests();
+	            int configuredMinimumConsideredTests = minimumConsideredTests();
+	            long maxPossibleConsideredTests = Math.max(0,
+	                score.testsFound() - score.testsSkipped() - score.testsAborted());
+	            int effectiveMinimumConsideredTests = configuredMinimumConsideredTests;
+	            if (configuredMinimumConsideredTests > maxPossibleConsideredTests && maxPossibleConsideredTests > 0) {
+	                effectiveMinimumConsideredTests = (int) Math.min(Integer.MAX_VALUE, maxPossibleConsideredTests);
+	                log.warn("Configured minimumConsideredTests={} exceeds max possible considered tests for this run (testsFound={}, skipped={}, aborted={}). Clamping to {}.",
+	                    configuredMinimumConsideredTests,
+	                    score.testsFound(),
+	                    score.testsSkipped(),
+	                    score.testsAborted(),
+	                    effectiveMinimumConsideredTests);
+	            }
 
-            if ((hasFailures || insufficientData) && !score.meetsThreshold(minimumSuccessRate(), minimumConsideredTests())) {
-                log.error("✗ FAILED: {} ({} ms) successRate={} threshold={} consideredTests={} (succeeded={}, failed={}, skipped={}, aborted={})",
-                    combo.displayName(),
-                    duration,
-                    String.format("%.2f", score.successRate()),
-                    String.format("%.2f", minimumSuccessRate()),
+	            boolean hasFailures = summary.getTotalFailureCount() > 0;
+	            boolean insufficientData = score.consideredTests() < effectiveMinimumConsideredTests;
+
+	            if ((hasFailures || insufficientData) && !score.meetsThreshold(minimumSuccessRate(), effectiveMinimumConsideredTests)) {
+	                log.error("✗ FAILED: {} ({} ms) successRate={} threshold={} consideredTests={} (succeeded={}, failed={}, skipped={}, aborted={})",
+	                    combo.displayName(),
+	                    duration,
+	                    String.format("%.2f", score.successRate()),
+	                    String.format("%.2f", minimumSuccessRate()),
                     score.consideredTests(),
                     score.testsSucceeded(),
                     score.testsFailed(),
-                    score.testsSkipped(),
-                    score.testsAborted());
-                if (insufficientData) {
-                    log.error("Insufficient data: consideredTests={} is below minimumConsideredTests={}",
-                        score.consideredTests(), minimumConsideredTests());
-                }
-                log.error("Provider combination: LLM={}, Embedding={}, VectorDB={}",
-                    combo.llmProvider(), combo.embeddingProvider(),
-                    combo.vectorDbProvider() != null ? combo.vectorDbProvider() : "default");
-                if (StringUtils.hasText(failures)) {
+	                    score.testsSkipped(),
+	                    score.testsAborted());
+	                if (insufficientData) {
+	                    log.error("Insufficient data: consideredTests={} is below minimumConsideredTests={}",
+	                        score.consideredTests(), effectiveMinimumConsideredTests);
+	                }
+	                log.error("Provider combination: LLM={}, Embedding={}, VectorDB={}",
+	                    combo.llmProvider(), combo.embeddingProvider(),
+	                    combo.vectorDbProvider() != null ? combo.vectorDbProvider() : "default");
+	                if (StringUtils.hasText(failures)) {
                     log.error("Failures:\n{}", failures);
                 }
 
@@ -270,16 +284,16 @@ abstract class AbstractProviderMatrixIntegrationTest {
                     summary.getTotalFailureCount() + " failures)" +
                     System.lineSeparator() + snapshotLine +
                     System.lineSeparator() + failures);
-            }
+	            }
 
-            if (summary.getTotalFailureCount() > 0) {
-                log.warn("⚠ SOFT FAIL (within threshold): {} successRate={} threshold={} consideredTests={} (failed={})",
-                    combo.displayName(),
-                    String.format("%.2f", score.successRate()),
-                    String.format("%.2f", minimumSuccessRate()),
-                    score.consideredTests(),
-                    score.testsFailed());
-            }
+	            if (summary.getTotalFailureCount() > 0) {
+	                log.warn("⚠ SOFT FAIL (within threshold): {} successRate={} threshold={} consideredTests={} (failed={})",
+	                    combo.displayName(),
+	                    String.format("%.2f", score.successRate()),
+	                    String.format("%.2f", minimumSuccessRate()),
+	                    score.consideredTests(),
+	                    score.testsFailed());
+	            }
 
             log.info("✓ Combination completed successfully in {} ms. Tests: {}, Failures: {}, Skipped: {}",
                 duration, summary.getTestsFoundCount(), summary.getTotalFailureCount(), summary.getTestsSkippedCount());

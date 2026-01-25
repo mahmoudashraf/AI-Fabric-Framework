@@ -25,7 +25,7 @@ TEST_RUNNER="${TEST_RUNNER:-auto}" # auto|surefire|failsafe
 # - Prefer OPENAI_API_KEY from environment if already set
 # - Else read from OPENAI_KEY_FILE (first line is the key)
 # - Else fall back to OPENAI_KEY (not recommended to hardcode)
-OPENAI_KEY_FILE="${OPENAI_KEY_FILE:-dev2.env}"
+OPENAI_KEY_FILE="${OPENAI_KEY_FILE:-scripts/openai.env}"
 OPENAI_KEY="${OPENAI_KEY:-}"
 
 # Gemini defaults (first line contains the key)

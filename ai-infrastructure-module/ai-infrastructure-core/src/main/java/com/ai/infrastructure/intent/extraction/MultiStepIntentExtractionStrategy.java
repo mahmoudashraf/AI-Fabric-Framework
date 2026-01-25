@@ -151,8 +151,10 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             Rules:
             - Keep it simple and deterministic.
             - Do NOT invent action names; for ACTION use actionHint only.
+            - You are part of a RAG system with access to an indexed knowledge base. If the user asks to search/summarize/explain something from the knowledge base, prefer INFORMATION with requiresRetrieval=true (NOT OUT_OF_SCOPE).
             - If the user asks to execute something AND then summarize/explain/recommend/translate the results, set requiresGeneration=true and put that instruction in generationInstructions.
             - For conversational acknowledgements/greetings (e.g., "thanks", "ok"), prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
+            - Use OUT_OF_SCOPE only when the request is clearly unrelated to the system or asks for an unsupported action.
             - If unsure, prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
 
             USER REQUEST:
@@ -514,12 +516,18 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             if (type == IntentType.ACTION) {
                 String selected = selectedActions != null ? selectedActions.get(i) : null;
                 if (!StringUtils.hasText(selected)) {
-                    builder.type(IntentType.OUT_OF_SCOPE);
-                    builder.intent("out_of_scope");
+                    // Multi-step is a fallback path; treat unresolvable "ACTION" classifications as an INFORMATION
+                    // request rather than deflecting to OUT_OF_SCOPE. This avoids non-deterministic OUT_OF_SCOPE
+                    // outcomes for retrieval-style queries that the model misclassified as ACTION.
+                    builder.type(IntentType.INFORMATION);
+                    builder.intent("information_request");
                     builder.action(null);
-                    builder.actionParams(Map.of("reason", "No registered action matched '" + safeActionHint(classified.getActionHint()) + "'"));
-                    builder.requiresRetrieval(false);
-                    builder.requiresGeneration(false);
+                    builder.actionParams(Map.of(
+                        "reason",
+                        "No registered action matched '" + safeActionHint(classified.getActionHint()) + "'. Treating as information request."
+                    ));
+                    builder.requiresRetrieval(true);
+                    builder.requiresGeneration(true);
                 } else {
                     builder.action(selected);
                     Map<String, Object> params = filledParams != null ? filledParams.get(i) : null;
@@ -528,9 +536,16 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                     }
                 }
             } else if (type == IntentType.OUT_OF_SCOPE) {
-                builder.actionParams(Map.of("reason", "Classified as out of scope by multi-step fallback"));
-                builder.requiresRetrieval(false);
-                builder.requiresGeneration(false);
+                // Same rationale: multi-step fallback should bias toward INFORMATION over OUT_OF_SCOPE so the
+                // orchestration layer can attempt vector routing + RAG rather than hard deflecting.
+                builder.type(IntentType.INFORMATION);
+                builder.intent("information_request");
+                builder.actionParams(Map.of(
+                    "reason",
+                    "Classified as out of scope by multi-step fallback. Treating as information request."
+                ));
+                builder.requiresRetrieval(true);
+                builder.requiresGeneration(true);
             }
 
             intents.add(builder.build());

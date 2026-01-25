@@ -2,6 +2,18 @@
 
 All RealAPI tests in this module use `@ActiveProfiles("real-api-test")` and require a real provider API key.
 
+## Quick scripts
+
+```bash
+cd ai-infrastructure-module/integration-Testing/integration-tests
+
+# OpenAI LLM + ONNX embeddings + Lucene (loads OPENAI_API_KEY from env, or `../dev2.env`, or `../scripts/openai.env`)
+./run-all-realapi-tests-openai-onnx-lucene.sh
+
+# Provider matrix harness (single combination)
+./run-provider-matrix-tests.sh "openai:onnx:lucene"
+```
+
 ## Run All RealAPI Tests (recommended from reactor root)
 
 ```bash
