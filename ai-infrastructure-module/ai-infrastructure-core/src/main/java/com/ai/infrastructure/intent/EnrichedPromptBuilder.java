@@ -103,6 +103,15 @@ public class EnrichedPromptBuilder {
                 prompt.append("  • ").append(type).append(": ").append(count).append("\n")
             );
         }
+        var availableSpaces = overview.getEntityTypes() != null && !overview.getEntityTypes().isEmpty()
+            ? overview.getEntityTypes().stream().filter(s -> s != null && !s.isBlank()).map(String::trim).distinct().toList()
+            : overview.getDocumentsByType() != null && !overview.getDocumentsByType().isEmpty()
+                ? overview.getDocumentsByType().keySet().stream().filter(s -> s != null && !s.isBlank()).map(String::trim).distinct().toList()
+                : java.util.List.<String>of();
+        if (!availableSpaces.isEmpty()) {
+            prompt.append("- Available vectorSpace values: ").append(String.join(", ", availableSpaces)).append("\n");
+            prompt.append("  • vectorSpace MUST be one of these values (do NOT invent new vectorSpace names). If unsure, omit vectorSpace.\n");
+        }
         if (overview.getLastIndexUpdateTime() != null) {
             prompt.append("- Last index update: ").append(TIMESTAMP_FORMATTER.format(overview.getLastIndexUpdateTime())).append("\n");
         }
@@ -125,6 +134,10 @@ public class EnrichedPromptBuilder {
         prompt.append("   - requiresRetrieval=true when the answer must be grounded in the indexed knowledge base.\n");
         prompt.append("   - requiresRetrieval=false for simple conversational replies/acknowledgements (e.g., \"thanks\", \"ok\", greetings) where no retrieval is needed.\n");
         prompt.append("   - When requiresRetrieval=false you MUST provide directAnswer (a short reply, 1 sentence).\n");
+        prompt.append("9. vectorSpace rules for INFORMATION intents:\n");
+        prompt.append("   - vectorSpace is OPTIONAL.\n");
+        prompt.append("   - If the KNOWLEDGE BASE OVERVIEW lists available vectorSpace values, you MUST choose from that list (case-insensitive). Do NOT invent new values.\n");
+        prompt.append("   - If unsure which space applies, omit vectorSpace; the system will route or fan-out.\n");
         prompt.append("9. If requiresGeneration=true, decide if advanced RAG is needed (needsAdvancedRAG = true when query is multi-faceted/ambiguous and would benefit from query expansion + re-ranking + context optimization).\n");
         prompt.append("9. Action selection MUST be grounded in AVAILABLE ACTIONS and the user's request:\n");
         prompt.append("   - Only return intent.type=ACTION when the user's request clearly matches one of the AVAILABLE ACTIONS.\n");
@@ -169,7 +182,8 @@ public class EnrichedPromptBuilder {
         prompt.append("4. Use type = OUT_OF_SCOPE only when the user requests an unsupported ACTION or the request is clearly unrelated to the system.\n");
         prompt.append("5. For INFORMATION intents, you MUST provide optimizedQuery. This query is used for embeddings/retrieval.\n");
         prompt.append("6. vectorSpace is OPTIONAL. If you can confidently choose a single domain/entity type, set it.\n");
-        prompt.append("   - If unsure, omit vectorSpace or leave it blank.\n");
+        prompt.append("   - If the KNOWLEDGE BASE OVERVIEW lists available vectorSpace values, you MUST choose from that list (case-insensitive). Do NOT invent new values.\n");
+        prompt.append("   - If unsure, omit vectorSpace or leave it blank; the system will route or fan-out.\n");
         prompt.append("7. ACTION selection MUST be grounded in AVAILABLE ACTIONS. Never invent actions.\n");
         prompt.append("8. ACTION PARAMETER RULES:\n");
         prompt.append("   - Only populate actionParams with values the user explicitly provided (or unambiguous literals like email address, SKU, quantity).\n");

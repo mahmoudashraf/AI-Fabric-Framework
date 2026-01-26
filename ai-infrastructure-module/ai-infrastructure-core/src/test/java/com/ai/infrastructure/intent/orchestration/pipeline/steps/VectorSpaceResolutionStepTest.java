@@ -4,6 +4,7 @@ import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.KnowledgeBaseOverview;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -50,6 +51,41 @@ class VectorSpaceResolutionStepTest {
 
         assertThat(updated.isShouldTerminate()).isFalse();
         assertThat(updated.getIntentResponse().getIntents().getFirst().getVectorSpace()).isEqualTo("policies");
+        verify(router, never()).route(any(), anyString());
+    }
+
+    @Test
+    void shouldFallbackToFanOutWhenVectorSpaceNotAvailable() {
+        VectorSpaceRouter router = mock(VectorSpaceRouter.class);
+
+        KnowledgeBaseOverviewService overviewService = mock(KnowledgeBaseOverviewService.class);
+        when(overviewService.getOverview()).thenReturn(KnowledgeBaseOverview.builder()
+            .entityTypes(List.of("faq", "policies"))
+            .build());
+
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf(overviewService)
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("search_products")
+            .requiresRetrieval(true)
+            .vectorSpace("commerce")
+            .build();
+
+        PipelineContext context = PipelineContext.from("smartphone", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated.isShouldTerminate()).isFalse();
+        assertThat(updated.getIntentResponse().getIntents().getFirst().getVectorSpace()).isEqualTo("faq,policies");
+        assertThat(updated.getMetadata()).containsKey("vectorSpaceRouting");
         verify(router, never()).route(any(), anyString());
     }
 

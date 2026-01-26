@@ -69,6 +69,7 @@ class EnrichedPromptBuilderTest {
             .contains("cancel_subscription")
             .contains("KNOWLEDGE BASE OVERVIEW")
             .contains("Total documents: 123")
+            .contains("Available vectorSpace values:")
             .contains("NEXT-STEP RECOMMENDATIONS")
             .contains("requiresGeneration")
             .contains("needsAdvancedRAG")
