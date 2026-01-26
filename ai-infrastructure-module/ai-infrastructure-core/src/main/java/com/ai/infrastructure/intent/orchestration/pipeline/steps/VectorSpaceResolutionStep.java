@@ -20,8 +20,11 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Pipeline step that resolves missing vectorSpace for retrieval intents.
@@ -67,20 +70,65 @@ public class VectorSpaceResolutionStep implements PipelineStep {
         List<Map<String, Object>> routingEvents = new ArrayList<>();
         boolean anyUpdate = false;
 
+        // Lazy-loaded knowledge base vector spaces for validation and fan-out fallback.
+        List<String> availableVectorSpaces = null;
+        Map<String, String> canonicalByLower = null;
+
         List<Intent> intents = intentResponse.getIntents();
         for (int i = 0; i < intents.size(); i++) {
             Intent intent = intents.get(i);
-            if (!requiresResolution(intent)) {
+            if (intent == null || intent.getType() != IntentType.INFORMATION) {
+                continue;
+            }
+            if (!Boolean.TRUE.equals(intent.getRequiresRetrieval())) {
                 continue;
             }
 
-            if (deterministic) {
-                List<String> allSpaces = resolveAllVectorSpaces();
-                if (!allSpaces.isEmpty()) {
-                    intent.setVectorSpace(String.join(",", allSpaces));
-                    anyUpdate = true;
+            // Validate LLM-provided vectorSpace against currently available knowledge base spaces.
+            // If the provided value is invalid, fall back to fan-out across all available spaces.
+            if (hasText(intent.getVectorSpace())) {
+                if (availableVectorSpaces == null) {
+                    availableVectorSpaces = resolveAllVectorSpaces();
+                    canonicalByLower = buildCanonicalByLower(availableVectorSpaces);
                 }
-                // Deterministic mode must not terminate with clarification; leave vectorSpace blank if unknown.
+                if (availableVectorSpaces != null && !availableVectorSpaces.isEmpty() && canonicalByLower != null && !canonicalByLower.isEmpty()) {
+                    VectorSpaceNormalization normalization = normalizeVectorSpaces(intent.getVectorSpace(), canonicalByLower);
+                    if (normalization != null && !normalization.invalidTokens().isEmpty()) {
+                        String prior = intent.getVectorSpace();
+                        if (normalization.normalizedValid().isEmpty()) {
+                            intent.setVectorSpace(String.join(",", availableVectorSpaces));
+                            routingEvents.add(toNormalizationEvent(i, "INVALID_FALLBACK_FAN_OUT", prior, intent.getVectorSpace(),
+                                normalization.invalidTokens(), availableVectorSpaces));
+                        } else {
+                            intent.setVectorSpace(String.join(",", normalization.normalizedValid()));
+                            routingEvents.add(toNormalizationEvent(i, "INVALID_FILTERED", prior, intent.getVectorSpace(),
+                                normalization.invalidTokens(), availableVectorSpaces));
+                        }
+                        anyUpdate = true;
+                    } else if (normalization != null && normalization.changed()) {
+                        String prior = intent.getVectorSpace();
+                        intent.setVectorSpace(String.join(",", normalization.normalizedValid()));
+                        routingEvents.add(toNormalizationEvent(i, "NORMALIZED", prior, intent.getVectorSpace(),
+                            List.of(), availableVectorSpaces));
+                        anyUpdate = true;
+                    }
+                }
+            }
+
+            if (deterministic) {
+                if (!hasText(intent.getVectorSpace())) {
+                    List<String> allSpaces = resolveAllVectorSpaces();
+                    if (!allSpaces.isEmpty()) {
+                        intent.setVectorSpace(String.join(",", allSpaces));
+                        anyUpdate = true;
+                    }
+                    // Deterministic mode must not terminate with clarification; leave vectorSpace blank if unknown.
+                }
+                continue;
+            }
+
+            if (hasText(intent.getVectorSpace())) {
+                // vectorSpace provided (and considered valid/normalized when knowledge base spaces are available).
                 continue;
             }
 
@@ -149,19 +197,6 @@ public class VectorSpaceResolutionStep implements PipelineStep {
             .toList();
     }
 
-    private boolean requiresResolution(Intent intent) {
-        if (intent == null) {
-            return false;
-        }
-        if (intent.getType() != IntentType.INFORMATION) {
-            return false;
-        }
-        if (!Boolean.TRUE.equals(intent.getRequiresRetrieval())) {
-            return false;
-        }
-        return !hasText(intent.getVectorSpace());
-    }
-
     private String resolveVectorSpaceString(RoutingResult routing) {
         if (routing == null) {
             return null;
@@ -227,6 +262,90 @@ public class VectorSpaceResolutionStep implements PipelineStep {
         event.put("vectorSpace", routing.getVectorSpace());
         event.put("candidateSpaces", routing.getCandidateSpaces());
         return Collections.unmodifiableMap(event);
+    }
+
+    private Map<String, Object> toNormalizationEvent(int intentIndex,
+                                                     String strategy,
+                                                     String priorVectorSpace,
+                                                     String resolvedVectorSpace,
+                                                     List<String> invalidTokens,
+                                                     List<String> availableSpaces) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("intentIndex", intentIndex);
+        event.put("success", true);
+        event.put("strategy", strategy);
+        event.put("priorVectorSpace", priorVectorSpace);
+        event.put("vectorSpace", resolvedVectorSpace);
+        event.put("invalidTokens", invalidTokens != null ? invalidTokens : List.of());
+        // Keep the list short to avoid bloating metadata; callers can inspect KB overview if needed.
+        if (availableSpaces != null && !availableSpaces.isEmpty()) {
+            event.put("availableSpacesCount", availableSpaces.size());
+        }
+        return Collections.unmodifiableMap(event);
+    }
+
+    private Map<String, String> buildCanonicalByLower(List<String> availableSpaces) {
+        if (availableSpaces == null || availableSpaces.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> map = new LinkedHashMap<>();
+        for (String space : availableSpaces) {
+            if (!hasText(space)) {
+                continue;
+            }
+            String canonical = space.trim();
+            map.put(canonical.toLowerCase(Locale.ROOT), canonical);
+        }
+        return map;
+    }
+
+    private VectorSpaceNormalization normalizeVectorSpaces(String rawVectorSpace, Map<String, String> canonicalByLower) {
+        if (!hasText(rawVectorSpace)) {
+            return new VectorSpaceNormalization(List.of(), List.of(), false);
+        }
+        if (canonicalByLower == null || canonicalByLower.isEmpty()) {
+            return new VectorSpaceNormalization(List.of(rawVectorSpace.trim()), List.of(), false);
+        }
+
+        String[] parts = rawVectorSpace.split(",");
+        Set<String> normalized = new LinkedHashSet<>();
+        List<String> invalid = new ArrayList<>();
+        boolean changed = false;
+
+        for (String part : parts) {
+            if (part == null) {
+                continue;
+            }
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            String canonical = canonicalByLower.get(trimmed.toLowerCase(Locale.ROOT));
+            if (canonical == null) {
+                invalid.add(trimmed);
+                continue;
+            }
+            normalized.add(canonical);
+            if (!canonical.equals(trimmed)) {
+                changed = true;
+            }
+        }
+
+        // Consider it changed if we dropped empty tokens or removed duplicates.
+        int rawNonEmptyCount = 0;
+        for (String part : parts) {
+            if (part != null && !part.trim().isEmpty()) {
+                rawNonEmptyCount++;
+            }
+        }
+        if (normalized.size() != rawNonEmptyCount) {
+            changed = true;
+        }
+
+        return new VectorSpaceNormalization(List.copyOf(normalized), List.copyOf(invalid), changed);
+    }
+
+    private record VectorSpaceNormalization(List<String> normalizedValid, List<String> invalidTokens, boolean changed) {
     }
 
     private boolean hasText(String value) {
