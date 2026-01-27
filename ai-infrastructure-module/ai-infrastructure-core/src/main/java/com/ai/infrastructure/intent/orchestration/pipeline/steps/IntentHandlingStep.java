@@ -32,6 +32,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.intent.orchestration.target.ResolvedTarget;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.LlmPurpose;
@@ -1260,7 +1261,8 @@ public class IntentHandlingStep implements PipelineStep {
         String answer = null;
         if (needsGeneration) {
             try {
-                answer = generateRagAnswer(query, ragResponse.getContext());
+                String generationContext = prependPinnedTargetsContext(ragResponse.getContext(), pipelineContext);
+                answer = generateRagAnswer(query, generationContext);
             } catch (Exception ex) {
                 log.error("RAG generation failed for request {}: {}",
                     pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -1405,7 +1407,7 @@ public class IntentHandlingStep implements PipelineStep {
         String answer = null;
         if (needsGeneration) {
             try {
-                answer = generateRagAnswer(query, mergedContext);
+                answer = generateRagAnswer(query, prependPinnedTargetsContext(mergedContext, pipelineContext));
             } catch (Exception ex) {
                 log.error("Fan-out RAG generation failed for request {}: {}",
                     pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -1531,7 +1533,7 @@ public class IntentHandlingStep implements PipelineStep {
                     answer = advancedResponse.getResponse();
                 } else {
                     try {
-                        answer = generateRagAnswer(query, ragResponse.getContext());
+                        answer = generateRagAnswer(query, prependPinnedTargetsContext(ragResponse.getContext(), pipelineContext));
                     } catch (Exception ex) {
                         log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
                             pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -1773,6 +1775,59 @@ public class IntentHandlingStep implements PipelineStep {
 
         String prompt = String.format(RAG_PROMPT_TEMPLATE, query, context);
         return aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
+    }
+
+    private String prependPinnedTargetsContext(String ragContext, PipelineContext pipelineContext) {
+        if (pipelineContext == null) {
+            return ragContext;
+        }
+        List<ResolvedTarget> targets = pipelineContext.getResolvedTargets();
+        if (targets == null || targets.isEmpty()) {
+            return ragContext;
+        }
+
+        String block = buildPinnedTargetsBlock(targets);
+        if (!StringUtils.hasText(block)) {
+            return ragContext;
+        }
+        if (!StringUtils.hasText(ragContext)) {
+            return block;
+        }
+        return block + "\n\n" + ragContext;
+    }
+
+    private String buildPinnedTargetsBlock(List<ResolvedTarget> targets) {
+        StringBuilder sb = new StringBuilder(512);
+        sb.append("PINNED TARGETS (authoritative):\n");
+        int index = 1;
+        for (ResolvedTarget target : targets) {
+            if (target == null || !StringUtils.hasText(target.getId()) || !StringUtils.hasText(target.getVectorSpace())) {
+                continue;
+            }
+
+            sb.append(index).append(") vectorSpace=")
+                .append(target.getVectorSpace())
+                .append(" id=")
+                .append(target.getId());
+
+            if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+                sb.append(" metadata={");
+                String meta = target.getMetadata().entrySet().stream()
+                    .filter(e -> e != null && StringUtils.hasText(e.getKey()) && StringUtils.hasText(e.getValue()))
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(Collectors.joining(", "));
+                sb.append(meta).append("}");
+            }
+
+            if (StringUtils.hasText(target.getContentSnippet())) {
+                sb.append(" snippet=\"").append(target.getContentSnippet()).append("\"");
+            }
+
+            sb.append("\n");
+            index++;
+        }
+
+        return sb.toString().trim();
     }
 
     private List<String> parseVectorSpaces(String vectorSpace) {

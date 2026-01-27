@@ -21,10 +21,15 @@ ai:
     default-file: ai-entity-config.yml
 
   orchestration:
-    information-mode: DETERMINISTIC_RAG_GENERATE
-
-  intent-extraction:
-    prompt-mode: MINIMAL_FOR_RAG
+    profile: DEMO_CATALOG
+    modes:
+      navigator:
+        information-mode: DETERMINISTIC_RAG_GENERATE
+        prompt-mode: MINIMAL_FOR_RAG
+    position-routing:
+      landing: navigator
+      cart: navigator
+      support: navigator
 
   chat:
     enabled: true

@@ -4,6 +4,7 @@ import com.ai.infrastructure.chat.config.ChatSessionProperties;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.PIIDetection;
 import com.ai.infrastructure.dto.PIIDetectionResult;
+import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -38,9 +39,11 @@ public class ConversationRecordingStep implements PipelineStep {
     private static final String TURN_META_KEY_ACTION = "_action";
     private static final String TURN_META_KEY_ACTION_SUCCESS = "_actionSuccess";
     private static final String TURN_META_KEY_ACTION_REFS = "_actionRefs";
+    private static final String TURN_META_KEY_WORKING_SET = "_workingSet";
 
     private static final int ACTION_REFS_MAX_FIELDS = 12;
     private static final int ACTION_REFS_MAX_STRING_LENGTH = 120;
+    private static final int WORKING_SET_MAX_DOCS = 8;
 
     private final ChatSessionService chatSessionService;
     private final ChatSessionProperties properties;
@@ -165,6 +168,13 @@ public class ConversationRecordingStep implements PipelineStep {
             }
         }
 
+        if (result.getType() == OrchestrationResultType.INFORMATION_PROVIDED) {
+            Map<String, Object> workingSet = extractWorkingSet(result);
+            if (!workingSet.isEmpty()) {
+                metadata.put(TURN_META_KEY_WORKING_SET, workingSet);
+            }
+        }
+
         return Collections.unmodifiableMap(metadata);
     }
 
@@ -220,6 +230,91 @@ public class ConversationRecordingStep implements PipelineStep {
         }
 
         return Collections.unmodifiableMap(refs);
+    }
+
+    private Map<String, Object> extractWorkingSet(OrchestrationResult result) {
+        if (result == null || result.getData() == null || result.getData().isEmpty()) {
+            return Map.of();
+        }
+
+        Object ragValue = result.getData().get("ragResponse");
+        if (!(ragValue instanceof RAGResponse ragResponse)) {
+            return Map.of();
+        }
+
+        List<RAGResponse.RAGDocument> documents = ragResponse.getDocuments();
+        if (documents == null || documents.isEmpty()) {
+            return Map.of();
+        }
+
+        String fallbackVectorSpace = normalizeVectorSpace(ragResponse.getEntityType());
+        boolean fallbackSingle = StringUtils.hasText(fallbackVectorSpace) && fallbackVectorSpace.indexOf(',') < 0;
+
+        List<Map<String, Object>> refs = new java.util.ArrayList<>();
+        java.util.Set<String> vectorSpaces = new java.util.LinkedHashSet<>();
+
+        for (RAGResponse.RAGDocument doc : documents) {
+            if (refs.size() >= WORKING_SET_MAX_DOCS) {
+                break;
+            }
+            if (doc == null || !StringUtils.hasText(doc.getId())) {
+                continue;
+            }
+            String id = doc.getId().trim();
+            if (!isSafeRefString(id)) {
+                continue;
+            }
+
+            String vectorSpace = null;
+            Map<String, Object> docMeta = doc.getMetadata();
+            if (docMeta != null) {
+                Object vs = docMeta.get("vectorSpace");
+                if (vs instanceof String vsText) {
+                    vectorSpace = normalizeVectorSpace(vsText);
+                }
+            }
+            if (!StringUtils.hasText(vectorSpace) && fallbackSingle) {
+                vectorSpace = fallbackVectorSpace;
+            }
+
+            if (StringUtils.hasText(vectorSpace) && isSafeRefString(vectorSpace)) {
+                vectorSpaces.add(vectorSpace);
+            } else {
+                vectorSpace = null;
+            }
+
+            Map<String, Object> ref = new LinkedHashMap<>();
+            ref.put("id", id);
+            if (vectorSpace != null) {
+                ref.put("vectorSpace", vectorSpace);
+            }
+            if (doc.getScore() != null) {
+                ref.put("score", doc.getScore());
+            }
+            refs.add(Collections.unmodifiableMap(ref));
+        }
+
+        if (refs.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, Object> workingSet = new LinkedHashMap<>();
+        workingSet.put("vectorSpacesUsed", List.copyOf(vectorSpaces));
+        workingSet.put("topDocumentRefs", Collections.unmodifiableList(refs));
+        workingSet.put("documentsCount", documents.size());
+        return Collections.unmodifiableMap(workingSet);
+    }
+
+    private String normalizeVectorSpace(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        trimmed = trimmed.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private boolean isSafeRefString(String value) {

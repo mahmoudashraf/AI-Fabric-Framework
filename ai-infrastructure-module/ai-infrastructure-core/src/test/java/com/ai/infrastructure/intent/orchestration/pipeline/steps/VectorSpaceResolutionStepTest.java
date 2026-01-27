@@ -9,6 +9,8 @@ import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.target.ResolvedTarget;
+import com.ai.infrastructure.intent.orchestration.target.ResolvedTargetSource;
 import com.ai.infrastructure.intent.vectorspace.RoutingResult;
 import com.ai.infrastructure.intent.vectorspace.RoutingStrategy;
 import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
@@ -221,6 +223,42 @@ class VectorSpaceResolutionStepTest {
 
         assertThat(updated.isShouldTerminate()).isFalse();
         assertThat(updated.getIntentResponse().getIntents().getFirst().getVectorSpace()).isEqualTo("faq");
+    }
+
+    @Test
+    void shouldScopeVectorSpaceWhenResolvedTargetsPresent() {
+        VectorSpaceRouter router = mock(VectorSpaceRouter.class);
+
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null)
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("compare")
+            .requiresRetrieval(true)
+            .vectorSpace(null)
+            .build();
+
+        ResolvedTarget target = ResolvedTarget.builder()
+            .id("1")
+            .vectorSpace("product")
+            .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
+            .build();
+
+        PipelineContext context = PipelineContext.from("q", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .resolvedTargets(List.of(target))
+            .build();
+
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated.isShouldTerminate()).isFalse();
+        assertThat(updated.getIntentResponse().getIntents().getFirst().getVectorSpace()).isEqualTo("product");
+        verify(router, never()).route(any(), anyString());
     }
 
     @Test

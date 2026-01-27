@@ -1,0 +1,58 @@
+package com.ai.infrastructure.config;
+
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/**
+ * Configuration for request-level attachments (UI context) used to ground intent extraction and actions.
+ */
+@Data
+@ConfigurationProperties(prefix = "ai.orchestration.attachments")
+public class AttachmentsProperties {
+
+    /**
+     * Enables attachment normalization and prompt grounding.
+     */
+    private boolean enabled = true;
+
+    /**
+     * Maximum number of attachments accepted per request.
+     */
+    private int maxAttachments = 10;
+
+    /**
+     * Maximum number of active attachment ids accepted per request.
+     */
+    private int maxActiveAttachmentIds = 10;
+
+    /**
+     * Maximum characters kept for the attachment content snippet.
+     */
+    private int maxContentSnippetChars = 300;
+
+    /**
+     * Maximum metadata keys accepted per attachment.
+     */
+    private int maxMetadataKeys = 12;
+
+    /**
+     * Maximum characters kept for any metadata value after normalization.
+     */
+    private int maxMetadataValueChars = 120;
+
+    /**
+     * Maximum characters kept for attachment id.
+     */
+    private int maxIdChars = 80;
+
+    /**
+     * Maximum characters kept for vectorSpace.
+     */
+    private int maxVectorSpaceChars = 80;
+
+    /**
+     * Maximum characters kept for source label.
+     */
+    private int maxSourceChars = 60;
+}
+

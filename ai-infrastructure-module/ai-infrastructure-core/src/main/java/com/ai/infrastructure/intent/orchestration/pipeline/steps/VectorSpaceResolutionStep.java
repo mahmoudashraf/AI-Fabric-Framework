@@ -11,6 +11,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.intent.orchestration.target.ResolvedTarget;
 import com.ai.infrastructure.intent.vectorspace.RoutingResult;
 import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +72,8 @@ public class VectorSpaceResolutionStep implements PipelineStep {
             : (orchestrationProperties != null
                 && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
 
+        List<String> scopedVectorSpaces = resolveScopedVectorSpaces(context);
+
         List<Map<String, Object>> routingEvents = new ArrayList<>();
         boolean anyUpdate = false;
 
@@ -86,6 +89,16 @@ public class VectorSpaceResolutionStep implements PipelineStep {
             }
             if (!Boolean.TRUE.equals(intent.getRequiresRetrieval())) {
                 continue;
+            }
+
+            if (!scopedVectorSpaces.isEmpty()) {
+                String scoped = String.join(",", scopedVectorSpaces);
+                String prior = intent.getVectorSpace();
+                if (!hasText(prior) || !prior.trim().equals(scoped)) {
+                    intent.setVectorSpace(scoped);
+                    routingEvents.add(toScopeEvent(i, "TARGET_SCOPE", prior, scoped, scopedVectorSpaces));
+                    anyUpdate = true;
+                }
             }
 
             // Validate LLM-provided vectorSpace against currently available knowledge base spaces.
@@ -168,6 +181,37 @@ public class VectorSpaceResolutionStep implements PipelineStep {
         }
 
         return updated;
+    }
+
+    private List<String> resolveScopedVectorSpaces(PipelineContext context) {
+        List<ResolvedTarget> targets = context != null ? context.getResolvedTargets() : null;
+        if (targets == null || targets.isEmpty()) {
+            return List.of();
+        }
+
+        Set<String> spaces = new LinkedHashSet<>();
+        for (ResolvedTarget target : targets) {
+            if (target == null || !hasText(target.getVectorSpace())) {
+                continue;
+            }
+            spaces.add(target.getVectorSpace().trim());
+        }
+        return spaces.isEmpty() ? List.of() : List.copyOf(spaces);
+    }
+
+    private Map<String, Object> toScopeEvent(int intentIndex,
+                                             String strategy,
+                                             String priorVectorSpace,
+                                             String resolvedVectorSpace,
+                                             List<String> scopedVectorSpaces) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("intentIndex", intentIndex);
+        event.put("success", true);
+        event.put("strategy", strategy);
+        event.put("priorVectorSpace", priorVectorSpace);
+        event.put("vectorSpace", resolvedVectorSpace);
+        event.put("scopedVectorSpaces", scopedVectorSpaces != null ? List.copyOf(scopedVectorSpaces) : List.of());
+        return Collections.unmodifiableMap(event);
     }
 
     private List<String> resolveAllVectorSpaces() {

@@ -86,6 +86,7 @@ import jakarta.persistence.EntityManagerFactory;
 	        AIServiceConfig.class,
             VectorDatabaseConfig.class,
             OrchestrationProperties.class,
+            AttachmentsProperties.class,
             IntentExtractionPromptProperties.class,
             MultiStepIntentExtractionPromptTemplatesProperties.class,
             ProgressiveIntentExtractionProperties.class,

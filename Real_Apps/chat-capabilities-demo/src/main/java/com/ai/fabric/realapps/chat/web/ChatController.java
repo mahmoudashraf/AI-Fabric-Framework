@@ -9,6 +9,7 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -171,6 +172,19 @@ public class ChatController {
         OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
             .conversationId(conversationId);
 
+        if (StringUtils.hasText(request.getPosition())) {
+            builder.position(request.getPosition());
+        }
+        if (StringUtils.hasText(request.getMode())) {
+            builder.mode(request.getMode());
+        }
+        if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
+            builder.attachments(request.getAttachments());
+        }
+        if (request.getActiveAttachmentIds() != null && !request.getActiveAttachmentIds().isEmpty()) {
+            builder.activeAttachmentIds(request.getActiveAttachmentIds());
+        }
+
         if (StringUtils.hasText(userId)) {
             builder.userId(userId);
             builder.sessionId(sessionId);
@@ -247,6 +261,10 @@ public class ChatController {
         private String userId;
         private String sessionId;
         private String conversationId;
+        private String position;
+        private String mode;
+        private List<OrchestrationAttachment> attachments;
+        private List<String> activeAttachmentIds;
     }
 
     @Data
