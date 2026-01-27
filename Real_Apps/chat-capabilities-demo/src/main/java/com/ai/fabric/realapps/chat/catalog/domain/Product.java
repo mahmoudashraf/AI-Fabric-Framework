@@ -31,10 +31,20 @@ import lombok.Setter;
 public class Product {
 
     @Id
+    @AIContext(
+        contextKey = "id",
+        dataType = "id",
+        description = "Internal product identifier"
+    )
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @AISearchable(weight = 1.6)
+    @AIContext(
+        contextKey = "sku",
+        dataType = "id",
+        description = "Product SKU"
+    )
     @Column(nullable = false, unique = true)
     private String sku;
 
