@@ -1,7 +1,9 @@
 package com.ai.fabric.realapps.chat.orders.action;
 
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -14,6 +16,7 @@ import org.springframework.util.StringUtils;
     name = OfferOrderDiscountActionHandler.ACTION_NAME,
     description = "Offer a retention discount to keep an order active instead of cancelling it",
     category = "commerce",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @Slf4j
@@ -47,12 +50,12 @@ public class OfferOrderDiscountActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Discount offer applied")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "orderRef", ref,
                     "discountPercent", percent,
                     "couponCode", coupon,
                     "note", "This demo does not persist discounts to the order record."
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Offer discount failed for user {}", userId, e);

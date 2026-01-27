@@ -236,6 +236,7 @@ public class CustomValidationStep implements PipelineStep {
 Register via `@AIAction` (greenfield):
 
 ```java
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
@@ -246,6 +247,7 @@ import com.ai.infrastructure.intent.action.annotation.Param;
     name = "cancel_subscription",
     description = "Cancel an active subscription",
     category = "subscription",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 public class CancelSubscriptionAction {

@@ -1,7 +1,9 @@
 package com.subscription.hub.action.handler;
 
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
@@ -18,6 +20,7 @@ import java.util.UUID;
     name = "upgrade_subscription",
     description = "Upgrade subscription to a higher tier plan",
     category = "subscription",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @Slf4j
@@ -68,11 +71,11 @@ public class UpgradeSubscriptionActionHandler extends BaseActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Your subscription has been upgraded successfully!")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "subscriptionId", subscriptionId,
                     "newPlanId", newPlanId,
                     "status", subscription.getStatus().toString()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Error upgrading subscription", e);

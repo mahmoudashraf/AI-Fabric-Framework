@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.support.action;
 
 import com.ai.fabric.realapps.chat.support.domain.SupportTicket;
 import com.ai.fabric.realapps.chat.support.service.SupportTicketService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -16,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "create_support_ticket",
     description = "Create a support ticket for an ecommerce issue",
     category = "support",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @RequiredArgsConstructor
@@ -42,11 +45,11 @@ public class CreateSupportTicketActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Support ticket created")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "ticketId", created.getId(),
                     "status", created.getStatus() != null ? created.getStatus().name() : null,
                     "issueType", created.getIssueType()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Create support ticket failed for user {}", userId, e);

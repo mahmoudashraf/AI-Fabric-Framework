@@ -96,11 +96,15 @@ final class AnnotatedAIActionHandler implements AIActionHandler {
             if (result instanceof ActionResult actionResult) {
                 return actionResult;
             }
-            return ActionResult.builder()
-                .success(true)
-                .message("Done.")
-                .data(result)
-                .build();
+            if (result instanceof ActionPayload payload) {
+                return ActionResult.builder()
+                    .success(true)
+                    .message("Done.")
+                    .data(payload)
+                    .build();
+            }
+            throw new IllegalStateException("AIAction @ActionExecute method must return ActionResult or ActionPayload: "
+                + executeMethod.getDeclaringClass().getName() + "#" + executeMethod.getName());
         } catch (InvocationTargetException ex) {
             Throwable cause = ex.getTargetException() != null ? ex.getTargetException() : ex;
             if (cause instanceof RuntimeException re) {

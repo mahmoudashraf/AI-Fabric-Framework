@@ -1,7 +1,9 @@
 package com.ai.infrastructure.chat.it.actions;
 
 import com.ai.infrastructure.intent.action.ActionContext;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
@@ -16,6 +18,7 @@ import org.springframework.util.StringUtils;
     name = ConfirmableUpperEchoActionHandler.ACTION_NAME,
     description = "Test-only action that requires confirmation and uppercases the message.",
     category = "test",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 public class ConfirmableUpperEchoActionHandler {
@@ -43,7 +46,7 @@ public class ConfirmableUpperEchoActionHandler {
         return ActionResult.builder()
             .success(true)
             .message("Upper: " + upper)
-            .data(Map.of("upper", upper))
+            .data(ActionResultContracts.object(Map.of("upper", upper)))
             .build();
     }
 

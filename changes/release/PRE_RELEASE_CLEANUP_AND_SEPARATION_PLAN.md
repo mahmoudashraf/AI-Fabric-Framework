@@ -347,7 +347,9 @@ String customerEmail = "user@example.com";
 @AIAction(
     name = "add_to_cart",
     description = "Add a product to shopping cart",
-    category = "commerce"
+    category = "commerce",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
+    requiresConfirmation = true
 )
 public class AddToCartActionHandler {
     // ...
@@ -558,7 +560,13 @@ Add dependency:
 
 Create your first action:
 ```java
-@AIAction(name = "greet", description = "Greet the user")
+@AIAction(
+    name = "greet",
+    description = "Greet the user",
+    category = "general",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.READ,
+    requiresConfirmation = false
+)
 @Component
 public class GreetActionHandler {
     @ActionExecute

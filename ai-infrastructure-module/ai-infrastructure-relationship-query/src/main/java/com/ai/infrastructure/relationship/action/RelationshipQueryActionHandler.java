@@ -2,7 +2,9 @@ package com.ai.infrastructure.relationship.action;
 
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionContext;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -45,6 +47,7 @@ import java.util.Set;
     name = "relationship_query",
     description = "Execute natural language relationship queries across entities",
     category = "data_query",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -125,7 +128,7 @@ public class RelationshipQueryActionHandler {
                         .success(false)
                         .message("Access denied: You do not have permission to query any entity types")
                         .errorCode(ERROR_ACCESS_DENIED)
-                        .data(Map.of("reason", "No entity types accessible for auto-detection"))
+                        .data(ActionResultContracts.object(Map.of("reason", "No entity types accessible for auto-detection")))
                         .build();
                 }
                 // Continue with allowed entity types only (policy-constrained auto-detection)
@@ -139,7 +142,7 @@ public class RelationshipQueryActionHandler {
                         .success(false)
                         .message("Access denied: You do not have permission to query the requested entity types")
                         .errorCode(ERROR_ACCESS_DENIED)
-                        .data(Map.of(DATA_KEY_REQUESTED_ENTITY_TYPES, requestedEntityTypes))
+                        .data(ActionResultContracts.object(Map.of(DATA_KEY_REQUESTED_ENTITY_TYPES, requestedEntityTypes)))
                         .build();
                 }
                 
@@ -152,11 +155,11 @@ public class RelationshipQueryActionHandler {
                         .success(false)
                         .message("Access denied: You do not have permission to query some of the requested entity types")
                         .errorCode(ERROR_ACCESS_DENIED)
-                        .data(Map.of(
+                        .data(ActionResultContracts.object(Map.of(
                             DATA_KEY_REQUESTED_ENTITY_TYPES, requestedEntityTypes,
                             DATA_KEY_ALLOWED_ENTITY_TYPES, allowedEntityTypes,
                             DATA_KEY_DENIED_ENTITY_TYPES, denied
-                        ))
+                        )))
                         .build();
                 }
             }
@@ -168,7 +171,7 @@ public class RelationshipQueryActionHandler {
             return ActionResult.builder()
                 .success(response.getSuccess() == null || response.getSuccess())
                 .message(buildSuccessMessage(response))
-                .data(buildResultData(response))
+                .data(ActionResultContracts.object(buildResultData(response)))
                 .build();
         } catch (IllegalArgumentException ex) {
             return ActionResult.builder()
@@ -216,7 +219,7 @@ public class RelationshipQueryActionHandler {
             .success(false)
             .message("Relationship query failed: " + e.getMessage())
             .errorCode(ERROR_EXECUTION_FAILED)
-            .data(data)
+            .data(ActionResultContracts.object(data))
             .build();
     }
 

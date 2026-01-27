@@ -89,9 +89,8 @@ class RAGOrchestratorLiveHandlersTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult).isNotNull();
         assertThat(actionResult.isSuccess()).isTrue();
-        assertThat(actionResult.getData()).isInstanceOf(Map.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> actionData = (Map<String, Object>) actionResult.getData();
+        assertThat(actionResult.getData()).isNotNull();
+        Map<String, Object> actionData = actionResult.getData().toMap();
         assertThat(actionData).containsEntry("removed", 1L);
         assertThat(vectorDatabaseService.getVectorCountByEntityType("doc")).isZero();
         assertThat(result.getSanitizedPayload()).isNotEmpty();
@@ -124,9 +123,8 @@ class RAGOrchestratorLiveHandlersTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult).isNotNull();
         assertThat(actionResult.isSuccess()).isTrue();
-        assertThat(actionResult.getData()).isInstanceOf(Map.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> actionData = (Map<String, Object>) actionResult.getData();
+        assertThat(actionResult.getData()).isNotNull();
+        Map<String, Object> actionData = actionResult.getData().toMap();
         assertThat(actionData).containsEntry("removed", true);
         assertThat(vectorDatabaseService.vectorExists(entityType, entityId)).isFalse();
         assertThat(result.getSanitizedPayload()).isNotEmpty();

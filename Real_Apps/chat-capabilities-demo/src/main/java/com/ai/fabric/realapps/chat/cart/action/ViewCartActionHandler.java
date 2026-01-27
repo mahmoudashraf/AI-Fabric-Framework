@@ -3,8 +3,10 @@ package com.ai.fabric.realapps.chat.cart.action;
 import com.ai.fabric.realapps.chat.cart.domain.Cart;
 import com.ai.fabric.realapps.chat.cart.domain.CartItem;
 import com.ai.fabric.realapps.chat.cart.service.CartService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import java.util.List;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "view_cart",
     description = "View my current active cart and its items",
     category = "commerce",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -59,7 +62,7 @@ public class ViewCartActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message(outItems.isEmpty() ? "Your cart is empty" : "Your active cart")
-                .data(data)
+                .data(ActionResultContracts.object(data))
                 .build();
         } catch (Exception e) {
             log.error("View cart failed for user {}", userId, e);
@@ -77,7 +80,7 @@ public class ViewCartActionHandler {
                 return ActionResult.builder()
                     .success(true)
                     .message("Your cart is empty")
-                    .data(data)
+                    .data(ActionResultContracts.object(data))
                     .build();
             }
             return ActionResult.builder()

@@ -61,11 +61,10 @@ class ChatSessionSafeActionConfirmationRealApiIntegrationTest {
         assertThat(actionResultRaw).isInstanceOf(ActionResult.class);
         ActionResult actionResult = (ActionResult) actionResultRaw;
         assertThat(actionResult.isSuccess()).isTrue();
-        assertThat(actionResult.getData()).isInstanceOf(Map.class);
-        assertThat(((Map<?, ?>) actionResult.getData()).get("echo")).isEqualTo("hello");
+        assertThat(actionResult.getData()).isNotNull();
+        assertThat(actionResult.getData().toMap().get("echo")).isEqualTo("hello");
 
         ChatSession session = chatSessionService.getSession(conversationId, ownerId);
         assertThat(session.getTurns()).isNotEmpty();
     }
 }
-

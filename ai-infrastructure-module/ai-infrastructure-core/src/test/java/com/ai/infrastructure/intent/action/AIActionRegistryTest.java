@@ -29,6 +29,7 @@ class AIActionRegistryTest {
 
             AIActionMetaData meta = registry.findMetadata("cancel_subscription").orElseThrow();
             assertThat(meta.getName()).isEqualTo("cancel_subscription");
+            assertThat(meta.getAccessMode()).isEqualTo(ActionAccessMode.WRITE_ONLY);
             assertThat(meta.getRequiredParameters()).containsExactly("reason");
             assertThat(meta.getParameters()).containsKey("reason");
         }
@@ -77,6 +78,7 @@ class AIActionRegistryTest {
         name = "cancel_subscription",
         description = "Cancel my subscription",
         category = "subscription",
+        accessMode = ActionAccessMode.WRITE_ONLY,
         requiresConfirmation = true
     )
     static class CancelSubscriptionAction {
@@ -93,6 +95,7 @@ class AIActionRegistryTest {
         name = "upgrade_subscription",
         description = "Upgrade my subscription",
         category = "subscription",
+        accessMode = ActionAccessMode.WRITE_ONLY,
         requiresConfirmation = true
     )
     static class UpgradeSubscriptionAction {
@@ -109,6 +112,7 @@ class AIActionRegistryTest {
         name = "no_execute",
         description = "Invalid action without @ActionExecute",
         category = "test",
+        accessMode = ActionAccessMode.READ,
         requiresConfirmation = false
     )
     @org.springframework.context.annotation.Profile("ai-action-registry-invalid")
@@ -119,6 +123,7 @@ class AIActionRegistryTest {
         name = "multiple_execute",
         description = "Invalid action with multiple @ActionExecute methods",
         category = "test",
+        accessMode = ActionAccessMode.READ,
         requiresConfirmation = false
     )
     @org.springframework.context.annotation.Profile("ai-action-registry-invalid")
@@ -138,6 +143,7 @@ class AIActionRegistryTest {
         name = "missing_param",
         description = "Invalid action without @Param annotations",
         category = "test",
+        accessMode = ActionAccessMode.READ,
         requiresConfirmation = false
     )
     @org.springframework.context.annotation.Profile("ai-action-registry-invalid")

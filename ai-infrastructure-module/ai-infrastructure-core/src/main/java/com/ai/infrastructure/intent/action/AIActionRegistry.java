@@ -191,6 +191,7 @@ public class AIActionRegistry {
             .name(action.name())
             .description(action.description())
             .category(action.category())
+            .accessMode(action.accessMode())
             .parameters(Collections.unmodifiableMap(parameters))
             .requiredParameters(Collections.unmodifiableSet(requiredParameters))
             .build();

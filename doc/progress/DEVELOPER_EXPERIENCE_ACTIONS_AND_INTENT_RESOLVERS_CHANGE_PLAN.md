@@ -65,7 +65,7 @@ Removed from `ai-infrastructure-core`:
 ## App Developer Experience (How To Use)
 
 ### Implementing an action
-1. Create a Spring bean annotated with `@AIAction(name=..., requiresConfirmation=...)`.
+1. Create a Spring bean annotated with `@AIAction(name=..., accessMode=..., requiresConfirmation=...)`.
 2. Add one `@ActionExecute` method with typed args annotated by `@Param`.
 3. Optional: `@ActionConfirmation` / `@ActionFacts` / `@ActionAllowed`.
 

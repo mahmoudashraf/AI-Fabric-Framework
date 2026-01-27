@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.orders.action;
 
 import com.ai.fabric.realapps.chat.orders.domain.PurchaseOrder;
 import com.ai.fabric.realapps.chat.orders.service.PurchaseOrderService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -17,6 +19,7 @@ import org.springframework.util.StringUtils;
     name = "cancel_purchase_order",
     description = "Cancel an existing purchase order by order number (PO-...) or by order id",
     category = "commerce",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @RequiredArgsConstructor
@@ -52,11 +55,11 @@ public class CancelPurchaseOrderActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Order cancelled")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "orderId", cancelled.getId(),
                     "orderNumber", cancelled.getOrderNumber(),
                     "status", cancelled.getStatus() != null ? cancelled.getStatus().name() : null
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Cancel purchase order failed for user {}", userId, e);

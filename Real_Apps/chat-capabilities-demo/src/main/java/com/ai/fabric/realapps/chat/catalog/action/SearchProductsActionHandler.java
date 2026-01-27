@@ -2,6 +2,8 @@ package com.ai.fabric.realapps.chat.catalog.action;
 
 import com.ai.fabric.realapps.chat.catalog.domain.Product;
 import com.ai.fabric.realapps.chat.catalog.service.ProductService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
@@ -18,6 +20,7 @@ import org.springframework.util.StringUtils;
     name = "search_products",
     description = "Search products by keyword (sku/name/description/category/tags)",
     category = "commerce",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -58,7 +61,7 @@ public class SearchProductsActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message(payload.isEmpty() ? "No matching products found" : "Matching products")
-                .data(Map.of("count", payload.size(), "products", payload))
+                .data(ActionResultContracts.list(payload))
                 .build();
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;

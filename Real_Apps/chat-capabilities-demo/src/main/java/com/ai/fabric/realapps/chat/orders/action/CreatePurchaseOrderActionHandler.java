@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.orders.action;
 
 import com.ai.fabric.realapps.chat.orders.domain.PurchaseOrder;
 import com.ai.fabric.realapps.chat.orders.service.PurchaseOrderService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -17,6 +19,7 @@ import org.springframework.util.StringUtils;
     name = "create_purchase_order",
     description = "Create a purchase order for a product SKU",
     category = "commerce",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @RequiredArgsConstructor
@@ -57,7 +60,7 @@ public class CreatePurchaseOrderActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Purchase order created")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "orderId", created.getId(),
                     "orderNumber", created.getOrderNumber(),
                     "sku", created.getSku(),
@@ -65,7 +68,7 @@ public class CreatePurchaseOrderActionHandler {
                     "totalPrice", created.getTotalPrice(),
                     "currency", created.getCurrency(),
                     "status", created.getStatus() != null ? created.getStatus().name() : null
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Create purchase order failed for user {}", userId, e);

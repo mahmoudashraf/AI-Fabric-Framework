@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.returns.action;
 
 import com.ai.fabric.realapps.chat.returns.domain.ReturnRequest;
 import com.ai.fabric.realapps.chat.returns.service.ReturnRequestService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -16,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "create_return_request",
     description = "Create a return request (RMA) for an order (by order number or id)",
     category = "commerce",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @RequiredArgsConstructor
@@ -41,11 +44,11 @@ public class CreateReturnRequestActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message(created.isEligible() ? "Return request created" : "Return request created (not eligible)")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "returnRequestId", created.getId(),
                     "status", created.getStatus() != null ? created.getStatus().name() : null,
                     "eligible", created.isEligible()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Create return request failed for user {}", userId, e);

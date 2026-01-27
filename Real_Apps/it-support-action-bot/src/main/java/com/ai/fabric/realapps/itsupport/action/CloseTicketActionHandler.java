@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.itsupport.action;
 
 import com.ai.fabric.realapps.itsupport.domain.Ticket;
 import com.ai.fabric.realapps.itsupport.service.TicketService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
@@ -18,6 +20,7 @@ import java.util.Map;
     name = "close_ticket",
     description = "Close a ticket and add a resolution note",
     category = "it-support",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @RequiredArgsConstructor
@@ -49,10 +52,10 @@ public class CloseTicketActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Ticket closed")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "ticketNumber", updated.getTicketNumber(),
                     "status", updated.getStatus().name()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Close ticket failed for user {}", userId, e);

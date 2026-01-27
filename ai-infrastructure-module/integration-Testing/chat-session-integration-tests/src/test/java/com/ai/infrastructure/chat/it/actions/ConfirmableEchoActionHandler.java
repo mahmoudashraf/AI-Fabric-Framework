@@ -1,7 +1,9 @@
 package com.ai.infrastructure.chat.it.actions;
 
 import com.ai.infrastructure.intent.action.ActionContext;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
@@ -15,6 +17,7 @@ import org.springframework.util.StringUtils;
     name = ConfirmableEchoActionHandler.ACTION_NAME,
     description = "Test-only action that requires confirmation and echoes a message.",
     category = "test",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 public class ConfirmableEchoActionHandler {
@@ -42,7 +45,7 @@ public class ConfirmableEchoActionHandler {
         return ActionResult.builder()
             .success(true)
             .message("Echo: " + echoed)
-            .data(Map.of("echo", echoed))
+            .data(ActionResultContracts.object(Map.of("echo", echoed)))
             .build();
     }
 

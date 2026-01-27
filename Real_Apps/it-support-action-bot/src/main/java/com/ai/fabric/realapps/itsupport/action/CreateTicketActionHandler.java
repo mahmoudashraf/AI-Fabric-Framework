@@ -3,8 +3,10 @@ package com.ai.fabric.realapps.itsupport.action;
 import com.ai.fabric.realapps.itsupport.domain.Ticket;
 import com.ai.fabric.realapps.itsupport.repo.TicketRepository;
 import com.ai.fabric.realapps.itsupport.service.TicketService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
@@ -20,6 +22,7 @@ import java.util.concurrent.ThreadLocalRandom;
     name = "create_ticket",
     description = "Create a new IT support ticket",
     category = "it-support",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -56,11 +59,11 @@ public class CreateTicketActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Ticket created")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "ticketNumber", created.getTicketNumber(),
                     "status", created.getStatus().name(),
                     "priority", created.getPriority().name()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Create ticket failed for user {}", userId, e);

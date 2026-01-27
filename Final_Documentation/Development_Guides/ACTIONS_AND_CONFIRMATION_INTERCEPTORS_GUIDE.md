@@ -15,6 +15,13 @@ An “action” is a Spring bean annotated with `@AIAction`. The framework disco
 - exposes their metadata to the LLM during intent extraction
 - executes them via the orchestration pipeline when the LLM selects an action intent
 
+Each action must declare an explicit **access mode**:
+- `READ` (retrieval-only tool)
+- `WRITE_ONLY` (mutating tool)
+- `READ_WRITE` (both; treated as non-READ for fallback rules)
+
+**READ actions are treated as helper tools:** if a READ action executes successfully but returns an “empty” payload (e.g., `count=0` / empty `results`), the orchestrator can replace that output with a RAG INFORMATION response.
+
 Discovery and execution are backed by:
 - `AIActionRegistry` (runtime discovery + lookup)
 - `AnnotatedAIActionHandler` (invocation adapter)
@@ -54,11 +61,16 @@ Resolvers are just Spring beans that implement `IntentResolver`.
 
 ## 3) Writing an Action (Recommended pattern)
 
+**Action results are typed:** `ActionResult.data` must be an `ActionPayload`.
+Use `ActionResultContracts.object(...)` for normal key/value payloads, and `ActionResultContracts.list(...)` for list/search payloads.
+
 ### Minimal example
 
 ```java
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
@@ -67,6 +79,7 @@ import com.ai.infrastructure.intent.action.annotation.Param;
     name = "add_to_cart",
     description = "Add a product SKU to the current cart",
     category = "commerce",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 public class AddToCartAction {
@@ -81,11 +94,29 @@ public class AddToCartAction {
         return ActionResult.builder()
             .success(true)
             .message("Added to cart")
-            .data(java.util.Map.of("sku", sku, "quantity", quantity))
+            .data(ActionResultContracts.object(java.util.Map.of("sku", sku, "quantity", quantity)))
             .build();
     }
 }
 ```
+
+### Returning list/search results (required contract)
+
+If your action returns a **collection-style** result (list/search), use the framework’s list payload contract:
+- `_count` and `_items` are reserved framework keys
+- you may add additional custom keys (domain-specific) alongside them if needed
+
+```java
+import com.ai.infrastructure.intent.action.ActionResultContracts;
+
+return ActionResult.builder()
+    .success(true)
+    .message("Products")
+    .data(ActionResultContracts.list(items)) // adds _count + _items
+    .build();
+```
+
+This keeps the core orchestrator domain-agnostic and enables deterministic behaviors (like “READ empty result → RAG”).
 
 ### Optional: custom confirmation message
 If you omit `@ActionConfirmation`, the framework auto-generates a basic confirmation prompt.
