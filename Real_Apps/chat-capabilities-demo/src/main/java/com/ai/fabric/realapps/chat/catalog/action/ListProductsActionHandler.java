@@ -2,6 +2,8 @@ package com.ai.fabric.realapps.chat.catalog.action;
 
 import com.ai.fabric.realapps.chat.catalog.domain.Product;
 import com.ai.fabric.realapps.chat.catalog.service.ProductService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
@@ -16,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "list_products",
     description = "List products from the catalog",
     category = "commerce",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -47,7 +50,7 @@ public class ListProductsActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message(payload.isEmpty() ? "No products found" : "Products")
-                .data(Map.of("count", payload.size(), "products", payload))
+                .data(ActionResultContracts.list(payload))
                 .build();
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;

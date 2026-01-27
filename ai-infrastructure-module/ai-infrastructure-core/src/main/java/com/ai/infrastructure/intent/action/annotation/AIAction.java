@@ -1,5 +1,6 @@
 package com.ai.infrastructure.intent.action.annotation;
 
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import org.springframework.stereotype.Component;
 
 import java.lang.annotation.Documented;
@@ -35,10 +36,14 @@ public @interface AIAction {
     String category() default "general";
 
     /**
+     * Side-effect semantics for this action.
+     */
+    ActionAccessMode accessMode();
+
+    /**
      * Whether this action requires explicit user confirmation before execution.
      *
      * <p>Greenfield rule: must be specified explicitly per action (no global defaults/overrides).</p>
      */
     boolean requiresConfirmation();
 }
-

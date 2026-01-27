@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.reviews.action;
 
 import com.ai.fabric.realapps.chat.reviews.domain.Review;
 import com.ai.fabric.realapps.chat.reviews.service.ReviewService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -16,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "add_review",
     description = "Add a review for a product (this is searchable)",
     category = "commerce",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @RequiredArgsConstructor
@@ -43,12 +46,12 @@ public class AddReviewActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Review submitted")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "reviewId", created.getId(),
                     "rating", created.getRating(),
                     "productId", created.getProductId(),
                     "sku", created.getSku()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Add review failed for user {}", userId, e);

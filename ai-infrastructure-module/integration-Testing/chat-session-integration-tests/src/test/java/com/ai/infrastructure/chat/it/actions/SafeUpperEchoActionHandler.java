@@ -1,7 +1,9 @@
 package com.ai.infrastructure.chat.it.actions;
 
 import com.ai.infrastructure.intent.action.ActionContext;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -15,6 +17,7 @@ import java.util.Map;
     name = SafeUpperEchoActionHandler.ACTION_NAME,
     description = "Test-only safe action that echoes an upper-cased message. No side effects.",
     category = "test",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 public class SafeUpperEchoActionHandler {
@@ -32,7 +35,7 @@ public class SafeUpperEchoActionHandler {
         return ActionResult.builder()
             .success(true)
             .message("Upper Echo: " + echoed)
-            .data(Map.of("echo", echoed))
+            .data(ActionResultContracts.object(Map.of("echo", echoed)))
             .build();
     }
 }

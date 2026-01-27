@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.catalog.action;
 
 import com.ai.fabric.realapps.chat.catalog.domain.Product;
 import com.ai.fabric.realapps.chat.catalog.service.ProductService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
@@ -15,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "get_product_details",
     description = "Get full product details by SKU",
     category = "commerce",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -33,7 +36,7 @@ public class GetProductDetailsActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Product details")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "id", product.getId(),
                     "sku", product.getSku(),
                     "name", product.getName(),
@@ -43,7 +46,7 @@ public class GetProductDetailsActionHandler {
                     "price", product.getPrice(),
                     "currency", product.getCurrency(),
                     "inStockQty", product.getInStockQty()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;

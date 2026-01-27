@@ -197,6 +197,11 @@ public class ResponseSanitizer {
             return SanitizationOutcome.of(outcome.value(), outcome.riskLevel(), outcome.detectedTypes());
         }
 
+        if (value instanceof com.ai.infrastructure.intent.action.ActionPayload payload) {
+            SanitizationOutcome<Map<String, Object>> outcome = sanitizeMap(payload.toMap(), userId);
+            return SanitizationOutcome.of(outcome.value(), outcome.riskLevel(), outcome.detectedTypes());
+        }
+
         if (value instanceof ActionResult actionResult) {
             return sanitizeActionResult(actionResult, userId);
         }

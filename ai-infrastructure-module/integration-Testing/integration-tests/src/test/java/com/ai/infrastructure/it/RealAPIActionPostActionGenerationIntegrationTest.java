@@ -4,8 +4,10 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.ActionFacts;
@@ -146,6 +148,7 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
         name = PostActionGenerationDemoActionHandler.ACTION_NAME,
         description = "Test-only action used to validate post-action generation grounded in handler facts.",
         category = "test",
+        accessMode = ActionAccessMode.WRITE_ONLY,
         requiresConfirmation = false
     )
     static final class PostActionGenerationDemoActionHandler {
@@ -174,14 +177,14 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
             return ActionResult.builder()
                 .success(true)
                 .message("demo_action_executed")
-                .data(data)
+                .data(ActionResultContracts.object(data))
                 .build();
         }
 
         @ActionFacts
         public Optional<Map<String, Object>> facts(ActionResult actionResult, ActionContext context) {
-            Map<String, Object> data = actionResult != null && actionResult.getData() instanceof Map<?, ?> map
-                ? coerceToStringKeyedMap(map)
+            Map<String, Object> data = actionResult != null && actionResult.getData() != null
+                ? actionResult.getData().toMap()
                 : Map.of();
             Object token = data.get("verificationToken");
 
@@ -189,16 +192,6 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
                 "verificationToken", token != null ? token.toString() : "",
                 "executionCount", executions.get()
             ));
-        }
-
-        private Map<String, Object> coerceToStringKeyedMap(Map<?, ?> map) {
-            Map<String, Object> result = new LinkedHashMap<>();
-            map.forEach((k, v) -> {
-                if (k != null) {
-                    result.put(k.toString(), v);
-                }
-            });
-            return result;
         }
     }
 }

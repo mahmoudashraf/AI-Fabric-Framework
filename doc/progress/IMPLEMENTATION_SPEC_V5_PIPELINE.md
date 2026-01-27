@@ -1139,7 +1139,7 @@ User sees: "Subscription cancelled successfully."
 Greenfield rule: applications **do not** implement a legacy `ActionHandler` / `ActionHandlerRegistry`.
 
 Instead, actions are declared as Spring beans using annotations:
-- `@AIAction` (required: `requiresConfirmation` must be specified explicitly)
+- `@AIAction` (required: `accessMode` and `requiresConfirmation` must be specified explicitly)
 - `@ActionExecute` (required)
 - Optional: `@ActionConfirmation`, `@ActionAllowed`, `@ActionFacts`
 
@@ -1149,6 +1149,7 @@ Instead, actions are declared as Spring beans using annotations:
     name = "cancel_subscription",
     description = "Cancel an active subscription",
     category = "subscription",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 public class CancelSubscriptionAction {

@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.orders.action;
 
 import com.ai.fabric.realapps.chat.orders.domain.PurchaseOrder;
 import com.ai.fabric.realapps.chat.orders.service.PurchaseOrderService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
@@ -16,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "get_order_details",
     description = "Get purchase order details by order number (PO-...) or numeric id",
     category = "commerce",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -47,7 +50,7 @@ public class GetOrderDetailsActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Order details")
-                .data(payload)
+                .data(ActionResultContracts.object(payload))
                 .build();
         } catch (Exception e) {
             log.error("Get order details failed for user {}", userId, e);

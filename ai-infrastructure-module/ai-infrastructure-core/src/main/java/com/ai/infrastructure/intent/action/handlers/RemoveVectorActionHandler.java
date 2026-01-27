@@ -1,7 +1,9 @@
 package com.ai.infrastructure.intent.action.handlers;
 
 import com.ai.infrastructure.intent.action.ActionContext;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -22,6 +24,7 @@ import java.util.Map;
     name = "remove_vector",
     description = "Remove a single vector from the vector database by entity type and id.",
     category = "vector",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 public class RemoveVectorActionHandler {
@@ -44,11 +47,11 @@ public class RemoveVectorActionHandler {
         return ActionResult.builder()
             .success(removed)
             .message(removed ? "Vector removed." : "Vector not found.")
-            .data(Map.of(
+            .data(ActionResultContracts.object(Map.of(
                 "entityType", entityType,
                 "entityId", entityId,
                 "removed", removed
-            ))
+            )))
             .build();
     }
 }

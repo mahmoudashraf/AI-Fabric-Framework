@@ -1,7 +1,9 @@
 package com.subscription.hub.action.handler;
 
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
@@ -21,6 +23,7 @@ import java.util.UUID;
     name = "update_address",
     description = "Update billing or shipping address",
     category = "subscription",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @Slf4j
@@ -114,11 +117,11 @@ public class UpdateAddressActionHandler extends BaseActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Your address has been updated successfully")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "subscriptionId", subscriptionId,
                     "addressType", addressType.toString(),
                     "isValidated", address.getIsValidated().toString()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Error updating address", e);

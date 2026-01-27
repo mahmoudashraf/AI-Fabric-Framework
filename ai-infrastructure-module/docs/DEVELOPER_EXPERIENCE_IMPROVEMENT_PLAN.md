@@ -203,6 +203,7 @@ public class CartService {
     name = "add_to_cart",
     description = "Add a product SKU to my active cart",
     category = "commerce",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @Component
@@ -255,7 +256,8 @@ public @interface AIAction {
     String name();                           // Action identifier (e.g., "add_to_cart")
     String description();                     // Human-readable description
     String category() default "general";      // Category for organization
-    boolean requiresConfirmation() default false; // Requires user confirmation
+    com.ai.infrastructure.intent.action.ActionAccessMode accessMode(); // READ | WRITE_ONLY | READ_WRITE (required)
+    boolean requiresConfirmation();           // Requires user confirmation (required)
 }
 ```
 
@@ -265,6 +267,7 @@ public @interface AIAction {
     name = "delete_account",
     description = "Permanently delete user account",
     category = "account",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true  // Destructive action needs confirmation
 )
 public class DeleteAccountActionHandler { ... }
@@ -407,7 +410,13 @@ public ActionResult execute(
 #### 1. Validation Annotations
 
 ```java
-@AIAction(name = "create_user", description = "Create new user")
+@AIAction(
+    name = "create_user",
+    description = "Create new user",
+    category = "account",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
+    requiresConfirmation = false
+)
 @Component
 public class CreateUserActionHandler {
 
@@ -497,7 +506,13 @@ public ActionResult execute(
 For handlers with many related parameters:
 
 ```java
-@AIAction(name = "checkout_cart", description = "Complete checkout")
+@AIAction(
+    name = "checkout_cart",
+    description = "Complete checkout",
+    category = "commerce",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
+    requiresConfirmation = true
+)
 @Component
 public class CheckoutCartActionHandler {
 
@@ -554,7 +569,13 @@ public class CheckoutCartActionHandler {
 For complex workflows like retention offers:
 
 ```java
-@AIAction(name = "cancel_order", description = "Cancel order")
+@AIAction(
+    name = "cancel_order",
+    description = "Cancel order",
+    category = "commerce",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
+    requiresConfirmation = true
+)
 @Component
 public class CancelOrderActionHandler {
 
@@ -1431,7 +1452,13 @@ public class ProductService {
 If no `@ActionConfirmation` method provided, generate from metadata:
 
 ```java
-@AIAction(name = "add_to_cart", requiresConfirmation = true)
+@AIAction(
+    name = "add_to_cart",
+    description = "Add a product SKU to my active cart",
+    category = "commerce",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
+    requiresConfirmation = true
+)
 public class AddToCartActionHandler {
 
     @ActionExecute
@@ -1449,7 +1476,13 @@ public class AddToCartActionHandler {
 
 ```java
 // Name auto-derived: "add_to_cart" from class name "AddToCartActionHandler"
-@AIAction(description = "Add item to cart")
+@AIAction(
+    name = "add_to_cart",
+    description = "Add item to cart",
+    category = "commerce",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
+    requiresConfirmation = true
+)
 @Component
 public class AddToCartActionHandler {
     // ...
@@ -1710,6 +1743,7 @@ import org.springframework.stereotype.Component;
     name = "add_to_cart",
     description = "Add a product SKU to the user's active shopping cart",
     category = "commerce",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @Component
@@ -1876,6 +1910,7 @@ public class AddToCartActionHandler implements ActionHandler {
     name = "add_to_cart",
     description = "Add product to cart",
     category = "commerce",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @Component

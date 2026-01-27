@@ -2,6 +2,8 @@ package com.ai.fabric.realapps.chat.addresses.action;
 
 import com.ai.fabric.realapps.chat.addresses.domain.Address;
 import com.ai.fabric.realapps.chat.addresses.service.AddressService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
@@ -16,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "list_my_addresses",
     description = "List my saved shipping/billing addresses",
     category = "commerce",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -50,10 +53,7 @@ public class ListMyAddressesActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message(payload.isEmpty() ? "No saved addresses found" : "Saved addresses")
-                .data(Map.of(
-                    "count", payload.size(),
-                    "addresses", payload
-                ))
+                .data(ActionResultContracts.list(payload))
                 .build();
         } catch (Exception e) {
             log.error("List my addresses failed for user {}", userId, e);

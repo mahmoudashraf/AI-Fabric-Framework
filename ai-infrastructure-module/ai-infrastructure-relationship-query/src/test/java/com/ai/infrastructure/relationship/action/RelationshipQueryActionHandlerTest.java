@@ -169,10 +169,7 @@ class RelationshipQueryActionHandlerTest {
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getErrorCode()).isEqualTo("ACCESS_DENIED");
         assertThat(result.getMessage()).contains("Access denied");
-        assertThat(result.getData()).isInstanceOf(Map.class);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) result.getData();
+        Map<String, Object> data = result.getData().toMap();
         assertThat(data).containsKeys("requestedEntityTypes", "allowedEntityTypes", "deniedEntityTypes");
         assertThat(data.get("deniedEntityTypes")).isEqualTo(List.of("order"));
 
@@ -231,4 +228,3 @@ class RelationshipQueryActionHandlerTest {
         return new ActionContext(context, null);
     }
 }
-

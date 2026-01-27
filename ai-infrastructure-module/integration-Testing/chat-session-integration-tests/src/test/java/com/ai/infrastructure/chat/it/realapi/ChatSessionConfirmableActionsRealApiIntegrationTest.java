@@ -76,8 +76,8 @@ class ChatSessionConfirmableActionsRealApiIntegrationTest {
         assertThat(data.get("action")).isEqualTo(ConfirmableEchoActionHandler.ACTION_NAME);
         assertThat(data.get("actionResult")).isInstanceOf(ActionResult.class);
         assertThat(((ActionResult) data.get("actionResult")).isSuccess()).isTrue();
-        assertThat(((ActionResult) data.get("actionResult")).getData()).isInstanceOf(Map.class);
-        assertThat(((Map<?, ?>) ((ActionResult) data.get("actionResult")).getData()).get("echo")).isEqualTo("hello");
+        assertThat(((ActionResult) data.get("actionResult")).getData()).isNotNull();
+        assertThat(((ActionResult) data.get("actionResult")).getData().toMap().get("echo")).isEqualTo("hello");
 
         assertThat(ConfirmableEchoActionHandler.getExecutionCount()).isEqualTo(1);
         assertThat(getPendingStackSize(conversationId, ownerId)).isZero();

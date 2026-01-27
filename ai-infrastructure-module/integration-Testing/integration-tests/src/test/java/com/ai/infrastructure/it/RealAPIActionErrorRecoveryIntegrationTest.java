@@ -148,7 +148,6 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
                             .success(Boolean.TRUE.equals(actionResult.get("success")))
                             .message(actionResult.get("message") != null ? String.valueOf(actionResult.get("message")) : null)
                             .errorCode(actionResult.get("errorCode") != null ? String.valueOf(actionResult.get("errorCode")) : null)
-                            .data(actionResult.get("data"))
                             .build();
                     }
                 }

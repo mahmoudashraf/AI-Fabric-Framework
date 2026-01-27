@@ -16,6 +16,7 @@ import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.action.AIActionHandler;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -54,7 +55,7 @@ class IntentHandlingStepPostActionGenerationTest {
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("OK")
-            .data(Map.of("result", "value"))
+            .data(ActionResultContracts.object(Map.of("result", "value")))
             .build();
         when(handler.executeAction(any(), any())).thenReturn(actionResult);
         when(handler.buildPostActionLlmFacts(eq(actionResult), any())).thenReturn(Optional.of(Map.of(

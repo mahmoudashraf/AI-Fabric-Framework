@@ -2,6 +2,8 @@ package com.ai.fabric.realapps.chat.orders.action;
 
 import com.ai.fabric.realapps.chat.orders.domain.PurchaseOrder;
 import com.ai.fabric.realapps.chat.orders.service.PurchaseOrderService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
@@ -16,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
     name = "list_orders",
     description = "List my purchase orders",
     category = "commerce",
+    accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
 )
 @RequiredArgsConstructor
@@ -49,7 +52,7 @@ public class ListOrdersActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message(payload.isEmpty() ? "No orders found" : "Orders")
-                .data(Map.of("count", payload.size(), "orders", payload))
+                .data(ActionResultContracts.list(payload))
                 .build();
         } catch (Exception e) {
             log.error("List orders failed for user {}", userId, e);

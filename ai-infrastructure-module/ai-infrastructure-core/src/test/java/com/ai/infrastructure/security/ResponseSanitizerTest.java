@@ -3,6 +3,7 @@ package com.ai.infrastructure.security;
 import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
@@ -139,7 +140,7 @@ class ResponseSanitizerTest {
         data.put("actionResult", ActionResult.builder()
             .success(true)
             .message("Card 4111-1111-1111-1111 processed successfully.")
-            .data(Map.of("card", "4111-1111-1111-1111"))
+            .data(ActionResultContracts.object(Map.of("card", "4111-1111-1111-1111")))
             .build());
         return data;
     }

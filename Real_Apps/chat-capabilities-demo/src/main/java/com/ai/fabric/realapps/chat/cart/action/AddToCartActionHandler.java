@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.cart.action;
 
 import com.ai.fabric.realapps.chat.cart.domain.Cart;
 import com.ai.fabric.realapps.chat.cart.service.CartService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -17,6 +19,7 @@ import org.springframework.util.StringUtils;
     name = "add_to_cart",
     description = "Add a product SKU to my active cart",
     category = "commerce",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @RequiredArgsConstructor
@@ -49,12 +52,12 @@ public class AddToCartActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Added to cart")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "cartId", cart.getId(),
                     "total", cart.getTotal(),
                     "currency", cart.getCurrency(),
                     "itemsCount", cart.getItems() != null ? cart.getItems().size() : 0
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;

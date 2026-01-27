@@ -16,8 +16,10 @@ import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionHandler;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.ActionDraft;
@@ -431,6 +433,11 @@ public class IntentHandlingStep implements PipelineStep {
                 data.put(DATA_KEY_ACTION_RESULT, actionResult);
             }
 
+            OrchestrationResult readFallback = maybeFallbackReadActionToRag(intent, meta, actionResult, context, pipelineContext);
+            if (readFallback != null) {
+                return readFallback;
+            }
+
             String message = actionResult != null ? actionResult.getMessage() : null;
             Map<String, Object> resultData = Collections.unmodifiableMap(data);
 
@@ -478,6 +485,115 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
+    }
+
+    /**
+     * For READ actions, treat the handler as a "helper tool": if it returns an empty successful payload,
+     * run RAG (+ generation when enabled) and return that result instead of the action output.
+     */
+    private OrchestrationResult maybeFallbackReadActionToRag(Intent intent,
+                                                            AIActionMetaData meta,
+                                                            ActionResult actionResult,
+                                                            OrchestrationContext context,
+                                                            PipelineContext pipelineContext) {
+        if (meta == null || meta.getAccessMode() != ActionAccessMode.READ) {
+            return null;
+        }
+        if (actionResult == null || !actionResult.isSuccess()) {
+            return null;
+        }
+        if (!isEmptyActionResultPayload(actionResult.getData())) {
+            return null;
+        }
+        if (ragProvider == null || ragProvider.getIfAvailable() == null) {
+            return null;
+        }
+
+        List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
+        if (vectorSpaces.isEmpty()) {
+            vectorSpaces = resolveAllVectorSpaces();
+        }
+        if (vectorSpaces.isEmpty()) {
+            return null;
+        }
+
+        boolean generationEnabled = aiServiceConfig == null
+            || aiServiceConfig.getFeatures() == null
+            || Boolean.TRUE.equals(aiServiceConfig.getFeatures().getEnableGeneration());
+
+        Intent infoIntent = new Intent();
+        infoIntent.setType(com.ai.infrastructure.dto.IntentType.INFORMATION);
+        infoIntent.setRequiresRetrieval(true);
+        infoIntent.setRequiresGeneration(generationEnabled);
+
+        String query = intent != null && StringUtils.hasText(intent.getOptimizedQuery())
+            ? intent.getOptimizedQuery()
+            : (pipelineContext != null ? pipelineContext.getEffectiveQuery() : null);
+        if (StringUtils.hasText(query)) {
+            infoIntent.setOptimizedQuery(query);
+            infoIntent.setIntent(query);
+        }
+        infoIntent.setVectorSpace(String.join(",", vectorSpaces));
+
+        return handleInformation(infoIntent, context, pipelineContext);
+    }
+
+    private boolean isEmptyActionResultPayload(com.ai.infrastructure.intent.action.ActionPayload data) {
+        if (data instanceof com.ai.infrastructure.intent.action.ActionListPayload listPayload) {
+            return listPayload.isEmpty();
+        }
+        return false;
+    }
+
+    private List<String> extractVectorSpacesUsed(OrchestrationResult ragResult, String fallbackVectorSpace) {
+        if (ragResult != null && ragResult.getData() instanceof Map<?, ?> map) {
+            Object candidates = map.get(DATA_KEY_CANDIDATE_VECTOR_SPACES);
+            if (candidates instanceof List<?> list) {
+                List<String> out = new ArrayList<>();
+                for (Object item : list) {
+                    if (item != null && StringUtils.hasText(item.toString())) {
+                        out.add(item.toString());
+                    }
+                }
+                if (!out.isEmpty()) {
+                    return Collections.unmodifiableList(out);
+                }
+            }
+        }
+        if (StringUtils.hasText(fallbackVectorSpace)) {
+            return parseVectorSpaces(fallbackVectorSpace);
+        }
+        return List.of();
+    }
+
+    private Map<String, Object> summarizeRagResult(OrchestrationResult ragResult) {
+        if (ragResult == null) {
+            return Map.of(
+                "type", OrchestrationResultType.ERROR.name(),
+                "success", false,
+                "message", "RAG fallback returned null result",
+                "data", Map.of()
+            );
+        }
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("type", ragResult.getType() != null ? ragResult.getType().name() : null);
+        summary.put("success", ragResult.isSuccess());
+        summary.put("message", ragResult.getMessage());
+        summary.put("data", ragResult.getData() != null ? ragResult.getData() : Map.of());
+        return Collections.unmodifiableMap(summary);
+    }
+
+    private String extractAnswer(OrchestrationResult ragResult) {
+        if (ragResult == null || ragResult.getType() != OrchestrationResultType.INFORMATION_PROVIDED || !ragResult.isSuccess()) {
+            return null;
+        }
+        if (ragResult.getData() instanceof Map<?, ?> map) {
+            Object value = map.get(DATA_KEY_ANSWER);
+            if (value != null && StringUtils.hasText(value.toString())) {
+                return value.toString();
+            }
+        }
+        return null;
     }
 
     private boolean requiresActionConfirmation(AIActionHandler handler) {
@@ -791,6 +907,9 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private Map<String, Object> coerceToMap(Object value) {
+        if (value instanceof com.ai.infrastructure.intent.action.ActionPayload payload) {
+            return payload.toMap();
+        }
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> result = new LinkedHashMap<>();
             map.forEach((key, item) -> {

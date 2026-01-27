@@ -1708,6 +1708,7 @@ public interface PipelineStep {
     name = "cancel_subscription",
     description = "Cancel an active subscription",
     category = "subscription",
+    accessMode = com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 public class CancelSubscriptionAction {

@@ -9,6 +9,7 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
@@ -640,6 +641,7 @@ class RAGSixLayerIntegrationTest {
             name = "raise_exception",
             description = "Throws for testing",
             category = "test",
+            accessMode = ActionAccessMode.WRITE_ONLY,
             requiresConfirmation = false
         )
         static class RaiseExceptionAction {

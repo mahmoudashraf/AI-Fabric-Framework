@@ -1,7 +1,9 @@
 package com.subscription.hub.action.handler;
 
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
@@ -19,6 +21,7 @@ import java.util.UUID;
     name = "subscribe",
     description = "Subscribe to a subscription plan",
     category = "subscription",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @Slf4j
@@ -79,11 +82,11 @@ public class SubscribeActionHandler extends BaseActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("You have successfully subscribed!")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "subscriptionId", subscription.getId().toString(),
                     "planId", planId,
                     "status", subscription.getStatus().toString()
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Error subscribing to plan", e);

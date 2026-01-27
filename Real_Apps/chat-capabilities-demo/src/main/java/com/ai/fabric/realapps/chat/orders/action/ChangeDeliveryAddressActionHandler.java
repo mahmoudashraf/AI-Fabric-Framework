@@ -2,8 +2,10 @@ package com.ai.fabric.realapps.chat.orders.action;
 
 import com.ai.fabric.realapps.chat.orders.domain.PurchaseOrder;
 import com.ai.fabric.realapps.chat.orders.service.PurchaseOrderService;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
@@ -17,6 +19,7 @@ import org.springframework.util.StringUtils;
     name = "change_delivery_address",
     description = "Change the delivery (shipping) address for the current order (or a specific order number)",
     category = "commerce",
+    accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
 )
 @RequiredArgsConstructor
@@ -54,12 +57,12 @@ public class ChangeDeliveryAddressActionHandler {
             return ActionResult.builder()
                 .success(true)
                 .message("Delivery address updated")
-                .data(Map.of(
+                .data(ActionResultContracts.object(Map.of(
                     "orderId", updated.getId(),
                     "orderNumber", updated.getOrderNumber(),
                     "shippingAddress", updated.getShippingAddress(),
                     "status", updated.getStatus() != null ? updated.getStatus().name() : null
-                ))
+                )))
                 .build();
         } catch (Exception e) {
             log.error("Change delivery address failed for user {}", userId, e);

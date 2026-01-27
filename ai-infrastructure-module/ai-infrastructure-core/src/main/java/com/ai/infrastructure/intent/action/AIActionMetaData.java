@@ -28,6 +28,11 @@ public class AIActionMetaData {
 
     private String category;
 
+    /**
+     * Side-effect semantics for this action.
+     */
+    private ActionAccessMode accessMode;
+
     @Builder.Default
     private Map<String, String> parameters = Collections.emptyMap();
 

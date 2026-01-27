@@ -36,7 +36,7 @@ class VectorActionHandlersTest {
         verify(vectorDatabaseService).clearVectors();
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).contains("Cleared 3 vectors");
-        assertThat(((Map<?, ?>) result.getData()).get("removed")).isEqualTo(3L);
+        assertThat(result.getData().toMap().get("removed")).isEqualTo(3L);
     }
 
     @Test
