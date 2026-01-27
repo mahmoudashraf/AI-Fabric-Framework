@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,7 +45,7 @@ class ConversationOwnerMismatchDeniedIntegrationTest {
         String otherUserId = "other-user";
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Hello", "Hi");
+        chatSessionService.recordTurn(conversationId, ownerId, "Hello", "Hi", Map.of());
         ChatSession owned = chatSessionService.getSession(conversationId, ownerId);
         assertThat(owned.getTurns()).hasSize(1);
 
@@ -66,4 +67,3 @@ class ConversationOwnerMismatchDeniedIntegrationTest {
         assertThat(stillOwned.getTurns()).hasSize(1);
     }
 }
-

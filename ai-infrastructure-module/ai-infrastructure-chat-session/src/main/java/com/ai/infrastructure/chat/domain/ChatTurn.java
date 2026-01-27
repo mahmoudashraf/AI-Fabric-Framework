@@ -72,7 +72,73 @@ public class ChatTurn {
     private Map<String, Object> turnMetadata = new HashMap<>();
 
     public String toPromptFormat() {
-        return "User: " + userQuery + "\nAssistant: " + aiResponse;
+        StringBuilder builder = new StringBuilder();
+        builder.append("User: ").append(userQuery).append("\nAssistant: ").append(aiResponse);
+
+        String actionContext = buildActionContextForPrompt();
+        if (actionContext != null) {
+            builder.append("\n").append(actionContext);
+        }
+
+        return builder.toString();
+    }
+
+    private String buildActionContextForPrompt() {
+        if (turnMetadata == null || turnMetadata.isEmpty()) {
+            return null;
+        }
+
+        Object action = turnMetadata.get("_action");
+        Object success = turnMetadata.get("_actionSuccess");
+        Object refs = turnMetadata.get("_actionRefs");
+
+        boolean hasAction = action instanceof String actionName && !actionName.isBlank();
+        boolean hasSuccess = success instanceof Boolean;
+        boolean hasRefs = refs instanceof Map<?, ?> map && !map.isEmpty();
+
+        if (!hasAction && !hasSuccess && !hasRefs) {
+            return null;
+        }
+
+        StringBuilder out = new StringBuilder("Action Context: ");
+
+        boolean appended = false;
+        if (hasAction) {
+            out.append("action=").append(((String) action).trim());
+            appended = true;
+        }
+
+        if (hasSuccess) {
+            if (appended) {
+                out.append("; ");
+            }
+            out.append("success=").append(success);
+            appended = true;
+        }
+
+        if (hasRefs) {
+            if (appended) {
+                out.append("; ");
+            }
+            out.append("refs=");
+
+            int count = 0;
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) refs).entrySet()) {
+                if (count >= 12) {
+                    out.append(", ...");
+                    break;
+                }
+                if (entry == null || entry.getKey() == null || entry.getValue() == null) {
+                    continue;
+                }
+                if (count > 0) {
+                    out.append(", ");
+                }
+                out.append(entry.getKey()).append("=").append(entry.getValue());
+                count++;
+            }
+        }
+
+        return out.toString();
     }
 }
-

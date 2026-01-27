@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,9 +45,9 @@ class ConversationEnrichmentStepIntegrationTest {
         String ownerId = "enrichment-user";
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Q1", "A1");
-        chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2");
-        chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3");
+        chatSessionService.recordTurn(conversationId, ownerId, "Q1", "A1", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3", Map.of());
 
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId(ownerId)
@@ -70,8 +71,8 @@ class ConversationEnrichmentStepIntegrationTest {
         String ownerId = "enrichment-user-truncate";
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Q1-" + "x".repeat(4000), "A1-" + "y".repeat(4000));
-        chatSessionService.recordTurn(conversationId, ownerId, "Q2-" + "x".repeat(4000), "A2-" + "y".repeat(4000));
+        chatSessionService.recordTurn(conversationId, ownerId, "Q1-" + "x".repeat(4000), "A1-" + "y".repeat(4000), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q2-" + "x".repeat(4000), "A2-" + "y".repeat(4000), Map.of());
 
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId(ownerId)

@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,7 +52,15 @@ class ChatSessionWiringIntegrationTest {
         String ownerId = "chat-it-user";
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Hello", "Hi there");
+        chatSessionService.recordTurn(conversationId, ownerId, "Hello", "Hi there", Map.of(
+            "_action", "create_purchase_order",
+            "_actionSuccess", true,
+            "_actionRefs", Map.of(
+                "orderNumber", "PO-123",
+                "orderId", 9,
+                "sku", "SKU-ABC-1"
+            )
+        ));
 
         ChatSession session = chatSessionService.getSession(conversationId, ownerId);
         assertThat(session.getTurns()).hasSize(1);
@@ -59,6 +68,11 @@ class ChatSessionWiringIntegrationTest {
         String context = chatSessionService.getConversationContext(conversationId, ownerId);
         assertThat(context).contains("User: Hello");
         assertThat(context).contains("Assistant: Hi there");
+        assertThat(context).contains("Action Context:");
+        assertThat(context).contains("action=create_purchase_order");
+        assertThat(context).contains("success=true");
+        assertThat(context).contains("orderNumber=PO-123");
+        assertThat(context).contains("orderId=9");
+        assertThat(context).contains("sku=SKU-ABC-1");
     }
 }
-

@@ -59,7 +59,12 @@ class ConversationRecordingStepTest {
 
         step.process(context);
 
-        verify(chatSessionService).recordTurn("conv-1", "user-1", "My ssn is [REDACTED]", "safe message");
+        verify(chatSessionService).recordTurn(
+            "conv-1",
+            "user-1",
+            "My ssn is [REDACTED]",
+            "safe message",
+            Map.of("_resultType", "INFORMATION_PROVIDED")
+        );
     }
 }
-
