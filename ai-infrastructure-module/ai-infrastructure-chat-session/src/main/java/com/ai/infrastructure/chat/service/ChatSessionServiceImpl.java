@@ -16,7 +16,9 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Slf4j
@@ -68,7 +70,11 @@ public class ChatSessionServiceImpl implements ChatSessionService {
 
     @Override
     @Transactional
-    public void recordTurn(String conversationId, String ownerId, String userQuery, String aiResponse) {
+    public void recordTurn(String conversationId,
+                           String ownerId,
+                           String userQuery,
+                           String aiResponse,
+                           Map<String, Object> turnMetadata) {
         if (!StringUtils.hasText(conversationId)) {
             return;
         }
@@ -95,12 +101,17 @@ public class ChatSessionServiceImpl implements ChatSessionService {
             return;
         }
 
-        ChatTurn turn = ChatTurn.builder()
+        ChatTurn.ChatTurnBuilder builder = ChatTurn.builder()
             .session(session)
             .userQuery(userQuery)
             .aiResponse(aiResponse)
-            .timestamp(LocalDateTime.now())
-            .build();
+            .timestamp(LocalDateTime.now());
+
+        if (turnMetadata != null && !turnMetadata.isEmpty()) {
+            builder.turnMetadata(new LinkedHashMap<>(turnMetadata));
+        }
+
+        ChatTurn turn = builder.build();
 
         List<ChatTurn> turns = session.getTurns();
         if (turns == null) {

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,10 +28,9 @@ class ChatSessionDeletionOwnerMismatchIntegrationTest {
         String ownerB = "delete-owner-b-" + UUID.randomUUID();
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerA, "Hello", "Hi");
+        chatSessionService.recordTurn(conversationId, ownerA, "Hello", "Hi", Map.of());
 
         assertThatThrownBy(() -> chatSessionService.deleteConversation(conversationId, ownerB))
             .isInstanceOf(ChatSessionAccessDeniedException.class);
     }
 }
-

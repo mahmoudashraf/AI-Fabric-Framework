@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,9 +31,9 @@ class ChatSessionContextWindowingRealApiIntegrationTest {
         String ownerId = "window-user-" + UUID.randomUUID();
         String conversationId = "chat-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Q1", "A1");
-        chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2");
-        chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3");
+        chatSessionService.recordTurn(conversationId, ownerId, "Q1", "A1", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3", Map.of());
 
         String context = chatSessionService.getConversationContext(conversationId, ownerId);
 
@@ -41,4 +42,3 @@ class ChatSessionContextWindowingRealApiIntegrationTest {
         assertThat(context).doesNotContain("User: Q1");
     }
 }
-
