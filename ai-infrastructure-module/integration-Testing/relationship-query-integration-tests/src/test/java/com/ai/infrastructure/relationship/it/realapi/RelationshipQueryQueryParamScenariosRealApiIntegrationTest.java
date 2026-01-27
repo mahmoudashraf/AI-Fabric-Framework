@@ -99,8 +99,7 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult.isSuccess()).isTrue();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
         @SuppressWarnings("unchecked")
         List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
         assertThat(documents).isNotNull().isNotEmpty();
@@ -139,8 +138,7 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult.isSuccess()).isTrue();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
         assertExecutedPlanOriginalQuery(payload, "find all brands");
         assertExecutedPlanOriginalQueryDoesNotContain(payload, "summarize");
     }
@@ -173,8 +171,7 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult.isSuccess()).isTrue();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
         assertExecutedPlanOriginalQuery(payload, "find all brands");
     }
 

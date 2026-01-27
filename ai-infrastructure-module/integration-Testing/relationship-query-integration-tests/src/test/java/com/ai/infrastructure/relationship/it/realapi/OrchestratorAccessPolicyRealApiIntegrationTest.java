@@ -133,10 +133,9 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         assertThat(actionResultObj).isInstanceOf(ActionResult.class);
         ActionResult actionResult = (ActionResult) actionResultObj;
         assertThat(actionResult.isSuccess()).isTrue();
-        assertThat(actionResult.getData()).isInstanceOf(Map.class);
+        assertThat(actionResult.getData()).isNotNull();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
         assertThat(payload).containsKey("documents");
 
         @SuppressWarnings("unchecked")
@@ -190,10 +189,9 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             .isTrue();
         assertThat(actionResult.getData())
             .as("Action result should contain data")
-            .isInstanceOf(Map.class);
+            .isNotNull();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
         
         // Verify documents were returned (indirect proof that entityTypes were used correctly)
         assertThat(payload)
@@ -247,8 +245,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult.isSuccess()).isTrue();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
 
         @SuppressWarnings("unchecked")
         List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
@@ -280,8 +277,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult.isSuccess()).isTrue();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
 
         @SuppressWarnings("unchecked")
         List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
@@ -311,8 +307,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult.isSuccess()).isTrue();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
 
         @SuppressWarnings("unchecked")
         List<RAGResponse.RAGDocument> documents = (List<RAGResponse.RAGDocument>) payload.get("documents");
@@ -344,8 +339,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult).as("ActionResult should be present").isNotNull();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
 
         // Verify JPQL query was generated correctly
         verifyJpqlQuery(payload, expectedPrimaryEntityType, expectedEntityTypes);
@@ -423,8 +417,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
         assertThat(actionResult.isSuccess()).isTrue();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
 
         RelationshipQueryPlan plan = extractRelationshipQueryPlan(payload);
         assertThat(plan.getPrimaryEntityType()).isEqualTo("brand");
@@ -500,7 +493,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
             assertThat(actionResult).isNotNull();
             assertThat(actionResult.isSuccess()).isTrue();
-            return (Map<String, Object>) actionResult.getData();
+            return actionResult.getData().toMap();
         }
 
         if (result.getType() == OrchestrationResultType.COMPOUND_HANDLED) {
@@ -516,7 +509,7 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
             ActionResult actionResult = (ActionResult) child.getData().get("actionResult");
             assertThat(actionResult).isNotNull();
             assertThat(actionResult.isSuccess()).isTrue();
-            return (Map<String, Object>) actionResult.getData();
+            return actionResult.getData().toMap();
         }
 
         throw new AssertionError("Unexpected result type for relationship_query execution: " + result.getType());

@@ -111,8 +111,7 @@ class RelationshipQuerySummarizationRealApiIntegrationTest {
         assertThat(actionResult).isNotNull();
         assertThat(actionResult.isSuccess()).isTrue();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) actionResult.getData();
+        Map<String, Object> payload = actionResult.getData().toMap();
         @SuppressWarnings("unchecked")
         List<?> documents = (List<?>) payload.get("documents");
         assertThat(documents).isNotNull().isNotEmpty();
