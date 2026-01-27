@@ -536,7 +536,7 @@ class ProviderScorecardRealApiIntegrationTest {
     private Map<String, Object> extractRelationshipQueryActionPayload(OrchestrationResult result) {
         if (result.getType() == OrchestrationResultType.ACTION_EXECUTED) {
             ActionResult actionResult = (ActionResult) result.getData().get("actionResult");
-            return (Map<String, Object>) actionResult.getData();
+            return actionResult.getData().toMap();
         }
 
         if (result.getType() == OrchestrationResultType.COMPOUND_HANDLED) {
@@ -552,7 +552,7 @@ class ProviderScorecardRealApiIntegrationTest {
                 return Map.of();
             }
             ActionResult actionResult = (ActionResult) child.getData().get("actionResult");
-            return (Map<String, Object>) actionResult.getData();
+            return actionResult.getData().toMap();
         }
 
         return Map.of();
