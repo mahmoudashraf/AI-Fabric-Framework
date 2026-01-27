@@ -306,7 +306,7 @@ public class IntentHandlingStep implements PipelineStep {
         ActionContext actionContext = new ActionContext(context, pipelineContext);
 
         Map<String, Object> effectiveParams = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
-        ResolvedPostActionGeneration postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
+        ResolvedPostActionGeneration postActionRequest = null;
 
         if (!handler.validateActionAllowed(actionContext)) {
             AIActionMetaData metadata = getMetadataForAction(actionName);
@@ -325,6 +325,9 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         AIActionMetaData meta = getMetadataForAction(actionName);
+        mergeResolvedTargetsIntoActionParams(meta, effectiveParams, pipelineContext);
+        postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
+
         boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
         String originalQuery = pipelineContext != null ? pipelineContext.getOriginalQuery() : null;
         String evidenceText = pipelineContext != null ? pipelineContext.getProcessedQuery() : null;
@@ -2021,6 +2024,62 @@ public class IntentHandlingStep implements PipelineStep {
             log.debug("Unable to resolve metadata for action {}: {}", actionName, ex.getMessage());
             return null;
         }
+    }
+
+    private void mergeResolvedTargetsIntoActionParams(AIActionMetaData meta,
+                                                     Map<String, Object> params,
+                                                     PipelineContext pipelineContext) {
+        if (meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty()) {
+            return;
+        }
+        if (params == null || pipelineContext == null) {
+            return;
+        }
+
+        List<ResolvedTarget> targets = pipelineContext.getResolvedTargets();
+        if (targets == null || targets.isEmpty() || targets.size() != 1) {
+            return;
+        }
+
+        ResolvedTarget target = targets.getFirst();
+        if (target == null) {
+            return;
+        }
+
+        for (String required : meta.getRequiredParameters()) {
+            if (!StringUtils.hasText(required)) {
+                continue;
+            }
+            if (hasParamValue(params.get(required))) {
+                continue;
+            }
+
+            String value = null;
+            if (target.getMetadata() != null) {
+                String candidate = target.getMetadata().get(required);
+                if (StringUtils.hasText(candidate)) {
+                    value = candidate.trim();
+                }
+            }
+
+            if (!StringUtils.hasText(value) && "id".equalsIgnoreCase(required) && StringUtils.hasText(target.getId())) {
+                value = target.getId().trim();
+            }
+
+            if (StringUtils.hasText(value)) {
+                params.put(required, value);
+            }
+        }
+    }
+
+    private boolean hasParamValue(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof String text) {
+            return StringUtils.hasText(text);
+        }
+        return true;
     }
 
     private List<String> findMissingRequiredParams(AIActionMetaData meta,

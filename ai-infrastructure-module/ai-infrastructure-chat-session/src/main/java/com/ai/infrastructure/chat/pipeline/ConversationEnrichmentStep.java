@@ -181,9 +181,9 @@ public class ConversationEnrichmentStep implements PipelineStep {
 
             Map<String, Object> chatMeta = new LinkedHashMap<>();
             chatMeta.put("conversationId", conversationId);
-            chatMeta.put("historyChars", history.length());
-            chatMeta.put("memoryStrategy", properties.getMemoryStrategy() != null ? properties.getMemoryStrategy().name() : null);
-            chatMeta.put("windowSize", properties.getWindowSize());
+                chatMeta.put("historyChars", history.length());
+                chatMeta.put("memoryStrategy", properties.getMemoryStrategy() != null ? properties.getMemoryStrategy().name() : null);
+                chatMeta.put("windowSize", properties.getWindowSize());
 
             return context.toBuilder()
                 .processedQuery(enriched)

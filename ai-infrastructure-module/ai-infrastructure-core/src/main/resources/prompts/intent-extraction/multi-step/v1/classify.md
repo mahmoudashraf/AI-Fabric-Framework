@@ -10,6 +10,7 @@ Output MUST be valid JSON and MUST match the following schema:
       "actionHint": "short verb phrase (only when type=ACTION)",
       "requiresRetrieval": true,
       "requiresGeneration": false,
+      "requiresTargetResolution": false,
       "directAnswer": "required when type=INFORMATION and requiresRetrieval=false (short reply)",
       "generationInstructions": "optional follow-up instruction when requiresGeneration is true",
       "needsAdvancedRAG": false,
@@ -25,9 +26,9 @@ Rules:
 - You are part of a RAG system with access to an indexed knowledge base. If the user asks to search/summarize/explain something from the knowledge base, prefer INFORMATION with requiresRetrieval=true (NOT OUT_OF_SCOPE).
 - If the user asks to execute something AND then summarize/explain/recommend/translate the results, set requiresGeneration=true and put that instruction in generationInstructions.
 - For conversational acknowledgements/greetings (e.g., "thanks", "ok"), prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
+- Set requiresTargetResolution=true when the request depends on resolving specific target(s) from attachments or prior retrieved results (e.g., the user refers to "this/it/both" without providing identifiers).
 - Use OUT_OF_SCOPE only when the request is clearly unrelated to the system or asks for an unsupported action.
 - If unsure, prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
 
 USER REQUEST:
 {{user_query}}
-

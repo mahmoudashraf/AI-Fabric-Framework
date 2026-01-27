@@ -291,6 +291,11 @@ public class ConversationRecordingStep implements PipelineStep {
             if (doc.getScore() != null) {
                 ref.put("score", doc.getScore());
             }
+
+            Map<String, Object> safeMeta = extractWorkingSetMetadata(docMeta);
+            if (!safeMeta.isEmpty()) {
+                ref.put("metadata", safeMeta);
+            }
             refs.add(Collections.unmodifiableMap(ref));
         }
 
@@ -303,6 +308,46 @@ public class ConversationRecordingStep implements PipelineStep {
         workingSet.put("topDocumentRefs", Collections.unmodifiableList(refs));
         workingSet.put("documentsCount", documents.size());
         return Collections.unmodifiableMap(workingSet);
+    }
+
+    private Map<String, Object> extractWorkingSetMetadata(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, Object> safe = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+            if (safe.size() >= 8) {
+                break;
+            }
+            if (entry == null || !StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            String key = entry.getKey().trim();
+            if (key.isEmpty() || key.length() > 40) {
+                continue;
+            }
+            if ("vectorSpace".equalsIgnoreCase(key)) {
+                continue;
+            }
+
+            Object value = entry.getValue();
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof Number || value instanceof Boolean) {
+                safe.put(key, value);
+                continue;
+            }
+            if (value instanceof String text) {
+                String trimmed = text.trim();
+                if (isSafeRefString(trimmed)) {
+                    safe.put(key, trimmed);
+                }
+            }
+        }
+
+        return safe.isEmpty() ? Map.of() : Collections.unmodifiableMap(safe);
     }
 
     private String normalizeVectorSpace(String value) {

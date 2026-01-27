@@ -140,6 +140,9 @@ public class EnrichedPromptBuilder {
         prompt.append("   - requiresRetrieval=true when the answer must be grounded in the indexed knowledge base.\n");
         prompt.append("   - requiresRetrieval=false for simple conversational replies/acknowledgements (e.g., \"thanks\", \"ok\", greetings) where no retrieval is needed.\n");
         prompt.append("   - When requiresRetrieval=false you MUST provide directAnswer (a short reply, 1 sentence).\n");
+        prompt.append("9. requiresTargetResolution MUST be set when the request depends on resolving specific target(s) from attachments or prior retrieved results:\n");
+        prompt.append("   - Set requiresTargetResolution=true when the user refers to a specific item/entity but does NOT provide an explicit identifier (e.g., \"buy it\", \"compare both\", \"add this\").\n");
+        prompt.append("   - Set requiresTargetResolution=false for standalone questions that do not depend on a specific target.\n");
         prompt.append("9. vectorSpace rules for INFORMATION intents:\n");
         prompt.append("   - vectorSpace is OPTIONAL.\n");
         prompt.append("   - If the KNOWLEDGE BASE OVERVIEW lists available vectorSpace values, you MUST choose from that list (case-insensitive). Do NOT invent new values.\n");
@@ -230,6 +233,7 @@ public class EnrichedPromptBuilder {
                   "vectorSpace": "policies | faq | ...",
                   "requiresRetrieval": true,
                   "requiresGeneration": false,
+                  "requiresTargetResolution": false,
                   "directAnswer": "required when requiresRetrieval is false (short reply)",
                   "generationInstructions": "optional post-action generation instruction",
                   "needsAdvancedRAG": false,
@@ -269,6 +273,7 @@ public class EnrichedPromptBuilder {
                   "actionParams": {"key": "value"},
                   "vectorSpace": "optional_domain_or_entity_type",
                   "requiresRetrieval": true,
+                  "requiresTargetResolution": false,
                   "directAnswer": "required when requiresRetrieval is false (short reply)",
                   "optimizedQuery": "required_for_INFORMATION_when_requiresRetrieval_true"
                 }

@@ -2,10 +2,14 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.target.ResolvedTarget;
 import com.ai.infrastructure.intent.orchestration.target.ResolvedTargetSource;
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.dto.MultiIntentResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -31,6 +35,7 @@ public class TargetResolutionStep implements PipelineStep {
     private static final int STEP_ORDER = 52;
 
     private static final String METADATA_KEY_TARGET_RESOLUTION = "targetResolution";
+    private static final String MSG_CLARIFICATION_REQUIRED = "Which item are you referring to? Select an attachment or specify an explicit identifier.";
 
     @Override
     public String getStepName() {
@@ -48,6 +53,15 @@ public class TargetResolutionStep implements PipelineStep {
             return context;
         }
 
+        MultiIntentResponse intentResponse = context.getIntentResponse();
+        if (intentResponse == null || intentResponse.getIntents() == null || intentResponse.getIntents().isEmpty()) {
+            return context;
+        }
+
+        if (!anyIntentRequiresTargetResolution(intentResponse.getIntents())) {
+            return context;
+        }
+
         OrchestrationContext orchContext = context.getOrchestrationContext();
         if (orchContext == null) {
             return context;
@@ -56,7 +70,20 @@ public class TargetResolutionStep implements PipelineStep {
         List<String> activeIds = orchContext.getActiveAttachmentIdsResolved();
         List<NormalizedAttachment> attachments = orchContext.getAttachmentsNormalized();
         if (activeIds == null || activeIds.isEmpty() || attachments == null || attachments.isEmpty()) {
-            return context;
+            // If targets already exist (e.g., seeded from conversation working set), just attach resolution metadata.
+            if (context.getResolvedTargets() != null && !context.getResolvedTargets().isEmpty()) {
+                ResolvedTargetSource source = resolveUniformSource(context.getResolvedTargets());
+                Map<String, Object> meta = new LinkedHashMap<>();
+                meta.put("source", source != null ? source.name() : "MIXED");
+                meta.put("count", context.getResolvedTargets().size());
+                return context.withMetadata(METADATA_KEY_TARGET_RESOLUTION, Collections.unmodifiableMap(meta));
+            }
+            return context.terminate(OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message(MSG_CLARIFICATION_REQUIRED)
+                .data(Map.of("reason", "TARGET_REQUIRED"))
+                .build());
         }
 
         List<ResolvedTarget> resolved = new ArrayList<>();
@@ -78,7 +105,12 @@ public class TargetResolutionStep implements PipelineStep {
         }
 
         if (resolved.isEmpty()) {
-            return context;
+            return context.terminate(OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message(MSG_CLARIFICATION_REQUIRED)
+                .data(Map.of("reason", "TARGET_REQUIRED"))
+                .build());
         }
 
         Map<String, Object> meta = new LinkedHashMap<>();
@@ -92,6 +124,18 @@ public class TargetResolutionStep implements PipelineStep {
         return updated.withMetadata(METADATA_KEY_TARGET_RESOLUTION, Collections.unmodifiableMap(meta));
     }
 
+    private boolean anyIntentRequiresTargetResolution(List<Intent> intents) {
+        if (intents == null || intents.isEmpty()) {
+            return false;
+        }
+        for (Intent intent : intents) {
+            if (intent != null && Boolean.TRUE.equals(intent.getRequiresTargetResolution())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private NormalizedAttachment findById(List<NormalizedAttachment> attachments, String id) {
         for (NormalizedAttachment attachment : attachments) {
             if (attachment == null || !StringUtils.hasText(attachment.getId())) {
@@ -102,5 +146,25 @@ public class TargetResolutionStep implements PipelineStep {
             }
         }
         return null;
+    }
+
+    private ResolvedTargetSource resolveUniformSource(List<ResolvedTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return null;
+        }
+        ResolvedTargetSource source = null;
+        for (ResolvedTarget target : targets) {
+            if (target == null || target.getSource() == null) {
+                return null;
+            }
+            if (source == null) {
+                source = target.getSource();
+                continue;
+            }
+            if (source != target.getSource()) {
+                return null;
+            }
+        }
+        return source;
     }
 }

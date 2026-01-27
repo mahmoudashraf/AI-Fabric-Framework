@@ -64,6 +64,16 @@ public class Intent {
     private Boolean requiresGeneration;
 
     /**
+     * Whether this intent needs target resolution (e.g., resolving "this/it/both" from attachments or prior working set).
+     *
+     * <p>Set to {@code true} when the request depends on one or more specific entities but the user did not provide
+     * explicit identifiers in the message. The orchestration layer may then resolve targets from active attachments or
+     * the conversation working set, and will fail-closed (ask a clarification) when targets are ambiguous or missing.</p>
+     */
+    @JsonAlias({"requires_target_resolution", "requiresTargetResolution"})
+    private Boolean requiresTargetResolution;
+
+    /**
      * Direct short answer to return to the user when {@code requiresRetrieval=false}.
      *
      * <p>This allows the intent-extraction LLM to produce a brief reply (e.g., acknowledgements)
@@ -139,6 +149,10 @@ public class Intent {
         return requiresGeneration != null ? requiresGeneration : fallback;
     }
 
+    public boolean requiresTargetResolutionOrDefault(boolean fallback) {
+        return requiresTargetResolution != null ? requiresTargetResolution : fallback;
+    }
+
     public Boolean getNeedsAdvancedRAG() {
         return needsAdvancedRAG;
     }
@@ -167,6 +181,9 @@ public class Intent {
         }
         if (requiresGeneration == null) {
             requiresGeneration = Boolean.FALSE;
+        }
+        if (requiresTargetResolution == null) {
+            requiresTargetResolution = Boolean.FALSE;
         }
         // needsAdvancedRAG is intentionally NOT defaulted here. When null it indicates
         // the LLM did not provide an explicit decision (allowing heuristic fallback).

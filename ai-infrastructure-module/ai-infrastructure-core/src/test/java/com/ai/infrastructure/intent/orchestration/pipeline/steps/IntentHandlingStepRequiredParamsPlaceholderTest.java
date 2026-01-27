@@ -20,6 +20,8 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.target.ResolvedTarget;
+import com.ai.infrastructure.intent.orchestration.target.ResolvedTargetSource;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
@@ -33,6 +35,7 @@ import org.springframework.beans.factory.ObjectProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class IntentHandlingStepRequiredParamsPlaceholderTest {
@@ -265,6 +268,73 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
+    }
+
+    @Test
+    void shouldFillMissingRequiredParamFromResolvedTargetMetadata() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(registry.findHandler("create_purchase_order")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+        when(handler.executeAction(org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(ActionResult.builder().success(true).message("ok").build());
+
+        AIActionMetaData meta = AIActionMetaData.builder()
+            .name("create_purchase_order")
+            .description("Create purchase order")
+            .category("commerce")
+            .parameters(Map.of(
+                "sku", "Product SKU (required)"
+            ))
+            .requiredParameters(Set.of("sku"))
+            .build();
+        when(registry.findMetadata("create_purchase_order")).thenReturn(Optional.of(meta));
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf(mock(RAGProvider.class)),
+            mock(AICoreService.class),
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("create_purchase_order")
+            .actionParams(Map.of())
+            .build();
+
+        ResolvedTarget target = ResolvedTarget.builder()
+            .id("78")
+            .vectorSpace("product")
+            .metadata(Map.of("sku", "ELEC-PHONE-002"))
+            .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
+            .build();
+
+        PipelineContext context = PipelineContext.from("buy it", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .resolvedTargets(List.of(target))
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
+        verify(handler).executeAction(org.mockito.ArgumentMatchers.argThat(map ->
+            map != null && "ELEC-PHONE-002".equals(map.get("sku"))
+        ), org.mockito.ArgumentMatchers.any());
     }
 
     private static <T> ObjectProvider<T> providerOf(T value) {
