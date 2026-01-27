@@ -16,7 +16,7 @@ import java.util.UUID;
  * At least one identifier (userId or sessionId) must be present.
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrchestrationContext {
@@ -63,6 +63,25 @@ public class OrchestrationContext {
      */
     @Builder.Default
     private Map<String, Object> metadata = new HashMap<>();
+
+    /**
+     * Optional UI/system position hint (e.g., "landing", "cart", "support").
+     *
+     * <p>This is treated as an input hint only; the server resolves the effective policy.</p>
+     */
+    private String position;
+
+    /**
+     * Optional requested orchestration mode (e.g., "navigator", "cart_assistant").
+     *
+     * <p>This is treated as an input hint only; the server resolves the effective policy.</p>
+     */
+    private String mode;
+
+    /**
+     * Server-resolved orchestration policy for this request.
+     */
+    private com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy orchestrationPolicy;
 
     /**
      * True if an authenticated userId was provided.

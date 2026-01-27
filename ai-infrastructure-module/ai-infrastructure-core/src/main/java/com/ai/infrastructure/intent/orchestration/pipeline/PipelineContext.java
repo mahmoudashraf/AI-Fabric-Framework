@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline;
 
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -124,6 +125,11 @@ public class PipelineContext {
      */
     @Builder.Default
     private final Map<String, Object> smartSuggestion = new LinkedHashMap<>();
+
+    /**
+     * Server-resolved orchestration policy for this request.
+     */
+    private final OrchestrationPolicy orchestrationPolicy;
 
     /**
      * Set of action names that have been explicitly confirmed for this request.

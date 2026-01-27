@@ -31,6 +31,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.LlmPurpose;
@@ -1068,7 +1069,7 @@ public class IntentHandlingStep implements PipelineStep {
     }
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
-        boolean deterministic = isDeterministicInformationMode();
+        boolean deterministic = isDeterministicInformationMode(pipelineContext);
         boolean needsGeneration = deterministic || intent.requiresGenerationOrDefault(false);
         boolean requiresRetrieval = deterministic || intent.requiresRetrievalOrDefault(true);
 
@@ -1454,7 +1455,11 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
 
-    private boolean isDeterministicInformationMode() {
+    private boolean isDeterministicInformationMode(PipelineContext pipelineContext) {
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        if (policy != null && policy.informationMode() != null) {
+            return policy.informationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+        }
         return orchestrationProperties != null
             && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
     }

@@ -23,9 +23,15 @@ public class EnrichedPromptBuilder {
 
     public String buildSystemPrompt(OrchestrationContext contextInput) {
         SystemContext context = systemContextBuilder.buildContext(contextInput);
-        IntentExtractionPromptProperties.PromptMode mode = promptProperties != null
-            ? promptProperties.getPromptMode()
-            : IntentExtractionPromptProperties.PromptMode.FULL_CONTRACT;
+        IntentExtractionPromptProperties.PromptMode mode = contextInput != null
+            && contextInput.getOrchestrationPolicy() != null
+            ? contextInput.getOrchestrationPolicy().promptMode()
+            : null;
+        if (mode == null) {
+            mode = promptProperties != null
+                ? promptProperties.getPromptMode()
+                : IntentExtractionPromptProperties.PromptMode.FULL_CONTRACT;
+        }
 
         StringBuilder prompt = new StringBuilder(1024);
         prompt.append("You are the intent extraction engine powering our Retrieval-Augmented Generation (RAG) assistant.\n");

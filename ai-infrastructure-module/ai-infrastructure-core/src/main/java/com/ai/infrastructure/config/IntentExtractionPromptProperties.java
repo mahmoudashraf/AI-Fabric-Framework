@@ -13,9 +13,11 @@ import org.springframework.validation.annotation.Validated;
 public class IntentExtractionPromptProperties {
 
     /**
-     * Controls which intent extraction schema and guidance is used.
+     * Explicit override for which intent extraction schema and guidance is used.
+     *
+     * <p>When unset (null), the effective value is derived from the resolved orchestration policy.</p>
      */
-    private PromptMode promptMode = PromptMode.FULL_CONTRACT;
+    private PromptMode promptMode;
 
     public enum PromptMode {
         /**
@@ -30,4 +32,3 @@ public class IntentExtractionPromptProperties {
         MINIMAL_FOR_RAG
     }
 }
-

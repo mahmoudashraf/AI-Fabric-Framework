@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent.extraction;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.config.MultiStepIntentExtractionPromptTemplatesProperties;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
@@ -12,7 +13,12 @@ import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplate;
+import com.ai.infrastructure.prompt.PromptTemplateKey;
+import com.ai.infrastructure.prompt.PromptTemplateStore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,10 +49,24 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     private static final String ENTITY_TYPE = "intent_extraction";
     private static final String GENERATION_TYPE = "intent_extraction_multi_step";
 
+    private static final String TEMPLATE_FAMILY = "intent-extraction/multi-step";
+    private static final String TEMPLATE_CLASSIFY = "classify";
+    private static final String TEMPLATE_SELECT_ACTIONS = "select-actions";
+    private static final String TEMPLATE_FILL_PARAMS = "fill-params";
+
+    private static final String PLACEHOLDER_USER_QUERY = "user_query";
+    private static final String PLACEHOLDER_ALLOWED_ACTIONS = "allowed_actions";
+    private static final String PLACEHOLDER_ACTION_INTENTS = "action_intents";
+    private static final String PLACEHOLDER_ACTION_SPECS = "action_specs";
+    private static final String PLACEHOLDER_TASKS = "tasks";
+
     private final AICoreService aiCoreService;
     private final AIActionRegistry actionHandlerRegistry;
     private final IntentExtractionJsonSupport jsonSupport;
     private final IntentExtractionValidator validator;
+    private final PromptTemplateStore promptTemplateStore;
+    private final PromptRenderer promptRenderer;
+    private final MultiStepIntentExtractionPromptTemplatesProperties promptTemplatesProperties;
 
     record ClassificationResult(ClassificationResponse response, int llmCalls) {}
     record ActionSelectionResult(Map<Integer, String> mappings, int llmCalls) {}
@@ -63,6 +83,21 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         int llmCalls() {
             return llmCalls;
         }
+    }
+
+    @PostConstruct
+    void validatePromptTemplates() {
+        renderTemplate(TEMPLATE_CLASSIFY, Map.of(PLACEHOLDER_USER_QUERY, "test"));
+        renderTemplate(TEMPLATE_SELECT_ACTIONS, Map.of(
+            PLACEHOLDER_ALLOWED_ACTIONS, "- example_action: Example",
+            PLACEHOLDER_ACTION_INTENTS, "- intentIndex=0 actionHint=example\n",
+            PLACEHOLDER_USER_QUERY, "test"
+        ));
+        renderTemplate(TEMPLATE_FILL_PARAMS, Map.of(
+            PLACEHOLDER_ACTION_SPECS, "- action=example\n  required: (none)\n",
+            PLACEHOLDER_TASKS, "- intentIndex=0 action=example requiredParams=[] allowedParams=[]\n",
+            PLACEHOLDER_USER_QUERY, "test"
+        ));
     }
 
     @Override
@@ -126,40 +161,9 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     }
 
     private ClassificationResult classify(String query, OrchestrationContext context) {
-        String prompt = """
-            You are classifying a user request into one or more intents.
-            Output MUST be valid JSON and MUST match the following schema:
-
-            {
-              "isCompound": false,
-              "intents": [
-                {
-                  "type": "ACTION | INFORMATION | OUT_OF_SCOPE",
-                  "intent": "canonical_intent_name",
-                  "actionHint": "short verb phrase (only when type=ACTION)",
-                  "requiresRetrieval": true,
-                  "requiresGeneration": false,
-                  "directAnswer": "required when type=INFORMATION and requiresRetrieval=false (short reply)",
-                  "generationInstructions": "optional follow-up instruction when requiresGeneration is true",
-                  "needsAdvancedRAG": false,
-                  "optimizedQuery": "optional optimized query",
-                  "vectorSpace": "optional domain hint"
-                }
-              ]
-            }
-
-            Rules:
-            - Keep it simple and deterministic.
-            - Do NOT invent action names; for ACTION use actionHint only.
-            - You are part of a RAG system with access to an indexed knowledge base. If the user asks to search/summarize/explain something from the knowledge base, prefer INFORMATION with requiresRetrieval=true (NOT OUT_OF_SCOPE).
-            - If the user asks to execute something AND then summarize/explain/recommend/translate the results, set requiresGeneration=true and put that instruction in generationInstructions.
-            - For conversational acknowledgements/greetings (e.g., "thanks", "ok"), prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
-            - Use OUT_OF_SCOPE only when the request is clearly unrelated to the system or asks for an unsupported action.
-            - If unsure, prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
-
-            USER REQUEST:
-            %s
-            """.formatted(query);
+        String prompt = renderTemplate(TEMPLATE_CLASSIFY, Map.of(
+            PLACEHOLDER_USER_QUERY, query
+        ));
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())
@@ -233,26 +237,11 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 .append("\n");
         }
 
-        String prompt = """
-            You are selecting registered actions for ACTION intents.
-            You MUST pick from the allowed action names below, or return null if none match.
-            Output MUST be valid JSON and MUST match:
-
-            {
-              "mappings": [
-                {"intentIndex": 0, "selectedAction": "action_name_or_null"}
-              ]
-            }
-
-            ALLOWED ACTIONS:
-            %s
-
-            ACTION INTENTS:
-            %s
-
-            USER REQUEST (context only):
-            %s
-            """.formatted(actionsList, actionHints, query);
+        String prompt = renderTemplate(TEMPLATE_SELECT_ACTIONS, Map.of(
+            PLACEHOLDER_ALLOWED_ACTIONS, actionsList,
+            PLACEHOLDER_ACTION_INTENTS, actionHints.toString(),
+            PLACEHOLDER_USER_QUERY, query
+        ));
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())
@@ -381,35 +370,11 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             }
         }
 
-	        String prompt = """
-	            You are filling actionParams for already selected, registered actions.
-	            Output MUST be valid JSON and MUST match:
-
-            {
-              "mappings": [
-                {"intentIndex": 0, "actionParams": {"param": "value"}}
-              ]
-            }
-
-	            Rules:
-	            - Only include keys that are valid for that action's allowed parameters.
-	            - Only set a parameter when the user explicitly provided its value in the USER REQUEST (or it is an unambiguous literal like an email address, SKU, or quantity).
-	            - Never fabricate values for required parameters to "make the action executable".
-	            - If any required parameter is missing, omit that mapping entirely (do not include partial params).
-	            - Do NOT copy parameter descriptions/examples into parameter values.
-	            - For relationship_query: actionParams.query MUST contain ONLY the natural-language relationship query. If the user request includes a relationship-query hint prefix (e.g., \"relationship_query:\"), do NOT include that prefix inside actionParams.query.
-	            - Do NOT invent action names or additional intents.
-	            - Do NOT include markdown or commentary.
-
-            ACTION SPECS:
-            %s
-
-            TASKS (fill params for these indices):
-            %s
-
-            USER REQUEST:
-            %s
-            """.formatted(specs, tasks, query);
+        String prompt = renderTemplate(TEMPLATE_FILL_PARAMS, Map.of(
+            PLACEHOLDER_ACTION_SPECS, specs.toString(),
+            PLACEHOLDER_TASKS, tasks.toString(),
+            PLACEHOLDER_USER_QUERY, query
+        ));
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())
@@ -468,6 +433,16 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         }
 
         return new ActionParamsFillResult(Collections.unmodifiableMap(out), llmCalls);
+    }
+
+    private String renderTemplate(String name, Map<String, String> values) {
+        PromptTemplateKey key = new PromptTemplateKey(
+            TEMPLATE_FAMILY,
+            promptTemplatesProperties != null ? promptTemplatesProperties.getVersion() : "v1",
+            name
+        );
+        PromptTemplate template = promptTemplateStore.load(key);
+        return promptRenderer.render(template, values);
     }
 
     private String normalizeActionName(String value) {

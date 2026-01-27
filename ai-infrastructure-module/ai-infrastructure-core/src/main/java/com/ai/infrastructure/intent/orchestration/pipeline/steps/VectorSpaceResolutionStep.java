@@ -10,6 +10,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.intent.vectorspace.RoutingResult;
 import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
 import lombok.RequiredArgsConstructor;
@@ -64,8 +65,11 @@ public class VectorSpaceResolutionStep implements PipelineStep {
             return context;
         }
 
-        boolean deterministic = orchestrationProperties != null
-            && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+        OrchestrationPolicy policy = context.getOrchestrationPolicy();
+        boolean deterministic = policy != null
+            ? policy.informationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE
+            : (orchestrationProperties != null
+                && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
 
         List<Map<String, Object>> routingEvents = new ArrayList<>();
         boolean anyUpdate = false;
