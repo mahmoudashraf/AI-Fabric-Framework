@@ -11,7 +11,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
-import com.ai.infrastructure.intent.orchestration.target.ResolvedTarget;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.intent.vectorspace.RoutingResult;
 import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
 import lombok.RequiredArgsConstructor;

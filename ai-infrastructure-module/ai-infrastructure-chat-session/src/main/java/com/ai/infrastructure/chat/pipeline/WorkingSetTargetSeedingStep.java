@@ -8,8 +8,8 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
-import com.ai.infrastructure.intent.orchestration.target.ResolvedTarget;
-import com.ai.infrastructure.intent.orchestration.target.ResolvedTargetSource;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -199,4 +199,3 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
         return List.of();
     }
 }
-

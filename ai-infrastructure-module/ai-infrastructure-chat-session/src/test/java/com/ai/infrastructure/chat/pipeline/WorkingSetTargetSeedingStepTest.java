@@ -9,7 +9,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
-import com.ai.infrastructure.intent.orchestration.target.ResolvedTargetSource;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;

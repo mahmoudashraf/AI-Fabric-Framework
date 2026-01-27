@@ -7,7 +7,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
-import com.ai.infrastructure.intent.orchestration.target.ResolvedTargetSource;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -105,4 +105,3 @@ class TargetResolutionStepTest {
         assertThat(updated.getEarlyTerminationResult().getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
     }
 }
-
