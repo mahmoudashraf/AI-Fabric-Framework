@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.KnowledgeBaseOverview;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -184,6 +185,13 @@ public class VectorSpaceResolutionStep implements PipelineStep {
     }
 
     private List<String> resolveScopedVectorSpaces(PipelineContext context) {
+        OrchestrationContext orchContext = context != null ? context.getOrchestrationContext() : null;
+        if (orchContext == null
+            || orchContext.getActiveAttachmentIdsResolved() == null
+            || orchContext.getActiveAttachmentIdsResolved().isEmpty()) {
+            return List.of();
+        }
+
         List<ResolvedTarget> targets = context != null ? context.getResolvedTargets() : null;
         if (targets == null || targets.isEmpty()) {
             return List.of();

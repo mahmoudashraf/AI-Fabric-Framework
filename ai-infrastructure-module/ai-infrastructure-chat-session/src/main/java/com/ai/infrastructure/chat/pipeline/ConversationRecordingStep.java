@@ -11,12 +11,14 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -41,9 +43,13 @@ public class ConversationRecordingStep implements PipelineStep {
     private static final String TURN_META_KEY_ACTION_REFS = "_actionRefs";
     private static final String TURN_META_KEY_WORKING_SET = "_workingSet";
 
+    private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS = "lastResolvedTargets";
+    private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX = "lastResolvedTargetsTurnIndex";
+
     private static final int ACTION_REFS_MAX_FIELDS = 12;
     private static final int ACTION_REFS_MAX_STRING_LENGTH = 120;
     private static final int WORKING_SET_MAX_DOCS = 8;
+    private static final int RESOLVED_TARGETS_MAX = 8;
 
     private final ChatSessionService chatSessionService;
     private final ChatSessionProperties properties;
@@ -103,10 +109,68 @@ public class ConversationRecordingStep implements PipelineStep {
         try {
             Map<String, Object> turnMetadata = buildTurnMetadata(context);
             chatSessionService.recordTurn(conversationId, ownerId, userQuery, assistantResponse, turnMetadata);
+            persistResolvedTargetsIfPresent(context, conversationId, ownerId);
         } catch (Exception ex) {
             log.warn("Failed to record conversation turn conversationId={}: {}", conversationId, ex.getMessage());
         }
         return context;
+    }
+
+    private void persistResolvedTargetsIfPresent(PipelineContext context, String conversationId, String ownerId) {
+        if (context == null || !StringUtils.hasText(conversationId) || !StringUtils.hasText(ownerId)) {
+            return;
+        }
+        List<ResolvedTarget> targets = context.getResolvedTargets();
+        if (targets == null || targets.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> stored = new ArrayList<>();
+        for (ResolvedTarget target : targets) {
+            if (stored.size() >= RESOLVED_TARGETS_MAX) {
+                break;
+            }
+            if (target == null || !StringUtils.hasText(target.getId())) {
+                continue;
+            }
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("id", target.getId().trim());
+            if (StringUtils.hasText(target.getVectorSpace())) {
+                entry.put("vectorSpace", target.getVectorSpace().trim());
+            }
+            if (StringUtils.hasText(target.getContentSnippet())) {
+                entry.put("contentSnippet", target.getContentSnippet());
+            }
+            if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+                entry.put("metadata", new LinkedHashMap<>(target.getMetadata()));
+            }
+            if (target.getSource() != null) {
+                entry.put("source", target.getSource().name());
+            }
+            stored.add(Collections.unmodifiableMap(entry));
+        }
+
+        if (stored.isEmpty()) {
+            return;
+        }
+
+        int turnIndex = 0;
+        try {
+            var session = chatSessionService.getSession(conversationId, ownerId);
+            turnIndex = session != null && session.getTurns() != null ? session.getTurns().size() : 0;
+        } catch (Exception ignored) {
+        }
+
+        Map<String, Object> updates = new LinkedHashMap<>();
+        updates.put(SESSION_META_KEY_LAST_RESOLVED_TARGETS, Collections.unmodifiableList(stored));
+        updates.put(SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX, turnIndex);
+
+        try {
+            chatSessionService.mergeSessionMetadata(conversationId, ownerId, updates);
+        } catch (Exception ex) {
+            log.debug("Failed to persist lastResolvedTargets for conversationId={}: {}", conversationId, ex.getMessage());
+        }
     }
 
     private boolean shouldRecordAfterTermination(PipelineContext context) {

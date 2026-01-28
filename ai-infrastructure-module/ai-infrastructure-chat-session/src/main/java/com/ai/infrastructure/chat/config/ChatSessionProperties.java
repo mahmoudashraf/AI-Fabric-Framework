@@ -42,8 +42,17 @@ public class ChatSessionProperties {
      */
     private MemoryStrategy memoryStrategy = MemoryStrategy.SLIDING_WINDOW;
 
+    /**
+     * Number of turns a previously pinned target may be reused when no new attachments are provided.
+     *
+     * <p>Example: after selecting an attachment, follow-up messages like "summarize this" may reuse that target for the
+     * next N turns even if the client does not resend attachments.</p>
+     */
+    @Min(0)
+    @Max(10)
+    private int pinnedTargetReuseWindowTurns = 3;
+
     public enum MemoryStrategy {
         SLIDING_WINDOW
     }
 }
-

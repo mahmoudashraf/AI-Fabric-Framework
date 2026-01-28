@@ -1909,14 +1909,15 @@ public class IntentHandlingStep implements PipelineStep {
         sb.append("PINNED TARGETS (authoritative):\n");
         int index = 1;
         for (ResolvedTarget target : targets) {
-            if (target == null || !StringUtils.hasText(target.getId()) || !StringUtils.hasText(target.getVectorSpace())) {
+            if (target == null || !StringUtils.hasText(target.getId())) {
                 continue;
             }
 
-            sb.append(index).append(") vectorSpace=")
-                .append(target.getVectorSpace())
-                .append(" id=")
-                .append(target.getId());
+            sb.append(index).append(") ");
+            if (StringUtils.hasText(target.getVectorSpace())) {
+                sb.append("vectorSpace=").append(target.getVectorSpace()).append(" ");
+            }
+            sb.append("id=").append(target.getId());
 
             if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
                 sb.append(" metadata={");
@@ -2017,11 +2018,26 @@ public class IntentHandlingStep implements PipelineStep {
             if (doc == null) {
                 continue;
             }
-            Object vectorSpace = doc.getMetadata() != null ? doc.getMetadata().get("vectorSpace") : null;
-            if (vectorSpace != null) {
-                builder.append("[")
-                    .append(vectorSpace)
-                    .append("] ");
+            String vectorSpace = null;
+            if (doc.getMetadata() != null) {
+                Object vs = doc.getMetadata().get("vectorSpace");
+                if (vs instanceof String vsText && StringUtils.hasText(vsText)) {
+                    vectorSpace = vsText.trim();
+                }
+            }
+
+            if (StringUtils.hasText(vectorSpace) || StringUtils.hasText(doc.getId())) {
+                builder.append("[");
+                if (StringUtils.hasText(vectorSpace)) {
+                    builder.append("vectorSpace=").append(vectorSpace);
+                }
+                if (StringUtils.hasText(doc.getId())) {
+                    if (StringUtils.hasText(vectorSpace)) {
+                        builder.append(" ");
+                    }
+                    builder.append("id=").append(doc.getId().trim());
+                }
+                builder.append("]\n");
             }
             if (StringUtils.hasText(doc.getTitle())) {
                 builder.append(doc.getTitle()).append("\n");

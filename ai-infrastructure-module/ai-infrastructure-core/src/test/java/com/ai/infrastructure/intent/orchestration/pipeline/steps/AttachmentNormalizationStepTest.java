@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.AttachmentsProperties;
+import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
@@ -33,7 +34,11 @@ class AttachmentNormalizationStepTest {
         ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
         when(piiProvider.getIfAvailable()).thenReturn(null);
 
-        AttachmentNormalizationStep step = new AttachmentNormalizationStep(properties, piiProvider);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<KnowledgeBaseOverviewService> kbProvider = mock(ObjectProvider.class);
+        when(kbProvider.getIfAvailable()).thenReturn(null);
+
+        AttachmentNormalizationStep step = new AttachmentNormalizationStep(properties, piiProvider, kbProvider);
 
         OrchestrationAttachment a1 = OrchestrationAttachment.builder()
             .id(" 1 ")
@@ -100,7 +105,11 @@ class AttachmentNormalizationStepTest {
         ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
         when(piiProvider.getIfAvailable()).thenReturn(null);
 
-        AttachmentNormalizationStep step = new AttachmentNormalizationStep(properties, piiProvider);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<KnowledgeBaseOverviewService> kbProvider = mock(ObjectProvider.class);
+        when(kbProvider.getIfAvailable()).thenReturn(null);
+
+        AttachmentNormalizationStep step = new AttachmentNormalizationStep(properties, piiProvider, kbProvider);
 
         OrchestrationAttachment a1 = OrchestrationAttachment.builder()
             .id("1")
@@ -124,5 +133,42 @@ class AttachmentNormalizationStepTest {
         assertThat(meta.get("truncated")).isEqualTo(true);
         assertThat(meta.get("activeTruncated")).isEqualTo(true);
     }
-}
 
+    @Test
+    void shouldAcceptAttachmentWhenVectorSpaceIsMissing() {
+        AttachmentsProperties properties = new AttachmentsProperties();
+        properties.setMaxAttachments(10);
+        properties.setMaxActiveAttachmentIds(10);
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
+        when(piiProvider.getIfAvailable()).thenReturn(null);
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<KnowledgeBaseOverviewService> kbProvider = mock(ObjectProvider.class);
+        when(kbProvider.getIfAvailable()).thenReturn(null);
+
+        AttachmentNormalizationStep step = new AttachmentNormalizationStep(properties, piiProvider, kbProvider);
+
+        OrchestrationAttachment attachment = OrchestrationAttachment.builder()
+            .id("att-1")
+            .vectorSpace(null)
+            .contentSnippet("hello")
+            .build();
+
+        OrchestrationContext orch = OrchestrationContext.builder()
+            .userId("demo")
+            .attachments(List.of(attachment))
+            .activeAttachmentIds(List.of("att-1"))
+            .build();
+
+        PipelineContext ctx = PipelineContext.from("q", orch);
+        PipelineContext updated = step.process(ctx);
+
+        assertThat(updated.getOrchestrationContext().getAttachmentsNormalized()).hasSize(1);
+        NormalizedAttachment normalized = updated.getOrchestrationContext().getAttachmentsNormalized().getFirst();
+        assertThat(normalized.getId()).isEqualTo("att-1");
+        assertThat(normalized.getVectorSpace()).isNull();
+        assertThat(updated.getOrchestrationContext().getActiveAttachmentIdsResolved()).containsExactly("att-1");
+    }
+}

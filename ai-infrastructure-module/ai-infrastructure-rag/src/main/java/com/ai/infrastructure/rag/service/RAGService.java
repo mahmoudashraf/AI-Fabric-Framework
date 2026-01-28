@@ -74,7 +74,8 @@ public class RAGService implements RAGProvider {
     private static final String RESULT_KEY_SIMILARITY = "similarity";
     private static final String RESULT_KEY_ID = "id";
     private static final String RESULT_KEY_TITLE = "title";
-    private static final String RESULT_KEY_TYPE = "type";
+    private static final String RESULT_KEY_VECTOR_SPACE = "vectorSpace";
+    private static final String RESULT_KEY_ENTITY_TYPE = "entityType";
     private static final String RESULT_KEY_METADATA = "metadata";
     private static final String RESULT_KEY_RAW = "raw";
     
@@ -215,11 +216,16 @@ public class RAGService implements RAGProvider {
                         return null;
                     }
 
+                    String vectorSpace = resolveVectorSpace(result);
+                    if (StringUtils.hasText(vectorSpace)) {
+                        normalizedMetadata.putIfAbsent(RESULT_KEY_VECTOR_SPACE, vectorSpace);
+                    }
+
                     return RAGResponse.RAGDocument.builder()
                         .id((String) result.get(RESULT_KEY_ID))
                         .content((String) result.get(RESULT_KEY_CONTENT))
                         .title((String) result.get(RESULT_KEY_TITLE))
-                        .type((String) result.get(RESULT_KEY_TYPE))
+                        .type(vectorSpace)
                         .score((Double) result.get(RESULT_KEY_SCORE))
                         .similarity((Double) result.get(RESULT_KEY_SIMILARITY))
                         .metadata(normalizedMetadata)
@@ -418,6 +424,10 @@ public class RAGService implements RAGProvider {
     
     private RAGResponse.RAGDocument convertToRAGDocument(Map<String, Object> result) {
         Map<String, Object> metadata = normalizeMetadata(result.get(RESULT_KEY_METADATA));
+        String vectorSpace = resolveVectorSpace(result);
+        if (StringUtils.hasText(vectorSpace)) {
+            metadata.putIfAbsent(RESULT_KEY_VECTOR_SPACE, vectorSpace);
+        }
 
         Object scoreValue = result.getOrDefault(RESULT_KEY_SCORE, 0.0);
         Object similarityValue = result.getOrDefault(RESULT_KEY_SIMILARITY, 0.0);
@@ -431,11 +441,29 @@ public class RAGService implements RAGProvider {
             .id((String) result.get(RESULT_KEY_ID))
             .content((String) result.get(RESULT_KEY_CONTENT))
             .title((String) result.get(RESULT_KEY_TITLE))
-            .type((String) result.get(RESULT_KEY_TYPE))
+            .type(vectorSpace)
             .score(score)
             .similarity(similarity)
             .metadata(metadata)
             .build();
+    }
+
+    private String resolveVectorSpace(Map<String, Object> result) {
+        if (result == null || result.isEmpty()) {
+            return null;
+        }
+
+        Object direct = result.get(RESULT_KEY_VECTOR_SPACE);
+        if (direct instanceof String vs && StringUtils.hasText(vs)) {
+            return vs.trim();
+        }
+
+        Object entityType = result.get(RESULT_KEY_ENTITY_TYPE);
+        if (entityType instanceof String et && StringUtils.hasText(et)) {
+            return et.trim();
+        }
+
+        return null;
     }
     
     private String resolveEmbeddingQuery(RAGRequest request, String processedQuery) {
@@ -570,8 +598,30 @@ public class RAGService implements RAGProvider {
             String content = doc != null ? doc.getContent() : null;
             double score = doc != null && doc.getScore() != null ? doc.getScore() : 0.0;
 
-            context.append(String.format("%d. %s (Score: %.3f)\n",
+            String id = doc != null ? doc.getId() : null;
+            String vectorSpace = null;
+            if (doc != null && doc.getMetadata() != null) {
+                Object vs = doc.getMetadata().get(RESULT_KEY_VECTOR_SPACE);
+                if (vs instanceof String vsText && StringUtils.hasText(vsText)) {
+                    vectorSpace = vsText.trim();
+                }
+            }
+            if (!StringUtils.hasText(vectorSpace) && doc != null && StringUtils.hasText(doc.getType())) {
+                vectorSpace = doc.getType().trim();
+            }
+
+            String header = "";
+            if (StringUtils.hasText(vectorSpace) || StringUtils.hasText(id)) {
+                header = "["
+                    + (StringUtils.hasText(vectorSpace) ? "vectorSpace=" + vectorSpace : "")
+                    + (StringUtils.hasText(vectorSpace) && StringUtils.hasText(id) ? " " : "")
+                    + (StringUtils.hasText(id) ? "id=" + id : "")
+                    + "] ";
+            }
+
+            context.append(String.format("%d. %s%s (Score: %.3f)\n",
                 i + 1,
+                header,
                 content != null ? content : "",
                 score));
         }

@@ -319,6 +319,7 @@ public class LuceneVectorDatabaseService implements VectorDatabaseService {
                     result.put("vectorId", doc.get(VECTOR_ID_FIELD));
                     result.put("content", doc.get("content"));
                     result.put("entityType", doc.get(ENTITY_TYPE_FIELD));
+                    result.put("vectorSpace", doc.get(ENTITY_TYPE_FIELD));
                     result.put("metadata", doc.get("metadata"));
                     result.put("score", similarity);
                     result.put("similarity", similarity);

@@ -10,6 +10,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "ai.orchestration.attachments")
 public class AttachmentsProperties {
 
+    public enum VectorSpaceValidationMode {
+        BEST_EFFORT,
+        STRICT
+    }
+
     /**
      * Enables attachment normalization and prompt grounding.
      */
@@ -51,8 +56,15 @@ public class AttachmentsProperties {
     private int maxVectorSpaceChars = 80;
 
     /**
+     * Validation mode for {@code attachments[].vectorSpace}.
+     *
+     * <p><strong>BEST_EFFORT (default):</strong> keep the attachment but do not use invalid vectorSpace values for scoping.</p>
+     * <p><strong>STRICT:</strong> terminate with CLARIFICATION_REQUIRED when an invalid vectorSpace is provided.</p>
+     */
+    private VectorSpaceValidationMode vectorSpaceValidationMode = VectorSpaceValidationMode.BEST_EFFORT;
+
+    /**
      * Maximum characters kept for source label.
      */
     private int maxSourceChars = 60;
 }
-

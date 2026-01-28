@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TargetResolutionStepTest {
 
     @Test
-    void shouldSkipWhenNoIntentRequiresTargetResolution() {
+    void shouldResolveActiveAttachmentsEvenWhenNoIntentRequiresTargetResolution() {
         TargetResolutionStep step = new TargetResolutionStep();
 
         Intent intent = Intent.builder()
@@ -45,7 +45,9 @@ class TargetResolutionStepTest {
         PipelineContext updated = step.process(context);
 
         assertThat(updated.isShouldTerminate()).isFalse();
-        assertThat(updated.getResolvedTargets()).isEmpty();
+        assertThat(updated.getResolvedTargets()).hasSize(1);
+        assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.ACTIVE_ATTACHMENTS);
+        assertThat(updated.getMetadata()).containsKey("targetResolution");
     }
 
     @Test

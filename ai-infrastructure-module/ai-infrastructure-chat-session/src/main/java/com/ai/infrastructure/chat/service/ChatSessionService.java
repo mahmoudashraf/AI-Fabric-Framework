@@ -13,6 +13,8 @@ public interface ChatSessionService {
 
     ChatSession getSession(String conversationId, String ownerId);
 
+    void mergeSessionMetadata(String conversationId, String ownerId, Map<String, Object> updates);
+
     List<ChatSession> getUserConversations(String ownerId);
 
     void deleteConversation(String conversationId, String ownerId);

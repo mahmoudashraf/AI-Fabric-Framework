@@ -53,75 +53,52 @@ public class TargetResolutionStep implements PipelineStep {
             return context;
         }
 
-        MultiIntentResponse intentResponse = context.getIntentResponse();
-        if (intentResponse == null || intentResponse.getIntents() == null || intentResponse.getIntents().isEmpty()) {
-            return context;
-        }
-
-        if (!anyIntentRequiresTargetResolution(intentResponse.getIntents())) {
-            return context;
-        }
-
         OrchestrationContext orchContext = context.getOrchestrationContext();
         if (orchContext == null) {
             return context;
         }
 
+        MultiIntentResponse intentResponse = context.getIntentResponse();
+        boolean requiresTargets = intentResponse != null
+            && intentResponse.getIntents() != null
+            && !intentResponse.getIntents().isEmpty()
+            && anyIntentRequiresTargetResolution(intentResponse.getIntents());
+
         List<String> activeIds = orchContext.getActiveAttachmentIdsResolved();
         List<NormalizedAttachment> attachments = orchContext.getAttachmentsNormalized();
-        if (activeIds == null || activeIds.isEmpty() || attachments == null || attachments.isEmpty()) {
-            // If targets already exist (e.g., seeded from conversation working set), just attach resolution metadata.
-            if (context.getResolvedTargets() != null && !context.getResolvedTargets().isEmpty()) {
-                ResolvedTargetSource source = resolveUniformSource(context.getResolvedTargets());
-                Map<String, Object> meta = new LinkedHashMap<>();
-                meta.put("source", source != null ? source.name() : "MIXED");
-                meta.put("count", context.getResolvedTargets().size());
-                return context.withMetadata(METADATA_KEY_TARGET_RESOLUTION, Collections.unmodifiableMap(meta));
-            }
-            return context.terminate(OrchestrationResult.builder()
+
+        PipelineContext updated = context;
+
+        // Always pin active attachments when they exist, regardless of LLM intent flags.
+        List<ResolvedTarget> resolved = resolveActiveAttachments(activeIds, attachments);
+        if (!resolved.isEmpty()) {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("source", ResolvedTargetSource.ACTIVE_ATTACHMENTS.name());
+            meta.put("count", resolved.size());
+
+            updated = context.toBuilder()
+                .resolvedTargets(Collections.unmodifiableList(resolved))
+                .build()
+                .withMetadata(METADATA_KEY_TARGET_RESOLUTION, Collections.unmodifiableMap(meta));
+        } else if (updated.getResolvedTargets() != null && !updated.getResolvedTargets().isEmpty()) {
+            // Targets were already present (e.g., seeded from conversation metadata); attach diagnostics.
+            ResolvedTargetSource source = resolveUniformSource(updated.getResolvedTargets());
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("source", source != null ? source.name() : "MIXED");
+            meta.put("count", updated.getResolvedTargets().size());
+            updated = updated.withMetadata(METADATA_KEY_TARGET_RESOLUTION, Collections.unmodifiableMap(meta));
+        }
+
+        // Fail-closed only when target resolution is explicitly required.
+        if (requiresTargets && (updated.getResolvedTargets() == null || updated.getResolvedTargets().isEmpty())) {
+            return updated.terminate(OrchestrationResult.builder()
                 .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                 .success(false)
                 .message(MSG_CLARIFICATION_REQUIRED)
                 .data(Map.of("reason", "TARGET_REQUIRED"))
                 .build());
         }
-
-        List<ResolvedTarget> resolved = new ArrayList<>();
-        for (String id : activeIds) {
-            if (!StringUtils.hasText(id)) {
-                continue;
-            }
-            NormalizedAttachment attachment = findById(attachments, id.trim());
-            if (attachment == null) {
-                continue;
-            }
-            resolved.add(ResolvedTarget.builder()
-                .id(attachment.getId())
-                .vectorSpace(attachment.getVectorSpace())
-                .contentSnippet(attachment.getContentSnippet())
-                .metadata(attachment.getMetadata() != null ? attachment.getMetadata() : Map.of())
-                .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
-                .build());
-        }
-
-        if (resolved.isEmpty()) {
-            return context.terminate(OrchestrationResult.builder()
-                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
-                .success(false)
-                .message(MSG_CLARIFICATION_REQUIRED)
-                .data(Map.of("reason", "TARGET_REQUIRED"))
-                .build());
-        }
-
-        Map<String, Object> meta = new LinkedHashMap<>();
-        meta.put("source", ResolvedTargetSource.ACTIVE_ATTACHMENTS.name());
-        meta.put("count", resolved.size());
-
-        PipelineContext updated = context.toBuilder()
-            .resolvedTargets(Collections.unmodifiableList(resolved))
-            .build();
-
-        return updated.withMetadata(METADATA_KEY_TARGET_RESOLUTION, Collections.unmodifiableMap(meta));
+        return updated;
     }
 
     private boolean anyIntentRequiresTargetResolution(List<Intent> intents) {
@@ -146,6 +123,32 @@ public class TargetResolutionStep implements PipelineStep {
             }
         }
         return null;
+    }
+
+    private List<ResolvedTarget> resolveActiveAttachments(List<String> activeIds, List<NormalizedAttachment> attachments) {
+        if (activeIds == null || activeIds.isEmpty() || attachments == null || attachments.isEmpty()) {
+            return List.of();
+        }
+
+        List<ResolvedTarget> resolved = new ArrayList<>();
+        for (String id : activeIds) {
+            if (!StringUtils.hasText(id)) {
+                continue;
+            }
+            NormalizedAttachment attachment = findById(attachments, id.trim());
+            if (attachment == null) {
+                continue;
+            }
+            resolved.add(ResolvedTarget.builder()
+                .id(attachment.getId())
+                .vectorSpace(attachment.getVectorSpace())
+                .contentSnippet(attachment.getContentSnippet())
+                .metadata(attachment.getMetadata() != null ? attachment.getMetadata() : Map.of())
+                .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
+                .build());
+        }
+
+        return resolved;
     }
 
     private ResolvedTargetSource resolveUniformSource(List<ResolvedTarget> targets) {

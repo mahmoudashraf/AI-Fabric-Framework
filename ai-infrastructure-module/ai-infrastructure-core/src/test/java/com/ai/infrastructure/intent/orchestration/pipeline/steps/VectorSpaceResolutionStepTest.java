@@ -248,7 +248,12 @@ class VectorSpaceResolutionStepTest {
             .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
             .build();
 
-        PipelineContext context = PipelineContext.from("q", OrchestrationContext.forUser("user"))
+        OrchestrationContext orchContext = OrchestrationContext.builder()
+            .userId("user")
+            .activeAttachmentIdsResolved(List.of("1"))
+            .build();
+
+        PipelineContext context = PipelineContext.from("q", orchContext)
             .toBuilder()
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .resolvedTargets(List.of(target))

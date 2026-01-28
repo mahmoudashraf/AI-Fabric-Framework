@@ -94,8 +94,7 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
         int index = 1;
         for (NormalizedAttachment attachment : attachments) {
             if (attachment == null
-                || !StringUtils.hasText(attachment.getId())
-                || !StringUtils.hasText(attachment.getVectorSpace())) {
+                || !StringUtils.hasText(attachment.getId())) {
                 continue;
             }
 
@@ -104,8 +103,10 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
             if (active) {
                 sb.append("[ACTIVE] ");
             }
-            sb.append("vectorSpace=").append(attachment.getVectorSpace())
-                .append(" id=").append(attachment.getId());
+            if (StringUtils.hasText(attachment.getVectorSpace())) {
+                sb.append("vectorSpace=").append(attachment.getVectorSpace()).append(" ");
+            }
+            sb.append("id=").append(attachment.getId());
 
             if (StringUtils.hasText(attachment.getSource())) {
                 sb.append(" source=").append(attachment.getSource());
@@ -131,4 +132,3 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
         return sb.toString().trim();
     }
 }
-

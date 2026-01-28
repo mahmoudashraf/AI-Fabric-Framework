@@ -104,6 +104,14 @@ Update `TargetResolutionStep` behavior:
    - If `activeAttachmentIdsResolved` is non-empty, build `resolvedTargets` from those attachments and attach to `PipelineContext`, regardless of intent flags.
    - Record `metadata.targetResolution.source = ACTIVE_ATTACHMENTS` and `count`.
 
+2) **Short-lived persistence (recommended, turns-based):**
+   - Persist the most recent `resolvedTargets` into conversation state (chat session metadata) as `lastResolvedTargets`.
+   - When a new turn arrives with **no new attachments** and **no activeAttachmentIds**, the pipeline may reuse `lastResolvedTargets` for a bounded window (e.g., last **3 turns**) to support “this/these/it” follow-ups.
+   - Reuse rules must remain deterministic and bounded:
+     - only reuse if the current request is target-dependent (see B.1),
+     - never reuse when `activeAttachmentIds` is present (active wins),
+     - expire on window/TTL or when conversation changes mode/position (if applicable).
+
 2) **Fail‑closed mode (only when required):**
    - If any intent has `requiresTargetResolution=true` and no active targets can be resolved, terminate with `CLARIFICATION_REQUIRED`.
 
@@ -126,6 +134,15 @@ This is contract-driven: the UI explicitly selected the attachment(s).
 
 ---
 
+#### B.1) Structural clarification when attachments exist but no active target is selected
+To avoid relying on LLM flags (`requiresTargetResolution`) being set correctly:
+- If `attachments[].length > 0` **and** `activeAttachmentIds` is empty/missing **and** the request is target-dependent (e.g., summarization/comparison/referring to “this/these/it”) **and** there is no `lastResolvedTargets` eligible for reuse (A.2), then return `CLARIFICATION_REQUIRED` with a message like:
+  - “Select the attachment(s) you want me to use (activeAttachmentIds).”
+
+This is domain-agnostic and contract-driven (“no active target selected”), and prevents the system from silently guessing.
+
+---
+
 ### C) Include doc identifiers in the RAG context string
 Update `buildContextFromDocuments(...)` to include a small header per doc:
 - `id=<doc.id>`
@@ -145,31 +162,32 @@ Related plan:
 
 ---
 
-### D) Fail‑closed validation for `attachments[].vectorSpace`
-Add a validation rule during attachment normalization:
+### D) Best-effort validation for `attachments[].vectorSpace` (greenfield, extensible)
+We should not fail by default when `attachments[].vectorSpace` is missing or unknown, because UI may attach arbitrary future content/doc types.
 
-- If the RAG module can enumerate entity types (via `KnowledgeBaseOverviewService`), then:
-  - `attachments[].vectorSpace` must be one of the known entity types.
-  - If not, return `CLARIFICATION_REQUIRED` (or `ERROR`) with:
-    - `invalidVectorSpace`
-    - `allowedVectorSpaces[]`
+Implement validation during attachment normalization with best-effort semantics:
 
-This prevents silent misuse like:
-- `vectorSpace="office supplies"` (domain category)
+1) If `attachments[].vectorSpace` is missing/blank:
+   - keep it `null` and continue.
 
-and guides UI developers to send:
-- `vectorSpace="product"`
-- `metadata.category="Office Supplies"`
+2) If `attachments[].vectorSpace` is provided:
+   - If the system can enumerate vector spaces (via `KnowledgeBaseOverviewService`) and the provided value is not in the allowlist:
+     - mark it as invalid (warning metadata), and do **not** use it to scope retrieval.
+     - still allow attachment grounding via pinned targets + content.
 
-Greenfield: do not attempt to “guess/fix” swapped fields.
+3) Optional strict mode (off by default):
+   - in strict mode, invalid `attachments[].vectorSpace` becomes `CLARIFICATION_REQUIRED` and returns:
+     - `invalidVectorSpace`
+     - `allowedVectorSpaces[]`
 
 ---
 
 ### E) Update UI/client guidance (docs)
 Update the UI migration guide / attachments docs to explicitly say:
-- `vectorSpace` = indexed entity type (e.g., `product`)
-- domain category belongs in `metadata.category`
+- `vectorSpace` = indexed entity type / retrieval space (e.g., `product`)
+- domain category belongs in `metadata` (e.g., `metadata.category = "Office Supplies"`)
 - `activeAttachmentIds` must reference `attachments[].id`
+- when attachments are present, use `activeAttachmentIds` to explicitly select targets for “summarize/compare/this/it” requests (unless relying on short-lived `lastResolvedTargets` reuse).
 
 Docs to update/extend:
 - `Final_Documentation/Development_Guides/CHAT_CAPABILITIES_UI_MIGRATION_GUIDE.md`
@@ -193,6 +211,9 @@ Docs to update/extend:
 4) Invalid attachment vectorSpace produces a clear, deterministic client-visible failure:
    - no silent fallback to unrelated spaces
 
+5) Follow-up turns can refer to prior pinned targets for a bounded window (e.g., 2–3 turns) when there are no new attachments:
+   - “this/it/these” resolves deterministically via `lastResolvedTargets` reuse when eligible.
+
 ---
 
 ## Test Plan
@@ -204,7 +225,9 @@ Docs to update/extend:
 - Context building:
   - context includes `id=` for docs
 - Attachment validation:
-  - invalid vectorSpace yields CLARIFICATION_REQUIRED with allowlist
+  - invalid vectorSpace yields warnings by default (no failure)
+  - strict mode yields CLARIFICATION_REQUIRED with allowlist
+  - missing/blank vectorSpace is allowed (best-effort)
 
 ### RealAPI / Integration
 - Chat capabilities demo:
@@ -214,10 +237,24 @@ Docs to update/extend:
 
 ---
 
+## Additional Fix (required): standardize on `vectorSpace` end-to-end
+We observed documents returned from the vector DB with missing space/type information (e.g., `type: null`), which prevents reliable grounding and scoping.
+
+Greenfield decision:
+- Standardize on **`vectorSpace`** as the canonical field name across:
+  - vector DB search results
+  - RAG documents/metadata
+  - prompt/context headers (see C)
+
+This ensures every retrieved document can be labeled and scoped deterministically, which is required for attachment grounding and follow-up resolution.
+
+---
+
 ## Implementation Sequence (suggested)
 1) Update `TargetResolutionStep` (pin always; fail-closed only when required).
 2) Add doc-id to `buildContextFromDocuments(...)`.
 3) Add doc `vectorSpace` enrichment (Option A in `RAG_DOCUMENT_VECTORSPACE_ENRICHMENT_CHANGE_PLAN.md`).
-4) Add attachment vectorSpace validation (fail-closed with allowlist).
-5) Update UI docs.
-
+4) Standardize `vectorSpace` propagation end-to-end (vector DB → RAG → response metadata).
+5) Add attachment vectorSpace validation (best-effort + optional strict mode).
+6) Add `lastResolvedTargets` persistence + bounded reuse.
+7) Update UI docs.

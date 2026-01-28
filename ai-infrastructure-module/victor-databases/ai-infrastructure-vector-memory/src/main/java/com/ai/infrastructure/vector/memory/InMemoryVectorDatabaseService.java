@@ -186,7 +186,10 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
                     
                     Map<String, Object> scoredEntity = new HashMap<>();
                     scoredEntity.put("vectorId", record.getVectorId());
+                    scoredEntity.put("id", record.getEntityId());
                     scoredEntity.put("entityId", record.getEntityId());
+                    scoredEntity.put("entityType", record.getEntityType());
+                    scoredEntity.put("vectorSpace", record.getEntityType());
                     scoredEntity.put("content", record.getContent());
                     scoredEntity.put("metadata", record.getMetadata());
                     scoredEntity.put("similarity", similarity);

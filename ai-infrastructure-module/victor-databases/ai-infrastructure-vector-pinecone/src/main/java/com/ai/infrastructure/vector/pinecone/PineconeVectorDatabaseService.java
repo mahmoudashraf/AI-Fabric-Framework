@@ -239,11 +239,14 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("vectorId", match.getId());
+            row.put("id", entityId);
             row.put("entityId", entityId);
             row.put("entityType", entityType);
+            row.put("vectorSpace", entityType);
             row.put("content", content);
             row.put("metadata", customMetadata);
             row.put("score", score);
+            row.put("similarity", score);
             results.add(row);
         }
 

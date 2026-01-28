@@ -8,6 +8,10 @@ import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttach
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
+import com.ai.infrastructure.intent.KnowledgeBaseOverview;
+import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -37,9 +41,13 @@ public class AttachmentNormalizationStep implements PipelineStep {
     private static final int STEP_ORDER = 23;
 
     private static final String METADATA_KEY_ATTACHMENTS = "attachments";
+    private static final String META_KEY_INVALID_VECTOR_SPACES = "invalidVectorSpaces";
+    private static final String META_KEY_INVALID_VECTOR_SPACES_COUNT = "invalidVectorSpacesCount";
+    private static final String META_KEY_VECTOR_SPACE_VALIDATION_MODE = "vectorSpaceValidationMode";
 
     private final AttachmentsProperties properties;
     private final ObjectProvider<PIIDetectionService> piiDetectionServiceProvider;
+    private final ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider;
 
     @Override
     public String getStepName() {
@@ -105,6 +113,14 @@ public class AttachmentNormalizationStep implements PipelineStep {
             }
         }
 
+        VectorSpaceValidationOutcome validation = validateAttachmentVectorSpaces(normalized);
+        if (validation.shouldTerminate) {
+            return context.terminate(validation.result);
+        }
+        if (validation.updatedAttachments != null) {
+            normalized = validation.updatedAttachments;
+        }
+
         List<String> activeResolved = new ArrayList<>();
         boolean activeTruncated = false;
         int activeProvided = active != null ? active.size() : 0;
@@ -138,6 +154,13 @@ public class AttachmentNormalizationStep implements PipelineStep {
         attachmentMeta.put("activeProvidedCount", activeProvided);
         attachmentMeta.put("activeResolvedCount", activeResolved.size());
         attachmentMeta.put("activeTruncated", activeTruncated);
+        if (properties != null && properties.getVectorSpaceValidationMode() != null) {
+            attachmentMeta.put(META_KEY_VECTOR_SPACE_VALIDATION_MODE, properties.getVectorSpaceValidationMode().name());
+        }
+        if (validation.invalidVectorSpaces != null && !validation.invalidVectorSpaces.isEmpty()) {
+            attachmentMeta.put(META_KEY_INVALID_VECTOR_SPACES_COUNT, validation.invalidVectorSpaces.size());
+            attachmentMeta.put(META_KEY_INVALID_VECTOR_SPACES, List.copyOf(validation.invalidVectorSpaces));
+        }
 
         PipelineContext updated = context.toBuilder()
             .orchestrationContext(updatedOrchContext)
@@ -153,7 +176,7 @@ public class AttachmentNormalizationStep implements PipelineStep {
 
         String id = normalizeToken(attachment.getId(), properties != null ? properties.getMaxIdChars() : 80, false, pii);
         String vectorSpace = normalizeToken(attachment.getVectorSpace(), properties != null ? properties.getMaxVectorSpaceChars() : 80, false, pii);
-        if (!StringUtils.hasText(id) || !StringUtils.hasText(vectorSpace)) {
+        if (!StringUtils.hasText(id)) {
             return null;
         }
 
@@ -180,6 +203,101 @@ public class AttachmentNormalizationStep implements PipelineStep {
             .metadata(metadata)
             .source(source)
             .build();
+    }
+
+    private record VectorSpaceValidationOutcome(
+        boolean shouldTerminate,
+        OrchestrationResult result,
+        List<NormalizedAttachment> updatedAttachments,
+        List<String> invalidVectorSpaces
+    ) {}
+
+    private VectorSpaceValidationOutcome validateAttachmentVectorSpaces(List<NormalizedAttachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
+            return new VectorSpaceValidationOutcome(false, null, null, List.of());
+        }
+        if (properties == null || properties.getVectorSpaceValidationMode() == null) {
+            return new VectorSpaceValidationOutcome(false, null, null, List.of());
+        }
+
+        KnowledgeBaseOverviewService overviewService = knowledgeBaseOverviewServiceProvider != null
+            ? knowledgeBaseOverviewServiceProvider.getIfAvailable()
+            : null;
+        if (overviewService == null) {
+            return new VectorSpaceValidationOutcome(false, null, null, List.of());
+        }
+
+        KnowledgeBaseOverview overview;
+        try {
+            overview = overviewService.getOverview();
+        } catch (Exception ex) {
+            log.debug("Unable to validate attachment vectorSpace values: {}", ex.getMessage());
+            return new VectorSpaceValidationOutcome(false, null, null, List.of());
+        }
+
+        List<String> allowed = overview != null ? overview.getEntityTypes() : null;
+        if (allowed == null || allowed.isEmpty()) {
+            return new VectorSpaceValidationOutcome(false, null, null, List.of());
+        }
+
+        Map<String, String> canonicalByLower = new LinkedHashMap<>();
+        for (String space : allowed) {
+            if (!StringUtils.hasText(space)) {
+                continue;
+            }
+            canonicalByLower.put(space.trim().toLowerCase(java.util.Locale.ROOT), space.trim());
+        }
+        if (canonicalByLower.isEmpty()) {
+            return new VectorSpaceValidationOutcome(false, null, null, List.of());
+        }
+
+        List<String> invalid = new ArrayList<>();
+        List<NormalizedAttachment> updated = new ArrayList<>(attachments.size());
+
+        for (NormalizedAttachment attachment : attachments) {
+            if (attachment == null) {
+                continue;
+            }
+            String vectorSpace = attachment.getVectorSpace();
+            if (!StringUtils.hasText(vectorSpace)) {
+                updated.add(attachment);
+                continue;
+            }
+
+            String normalized = vectorSpace.trim();
+            String canonical = canonicalByLower.get(normalized.toLowerCase(java.util.Locale.ROOT));
+            if (!StringUtils.hasText(canonical)) {
+                invalid.add(normalized);
+                // Best-effort: keep the attachment but do not propagate an invalid vectorSpace.
+                updated.add(attachment.toBuilder().vectorSpace(null).build());
+                continue;
+            }
+
+            if (!canonical.equals(vectorSpace)) {
+                updated.add(attachment.toBuilder().vectorSpace(canonical).build());
+            } else {
+                updated.add(attachment);
+            }
+        }
+
+        if (invalid.isEmpty()) {
+            return new VectorSpaceValidationOutcome(false, null, updated, List.of());
+        }
+
+        if (properties.getVectorSpaceValidationMode() == AttachmentsProperties.VectorSpaceValidationMode.STRICT) {
+            OrchestrationResult result = OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message("Invalid attachment vectorSpace. Use a known vectorSpace or omit it.")
+                .data(Map.of(
+                    "invalidVectorSpaces", List.copyOf(invalid),
+                    "allowedVectorSpaces", List.copyOf(canonicalByLower.values())
+                ))
+                .build();
+            return new VectorSpaceValidationOutcome(true, result, null, invalid);
+        }
+
+        return new VectorSpaceValidationOutcome(false, null, updated, invalid);
     }
 
     private Map<String, String> normalizeMetadata(Map<String, Object> raw, PIIDetectionService pii) {
@@ -296,4 +414,3 @@ public class AttachmentNormalizationStep implements PipelineStep {
         return StringUtils.hasText(normalized) ? normalized : null;
     }
 }
-
