@@ -170,14 +170,18 @@ public class ChatController {
             : "anon-" + UUID.randomUUID();
 
         OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
-            .conversationId(conversationId);
+            .conversationId(conversationId)
+            // Demo app: temporarily force a single orchestration mode.
+            .mode("navigator");
 
-        if (StringUtils.hasText(request.getPosition())) {
-            builder.position(request.getPosition());
-        }
-        if (StringUtils.hasText(request.getMode())) {
-            builder.mode(request.getMode());
-        }
+        // TODO: Re-enable client-driven position/mode routing once multi-mode UX is finalized.
+        // if (StringUtils.hasText(request.getPosition())) {
+        //     builder.position(request.getPosition());
+        // }
+        // if (StringUtils.hasText(request.getMode())) {
+        //     builder.mode(request.getMode());
+        // }
+
         if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
             builder.attachments(request.getAttachments());
         }
