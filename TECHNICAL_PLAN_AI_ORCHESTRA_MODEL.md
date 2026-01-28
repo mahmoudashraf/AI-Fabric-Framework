@@ -112,12 +112,13 @@ Each customer gets an **isolated deployment** with clear separation of concerns:
 │            ▼                ▼                ▼                                   │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────────┐  │
 │  │  Customer's LLM │  │  Customer's App │  │  Vector Database                │  │
-│  │  (API Keys)     │  │  (Actions)      │  │  (Customer provides             │  │
-│  │                 │  │                 │  │   OR AI Fabric provides)        │  │
-│  │  • OpenAI       │  │  • @AIAction    │  │                                 │  │
-│  │  • Anthropic    │  │    handlers     │  │  • Qdrant (managed per tenant)  │  │
-│  │  • Azure        │  │  • Business     │  │  • OR customer's own instance   │  │
-│  │  • Cohere       │  │    logic        │  │                                 │  │
+│  │  (API Keys)     │  │  (Actions)      │  │  (Standalone - NOT Shared)      │  │
+│  │                 │  │                 │  │                                 │  │
+│  │  • OpenAI       │  │  • @AIAction    │  │  Option A: Customer provides    │  │
+│  │  • Anthropic    │  │    handlers     │  │            their own instance   │  │
+│  │  • Azure        │  │  • Business     │  │                                 │  │
+│  │  • Cohere       │  │    logic        │  │  Option B: We deploy standalone │  │
+│  │                 │  │                 │  │            Qdrant per customer  │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────────────────────┘  │
 │                                │                                                 │
 │                                ▼                                                 │
@@ -140,7 +141,7 @@ Each customer gets an **isolated deployment** with clear separation of concerns:
 |-----------|-------------|-----------|
 | **AI Fabric Runtime** | Orchestration engine, pipeline, intent handling | Yes |
 | **Internal Database** | PostgreSQL for framework metadata (profiles, history, sessions, etc.) | Yes |
-| **Vector Database** | Optional - Qdrant namespace per customer (if customer doesn't bring their own) | Optional |
+| **Vector Database** | Optional - Standalone Qdrant instance per customer (if customer doesn't bring their own) | Optional |
 | **Indexing/Sync Module** | Generic module to sync customer's relational data to vectors | Yes |
 
 ### 2.3 What Customer PROVIDES
@@ -229,25 +230,28 @@ ai:
 
 Customer can choose between:
 
-**Option A: AI Fabric Managed Vector DB**
+**Option A: AI Fabric Deploys Standalone Vector DB**
 ```yaml
 ai:
   vector-db:
-    mode: managed  # AI Fabric provisions Qdrant namespace
-    # Automatically configured per tenant
+    mode: managed  # We deploy standalone Qdrant for this customer
+    # Completely isolated - NOT shared with other customers
+    # We provision: qdrant-acme.ai-fabric.internal:6334
 ```
 
-**Option B: Customer Provides Vector DB**
+**Option B: Customer Provides Their Own Vector DB**
 ```yaml
 ai:
   vector-db:
     mode: customer-provided
     type: qdrant  # or pinecone, milvus, weaviate
     qdrant:
-      host: ${CUSTOMER_QDRANT_HOST}
+      host: ${CUSTOMER_QDRANT_HOST}  # Customer's own instance
       port: 6334
       api-key: ${CUSTOMER_QDRANT_API_KEY}
 ```
+
+**Key Principle**: No shared vector database. Every customer has completely isolated vector storage.
 
 ### 3.3 Generic Indexing/Sync Module
 
@@ -403,10 +407,11 @@ Each customer gets a **completely isolated deployment**:
 │    ▼            ▼            ▼                     ▼                         │
 │  ┌────────┐  ┌────────┐  ┌────────────────┐  ┌────────────────────┐         │
 │  │Customer│  │Customer│  │ Vector DB      │  │ Customer's         │         │
-│  │LLM Key │  │App     │  │ (Managed OR    │  │ Business DB        │         │
-│  │        │  │        │  │  Customer's)   │  │ (Read-Only Access) │         │
-│  │OpenAI  │  │Actions │  │                │  │                    │         │
-│  │sk-...  │  │        │  │ Qdrant ns:acme │  │ Products, Orders   │         │
+│  │LLM Key │  │App     │  │ (Standalone)   │  │ Business DB        │         │
+│  │        │  │        │  │                │  │ (Read-Only Access) │         │
+│  │OpenAI  │  │Actions │  │ Customer's own │  │                    │         │
+│  │sk-...  │  │        │  │ OR we deploy   │  │ Products, Orders   │         │
+│  │        │  │        │  │ isolated Qdrant│  │                    │         │
 │  └────────┘  └────────┘  └────────────────┘  └────────────────────┘         │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -418,13 +423,15 @@ Each customer gets a **completely isolated deployment**:
 |-----------|------------|-----------|----------------|
 | AI Fabric Runtime | ECS Fargate / Kubernetes | Yes | $35-100 |
 | Internal Database | PostgreSQL (RDS/Cloud SQL) | Yes | $25-50 |
-| Vector DB (if managed) | Qdrant namespace | Yes | $25-100 |
+| Vector DB (if managed) | Standalone Qdrant instance | Yes | $50-150 |
 | Load Balancer | ALB/Nginx | Yes | $20 |
-| **Total** | | | **$105-270** |
+| **Total** | | | **$130-320** |
+
+**Note**: Vector DB is completely isolated per customer - NOT shared with namespace isolation.
 
 ### 4.3 Customer Connection Options
 
-**Option A: Fully Managed (We Provide Vector DB)**
+**Option A: Fully Managed (We Deploy Standalone Vector DB)**
 ```yaml
 # Customer provides:
 customer:
@@ -434,28 +441,28 @@ customer:
     username: readonly_user
     password: ***
 
-# We provide:
+# We deploy (all isolated per customer):
 ai-fabric:
-  internal-db: managed     # We provision
-  vector-db: managed       # We provision Qdrant namespace
+  internal-db: managed     # Standalone PostgreSQL for this customer
+  vector-db: managed       # Standalone Qdrant instance for this customer
 ```
 
-**Option B: BYOD (Bring Your Own Database)**
+**Option B: BYOD (Customer Provides Vector DB)**
 ```yaml
 # Customer provides:
 customer:
   llm-api-key: sk-...
-  vector-db:
+  vector-db:               # Customer's own vector DB
     type: qdrant
     host: customer-qdrant.cloud.qdrant.io
     api-key: ***
   business-db:  # Optional - for indexing
     url: jdbc:postgresql://customer-db.example.com:5432/app
 
-# We provide:
+# We deploy:
 ai-fabric:
-  internal-db: managed     # We still provision this
-  vector-db: customer      # Customer's own
+  internal-db: managed     # Standalone PostgreSQL for framework metadata
+  vector-db: customer      # We connect to customer's vector DB
 ```
 
 ### 4.4 SDK Model (Self-Hosted by Customer)
@@ -602,12 +609,13 @@ providers:
 vector-db:
   mode: managed  # managed | customer-provided
 
-  # If managed - we provision Qdrant namespace
+  # If managed - we deploy standalone Qdrant for this customer
   managed:
     provider: qdrant
-    namespace: acme_corp
+    # Deployed at: qdrant-acme-corp.ai-fabric.internal:6334
+    # Completely isolated - NOT shared
 
-  # If customer-provided - they give us connection
+  # If customer-provided - they give us their own instance
   customer:
     type: qdrant
     host: ${CUSTOMER_QDRANT_HOST}
@@ -959,9 +967,11 @@ ai-infrastructure-core/
 | Component | We Provide | We Manage |
 |-----------|------------|-----------|
 | **AI Fabric Runtime** | Orchestration, intent extraction, actions, RAG | Yes |
-| **Internal Database** | PostgreSQL for framework metadata | Yes |
-| **Vector Database** | Qdrant namespace (optional - or customer brings own) | Optional |
+| **Internal Database** | Standalone PostgreSQL for framework metadata | Yes |
+| **Vector Database** | Standalone Qdrant instance (optional - or customer brings own) | Optional |
 | **Sync Module** | Generic indexing from customer's DB to vectors | Yes |
+
+**Note**: All components are completely isolated per customer. No shared databases.
 
 ### What Customer PROVIDES
 
@@ -972,15 +982,16 @@ ai-infrastructure-core/
 | **Action Handlers** | Business logic (@AIAction code) | Yes |
 | **Vector Database** | Optional - can bring their own | Optional |
 
-### Architecture Principle: Clear Separation
+### Architecture Principle: Complete Isolation
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    AI FABRIC PROVIDES                    │
+│              AI FABRIC PROVIDES (Per Customer)           │
+│              (All Standalone - NOT Shared)               │
 │  ┌─────────────────────────────────────────────────┐    │
-│  │  Internal DB (profiles, history, sessions, etc.) │    │
-│  │  Vector DB (optional - managed per customer)     │    │
-│  │  Orchestration Runtime                           │    │
+│  │  Internal DB (standalone PostgreSQL)             │    │
+│  │  Vector DB (standalone Qdrant - if managed)      │    │
+│  │  Orchestration Runtime (isolated container)      │    │
 │  └─────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────┘
                            │
@@ -1008,11 +1019,12 @@ ai-infrastructure-core/
 
 ### Key Differentiators
 
-1. **Isolated Per Customer** - Not multi-tenant, truly separated
-2. **Framework Metadata Managed** - We handle profiles, history, sessions
-3. **Flexible Vector DB** - Customer brings their own OR we provide managed
-4. **Generic Sync Module** - Connect any relational DB, sync to vectors
-5. **Customer Controls LLM Costs** - They provide API keys directly
+1. **Complete Isolation** - Every customer gets standalone databases (internal DB + vector DB)
+2. **No Shared Infrastructure** - Not multi-tenant with namespaces, truly separated deployments
+3. **Framework Metadata Managed** - We handle profiles, history, sessions in our internal DB
+4. **Flexible Vector DB** - Customer brings their own OR we deploy standalone instance for them
+5. **Generic Sync Module** - Connect any relational DB, sync to vectors
+6. **Customer Controls LLM Costs** - They provide API keys directly
 
 ---
 
