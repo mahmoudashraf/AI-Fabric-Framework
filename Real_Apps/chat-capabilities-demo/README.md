@@ -12,6 +12,10 @@ mvn -f ai-infrastructure-module/pom.xml -DskipTests install
 mvn -f Real_Apps/chat-capabilities-demo/pom.xml spring-boot:run
 ```
 
+## UI migration (request contract + positions)
+
+See `Final_Documentation/Development_Guides/CHAT_CAPABILITIES_UI_MIGRATION_GUIDE.md`.
+
 ## API Docs (Swagger)
 
 - Swagger UI: `http://localhost:8096/swagger-ui/index.html`
