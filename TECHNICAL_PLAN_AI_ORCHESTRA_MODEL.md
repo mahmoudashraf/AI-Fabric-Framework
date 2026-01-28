@@ -10,19 +10,19 @@ Based on deep code analysis, here's what the framework actually does:
 
 ### 1.1 Framework-Owned Tables (7 Tables)
 
-The framework currently creates these tables in the customer's database:
+The framework creates these tables for **its own internal operations**:
 
-| Table | Purpose | Required? | Can Externalize? |
-|-------|---------|-----------|------------------|
-| `ai_infrastructure_profiles` | AI-generated user profiles | No | Yes |
-| `intent_history` | Query/intent logging | No | Yes |
-| `chat_sessions` + `chat_turns` | Conversation state | No | Yes |
-| `ai_behavior_insights` | Behavioral analytics | No | Yes |
-| `ai_indexing_queue` | Async indexing work queue | Only if indexing | Yes |
-| `ai_index_catalog` | Index metadata tracking | Only if indexing | Yes |
-| `ai_migration_jobs` | Data migration tracking | Only if migration | Yes |
+| Table | Purpose | Module |
+|-------|---------|--------|
+| `ai_infrastructure_profiles` | AI-generated user profiles | Profiles |
+| `intent_history` | Query/intent logging | Core |
+| `chat_sessions` + `chat_turns` | Conversation state | Chat |
+| `ai_behavior_insights` | Behavioral analytics | Behavior |
+| `ai_indexing_queue` | Async indexing work queue | Indexing |
+| `ai_index_catalog` | Index metadata tracking | Indexing |
+| `ai_migration_jobs` | Data migration tracking | Migration |
 
-**Key Finding**: ALL framework tables are OPTIONAL based on which modules are enabled.
+**Key Architecture Decision**: AI Fabric **PROVIDES** an internal database for each customer deployment to store this framework metadata. This is SEPARATE from the customer's business database.
 
 ### 1.2 Vector Database Abstraction (Already Clean)
 
@@ -79,241 +79,388 @@ ai:
 
 ## Part 2: The "AI Orchestra" Vision
 
-### 2.1 New Architecture Model
+### 2.1 Deployment Architecture
+
+Each customer gets an **isolated deployment** with clear separation of concerns:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           CUSTOMER DEPLOYMENT (Isolated)                         │
+│                                                                                  │
+│  ┌────────────────────────────────────────────────────────────────────────────┐ │
+│  │                         AI FABRIC SYSTEM (We Provide)                       │ │
+│  │                                                                             │ │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
+│  │  │                    AI Fabric Internal Database                       │   │ │
+│  │  │                    (PostgreSQL - We Manage)                          │   │ │
+│  │  │                                                                      │   │ │
+│  │  │  • ai_infrastructure_profiles   • intent_history                    │   │ │
+│  │  │  • chat_sessions + chat_turns   • ai_behavior_insights              │   │ │
+│  │  │  • ai_indexing_queue           • ai_index_catalog                   │   │ │
+│  │  │  • ai_migration_jobs                                                 │   │ │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
+│  │                                                                             │ │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐       │ │
+│  │  │   Intent    │  │   Action    │  │    RAG      │  │  Security   │       │ │
+│  │  │  Extraction │  │  Execution  │  │  Provider   │  │   Layer     │       │ │
+│  │  │    (LLM)    │  │  Framework  │  │             │  │             │       │ │
+│  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────────────┘       │ │
+│  │         │                │                │                                │ │
+│  └─────────┼────────────────┼────────────────┼────────────────────────────────┘ │
+│            │                │                │                                   │
+│            │   CONNECTS TO  │                │                                   │
+│            ▼                ▼                ▼                                   │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────────┐  │
+│  │  Customer's LLM │  │  Customer's App │  │  Vector Database                │  │
+│  │  (API Keys)     │  │  (Actions)      │  │  (Customer provides             │  │
+│  │                 │  │                 │  │   OR AI Fabric provides)        │  │
+│  │  • OpenAI       │  │  • @AIAction    │  │                                 │  │
+│  │  • Anthropic    │  │    handlers     │  │  • Qdrant (managed per tenant)  │  │
+│  │  • Azure        │  │  • Business     │  │  • OR customer's own instance   │  │
+│  │  • Cohere       │  │    logic        │  │                                 │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────────────────────────┘  │
+│                                │                                                 │
+│                                ▼                                                 │
+│                       ┌─────────────────┐                                       │
+│                       │  Customer's     │                                       │
+│                       │  Business DB    │                                       │
+│                       │  (Their Data)   │                                       │
+│                       │                 │                                       │
+│                       │  • Products     │                                       │
+│                       │  • Orders       │                                       │
+│                       │  • Users        │                                       │
+│                       └─────────────────┘                                       │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 What AI Fabric PROVIDES (Per Customer Deployment)
+
+| Component | Description | We Manage |
+|-----------|-------------|-----------|
+| **AI Fabric Runtime** | Orchestration engine, pipeline, intent handling | Yes |
+| **Internal Database** | PostgreSQL for framework metadata (profiles, history, sessions, etc.) | Yes |
+| **Vector Database** | Optional - Qdrant namespace per customer (if customer doesn't bring their own) | Optional |
+| **Indexing/Sync Module** | Generic module to sync customer's relational data to vectors | Yes |
+
+### 2.3 What Customer PROVIDES
+
+| Component | Description | Notes |
+|-----------|-------------|-------|
+| **LLM API Keys** | OpenAI, Anthropic, Azure, Cohere, Gemini | Customer controls costs |
+| **Business Database** | Their relational DB with their business data | We connect to read for indexing |
+| **Action Handlers** | Business logic that AI can execute | @AIAction annotated code |
+| **Vector Database** | Optional - if they have existing Qdrant/Pinecone/etc. | OR we provide managed |
+
+### 2.4 Clear Separation of Data
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DATA OWNERSHIP MODEL                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  AI FABRIC OWNS & MANAGES:                                       │
+│  ├── Framework metadata (profiles, history, sessions)            │
+│  ├── Indexing state (queue, catalog, migration jobs)             │
+│  └── Vector embeddings (if we provide vector DB)                 │
+│                                                                  │
+│  CUSTOMER OWNS & MANAGES:                                        │
+│  ├── Business data (products, orders, users, etc.)               │
+│  ├── LLM API keys and costs                                      │
+│  ├── Action handler business logic                               │
+│  └── Vector database (optional - can bring their own)            │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Part 3: Technical Implementation for Cloud Deployment
+
+### 3.1 Dual Database Architecture
+
+Each customer deployment has TWO database contexts:
+
+```java
+// Configuration for dual database setup
+@Configuration
+public class DualDatabaseConfiguration {
+
+    // AI Fabric Internal Database (We provide & manage)
+    @Bean
+    @Primary
+    @ConfigurationProperties("ai.internal-datasource")
+    public DataSource aiFabricInternalDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+
+    // Customer's Business Database (They provide - READ ONLY for indexing)
+    @Bean
+    @ConfigurationProperties("ai.customer-datasource")
+    @ConditionalOnProperty("ai.indexing.enabled")
+    public DataSource customerDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+}
+```
+
+**Configuration:**
+
+```yaml
+ai:
+  # AI Fabric Internal Database (We manage per customer)
+  internal-datasource:
+    url: jdbc:postgresql://${AI_FABRIC_DB_HOST}:5432/tenant_${TENANT_ID}
+    username: ${AI_FABRIC_DB_USER}
+    password: ${AI_FABRIC_DB_PASS}
+    hikari:
+      maximum-pool-size: 10
+
+  # Customer's Business Database (They provide - for indexing)
+  customer-datasource:
+    enabled: ${CUSTOMER_DB_ENABLED:false}
+    url: ${CUSTOMER_DB_URL:}
+    username: ${CUSTOMER_DB_USER:}
+    password: ${CUSTOMER_DB_PASS:}
+    read-only: true  # We only READ from customer's DB
+```
+
+### 3.2 Vector Database Options
+
+Customer can choose between:
+
+**Option A: AI Fabric Managed Vector DB**
+```yaml
+ai:
+  vector-db:
+    mode: managed  # AI Fabric provisions Qdrant namespace
+    # Automatically configured per tenant
+```
+
+**Option B: Customer Provides Vector DB**
+```yaml
+ai:
+  vector-db:
+    mode: customer-provided
+    type: qdrant  # or pinecone, milvus, weaviate
+    qdrant:
+      host: ${CUSTOMER_QDRANT_HOST}
+      port: 6334
+      api-key: ${CUSTOMER_QDRANT_API_KEY}
+```
+
+### 3.3 Generic Indexing/Sync Module
+
+The indexing module connects to customer's database to sync data to vectors:
+
+```java
+// Generic sync service - reads from customer DB, writes to vector DB
+public interface DataSyncService {
+
+    // Sync single entity
+    SyncResult syncEntity(SyncEntityRequest request);
+
+    // Batch sync
+    BatchSyncResult syncBatch(BatchSyncRequest request);
+
+    // Full table sync
+    SyncJob startFullSync(FullSyncRequest request);
+
+    // Incremental sync (if customer DB supports change tracking)
+    SyncJob startIncrementalSync(IncrementalSyncRequest request);
+
+    // Status
+    SyncStatus getJobStatus(String jobId);
+}
+
+// Request to sync - customer specifies what to sync
+public class SyncEntityRequest {
+    private String entityType;       // e.g., "product"
+    private String entityId;         // Primary key
+    private Map<String, Object> data; // Fields to embed
+    private List<String> embeddableFields;  // Which fields to vectorize
+    private Map<String, Object> metadata;    // Metadata to store
+}
+```
+
+**Two Sync Modes:**
+
+1. **Push Mode** - Customer pushes data to AI Fabric API:
+```bash
+# Customer calls our API when their data changes
+POST /api/sync/entity
+{
+  "entityType": "product",
+  "entityId": "prod-123",
+  "data": {
+    "name": "Running Shoes",
+    "description": "Lightweight running shoes for marathons"
+  },
+  "embeddableFields": ["description"],
+  "metadata": { "price": 79.99, "category": "footwear" }
+}
+```
+
+2. **Pull Mode** - AI Fabric pulls from customer's DB:
+```yaml
+# Configuration for pull-based sync
+ai:
+  indexing:
+    mode: pull
+    source:
+      datasource: customer  # Use customer-datasource
+      entities:
+        - type: product
+          table: products
+          id-column: id
+          embeddable-columns: [description, name]
+          metadata-columns: [price, sku, category]
+          sync-strategy: incremental  # or full
+          schedule: "0 */15 * * * *"  # Every 15 minutes
+```
+
+### 3.4 LLM Connection (Customer Provides Keys)
+
+```yaml
+ai:
+  providers:
+    llm-provider: ${LLM_PROVIDER:openai}
+
+    openai:
+      api-key: ${CUSTOMER_OPENAI_API_KEY}
+      model: ${OPENAI_MODEL:gpt-4o}
+      timeout: 60
+
+    anthropic:
+      api-key: ${CUSTOMER_ANTHROPIC_API_KEY}
+      model: ${ANTHROPIC_MODEL:claude-3-haiku-20240307}
+
+    # Customer chooses which provider to use
+```
+
+### 3.5 Module Structure (Current - Already Good)
+
+The current module structure supports this architecture:
+
+```
+ai-infrastructure-module/
+├── ai-infrastructure-core/           # Orchestration + Intent + Actions
+├── ai-infrastructure-web/            # REST API endpoints
+├── ai-infrastructure-rag/            # RAG capabilities
+├── ai-infrastructure-indexing/       # Data sync/indexing
+├── ai-infrastructure-migration/      # Bulk data migration
+├── ai-infrastructure-chat-session/   # Conversation state
+├── ai-infrastructure-behavior/       # Behavioral analytics
+├── ai-infrastructure-pii/            # PII detection
+├── ai-infrastructure-governance/     # Compliance
+└── ai-infrastructure-relationship-query/  # NL to SQL
+
+ai-provider-module/
+├── providers/
+│   ├── ai-infrastructure-openai-starter/
+│   ├── ai-infrastructure-anthropic-starter/
+│   ├── ai-infrastructure-azure-starter/
+│   ├── ai-infrastructure-cohere-starter/
+│   ├── ai-infrastructure-gemini-starter/
+│   └── ai-infrastructure-onnx-starter/
+└── vector-databases/
+    ├── ai-infrastructure-qdrant-starter/
+    ├── ai-infrastructure-pinecone-starter/
+    ├── ai-infrastructure-milvus-starter/
+    ├── ai-infrastructure-weaviate-starter/
+    └── ai-infrastructure-lucene-starter/
+```
+
+---
+
+## Part 4: Deployment Model (Single-Tenant Isolated)
+
+### 4.1 Architecture Per Customer
+
+Each customer gets a **completely isolated deployment**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CUSTOMER'S INFRASTRUCTURE                            │
+│                        CUSTOMER: ACME CORP                                  │
 │                                                                              │
-│  ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐      │
-│  │  Customer's App  │    │  Customer's DB   │    │  Customer's      │      │
-│  │  (Any Platform)  │    │  (PostgreSQL,    │    │  Vector DB       │      │
-│  │                  │    │   MySQL, etc)    │    │  (Qdrant, etc)   │      │
-│  └────────┬─────────┘    └────────┬─────────┘    └────────┬─────────┘      │
-│           │                       │                       │                 │
-└───────────┼───────────────────────┼───────────────────────┼─────────────────┘
-            │                       │                       │
-            │                       │                       │
-┌───────────┼───────────────────────┼───────────────────────┼─────────────────┐
-│           ▼                       ▼                       ▼                 │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                     AI FABRIC ORCHESTRATION LAYER                    │   │
-│  │                                                                      │   │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │   │
-│  │  │   Intent    │  │   Action    │  │    RAG      │  │  Security   │ │   │
-│  │  │  Extraction │  │  Execution  │  │  Provider   │  │   Layer     │ │   │
-│  │  │    (LLM)    │  │  Framework  │  │  (Optional) │  │             │ │   │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │   │
-│  │                                                                      │   │
-│  │  CONNECTS TO (Customer Provides):                                    │   │
-│  │  • LLM API Keys (OpenAI, Anthropic, etc.)                           │   │
-│  │  • Database Connection (optional - for metadata)                     │   │
-│  │  • Vector DB Connection (optional - for RAG)                         │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│                        AI FABRIC (Your Offering)                            │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │                    AI FABRIC DEPLOYMENT (Isolated)                      │ │
+│  │                                                                         │ │
+│  │  ┌─────────────────────────┐    ┌─────────────────────────┐            │ │
+│  │  │   AI Fabric Runtime     │    │   AI Fabric Internal DB │            │ │
+│  │  │   (ECS/Kubernetes)      │────│   (RDS PostgreSQL)      │            │ │
+│  │  │                         │    │   - acme_profiles       │            │ │
+│  │  │   • Orchestration       │    │   - acme_history        │            │ │
+│  │  │   • Intent Extraction   │    │   - acme_sessions       │            │ │
+│  │  │   • Action Framework    │    │   - acme_indexing       │            │ │
+│  │  │   • RAG Provider        │    │                         │            │ │
+│  │  └───────────┬─────────────┘    └─────────────────────────┘            │ │
+│  │              │                                                          │ │
+│  └──────────────┼──────────────────────────────────────────────────────────┘ │
+│                 │                                                             │
+│    ┌────────────┼────────────┬─────────────────────┐                         │
+│    │            │            │                     │                         │
+│    ▼            ▼            ▼                     ▼                         │
+│  ┌────────┐  ┌────────┐  ┌────────────────┐  ┌────────────────────┐         │
+│  │Customer│  │Customer│  │ Vector DB      │  │ Customer's         │         │
+│  │LLM Key │  │App     │  │ (Managed OR    │  │ Business DB        │         │
+│  │        │  │        │  │  Customer's)   │  │ (Read-Only Access) │         │
+│  │OpenAI  │  │Actions │  │                │  │                    │         │
+│  │sk-...  │  │        │  │ Qdrant ns:acme │  │ Products, Orders   │         │
+│  └────────┘  └────────┘  └────────────────┘  └────────────────────┘         │
+│                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 What AI Fabric IS (The Orchestra)
+### 4.2 What We Deploy Per Customer
 
-**Core Value**: Intent Understanding + Action Orchestration + Optional RAG
+| Component | Technology | We Manage | Cost (Monthly) |
+|-----------|------------|-----------|----------------|
+| AI Fabric Runtime | ECS Fargate / Kubernetes | Yes | $35-100 |
+| Internal Database | PostgreSQL (RDS/Cloud SQL) | Yes | $25-50 |
+| Vector DB (if managed) | Qdrant namespace | Yes | $25-100 |
+| Load Balancer | ALB/Nginx | Yes | $20 |
+| **Total** | | | **$105-270** |
 
-| Layer | Provides | Requires |
-|-------|----------|----------|
-| **Orchestration** | Pipeline execution, intent routing | LLM API key |
-| **Intent Extraction** | Understanding user queries | LLM API key |
-| **Action Framework** | Execute business logic with confirmations | Customer's action handlers |
-| **Security** | Threat detection, rate limiting, PII | Nothing external |
-| **RAG (Optional)** | Semantic search + generation | Vector DB connection |
-| **Indexing (Optional)** | Sync relational → vector | DB + Vector DB connections |
+### 4.3 Customer Connection Options
 
-### 2.3 What Customer Provides
+**Option A: Fully Managed (We Provide Vector DB)**
+```yaml
+# Customer provides:
+customer:
+  llm-api-key: sk-...
+  business-db:  # Optional - for indexing
+    url: jdbc:postgresql://customer-db.example.com:5432/app
+    username: readonly_user
+    password: ***
 
-| Component | Who Owns | Notes |
-|-----------|----------|-------|
-| Relational Database | Customer | Their schema, their data |
-| Vector Database | Customer OR Managed | AI Fabric can optionally manage |
-| LLM API Keys | Customer | They control costs |
-| Business Logic | Customer | Action handlers |
-| Entities/Data | Customer | Their domain model |
-
----
-
-## Part 3: Technical Changes Required
-
-### 3.1 Changes to Make Framework "Connection-Based"
-
-Currently the framework auto-configures with embedded resources. We need to make ALL external connections explicit and optional.
-
-#### Change 1: Make Framework Metadata Storage Pluggable
-
-Create new SPI for metadata storage:
-
-```java
-// New interface - customers can implement or use defaults
-public interface OrchestrationMetadataStore {
-    // Intent history
-    void saveIntentHistory(IntentHistoryRecord record);
-    List<IntentHistoryRecord> getRecentHistory(String userId, int limit);
-
-    // Optional - can return empty if not tracking
-    default void saveIntentHistory(IntentHistoryRecord record) {}
-    default List<IntentHistoryRecord> getRecentHistory(String userId, int limit) {
-        return Collections.emptyList();
-    }
-}
-
-// Default implementation uses JPA (current behavior)
-@ConditionalOnProperty(prefix = "ai.metadata", name = "storage", havingValue = "jpa", matchIfMissing = true)
-public class JpaOrchestrationMetadataStore implements OrchestrationMetadataStore {
-    // Uses existing IntentHistoryRepository
-}
-
-// In-memory implementation (no database needed)
-@ConditionalOnProperty(prefix = "ai.metadata", name = "storage", havingValue = "memory")
-public class InMemoryOrchestrationMetadataStore implements OrchestrationMetadataStore {
-    private final Map<String, List<IntentHistoryRecord>> history = new ConcurrentHashMap<>();
-}
-
-// No-op implementation (disabled)
-@ConditionalOnProperty(prefix = "ai.metadata", name = "storage", havingValue = "none")
-public class NoOpOrchestrationMetadataStore implements OrchestrationMetadataStore {
-    // All methods do nothing - pure stateless orchestration
-}
+# We provide:
+ai-fabric:
+  internal-db: managed     # We provision
+  vector-db: managed       # We provision Qdrant namespace
 ```
 
-#### Change 2: Externalize Database Connection
-
-New configuration model:
-
+**Option B: BYOD (Bring Your Own Database)**
 ```yaml
-ai:
-  # Metadata storage configuration
-  metadata:
-    storage: none  # none | memory | jpa | external
-
-    # If storage=jpa, use this datasource (can be different from customer's)
-    datasource:
-      url: ${AI_FABRIC_DB_URL:}
-      username: ${AI_FABRIC_DB_USER:}
-      password: ${AI_FABRIC_DB_PASS:}
-
-    # If storage=external, customer implements OrchestrationMetadataStore
-
-  # Vector database configuration
+# Customer provides:
+customer:
+  llm-api-key: sk-...
   vector-db:
-    enabled: false  # Customer must explicitly enable
-    type: none  # none | lucene | qdrant | pinecone | milvus | weaviate | custom
+    type: qdrant
+    host: customer-qdrant.cloud.qdrant.io
+    api-key: ***
+  business-db:  # Optional - for indexing
+    url: jdbc:postgresql://customer-db.example.com:5432/app
 
-    # Connection provided by customer
-    qdrant:
-      host: ${CUSTOMER_QDRANT_HOST:}
-      port: ${CUSTOMER_QDRANT_PORT:6334}
-      api-key: ${CUSTOMER_QDRANT_API_KEY:}
-
-  # LLM configuration (customer provides keys)
-  providers:
-    llm-provider: openai
-    openai:
-      api-key: ${CUSTOMER_OPENAI_API_KEY}  # Required
+# We provide:
+ai-fabric:
+  internal-db: managed     # We still provision this
+  vector-db: customer      # Customer's own
 ```
 
-#### Change 3: Create "Stateless Orchestration" Mode
+### 4.4 SDK Model (Self-Hosted by Customer)
 
-```yaml
-ai:
-  mode: stateless  # stateless | stateful
-
-  # Stateless mode:
-  # - No database tables created
-  # - No intent history stored
-  # - No chat sessions
-  # - Pure request/response orchestration
-
-  # Stateful mode (current behavior):
-  # - Creates metadata tables
-  # - Stores history, sessions, etc.
-```
-
-#### Change 4: Indexing as Separate Service
-
-Currently indexing is tightly coupled. Make it a standalone service:
-
-```java
-// IndexingSyncService - can run independently
-public interface IndexingSyncService {
-    void syncEntity(String entityType, String entityId, Map<String, Object> data);
-    void removeEntity(String entityType, String entityId);
-    void fullSync(String entityType, Supplier<Stream<Map<String, Object>>> dataProvider);
-    SyncStatus getStatus(String jobId);
-}
-
-// Customer calls this explicitly - not via AOP
-@RestController
-@RequestMapping("/api/sync")
-public class IndexingSyncController {
-
-    @PostMapping("/entity")
-    public SyncResult syncEntity(@RequestBody SyncRequest request) {
-        // Customer explicitly triggers sync
-    }
-
-    @PostMapping("/full")
-    public SyncJob startFullSync(@RequestBody FullSyncRequest request) {
-        // Customer triggers full migration
-    }
-}
-```
-
-### 3.2 New Module Structure
-
-Reorganize modules for clarity:
-
-```
-ai-fabric-sdk/
-├── ai-fabric-core/                    # Pure orchestration (no DB required)
-│   ├── orchestration/                 # Pipeline, intent handling
-│   ├── intent/                        # Intent extraction, types
-│   ├── action/                        # Action framework
-│   └── security/                      # Security analysis
-│
-├── ai-fabric-rag/                     # RAG capabilities (requires vector DB)
-│   ├── search/                        # Semantic search
-│   ├── generation/                    # Answer generation
-│   └── providers/                     # RAG provider SPI
-│
-├── ai-fabric-sync/                    # Data synchronization (optional)
-│   ├── indexing/                      # Entity → Vector sync
-│   ├── migration/                     # Bulk migration
-│   └── queue/                         # Work queue (requires DB)
-│
-├── ai-fabric-connectors/              # Database connectors
-│   ├── connector-qdrant/
-│   ├── connector-pinecone/
-│   ├── connector-milvus/
-│   ├── connector-weaviate/
-│   └── connector-custom/              # SPI for custom connectors
-│
-├── ai-fabric-metadata/                # Metadata storage (optional)
-│   ├── storage-jpa/                   # JPA implementation
-│   ├── storage-redis/                 # Redis implementation
-│   └── storage-memory/                # In-memory
-│
-└── ai-fabric-providers/               # LLM providers
-    ├── provider-openai/
-    ├── provider-anthropic/
-    ├── provider-azure/
-    └── provider-onnx/
-```
-
----
-
-## Part 4: Deployment Models
-
-### 4.1 Model A: SDK Integration (Customer Self-Hosts)
-
-Customer embeds AI Fabric SDK in their application:
+For customers who want to run everything themselves:
 
 ```xml
 <!-- Customer's pom.xml -->
@@ -322,93 +469,15 @@ Customer embeds AI Fabric SDK in their application:
     <artifactId>ai-fabric-core</artifactId>
     <version>1.0.0</version>
 </dependency>
-
-<!-- Optional: RAG capabilities -->
-<dependency>
-    <groupId>com.ai-fabric</groupId>
-    <artifactId>ai-fabric-rag</artifactId>
-</dependency>
-
-<!-- Optional: Qdrant connector -->
-<dependency>
-    <groupId>com.ai-fabric</groupId>
-    <artifactId>ai-fabric-connector-qdrant</artifactId>
-</dependency>
 ```
 
-Customer configures connections:
+Customer deploys and manages:
+- Their own AI Fabric Runtime
+- Their own Internal DB (for framework metadata)
+- Their own Vector DB
+- Their own LLM keys
 
-```yaml
-# Customer's application.yml
-ai:
-  mode: stateless
-  providers:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-  vector-db:
-    type: qdrant
-    qdrant:
-      host: customer-qdrant.example.com
-      api-key: ${QDRANT_API_KEY}
-```
-
-**Revenue Model**: License fee + support
-
-### 4.2 Model B: Managed Orchestration Service (AI Fabric Hosts)
-
-Customer connects to AI Fabric cloud for orchestration:
-
-```
-Customer App → AI Fabric API → Customer's Vector DB
-                    ↓
-              Customer's LLM (via their API key)
-```
-
-Customer registers their connections:
-
-```bash
-# Register customer's infrastructure
-curl -X POST https://api.ai-fabric.dev/v1/tenants/acme/connections \
-  -H "Authorization: Bearer $TENANT_API_KEY" \
-  -d '{
-    "llm": {
-      "provider": "openai",
-      "apiKey": "sk-..."
-    },
-    "vectorDb": {
-      "type": "qdrant",
-      "host": "acme-qdrant.cloud.qdrant.io",
-      "apiKey": "..."
-    }
-  }'
-```
-
-Customer calls AI Fabric for orchestration:
-
-```bash
-# Orchestrate a query
-curl -X POST https://api.ai-fabric.dev/v1/orchestrate \
-  -H "Authorization: Bearer $TENANT_API_KEY" \
-  -d '{
-    "query": "Cancel my subscription",
-    "userId": "user-123",
-    "context": {...}
-  }'
-```
-
-**Revenue Model**: Usage-based pricing (per orchestration call)
-
-### 4.3 Model C: Fully Managed (AI Fabric Provides Everything)
-
-AI Fabric provisions and manages all infrastructure:
-
-```
-Customer App → AI Fabric API → AI Fabric Managed Vector DB
-                    ↓
-              AI Fabric Managed LLM Pool
-```
-
-**Revenue Model**: Higher margin, full SaaS pricing
+**Revenue Model**: License fee + support tier
 
 ---
 
@@ -503,53 +572,66 @@ public interface LLMConnector {
 
 ## Part 6: Configuration Schema
 
-### 6.1 Customer-Provided Configuration
+### 6.1 Deployment Configuration (Per Customer)
 
 ```yaml
-# ai-fabric-config.yml - Customer provides this
+# ai-fabric-deployment.yml - Generated per customer deployment
 
-# Core orchestration (required)
-orchestration:
-  mode: stateless  # stateless | stateful
-  information-mode: LLM_DRIVEN  # LLM_DRIVEN | DETERMINISTIC_RAG_GENERATE
+# Tenant identification
+tenant:
+  id: acme-corp
+  name: Acme Corporation
+  plan: growth
 
-# LLM Connection (required)
-llm:
-  provider: openai
-  connection:
-    api-key: ${OPENAI_API_KEY}
+# AI Fabric Internal Database (We provision and manage)
+ai-fabric:
+  internal-datasource:
+    url: jdbc:postgresql://ai-fabric-db.internal:5432/tenant_acme_corp
+    username: aifabric_internal
+    password: ${AI_FABRIC_DB_PASSWORD}  # From Secrets Manager
+
+# LLM Provider (Customer provides API key)
+providers:
+  llm-provider: openai
+  openai:
+    api-key: ${CUSTOMER_OPENAI_API_KEY}  # Customer's key
     model: gpt-4o
-    timeout: 60s
+    timeout: 60
 
-# Vector DB Connection (optional - only if using RAG)
+# Vector Database Configuration
 vector-db:
+  mode: managed  # managed | customer-provided
+
+  # If managed - we provision Qdrant namespace
+  managed:
+    provider: qdrant
+    namespace: acme_corp
+
+  # If customer-provided - they give us connection
+  customer:
+    type: qdrant
+    host: ${CUSTOMER_QDRANT_HOST}
+    api-key: ${CUSTOMER_QDRANT_API_KEY}
+
+# Indexing Configuration (Optional - if customer wants data sync)
+indexing:
   enabled: true
-  provider: qdrant
-  connection:
-    host: ${QDRANT_HOST}
-    port: 6334
-    api-key: ${QDRANT_API_KEY}
-    collection-prefix: ${TENANT_ID}_
+  mode: pull  # pull | push
 
-# Relational DB Connection (optional - only if using sync)
-relational-db:
-  enabled: false
-  connection:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASS}
+  # Customer's business database (READ ONLY access)
+  customer-datasource:
+    url: ${CUSTOMER_DB_URL}
+    username: ${CUSTOMER_DB_USER}
+    password: ${CUSTOMER_DB_PASSWORD}
+    read-only: true
 
-# Metadata Storage (optional)
-metadata:
-  storage: memory  # none | memory | external
-
-# Features (opt-in)
+# Feature flags
 features:
   rag: true
-  indexing: false
-  chat-sessions: false
+  chat-sessions: true
   behavior-analytics: false
   pii-detection: true
+  governance: false
 ```
 
 ### 6.2 Entity Sync Configuration (When Indexing Enabled)
@@ -784,30 +866,48 @@ Response:
 
 ## Part 9: Pricing Models
 
-### 9.1 SDK License (Self-Hosted)
+### 9.1 Managed Deployment (Recommended)
+
+Each customer gets isolated deployment with AI Fabric internal DB:
+
+| Tier | Monthly Price | Includes | Our Cost | Margin |
+|------|---------------|----------|----------|--------|
+| **Starter** | $199 | 10K queries, BYOD vector | ~$80 | 60% |
+| **Growth** | $499 | 50K queries, Managed vector (100K) | ~$150 | 70% |
+| **Scale** | $1,499 | 200K queries, Managed vector (1M) | ~$400 | 73% |
+| **Enterprise** | Custom | Unlimited, SLA, Support | Custom | Custom |
+
+**What's Included in All Tiers:**
+- Isolated AI Fabric deployment
+- Managed internal database (framework metadata)
+- All orchestration capabilities
+- Security, PII detection
+- Chat sessions, history tracking
+- Data sync/indexing module
+
+**Customer Provides:**
+- LLM API keys (they pay directly to OpenAI/Anthropic)
+- Vector DB (Starter tier) or use our managed (Growth+)
+- Business database connection (for indexing)
+
+### 9.2 SDK License (Self-Hosted)
+
+For customers who want to run everything themselves:
 
 | Tier | Price | Includes |
 |------|-------|----------|
-| Starter | Free | Core orchestration only |
-| Pro | $499/month | Core + RAG + Sync + Support |
-| Enterprise | Custom | All modules + SLA + Custom features |
+| Community | Free | Core orchestration (limited support) |
+| Pro | $299/month | All modules + Email support |
+| Enterprise | Custom | SLA + Dedicated support + Custom features |
 
-### 9.2 Managed Service (AI Fabric Hosts Orchestration)
+### 9.3 Usage-Based Add-ons
 
-| Component | Price |
-|-----------|-------|
-| Orchestration calls | $0.001 per call |
-| RAG queries | $0.002 per query |
-| Sync operations | $0.0001 per entity |
-| Monthly minimum | $99 |
-
-### 9.3 Fully Managed (AI Fabric Provides Vector DB)
-
-| Tier | Price | Includes |
-|------|-------|----------|
-| Starter | $149/month | 10K vectors, 10K orchestrations |
-| Growth | $499/month | 100K vectors, 50K orchestrations |
-| Scale | $1,499/month | 1M vectors, 200K orchestrations |
+| Add-on | Price |
+|--------|-------|
+| Additional orchestration calls | $0.001/call |
+| Additional vector storage | $0.10/10K vectors |
+| Data sync operations | $0.0001/entity |
+| Priority support | +$200/month |
 
 ---
 
@@ -854,28 +954,68 @@ ai-infrastructure-core/
 
 ## Summary
 
-### What AI Fabric IS (The Orchestra)
+### What AI Fabric PROVIDES (Per Customer)
 
-1. **Intent Understanding** - LLM-powered query analysis
-2. **Action Orchestration** - Execute business logic with confirmations
-3. **RAG Provider** - Semantic search + generation (when connected to vector DB)
-4. **Security Layer** - Threat detection, PII, access control
-5. **Sync Service** - Optional relational → vector synchronization
+| Component | We Provide | We Manage |
+|-----------|------------|-----------|
+| **AI Fabric Runtime** | Orchestration, intent extraction, actions, RAG | Yes |
+| **Internal Database** | PostgreSQL for framework metadata | Yes |
+| **Vector Database** | Qdrant namespace (optional - or customer brings own) | Optional |
+| **Sync Module** | Generic indexing from customer's DB to vectors | Yes |
 
-### What AI Fabric IS NOT
+### What Customer PROVIDES
 
-1. **Not a database provider** - Customer brings their own
-2. **Not an LLM provider** - Customer brings their API keys
-3. **Not required infrastructure** - Pure orchestration can be stateless
+| Component | They Provide | They Manage |
+|-----------|--------------|-------------|
+| **LLM API Keys** | OpenAI, Anthropic, etc. | Yes (cost control) |
+| **Business Database** | Their relational DB (we read for indexing) | Yes |
+| **Action Handlers** | Business logic (@AIAction code) | Yes |
+| **Vector Database** | Optional - can bring their own | Optional |
+
+### Architecture Principle: Clear Separation
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    AI FABRIC PROVIDES                    │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  Internal DB (profiles, history, sessions, etc.) │    │
+│  │  Vector DB (optional - managed per customer)     │    │
+│  │  Orchestration Runtime                           │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+                           │
+                    CONNECTS TO
+                           │
+┌─────────────────────────────────────────────────────────┐
+│                    CUSTOMER PROVIDES                     │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  LLM API Keys (OpenAI, Anthropic, etc.)         │    │
+│  │  Business Database (products, orders, users)     │    │
+│  │  Action Handlers (business logic)                │    │
+│  │  Vector DB (optional - can bring their own)      │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+```
 
 ### The Value Proposition
 
-> "Bring your data. Bring your LLM. We orchestrate the intelligence."
+> **"We are the orchestra of AI."**
+>
+> You bring your data. You bring your LLM keys.
+> We orchestrate the intelligence.
+> Every customer gets isolated deployment.
+> You own your data. We power your AI.
 
-AI Fabric is the middleware that turns any application into an AI-native application, without requiring customers to rebuild their infrastructure.
+### Key Differentiators
+
+1. **Isolated Per Customer** - Not multi-tenant, truly separated
+2. **Framework Metadata Managed** - We handle profiles, history, sessions
+3. **Flexible Vector DB** - Customer brings their own OR we provide managed
+4. **Generic Sync Module** - Connect any relational DB, sync to vectors
+5. **Customer Controls LLM Costs** - They provide API keys directly
 
 ---
 
-*Document Version: 1.0*
-*Based on: Deep code analysis*
-*Date: January 2026*
+*Document Version: 2.0*
+*Updated: January 2026*
+*Based on: Deep code analysis + Architecture clarification*
