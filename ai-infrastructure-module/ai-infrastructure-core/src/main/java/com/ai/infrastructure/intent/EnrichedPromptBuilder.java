@@ -181,6 +181,9 @@ public class EnrichedPromptBuilder {
         prompt.append("     * For user message \"relationship_query: find all brands and then summarize\": set actionParams.query=\"find all brands\", requiresGeneration=true, generationInstructions=\"summarize\".\n\n");
 
         prompt.append("11. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).\n");
+        prompt.append("12. Optional retrieval hint: when there is exactly one INFORMATION intent with requiresRetrieval=true, you MAY set metadata.retrievalQueryHint.\n");
+        prompt.append("    - Keep it short (keywords/identifiers only), max 200 chars.\n");
+        prompt.append("    - Never include emails/phones/addresses.\n");
     }
 
     private void appendExtractionRulesMinimal(StringBuilder prompt, SystemContext context) {
@@ -190,15 +193,18 @@ public class EnrichedPromptBuilder {
         prompt.append("3. If the user message is primarily confirming or rejecting a previously requested action and the conversation context indicates a pending confirmation -> type = CONFIRMATION_POSITIVE or CONFIRMATION_NEGATIVE.\n");
         prompt.append("4. Use type = OUT_OF_SCOPE only when the user requests an unsupported ACTION or the request is clearly unrelated to the system.\n");
         prompt.append("5. For INFORMATION intents, you MUST provide optimizedQuery. This query is used for embeddings/retrieval.\n");
-        prompt.append("6. vectorSpace is OPTIONAL. If you can confidently choose a single domain/entity type, set it.\n");
+        prompt.append("6. Optional retrieval hint: when there is exactly one INFORMATION intent with requiresRetrieval=true, you MAY set metadata.retrievalQueryHint.\n");
+        prompt.append("   - Keep it short (keywords/identifiers only), max 200 chars.\n");
+        prompt.append("   - Never include emails/phones/addresses.\n");
+        prompt.append("7. vectorSpace is OPTIONAL. If you can confidently choose a single domain/entity type, set it.\n");
         prompt.append("   - If the KNOWLEDGE BASE OVERVIEW lists available vectorSpace values, you MUST choose from that list (case-insensitive). Do NOT invent new values.\n");
         prompt.append("   - If unsure, omit vectorSpace or leave it blank; the system will route or fan-out.\n");
-        prompt.append("7. ACTION selection MUST be grounded in AVAILABLE ACTIONS. Never invent actions.\n");
-        prompt.append("8. ACTION PARAMETER RULES:\n");
+        prompt.append("8. ACTION selection MUST be grounded in AVAILABLE ACTIONS. Never invent actions.\n");
+        prompt.append("9. ACTION PARAMETER RULES:\n");
         prompt.append("   - Only populate actionParams with values the user explicitly provided (or unambiguous literals like email address, SKU, quantity).\n");
         prompt.append("   - Never fabricate parameter values to satisfy required parameters. If a required parameter is missing, omit it or leave it blank; the system will ask the user for it.\n");
         prompt.append("   - Do NOT copy parameter descriptions/examples into parameter values.\n");
-        prompt.append("9. When action == \"relationship_query\":\n");
+        prompt.append("10. When action == \"relationship_query\":\n");
         prompt.append("   - Extract entityTypes from the user request as an array of lower-case strings. ");
         if (context.getAvailableEntityTypes() != null && !context.getAvailableEntityTypes().isEmpty()) {
             prompt.append("Available entity types: ").append(String.join(", ", context.getAvailableEntityTypes())).append(". ");
@@ -249,7 +255,9 @@ public class EnrichedPromptBuilder {
               ],
               "isCompound": false,
               "orchestrationStrategy": "DIRECT_ACTION | RETRIEVE_AND_GENERATE | ADMIT_UNKNOWN",
-              "metadata": {}
+              "metadata": {
+                "retrievalQueryHint": "optional keywords/identifiers to improve retrieval"
+              }
             }
             """);
         prompt.append("\nCRITICAL JSON REQUIREMENTS:\n");
@@ -280,7 +288,9 @@ public class EnrichedPromptBuilder {
               ],
               "isCompound": false,
               "orchestrationStrategy": "DIRECT_ACTION | RETRIEVE_AND_GENERATE | ADMIT_UNKNOWN",
-              "metadata": {}
+              "metadata": {
+                "retrievalQueryHint": "optional keywords/identifiers to improve retrieval"
+              }
             }
             """);
         prompt.append("\nCRITICAL JSON REQUIREMENTS:\n");

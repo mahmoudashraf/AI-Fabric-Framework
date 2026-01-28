@@ -1,7 +1,7 @@
 # Intent Metadata → RAG Query Augmentation — Change Plan
 
 ## Status
-Proposed
+Implemented
 
 ## Problem
 Today, the intent extractor can return a free-form metadata object (`MultiIntentResponse.metadata`, surfaced as `result.metadata.intentMetadata`). This metadata is currently **diagnostic-only** and is **not** used by retrieval.

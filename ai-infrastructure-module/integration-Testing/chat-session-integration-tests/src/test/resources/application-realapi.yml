@@ -20,6 +20,9 @@ spring:
     allow-bean-definition-overriding: true
 
 ai:
+  curated:
+    pack: ${AI_CURATED_PACK:support}
+
   chat:
     enabled: true
     window-size: 10

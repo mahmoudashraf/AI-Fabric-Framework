@@ -1,0 +1,17 @@
+ai:
+  orchestration:
+    profile: DEMO_CATALOG
+    modes:
+      navigator:
+        information-mode: DETERMINISTIC_RAG_GENERATE
+        prompt-mode: MINIMAL_FOR_RAG
+    position-routing:
+      landing: navigator
+      cart: navigator
+      support: navigator
+
+  prompts:
+    intent-extraction:
+      multi-step:
+        version: v1-catalog
+

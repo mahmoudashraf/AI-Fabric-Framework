@@ -59,6 +59,9 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     private static final String PLACEHOLDER_ACTION_INTENTS = "action_intents";
     private static final String PLACEHOLDER_ACTION_SPECS = "action_specs";
     private static final String PLACEHOLDER_TASKS = "tasks";
+    private static final String RESPONSE_METADATA_KEY_EXTRACTION_MODE = "extractionMode";
+    private static final String RESPONSE_METADATA_VALUE_MULTI_STEP = "multi_step";
+    private static final String RESPONSE_METADATA_KEY_RETRIEVAL_QUERY_HINT = "retrievalQueryHint";
 
     private final AICoreService aiCoreService;
     private final AIActionRegistry actionHandlerRegistry;
@@ -530,10 +533,18 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         }
 
         boolean compound = Boolean.TRUE.equals(classification.getIsCompound()) || intents.size() > 1;
+        Map<String, Object> responseMetadata = new LinkedHashMap<>();
+        responseMetadata.put(RESPONSE_METADATA_KEY_EXTRACTION_MODE, RESPONSE_METADATA_VALUE_MULTI_STEP);
+        if (classification != null
+            && classification.getMetadata() != null
+            && classification.getMetadata().get(RESPONSE_METADATA_KEY_RETRIEVAL_QUERY_HINT) instanceof String hint
+            && StringUtils.hasText(hint)) {
+            responseMetadata.put(RESPONSE_METADATA_KEY_RETRIEVAL_QUERY_HINT, hint.trim());
+        }
         return MultiIntentResponse.builder()
             .intents(intents)
             .compound(compound)
-            .metadata(Map.of("extractionMode", "multi_step"))
+            .metadata(Collections.unmodifiableMap(responseMetadata))
             .build();
     }
 
@@ -572,6 +583,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     static class ClassificationResponse {
         private Boolean isCompound;
         private List<ClassificationIntent> intents = new ArrayList<>();
+        private Map<String, Object> metadata = Collections.emptyMap();
     }
 
     @Data

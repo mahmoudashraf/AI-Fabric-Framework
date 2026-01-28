@@ -1,7 +1,7 @@
 # End-to-End Implementation Sequence (Policy + Curated Modes + Attachments + Prompt SPI)
 
 ## Status
-Proposed
+In progress (Phase 7 complete; Phase 8 complete)
 
 ## Purpose
 Provide a single, testable implementation sequence for the full agreed solution:
@@ -250,4 +250,3 @@ Validation gate:
    - PRODUCTION_CHAT can return short replies without retrieval when appropriate
 5) **Reproducibility**
    - effective policy + prompt versions are visible in debug metadata and pinned in tests.
-

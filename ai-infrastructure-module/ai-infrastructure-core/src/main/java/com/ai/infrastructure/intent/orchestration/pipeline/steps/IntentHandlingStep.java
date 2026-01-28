@@ -124,6 +124,9 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String METADATA_KEY_SESSION_ID = "sessionId";
     private static final String METADATA_KEY_AUTHENTICATED = "authenticated";
     private static final String METADATA_KEY_OPTIMIZED_QUERY = "optimizedQuery";
+    private static final String METADATA_KEY_RETRIEVAL_QUERY_HINT_APPLIED = "retrievalQueryHintApplied";
+    private static final String INTENT_METADATA_KEY_RETRIEVAL_QUERY_HINT = "retrievalQueryHint";
+    private static final int MAX_RETRIEVAL_QUERY_HINT_LENGTH = 200;
     
     // Metadata values
     private static final String METADATA_VALUE_ORCHESTRATOR = "orchestrator";
@@ -1130,18 +1133,20 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
+        String retrievalQuery = applyRetrievalQueryHint(query, pipelineContext, intent, metadata);
+
         if (vectorSpaces.size() > 1) {
-            return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, query, metadata, vectorSpaces);
+            return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, query, retrievalQuery, metadata, vectorSpaces);
         }
 
         if (shouldUseAdvancedRag(intent, needsGeneration, query, context)) {
-            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, query, metadata);
+            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, query, retrievalQuery, metadata);
             if (advanced != null) {
                 return advanced;
             }
         }
 
-        return handleInformationBasic(intent, context, pipelineContext, needsGeneration, query, metadata);
+        return handleInformationBasic(intent, context, pipelineContext, needsGeneration, query, retrievalQuery, metadata);
     }
 
     private OrchestrationResult handleInformationDirectAnswer(Intent intent,
@@ -1224,7 +1229,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                        OrchestrationContext context,
                                                        PipelineContext pipelineContext,
                                                        boolean needsGeneration,
-                                                       String query,
+                                                       String generationQuery,
+                                                       String retrievalQuery,
                                                        Map<String, Object> metadata) {
         RAGProvider provider = ragProvider.getIfAvailable();
         if (provider == null) {
@@ -1245,7 +1251,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         RAGRequest ragRequest = RAGRequest.builder()
-            .query(query)
+            .query(retrievalQuery)
             .entityType(intent.getVectorSpace())
             .limit(DEFAULT_RAG_LIMIT)
             .threshold(DEFAULT_RAG_THRESHOLD)
@@ -1265,7 +1271,7 @@ public class IntentHandlingStep implements PipelineStep {
         if (needsGeneration) {
             try {
                 String generationContext = prependPinnedTargetsContext(ragResponse.getContext(), pipelineContext);
-                answer = generateRagAnswer(query, generationContext);
+                answer = generateRagAnswer(generationQuery, generationContext);
             } catch (Exception ex) {
                 log.error("RAG generation failed for request {}: {}",
                     pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -1313,7 +1319,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                         PipelineContext pipelineContext,
                                                         boolean deterministic,
                                                         boolean needsGeneration,
-                                                        String query,
+                                                        String generationQuery,
+                                                        String retrievalQuery,
                                                         Map<String, Object> metadata,
                                                         List<String> vectorSpaces) {
         RAGProvider provider = ragProvider.getIfAvailable();
@@ -1347,7 +1354,7 @@ public class IntentHandlingStep implements PipelineStep {
         Map<String, List<RAGResponse.RAGDocument>> docsBySpace = new LinkedHashMap<>();
         for (String vectorSpace : vectorSpaces) {
             RAGRequest ragRequest = RAGRequest.builder()
-                .query(query)
+                .query(retrievalQuery)
                 .entityType(vectorSpace)
                 .limit(topKPerSpace)
                 .threshold(fanOutThreshold)
@@ -1402,7 +1409,7 @@ public class IntentHandlingStep implements PipelineStep {
         RAGResponse mergedResponse = RAGResponse.builder()
             .documents(merged)
             .context(mergedContext)
-            .originalQuery(query)
+            .originalQuery(generationQuery)
             .entityType(String.join(",", vectorSpaces))
             .success(true)
             .build();
@@ -1410,7 +1417,7 @@ public class IntentHandlingStep implements PipelineStep {
         String answer = null;
         if (needsGeneration) {
             try {
-                answer = generateRagAnswer(query, prependPinnedTargetsContext(mergedContext, pipelineContext));
+                answer = generateRagAnswer(generationQuery, prependPinnedTargetsContext(mergedContext, pipelineContext));
             } catch (Exception ex) {
                 log.error("Fan-out RAG generation failed for request {}: {}",
                     pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -1504,7 +1511,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                           OrchestrationContext context,
                                                           PipelineContext pipelineContext,
                                                           boolean needsGeneration,
-                                                          String query,
+                                                          String generationQuery,
+                                                          String retrievalQuery,
                                                           Map<String, Object> metadata) {
         AdvancedRAGProvider provider = advancedRagProvider.getIfAvailable();
         if (provider == null) {
@@ -1512,7 +1520,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         try {
-            AdvancedRAGRequest request = buildAdvancedRagRequest(intent, context, query, metadata);
+            AdvancedRAGRequest request = buildAdvancedRagRequest(intent, context, retrievalQuery, metadata);
             AdvancedRAGResponse advancedResponse = provider.performAdvancedRAG(request);
             if (advancedResponse == null) {
                 log.warn("Advanced RAG returned null response for request {}", 
@@ -1528,7 +1536,7 @@ public class IntentHandlingStep implements PipelineStep {
             }
 
             List<RAGResponse.RAGDocument> documents = convertToRagDocuments(advancedResponse.getDocuments());
-            RAGResponse ragResponse = convertToRagResponse(advancedResponse, documents, query, intent.getVectorSpace());
+            RAGResponse ragResponse = convertToRagResponse(advancedResponse, documents, generationQuery, intent.getVectorSpace());
 
             String answer = null;
             if (needsGeneration) {
@@ -1536,7 +1544,7 @@ public class IntentHandlingStep implements PipelineStep {
                     answer = advancedResponse.getResponse();
                 } else {
                     try {
-                        answer = generateRagAnswer(query, prependPinnedTargetsContext(ragResponse.getContext(), pipelineContext));
+                        answer = generateRagAnswer(generationQuery, prependPinnedTargetsContext(ragResponse.getContext(), pipelineContext));
                     } catch (Exception ex) {
                         log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
                             pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -1596,9 +1604,9 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private AdvancedRAGRequest buildAdvancedRagRequest(Intent intent,
-                                                       OrchestrationContext context,
-                                                       String query,
-                                                       Map<String, Object> metadata) {
+                                                      OrchestrationContext context,
+                                                      String query,
+                                                      Map<String, Object> metadata) {
         Map<String, Object> ctxMetadata = context != null ? context.getMetadata() : null;
 
         AdvancedRAGRequest.AdvancedRAGRequestBuilder builder = AdvancedRAGRequest.builder()
@@ -1627,6 +1635,103 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         return builder.build();
+    }
+
+    private String applyRetrievalQueryHint(String baseQuery,
+                                          PipelineContext pipelineContext,
+                                          Intent intent,
+                                          Map<String, Object> metadata) {
+        boolean applied = false;
+        String result = baseQuery;
+
+        String hint = resolveValidRetrievalQueryHint(pipelineContext, intent);
+        if (StringUtils.hasText(hint)) {
+            result = baseQuery + " " + hint;
+            applied = true;
+        }
+
+        if (metadata != null) {
+            metadata.put(METADATA_KEY_RETRIEVAL_QUERY_HINT_APPLIED, applied);
+        }
+        return result;
+    }
+
+    private String resolveValidRetrievalQueryHint(PipelineContext pipelineContext, Intent currentIntent) {
+        if (pipelineContext == null || currentIntent == null) {
+            return null;
+        }
+
+        MultiIntentResponse response = pipelineContext.getIntentResponse();
+        if (response == null) {
+            return null;
+        }
+
+        if (!hasExactlyOneRetrievalIntent(response)) {
+            return null;
+        }
+
+        Map<String, Object> metadata = response.getMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+
+        Object raw = metadata.get(INTENT_METADATA_KEY_RETRIEVAL_QUERY_HINT);
+        if (!(raw instanceof String value)) {
+            return null;
+        }
+
+        String hint = value.trim();
+        if (!StringUtils.hasText(hint)) {
+            return null;
+        }
+
+        if (!isSafeRetrievalQueryHint(hint)) {
+            return null;
+        }
+
+        return hint;
+    }
+
+    private boolean hasExactlyOneRetrievalIntent(MultiIntentResponse response) {
+        if (response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
+            return false;
+        }
+
+        long count = response.getIntents().stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(intent -> Boolean.TRUE.equals(intent.getRequiresRetrieval()))
+            .count();
+
+        return count == 1;
+    }
+
+    private boolean isSafeRetrievalQueryHint(String hint) {
+        if (!StringUtils.hasText(hint)) {
+            return false;
+        }
+        if (hint.length() > MAX_RETRIEVAL_QUERY_HINT_LENGTH) {
+            return false;
+        }
+        if (hint.indexOf('@') >= 0) {
+            return false;
+        }
+        if (hint.indexOf('\n') >= 0 || hint.indexOf('\r') >= 0) {
+            return false;
+        }
+        return !hasConsecutiveWhitespace(hint);
+    }
+
+    private boolean hasConsecutiveWhitespace(String value) {
+        boolean lastWasWhitespace = false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            boolean whitespace = Character.isWhitespace(ch);
+            if (whitespace && lastWasWhitespace) {
+                return true;
+            }
+            lastWasWhitespace = whitespace;
+        }
+        return false;
     }
 
     private boolean shouldUseAdvancedRag(Intent intent, boolean needsGeneration, String query, OrchestrationContext context) {

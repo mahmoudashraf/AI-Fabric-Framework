@@ -28,6 +28,11 @@ Also set Pinecone host/index when using Pinecone:
 - `PINECONE_API_HOST` (or `AI_PROVIDERS_PINECONE_API_HOST`)
 - `PINECONE_INDEX_NAME` (or `AI_PROVIDERS_PINECONE_INDEX_NAME`)
 
+Optional framework preset (curated pack):
+- `AI_CURATED_PACK` (example values: `support`, `commerce`, `catalog`)
+  - When set, the framework loads `classpath:ai-curated/packs/<pack>.yml` as low-precedence defaults.
+  - Some RealAPI test profiles default this to `support` unless overridden.
+
 ---
 
 ## 3) Running a Single RealAPI Test Class
@@ -75,4 +80,3 @@ cd ai-infrastructure-module/integration-Testing/integration-tests
 If you’re triaging failures, start with the provider combination name and the module test reports:
 - `ai-infrastructure-module/**/target/surefire-reports/`
 - `ai-infrastructure-module/**/target/failsafe-reports/`
-

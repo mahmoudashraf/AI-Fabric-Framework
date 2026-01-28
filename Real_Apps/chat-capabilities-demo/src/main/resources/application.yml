@@ -20,16 +20,8 @@ ai:
   config:
     default-file: ai-entity-config.yml
 
-  orchestration:
-    profile: DEMO_CATALOG
-    modes:
-      navigator:
-        information-mode: DETERMINISTIC_RAG_GENERATE
-        prompt-mode: MINIMAL_FOR_RAG
-    position-routing:
-      landing: navigator
-      cart: navigator
-      support: navigator
+  curated:
+    pack: catalog
 
   chat:
     enabled: true

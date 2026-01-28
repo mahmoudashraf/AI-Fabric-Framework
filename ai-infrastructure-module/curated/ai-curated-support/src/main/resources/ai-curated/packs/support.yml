@@ -1,0 +1,15 @@
+ai:
+  orchestration:
+    profile: PRODUCTION_CHAT
+    modes:
+      support_resolver:
+        information-mode: LLM_DRIVEN
+        prompt-mode: FULL_CONTRACT
+    position-routing:
+      support: support_resolver
+
+  prompts:
+    intent-extraction:
+      multi-step:
+        version: v1-support
+
