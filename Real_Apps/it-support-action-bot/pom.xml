@@ -51,6 +51,11 @@
             <artifactId>ai-fabric-provider-starter</artifactId>
             <version>1.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-curated-support</artifactId>
+            <version>1.0.0</version>
+        </dependency>
         <!-- Choose one LLM provider -->
         <dependency>
             <groupId>com.ai.fabric</groupId>

@@ -7,6 +7,7 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
+import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,12 +15,16 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -41,8 +46,7 @@ public class NaturalLanguageController {
     private AIActionRegistry actionRegistry;
     
     @PostMapping
-    public ResponseEntity<OrchestrationResult> query(
-            @RequestBody Map<String, Object> request) {
+    public ResponseEntity<OrchestrationResult> query(@Valid @RequestBody QueryRequest request) {
         
         if (ragOrchestrator == null) {
             log.warn("RAGOrchestrator not available, returning basic response");
@@ -53,28 +57,35 @@ public class NaturalLanguageController {
                 .build());
         }
         
-        String query = (String) request.get("query");
-        Object userIdObj = request.get("userId");
-        String userId = null;
-        
-        // Support both numeric (1-100) and UUID string formats
-        if (userIdObj != null) {
-            if (userIdObj instanceof Number) {
-                // Numeric userId (1-100) - convert to string for framework
-                userId = userIdObj.toString();
-            } else {
-                userId = userIdObj.toString();
-            }
+        String query = request.getQuery();
+        String userId = request.getUserId();
+        String sessionId = request.getSessionId() != null ? request.getSessionId() : UUID.randomUUID().toString();
+        String conversationId = request.getConversationId();
+        if (conversationId == null || conversationId.isBlank()) {
+            conversationId = "chat-" + sessionId;
         }
-        
-        String sessionId = request.get("sessionId") != null ? request.get("sessionId").toString() : UUID.randomUUID().toString();
-        
-        OrchestrationContext context = userId != null
-            ? OrchestrationContext.builder()
-                .userId(userId)
-                .sessionId(sessionId)
-                .build()
-            : OrchestrationContext.forSession(sessionId);
+
+        OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
+            .conversationId(conversationId);
+
+        if (request.getPosition() != null && !request.getPosition().isBlank()) {
+            builder.position(request.getPosition());
+        } else {
+            builder.position("support");
+        }
+        if (request.getMode() != null && !request.getMode().isBlank()) {
+            builder.mode(request.getMode());
+        }
+        if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
+            builder.attachments(request.getAttachments());
+        }
+        if (request.getActiveAttachmentIds() != null && !request.getActiveAttachmentIds().isEmpty()) {
+            builder.activeAttachmentIds(request.getActiveAttachmentIds());
+        }
+
+        OrchestrationContext context = userId != null && !userId.isBlank()
+            ? builder.userId(userId).sessionId(sessionId).build()
+            : builder.sessionId(sessionId).build();
         
         OrchestrationResult result = ragOrchestrator.orchestrate(query, context);
         
@@ -154,5 +165,18 @@ public class NaturalLanguageController {
                     .errorCode("ACTION_EXECUTION_FAILED")
                     .build());
         }
+    }
+
+    @Data
+    public static class QueryRequest {
+        @NotBlank
+        private String query;
+        private String userId;
+        private String sessionId;
+        private String conversationId;
+        private String position;
+        private String mode;
+        private List<OrchestrationAttachment> attachments;
+        private List<String> activeAttachmentIds;
     }
 }

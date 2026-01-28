@@ -21,7 +21,7 @@ ai:
     default-file: ai-entity-config.yml
 
   curated:
-    pack: catalog
+    pack: commerce
 
   chat:
     enabled: true

@@ -61,7 +61,7 @@
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-curated-catalog</artifactId>
+            <artifactId>ai-curated-commerce</artifactId>
             <version>1.0.0</version>
         </dependency>
         <dependency>

@@ -47,6 +47,7 @@ Content-Type: application/json
   "userId": "user-1",
   "sessionId": "user-1-session",
   "conversationId": "chat-user-1",
+  "position": "landing",
   "query": "I'm looking for wireless headphones under $250. Recommend options from the catalog and explain briefly."
 }
 
@@ -58,7 +59,33 @@ Content-Type: application/json
   "userId": "user-1",
   "sessionId": "user-1-session",
   "conversationId": "chat-user-1",
+  "position": "cart",
   "query": "Create a purchase order for sku SKU-0001 quantity 2, ship to 1 Market St, San Francisco, CA 94105, email alice@example.com."
+}
+
+### Chat (ACTION) add to cart using attachments (deterministic target resolution)
+POST {{baseUrl}}/api/chat/query
+Content-Type: application/json
+
+{
+  "userId": "user-1",
+  "sessionId": "user-1-session",
+  "conversationId": "chat-user-1",
+  "position": "cart",
+  "query": "Add it to my cart",
+  "attachments": [
+    {
+      "id": "SKU-0002",
+      "vectorSpace": "product",
+      "contentSnippet": "Compact Mechanical Keyboard - 65% mechanical keyboard with Bluetooth connectivity.",
+      "metadata": {
+        "sku": "SKU-0002",
+        "category": "Keyboards"
+      },
+      "source": "ui-card"
+    }
+  ],
+  "activeAttachmentIds": ["SKU-0002"]
 }
 
 ### List orders for the user
