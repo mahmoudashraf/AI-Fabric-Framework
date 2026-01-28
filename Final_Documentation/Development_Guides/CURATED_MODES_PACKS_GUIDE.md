@@ -52,8 +52,10 @@ ai:
 ```
 
 ## Prompt bundle pinning
-Each pack pins a multi-step intent-extraction prompt template version via:
-- `ai.prompts.intent-extraction.multi-step.version`
+Each pack enables its prompt overrides by adding an overlay bundle version via:
+- `ai.prompts.bundle.overlays`
+
+The framework resolves templates by trying overlay versions first, then falling back to the base bundle version (`ai.prompts.bundle.base-version`, default `v1`).
 
 You can override it in your app if you need to run a different prompt bundle version.
 

@@ -34,7 +34,7 @@ public class ClasspathPromptTemplateStore implements PromptTemplateStore {
         String path = key.resourcePath();
         Resource resource = resourceLoader.getResource(CLASSPATH_PREFIX + path);
         if (!resource.exists()) {
-            throw new IllegalStateException("Prompt template not found on classpath: " + path);
+            throw new PromptTemplateNotFoundException("Prompt template not found on classpath: " + path);
         }
 
         try (InputStream in = resource.getInputStream()) {
@@ -45,4 +45,3 @@ public class ClasspathPromptTemplateStore implements PromptTemplateStore {
         }
     }
 }
-

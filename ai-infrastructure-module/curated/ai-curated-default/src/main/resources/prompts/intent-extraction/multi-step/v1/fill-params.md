@@ -1,4 +1,5 @@
 You are filling actionParams for already selected, registered actions.
+
 Output MUST be valid JSON and MUST match:
 
 {

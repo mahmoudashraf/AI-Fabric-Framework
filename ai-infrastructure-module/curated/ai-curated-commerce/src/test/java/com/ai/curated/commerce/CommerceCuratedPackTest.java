@@ -1,11 +1,11 @@
 package com.ai.curated.commerce;
 
 import com.ai.infrastructure.config.OrchestrationProperties;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.curated.CuratedPackEnvironmentPostProcessor;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationProfile;
 import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
-import com.ai.infrastructure.prompt.PromptTemplate;
-import com.ai.infrastructure.prompt.PromptTemplateKey;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -36,11 +36,15 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes()).containsKey("navigator");
         assertThat(props.getModes()).containsKey("cart_assistant");
 
-        String version = environment.getProperty("ai.prompts.intent-extraction.multi-step.version");
-        assertThat(version).isEqualTo("v1-commerce");
+        PromptBundleProperties promptBundle = Binder.get(environment)
+            .bind("ai.prompts.bundle", PromptBundleProperties.class)
+            .orElseThrow(() -> new IllegalStateException("Failed to bind ai.prompts.bundle"));
+        assertThat(promptBundle.getOverlays()).contains("v1-commerce");
 
-        ClasspathPromptTemplateStore store = new ClasspathPromptTemplateStore(new DefaultResourceLoader());
-        PromptTemplate template = store.load(new PromptTemplateKey("intent-extraction/multi-step", version, "classify"));
-        assertThat(template.template()).contains("requiresTargetResolution");
+        PromptTemplateResolver resolver = new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            promptBundle
+        );
+        assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1-commerce");
     }
 }

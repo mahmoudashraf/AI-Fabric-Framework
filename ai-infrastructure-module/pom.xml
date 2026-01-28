@@ -35,6 +35,7 @@
         <module>ai-infrastructure-governance</module>
         <module>ai-fabric-starter</module>
         <module>ai-fabric-provider-starter</module>
+        <module>curated/ai-curated-default</module>
         <module>curated/ai-curated-catalog</module>
         <module>curated/ai-curated-commerce</module>
         <module>curated/ai-curated-support</module>
@@ -147,6 +148,11 @@
             </dependency>
 
             <!-- Curated Packs (optional) -->
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-curated-default</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.ai.fabric</groupId>
                 <artifactId>ai-curated-catalog</artifactId>

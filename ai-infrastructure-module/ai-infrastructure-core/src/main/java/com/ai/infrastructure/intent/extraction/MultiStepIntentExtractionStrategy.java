@@ -2,7 +2,6 @@ package com.ai.infrastructure.intent.extraction;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
-import com.ai.infrastructure.config.MultiStepIntentExtractionPromptTemplatesProperties;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
@@ -14,9 +13,7 @@ import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
-import com.ai.infrastructure.prompt.PromptTemplate;
-import com.ai.infrastructure.prompt.PromptTemplateKey;
-import com.ai.infrastructure.prompt.PromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
@@ -67,9 +64,8 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     private final AIActionRegistry actionHandlerRegistry;
     private final IntentExtractionJsonSupport jsonSupport;
     private final IntentExtractionValidator validator;
-    private final PromptTemplateStore promptTemplateStore;
     private final PromptRenderer promptRenderer;
-    private final MultiStepIntentExtractionPromptTemplatesProperties promptTemplatesProperties;
+    private final PromptTemplateResolver promptTemplateResolver;
 
     record ClassificationResult(ClassificationResponse response, int llmCalls) {}
     record ActionSelectionResult(Map<Integer, String> mappings, int llmCalls) {}
@@ -439,13 +435,10 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     }
 
     private String renderTemplate(String name, Map<String, String> values) {
-        PromptTemplateKey key = new PromptTemplateKey(
-            TEMPLATE_FAMILY,
-            promptTemplatesProperties != null ? promptTemplatesProperties.getVersion() : "v1",
-            name
+        return promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, name).template(),
+            values
         );
-        PromptTemplate template = promptTemplateStore.load(key);
-        return promptRenderer.render(template, values);
     }
 
     private String normalizeActionName(String value) {

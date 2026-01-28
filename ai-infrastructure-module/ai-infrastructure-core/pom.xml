@@ -18,6 +18,13 @@
     <description>Core AI Fabric functionality</description>
 
     <dependencies>
+        <!-- Default prompt bundle (complete base templates). -->
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-curated-default</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -9,7 +9,6 @@ ai:
       support: support_resolver
 
   prompts:
-    intent-extraction:
-      multi-step:
-        version: v1-support
-
+    bundle:
+      overlays:
+        - v1-support

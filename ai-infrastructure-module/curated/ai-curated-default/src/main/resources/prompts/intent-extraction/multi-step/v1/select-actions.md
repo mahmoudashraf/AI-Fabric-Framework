@@ -16,4 +16,3 @@ ACTION INTENTS:
 
 USER REQUEST (context only):
 {{user_query}}
-
