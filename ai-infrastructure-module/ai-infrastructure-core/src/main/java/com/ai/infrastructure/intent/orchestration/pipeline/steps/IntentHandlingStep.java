@@ -1077,26 +1077,16 @@ public class IntentHandlingStep implements PipelineStep {
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
         boolean deterministic = isDeterministicInformationMode(pipelineContext);
-        boolean needsGeneration = deterministic || intent.requiresGenerationOrDefault(false);
-        boolean requiresRetrieval = deterministic || intent.requiresRetrievalOrDefault(true);
-
-        if (deterministic) {
-            // Override LLM-controlled flags for deterministic information flows.
-            intent.setRequiresGeneration(true);
-            intent.setRequiresRetrieval(true);
-        }
-
-        // LLM-provided direct answer path: no retrieval, no second generation call.
-        if (!requiresRetrieval) {
-            return handleInformationDirectAnswer(intent, context, pipelineContext);
-        }
+        boolean requiresRetrieval = intent.requiresRetrievalOrDefault(true);
+        boolean llmRequiresGeneration = intent.requiresGenerationOrDefault(false);
+        boolean needsGeneration = requiresRetrieval ? (deterministic || llmRequiresGeneration) : llmRequiresGeneration;
 
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
-        String query = StringUtils.hasText(optimizedQuery)
+        String retrievalBaseQuery = StringUtils.hasText(optimizedQuery)
             ? optimizedQuery
             : (StringUtils.hasText(processedQuery) ? processedQuery : intent.getIntentOrAction());
-        String generationOnlyQuery = StringUtils.hasText(processedQuery) ? processedQuery : query;
+        String generationQuery = StringUtils.hasText(processedQuery) ? processedQuery : retrievalBaseQuery;
         
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put(METADATA_KEY_SOURCE, METADATA_VALUE_ORCHESTRATOR);
@@ -1113,15 +1103,29 @@ public class IntentHandlingStep implements PipelineStep {
             metadata.put("piiDetectedTypes", pipelineContext.getDetectedPiiTypesView());
         }
 
+        if (!requiresRetrieval) {
+            if (!needsGeneration) {
+                if (hasPendingAction(context)) {
+                    return OrchestrationResult.builder()
+                        .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                        .success(false)
+                        .message("Please confirm or reject the pending action.")
+                        .build();
+                }
+                return handleInformationDirectAnswer(intent, context, pipelineContext);
+            }
+            return handleInformationGenerationOnly(intent, context, pipelineContext, generationQuery, metadata);
+        }
+
         List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
-        if (vectorSpaces.isEmpty() && deterministic) {
+        if (vectorSpaces.isEmpty()) {
             List<String> allSpaces = resolveAllVectorSpaces();
             if (!allSpaces.isEmpty()) {
                 vectorSpaces = allSpaces;
                 intent.setVectorSpace(String.join(",", allSpaces));
             }
         }
-        if (vectorSpaces.isEmpty() && !deterministic) {
+        if (vectorSpaces.isEmpty()) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, List.of());
             return OrchestrationResult.builder()
@@ -1133,20 +1137,37 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
-        String retrievalQuery = applyRetrievalQueryHint(query, pipelineContext, intent, metadata);
+        String retrievalQuery = applyRetrievalQueryHint(retrievalBaseQuery, pipelineContext, intent, metadata);
 
         if (vectorSpaces.size() > 1) {
-            return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, query, retrievalQuery, metadata, vectorSpaces);
+            return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, generationQuery, retrievalQuery, metadata, vectorSpaces);
         }
 
-        if (shouldUseAdvancedRag(intent, needsGeneration, query, context)) {
-            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, query, retrievalQuery, metadata);
+        String advancedDecisionQuery = StringUtils.hasText(optimizedQuery)
+            ? optimizedQuery
+            : (pipelineContext != null && StringUtils.hasText(pipelineContext.getOriginalQuery())
+                ? pipelineContext.getOriginalQuery()
+                : generationQuery);
+
+        if (shouldUseAdvancedRag(intent, needsGeneration, advancedDecisionQuery, context)) {
+            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata);
             if (advanced != null) {
                 return advanced;
             }
         }
 
-        return handleInformationBasic(intent, context, pipelineContext, needsGeneration, query, retrievalQuery, metadata);
+        return handleInformationBasic(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata);
+    }
+
+    private boolean hasPendingAction(OrchestrationContext context) {
+        if (context == null || !context.hasConversation() || pendingActionStore == null) {
+            return false;
+        }
+        try {
+            return pendingActionStore.peekPendingAction(context.getConversationId(), context.getIdentifier()).isPresent();
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private OrchestrationResult handleInformationDirectAnswer(Intent intent,
@@ -1186,8 +1207,13 @@ public class IntentHandlingStep implements PipelineStep {
                                                                 Map<String, Object> metadata) {
         String answer;
         try {
-            // Generation-only informational intent (no retrieval / no vectorSpace required).
-            answer = aiCoreService.generateText(query, LlmPurpose.GENERATION);
+            String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);
+            if (StringUtils.hasText(pinnedTargetsContext)) {
+                answer = generateRagAnswer(query, pinnedTargetsContext);
+            } else {
+                // Generation-only informational intent (no retrieval / no vectorSpace required).
+                answer = aiCoreService.generateText(query, LlmPurpose.GENERATION);
+            }
         } catch (Exception ex) {
             log.error("Generation-only response failed for request {}: {}",
                 pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -1214,6 +1240,9 @@ public class IntentHandlingStep implements PipelineStep {
         data.put(DATA_KEY_RAG_RESPONSE, null);
         data.put(DATA_KEY_REQUIRES_GENERATION, true);
         data.put("requiresRetrieval", false);
+        if (metadata != null && !metadata.isEmpty()) {
+            data.put(DATA_KEY_METADATA, Collections.unmodifiableMap(new LinkedHashMap<>(metadata)));
+        }
 
         String message = StringUtils.hasText(answer) ? answer : RAG_NO_CONTEXT_MESSAGE;
         return OrchestrationResult.builder()

@@ -4,6 +4,9 @@ import com.ai.infrastructure.chat.config.ChatSessionProperties;
 import com.ai.infrastructure.chat.domain.ChatSession;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.PIIDetectionResult;
+import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionResultContracts;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -17,6 +20,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
@@ -125,5 +129,72 @@ class ConversationRecordingStepTest {
         verify(chatSessionService).mergeSessionMetadata(eq("conv-1"), eq("user-1"), argThat(map ->
             map.containsKey("lastResolvedTargets") && map.containsKey("lastResolvedTargetsTurnIndex")
         ));
+    }
+
+    @Test
+    void shouldPersistActionListItemsAsPinnedTargets() {
+        ChatSessionService chatSessionService = mock(ChatSessionService.class);
+
+        ChatSessionProperties properties = new ChatSessionProperties();
+        properties.setEnabled(true);
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(null);
+
+        when(chatSessionService.getSession(anyString(), anyString())).thenReturn(ChatSession.builder()
+            .id("conv-1")
+            .ownerId("user-1")
+            .turns(java.util.List.of(
+                com.ai.infrastructure.chat.domain.ChatTurn.builder().build()
+            ))
+            .createdAt(java.time.LocalDateTime.now())
+            .lastInteractionAt(java.time.LocalDateTime.now())
+            .build());
+
+        ConversationRecordingStep step = new ConversationRecordingStep(chatSessionService, properties, provider);
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user-1")
+            .conversationId("conv-1")
+            .build();
+
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("ok")
+            .data(ActionResultContracts.targets(java.util.List.of(
+                new ActionTargetRef("85", "product", "snippet", Map.of("sku", "SKU-85"))
+            )))
+            .build();
+
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.ACTION_EXECUTED)
+            .success(true)
+            .message("ok")
+            .data(Map.of(
+                "action", "list_products",
+                "actionResult", actionResult
+            ))
+            .build();
+
+        PipelineContext context = PipelineContext.from("list products", orchestrationContext)
+            .toBuilder()
+            .intentResult(result)
+            .sanitizedPayload(Map.of("message", "ok"))
+            .build();
+
+        step.process(context);
+
+        verify(chatSessionService).mergeSessionMetadata(eq("conv-1"), eq("user-1"), argThat(map -> {
+            Object raw = map.get("lastResolvedTargets");
+            if (!(raw instanceof java.util.List<?> list) || list.isEmpty()) {
+                return false;
+            }
+            Object first = list.getFirst();
+            if (!(first instanceof Map<?, ?> entry)) {
+                return false;
+            }
+            return "85".equals(entry.get("id")) && "ACTION_RESULT_ITEMS".equals(entry.get("source"));
+        }));
     }
 }

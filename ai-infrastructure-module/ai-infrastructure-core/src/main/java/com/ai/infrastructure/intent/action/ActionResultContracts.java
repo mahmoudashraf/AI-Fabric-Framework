@@ -61,4 +61,13 @@ public final class ActionResultContracts {
     public static ActionObjectPayload object(Map<String, Object> fields) {
         return ActionObjectPayload.of(fields);
     }
+
+    /**
+     * Build a list-style payload whose items are explicit entity references.
+     *
+     * <p>The orchestrator may treat {@link ActionTargetRef} items as pinnable targets for follow-up turns.</p>
+     */
+    public static ActionListPayload targets(List<ActionTargetRef> items) {
+        return ActionListPayload.of(items);
+    }
 }

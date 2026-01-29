@@ -1,6 +1,5 @@
 package com.ai.infrastructure.intent.orchestration.policy;
 
-import com.ai.infrastructure.config.IntentExtractionPromptProperties;
 import com.ai.infrastructure.config.OrchestrationProperties;
 
 /**
@@ -10,35 +9,22 @@ import com.ai.infrastructure.config.OrchestrationProperties;
  */
 public enum OrchestrationProfile {
     DEFAULT(
-        OrchestrationProperties.InformationMode.LLM_DRIVEN,
-        IntentExtractionPromptProperties.PromptMode.FULL_CONTRACT
+        OrchestrationProperties.InformationMode.LLM_DRIVEN
     ),
     DEMO_CATALOG(
-        OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE,
-        IntentExtractionPromptProperties.PromptMode.MINIMAL_FOR_RAG
+        OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE
     ),
     PRODUCTION_CHAT(
-        OrchestrationProperties.InformationMode.LLM_DRIVEN,
-        IntentExtractionPromptProperties.PromptMode.FULL_CONTRACT
+        OrchestrationProperties.InformationMode.LLM_DRIVEN
     );
 
     private final OrchestrationProperties.InformationMode defaultInformationMode;
-    private final IntentExtractionPromptProperties.PromptMode defaultPromptMode;
 
-    OrchestrationProfile(
-        OrchestrationProperties.InformationMode defaultInformationMode,
-        IntentExtractionPromptProperties.PromptMode defaultPromptMode
-    ) {
+    OrchestrationProfile(OrchestrationProperties.InformationMode defaultInformationMode) {
         this.defaultInformationMode = defaultInformationMode;
-        this.defaultPromptMode = defaultPromptMode;
     }
 
     public OrchestrationProperties.InformationMode defaultInformationMode() {
         return defaultInformationMode;
     }
-
-    public IntentExtractionPromptProperties.PromptMode defaultPromptMode() {
-        return defaultPromptMode;
-    }
 }
-

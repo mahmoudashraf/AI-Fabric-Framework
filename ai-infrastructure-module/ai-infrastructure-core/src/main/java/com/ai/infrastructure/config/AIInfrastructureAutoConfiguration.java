@@ -81,25 +81,24 @@ import jakarta.persistence.EntityManagerFactory;
     org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration.class,
     org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration.class
 })
-	        @EnableConfigurationProperties({
-	        AIProviderConfig.class,
-	        AIServiceConfig.class,
-            VectorDatabaseConfig.class,
-            OrchestrationProperties.class,
-            AttachmentsProperties.class,
-            PromptBundleProperties.class,
-            IntentExtractionPromptProperties.class,
-            ProgressiveIntentExtractionProperties.class,
-            RelationshipQueryPostActionGenerationProperties.class,
-            PostActionGenerationProperties.class,
-            VectorSpaceRoutingProperties.class,
-	        SmartSuggestionsProperties.class,
-	        ResponseSanitizationProperties.class,
-	        OrchestrationResultNormalizationProperties.class,
-	        IntentHistoryProperties.class,
-	        SecurityProperties.class,
-            AIHttpClientProperties.class
-		    })
+@EnableConfigurationProperties({
+    AIProviderConfig.class,
+    AIServiceConfig.class,
+    VectorDatabaseConfig.class,
+    OrchestrationProperties.class,
+    AttachmentsProperties.class,
+    PromptBundleProperties.class,
+    ProgressiveIntentExtractionProperties.class,
+    RelationshipQueryPostActionGenerationProperties.class,
+    PostActionGenerationProperties.class,
+    VectorSpaceRoutingProperties.class,
+    SmartSuggestionsProperties.class,
+    ResponseSanitizationProperties.class,
+    OrchestrationResultNormalizationProperties.class,
+    IntentHistoryProperties.class,
+    SecurityProperties.class,
+    AIHttpClientProperties.class
+})
 @ComponentScan(
     basePackages = "com.ai.infrastructure",
     excludeFilters = @ComponentScan.Filter(
@@ -115,8 +114,8 @@ import jakarta.persistence.EntityManagerFactory;
             "com\\.ai\\.infrastructure\\.onnxstarter\\..*",
             "com\\.ai\\.infrastructure\\.config\\..*"
         }
-	    )
-	)
+    )
+)
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     

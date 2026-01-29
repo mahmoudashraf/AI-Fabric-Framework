@@ -11,7 +11,9 @@ import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Instant;
 import java.util.Map;
@@ -38,7 +40,13 @@ class ConversationEnrichmentStepTest {
         properties.setWindowSize(5);
         properties.setMaxContextChars(10_000);
 
-        ConversationEnrichmentStep step = new ConversationEnrichmentStep(service, properties, pendingActionStore, actionDraftStore);
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore,
+            emptyVectorDbProvider()
+        );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
@@ -71,7 +79,13 @@ class ConversationEnrichmentStepTest {
         ChatSessionProperties properties = new ChatSessionProperties();
         properties.setEnabled(true);
 
-        ConversationEnrichmentStep step = new ConversationEnrichmentStep(service, properties, pendingActionStore, actionDraftStore);
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore,
+            emptyVectorDbProvider()
+        );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
@@ -102,7 +116,13 @@ class ConversationEnrichmentStepTest {
         ChatSessionProperties properties = new ChatSessionProperties();
         properties.setEnabled(true);
 
-        ConversationEnrichmentStep step = new ConversationEnrichmentStep(service, properties, pendingActionStore, actionDraftStore);
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore,
+            emptyVectorDbProvider()
+        );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
@@ -156,7 +176,13 @@ class ConversationEnrichmentStepTest {
         properties.setEnabled(true);
         properties.setPinnedTargetReuseWindowTurns(3);
 
-        ConversationEnrichmentStep step = new ConversationEnrichmentStep(service, properties, pendingActionStore, actionDraftStore);
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore,
+            emptyVectorDbProvider()
+        );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
@@ -169,5 +195,12 @@ class ConversationEnrichmentStepTest {
         assertThat(updated.getResolvedTargets()).hasSize(1);
         assertThat(updated.getResolvedTargets().getFirst().getId()).isEqualTo("85");
         assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.SESSION_METADATA);
+    }
+
+    private ObjectProvider<VectorDatabaseService> emptyVectorDbProvider() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<VectorDatabaseService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(null);
+        return provider;
     }
 }

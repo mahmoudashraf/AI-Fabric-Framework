@@ -4,10 +4,8 @@ ai:
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
-        prompt-mode: MINIMAL_FOR_RAG
       cart_assistant:
         information-mode: LLM_DRIVEN
-        prompt-mode: FULL_CONTRACT
     position-routing:
       landing: navigator
       cart: cart_assistant

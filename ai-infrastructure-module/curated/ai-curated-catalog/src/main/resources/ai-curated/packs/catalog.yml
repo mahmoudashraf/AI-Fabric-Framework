@@ -4,7 +4,6 @@ ai:
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
-        prompt-mode: MINIMAL_FOR_RAG
     position-routing:
       landing: navigator
       cart: navigator

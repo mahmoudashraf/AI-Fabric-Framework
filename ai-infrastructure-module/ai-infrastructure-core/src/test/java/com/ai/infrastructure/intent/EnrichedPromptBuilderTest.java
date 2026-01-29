@@ -1,6 +1,5 @@
 package com.ai.infrastructure.intent;
 
-import com.ai.infrastructure.config.IntentExtractionPromptProperties;
 import com.ai.infrastructure.intent.action.ActionInfo;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
 import org.junit.jupiter.api.Test;
@@ -60,7 +59,7 @@ class EnrichedPromptBuilderTest {
             beanFactoryProvider
         );
 
-        EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(contextBuilder, new IntentExtractionPromptProperties());
+        EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(contextBuilder);
 
         String prompt = promptBuilder.buildSystemPrompt("user-123");
 

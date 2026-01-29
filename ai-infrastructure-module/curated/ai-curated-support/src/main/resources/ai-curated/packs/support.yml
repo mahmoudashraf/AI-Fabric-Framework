@@ -4,7 +4,6 @@ ai:
     modes:
       support_resolver:
         information-mode: LLM_DRIVEN
-        prompt-mode: FULL_CONTRACT
     position-routing:
       support: support_resolver
 

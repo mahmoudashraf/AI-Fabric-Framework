@@ -1,6 +1,5 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
-import com.ai.infrastructure.config.IntentExtractionPromptProperties;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -36,7 +35,6 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
     private static final String ERROR_UNSUPPORTED_MODE_PREFIX = "Unsupported mode: ";
 
     private final OrchestrationProperties orchestrationProperties;
-    private final IntentExtractionPromptProperties promptProperties;
 
     @Override
     public String getStepName() {
@@ -108,14 +106,10 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             : null;
 
         OrchestrationProperties.InformationMode informationModeEffective = profile.defaultInformationMode();
-        IntentExtractionPromptProperties.PromptMode promptModeEffective = profile.defaultPromptMode();
 
         if (effectiveModeOverrides != null) {
             if (effectiveModeOverrides.getInformationMode() != null) {
                 informationModeEffective = effectiveModeOverrides.getInformationMode();
-            }
-            if (effectiveModeOverrides.getPromptMode() != null) {
-                promptModeEffective = effectiveModeOverrides.getPromptMode();
             }
         }
 
@@ -123,16 +117,11 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             informationModeEffective = orchestrationProperties.getInformationMode();
         }
 
-        if (promptProperties != null && promptProperties.getPromptMode() != null) {
-            promptModeEffective = promptProperties.getPromptMode();
-        }
-
         OrchestrationPolicy policy = new OrchestrationPolicy(
             profile,
             effectiveMode,
             normalizedPosition,
-            informationModeEffective,
-            promptModeEffective
+            informationModeEffective
         );
 
         OrchestrationContext updatedOrchestrationContext = orchestrationContext != null
@@ -144,7 +133,6 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("mode", policy.mode());
         debug.put("position", policy.position());
         debug.put("informationModeEffective", policy.informationMode().name());
-        debug.put("promptModeEffective", policy.promptMode().name());
         debug.put("modeSource", modeSource);
 
         PipelineContext updated = context.toBuilder()
@@ -153,12 +141,11 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             .build()
             .withMetadata(METADATA_KEY_POLICY, Collections.unmodifiableMap(debug));
 
-        log.debug("Resolved orchestration policy profile={}, mode={}, position={}, informationMode={}, promptMode={} for request {}",
+        log.debug("Resolved orchestration policy profile={}, mode={}, position={}, informationMode={} for request {}",
             policy.profile(),
             policy.mode(),
             policy.position(),
             policy.informationMode(),
-            policy.promptMode(),
             context.getRequestId());
 
         return updated;

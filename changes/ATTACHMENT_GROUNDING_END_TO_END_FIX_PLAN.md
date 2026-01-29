@@ -88,6 +88,18 @@ This mismatch should be detected and reported deterministically (greenfield).
 - Make incorrect UI payloads fail fast with actionable error messages (greenfield).
 - Keep the solution **domain‑agnostic** and **bounded** (no hardcoded keys like products/orders).
 
+### Storage/precedence model (authoritative vs supporting)
+We must keep **pinned targets** (what “this/it/them” refers to) separate from **retrieved docs** (supporting KB context).
+
+Precedence:
+- **Active attachments → `resolvedTargets` (authoritative)**
+- **Stored pinned targets (short window) → `resolvedTargets` (authoritative)**
+- **Retrieved docs (this turn) → working-set docs (NOT authoritative)**
+
+Notes:
+- Do not automatically promote RAG search results into `resolvedTargets`. RAG hits are context, not “what the user meant” unless explicitly pinned.
+- Active attachments always override stored pinned targets.
+
 ## Non‑goals
 - Heuristic string matching (“if query contains ‘summarize’…”).
 - Domain key guessing from action results or metadata.

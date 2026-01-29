@@ -1,6 +1,5 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
-import com.ai.infrastructure.config.IntentExtractionPromptProperties;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -22,24 +21,18 @@ class OrchestrationPolicyResolutionStepTest {
     class Metadata {
 
         @Test
-        @DisplayName("Should have correct step name")
-        void shouldHaveCorrectStepName() {
-            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(
-                new OrchestrationProperties(),
-                new IntentExtractionPromptProperties()
-            );
-            assertThat(step.getStepName()).isEqualTo("OrchestrationPolicyResolution");
-        }
+            @DisplayName("Should have correct step name")
+            void shouldHaveCorrectStepName() {
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(new OrchestrationProperties());
+                assertThat(step.getStepName()).isEqualTo("OrchestrationPolicyResolution");
+            }
 
         @Test
-        @DisplayName("Should have correct order (after access control)")
-        void shouldHaveCorrectOrder() {
-            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(
-                new OrchestrationProperties(),
-                new IntentExtractionPromptProperties()
-            );
-            assertThat(step.getOrder()).isEqualTo(22);
-        }
+            @DisplayName("Should have correct order (after access control)")
+            void shouldHaveCorrectOrder() {
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(new OrchestrationProperties());
+                assertThat(step.getOrder()).isEqualTo(22);
+            }
     }
 
     @Nested
@@ -52,18 +45,12 @@ class OrchestrationPolicyResolutionStepTest {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
             orchestrationProperties.setProfile(OrchestrationProfile.DEFAULT);
 
-            IntentExtractionPromptProperties promptProperties = new IntentExtractionPromptProperties();
-
             OrchestrationProperties.ModeOverrides navigator = new OrchestrationProperties.ModeOverrides();
             navigator.setInformationMode(OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
-            navigator.setPromptMode(IntentExtractionPromptProperties.PromptMode.MINIMAL_FOR_RAG);
             orchestrationProperties.getModes().put("navigator", navigator);
             orchestrationProperties.getPositionRouting().put("landing", "navigator");
 
-            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(
-                orchestrationProperties,
-                promptProperties
-            );
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
 
             OrchestrationContext orch = OrchestrationContext.forUser("user-123")
                 .toBuilder()
@@ -80,7 +67,6 @@ class OrchestrationPolicyResolutionStepTest {
             assertThat(policy.mode()).isEqualTo("navigator");
             assertThat(policy.position()).isEqualTo("landing");
             assertThat(policy.informationMode()).isEqualTo(OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
-            assertThat(policy.promptMode()).isEqualTo(IntentExtractionPromptProperties.PromptMode.MINIMAL_FOR_RAG);
 
             assertThat(output.getOrchestrationContext()).isNotNull();
             assertThat(output.getOrchestrationContext().getOrchestrationPolicy()).isEqualTo(policy);
@@ -94,7 +80,6 @@ class OrchestrationPolicyResolutionStepTest {
             assertThat(policyMeta).containsEntry("mode", "navigator");
             assertThat(policyMeta).containsEntry("position", "landing");
             assertThat(policyMeta).containsEntry("informationModeEffective", "DETERMINISTIC_RAG_GENERATE");
-            assertThat(policyMeta).containsEntry("promptModeEffective", "MINIMAL_FOR_RAG");
             assertThat(policyMeta).containsEntry("modeSource", "POSITION");
         }
 
@@ -107,10 +92,7 @@ class OrchestrationPolicyResolutionStepTest {
             OrchestrationProperties.ModeOverrides navigator = new OrchestrationProperties.ModeOverrides();
             orchestrationProperties.getModes().put("navigator", navigator);
 
-            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(
-                orchestrationProperties,
-                new IntentExtractionPromptProperties()
-            );
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
 
             OrchestrationContext orch = OrchestrationContext.forUser("user-123")
                 .toBuilder()
@@ -132,10 +114,7 @@ class OrchestrationPolicyResolutionStepTest {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
             orchestrationProperties.setProfile(OrchestrationProfile.DEMO_CATALOG);
 
-            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(
-                orchestrationProperties,
-                new IntentExtractionPromptProperties()
-            );
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
 
             PipelineContext output = step.process(PipelineContext.from("hello", OrchestrationContext.forUser("user-123")));
             OrchestrationPolicy policy = output.getOrchestrationPolicy();
@@ -143,7 +122,6 @@ class OrchestrationPolicyResolutionStepTest {
             assertThat(policy.profile()).isEqualTo(OrchestrationProfile.DEMO_CATALOG);
             assertThat(policy.mode()).isNull();
             assertThat(policy.informationMode()).isEqualTo(OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
-            assertThat(policy.promptMode()).isEqualTo(IntentExtractionPromptProperties.PromptMode.MINIMAL_FOR_RAG);
         }
 
         @Test
@@ -153,23 +131,16 @@ class OrchestrationPolicyResolutionStepTest {
             orchestrationProperties.setProfile(OrchestrationProfile.DEMO_CATALOG);
             orchestrationProperties.setInformationMode(OrchestrationProperties.InformationMode.LLM_DRIVEN);
 
-            IntentExtractionPromptProperties promptProperties = new IntentExtractionPromptProperties();
-            promptProperties.setPromptMode(IntentExtractionPromptProperties.PromptMode.FULL_CONTRACT);
-
-            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties, promptProperties);
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
             PipelineContext output = step.process(PipelineContext.from("hello", OrchestrationContext.forUser("user-123")));
 
             assertThat(output.getOrchestrationPolicy().informationMode()).isEqualTo(OrchestrationProperties.InformationMode.LLM_DRIVEN);
-            assertThat(output.getOrchestrationPolicy().promptMode()).isEqualTo(IntentExtractionPromptProperties.PromptMode.FULL_CONTRACT);
         }
 
         @Test
         @DisplayName("Should skip when pipeline already terminated")
         void shouldSkipWhenPipelineAlreadyTerminated() {
-            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(
-                new OrchestrationProperties(),
-                new IntentExtractionPromptProperties()
-            );
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(new OrchestrationProperties());
 
             PipelineContext terminated = PipelineContext.from("hello", OrchestrationContext.forUser("user-123"))
                 .terminate(com.ai.infrastructure.intent.orchestration.OrchestrationResult.error("nope"));

@@ -81,10 +81,5 @@ public class OrchestrationProperties {
          * Optional mode override for information orchestration behavior.
          */
         private InformationMode informationMode;
-
-        /**
-         * Optional mode override for intent-extraction prompt contract.
-         */
-        private IntentExtractionPromptProperties.PromptMode promptMode;
     }
 }

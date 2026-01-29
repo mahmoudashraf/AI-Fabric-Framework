@@ -6,5 +6,6 @@ package com.ai.infrastructure.intent.orchestration.targets;
 public enum ResolvedTargetSource {
     ACTIVE_ATTACHMENTS,
     SESSION_METADATA,
-    WORKING_SET
+    WORKING_SET,
+    ACTION_RESULT_ITEMS
 }

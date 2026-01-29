@@ -1,6 +1,5 @@
 package com.ai.infrastructure.intent.orchestration.policy;
 
-import com.ai.infrastructure.config.IntentExtractionPromptProperties;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import org.springframework.util.StringUtils;
 
@@ -14,8 +13,7 @@ public record OrchestrationPolicy(
     OrchestrationProfile profile,
     String mode,
     String position,
-    OrchestrationProperties.InformationMode informationMode,
-    IntentExtractionPromptProperties.PromptMode promptMode
+    OrchestrationProperties.InformationMode informationMode
 ) {
 
     public OrchestrationPolicy {
@@ -23,7 +21,6 @@ public record OrchestrationPolicy(
         mode = normalize(mode);
         position = normalize(position);
         informationMode = informationMode != null ? informationMode : profile.defaultInformationMode();
-        promptMode = promptMode != null ? promptMode : profile.defaultPromptMode();
     }
 
     private static String normalize(String value) {

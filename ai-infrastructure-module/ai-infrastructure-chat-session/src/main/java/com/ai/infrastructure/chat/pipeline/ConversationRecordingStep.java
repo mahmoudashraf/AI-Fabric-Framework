@@ -5,8 +5,10 @@ import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.PIIDetection;
 import com.ai.infrastructure.dto.PIIDetectionResult;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.intent.action.ActionListPayload;
 import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -42,6 +44,12 @@ public class ConversationRecordingStep implements PipelineStep {
     private static final String TURN_META_KEY_ACTION_SUCCESS = "_actionSuccess";
     private static final String TURN_META_KEY_ACTION_REFS = "_actionRefs";
     private static final String TURN_META_KEY_WORKING_SET = "_workingSet";
+
+    private static final String RESULT_DATA_KEY_ACTION_RESULT = "actionResult";
+    private static final String TARGET_REF_KEY_ID = "id";
+    private static final String TARGET_REF_KEY_VECTOR_SPACE = "vectorSpace";
+    private static final String TARGET_REF_KEY_CONTENT_SNIPPET = "contentSnippet";
+    private static final String TARGET_REF_KEY_METADATA = "metadata";
 
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS = "lastResolvedTargets";
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX = "lastResolvedTargetsTurnIndex";
@@ -109,18 +117,22 @@ public class ConversationRecordingStep implements PipelineStep {
         try {
             Map<String, Object> turnMetadata = buildTurnMetadata(context);
             chatSessionService.recordTurn(conversationId, ownerId, userQuery, assistantResponse, turnMetadata);
-            persistResolvedTargetsIfPresent(context, conversationId, ownerId);
+            persistPinnedTargets(context, conversationId, ownerId);
         } catch (Exception ex) {
             log.warn("Failed to record conversation turn conversationId={}: {}", conversationId, ex.getMessage());
         }
         return context;
     }
 
-    private void persistResolvedTargetsIfPresent(PipelineContext context, String conversationId, String ownerId) {
+    private void persistPinnedTargets(PipelineContext context, String conversationId, String ownerId) {
         if (context == null || !StringUtils.hasText(conversationId) || !StringUtils.hasText(ownerId)) {
             return;
         }
-        List<ResolvedTarget> targets = context.getResolvedTargets();
+
+        List<ResolvedTarget> targets = extractPinnedTargetsFromActionListResult(context);
+        if (targets.isEmpty()) {
+            targets = context.getResolvedTargets();
+        }
         if (targets == null || targets.isEmpty()) {
             return;
         }
@@ -135,15 +147,15 @@ public class ConversationRecordingStep implements PipelineStep {
             }
 
             Map<String, Object> entry = new LinkedHashMap<>();
-            entry.put("id", target.getId().trim());
+            entry.put(TARGET_REF_KEY_ID, target.getId().trim());
             if (StringUtils.hasText(target.getVectorSpace())) {
-                entry.put("vectorSpace", target.getVectorSpace().trim());
+                entry.put(TARGET_REF_KEY_VECTOR_SPACE, target.getVectorSpace().trim());
             }
             if (StringUtils.hasText(target.getContentSnippet())) {
-                entry.put("contentSnippet", target.getContentSnippet());
+                entry.put(TARGET_REF_KEY_CONTENT_SNIPPET, target.getContentSnippet());
             }
             if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
-                entry.put("metadata", new LinkedHashMap<>(target.getMetadata()));
+                entry.put(TARGET_REF_KEY_METADATA, new LinkedHashMap<>(target.getMetadata()));
             }
             if (target.getSource() != null) {
                 entry.put("source", target.getSource().name());
@@ -171,6 +183,115 @@ public class ConversationRecordingStep implements PipelineStep {
         } catch (Exception ex) {
             log.debug("Failed to persist lastResolvedTargets for conversationId={}: {}", conversationId, ex.getMessage());
         }
+    }
+
+    private List<ResolvedTarget> extractPinnedTargetsFromActionListResult(PipelineContext context) {
+        if (context == null || context.getIntentResult() == null || context.getIntentResult().getData() == null) {
+            return List.of();
+        }
+
+        OrchestrationResult result = context.getIntentResult();
+        if (result.getType() != OrchestrationResultType.ACTION_EXECUTED) {
+            return List.of();
+        }
+
+        Map<String, Object> data = result.getData();
+        ActionResult actionResult = coerceActionResult(data.get(RESULT_DATA_KEY_ACTION_RESULT));
+        if (actionResult == null || !actionResult.isSuccess()) {
+            return List.of();
+        }
+
+        ActionPayload payload = actionResult.getData();
+        if (!(payload instanceof ActionListPayload listPayload)) {
+            return List.of();
+        }
+
+        List<?> items = listPayload.getItems();
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+
+        List<ResolvedTarget> targets = new ArrayList<>();
+        for (Object item : items) {
+            if (targets.size() >= RESOLVED_TARGETS_MAX) {
+                break;
+            }
+
+            ResolvedTarget extracted = extractTargetFromListItem(item);
+            if (extracted != null) {
+                targets.add(extracted);
+            }
+        }
+
+        return targets.isEmpty() ? List.of() : Collections.unmodifiableList(targets);
+    }
+
+    private ResolvedTarget extractTargetFromListItem(Object item) {
+        if (item == null) {
+            return null;
+        }
+
+        if (item instanceof ActionTargetRef ref) {
+            if (!StringUtils.hasText(ref.id())) {
+                return null;
+            }
+            return ResolvedTarget.builder()
+                .id(ref.id().trim())
+                .vectorSpace(StringUtils.hasText(ref.vectorSpace()) ? ref.vectorSpace().trim() : null)
+                .contentSnippet(StringUtils.hasText(ref.contentSnippet()) ? ref.contentSnippet().trim() : null)
+                .metadata(ref.metadata() != null ? ref.metadata() : Map.of())
+                .source(com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.ACTION_RESULT_ITEMS)
+                .build();
+        }
+
+        if (!(item instanceof Map<?, ?> map)) {
+            return null;
+        }
+
+        String id = coerceToString(map.get(TARGET_REF_KEY_ID));
+        if (!StringUtils.hasText(id)) {
+            return null;
+        }
+
+        String vectorSpace = coerceToString(map.get(TARGET_REF_KEY_VECTOR_SPACE));
+        String snippet = coerceToString(map.get(TARGET_REF_KEY_CONTENT_SNIPPET));
+        Map<String, String> metadata = coerceToStringMap(map.get(TARGET_REF_KEY_METADATA));
+
+        return ResolvedTarget.builder()
+            .id(id.trim())
+            .vectorSpace(StringUtils.hasText(vectorSpace) ? vectorSpace.trim() : null)
+            .contentSnippet(StringUtils.hasText(snippet) ? snippet.trim() : null)
+            .metadata(metadata)
+            .source(com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.ACTION_RESULT_ITEMS)
+            .build();
+    }
+
+    private String coerceToString(Object value) {
+        if (value instanceof String str) {
+            return str;
+        }
+        return value != null ? value.toString() : null;
+    }
+
+    private Map<String, String> coerceToStringMap(Object value) {
+        if (!(value instanceof Map<?, ?> map) || map.isEmpty()) {
+            return Map.of();
+        }
+
+        LinkedHashMap<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry == null || entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            String key = String.valueOf(entry.getKey());
+            String val = String.valueOf(entry.getValue());
+            if (!StringUtils.hasText(key) || !StringUtils.hasText(val)) {
+                continue;
+            }
+            out.put(key, val);
+        }
+
+        return out.isEmpty() ? Map.of() : Collections.unmodifiableMap(out);
     }
 
     private boolean shouldRecordAfterTermination(PipelineContext context) {

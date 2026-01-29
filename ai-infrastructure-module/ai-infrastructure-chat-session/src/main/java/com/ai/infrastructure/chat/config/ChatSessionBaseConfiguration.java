@@ -19,6 +19,7 @@ import com.ai.infrastructure.chat.strategy.SlidingWindowMemoryStrategy;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -60,8 +61,9 @@ class ChatSessionBaseConfiguration {
     ConversationEnrichmentStep conversationEnrichmentStep(ChatSessionService chatSessionService,
                                                           ChatSessionProperties properties,
                                                           PendingActionStore pendingActionStore,
-                                                          ActionDraftStore actionDraftStore) {
-        return new ConversationEnrichmentStep(chatSessionService, properties, pendingActionStore, actionDraftStore);
+                                                          ActionDraftStore actionDraftStore,
+                                                          ObjectProvider<VectorDatabaseService> vectorDatabaseServiceProvider) {
+        return new ConversationEnrichmentStep(chatSessionService, properties, pendingActionStore, actionDraftStore, vectorDatabaseServiceProvider);
     }
 
     @Bean
