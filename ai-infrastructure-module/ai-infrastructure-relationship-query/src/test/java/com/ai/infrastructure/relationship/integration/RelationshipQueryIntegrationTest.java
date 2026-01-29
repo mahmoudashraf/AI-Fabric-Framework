@@ -43,10 +43,6 @@ import com.ai.infrastructure.relationship.service.RelationshipQueryPlanner;
 import com.ai.infrastructure.relationship.service.DefaultRelationshipQueryDocumentMapper;
 import com.ai.infrastructure.relationship.service.RelationshipQueryDocumentMapper;
 import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.provider.onnx.ONNXAutoConfiguration;
-import com.ai.infrastructure.provider.onnx.ONNXEmbeddingProvider;
-import com.ai.infrastructure.vector.lucene.LuceneVectorAutoConfiguration;
-import com.ai.infrastructure.vector.lucene.LuceneVectorDatabaseService;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,20 +50,14 @@ import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.cache.CacheManager;
-import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -83,7 +73,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(
-    classes = RelationshipQueryIntegrationTest.IntegrationTestApplication.class,
+    classes = RelationshipQueryTestApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.NONE
 )
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -246,52 +236,5 @@ public class RelationshipQueryIntegrationTest {
             .limit(5)
             .returnMode(ReturnMode.FULL)
             .build();
-    }
-
-    @SpringBootApplication(exclude = {
-        ONNXAutoConfiguration.class,
-        LuceneVectorAutoConfiguration.class
-    })
-    @EntityScan(basePackageClasses = {
-        DocumentEntity.class,
-        IntentHistory.class
-    })
-    @EnableJpaRepositories(basePackageClasses = {
-        DocumentRepository.class,
-        IntentHistoryRepository.class
-    })
-    @Import({
-        IntegrationTestBeans.class,
-        RelationshipQueryAutoConfiguration.class
-    })
-    public static class IntegrationTestApplication {
-    }
-
-    @TestConfiguration
-    static class IntegrationTestBeans {
-
-        @Bean
-        ONNXEmbeddingProvider onnxEmbeddingProvider(AIProviderConfig config) {
-            return new ONNXEmbeddingProvider(config);
-        }
-
-        @Bean
-        AIEmbeddingService aiEmbeddingService(AIProviderConfig config,
-                                              ONNXEmbeddingProvider onnxEmbeddingProvider,
-                                              CacheManager cacheManager) {
-            return new AIEmbeddingService(config, onnxEmbeddingProvider, cacheManager, null);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean(VectorDatabaseService.class)
-        VectorDatabaseService vectorDatabaseService(AIProviderConfig config) {
-            return new LuceneVectorDatabaseService(config);
-        }
-
-        @Bean
-        RelationshipQueryPlanner relationshipQueryPlanner() {
-            return Mockito.mock(RelationshipQueryPlanner.class);
-        }
-
     }
 }
