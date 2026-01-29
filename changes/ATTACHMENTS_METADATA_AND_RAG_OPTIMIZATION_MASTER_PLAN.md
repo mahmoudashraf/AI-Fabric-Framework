@@ -50,8 +50,8 @@ Add an optional `attachments` array and optional “selection” hints:
 ### 2) Attachment schema (domain-agnostic)
 Each attachment is an “entity reference + bounded context”:
 - `id` (string, required)
-- `vectorSpace` (string, required) — the retrieval domain/entityType
-- `contentSnippet` (string, optional, bounded)
+- `vectorSpace` (string, recommended) — the retrieval domain/entityType (best-effort; may be omitted/unknown)
+- `contentText` (string, optional, bounded)
 - `metadata` (map<string, scalar>, optional, bounded)
 - `source` (string, optional; e.g., `ui-card`, `search-result`)
 - `url`/`imageUrl` (optional; not required for LLM context)
@@ -106,7 +106,7 @@ Rules:
 When `resolvedTargets` or `active attachments` exist:
 - **Restrict vectorSpaces** to those attachment vectorSpaces (unless user explicitly asks broader search).
 - Optionally treat active attachments as “pinned docs”:
-  - include their `contentSnippet + metadata` directly in the generation context
+  - include their `contentText + metadata` directly in the generation context
   - still run retrieval if the intent requires it (but scoped)
 
 ### Step E — Retrieval query composition (safe augmentation)
@@ -201,4 +201,3 @@ Add deterministic debug metadata:
 - Metadata (id/sku) is visible to the model in a structured way and can be used to route actions reliably.
 - Retrieval does not drift across turns when attachments/working set exist.
 - All logic remains domain-agnostic and contract-based.
-

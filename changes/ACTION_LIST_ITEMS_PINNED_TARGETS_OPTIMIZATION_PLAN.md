@@ -58,7 +58,7 @@ To promote action list items into pinned targets, the orchestrator needs an iden
 **Contract for a pinnable item (minimum)**
 - `id`: required (stringifiable, non-blank)
 - `vectorSpace`: optional (stringifiable, non-blank)
-- `contentSnippet`: optional (stringifiable)
+- `contentText`: optional (stringifiable, bounded)
 - `metadata`: optional (map)
 
 **Key rule**
@@ -68,7 +68,7 @@ No guessing from domain keys like `orderId` / `sku` / `orderNumber`.
 **Developer ergonomics**
 Provide a small helper DTO (or builder) for action handlers to return pinnable items without hand-writing maps.
 Example direction (names illustrative):
-- `ActionTargetRef` (id, vectorSpace?, contentSnippet?, metadata?)
+- `ActionTargetRef` (id, vectorSpace?, contentText?, metadata?)
 - `ActionResultContracts.pinnableItems(List<ActionTargetRef>)`
 
 This keeps the behavior deterministic and avoids domain coupling.
@@ -125,7 +125,7 @@ To keep conversation state small and avoid staleness, do not persist full docume
 - optional minimal metadata needed for UX (bounded)
 
 **Rehydrate (best-effort)**
-When seeding `resolvedTargets` from session metadata and the target lacks a `contentSnippet` or useful metadata:
+When seeding `resolvedTargets` from session metadata and the target lacks a `contentText` or useful metadata:
 - If `vectorSpace` + `id` are present, try `VectorDatabaseService.getVectorByEntity(vectorSpace, id)` to fetch the latest content/metadata for prompt grounding.
 - If only `vectorId` is present, optionally try `VectorDatabaseService.getVector(vectorId)` as a fallback.
 - If rehydration fails, keep the target as an `id`-only pin (still useful for deterministic referencing).
@@ -144,7 +144,7 @@ When seeding `resolvedTargets` from session metadata and the target lacks a `con
    - Input: `ActionListPayload`
    - Output: bounded `List<ResolvedTarget>`
    - Deterministic extraction rules:
-     - If item is `Map`: read `id`, `vectorSpace`, `contentSnippet`, `metadata`
+     - If item is `Map`: read `id`, `vectorSpace`, `contentText`, `metadata`
      - If item is a POJO: best-effort convert to map (bounded), then apply same rules
      - Skip items with missing/blank `id`
 

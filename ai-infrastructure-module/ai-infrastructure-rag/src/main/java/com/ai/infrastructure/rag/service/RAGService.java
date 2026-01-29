@@ -22,6 +22,7 @@ import org.springframework.util.StringUtils;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -209,17 +210,17 @@ public class RAGService implements RAGProvider {
             
             Map<String, Object> filters = request.getFilters();
 
-            List<RAGResponse.RAGDocument> documents = searchResponse.getResults().stream()
-                .map(result -> {
-                    Map<String, Object> normalizedMetadata = normalizeMetadata(result.get(RESULT_KEY_METADATA));
-                    if (!matchesFilters(normalizedMetadata, filters)) {
-                        return null;
-                    }
+	            List<RAGResponse.RAGDocument> documents = searchResponse.getResults().stream()
+	                .map(result -> {
+	                    Map<String, Object> normalizedMetadata = new LinkedHashMap<>(normalizeMetadata(result.get(RESULT_KEY_METADATA)));
+	                    if (!matchesFilters(normalizedMetadata, filters)) {
+	                        return null;
+	                    }
 
-                    String vectorSpace = resolveVectorSpace(result);
-                    if (StringUtils.hasText(vectorSpace)) {
-                        normalizedMetadata.putIfAbsent(RESULT_KEY_VECTOR_SPACE, vectorSpace);
-                    }
+	                    String vectorSpace = resolveVectorSpace(result);
+	                    if (StringUtils.hasText(vectorSpace)) {
+	                        normalizedMetadata.put(RESULT_KEY_VECTOR_SPACE, vectorSpace);
+	                    }
 
                     return RAGResponse.RAGDocument.builder()
                         .id((String) result.get(RESULT_KEY_ID))
@@ -422,12 +423,12 @@ public class RAGService implements RAGProvider {
             .collect(Collectors.toList());
     }
     
-    private RAGResponse.RAGDocument convertToRAGDocument(Map<String, Object> result) {
-        Map<String, Object> metadata = normalizeMetadata(result.get(RESULT_KEY_METADATA));
-        String vectorSpace = resolveVectorSpace(result);
-        if (StringUtils.hasText(vectorSpace)) {
-            metadata.putIfAbsent(RESULT_KEY_VECTOR_SPACE, vectorSpace);
-        }
+	    private RAGResponse.RAGDocument convertToRAGDocument(Map<String, Object> result) {
+	        Map<String, Object> metadata = new LinkedHashMap<>(normalizeMetadata(result.get(RESULT_KEY_METADATA)));
+	        String vectorSpace = resolveVectorSpace(result);
+	        if (StringUtils.hasText(vectorSpace)) {
+	            metadata.put(RESULT_KEY_VECTOR_SPACE, vectorSpace);
+	        }
 
         Object scoreValue = result.getOrDefault(RESULT_KEY_SCORE, 0.0);
         Object similarityValue = result.getOrDefault(RESULT_KEY_SIMILARITY, 0.0);

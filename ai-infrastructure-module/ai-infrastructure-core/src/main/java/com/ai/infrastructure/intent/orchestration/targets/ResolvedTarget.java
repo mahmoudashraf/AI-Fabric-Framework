@@ -16,11 +16,13 @@ public class ResolvedTarget {
 
     String vectorSpace;
 
-    String contentSnippet;
+    String contentText;
+
+    @Builder.Default
+    boolean contentTextTruncated = false;
 
     @Builder.Default
     Map<String, String> metadata = Map.of();
 
     ResolvedTargetSource source;
 }
-

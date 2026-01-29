@@ -34,6 +34,8 @@ class CatalogCuratedPackTest {
 
         assertThat(props.getProfile()).isEqualTo(OrchestrationProfile.PRODUCTION_NAVIGATOR);
         assertThat(props.getModes()).containsKey("navigator");
+        assertThat(props.getModes()).containsKey("navigator_deep");
+        assertThat(props.getModes().get("navigator_deep").getUseAdvancedRag()).isEqualTo(true);
 
         PromptBundleProperties promptBundle = Binder.get(environment)
             .bind("ai.prompts.bundle", PromptBundleProperties.class)

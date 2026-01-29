@@ -157,7 +157,7 @@ class ConversationEnrichmentStepTest {
                     Map.of(
                         "id", "85",
                         "vectorSpace", "product",
-                        "contentSnippet", "snippet"
+                        "contentText", "snippet"
                     )
                 )
             ))

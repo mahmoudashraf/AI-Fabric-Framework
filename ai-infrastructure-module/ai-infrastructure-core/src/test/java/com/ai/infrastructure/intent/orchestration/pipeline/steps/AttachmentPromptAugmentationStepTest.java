@@ -33,7 +33,7 @@ class AttachmentPromptAugmentationStepTest {
         PipelineContext ctx = PipelineContext.from("hello", orch);
         PipelineContext updated = step.process(ctx);
 
-        assertThat(updated.getEffectiveQuery()).startsWith("ATTACHMENTS (authoritative):");
+        assertThat(updated.getEffectiveQuery()).startsWith("ATTACHMENTS (authoritative UI context; [ACTIVE] is pinned):");
         assertThat(updated.getEffectiveQuery()).contains("[ACTIVE]");
         assertThat(updated.getEffectiveQuery()).contains("vectorSpace=product id=1");
         assertThat(updated.getEffectiveQuery()).contains("metadata={sku=SKU-1}");
@@ -48,7 +48,7 @@ class AttachmentPromptAugmentationStepTest {
         NormalizedAttachment attachment = NormalizedAttachment.builder()
             .id("85")
             .vectorSpace(null)
-            .contentSnippet("some content")
+            .contentText("some content")
             .build();
 
         OrchestrationContext orch = OrchestrationContext.builder()

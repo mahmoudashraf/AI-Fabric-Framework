@@ -48,7 +48,7 @@ public class ConversationRecordingStep implements PipelineStep {
     private static final String RESULT_DATA_KEY_ACTION_RESULT = "actionResult";
     private static final String TARGET_REF_KEY_ID = "id";
     private static final String TARGET_REF_KEY_VECTOR_SPACE = "vectorSpace";
-    private static final String TARGET_REF_KEY_CONTENT_SNIPPET = "contentSnippet";
+    private static final String TARGET_REF_KEY_CONTENT_TEXT = "contentText";
     private static final String TARGET_REF_KEY_METADATA = "metadata";
 
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS = "lastResolvedTargets";
@@ -151,8 +151,8 @@ public class ConversationRecordingStep implements PipelineStep {
             if (StringUtils.hasText(target.getVectorSpace())) {
                 entry.put(TARGET_REF_KEY_VECTOR_SPACE, target.getVectorSpace().trim());
             }
-            if (StringUtils.hasText(target.getContentSnippet())) {
-                entry.put(TARGET_REF_KEY_CONTENT_SNIPPET, target.getContentSnippet());
+            if (StringUtils.hasText(target.getContentText())) {
+                entry.put(TARGET_REF_KEY_CONTENT_TEXT, target.getContentText());
             }
             if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
                 entry.put(TARGET_REF_KEY_METADATA, new LinkedHashMap<>(target.getMetadata()));
@@ -238,7 +238,7 @@ public class ConversationRecordingStep implements PipelineStep {
             return ResolvedTarget.builder()
                 .id(ref.id().trim())
                 .vectorSpace(StringUtils.hasText(ref.vectorSpace()) ? ref.vectorSpace().trim() : null)
-                .contentSnippet(StringUtils.hasText(ref.contentSnippet()) ? ref.contentSnippet().trim() : null)
+                .contentText(StringUtils.hasText(ref.contentText()) ? ref.contentText().trim() : null)
                 .metadata(ref.metadata() != null ? ref.metadata() : Map.of())
                 .source(com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.ACTION_RESULT_ITEMS)
                 .build();
@@ -254,13 +254,13 @@ public class ConversationRecordingStep implements PipelineStep {
         }
 
         String vectorSpace = coerceToString(map.get(TARGET_REF_KEY_VECTOR_SPACE));
-        String snippet = coerceToString(map.get(TARGET_REF_KEY_CONTENT_SNIPPET));
+        String contentText = coerceToString(map.get(TARGET_REF_KEY_CONTENT_TEXT));
         Map<String, String> metadata = coerceToStringMap(map.get(TARGET_REF_KEY_METADATA));
 
         return ResolvedTarget.builder()
             .id(id.trim())
             .vectorSpace(StringUtils.hasText(vectorSpace) ? vectorSpace.trim() : null)
-            .contentSnippet(StringUtils.hasText(snippet) ? snippet.trim() : null)
+            .contentText(StringUtils.hasText(contentText) ? contentText.trim() : null)
             .metadata(metadata)
             .source(com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.ACTION_RESULT_ITEMS)
             .build();

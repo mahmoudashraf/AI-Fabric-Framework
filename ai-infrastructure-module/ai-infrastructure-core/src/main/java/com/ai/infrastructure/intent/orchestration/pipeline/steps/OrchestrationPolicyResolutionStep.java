@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -106,10 +107,14 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             : null;
 
         OrchestrationProperties.InformationMode informationModeEffective = profile.defaultInformationMode();
+        Boolean advancedRagOverride = null;
 
         if (effectiveModeOverrides != null) {
             if (effectiveModeOverrides.getInformationMode() != null) {
                 informationModeEffective = effectiveModeOverrides.getInformationMode();
+            }
+            if (effectiveModeOverrides.getUseAdvancedRag() != null) {
+                advancedRagOverride = effectiveModeOverrides.getUseAdvancedRag();
             }
         }
 
@@ -124,9 +129,23 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             informationModeEffective
         );
 
-        OrchestrationContext updatedOrchestrationContext = orchestrationContext != null
-            ? orchestrationContext.toBuilder().orchestrationPolicy(policy).build()
-            : null;
+        OrchestrationContext updatedOrchestrationContext = orchestrationContext;
+        if (orchestrationContext != null) {
+            if (advancedRagOverride != null) {
+                Map<String, Object> meta = new LinkedHashMap<>(orchestrationContext.getMetadata() != null
+                    ? orchestrationContext.getMetadata()
+                    : Map.of());
+                meta.put(OrchestrationContextMetadataKeys.USE_ADVANCED_RAG, advancedRagOverride);
+                updatedOrchestrationContext = orchestrationContext.toBuilder()
+                    .metadata(Collections.unmodifiableMap(meta))
+                    .orchestrationPolicy(policy)
+                    .build();
+            } else {
+                updatedOrchestrationContext = orchestrationContext.toBuilder()
+                    .orchestrationPolicy(policy)
+                    .build();
+            }
+        }
 
         Map<String, Object> debug = new LinkedHashMap<>();
         debug.put("profile", policy.profile().name());
@@ -134,6 +153,10 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("position", policy.position());
         debug.put("informationModeEffective", policy.informationMode().name());
         debug.put("modeSource", modeSource);
+        if (advancedRagOverride != null) {
+            debug.put("advancedRagOverride", advancedRagOverride);
+            debug.put("advancedRagOverrideSource", "MODE");
+        }
 
         PipelineContext updated = context.toBuilder()
             .orchestrationContext(updatedOrchestrationContext)

@@ -27,3 +27,6 @@ TASKS (fill params for these indices):
 USER REQUEST:
 {{user_query}}
 
+Notes:
+- The USER REQUEST may include an "ATTACHMENTS (authoritative UI context)" section with [ACTIVE] pinned targets.
+- When the user refers to a target indirectly ("buy it", "add this"), prefer identifiers/fields from [ACTIVE] attachment metadata/contentText for actionParams (e.g., id/sku/orderNumber) rather than inventing values.

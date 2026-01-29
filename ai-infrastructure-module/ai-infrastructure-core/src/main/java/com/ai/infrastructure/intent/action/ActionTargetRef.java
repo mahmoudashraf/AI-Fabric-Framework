@@ -14,7 +14,7 @@ import java.util.Map;
 public record ActionTargetRef(
     String id,
     String vectorSpace,
-    String contentSnippet,
+    String contentText,
     Map<String, String> metadata
 ) {
     public ActionTargetRef {
@@ -23,8 +23,7 @@ public record ActionTargetRef(
         }
         id = id.trim();
         vectorSpace = vectorSpace != null && !vectorSpace.trim().isEmpty() ? vectorSpace.trim() : null;
-        contentSnippet = contentSnippet != null && !contentSnippet.trim().isEmpty() ? contentSnippet.trim() : null;
+        contentText = contentText != null && !contentText.trim().isEmpty() ? contentText.trim() : null;
         metadata = metadata != null && !metadata.isEmpty() ? Map.copyOf(metadata) : Map.of();
     }
 }
-

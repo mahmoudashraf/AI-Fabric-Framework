@@ -27,6 +27,7 @@ import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.KnowledgeBaseOverview;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -173,7 +174,6 @@ public class IntentHandlingStep implements PipelineStep {
 
     private static final String DATA_KEY_GENERATION_ERROR = "generationError";
 
-    private static final String CONTEXT_METADATA_KEY_USE_ADVANCED_RAG = "useAdvancedRAG";
     private static final String CONTEXT_METADATA_KEY_ADVANCED_EXPANSION_LEVEL = "advancedRagExpansionLevel";
     private static final String CONTEXT_METADATA_KEY_ADVANCED_RERANKING_STRATEGY = "advancedRagRerankingStrategy";
     private static final String CONTEXT_METADATA_KEY_ADVANCED_CONTEXT_OPTIMIZATION_LEVEL = "advancedRagContextOptimizationLevel";
@@ -1097,9 +1097,10 @@ public class IntentHandlingStep implements PipelineStep {
 
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
+        String retrievalFallbackQuery = extractUserQueryForRetrieval(processedQuery, pipelineContext != null ? pipelineContext.getOriginalQuery() : null);
         String retrievalBaseQuery = StringUtils.hasText(optimizedQuery)
             ? optimizedQuery
-            : (StringUtils.hasText(processedQuery) ? processedQuery : intent.getIntentOrAction());
+            : (StringUtils.hasText(retrievalFallbackQuery) ? retrievalFallbackQuery : intent.getIntentOrAction());
         String generationQuery = StringUtils.hasText(processedQuery) ? processedQuery : retrievalBaseQuery;
         
         Map<String, Object> metadata = new LinkedHashMap<>();
@@ -1169,7 +1170,7 @@ public class IntentHandlingStep implements PipelineStep {
                 ? pipelineContext.getOriginalQuery()
                 : generationQuery);
 
-        if (shouldUseAdvancedRag(intent, needsGeneration, advancedDecisionQuery, context)) {
+        if (shouldUseAdvancedRag(intent, needsGeneration, advancedDecisionQuery, context, pipelineContext)) {
             OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata);
             if (advanced != null) {
                 return advanced;
@@ -1177,6 +1178,54 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         return handleInformationBasic(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata);
+    }
+
+    private String extractUserQueryForRetrieval(String effectiveQuery, String originalQuery) {
+        if (!StringUtils.hasText(effectiveQuery)) {
+            return StringUtils.hasText(originalQuery) ? originalQuery : null;
+        }
+
+        String extracted = extractBetweenMarkers(effectiveQuery, "---BEGIN QUERY---", "---END QUERY---");
+        if (StringUtils.hasText(extracted)) {
+            return extracted;
+        }
+
+        extracted = extractBetweenMarkers(effectiveQuery, "---BEGIN MESSAGE---", "---END MESSAGE---");
+        if (StringUtils.hasText(extracted)) {
+            return extracted;
+        }
+
+        // If attachments were injected into the effective query, they are separated from the original user query by a blank line.
+        String trimmed = effectiveQuery.trim();
+        if (trimmed.startsWith("ATTACHMENTS (")) {
+            int split = trimmed.indexOf("\n\n");
+            if (split > 0 && split + 2 < trimmed.length()) {
+                String remainder = trimmed.substring(split + 2).trim();
+                if (StringUtils.hasText(remainder)) {
+                    return remainder;
+                }
+            }
+        }
+
+        return trimmed;
+    }
+
+    private String extractBetweenMarkers(String text, String beginMarker, String endMarker) {
+        if (!StringUtils.hasText(text) || !StringUtils.hasText(beginMarker) || !StringUtils.hasText(endMarker)) {
+            return null;
+        }
+        int begin = text.indexOf(beginMarker);
+        if (begin < 0) {
+            return null;
+        }
+        begin += beginMarker.length();
+        int end = text.indexOf(endMarker, begin);
+        if (end < 0 || end <= begin) {
+            return null;
+        }
+        String extracted = text.substring(begin, end);
+        String trimmed = extracted != null ? extracted.trim() : null;
+        return StringUtils.hasText(trimmed) ? trimmed : null;
     }
 
     private boolean hasPendingAction(OrchestrationContext context) {
@@ -1820,7 +1869,11 @@ public class IntentHandlingStep implements PipelineStep {
         return false;
     }
 
-    private boolean shouldUseAdvancedRag(Intent intent, boolean needsGeneration, String query, OrchestrationContext context) {
+    private boolean shouldUseAdvancedRag(Intent intent,
+                                        boolean needsGeneration,
+                                        String query,
+                                        OrchestrationContext context,
+                                        PipelineContext pipelineContext) {
         AdvancedRAGProvider provider = advancedRagProvider.getIfAvailable();
         if (provider == null) {
             return false;
@@ -1832,8 +1885,14 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         Map<String, Object> ctxMetadata = context != null ? context.getMetadata() : null;
-        if (isTrue(ctxMetadata != null ? ctxMetadata.get(CONTEXT_METADATA_KEY_USE_ADVANCED_RAG) : null)) {
-            return true;
+        Object advancedOverride = ctxMetadata != null ? ctxMetadata.get(OrchestrationContextMetadataKeys.USE_ADVANCED_RAG) : null;
+        if (advancedOverride instanceof Boolean bool) {
+            return bool;
+        }
+
+        // In deterministic information mode, Advanced RAG must be explicitly enabled (manual deep search).
+        if (isDeterministicInformationMode(pipelineContext)) {
+            return false;
         }
 
         if (!needsGeneration) {
@@ -2025,8 +2084,9 @@ public class IntentHandlingStep implements PipelineStep {
                 sb.append(meta).append("}");
             }
 
-            if (StringUtils.hasText(target.getContentSnippet())) {
-                sb.append(" snippet=\"").append(target.getContentSnippet()).append("\"");
+            if (StringUtils.hasText(target.getContentText())) {
+                sb.append(" contentTextTruncated=").append(target.isContentTextTruncated());
+                sb.append(" contentText=\"").append(target.getContentText()).append("\"");
             }
 
             sb.append("\n");

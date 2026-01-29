@@ -142,7 +142,8 @@ public class TargetResolutionStep implements PipelineStep {
             resolved.add(ResolvedTarget.builder()
                 .id(attachment.getId())
                 .vectorSpace(attachment.getVectorSpace())
-                .contentSnippet(attachment.getContentSnippet())
+                .contentText(attachment.getContentText())
+                .contentTextTruncated(attachment.isContentTextTruncated())
                 .metadata(attachment.getMetadata() != null ? attachment.getMetadata() : Map.of())
                 .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
                 .build());

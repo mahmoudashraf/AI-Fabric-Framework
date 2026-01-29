@@ -44,7 +44,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS = "lastResolvedTargets";
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX = "lastResolvedTargetsTurnIndex";
 
-    private static final int REHYDRATED_SNIPPET_MAX_CHARS = 280;
+    private static final int REHYDRATED_CONTENT_TEXT_MAX_CHARS = 280;
     private static final int REHYDRATED_METADATA_MAX_ENTRIES = 12;
     private static final int REHYDRATED_METADATA_MAX_VALUE_LENGTH = 120;
 
@@ -285,7 +285,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
             }
 
             String vectorSpace = coerceString(map.get("vectorSpace"));
-            String snippet = coerceString(map.get("contentSnippet"));
+            String contentText = coerceString(map.get("contentText"));
 
             Map<String, String> meta = Map.of();
             Object rawMeta = map.get("metadata");
@@ -318,7 +318,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
             resolved.add(ResolvedTarget.builder()
                 .id(id.trim())
                 .vectorSpace(StringUtils.hasText(vectorSpace) ? vectorSpace.trim() : null)
-                .contentSnippet(StringUtils.hasText(snippet) ? snippet.trim() : null)
+                .contentText(StringUtils.hasText(contentText) ? contentText.trim() : null)
                 .metadata(meta)
                 .source(source)
                 .build());
@@ -356,9 +356,9 @@ public class ConversationEnrichmentStep implements PipelineStep {
                 continue;
             }
 
-            boolean needsSnippet = !StringUtils.hasText(target.getContentSnippet());
+            boolean needsContent = !StringUtils.hasText(target.getContentText());
             boolean needsMetadata = target.getMetadata() == null || target.getMetadata().isEmpty();
-            if (!needsSnippet && !needsMetadata) {
+            if (!needsContent && !needsMetadata) {
                 updated.add(target);
                 continue;
             }
@@ -375,11 +375,11 @@ public class ConversationEnrichmentStep implements PipelineStep {
                 continue;
             }
 
-            String snippet = needsSnippet ? buildSnippet(record.getContent()) : target.getContentSnippet();
+            String contentText = needsContent ? buildContentText(record.getContent()) : target.getContentText();
             Map<String, String> metadata = needsMetadata ? buildMetadata(record.getMetadata()) : target.getMetadata();
 
             ResolvedTarget enriched = target.toBuilder()
-                .contentSnippet(snippet)
+                .contentText(contentText)
                 .metadata(metadata)
                 .build();
 
@@ -393,7 +393,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
         return Collections.unmodifiableList(updated);
     }
 
-    private String buildSnippet(String content) {
+    private String buildContentText(String content) {
         if (!StringUtils.hasText(content)) {
             return null;
         }
@@ -401,10 +401,10 @@ public class ConversationEnrichmentStep implements PipelineStep {
         if (trimmed.isEmpty()) {
             return null;
         }
-        if (trimmed.length() <= REHYDRATED_SNIPPET_MAX_CHARS) {
+        if (trimmed.length() <= REHYDRATED_CONTENT_TEXT_MAX_CHARS) {
             return trimmed;
         }
-        return trimmed.substring(0, REHYDRATED_SNIPPET_MAX_CHARS);
+        return trimmed.substring(0, REHYDRATED_CONTENT_TEXT_MAX_CHARS);
     }
 
     private Map<String, String> buildMetadata(Map<String, Object> raw) {

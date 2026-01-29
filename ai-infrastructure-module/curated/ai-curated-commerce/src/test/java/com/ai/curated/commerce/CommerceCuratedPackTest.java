@@ -34,6 +34,8 @@ class CommerceCuratedPackTest {
 
         assertThat(props.getProfile()).isEqualTo(OrchestrationProfile.PRODUCTION_CHAT);
         assertThat(props.getModes()).containsKey("navigator");
+        assertThat(props.getModes()).containsKey("navigator_deep");
+        assertThat(props.getModes().get("navigator_deep").getUseAdvancedRag()).isEqualTo(true);
         assertThat(props.getModes()).containsKey("cart_assistant");
 
         PromptBundleProperties promptBundle = Binder.get(environment)

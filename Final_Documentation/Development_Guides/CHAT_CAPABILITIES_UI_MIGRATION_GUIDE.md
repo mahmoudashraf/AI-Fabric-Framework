@@ -25,8 +25,8 @@ It is intended for frontend/UI clients calling:
   "attachments": [
     {
       "id": "string (required)",
-      "vectorSpace": "string (required; e.g. \"product\")",
-      "contentSnippet": "string (optional)",
+      "vectorSpace": "string (recommended; e.g. \"product\")",
+      "contentText": "string (optional; bounded, best-effort grounding text)",
       "metadata": { "anyScalar": "..." },
       "source": "string (optional)",
       "url": "string (optional)",
@@ -70,6 +70,10 @@ Notes:
 - **Position routing wins over `mode`.** If you send both, the routed mode for the position is applied.
 - If you send a `position` that is not configured, the request falls back to normal mode resolution (unless the app enables strict routing).
 
+Temporary demo behavior:
+- The current demo backend forces `.mode("navigator")` server-side (see `Real_Apps/chat-capabilities-demo/src/main/java/com/ai/fabric/realapps/chat/web/ChatController.java`).
+- `position` / `mode` are accepted in the request contract but are not used until multi-mode UX is re-enabled.
+
 ---
 
 ## 3) When to send attachments
@@ -84,7 +88,8 @@ This enables deterministic resolution without relying on the LLM to “guess” 
 Recommended UI pattern:
 - Include attachments for everything visible/selected in the UI list/cards.
 - Set `activeAttachmentIds` to what the user currently selected/focused on.
-- Set `vectorSpace` to the entity type configured in your `ai-entity-config.yml` (for the demo catalog: `product`).
+- Set `vectorSpace` to the entity type configured in your `ai-entity-config.yml` (for the demo catalog: `product`) when known.
+- Include `contentText` when available so the LLM can answer from pinned context without extra retrieval.
 
 ---
 
@@ -135,7 +140,7 @@ If you want the backend to store and later return chat history via `/api/chat/co
     {
       "id": "SKU-0002",
       "vectorSpace": "product",
-      "contentSnippet": "Compact Mechanical Keyboard - 65% mechanical keyboard with Bluetooth connectivity.",
+      "contentText": "Compact Mechanical Keyboard - 65% mechanical keyboard with Bluetooth connectivity.",
       "metadata": { "sku": "SKU-0002", "category": "Keyboards" },
       "source": "ui-card"
     }
@@ -164,4 +169,3 @@ If your UI is hosted on a different domain than the API:
 
 Local default port:
 - `http://localhost:8096` (the app uses `PORT` when deployed)
-

@@ -4,6 +4,9 @@ ai:
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
+      navigator_deep:
+        information-mode: DETERMINISTIC_RAG_GENERATE
+        use-advanced-rag: true
     position-routing:
       landing: navigator
       cart: navigator

@@ -117,7 +117,7 @@ class ConversationRecordingStepTest {
             .resolvedTargets(java.util.List.of(ResolvedTarget.builder()
                 .id("85")
                 .vectorSpace("product")
-                .contentSnippet("snippet")
+                .contentText("snippet")
                 .metadata(Map.of("sku", "SKU-1"))
                 .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
                 .build()))

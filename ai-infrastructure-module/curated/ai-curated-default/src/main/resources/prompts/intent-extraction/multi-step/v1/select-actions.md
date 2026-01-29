@@ -16,3 +16,7 @@ ACTION INTENTS:
 
 USER REQUEST (context only):
 {{user_query}}
+
+Notes:
+- The USER REQUEST may include an "ATTACHMENTS (authoritative UI context)" section with [ACTIVE] pinned targets.
+- Use [ACTIVE] attachment metadata/contentText as the primary source when interpreting vague references like "this", "it", or "that product".

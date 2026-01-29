@@ -24,7 +24,7 @@ class AttachmentNormalizationStepTest {
         AttachmentsProperties properties = new AttachmentsProperties();
         properties.setMaxAttachments(2);
         properties.setMaxActiveAttachmentIds(10);
-        properties.setMaxContentSnippetChars(10);
+        properties.setMaxContentTextChars(10);
         properties.setMaxMetadataKeys(2);
         properties.setMaxMetadataValueChars(5);
         properties.setMaxIdChars(10);
@@ -43,7 +43,7 @@ class AttachmentNormalizationStepTest {
         OrchestrationAttachment a1 = OrchestrationAttachment.builder()
             .id(" 1 ")
             .vectorSpace("product")
-            .contentSnippet("hello world")
+            .contentText("hello world")
             .metadata(Map.of(
                 "sku", "SKU-123456",
                 "rank", 7,
@@ -79,7 +79,8 @@ class AttachmentNormalizationStepTest {
         NormalizedAttachment first = out.getAttachmentsNormalized().getFirst();
         assertThat(first.getId()).isEqualTo("1");
         assertThat(first.getVectorSpace()).isEqualTo("product");
-        assertThat(first.getContentSnippet()).isEqualTo("hello worl");
+        assertThat(first.getContentText()).isEqualTo("hello worl");
+        assertThat(first.isContentTextTruncated()).isTrue();
         assertThat(first.getSource()).isEqualTo("ui-card");
         assertThat(first.getMetadata()).containsEntry("sku", "SKU-1");
         assertThat(first.getMetadata()).containsEntry("rank", "7");
@@ -153,7 +154,7 @@ class AttachmentNormalizationStepTest {
         OrchestrationAttachment attachment = OrchestrationAttachment.builder()
             .id("att-1")
             .vectorSpace(null)
-            .contentSnippet("hello")
+            .contentText("hello")
             .build();
 
         OrchestrationContext orch = OrchestrationContext.builder()
@@ -169,6 +170,7 @@ class AttachmentNormalizationStepTest {
         NormalizedAttachment normalized = updated.getOrchestrationContext().getAttachmentsNormalized().getFirst();
         assertThat(normalized.getId()).isEqualTo("att-1");
         assertThat(normalized.getVectorSpace()).isNull();
+        assertThat(normalized.isContentTextTruncated()).isFalse();
         assertThat(updated.getOrchestrationContext().getActiveAttachmentIdsResolved()).containsExactly("att-1");
     }
 }

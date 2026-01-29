@@ -31,9 +31,9 @@ public class AttachmentsProperties {
     private int maxActiveAttachmentIds = 10;
 
     /**
-     * Maximum characters kept for the attachment content snippet.
+     * Maximum characters kept for attachment content used for grounding.
      */
-    private int maxContentSnippetChars = 300;
+    private int maxContentTextChars = 2000;
 
     /**
      * Maximum metadata keys accepted per attachment.

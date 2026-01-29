@@ -77,7 +77,7 @@ Content-Type: application/json
     {
       "id": "SKU-0002",
       "vectorSpace": "product",
-      "contentSnippet": "Compact Mechanical Keyboard - 65% mechanical keyboard with Bluetooth connectivity.",
+      "contentText": "Compact Mechanical Keyboard - 65% mechanical keyboard with Bluetooth connectivity.",
       "metadata": {
         "sku": "SKU-0002",
         "category": "Keyboards"

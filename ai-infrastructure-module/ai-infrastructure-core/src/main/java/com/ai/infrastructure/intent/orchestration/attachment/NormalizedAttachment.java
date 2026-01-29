@@ -18,11 +18,13 @@ public class NormalizedAttachment {
 
     String vectorSpace;
 
-    String contentSnippet;
+    String contentText;
+
+    @Builder.Default
+    boolean contentTextTruncated = false;
 
     @Builder.Default
     Map<String, String> metadata = Map.of();
 
     String source;
 }
-

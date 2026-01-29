@@ -3,6 +3,7 @@ COMPLETION MODE:
 - Fix ONLY the missing/invalid contract fields listed in VALIDATION ISSUES.
 - Do NOT invent new actions. ACTION names MUST come from the allowed actions list.
 - Do NOT guess vectorSpace or other routing values. Leave them null/empty if not explicit.
+- The USER REQUEST may include an "ATTACHMENTS (authoritative UI context)" section with [ACTIVE] pinned targets; treat those as authoritative and prefer their metadata/contentText when completing missing identifiers/params.
 - For relationship_query: actionParams.query is REQUIRED and MUST NOT include the hint prefix (e.g., "relationship_query:"). If missing, derive it from the user request after the prefix.
 - If required info is missing from the user request, choose a safe fallback (OUT_OF_SCOPE) and include a helpful nextStepRecommended.query asking for the missing information.
 - Output MUST be a single JSON object matching the schema above. No markdown. No commentary.

@@ -30,9 +30,9 @@ public class OrchestrationAttachment {
     private String vectorSpace;
 
     /**
-     * Optional short, UI-provided snippet for grounding (bounded during normalization).
+     * Optional UI-provided content used for grounding (bounded during normalization).
      */
-    private String contentSnippet;
+    private String contentText;
 
     /**
      * Optional metadata map (scalar-only after normalization).
@@ -55,4 +55,3 @@ public class OrchestrationAttachment {
      */
     private String imageUrl;
 }
-

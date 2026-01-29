@@ -81,5 +81,13 @@ public class OrchestrationProperties {
          * Optional mode override for information orchestration behavior.
          */
         private InformationMode informationMode;
+
+        /**
+         * Optional mode override to force Advanced RAG on/off.
+         *
+         * <p>When true, Advanced RAG is enabled for the request (when a provider is present).
+         * When false, Advanced RAG is disabled even if the LLM suggests it.</p>
+         */
+        private Boolean useAdvancedRag;
     }
 }

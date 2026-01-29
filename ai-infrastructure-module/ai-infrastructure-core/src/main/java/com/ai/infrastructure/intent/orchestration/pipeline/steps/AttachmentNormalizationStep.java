@@ -49,6 +49,8 @@ public class AttachmentNormalizationStep implements PipelineStep {
     private final ObjectProvider<PIIDetectionService> piiDetectionServiceProvider;
     private final ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider;
 
+    private record NormalizedText(String value, boolean truncated) {}
+
     @Override
     public String getStepName() {
         return STEP_NAME;
@@ -180,10 +182,9 @@ public class AttachmentNormalizationStep implements PipelineStep {
             return null;
         }
 
-        String snippet = normalizeToken(
-            attachment.getContentSnippet(),
-            properties != null ? properties.getMaxContentSnippetChars() : 300,
-            true,
+        NormalizedText content = normalizeContentText(
+            attachment.getContentText(),
+            properties != null ? properties.getMaxContentTextChars() : 2000,
             pii
         );
 
@@ -199,10 +200,50 @@ public class AttachmentNormalizationStep implements PipelineStep {
         return NormalizedAttachment.builder()
             .id(id)
             .vectorSpace(vectorSpace)
-            .contentSnippet(snippet)
+            .contentText(content != null ? content.value() : null)
+            .contentTextTruncated(content != null && content.truncated())
             .metadata(metadata)
             .source(source)
             .build();
+    }
+
+    private NormalizedText normalizeContentText(String input, int maxChars, PIIDetectionService pii) {
+        if (!StringUtils.hasText(input)) {
+            return new NormalizedText(null, false);
+        }
+
+        String normalized = input.trim();
+        normalized = normalized.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ');
+        // Preserve some whitespace but collapse extremes.
+        normalized = normalized.replaceAll("\\s{3,}", "  ");
+
+        if (!StringUtils.hasText(normalized)) {
+            return new NormalizedText(null, false);
+        }
+
+        boolean truncated = false;
+        if (maxChars > 0 && normalized.length() > maxChars) {
+            truncated = true;
+            normalized = normalized.substring(0, maxChars).trim();
+        }
+
+        if (!StringUtils.hasText(normalized)) {
+            return new NormalizedText(null, truncated);
+        }
+
+        if (pii != null) {
+            try {
+                PIIDetectionResult result = pii.detectAndProcess(normalized);
+                if (result != null && StringUtils.hasText(result.getProcessedQuery())) {
+                    normalized = result.getProcessedQuery().trim();
+                }
+            } catch (Exception ex) {
+                // Never fail the request due to optional PII processing.
+                log.debug("PII normalization failed: {}", ex.getMessage());
+            }
+        }
+
+        return new NormalizedText(StringUtils.hasText(normalized) ? normalized : null, truncated);
     }
 
     private record VectorSpaceValidationOutcome(

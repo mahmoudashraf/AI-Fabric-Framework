@@ -131,7 +131,7 @@ Because it doesn’t know what the UI already pinned.
 
 ### What to include (best practice)
 Include **only** what is needed to ground intent decisions:
-- `id`, `vectorSpace`, and a bounded `contentSnippet`
+- `id`, `vectorSpace`, and a bounded `contentText`
 - bounded scalar metadata (e.g., `sku`, `category`, `price`, `currency`)
 - avoid large text blocks, avoid long history, enforce strict token/size budgets
 
@@ -185,4 +185,3 @@ For debugging and realapi tests, the API should expose (in debug metadata):
 - vector spaces selected (and whether selected by router vs explicit intent)
 
 This makes behavior reproducible and testable without log scraping.
-

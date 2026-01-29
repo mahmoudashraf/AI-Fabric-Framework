@@ -101,16 +101,18 @@ Add rules for extraction:
 3) **Retrieval gating**:
    - If the pinned targets contain enough info to answer a request that is about them (summarize/compare/describe/price/availability), set `requiresRetrieval=false` and provide `directAnswer` (LLM-driven mode) or allow deterministic skip logic to take effect (deterministic mode).
    - If pinned targets are insufficient, set `requiresRetrieval=true` and provide an `optimizedQuery` for retrieval (do not fabricate missing facts).
-4) **Multiple pinned targets**:
-   - If the query says “compare” and multiple targets are pinned, proceed.
-   - If the query says “summarize this” and multiple targets are pinned, request clarification (which target).
+4) **Multiple pinned targets (LLM-decided, no string rules)**:
+   - If the user request clearly references **multiple** targets (plural, explicit IDs/SKUs, “both”, or the UI pins multiple active targets) → proceed using those targets.
+   - If the user request appears to reference **a single** target but multiple targets are pinned and the request is ambiguous → return `CLARIFICATION_REQUIRED` and ask which pinned target to use (or ask the user to select one in the UI).
 
-### Data contract to include (bounded)
+### Data contract to include (bounded but sufficient for full answers)
 Provide to the extractor (for each pinned target):
 - `id` (string)
 - `vectorSpace` (string, may be empty/unknown)
-- `contentSnippet` (bounded length)
+- `contentText` (bounded length; may be truncated, but large enough for “summarize/extract specs”)
+- `contentTextTruncated` (boolean)
 - `metadata` (bounded scalar-only: sku, category, price, currency, etc.)
+- Optional `title` / `url` (bounded)
 
 Do not include:
 - unbounded metadata maps,
@@ -121,7 +123,7 @@ Do not include:
 - Sanitize/PII-scan pinned context before prompt inclusion.
 - Enforce strict size limits:
   - max pinned targets (e.g., 1–5)
-  - max chars per snippet
+  - max chars per `contentText`
   - max total pinned-context chars
 - If vectorSpace is missing, treat it as “unknown” (best-effort); do not fail the request solely for missing vectorSpace.
 
@@ -200,4 +202,3 @@ This is an app-level simplification, not a framework behavior change.
 - `changes/OPTIMIZATION_PROFILES_AND_DETERMINISTIC_RAG_INTEGRATION_PLAN.md`
 - `changes/ATTACHMENTS_METADATA_AND_RAG_OPTIMIZATION_MASTER_PLAN.md`
 - `changes/ATTACHMENT_GROUNDING_END_TO_END_FIX_PLAN.md`
-

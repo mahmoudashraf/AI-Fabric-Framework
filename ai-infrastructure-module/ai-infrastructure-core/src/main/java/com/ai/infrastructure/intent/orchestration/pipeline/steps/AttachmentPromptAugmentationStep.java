@@ -89,7 +89,7 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
 
     private String buildAttachmentsBlock(List<NormalizedAttachment> attachments, Set<String> activeIds) {
         StringBuilder sb = new StringBuilder(512);
-        sb.append("ATTACHMENTS (authoritative):\n");
+        sb.append("ATTACHMENTS (authoritative UI context; [ACTIVE] is pinned):\n");
 
         int index = 1;
         for (NormalizedAttachment attachment : attachments) {
@@ -121,8 +121,9 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
                 sb.append(meta).append("}");
             }
 
-            if (StringUtils.hasText(attachment.getContentSnippet())) {
-                sb.append(" snippet=\"").append(attachment.getContentSnippet()).append("\"");
+            if (StringUtils.hasText(attachment.getContentText())) {
+                sb.append(" contentTextTruncated=").append(attachment.isContentTextTruncated());
+                sb.append(" contentText=\"").append(attachment.getContentText()).append("\"");
             }
 
             sb.append("\n");
