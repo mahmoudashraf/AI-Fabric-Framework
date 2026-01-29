@@ -20,6 +20,8 @@ import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryServi
 import com.ai.infrastructure.relationship.spi.RelationshipQueryAccessControlPolicy;
 import com.ai.infrastructure.relationship.validation.RelationshipQueryValidator;
 import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Nullable;
@@ -91,7 +93,9 @@ class RelationshipQueryConfiguration {
                                                       QueryCache queryCache,
                                                       QueryMetrics queryMetrics,
                                                       ObjectMapper objectMapper,
-                                                      StructuredJsonExtractor structuredJsonExtractor) {
+                                                      StructuredJsonExtractor structuredJsonExtractor,
+                                                      PromptTemplateResolver promptTemplateResolver,
+                                                      PromptRenderer promptRenderer) {
         return new RelationshipQueryPlanner(
             aiCoreService,
             schemaProvider,
@@ -100,7 +104,9 @@ class RelationshipQueryConfiguration {
             queryCache,
             queryMetrics,
             objectMapper,
-            structuredJsonExtractor
+            structuredJsonExtractor,
+            promptTemplateResolver,
+            promptRenderer
         );
     }
 

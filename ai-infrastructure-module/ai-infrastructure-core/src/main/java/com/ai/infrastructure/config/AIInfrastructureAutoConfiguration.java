@@ -10,6 +10,8 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.security.AISecurityService;
@@ -270,8 +272,18 @@ public class AIInfrastructureAutoConfiguration {
             AICoreService aiCoreService,
             AIEntityConfigurationLoader entityConfigurationLoader,
             VectorManagementService vectorManagementService,
-            AnnotationFieldScanner annotationFieldScanner) {
-        return new AICapabilityService(embeddingService, aiCoreService, entityConfigurationLoader, vectorManagementService, annotationFieldScanner);
+            AnnotationFieldScanner annotationFieldScanner,
+            PromptTemplateResolver promptTemplateResolver,
+            PromptRenderer promptRenderer) {
+        return new AICapabilityService(
+            embeddingService,
+            aiCoreService,
+            entityConfigurationLoader,
+            vectorManagementService,
+            annotationFieldScanner,
+            promptTemplateResolver,
+            promptRenderer
+        );
     }
     
     @Bean

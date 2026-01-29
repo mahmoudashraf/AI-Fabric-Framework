@@ -5,6 +5,7 @@ import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.PostActionGenerationProperties;
 import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -17,6 +18,9 @@ import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +29,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,7 +59,9 @@ class IntentHandlingStepRetrievalQueryHintTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         Intent retrievalIntent = Intent.builder()
@@ -101,7 +108,9 @@ class IntentHandlingStepRetrievalQueryHintTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         Intent first = Intent.builder()
@@ -148,5 +157,12 @@ class IntentHandlingStepRetrievalQueryHintTest {
         ObjectProvider<T> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(value);
         return provider;
+    }
+
+    private PromptTemplateResolver promptTemplateResolver() {
+        return new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
     }
 }

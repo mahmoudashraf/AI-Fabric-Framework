@@ -47,6 +47,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     private static final String GENERATION_TYPE = "intent_extraction_multi_step";
 
     private static final String TEMPLATE_FAMILY = "intent-extraction/multi-step";
+    private static final String TEMPLATE_SYSTEM = "system";
     private static final String TEMPLATE_CLASSIFY = "classify";
     private static final String TEMPLATE_SELECT_ACTIONS = "select-actions";
     private static final String TEMPLATE_FILL_PARAMS = "fill-params";
@@ -86,6 +87,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
 
     @PostConstruct
     void validatePromptTemplates() {
+        renderTemplate(TEMPLATE_SYSTEM, Map.of());
         renderTemplate(TEMPLATE_CLASSIFY, Map.of(PLACEHOLDER_USER_QUERY, "test"));
         renderTemplate(TEMPLATE_SELECT_ACTIONS, Map.of(
             PLACEHOLDER_ALLOWED_ACTIONS, "- example_action: Example",
@@ -168,7 +170,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .entityId("intent-" + UUID.randomUUID())
             .entityType(ENTITY_TYPE)
             .generationType(GENERATION_TYPE + "_classify")
-            .systemPrompt("Return JSON only.")
+            .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
             .prompt(prompt)
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(context != null ? context.getUserId() : null)
@@ -246,7 +248,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .entityId("intent-" + UUID.randomUUID())
             .entityType(ENTITY_TYPE)
             .generationType(GENERATION_TYPE + "_select_actions")
-            .systemPrompt("Return JSON only.")
+            .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
             .prompt(prompt)
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(context != null ? context.getUserId() : null)
@@ -379,7 +381,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .entityId("intent-" + UUID.randomUUID())
             .entityType(ENTITY_TYPE)
             .generationType(GENERATION_TYPE + "_fill_params")
-            .systemPrompt("Return JSON only.")
+            .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
             .prompt(prompt)
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(context != null ? context.getUserId() : null)

@@ -11,6 +11,8 @@ import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -39,11 +41,22 @@ public class CompletionIntentExtractionStrategy {
     private static final String ENTITY_TYPE = "intent_extraction";
     private static final String GENERATION_TYPE = "intent_extraction_completion";
 
+    private static final String TEMPLATE_FAMILY = "intent-extraction/completion";
+    private static final String TEMPLATE_SYSTEM_ADDON = "system-addon";
+    private static final String TEMPLATE_USER = "user";
+
+    private static final String PLACEHOLDER_ALLOWED_ACTIONS = "allowed_actions";
+    private static final String PLACEHOLDER_VALIDATION_ISSUES = "validation_issues";
+    private static final String PLACEHOLDER_USER_REQUEST = "user_request";
+    private static final String PLACEHOLDER_PARTIAL_JSON = "partial_json";
+
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
     private final IntentExtractionJsonSupport jsonSupport;
     private final AIActionRegistry actionHandlerRegistry;
     private final IntentExtractionValidator validator;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
 
     public ExtractionAttempt attemptComplete(String query, OrchestrationContext context, ExtractionAttempt previousAttempt) {
         if (!StringUtils.hasText(query)) {
@@ -74,37 +87,22 @@ public class CompletionIntentExtractionStrategy {
                 .toList()
             : List.of();
 
-        String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(safeContext) + "\n\n" + """
-            COMPLETION MODE:
-            - You will receive a PARTIAL JSON response that is structurally valid but contract-incomplete.
-            - Fix ONLY the missing/invalid contract fields listed in VALIDATION ISSUES.
-            - Do NOT invent new actions. ACTION names MUST come from the allowed actions list.
-            - Do NOT guess vectorSpace or other routing values. Leave them null/empty if not explicit.
-            - For relationship_query: actionParams.query is REQUIRED and MUST NOT include the hint prefix (e.g., \"relationship_query:\"). If missing, derive it from the user request after the prefix.
-            - If required info is missing from the user request, choose a safe fallback (OUT_OF_SCOPE) and include a helpful nextStepRecommended.query asking for the missing information.
-            - Output MUST be a single JSON object matching the schema above. No markdown. No commentary.
-            """;
+        String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(safeContext)
+            + "\n\n"
+            + promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM_ADDON).template();
 
         String allowedActions = buildAllowedActionsSpec();
         String issuesPayload = formatIssues(errorIssues);
         String partialJson = toJson(previousAttempt.getResponse());
-
-        String prompt = """
-            You are completing an intent extraction response.
-            Your job is to output corrected JSON that satisfies all VALIDATION ISSUES while preserving the user's meaning.
-
-            ALLOWED ACTIONS (do NOT invent):
-            %s
-
-            VALIDATION ISSUES (must be resolved if possible):
-            %s
-
-            USER REQUEST:
-            %s
-
-            PARTIAL JSON (to complete):
-            %s
-            """.formatted(allowedActions, issuesPayload, query, partialJson);
+        String prompt = promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_USER).template(),
+            Map.of(
+                PLACEHOLDER_ALLOWED_ACTIONS, allowedActions,
+                PLACEHOLDER_VALIDATION_ISSUES, issuesPayload,
+                PLACEHOLDER_USER_REQUEST, query,
+                PLACEHOLDER_PARTIAL_JSON, partialJson
+            )
+        );
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())

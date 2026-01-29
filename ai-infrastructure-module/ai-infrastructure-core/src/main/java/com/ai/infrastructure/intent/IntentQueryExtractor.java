@@ -10,6 +10,8 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -33,15 +35,26 @@ import java.util.UUID;
 @Service
 public class IntentQueryExtractor {
 
+    private static final String TEMPLATE_FAMILY_REPAIR = "intent-extraction/repair";
+    private static final String TEMPLATE_SYSTEM_ADDON_REPAIR = "system-addon";
+    private static final String TEMPLATE_USER_REPAIR = "user";
+
+    private static final String PLACEHOLDER_USER_REQUEST = "user_request";
+    private static final String PLACEHOLDER_MALFORMED_RESPONSE = "malformed_response";
+
     private final AICoreService aiCoreService;
     private final EnrichedPromptBuilder enrichedPromptBuilder;
     private final AIActionRegistry actionHandlerRegistry;
     private final ObjectMapper objectMapper;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
 
     public IntentQueryExtractor(AICoreService aiCoreService,
                                 EnrichedPromptBuilder enrichedPromptBuilder,
                                 AIActionRegistry actionHandlerRegistry,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                PromptTemplateResolver promptTemplateResolver,
+                                PromptRenderer promptRenderer) {
         this.aiCoreService = aiCoreService;
         this.enrichedPromptBuilder = enrichedPromptBuilder;
         this.actionHandlerRegistry = actionHandlerRegistry;
@@ -54,6 +67,8 @@ public class IntentQueryExtractor {
             // Be tolerant here; schema validation happens after parsing.
             .configure(JsonReadFeature.ALLOW_JAVA_COMMENTS.mappedFeature(), true)
             .configure(JsonReadFeature.ALLOW_TRAILING_COMMA.mappedFeature(), true);
+        this.promptTemplateResolver = promptTemplateResolver;
+        this.promptRenderer = promptRenderer;
     }
 
     public MultiIntentResponse extract(String query, OrchestrationContext context) {
@@ -65,8 +80,8 @@ public class IntentQueryExtractor {
         safeContext.validate();
 
         String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(safeContext);
-        
-        String userPrompt = "analyze the following request from a user and extract the user intents from it in the provided format in system prompt\n\n-----------\n\nUser's question is :( " + query +")";
+
+        String userPrompt = enrichedPromptBuilder.buildUserPrompt(query);
 
         AIGenerationRequest generationRequest = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())
@@ -178,30 +193,22 @@ public class IntentQueryExtractor {
                                               String malformedContent,
                                               Exception rootCause) {
         String originalSystemPrompt = originalRequest != null ? originalRequest.getSystemPrompt() : null;
-        String repairSystemPrompt = (StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "") + """
-            You are repairing a previously malformed assistant response.
-            Output MUST be a single JSON object that matches the schema above exactly.
-            Include ALL schema fields (use null/false/empty values where appropriate) so downstream systems can operate safely.
-            Never wrap the JSON in markdown code fences and never add commentary.
-            """;
+        String repairSystemPrompt = (StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "")
+            + promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY_REPAIR, TEMPLATE_SYSTEM_ADDON_REPAIR).template(),
+                Map.of()
+            );
 
         String originalUserPrompt = originalRequest != null ? originalRequest.getPrompt() : null;
-        String repairPrompt = """
-            Convert the malformed assistant response into valid JSON that matches the schema in the system prompt.
-            This is a STRUCTURAL repair step only: fix JSON/schema correctness, do NOT infer or guess semantic fields.
-            Do NOT guess vectorSpace or other routing fields. If a semantic field is missing, leave it unset/null and keep the schema intact.
-            If the assistant response cannot be repaired into a valid schema, choose a safe default (e.g., OUT_OF_SCOPE with neutral confidence).
-
-            ORIGINAL USER REQUEST (for context):
-            ---BEGIN USER REQUEST---
-            %s
-            ---END USER REQUEST---
-
-            MALFORMED ASSISTANT RESPONSE:
-            ---BEGIN MALFORMED---
-            %s
-            ---END MALFORMED---
-            """.formatted(originalUserPrompt, malformedContent);
+        String safeOriginalUserPrompt = originalUserPrompt != null ? originalUserPrompt : "";
+        String safeMalformedContent = malformedContent != null ? malformedContent : "";
+        String repairPrompt = promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY_REPAIR, TEMPLATE_USER_REPAIR).template(),
+            Map.of(
+                PLACEHOLDER_USER_REQUEST, safeOriginalUserPrompt,
+                PLACEHOLDER_MALFORMED_RESPONSE, safeMalformedContent
+            )
+        );
 
         AIGenerationRequest repairRequest = AIGenerationRequest.builder()
             .entityId(originalRequest.getEntityId() + "-repair")

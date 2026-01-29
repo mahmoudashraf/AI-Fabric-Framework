@@ -1,9 +1,13 @@
 package com.ai.infrastructure.relationship.service;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.relationship.cache.QueryCache;
 import com.ai.infrastructure.relationship.config.RelationshipQueryProperties;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
@@ -18,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
 import java.util.Optional;
@@ -62,7 +67,9 @@ class RelationshipQueryPlannerTest {
             queryCache,
             queryMetrics,
             new ObjectMapper(),
-            new StructuredJsonExtractor()
+            new StructuredJsonExtractor(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
     }
 
@@ -108,7 +115,9 @@ class RelationshipQueryPlannerTest {
             queryCache,
             queryMetrics,
             new ObjectMapper(),
-            new StructuredJsonExtractor()
+            new StructuredJsonExtractor(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         when(queryCache.getPlan(anyString())).thenReturn(Optional.empty());
@@ -175,5 +184,12 @@ class RelationshipQueryPlannerTest {
               "confidence": 0.8
             }
             """;
+    }
+
+    private PromptTemplateResolver promptTemplateResolver() {
+        return new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
     }
 }

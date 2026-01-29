@@ -2,17 +2,22 @@ package com.ai.infrastructure.rag.service;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.AIEmbeddingService;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.core.AISearchService;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.spi.RAGProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
 
@@ -60,7 +65,9 @@ class AdvancedRAGServiceTest {
             aiSearchService,
             aiEmbeddingService,
             aiCoreService,
-            ragProvider
+            ragProvider,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         AdvancedRAGResponse response = service.performAdvancedRAG(
@@ -103,7 +110,9 @@ class AdvancedRAGServiceTest {
             aiSearchService,
             aiEmbeddingService,
             aiCoreService,
-            ragProvider
+            ragProvider,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         service.performAdvancedRAG(
@@ -127,5 +136,12 @@ class AdvancedRAGServiceTest {
         assertThat(responseGenerationPrompt).contains("AUTHORITATIVE CONTEXT");
         assertThat(responseGenerationPrompt).contains("AUTHORITATIVE: pinned targets");
         assertThat(responseGenerationPrompt).contains("retrieved content");
+    }
+
+    private PromptTemplateResolver promptTemplateResolver() {
+        return new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
     }
 }

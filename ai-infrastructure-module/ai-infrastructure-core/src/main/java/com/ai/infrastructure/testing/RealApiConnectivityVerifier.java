@@ -9,6 +9,9 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -20,6 +23,9 @@ import java.util.UUID;
  * is unreachable, instead of discovering it deep into a long-running test suite.</p>
  */
 public final class RealApiConnectivityVerifier {
+
+    private static final String SYSTEM_PROMPT_RESOURCE = "prompts/testing/connectivity-check/v1/system.md";
+    private static final String USER_PROMPT_RESOURCE = "prompts/testing/connectivity-check/v1/user.md";
 
     private RealApiConnectivityVerifier() {
     }
@@ -53,8 +59,8 @@ public final class RealApiConnectivityVerifier {
             .entityType("connectivity_check")
             .generationType("connectivity_check")
             .userId("connectivity-check")
-            .systemPrompt("You are a connectivity check. Reply with a single word: OK")
-            .prompt("Reply with: OK")
+            .systemPrompt(loadPromptOrThrow(SYSTEM_PROMPT_RESOURCE))
+            .prompt(loadPromptOrThrow(USER_PROMPT_RESOURCE))
             .model(defaults.model())
             .temperature(0.0)
             .maxTokens(5)
@@ -183,8 +189,22 @@ public final class RealApiConnectivityVerifier {
         return null;
     }
 
+    private static String loadPromptOrThrow(String resourcePath) {
+        try (InputStream stream = RealApiConnectivityVerifier.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (stream == null) {
+                throw new IllegalStateException("Missing prompt resource on classpath: " + resourcePath);
+            }
+            String content = new String(stream.readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (content.isBlank()) {
+                throw new IllegalStateException("Prompt resource is blank: " + resourcePath);
+            }
+            return content;
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to load prompt resource: " + resourcePath, ex);
+        }
+    }
+
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 }
-

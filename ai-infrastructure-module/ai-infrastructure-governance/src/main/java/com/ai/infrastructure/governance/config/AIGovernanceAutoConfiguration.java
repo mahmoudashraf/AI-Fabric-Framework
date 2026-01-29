@@ -20,6 +20,8 @@ import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.retention.RetentionCleanupScheduler;
 import com.ai.infrastructure.retention.policy.RetentionPolicyProvider;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -135,8 +137,10 @@ public class AIGovernanceAutoConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "ai.governance.privacy", name = "enabled", havingValue = "true")
     @ConditionalOnBean(AICoreService.class)
-    public AIDataPrivacyService aiDataPrivacyService(AICoreService aiCoreService) {
-        return new AIDataPrivacyService(aiCoreService);
+    public AIDataPrivacyService aiDataPrivacyService(AICoreService aiCoreService,
+                                                     PromptTemplateResolver promptTemplateResolver,
+                                                     PromptRenderer promptRenderer) {
+        return new AIDataPrivacyService(aiCoreService, promptTemplateResolver, promptRenderer);
     }
 
     @Bean
@@ -160,8 +164,10 @@ public class AIGovernanceAutoConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "ai.governance.content-filter", name = "enabled", havingValue = "true")
     @ConditionalOnBean(AICoreService.class)
-    public AIContentFilterService aiContentFilterService(AICoreService aiCoreService) {
-        return new AIContentFilterService(aiCoreService);
+    public AIContentFilterService aiContentFilterService(AICoreService aiCoreService,
+                                                         PromptTemplateResolver promptTemplateResolver,
+                                                         PromptRenderer promptRenderer) {
+        return new AIContentFilterService(aiCoreService, promptTemplateResolver, promptRenderer);
     }
 
     @Bean

@@ -9,6 +9,8 @@ import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.rag.service.AdvancedRAGService;
 import com.ai.infrastructure.rag.service.RAGService;
 import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.vector.VectorDatabase;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -152,7 +154,9 @@ public class RAGAutoConfiguration {
             AISearchService searchService,
             AIEmbeddingService embeddingService,
             AICoreService coreService,
-            RAGProvider ragProvider) {
+            RAGProvider ragProvider,
+            PromptTemplateResolver promptTemplateResolver,
+            PromptRenderer promptRenderer) {
         
         log.info(LOG_ADVANCED_RAG_CREATED);
         
@@ -160,7 +164,9 @@ public class RAGAutoConfiguration {
             searchService,
             embeddingService,
             coreService,
-            ragProvider
+            ragProvider,
+            promptTemplateResolver,
+            promptRenderer
         );
     }
 }

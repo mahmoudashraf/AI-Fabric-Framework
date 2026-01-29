@@ -5,6 +5,7 @@ import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.PostActionGenerationProperties;
 import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -23,6 +24,9 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -72,7 +77,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         // Simulate the extractor "filling" the missing value by copying the parameter description.
@@ -129,7 +136,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         Intent intent = Intent.builder()
@@ -185,7 +194,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         String userMessage = "Use action 'confirmable_echo'.";
@@ -245,7 +256,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         // Simulate a single-value follow-up reply (email/address/etc.) where the entire user message is the value.
@@ -305,7 +318,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         Intent intent = Intent.builder()
@@ -335,6 +350,13 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
         verify(handler).executeAction(org.mockito.ArgumentMatchers.argThat(map ->
             map != null && "ELEC-PHONE-002".equals(map.get("sku"))
         ), org.mockito.ArgumentMatchers.any());
+    }
+
+    private PromptTemplateResolver promptTemplateResolver() {
+        return new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
     }
 
     private static <T> ObjectProvider<T> providerOf(T value) {

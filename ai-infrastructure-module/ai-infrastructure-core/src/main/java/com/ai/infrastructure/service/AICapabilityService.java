@@ -7,6 +7,8 @@ import com.ai.infrastructure.dto.AIMetadataField;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,18 +29,27 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class AICapabilityService {
+
+    private static final String TEMPLATE_FAMILY = "core/capability";
+    private static final String TEMPLATE_ANALYZE_ENTITY_CONTENT = "analyze-entity-content";
+    private static final String PLACEHOLDER_ENTITY_TYPE = "entity_type";
+    private static final String PLACEHOLDER_CONTENT = "content";
     
     private final AIEmbeddingService embeddingService;
     private final AICoreService aiCoreService;
     private final AIEntityConfigurationLoader configurationLoader;
     private final VectorManagementService vectorManagementService;
     private final AnnotationFieldScanner annotationFieldScanner;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
     
     public AICapabilityService(AIEmbeddingService embeddingService,
                               AICoreService aiCoreService,
                               AIEntityConfigurationLoader configurationLoader,
                               VectorManagementService vectorManagementService,
-                              AnnotationFieldScanner annotationFieldScanner) {
+                              AnnotationFieldScanner annotationFieldScanner,
+                              PromptTemplateResolver promptTemplateResolver,
+                              PromptRenderer promptRenderer) {
         this.embeddingService = embeddingService;
         this.aiCoreService = aiCoreService;
         this.configurationLoader = configurationLoader;
@@ -46,6 +57,8 @@ public class AICapabilityService {
             "VectorManagementService must be configured for AICapabilityService");
         this.annotationFieldScanner = Objects.requireNonNull(annotationFieldScanner,
             "AnnotationFieldScanner must be configured for AICapabilityService");
+        this.promptTemplateResolver = Objects.requireNonNull(promptTemplateResolver, "promptTemplateResolver");
+        this.promptRenderer = Objects.requireNonNull(promptRenderer, "promptRenderer");
     }
     
     // Debug method to access configurationLoader
@@ -189,8 +202,15 @@ public class AICapabilityService {
                 return;
             }
             
-            // Perform AI analysis
-            String analysis = aiCoreService.generateText("Analyze this " + config.getEntityType() + " content: " + content);
+            String entityType = config.getEntityType() != null ? config.getEntityType() : "entity";
+            String prompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_ANALYZE_ENTITY_CONTENT).template(),
+                Map.of(
+                    PLACEHOLDER_ENTITY_TYPE, entityType,
+                    PLACEHOLDER_CONTENT, content
+                )
+            );
+            String analysis = aiCoreService.generateText(prompt);
             
             // Best-effort persistence: attach analysis to vector metadata when a vector exists.
             persistAnalysisToVector(entity, config, analysis);
