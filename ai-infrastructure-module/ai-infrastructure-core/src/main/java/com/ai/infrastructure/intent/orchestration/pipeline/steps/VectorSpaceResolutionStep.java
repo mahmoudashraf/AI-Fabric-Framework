@@ -135,9 +135,20 @@ public class VectorSpaceResolutionStep implements PipelineStep {
 
             if (deterministic) {
                 if (!hasText(intent.getVectorSpace())) {
-                    List<String> allSpaces = resolveAllVectorSpaces();
-                    if (!allSpaces.isEmpty()) {
-                        intent.setVectorSpace(String.join(",", allSpaces));
+                    RoutingResult routing = vectorSpaceRouter.route(intent, context.getOriginalQuery());
+                    routingEvents.add(toRoutingEvent(i, routing));
+
+                    String resolvedVectorSpace = resolveVectorSpaceString(routing);
+                    if (!hasText(resolvedVectorSpace)
+                        && routing != null
+                        && routing.getCandidateSpaces() != null
+                        && !routing.getCandidateSpaces().isEmpty()) {
+                        // Deterministic mode: use router candidates instead of terminating for clarification.
+                        resolvedVectorSpace = String.join(",", routing.getCandidateSpaces());
+                    }
+
+                    if (hasText(resolvedVectorSpace)) {
+                        intent.setVectorSpace(resolvedVectorSpace);
                         anyUpdate = true;
                     }
                     // Deterministic mode must not terminate with clarification; leave vectorSpace blank if unknown.

@@ -174,5 +174,5 @@ When real provider credentials are required:
 - Orchestration contract + rules: `ORCHESTRATION_RESULT_NORMALIZATION.md`
 - Pipeline overview: `PIPELINE_ARCHITECTURE.md`
 - Step-by-step reference: `PIPELINE_STEPS_REFERENCE.md`
+- Orchestration optimizations (profiles/modes/pinned targets): `ORCHESTRATION_OPTIMIZATION_GUIDE.md`
 - Progressive extraction plan (compound → repair → multi-step): `PROGRESSIVE_INTENT_EXTRACTION_FALLBACK_PLAN.md`
-

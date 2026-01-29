@@ -40,7 +40,7 @@ Therefore: deterministic mode is best exposed as part of a **bundle** (profile) 
 
 ## Goals
 1) Provide 2–3 clear orchestration presets that cover most apps:
-   - “Catalog/demo” (deterministic, reliable)
+   - “Navigator/catalog” (deterministic, reliable)
    - “Chat assistant” (LLM-driven retrieval gating + directAnswer)
    - “Default” (framework baseline)
 2) Keep the number of top-level feature flags small.
@@ -61,12 +61,12 @@ Add a single preset selector:
 ```yaml
 ai:
   orchestration:
-    profile: DEFAULT | DEMO_CATALOG | PRODUCTION_CHAT
+    profile: DEFAULT | PRODUCTION_NAVIGATOR | PRODUCTION_CHAT
 ```
 
 **Meaning**
 - `DEFAULT`: minimal orchestration guarantees; closest to current behavior.
-- `DEMO_CATALOG`: deterministic info answering for demos/catalogs (reduces OUT_OF_SCOPE/ERROR sensitivity).
+- `PRODUCTION_NAVIGATOR`: deterministic info answering for navigator/catalog use cases (reduces OUT_OF_SCOPE/ERROR sensitivity).
 - `PRODUCTION_CHAT`: optimized for conversational assistants (allows “no retrieval” short replies).
 
 ### 2) Keep a small set of explicit flags (expert overrides)
@@ -130,7 +130,7 @@ Any “global hint” from `intentResponse.metadata` is only applied when:
 - `attachments.enabled = false` (or true-but-no-op, depending on API readiness)
 - `working-set.enabled = false`
 
-### Profile: `DEMO_CATALOG` (recommended for `Real_Apps/chat-capabilities-demo`)
+### Profile: `PRODUCTION_NAVIGATOR` (recommended for catalog/navigator apps)
 - `information-mode = DETERMINISTIC_RAG_GENERATE`
 - `prompt-mode = MINIMAL_FOR_RAG`
 - `attachments.enabled = true`
@@ -204,7 +204,7 @@ If needed after Phase 2/3:
   - directAnswer path works when requiresRetrieval=false
 
 ### 2) Integration tests (realapi where relevant)
-- `DEMO_CATALOG` profile:
+- `PRODUCTION_NAVIGATOR` profile:
   - “thanks” is allowed to answer but may still retrieve (documented trade-off) OR ensure extractor classifies it as non-INFORMATION (if supported).
   - catalog queries return INFORMATION_PROVIDED with generated answer.
 - `PRODUCTION_CHAT` profile:
@@ -226,7 +226,7 @@ If needed after Phase 2/3:
   - “Override flags” advanced section
   - “Trade-offs” (cost/latency vs conversational UX)
 - Add a small “profile matrix” table:
-  - DEFAULT vs DEMO_CATALOG vs PRODUCTION_CHAT
+  - DEFAULT vs PRODUCTION_NAVIGATOR vs PRODUCTION_CHAT
   - recommended for which app types
 
 ---
@@ -236,4 +236,3 @@ If needed after Phase 2/3:
 2) Advanced users can override information/prompt modes intentionally (no silent surprises).
 3) Deterministic mode is no longer “dangerous” because attachments constrain retrieval domains.
 4) Configuration combinations are observable and testable.
-

@@ -11,7 +11,7 @@ public enum OrchestrationProfile {
     DEFAULT(
         OrchestrationProperties.InformationMode.LLM_DRIVEN
     ),
-    DEMO_CATALOG(
+    PRODUCTION_NAVIGATOR(
         OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE
     ),
     PRODUCTION_CHAT(

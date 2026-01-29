@@ -1083,7 +1083,17 @@ public class IntentHandlingStep implements PipelineStep {
         boolean deterministic = isDeterministicInformationMode(pipelineContext);
         boolean requiresRetrieval = intent.requiresRetrievalOrDefault(true);
         boolean llmRequiresGeneration = intent.requiresGenerationOrDefault(false);
-        boolean needsGeneration = requiresRetrieval ? (deterministic || llmRequiresGeneration) : llmRequiresGeneration;
+
+        boolean skippedRetrievalForPinnedTargets = deterministic
+            && requiresRetrieval
+            && shouldSkipRetrievalForPinnedTargets(intent, pipelineContext);
+        if (skippedRetrievalForPinnedTargets) {
+            requiresRetrieval = false;
+        }
+
+        boolean needsGeneration = skippedRetrievalForPinnedTargets
+            ? true
+            : (requiresRetrieval ? (deterministic || llmRequiresGeneration) : llmRequiresGeneration);
 
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
@@ -1099,6 +1109,10 @@ public class IntentHandlingStep implements PipelineStep {
         metadata.put(METADATA_KEY_AUTHENTICATED, context.isAuthenticated());
         metadata.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
         metadata.put("requiresRetrieval", requiresRetrieval);
+        if (skippedRetrievalForPinnedTargets) {
+            metadata.put("retrievalSkipped", true);
+            metadata.put("retrievalSkipReason", "PINNED_TARGETS");
+        }
         if (optimizedQuery != null) {
             metadata.put(METADATA_KEY_OPTIMIZED_QUERY, optimizedQuery);
         }
@@ -1123,7 +1137,9 @@ public class IntentHandlingStep implements PipelineStep {
 
         List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
         if (vectorSpaces.isEmpty()) {
-            List<String> allSpaces = resolveAllVectorSpaces();
+            List<String> allSpaces = deterministic
+                ? resolveDeterministicFallbackVectorSpaces()
+                : resolveAllVectorSpaces();
             if (!allSpaces.isEmpty()) {
                 vectorSpaces = allSpaces;
                 intent.setVectorSpace(String.join(",", allSpaces));
@@ -1523,12 +1539,30 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         List<String> entityTypes = overview.getEntityTypes();
-        if (entityTypes == null || entityTypes.isEmpty()) {
-            Map<String, Long> byType = overview.getDocumentsByType();
-            if (byType != null && !byType.isEmpty()) {
-                entityTypes = byType.keySet().stream().toList();
-            }
+        Map<String, Long> byType = overview.getDocumentsByType();
+
+        java.util.LinkedHashSet<String> ordered = new java.util.LinkedHashSet<>();
+        if (byType != null && !byType.isEmpty()) {
+            byType.entrySet().stream()
+                .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank())
+                .sorted(Map.Entry.<String, Long>comparingByValue(java.util.Comparator.nullsLast(Long::compareTo)).reversed())
+                .map(Map.Entry::getKey)
+                .forEach(ordered::add);
         }
+        if (entityTypes != null && !entityTypes.isEmpty()) {
+            entityTypes.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(ordered::add);
+        }
+        if (ordered.isEmpty() && byType != null && !byType.isEmpty()) {
+            byType.keySet().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(ordered::add);
+        }
+
+        entityTypes = ordered.isEmpty() ? null : new ArrayList<>(ordered);
         if (entityTypes == null || entityTypes.isEmpty()) {
             return List.of();
         }
@@ -1538,6 +1572,19 @@ public class IntentHandlingStep implements PipelineStep {
             .map(String::trim)
             .distinct()
             .toList();
+    }
+
+    private List<String> resolveDeterministicFallbackVectorSpaces() {
+        List<String> spaces = resolveAllVectorSpaces();
+        if (spaces.isEmpty()) {
+            return spaces;
+        }
+
+        int maxSpaces = vectorSpaceRoutingProperties != null ? vectorSpaceRoutingProperties.getFanOutMaxSpaces() : 3;
+        if (maxSpaces <= 0) {
+            return spaces;
+        }
+        return spaces.size() > maxSpaces ? spaces.subList(0, maxSpaces) : spaces;
     }
 
     private OrchestrationResult handleInformationAdvanced(Intent intent,
@@ -1987,6 +2034,51 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         return sb.toString().trim();
+    }
+
+    private boolean shouldSkipRetrievalForPinnedTargets(Intent intent, PipelineContext pipelineContext) {
+        if (intent == null || pipelineContext == null) {
+            return false;
+        }
+
+        List<ResolvedTarget> targets = pipelineContext.getResolvedTargets();
+        if (targets == null || targets.isEmpty()) {
+            return false;
+        }
+
+        boolean requiresTargetResolution = Boolean.TRUE.equals(intent.getRequiresTargetResolution());
+        OrchestrationContext orchContext = pipelineContext.getOrchestrationContext();
+        boolean hasActiveAttachments = orchContext != null
+            && orchContext.getActiveAttachmentIdsResolved() != null
+            && !orchContext.getActiveAttachmentIdsResolved().isEmpty();
+
+        if (!requiresTargetResolution && !hasActiveAttachments) {
+            return false;
+        }
+
+        String intentVectorSpace = intent.getVectorSpace();
+        if (!StringUtils.hasText(intentVectorSpace)) {
+            // No retrieval scope was provided; prefer answering from authoritative pinned targets.
+            return true;
+        }
+
+        Set<String> targetSpaces = targets.stream()
+            .filter(t -> t != null && StringUtils.hasText(t.getVectorSpace()))
+            .map(t -> t.getVectorSpace().trim().toLowerCase(java.util.Locale.ROOT))
+            .collect(Collectors.toSet());
+        if (targetSpaces.isEmpty()) {
+            return false;
+        }
+
+        List<String> requestedSpaces = parseVectorSpaces(intentVectorSpace).stream()
+            .filter(StringUtils::hasText)
+            .map(space -> space.trim().toLowerCase(java.util.Locale.ROOT))
+            .toList();
+        if (requestedSpaces.isEmpty()) {
+            return true;
+        }
+
+        return requestedSpaces.stream().allMatch(targetSpaces::contains);
     }
 
     private List<String> parseVectorSpaces(String vectorSpace) {

@@ -32,7 +32,7 @@ class CatalogCuratedPackTest {
             .bind("ai.orchestration", OrchestrationProperties.class)
             .orElseThrow(() -> new IllegalStateException("Failed to bind ai.orchestration"));
 
-        assertThat(props.getProfile()).isEqualTo(OrchestrationProfile.DEMO_CATALOG);
+        assertThat(props.getProfile()).isEqualTo(OrchestrationProfile.PRODUCTION_NAVIGATOR);
         assertThat(props.getModes()).containsKey("navigator");
 
         PromptBundleProperties promptBundle = Binder.get(environment)

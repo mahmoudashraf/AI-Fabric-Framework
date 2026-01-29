@@ -1,6 +1,6 @@
 ai:
   orchestration:
-    profile: DEMO_CATALOG
+    profile: PRODUCTION_NAVIGATOR
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE

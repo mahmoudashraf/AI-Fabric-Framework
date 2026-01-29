@@ -112,14 +112,14 @@ class OrchestrationPolicyResolutionStepTest {
         @DisplayName("Should fall back to profile defaults when no mode is resolved")
         void shouldFallBackToProfileDefaultsWhenNoModeIsResolved() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
-            orchestrationProperties.setProfile(OrchestrationProfile.DEMO_CATALOG);
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
 
             OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
 
             PipelineContext output = step.process(PipelineContext.from("hello", OrchestrationContext.forUser("user-123")));
             OrchestrationPolicy policy = output.getOrchestrationPolicy();
 
-            assertThat(policy.profile()).isEqualTo(OrchestrationProfile.DEMO_CATALOG);
+            assertThat(policy.profile()).isEqualTo(OrchestrationProfile.PRODUCTION_NAVIGATOR);
             assertThat(policy.mode()).isNull();
             assertThat(policy.informationMode()).isEqualTo(OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
         }
@@ -128,7 +128,7 @@ class OrchestrationPolicyResolutionStepTest {
         @DisplayName("Should apply explicit overrides over profile and mode defaults")
         void shouldApplyExplicitOverridesOverProfileAndModeDefaults() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
-            orchestrationProperties.setProfile(OrchestrationProfile.DEMO_CATALOG);
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
             orchestrationProperties.setInformationMode(OrchestrationProperties.InformationMode.LLM_DRIVEN);
 
             OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);

@@ -100,7 +100,7 @@ Validation gate:
 
 Implement (core):
 1) Add/Finalize:
-   - `ai.orchestration.profile` presets (DEFAULT/DEMO_CATALOG/PRODUCTION_CHAT)
+   - `ai.orchestration.profile` presets (DEFAULT/PRODUCTION_NAVIGATOR/PRODUCTION_CHAT)
    - `ai.orchestration.modes.*` (policy bundles)
    - `ai.orchestration.positionRouting.*` (position → mode mapping)
 2) Define precedence rules explicitly in code and docs.
@@ -246,7 +246,7 @@ Validation gate:
 3) **Drift resistance**
    - follow-ups do not mix unrelated products (phone vs sneakers).
 4) **Deterministic vs chatty trade-offs**
-   - DEMO_CATALOG answers reliably (deterministic RAG+generate)
+   - PRODUCTION_NAVIGATOR answers reliably (deterministic RAG+generate)
    - PRODUCTION_CHAT can return short replies without retrieval when appropriate
 5) **Reproducibility**
    - effective policy + prompt versions are visible in debug metadata and pinned in tests.
