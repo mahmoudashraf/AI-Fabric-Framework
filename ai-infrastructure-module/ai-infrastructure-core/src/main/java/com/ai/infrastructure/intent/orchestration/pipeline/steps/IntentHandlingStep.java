@@ -1549,7 +1549,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         try {
-            AdvancedRAGRequest request = buildAdvancedRagRequest(intent, context, retrievalQuery, metadata);
+            AdvancedRAGRequest request = buildAdvancedRagRequest(intent, context, retrievalQuery, metadata, pipelineContext);
             AdvancedRAGResponse advancedResponse = provider.performAdvancedRAG(request);
             if (advancedResponse == null) {
                 log.warn("Advanced RAG returned null response for request {}", 
@@ -1635,7 +1635,8 @@ public class IntentHandlingStep implements PipelineStep {
     private AdvancedRAGRequest buildAdvancedRagRequest(Intent intent,
                                                       OrchestrationContext context,
                                                       String query,
-                                                      Map<String, Object> metadata) {
+                                                      Map<String, Object> metadata,
+                                                      PipelineContext pipelineContext) {
         Map<String, Object> ctxMetadata = context != null ? context.getMetadata() : null;
 
         AdvancedRAGRequest.AdvancedRAGRequestBuilder builder = AdvancedRAGRequest.builder()
@@ -1647,6 +1648,11 @@ public class IntentHandlingStep implements PipelineStep {
             .userId(context != null ? context.getUserId() : null)
             .sessionId(context != null ? context.getSessionId() : null)
             .metadata(metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Map.of());
+
+        String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);
+        if (StringUtils.hasText(pinnedTargetsContext)) {
+            builder.context(pinnedTargetsContext);
+        }
 
         Integer expansionLevel = readInteger(ctxMetadata, CONTEXT_METADATA_KEY_ADVANCED_EXPANSION_LEVEL);
         if (expansionLevel != null) {

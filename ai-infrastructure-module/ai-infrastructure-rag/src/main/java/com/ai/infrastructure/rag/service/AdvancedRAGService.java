@@ -95,6 +95,18 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
         "Based on the following context, answer the question: %s\n\n" +
         "Context:\n%s\n\n" +
         "Provide a comprehensive, accurate answer based on the context provided.";
+
+    private static final String RESPONSE_GENERATION_WITH_AUTHORITATIVE_CONTEXT_PROMPT_TEMPLATE =
+        "Answer the question using the authoritative context first.\n\n" +
+        "QUESTION:\n%s\n\n" +
+        "AUTHORITATIVE CONTEXT (user-provided / pinned targets):\n%s\n\n" +
+        "RETRIEVED CONTEXT (may be incomplete or irrelevant):\n%s\n\n" +
+        "Rules:\n" +
+        "- Use AUTHORITATIVE CONTEXT as the primary source of truth.\n" +
+        "- Use RETRIEVED CONTEXT only to supplement missing details.\n" +
+        "- If they conflict, ignore RETRIEVED CONTEXT.\n" +
+        "- If there is not enough information to answer, say what is missing and ask a clarifying question.\n" +
+        "- Do not fabricate facts not present in the contexts.\n";
     
     // Messages
     private static final String ERROR_MESSAGE_TEMPLATE = "Error processing request: %s";
@@ -430,7 +442,13 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
 
     private String generateResponse(String query, String context, AdvancedRAGRequest request) {
         try {
-            String prompt = String.format(RESPONSE_GENERATION_PROMPT_TEMPLATE, query, context);
+            String prompt;
+            if (request != null && request.getContext() != null && !request.getContext().isBlank()) {
+                prompt = String.format(RESPONSE_GENERATION_WITH_AUTHORITATIVE_CONTEXT_PROMPT_TEMPLATE,
+                    query, request.getContext(), context);
+            } else {
+                prompt = String.format(RESPONSE_GENERATION_PROMPT_TEMPLATE, query, context);
+            }
             
             return aiCoreService.generateText(prompt);
             
