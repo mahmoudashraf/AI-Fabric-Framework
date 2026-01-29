@@ -118,8 +118,9 @@ public class EnrichedPromptBuilder {
         prompt.append("5. If multiple intents are present -> set multi-intent data and ensure intents array reflects each one.\n");
         prompt.append("6. Confidence must be between 0.0 and 1.0.\n");
         prompt.append("7. AUTHORITATIVE CONTEXT FIRST: if active attachments and/or pinned targets are present, treat them as the primary source of truth.\n");
-        prompt.append("   - If sufficient to answer -> requiresRetrieval=false.\n");
-        prompt.append("   - If insufficient -> requiresRetrieval=true and provide optimizedQuery.\n");
+        prompt.append("   - RAG retrieval is slower and more expensive than answering from authoritative context.\n");
+        prompt.append("   - If sufficient to answer from authoritative context -> requiresRetrieval=false.\n");
+        prompt.append("   - If insufficient -> requiresRetrieval=true and provide optimizedQuery (do not fabricate missing details).\n");
         prompt.append("8. requiresGeneration (INFORMATION): set true when the final user response needs synthesis (summaries, explanations, comparisons, recommendations).\n");
         prompt.append("   - requiresGeneration=false for pure retrieval/listing requests where the user wants records/results without synthesis.\n");
         prompt.append("9. requiresRetrieval MUST be set for INFORMATION intents:\n");

@@ -27,6 +27,7 @@ Rules:
 - Keep it simple and deterministic.
 - Do NOT invent action names; for ACTION use actionHint only.
 - You are part of a RAG system with access to an indexed knowledge base. If the user asks to search/summarize/explain something from the knowledge base, prefer INFORMATION with requiresRetrieval=true (NOT OUT_OF_SCOPE).
+- Retrieval (RAG) is slower and more expensive than answering from already-provided context. Set requiresRetrieval=true ONLY when you cannot answer without consulting the indexed knowledge base.
 - If the user asks to execute something AND then summarize/explain/recommend/translate the results, set requiresGeneration=true and put that instruction in generationInstructions.
 - For conversational acknowledgements/greetings (e.g., "thanks", "ok"), prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
 - Set requiresTargetResolution=true when the request depends on resolving specific target(s) from attachments or prior retrieved results (e.g., the user refers to "this/it/both" without providing identifiers).
