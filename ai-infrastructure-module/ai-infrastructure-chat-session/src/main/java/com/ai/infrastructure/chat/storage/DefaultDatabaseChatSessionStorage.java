@@ -35,6 +35,6 @@ public class DefaultDatabaseChatSessionStorage implements ChatSessionStorageProv
 
     @Override
     public List<ChatSession> findByOwnerId(String ownerId) {
-        return repository.findByOwnerId(ownerId);
+        return repository.findWithTurnsByOwnerId(ownerId);
     }
 }

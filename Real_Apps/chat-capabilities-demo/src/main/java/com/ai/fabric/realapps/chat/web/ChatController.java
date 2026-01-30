@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.hibernate.Hibernate;
 
 import java.util.List;
 import java.util.UUID;
@@ -135,31 +136,48 @@ public class ChatController {
 
     @GetMapping("/conversations/{conversationId}")
     public ResponseEntity<ConversationResponse> getConversation(@PathVariable String conversationId,
-                                                                @RequestParam("ownerId") String ownerId) {
+                                                                @RequestParam(value = "userId", required = false) String userId,
+                                                                @RequestParam(value = "ownerId", required = false) String ownerId) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(toConversationResponse(service.getSession(conversationId, ownerId)));
+        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(toConversationResponse(service.getSession(conversationId, resolvedOwnerId)));
     }
 
     @GetMapping("/conversations")
-    public ResponseEntity<List<ConversationSummaryResponse>> listConversations(@RequestParam("ownerId") String ownerId) {
+    public ResponseEntity<List<ConversationSummaryResponse>> listConversations(
+        @RequestParam(value = "userId", required = false) String userId,
+        @RequestParam(value = "ownerId", required = false) String ownerId
+    ) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.ok(List.of());
         }
-        return ResponseEntity.ok(service.getUserConversations(ownerId).stream().map(this::toConversationSummaryResponse).toList());
+        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(service.getUserConversations(resolvedOwnerId).stream().map(this::toConversationSummaryResponse).toList());
     }
 
     @DeleteMapping("/conversations/{conversationId}")
     public ResponseEntity<Void> deleteConversation(@PathVariable String conversationId,
-                                                   @RequestParam("ownerId") String ownerId) {
+                                                   @RequestParam(value = "userId", required = false) String userId,
+                                                   @RequestParam(value = "ownerId", required = false) String ownerId) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.noContent().build();
         }
-        service.deleteConversation(conversationId, ownerId);
+        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return ResponseEntity.badRequest().build();
+        }
+        service.deleteConversation(conversationId, resolvedOwnerId);
         return ResponseEntity.noContent().build();
     }
 
@@ -168,6 +186,8 @@ public class ChatController {
         String sessionId = StringUtils.hasText(request.getSessionId())
             ? request.getSessionId()
             : "anon-" + UUID.randomUUID();
+
+        String ownerId = StringUtils.hasText(userId) ? userId : sessionId;
 
         OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
             .conversationId(conversationId)
@@ -189,14 +209,20 @@ public class ChatController {
             builder.activeAttachmentIds(request.getActiveAttachmentIds());
         }
 
-        if (StringUtils.hasText(userId)) {
-            builder.userId(userId);
-            builder.sessionId(sessionId);
-        } else {
-            builder.sessionId(sessionId);
-        }
+        builder.userId(ownerId);
+        builder.sessionId(sessionId);
 
         return builder.build();
+    }
+
+    private String resolveOwnerId(String userId, String ownerId) {
+        if (StringUtils.hasText(userId)) {
+            return userId;
+        }
+        if (StringUtils.hasText(ownerId)) {
+            return ownerId;
+        }
+        return null;
     }
 
     private String buildSuggestionsPrompt(String content, int n) {
@@ -334,7 +360,9 @@ public class ChatController {
         if (session == null) {
             return null;
         }
-        List<ChatTurn> turns = session.getTurns() != null ? session.getTurns() : List.of();
+        List<ChatTurn> turns = (session.getTurns() != null && Hibernate.isInitialized(session.getTurns()))
+            ? session.getTurns()
+            : List.of();
         List<TurnResponse> mappedTurns = turns.stream()
             .filter(t -> t != null)
             .map(t -> TurnResponse.builder()
@@ -357,7 +385,9 @@ public class ChatController {
         if (session == null) {
             return null;
         }
-        int turnsCount = session.getTurns() != null ? session.getTurns().size() : 0;
+        int turnsCount = (session.getTurns() != null && Hibernate.isInitialized(session.getTurns()))
+            ? session.getTurns().size()
+            : 0;
         return ConversationSummaryResponse.builder()
             .id(session.getId())
             .ownerId(session.getOwnerId())
