@@ -51,6 +51,11 @@ public class ProductController {
         return productService.search(query, limit, threshold);
     }
 
+    @GetMapping("/trending")
+    public List<Product> trending(@RequestParam(value = "limit", defaultValue = "10") int limit) {
+        return productService.trending(limit);
+    }
+
     @PostMapping
     public ResponseEntity<Product> create(@Valid @RequestBody CreateProductRequest request) {
         Product created = productService.createProduct(

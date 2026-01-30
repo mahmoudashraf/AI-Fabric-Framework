@@ -9,16 +9,16 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
 
 @AIAction(
     name = "search_products",
-    description = "Search products by keyword (sku/name/description/category/tags)",
+    description = "Search products by keyword (matches product title + category). Falls back to trending products.",
     category = "commerce",
     accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
@@ -32,66 +32,48 @@ public class SearchProductsActionHandler {
     @ActionExecute
     public ActionResult execute(
         @Param(value = "query", description = "Search query", required = true) String query,
-        @Param(value = "limit", description = "Max number of products to return") Integer limit,
         ActionContext context
     ) {
         try {
-            int effectiveLimit = limit != null ? limit : 10;
-
-            // Prefer deterministic repository search without embeddings to keep this action reliable
-            // even when embedding providers are disabled.
-            List<Product> results = productService.list(500).stream()
-                .filter(p -> matches(query, p))
-                .limit(Math.max(1, Math.min(effectiveLimit, 50)))
-                .toList();
+            List<Product> results = productService.searchByNameAndCategory(query, 10);
+            boolean matched = !results.isEmpty();
+            if (!matched) {
+                results = productService.trending(10);
+            }
 
             List<Map<String, Object>> payload = results.stream()
-                .map(p -> Map.<String, Object>of(
-                    "id", p.getId(),
-                    "sku", p.getSku(),
-                    "name", p.getName(),
-                    "category", p.getCategory(),
-                    "tags", p.getTags(),
-                    "price", p.getPrice(),
-                    "currency", p.getCurrency(),
-                    "inStockQty", p.getInStockQty()
-                ))
+                .map(SearchProductsActionHandler::toPayload)
                 .toList();
 
             return ActionResult.builder()
                 .success(true)
-                .message(payload.isEmpty() ? "No matching products found" : "Matching products")
+                .message(payload.isEmpty()
+                    ? "No products found"
+                    : (matched ? "Matching products" : "Trending products"))
                 .data(ActionResultContracts.list(payload))
                 .build();
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;
             log.error("Search products failed for user {}", userId, e);
+            String details = e != null && e.getMessage() != null ? e.getMessage() : (e != null ? e.getClass().getSimpleName() : "unknown");
             return ActionResult.builder()
                 .success(false)
-                .message("Failed to search products: " + (e != null ? e.getMessage() : "unknown"))
+                .message("Failed to search products: " + details)
                 .errorCode("SEARCH_PRODUCTS_FAILED")
                 .build();
         }
     }
 
-    private boolean matches(String query, Product product) {
-        if (product == null) {
-            return false;
-        }
-        String q = query.trim().toLowerCase(Locale.ROOT);
-        return contains(product.getSku(), q)
-            || contains(product.getName(), q)
-            || contains(product.getDescription(), q)
-            || contains(product.getCategory(), q)
-            || contains(product.getTags(), q);
+    private static Map<String, Object> toPayload(Product product) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", product != null ? product.getId() : null);
+        out.put("sku", product != null ? product.getSku() : null);
+        out.put("name", product != null ? product.getName() : null);
+        out.put("category", product != null ? product.getCategory() : null);
+        out.put("tags", product != null ? product.getTags() : null);
+        out.put("price", product != null ? product.getPrice() : null);
+        out.put("currency", product != null ? product.getCurrency() : null);
+        out.put("inStockQty", product != null ? product.getInStockQty() : null);
+        return Collections.unmodifiableMap(out);
     }
-
-    private boolean contains(String value, String lowerQuery) {
-        if (!StringUtils.hasText(value) || !StringUtils.hasText(lowerQuery)) {
-            return false;
-        }
-        return value.toLowerCase(Locale.ROOT).contains(lowerQuery);
-    }
-
-    // Uses deterministic matching; no embeddings required.
 }
