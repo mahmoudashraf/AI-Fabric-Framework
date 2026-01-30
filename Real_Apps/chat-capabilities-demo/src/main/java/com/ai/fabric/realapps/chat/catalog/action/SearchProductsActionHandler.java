@@ -69,12 +69,15 @@ public class SearchProductsActionHandler {
         out.put("id", product != null ? product.getId() : null);
         out.put("sku", product != null ? product.getSku() : null);
         out.put("name", product != null ? product.getName() : null);
+        out.put("description", product != null ? product.getDescription() : null);
         out.put("category", product != null ? product.getCategory() : null);
         out.put("tags", product != null ? product.getTags() : null);
         out.put("imageUrl", product != null ? product.getImageUrl() : null);
         out.put("price", product != null ? product.getPrice() : null);
         out.put("currency", product != null ? product.getCurrency() : null);
         out.put("inStockQty", product != null ? product.getInStockQty() : null);
+        out.put("createdAt", product != null ? product.getCreatedAt() : null);
+        out.put("updatedAt", product != null ? product.getUpdatedAt() : null);
         return Collections.unmodifiableMap(out);
     }
 }
