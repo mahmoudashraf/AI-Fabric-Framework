@@ -71,7 +71,8 @@ public class VectorSpaceResolutionStep implements PipelineStep {
         boolean deterministic = policy != null
             ? policy.informationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE
             : (orchestrationProperties != null
-                && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
+                && orchestrationProperties.getProfile() != null
+                && orchestrationProperties.getProfile().defaultInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
 
         List<String> scopedVectorSpaces = resolveScopedVectorSpaces(context);
 

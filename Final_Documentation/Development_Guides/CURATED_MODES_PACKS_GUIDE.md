@@ -18,6 +18,7 @@ Implementation detail:
 - Core loads the pack via `CuratedPackEnvironmentPostProcessor`.
 
 ## Available packs
+- `default` → generic baseline (domain-agnostic); routes only `landing/catalog/search → navigator`.
 - `catalog` → deterministic “navigator” defaults (good for demos/catalogs).
 - `commerce` → `navigator` + `cart_assistant` defaults (commerce flows).
 - `support` → `support_resolver` defaults (support/issue resolution).

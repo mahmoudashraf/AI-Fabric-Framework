@@ -1,22 +1,21 @@
 ai:
   orchestration:
+    # Generic baseline (domain-agnostic): chat assistants should allow direct replies when retrieval isn't needed.
     profile: PRODUCTION_CHAT
+
+    # Allowlisted modes (server-side).
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
       navigator_deep:
         information-mode: DETERMINISTIC_RAG_GENERATE
         use-advanced-rag: true
-      cart_assistant:
+      copilot:
         information-mode: LLM_DRIVEN
+
+    # Domain-agnostic position routing defaults.
+    # Keep this limited; commerce/support routing belongs to those curated packs.
     position-routing:
       landing: navigator
       catalog: navigator
       search: navigator
-      cart: cart_assistant
-      checkout: cart_assistant
-
-  prompts:
-    bundle:
-      overlays:
-        - v1-commerce

@@ -9,8 +9,8 @@ ai:
         use-advanced-rag: true
     position-routing:
       landing: navigator
-      cart: navigator
-      support: navigator
+      catalog: navigator
+      search: navigator
 
   prompts:
     bundle:

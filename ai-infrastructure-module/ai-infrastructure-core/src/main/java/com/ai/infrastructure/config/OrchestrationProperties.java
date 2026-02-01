@@ -22,13 +22,6 @@ public class OrchestrationProperties {
     private OrchestrationProfile profile = OrchestrationProfile.DEFAULT;
 
     /**
-     * Explicit override for how INFORMATION intents are handled.
-     *
-     * <p>When unset (null), the effective value is derived from {@link #profile} and/or mode overrides.</p>
-     */
-    private InformationMode informationMode;
-
-    /**
      * Server-defined orchestration modes (coherent bundles) that can override profile defaults.
      *
      * <p>Clients may request a mode, but the server only accepts allowlisted modes defined here.</p>

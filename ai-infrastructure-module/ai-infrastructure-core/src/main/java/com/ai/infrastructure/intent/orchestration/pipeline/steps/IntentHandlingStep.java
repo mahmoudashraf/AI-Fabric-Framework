@@ -1571,7 +1571,8 @@ public class IntentHandlingStep implements PipelineStep {
             return policy.informationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
         }
         return orchestrationProperties != null
-            && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+            && orchestrationProperties.getProfile() != null
+            && orchestrationProperties.getProfile().defaultInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
     }
 
     private List<String> resolveAllVectorSpaces() {

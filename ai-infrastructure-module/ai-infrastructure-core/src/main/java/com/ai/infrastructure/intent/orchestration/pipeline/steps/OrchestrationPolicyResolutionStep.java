@@ -118,10 +118,6 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             }
         }
 
-        if (orchestrationProperties != null && orchestrationProperties.getInformationMode() != null) {
-            informationModeEffective = orchestrationProperties.getInformationMode();
-        }
-
         OrchestrationPolicy policy = new OrchestrationPolicy(
             profile,
             effectiveMode,
