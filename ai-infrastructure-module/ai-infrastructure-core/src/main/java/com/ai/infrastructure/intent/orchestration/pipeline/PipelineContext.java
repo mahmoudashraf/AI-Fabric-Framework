@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent.orchestration.pipeline;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
@@ -107,6 +108,13 @@ public class PipelineContext {
      * The multi-intent response from intent extraction.
      */
     private final MultiIntentResponse intentResponse;
+
+    /**
+     * Server-authoritative orchestration policy resolved for this request.
+     *
+     * <p>Populated by {@code OrchestrationPolicyResolutionStep}.</p>
+     */
+    private final OrchestrationPolicy orchestrationPolicy;
     
     /**
      * The result from intent handling.

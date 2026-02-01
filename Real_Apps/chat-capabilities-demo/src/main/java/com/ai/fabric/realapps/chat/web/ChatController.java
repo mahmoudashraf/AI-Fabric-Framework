@@ -169,7 +169,9 @@ public class ChatController {
             : "anon-" + UUID.randomUUID();
 
         OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
-            .conversationId(conversationId);
+            .conversationId(conversationId)
+            .position(request.getPosition())
+            .mode(request.getMode());
 
         if (StringUtils.hasText(userId)) {
             builder.userId(userId);
@@ -247,6 +249,8 @@ public class ChatController {
         private String userId;
         private String sessionId;
         private String conversationId;
+        private String position;
+        private String mode;
     }
 
     @Data

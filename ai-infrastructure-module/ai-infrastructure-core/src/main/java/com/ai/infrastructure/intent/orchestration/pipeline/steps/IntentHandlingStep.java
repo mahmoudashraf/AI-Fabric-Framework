@@ -1068,7 +1068,7 @@ public class IntentHandlingStep implements PipelineStep {
     }
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
-        boolean deterministic = isDeterministicInformationMode();
+        boolean deterministic = isDeterministicInformationMode(pipelineContext);
         boolean needsGeneration = deterministic || intent.requiresGenerationOrDefault(false);
         boolean requiresRetrieval = deterministic || intent.requiresRetrievalOrDefault(true);
 
@@ -1454,9 +1454,13 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
 
-    private boolean isDeterministicInformationMode() {
+    private boolean isDeterministicInformationMode(PipelineContext context) {
+        if (context != null && context.getOrchestrationPolicy() != null && context.getOrchestrationPolicy().informationMode() != null) {
+            return context.getOrchestrationPolicy().informationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+        }
         return orchestrationProperties != null
-            && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+            && orchestrationProperties.getProfile() != null
+            && orchestrationProperties.getProfile().defaultInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
     }
 
     private List<String> resolveAllVectorSpaces() {

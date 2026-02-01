@@ -64,8 +64,7 @@ public class VectorSpaceResolutionStep implements PipelineStep {
             return context;
         }
 
-        boolean deterministic = orchestrationProperties != null
-            && orchestrationProperties.getInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+        boolean deterministic = isDeterministicInformationMode(context);
 
         List<Map<String, Object>> routingEvents = new ArrayList<>();
         boolean anyUpdate = false;
@@ -346,6 +345,15 @@ public class VectorSpaceResolutionStep implements PipelineStep {
     }
 
     private record VectorSpaceNormalization(List<String> normalizedValid, List<String> invalidTokens, boolean changed) {
+    }
+
+    private boolean isDeterministicInformationMode(PipelineContext context) {
+        if (context != null && context.getOrchestrationPolicy() != null && context.getOrchestrationPolicy().informationMode() != null) {
+            return context.getOrchestrationPolicy().informationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
+        }
+        return orchestrationProperties != null
+            && orchestrationProperties.getProfile() != null
+            && orchestrationProperties.getProfile().defaultInformationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE;
     }
 
     private boolean hasText(String value) {
