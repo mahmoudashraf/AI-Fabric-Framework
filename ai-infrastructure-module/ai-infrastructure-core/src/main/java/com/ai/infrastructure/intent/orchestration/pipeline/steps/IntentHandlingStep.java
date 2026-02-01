@@ -130,6 +130,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String METADATA_KEY_RETRIEVAL_QUERY_HINT_APPLIED = "retrievalQueryHintApplied";
     private static final String INTENT_METADATA_KEY_RETRIEVAL_QUERY_HINT = "retrievalQueryHint";
     private static final int MAX_RETRIEVAL_QUERY_HINT_LENGTH = 200;
+    private static final int MAX_OPTIMIZED_QUERY_LENGTH = 400;
     
     // Metadata values
     private static final String METADATA_VALUE_ORCHESTRATOR = "orchestrator";
@@ -1120,8 +1121,8 @@ public class IntentHandlingStep implements PipelineStep {
             ? true
             : (requiresRetrieval ? (deterministic || llmRequiresGeneration) : llmRequiresGeneration);
 
-        String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
+        String optimizedQuery = normalizeOptimizedQueryForRetrieval(intent != null ? intent.getOptimizedQuery() : null, processedQuery);
         String retrievalFallbackQuery = extractUserQueryForRetrieval(processedQuery, pipelineContext != null ? pipelineContext.getOriginalQuery() : null);
         String retrievalBaseQuery = StringUtils.hasText(optimizedQuery)
             ? optimizedQuery
@@ -1232,6 +1233,17 @@ public class IntentHandlingStep implements PipelineStep {
             }
         }
 
+        // If pinned context was injected into the effective query, it is separated by a blank line.
+        if (trimmed.startsWith("PINNED CONTEXT (")) {
+            int split = trimmed.indexOf("\n\n");
+            if (split > 0 && split + 2 < trimmed.length()) {
+                String remainder = trimmed.substring(split + 2).trim();
+                if (StringUtils.hasText(remainder)) {
+                    return remainder;
+                }
+            }
+        }
+
         return trimmed;
     }
 
@@ -1251,6 +1263,39 @@ public class IntentHandlingStep implements PipelineStep {
         String extracted = text.substring(begin, end);
         String trimmed = extracted != null ? extracted.trim() : null;
         return StringUtils.hasText(trimmed) ? trimmed : null;
+    }
+
+    private String normalizeOptimizedQueryForRetrieval(String candidate, String effectiveQuery) {
+        if (!StringUtils.hasText(candidate)) {
+            return null;
+        }
+
+        String trimmed = candidate.trim();
+        if (!StringUtils.hasText(trimmed)) {
+            return null;
+        }
+
+        if (trimmed.length() > MAX_OPTIMIZED_QUERY_LENGTH) {
+            return null;
+        }
+
+        if (trimmed.indexOf('\n') >= 0 || trimmed.indexOf('\r') >= 0) {
+            return null;
+        }
+
+        if (trimmed.startsWith("PINNED CONTEXT (") || trimmed.startsWith("ATTACHMENTS (")) {
+            return null;
+        }
+
+        if (trimmed.contains("---BEGIN") || trimmed.contains("---END")) {
+            return null;
+        }
+
+        if (StringUtils.hasText(effectiveQuery) && effectiveQuery.trim().equals(trimmed)) {
+            return null;
+        }
+
+        return trimmed;
     }
 
     private boolean hasPendingAction(OrchestrationContext context) {
@@ -2129,16 +2174,6 @@ public class IntentHandlingStep implements PipelineStep {
 
         List<ResolvedTarget> targets = pipelineContext.getResolvedTargets();
         if (targets == null || targets.isEmpty()) {
-            return false;
-        }
-
-        boolean requiresTargetResolution = Boolean.TRUE.equals(intent.getRequiresTargetResolution());
-        OrchestrationContext orchContext = pipelineContext.getOrchestrationContext();
-        boolean hasActiveAttachments = orchContext != null
-            && orchContext.getActiveAttachmentIdsResolved() != null
-            && !orchContext.getActiveAttachmentIdsResolved().isEmpty();
-
-        if (!requiresTargetResolution && !hasActiveAttachments) {
             return false;
         }
 

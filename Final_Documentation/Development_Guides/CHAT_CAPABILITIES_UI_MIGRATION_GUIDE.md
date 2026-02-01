@@ -160,6 +160,9 @@ For more runnable examples, see:
 - `GET /api/chat/conversations/<conversationId>?ownerId=<userId>`
 - `DELETE /api/chat/conversations/<conversationId>?ownerId=<userId>`
 
+Conversation history response includes per-turn UI metadata:
+- `turns[].metadata` (see `Final_Documentation/Development_Guides/CHAT_TURN_METADATA_UI_GUIDE.md`)
+
 ---
 
 ## 7) CORS + Deployment notes
