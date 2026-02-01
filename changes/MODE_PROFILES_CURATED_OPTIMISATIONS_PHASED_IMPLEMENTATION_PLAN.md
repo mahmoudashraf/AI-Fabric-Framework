@@ -217,6 +217,9 @@ How to test (manual)
 - Attach a product and ask: “show reviews for this”.
 - Verify retrieval is scoped (filter/hint) and response is honest about relation certainty.
 
+
+Add relation-aware filtering: when entityType=review and pinned targets are product, automatically apply a metadata filter like review.productId IN pinnedProductIds (config-driven, not heuristics). Without that, changing “original vs optimized query” won’t reliably retrieve the right reviews.
+
 ## Phase 6 — Confirmation “yes/no” when no pending action
 **Goal:** prevent wasted calls and weird behavior when user replies “yes/confirm” with nothing pending.
 

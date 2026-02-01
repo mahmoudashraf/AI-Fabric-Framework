@@ -1121,15 +1121,15 @@ public class IntentHandlingStep implements PipelineStep {
             ? true
             : (requiresRetrieval ? (deterministic || llmRequiresGeneration) : llmRequiresGeneration);
 
-        String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
-        String optimizedQuery = normalizeOptimizedQueryForRetrieval(intent != null ? intent.getOptimizedQuery() : null, processedQuery);
-        String originalUserQuery = pipelineContext != null ? pipelineContext.getOriginalQuery() : null;
-        String retrievalFallbackQuery = extractUserQueryForRetrieval(processedQuery, originalUserQuery);
-        boolean piiProcessed = pipelineContext != null && !pipelineContext.getDetectedPiiTypesView().isEmpty();
-        String retrievalBaseQuery = StringUtils.hasText(originalUserQuery)
-            ? (piiProcessed && StringUtils.hasText(retrievalFallbackQuery) ? retrievalFallbackQuery : originalUserQuery.trim())
-            : (StringUtils.hasText(retrievalFallbackQuery) ? retrievalFallbackQuery : intent.getIntentOrAction());
-        String generationQuery = StringUtils.hasText(processedQuery) ? processedQuery : retrievalBaseQuery;
+	        String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
+	        String optimizedQuery = normalizeOptimizedQueryForRetrieval(intent != null ? intent.getOptimizedQuery() : null, processedQuery);
+	        String originalUserQuery = pipelineContext != null ? pipelineContext.getOriginalQuery() : null;
+	        String retrievalFallbackQuery = extractUserQueryForRetrieval(processedQuery, originalUserQuery);
+	        boolean piiProcessed = pipelineContext != null && !pipelineContext.getDetectedPiiTypesView().isEmpty();
+	        String retrievalBaseQuery = StringUtils.hasText(retrievalFallbackQuery)
+	            ? retrievalFallbackQuery.trim()
+	            : (StringUtils.hasText(originalUserQuery) ? originalUserQuery.trim() : intent.getIntentOrAction());
+	        String generationQuery = StringUtils.hasText(processedQuery) ? processedQuery : retrievalBaseQuery;
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put(METADATA_KEY_SOURCE, METADATA_VALUE_ORCHESTRATOR);
@@ -1864,24 +1864,20 @@ public class IntentHandlingStep implements PipelineStep {
         return result;
     }
 
-    private String resolveValidRetrievalQueryHint(PipelineContext pipelineContext, Intent currentIntent) {
-        if (pipelineContext == null || currentIntent == null) {
-            return null;
-        }
+	    private String resolveValidRetrievalQueryHint(PipelineContext pipelineContext, Intent currentIntent) {
+	        if (pipelineContext == null || currentIntent == null) {
+	            return null;
+	        }
 
-        MultiIntentResponse response = pipelineContext.getIntentResponse();
-        if (response == null) {
-            return null;
-        }
+	        MultiIntentResponse response = pipelineContext.getIntentResponse();
+	        if (response == null) {
+	            return null;
+	        }
 
-        if (!hasExactlyOneRetrievalIntent(response)) {
-            return null;
-        }
-
-        Map<String, Object> metadata = response.getMetadata();
-        if (metadata == null || metadata.isEmpty()) {
-            return null;
-        }
+	        Map<String, Object> metadata = response.getMetadata();
+	        if (metadata == null || metadata.isEmpty()) {
+	            return null;
+	        }
 
         Object raw = metadata.get(INTENT_METADATA_KEY_RETRIEVAL_QUERY_HINT);
         if (!(raw instanceof String value)) {
@@ -1897,21 +1893,8 @@ public class IntentHandlingStep implements PipelineStep {
             return null;
         }
 
-        return hint;
-    }
-
-    private boolean hasExactlyOneRetrievalIntent(MultiIntentResponse response) {
-        if (response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
-            return false;
-        }
-
-        long count = response.getIntents().stream()
-            .filter(java.util.Objects::nonNull)
-            .filter(intent -> Boolean.TRUE.equals(intent.getRequiresRetrieval()))
-            .count();
-
-        return count == 1;
-    }
+	        return hint;
+	    }
 
     private boolean isSafeRetrievalQueryHint(String hint) {
         if (!StringUtils.hasText(hint)) {

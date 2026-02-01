@@ -57,7 +57,7 @@ EXTRACTION RULES:
      * For user message "relationship_query: find all brands and then summarize": set actionParams.query="find all brands", requiresGeneration=true, generationInstructions="summarize".
 
 15. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).
-16. Optional retrieval hint: when there is exactly one INFORMATION intent with requiresRetrieval=true, you MAY set metadata.retrievalQueryHint.
+16. Optional retrieval hint: you MAY set metadata.retrievalQueryHint to short keywords/identifiers to improve retrieval (never include emails/phones/addresses).
     - Keep it short (keywords/identifiers only), max 200 chars.
     - Never include emails/phones/addresses.
 
