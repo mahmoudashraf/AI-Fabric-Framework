@@ -13,7 +13,8 @@ public record OrchestrationPolicy(
     OrchestrationProfile profile,
     String mode,
     String position,
-    OrchestrationProperties.InformationMode informationMode
+    OrchestrationProperties.InformationMode informationMode,
+    boolean readProbeFallbackEnabled
 ) {
 
     public OrchestrationPolicy {

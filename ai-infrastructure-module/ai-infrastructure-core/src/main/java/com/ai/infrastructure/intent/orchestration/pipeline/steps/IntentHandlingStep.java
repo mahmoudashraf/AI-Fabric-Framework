@@ -518,6 +518,11 @@ public class IntentHandlingStep implements PipelineStep {
         if (meta == null || meta.getAccessMode() != ActionAccessMode.READ) {
             return null;
         }
+        if (pipelineContext == null
+            || pipelineContext.getOrchestrationPolicy() == null
+            || !pipelineContext.getOrchestrationPolicy().readProbeFallbackEnabled()) {
+            return null;
+        }
         if (actionResult == null || !actionResult.isSuccess()) {
             return null;
         }
@@ -554,7 +559,27 @@ public class IntentHandlingStep implements PipelineStep {
         }
         infoIntent.setVectorSpace(String.join(",", vectorSpaces));
 
-        return handleInformation(infoIntent, context, pipelineContext);
+        OrchestrationResult fallback = handleInformation(infoIntent, context, pipelineContext);
+        if (fallback == null) {
+            return null;
+        }
+
+        Map<String, Object> metaOut = new LinkedHashMap<>();
+        if (fallback.getMetadata() != null && !fallback.getMetadata().isEmpty()) {
+            metaOut.putAll(fallback.getMetadata());
+        }
+
+        Map<String, Object> readProbe = new LinkedHashMap<>();
+        readProbe.put("enabled", true);
+        if (StringUtils.hasText(meta.getName())) {
+            readProbe.put("action", meta.getName());
+        }
+        readProbe.put("reason", "EMPTY_READ_RESULT");
+        readProbe.put("vectorSpaces", vectorSpaces);
+        metaOut.put("readProbeFallback", Collections.unmodifiableMap(readProbe));
+        fallback.setMetadata(Collections.unmodifiableMap(metaOut));
+
+        return fallback;
     }
 
     private boolean isEmptyActionResultPayload(com.ai.infrastructure.intent.action.ActionPayload data) {

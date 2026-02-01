@@ -82,5 +82,14 @@ public class OrchestrationProperties {
          * When false, Advanced RAG is disabled even if the LLM suggests it.</p>
          */
         private Boolean useAdvancedRag;
+
+        /**
+         * Optional mode override enabling "read probe → RAG" fallback behavior.
+         *
+         * <p>When enabled and a READ action executes successfully but returns an empty list payload, the orchestrator may
+         * fall back to RAG (and generation when enabled) to still help the user. This is intended for assistant-style
+         * modes (e.g. cart/support) where read actions are treated as helper tools.</p>
+         */
+        private Boolean enableReadProbeFallback;
     }
 }

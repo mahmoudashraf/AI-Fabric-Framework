@@ -553,6 +553,12 @@ public class ChatController {
         private LocalDateTime timestamp;
         private String userQuery;
         private String aiResponse;
+        /**
+         * UI-facing, persisted per-turn metadata (e.g., result type, safe action refs, working set refs).
+         *
+         * <p>This is stored by the chat-session module and is intentionally bounded/sanitized.</p>
+         */
+        private Map<String, Object> metadata;
     }
 
     @Data
@@ -588,6 +594,7 @@ public class ChatController {
                 .timestamp(t.getTimestamp())
                 .userQuery(t.getUserQuery())
                 .aiResponse(t.getAiResponse())
+                .metadata(t.getTurnMetadata() != null ? t.getTurnMetadata() : Map.of())
                 .build())
             .toList();
         return ConversationResponse.builder()

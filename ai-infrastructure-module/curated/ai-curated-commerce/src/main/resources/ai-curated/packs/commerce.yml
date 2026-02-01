@@ -9,6 +9,7 @@ ai:
         use-advanced-rag: true
       cart_assistant:
         information-mode: LLM_DRIVEN
+        enable-read-probe-fallback: true
     position-routing:
       landing: navigator
       catalog: navigator
