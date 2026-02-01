@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -136,6 +137,68 @@ class AdvancedRAGServiceTest {
         assertThat(responseGenerationPrompt).contains("AUTHORITATIVE CONTEXT");
         assertThat(responseGenerationPrompt).contains("AUTHORITATIVE: pinned targets");
         assertThat(responseGenerationPrompt).contains("retrieved content");
+    }
+
+    @Test
+    void performAdvancedRAGIncludesRagScopeInQueryExpansionPrompt() {
+        when(aiCoreService.generateText(any())).thenReturn("expanded");
+
+        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder()
+                .success(true)
+                .documents(List.of(
+                    RAGResponse.RAGDocument.builder()
+                        .id("doc-1")
+                        .content("retrieved content")
+                        .score(0.9)
+                        .similarity(0.9)
+                        .build()
+                ))
+                .build()
+        );
+
+        AdvancedRAGService service = new AdvancedRAGService(
+            aiSearchService,
+            aiEmbeddingService,
+            aiCoreService,
+            ragProvider,
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Map<String, Object> ragScope = Map.of(
+            "targets", List.of(
+                Map.of(
+                    "id", "30",
+                    "vectorSpace", "product",
+                    "metadata", Map.of("sku", "SKU-123")
+                )
+            ),
+            "activeTargetIds", List.of("30")
+        );
+
+        service.performAdvancedRAG(
+            AdvancedRAGRequest.builder()
+                .query("price?")
+                .metadata(Map.of("ragScope", ragScope))
+                .expansionLevel(1)
+                .rerankingStrategy("hybrid")
+                .contextOptimizationLevel("low")
+                .maxDocuments(1)
+                .maxResults(1)
+                .enableHybridSearch(false)
+                .enableContextualSearch(false)
+                .build()
+        );
+
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiCoreService, times(2)).generateText(promptCaptor.capture());
+
+        String expansionPrompt = promptCaptor.getAllValues().getFirst();
+        assertThat(expansionPrompt).contains("AUTHORITATIVE SCOPE/HINTS");
+        assertThat(expansionPrompt).contains("activeTargetIds");
+        assertThat(expansionPrompt).contains("id=30");
+        assertThat(expansionPrompt).contains("vectorSpace=product");
     }
 
     private PromptTemplateResolver promptTemplateResolver() {

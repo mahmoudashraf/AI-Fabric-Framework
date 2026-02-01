@@ -40,6 +40,7 @@ import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
+import com.ai.infrastructure.rag.scope.RAGScopeFactory;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
@@ -131,6 +132,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String INTENT_METADATA_KEY_RETRIEVAL_QUERY_HINT = "retrievalQueryHint";
     private static final int MAX_RETRIEVAL_QUERY_HINT_LENGTH = 200;
     private static final int MAX_OPTIMIZED_QUERY_LENGTH = 400;
+    private static final String METADATA_KEY_RAG_SCOPE = "ragScope";
     
     // Metadata values
     private static final String METADATA_VALUE_ORCHESTRATOR = "orchestrator";
@@ -242,15 +244,17 @@ public class IntentHandlingStep implements PipelineStep {
     @Override
     public PipelineContext process(PipelineContext context) {
         log.debug("Handling intent for request {}", context.getRequestId());
-        
-        MultiIntentResponse intentResponse = context.getIntentResponse();
-        OrchestrationContext orchContext = context.getOrchestrationContext();
+
+        PipelineContext withScope = attachRagScopeDebug(context);
+
+        MultiIntentResponse intentResponse = withScope.getIntentResponse();
+        OrchestrationContext orchContext = withScope.getOrchestrationContext();
 
         OrchestrationResult result;
         if (intentResponse.isCompound() || intentResponse.getIntents().size() > 1) {
-            result = handleCompoundIntents(intentResponse, orchContext, context);
+            result = handleCompoundIntents(intentResponse, orchContext, withScope);
         } else {
-            result = handleSingleIntent(intentResponse.getIntents().getFirst(), orchContext, context);
+            result = handleSingleIntent(intentResponse.getIntents().getFirst(), orchContext, withScope);
         }
         
         if (result == null) {
@@ -258,9 +262,36 @@ public class IntentHandlingStep implements PipelineStep {
             result = OrchestrationResult.error("Internal error: intent handling failed");
         }
         
-        return context.toBuilder()
+        return withScope.toBuilder()
             .intentResult(result)
             .build();
+    }
+
+    private PipelineContext attachRagScopeDebug(PipelineContext context) {
+        if (context == null || context.isShouldTerminate()) {
+            return context;
+        }
+
+        OrchestrationContext orchestrationContext = context.getOrchestrationContext();
+        if (orchestrationContext == null) {
+            return context;
+        }
+
+        com.ai.infrastructure.dto.RAGScope scope = RAGScopeFactory.build(
+            context.getResolvedTargets(),
+            orchestrationContext.getActiveAttachmentIdsResolved()
+        );
+        if (scope == null) {
+            return context;
+        }
+
+        boolean provided = scope.getTargets() != null && !scope.getTargets().isEmpty();
+        boolean activeProvided = scope.getActiveTargetIds() != null && !scope.getActiveTargetIds().isEmpty();
+        if (!provided && !activeProvided) {
+            return context;
+        }
+
+        return context.withMetadata(METADATA_KEY_RAG_SCOPE, scope.toMap());
     }
     
     // =========================================================================
@@ -1418,16 +1449,19 @@ public class IntentHandlingStep implements PipelineStep {
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
-        }
+	        }
 
-        RAGRequest ragRequest = RAGRequest.builder()
-            .query(retrievalQuery)
-            .entityType(intent.getVectorSpace())
-            .limit(DEFAULT_RAG_LIMIT)
-            .threshold(DEFAULT_RAG_THRESHOLD)
-            .metadata(Collections.unmodifiableMap(metadata))
-            .userId(context.getIdentifier())
-            .build();
+	        Map<String, Object> ragContext = buildRagRequestContext(pipelineContext, context);
+
+	        RAGRequest ragRequest = RAGRequest.builder()
+	            .query(retrievalQuery)
+	            .entityType(intent.getVectorSpace())
+	            .limit(DEFAULT_RAG_LIMIT)
+	            .threshold(DEFAULT_RAG_THRESHOLD)
+	            .context(ragContext)
+	            .metadata(Collections.unmodifiableMap(metadata))
+	            .userId(context.getIdentifier())
+	            .build();
 
         // Use retrieval-only for search-only intents; use context-building query mode for generation flows.
         RAGResponse ragResponse = needsGeneration
@@ -1517,20 +1551,22 @@ public class IntentHandlingStep implements PipelineStep {
             ? vectorSpaceRoutingProperties.getFanOutTopKPerSpace()
             : DEFAULT_RAG_LIMIT;
 
-        double fanOutThreshold = vectorSpaceRoutingProperties != null
-            ? vectorSpaceRoutingProperties.getFanOutRagThreshold()
-            : DEFAULT_FAN_OUT_RAG_THRESHOLD;
+	        double fanOutThreshold = vectorSpaceRoutingProperties != null
+	            ? vectorSpaceRoutingProperties.getFanOutRagThreshold()
+	            : DEFAULT_FAN_OUT_RAG_THRESHOLD;
 
-        Map<String, List<RAGResponse.RAGDocument>> docsBySpace = new LinkedHashMap<>();
-        for (String vectorSpace : vectorSpaces) {
-            RAGRequest ragRequest = RAGRequest.builder()
-                .query(retrievalQuery)
-                .entityType(vectorSpace)
-                .limit(topKPerSpace)
-                .threshold(fanOutThreshold)
-                .metadata(Collections.unmodifiableMap(new LinkedHashMap<>(metadata)))
-                .userId(context.getIdentifier())
-                .build();
+	        Map<String, Object> ragContext = buildRagRequestContext(pipelineContext, context);
+	        Map<String, List<RAGResponse.RAGDocument>> docsBySpace = new LinkedHashMap<>();
+	        for (String vectorSpace : vectorSpaces) {
+	            RAGRequest ragRequest = RAGRequest.builder()
+	                .query(retrievalQuery)
+	                .entityType(vectorSpace)
+	                .limit(topKPerSpace)
+	                .threshold(fanOutThreshold)
+	                .context(ragContext)
+	                .metadata(Collections.unmodifiableMap(new LinkedHashMap<>(metadata)))
+	                .userId(context.getIdentifier())
+	                .build();
 
             RAGResponse ragResponse = needsGeneration
                 ? provider.performRAGQuery(ragRequest)
@@ -1805,22 +1841,27 @@ public class IntentHandlingStep implements PipelineStep {
         }
     }
 
-    private AdvancedRAGRequest buildAdvancedRagRequest(Intent intent,
-                                                      OrchestrationContext context,
-                                                      String query,
-                                                      Map<String, Object> metadata,
-                                                      PipelineContext pipelineContext) {
-        Map<String, Object> ctxMetadata = context != null ? context.getMetadata() : null;
+	    private AdvancedRAGRequest buildAdvancedRagRequest(Intent intent,
+	                                                      OrchestrationContext context,
+	                                                      String query,
+	                                                      Map<String, Object> metadata,
+	                                                      PipelineContext pipelineContext) {
+	        Map<String, Object> ctxMetadata = context != null ? context.getMetadata() : null;
+	        Map<String, Object> advancedMetadata = metadata != null ? new LinkedHashMap<>(metadata) : new LinkedHashMap<>();
+	        Map<String, Object> ragContext = buildRagRequestContext(pipelineContext, context);
+	        if (ragContext != null && ragContext.containsKey(METADATA_KEY_RAG_SCOPE)) {
+	            advancedMetadata.put(METADATA_KEY_RAG_SCOPE, ragContext.get(METADATA_KEY_RAG_SCOPE));
+	        }
 
-        AdvancedRAGRequest.AdvancedRAGRequestBuilder builder = AdvancedRAGRequest.builder()
-            .query(query)
-            .entityType(intent != null ? intent.getVectorSpace() : null)
-            .maxResults(DEFAULT_RAG_LIMIT)
-            .maxDocuments(DEFAULT_RAG_LIMIT)
-            .similarityThreshold(DEFAULT_RAG_THRESHOLD)
-            .userId(context != null ? context.getUserId() : null)
-            .sessionId(context != null ? context.getSessionId() : null)
-            .metadata(metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Map.of());
+	        AdvancedRAGRequest.AdvancedRAGRequestBuilder builder = AdvancedRAGRequest.builder()
+	            .query(query)
+	            .entityType(intent != null ? intent.getVectorSpace() : null)
+	            .maxResults(DEFAULT_RAG_LIMIT)
+	            .maxDocuments(DEFAULT_RAG_LIMIT)
+	            .similarityThreshold(DEFAULT_RAG_THRESHOLD)
+	            .userId(context != null ? context.getUserId() : null)
+	            .sessionId(context != null ? context.getSessionId() : null)
+	            .metadata(Collections.unmodifiableMap(advancedMetadata));
 
         String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);
         if (StringUtils.hasText(pinnedTargetsContext)) {
@@ -1842,13 +1883,35 @@ public class IntentHandlingStep implements PipelineStep {
             builder.contextOptimizationLevel(optimization);
         }
 
-        return builder.build();
-    }
+	        return builder.build();
+	    }
 
-    private String applyRetrievalQueryHint(String baseQuery,
-                                          PipelineContext pipelineContext,
-                                          Intent intent,
-                                          Map<String, Object> metadata) {
+	    private Map<String, Object> buildRagRequestContext(PipelineContext pipelineContext, OrchestrationContext context) {
+	        if (pipelineContext == null || context == null) {
+	            return null;
+	        }
+
+	        com.ai.infrastructure.dto.RAGScope scope = RAGScopeFactory.build(
+	            pipelineContext.getResolvedTargets(),
+	            context.getActiveAttachmentIdsResolved()
+	        );
+	        if (scope == null) {
+	            return null;
+	        }
+
+	        boolean provided = scope.getTargets() != null && !scope.getTargets().isEmpty();
+	        boolean activeProvided = scope.getActiveTargetIds() != null && !scope.getActiveTargetIds().isEmpty();
+	        if (!provided && !activeProvided) {
+	            return null;
+	        }
+
+	        return Collections.unmodifiableMap(Map.of(METADATA_KEY_RAG_SCOPE, scope.toMap()));
+	    }
+
+	    private String applyRetrievalQueryHint(String baseQuery,
+	                                          PipelineContext pipelineContext,
+	                                          Intent intent,
+	                                          Map<String, Object> metadata) {
         boolean applied = false;
         String result = baseQuery;
 
