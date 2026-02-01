@@ -7,11 +7,14 @@ ai:
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
+        working-set-window-turns: 3
       navigator_deep:
         information-mode: DETERMINISTIC_RAG_GENERATE
         use-advanced-rag: true
+        working-set-window-turns: 5
       copilot:
         information-mode: LLM_DRIVEN
+        working-set-window-turns: 3
 
     # Domain-agnostic position routing defaults.
     # Keep this limited; commerce/support routing belongs to those curated packs.

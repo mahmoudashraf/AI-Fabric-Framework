@@ -4,12 +4,15 @@ ai:
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
+        working-set-window-turns: 3
       navigator_deep:
         information-mode: DETERMINISTIC_RAG_GENERATE
         use-advanced-rag: true
+        working-set-window-turns: 5
       cart_assistant:
         information-mode: LLM_DRIVEN
         enable-read-probe-fallback: true
+        working-set-window-turns: 3
     position-routing:
       landing: navigator
       catalog: navigator

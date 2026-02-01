@@ -9,7 +9,12 @@ public interface ChatSessionService {
 
     String getConversationContext(String conversationId, String ownerId);
 
-    void recordTurn(String conversationId, String ownerId, String userQuery, String aiResponse, Map<String, Object> turnMetadata);
+    void recordTurn(String conversationId,
+                    String ownerId,
+                    String userQuery,
+                    String aiResponse,
+                    Map<String, Object> turnMetadata,
+                    Map<String, Object> uiMetadata);
 
     ChatSession getSession(String conversationId, String ownerId);
 

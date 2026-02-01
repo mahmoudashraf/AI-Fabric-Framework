@@ -45,9 +45,9 @@ class ConversationEnrichmentStepIntegrationTest {
         String ownerId = "enrichment-user";
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Q1", "A1", Map.of());
-        chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2", Map.of());
-        chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q1", "A1", Map.of(), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2", Map.of(), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3", Map.of(), Map.of());
 
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId(ownerId)
@@ -71,8 +71,8 @@ class ConversationEnrichmentStepIntegrationTest {
         String ownerId = "enrichment-user-truncate";
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Q1-" + "x".repeat(4000), "A1-" + "y".repeat(4000), Map.of());
-        chatSessionService.recordTurn(conversationId, ownerId, "Q2-" + "x".repeat(4000), "A2-" + "y".repeat(4000), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q1-" + "x".repeat(4000), "A1-" + "y".repeat(4000), Map.of(), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q2-" + "x".repeat(4000), "A2-" + "y".repeat(4000), Map.of(), Map.of());
 
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId(ownerId)

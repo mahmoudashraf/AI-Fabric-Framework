@@ -5,6 +5,7 @@ ai:
       support_resolver:
         information-mode: LLM_DRIVEN
         enable-read-probe-fallback: true
+        working-set-window-turns: 3
     position-routing:
       support: support_resolver
 

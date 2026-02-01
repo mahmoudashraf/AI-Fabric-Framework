@@ -28,7 +28,7 @@ class ChatSessionDeletionRealApiIntegrationTest {
         String ownerId = "delete-user-" + UUID.randomUUID();
         String conversationId = "chat-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Hello", "Hi", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Hello", "Hi", Map.of(), Map.of());
         chatSessionService.deleteConversation(conversationId, ownerId);
 
         assertThatThrownBy(() -> chatSessionService.getSession(conversationId, ownerId))

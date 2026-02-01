@@ -22,6 +22,7 @@ It is intended for frontend/UI clients calling:
   "conversationId": "string (recommended; stable per chat thread)",
   "position": "string (recommended; drives orchestration mode via routing)",
   "mode": "string (optional; only used if position is missing or not routed)",
+  "uiMetadata": { "anyScalar": "..." },
   "attachments": [
     {
       "id": "string (required)",
@@ -161,7 +162,8 @@ For more runnable examples, see:
 - `DELETE /api/chat/conversations/<conversationId>?ownerId=<userId>`
 
 Conversation history response includes per-turn UI metadata:
-- `turns[].metadata` (see `Final_Documentation/Development_Guides/CHAT_TURN_METADATA_UI_GUIDE.md`)
+- `turns[].metadata` (server-produced; see `Final_Documentation/Development_Guides/CHAT_TURN_METADATA_UI_GUIDE.md`)
+- `turns[].uiMetadata` (client-provided; see `Final_Documentation/Development_Guides/CHAT_TURN_METADATA_UI_GUIDE.md`)
 
 ---
 

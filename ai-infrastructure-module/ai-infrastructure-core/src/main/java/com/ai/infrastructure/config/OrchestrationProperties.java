@@ -76,6 +76,14 @@ public class OrchestrationProperties {
         private InformationMode informationMode;
 
         /**
+         * Optional mode override for how many prior turns' working-set references may be considered
+         * when resolving follow-ups ("it", "them") without new attachments.
+         *
+         * <p>Set to 0 to disable working-set seeding for the mode.</p>
+         */
+        private Integer workingSetWindowTurns;
+
+        /**
          * Optional mode override to force Advanced RAG on/off.
          *
          * <p>When true, Advanced RAG is enabled for the request (when a provider is present).

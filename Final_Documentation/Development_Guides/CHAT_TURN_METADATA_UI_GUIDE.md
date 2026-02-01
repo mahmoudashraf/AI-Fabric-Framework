@@ -13,13 +13,17 @@ Each stored conversation turn has:
 - `userQuery`
 - `aiResponse`
 - `timestamp`
-- `metadata` (a bounded JSON object)
+- `metadata` (a bounded JSON object; server-produced)
+- `uiMetadata` (a bounded JSON object; client-provided, UI-only)
 
 The `metadata` object is written by the **chat-session module** during orchestration (server-side) and is intended for:
 - UI rendering (badges, collapsible details, sources, etc.)
 - debugging (show how a turn was produced)
 
-It is **not** meant to be a security boundary or a client-controlled execution mechanism.
+The `uiMetadata` object is **persisted for UI rendering only**:
+- It is never injected into LLM prompts.
+- It is never used for action execution.
+- It is sanitized and bounded by the backend (scalar-only best effort).
 
 ---
 
@@ -62,7 +66,8 @@ Example (shape):
       "timestamp": "2026-02-01T12:10:34.373",
       "userQuery": "list my active orders",
       "aiResponse": "No active orders found.",
-      "metadata": { "...": "..." }
+      "metadata": { "...": "..." },
+      "uiMetadata": { "...": "..." }
     }
   ]
 }
@@ -145,7 +150,7 @@ For internal debugging UI, show:
 
 ## 6) Storage + safety (what you can assume)
 
-Turn metadata is:
+Turn metadata (`turns[].metadata`) is:
 - persisted server-side as JSON (`ChatTurn.turnMetadata`)
 - bounded and sanitized by the backend
 - safe to ignore (UI should be resilient to missing keys)
@@ -154,6 +159,15 @@ It is not:
 - guaranteed to contain domain objects
 - a stable API for business logic (use domain APIs for that)
 
+UI metadata (`turns[].uiMetadata`) is:
+- persisted server-side as JSON (`ChatTurn.uiMetadata`)
+- client-provided and treated as untrusted input
+- sanitized and bounded by the backend (scalar-only best effort)
+
+It is not:
+- included in LLM prompt context
+- intended to drive orchestration behavior
+
 ---
 
 ## 7) Related implementation references
@@ -161,4 +175,3 @@ It is not:
 - Turn storage: `ai-infrastructure-module/ai-infrastructure-chat-session/src/main/java/com/ai/infrastructure/chat/domain/ChatTurn.java`
 - Turn metadata writing: `ai-infrastructure-module/ai-infrastructure-chat-session/src/main/java/com/ai/infrastructure/chat/pipeline/ConversationRecordingStep.java`
 - UI response mapping: `Real_Apps/chat-capabilities-demo/src/main/java/com/ai/fabric/realapps/chat/web/ChatController.java`
-

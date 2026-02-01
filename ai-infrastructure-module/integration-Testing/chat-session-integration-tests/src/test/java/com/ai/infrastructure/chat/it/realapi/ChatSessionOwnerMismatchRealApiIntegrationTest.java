@@ -29,7 +29,7 @@ class ChatSessionOwnerMismatchRealApiIntegrationTest {
         String ownerB = "owner-b-" + UUID.randomUUID();
         String conversationId = "chat-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerA, "Hello", "Hi", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerA, "Hello", "Hi", Map.of(), Map.of());
 
         assertThatThrownBy(() -> chatSessionService.getSession(conversationId, ownerB))
             .isInstanceOf(ChatSessionAccessDeniedException.class);

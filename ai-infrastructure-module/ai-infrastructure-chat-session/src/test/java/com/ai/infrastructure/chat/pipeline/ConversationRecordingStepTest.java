@@ -73,7 +73,8 @@ class ConversationRecordingStepTest {
             "user-1",
             "My ssn is [REDACTED]",
             "safe message",
-            Map.of("_resultType", "INFORMATION_PROVIDED")
+            Map.of("_resultType", "INFORMATION_PROVIDED"),
+            Map.of()
         );
     }
 

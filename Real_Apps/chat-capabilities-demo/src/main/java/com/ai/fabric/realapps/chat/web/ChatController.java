@@ -228,6 +228,9 @@ public class ChatController {
         if (request.getActiveAttachmentIds() != null && !request.getActiveAttachmentIds().isEmpty()) {
             builder.activeAttachmentIds(request.getActiveAttachmentIds());
         }
+        if (request.getUiMetadata() != null && !request.getUiMetadata().isEmpty()) {
+            builder.uiMetadata(request.getUiMetadata());
+        }
 
         builder.userId(ownerId);
         builder.sessionId(sessionId);
@@ -512,6 +515,7 @@ public class ChatController {
         private String mode;
         private List<OrchestrationAttachment> attachments;
         private List<String> activeAttachmentIds;
+        private Map<String, Object> uiMetadata;
     }
 
     @Data
@@ -559,6 +563,12 @@ public class ChatController {
          * <p>This is stored by the chat-session module and is intentionally bounded/sanitized.</p>
          */
         private Map<String, Object> metadata;
+        /**
+         * UI-only metadata that is persisted per turn for client rendering.
+         *
+         * <p>This is never used for LLM prompts or action execution.</p>
+         */
+        private Map<String, Object> uiMetadata;
     }
 
     @Data
@@ -595,6 +605,7 @@ public class ChatController {
                 .userQuery(t.getUserQuery())
                 .aiResponse(t.getAiResponse())
                 .metadata(t.getTurnMetadata() != null ? t.getTurnMetadata() : Map.of())
+                .uiMetadata(t.getUiMetadata() != null ? t.getUiMetadata() : Map.of())
                 .build())
             .toList();
         return ConversationResponse.builder()
