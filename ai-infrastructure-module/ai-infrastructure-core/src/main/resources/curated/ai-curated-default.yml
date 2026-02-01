@@ -1,0 +1,37 @@
+# AI Fabric — Curated Defaults (opt-in)
+#
+# This file is NOT loaded automatically.
+# Import it explicitly from your app to enable the presets:
+#
+# spring:
+#   config:
+#     import: "optional:classpath:curated/ai-curated-default.yml"
+#
+# Philosophy:
+# - Server-authoritative routing (position → mode) is configured here.
+# - Apps can override any value in their own application.yml.
+#
+ai:
+  orchestration:
+    # Baseline profile for general-purpose production chat assistants.
+    profile: PRODUCTION_CHAT
+
+    # Fail-open by default for unknown position/mode signals (apps can tighten this).
+    strict-position-routing: false
+    strict-mode-routing: false
+
+    # Allowlisted modes (server-side).
+    modes:
+      navigator:
+        # Deterministic navigator: reliable catalog answers.
+        information-mode: DETERMINISTIC_RAG_GENERATE
+      copilot:
+        # Conversational assistant: allow direct short replies when retrieval is not needed.
+        information-mode: LLM_DRIVEN
+
+    # Position → mode routing (server-side).
+    # UI should send a low-spoof-risk "position" (e.g., "checkout"), not an arbitrary mode.
+    position-routing:
+      landing: navigator
+      catalog: navigator
+      search: navigator

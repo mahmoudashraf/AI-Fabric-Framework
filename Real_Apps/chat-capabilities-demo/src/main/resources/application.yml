@@ -21,7 +21,25 @@ ai:
     default-file: ai-entity-config.yml
 
   orchestration:
-    information-mode: DETERMINISTIC_RAG_GENERATE
+    profile: PRODUCTION_NAVIGATOR
+    strict-position-routing: false
+    strict-mode-routing: false
+
+    # Temporary: navigator-only mode enablement for the demo app.
+    # TODO: re-enable additional modes (copilot/cart_assistant/support_resolver) once validated end-to-end.
+    modes:
+      navigator:
+        information-mode: DETERMINISTIC_RAG_GENERATE
+      # copilot:
+      #   information-mode: LLM_DRIVEN
+
+    # Prefer position→mode routing (server-authoritative).
+    position-routing:
+      landing: navigator
+      search: navigator
+      catalog: navigator
+      cart: navigator
+      checkout: navigator
 
   intent-extraction:
     prompt-mode: MINIMAL_FOR_RAG

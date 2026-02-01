@@ -1,4 +1,4 @@
-# Plan: Deterministic RAG + Always-Generate for INFORMATION (Feature-Flagged)
+# Plan: Deterministic RAG + Always-Generate for INFORMATION (Profile/Mode Driven)
 
 ## Goal
 Make the framework (and specifically `Real_Apps/chat-capabilities-demo`) far less sensitive to LLM “contract” mistakes by enforcing a deterministic policy:
@@ -18,17 +18,27 @@ This removes the common failure mode where the LLM fails to set `requiresGenerat
 3. Prompt asks the model to decide too many fields (`requiresGeneration`, `requiresRetrieval`, `vectorSpace`, `needsAdvancedRAG`, etc.), increasing the chance of invalid/undesirable outputs (OUT_OF_SCOPE / ERROR).
 
 ## Proposed solution overview
-Introduce a feature-flagged **Information Handling Mode** that overrides the LLM-controlled “requiresGeneration / requiresRetrieval” decisions.
+Introduce a **policy-driven** Information Handling Mode that overrides the LLM-controlled “requiresGeneration / requiresRetrieval” decisions.
 
-### New feature flags (suggested)
-Add new configuration keys (names can be adjusted to match existing style):
+### Configuration (profile + allowlisted mode)
+Deterministic behavior is enabled via:
+- `ai.orchestration.profile` (baseline), and/or
+- `ai.orchestration.modes.*.information-mode` (per-mode override)
+
+Example (navigator-only deterministic setup):
 
 ```yaml
 ai:
   orchestration:
-    information-mode: DETERMINISTIC_RAG_GENERATE   # default: LLM_DRIVEN (current)
+    profile: PRODUCTION_NAVIGATOR
+    modes:
+      navigator:
+        information-mode: DETERMINISTIC_RAG_GENERATE
+    position-routing:
+      landing: navigator
+
   intent-extraction:
-    prompt-mode: MINIMAL_FOR_RAG                   # default: FULL_CONTRACT (current)
+    prompt-mode: MINIMAL_FOR_RAG
 ```
 
 Where:
@@ -73,8 +83,8 @@ Rules specific to this mode:
 - For INFORMATION: always provide `optimizedQuery` (rewrite using known entity type names / field hints when available).
 - Use `OUT_OF_SCOPE` only for truly unrelated requests or unsupported state-changing actions.
 
-### 2) Orchestration policy for INFORMATION (feature-flagged)
-When `ai.orchestration.information-mode=DETERMINISTIC_RAG_GENERATE`:
+### 2) Orchestration policy for INFORMATION (policy-driven)
+When the effective policy has `information-mode=DETERMINISTIC_RAG_GENERATE`:
 
 **Hard rules**
 - Treat every `IntentType.INFORMATION` as:
@@ -145,4 +155,3 @@ This is independent of the deterministic intent strategy, but improves UX and re
 - Always generating increases LLM cost and latency.
 - Deterministic fan-out across many entity types can increase retrieval cost; keep it bounded (`fanOutMaxSpaces`) and rely on KB overview counts.
 - Some apps genuinely want retrieval-only. That remains available via default mode.
-
