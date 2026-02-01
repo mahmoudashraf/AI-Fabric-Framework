@@ -3,6 +3,7 @@ package com.ai.infrastructure.chat.pipeline;
 import com.ai.infrastructure.chat.config.ChatSessionProperties;
 import com.ai.infrastructure.chat.exception.ChatSessionAccessDeniedException;
 import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.ActionDraft;
@@ -10,12 +11,19 @@ import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
+import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.chat.domain.ChatSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,10 +41,18 @@ public class ConversationEnrichmentStep implements PipelineStep {
     private static final String METADATA_KEY_CHAT = "chat";
     private static final String ERROR_CODE_ACCESS_DENIED = "ACCESS_DENIED";
 
+    private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS = "lastResolvedTargets";
+    private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX = "lastResolvedTargetsTurnIndex";
+
+    private static final int REHYDRATED_CONTENT_TEXT_MAX_CHARS = 280;
+    private static final int REHYDRATED_METADATA_MAX_ENTRIES = 12;
+    private static final int REHYDRATED_METADATA_MAX_VALUE_LENGTH = 120;
+
     private final ChatSessionService chatSessionService;
     private final ChatSessionProperties properties;
     private final PendingActionStore pendingActionStore;
     private final ActionDraftStore actionDraftStore;
+    private final ObjectProvider<VectorDatabaseService> vectorDatabaseServiceProvider;
 
     @Override
     public String getStepName() {
@@ -67,6 +83,11 @@ public class ConversationEnrichmentStep implements PipelineStep {
         }
 
         try {
+            PipelineContext seeded = seedResolvedTargetsFromSession(context, conversationId, ownerId);
+            if (seeded != null) {
+                context = seeded;
+            }
+
             PendingAction pending = pendingActionStore != null
                 ? pendingActionStore.peekPendingAction(conversationId, ownerId).orElse(null)
                 : null;
@@ -181,9 +202,9 @@ public class ConversationEnrichmentStep implements PipelineStep {
 
             Map<String, Object> chatMeta = new LinkedHashMap<>();
             chatMeta.put("conversationId", conversationId);
-            chatMeta.put("historyChars", history.length());
-            chatMeta.put("memoryStrategy", properties.getMemoryStrategy() != null ? properties.getMemoryStrategy().name() : null);
-            chatMeta.put("windowSize", properties.getWindowSize());
+                chatMeta.put("historyChars", history.length());
+                chatMeta.put("memoryStrategy", properties.getMemoryStrategy() != null ? properties.getMemoryStrategy().name() : null);
+                chatMeta.put("windowSize", properties.getWindowSize());
 
             return context.toBuilder()
                 .processedQuery(enriched)
@@ -201,6 +222,239 @@ public class ConversationEnrichmentStep implements PipelineStep {
             log.warn("Failed to enrich conversation {}: {}", conversationId, ex.getMessage());
             return context;
         }
+    }
+
+    private PipelineContext seedResolvedTargetsFromSession(PipelineContext context, String conversationId, String ownerId) {
+        if (context == null) {
+            return null;
+        }
+
+        // Only reuse targets when the current request does not include new attachments.
+        if (context.getOrchestrationContext() == null
+            || (context.getOrchestrationContext().getAttachmentsNormalized() != null
+                && !context.getOrchestrationContext().getAttachmentsNormalized().isEmpty())
+            || (context.getOrchestrationContext().getActiveAttachmentIdsResolved() != null
+                && !context.getOrchestrationContext().getActiveAttachmentIdsResolved().isEmpty())) {
+            return context;
+        }
+
+        if (context.getResolvedTargets() != null && !context.getResolvedTargets().isEmpty()) {
+            return context;
+        }
+
+        int reuseWindow = properties != null ? properties.getPinnedTargetReuseWindowTurns() : 0;
+        if (reuseWindow <= 0) {
+            return context;
+        }
+
+        ChatSession session;
+        try {
+            session = chatSessionService.getSession(conversationId, ownerId);
+        } catch (Exception ex) {
+            return context;
+        }
+
+        Map<String, Object> metadata = session != null ? session.getSessionMetadata() : null;
+        if (metadata == null || metadata.isEmpty()) {
+            return context;
+        }
+
+        int currentTurnIndex = session.getTurns() != null ? session.getTurns().size() : 0;
+        int lastTurnIndex = coerceInt(metadata.get(SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX), -1);
+        if (lastTurnIndex >= 0 && (currentTurnIndex - lastTurnIndex) > reuseWindow) {
+            return context;
+        }
+
+        Object rawTargets = metadata.get(SESSION_META_KEY_LAST_RESOLVED_TARGETS);
+        if (!(rawTargets instanceof List<?> list) || list.isEmpty()) {
+            return context;
+        }
+
+        List<ResolvedTarget> resolved = new ArrayList<>();
+        for (Object item : list) {
+            if (resolved.size() >= 8) {
+                break;
+            }
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+
+            String id = coerceString(map.get("id"));
+            if (!StringUtils.hasText(id)) {
+                continue;
+            }
+
+            String vectorSpace = coerceString(map.get("vectorSpace"));
+            String contentText = coerceString(map.get("contentText"));
+
+            Map<String, String> meta = Map.of();
+            Object rawMeta = map.get("metadata");
+            if (rawMeta instanceof Map<?, ?> rawMap && !rawMap.isEmpty()) {
+                LinkedHashMap<String, String> safe = new LinkedHashMap<>();
+                for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+                    if (entry == null || entry.getKey() == null || entry.getValue() == null) {
+                        continue;
+                    }
+                    String key = String.valueOf(entry.getKey());
+                    String value = String.valueOf(entry.getValue());
+                    if (StringUtils.hasText(key) && StringUtils.hasText(value)) {
+                        safe.put(key, value);
+                    }
+                }
+                if (!safe.isEmpty()) {
+                    meta = Collections.unmodifiableMap(safe);
+                }
+            }
+
+            ResolvedTargetSource source = ResolvedTargetSource.SESSION_METADATA;
+            String storedSource = coerceString(map.get("source"));
+            if (StringUtils.hasText(storedSource)) {
+                try {
+                    source = ResolvedTargetSource.valueOf(storedSource.trim());
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+
+            resolved.add(ResolvedTarget.builder()
+                .id(id.trim())
+                .vectorSpace(StringUtils.hasText(vectorSpace) ? vectorSpace.trim() : null)
+                .contentText(StringUtils.hasText(contentText) ? contentText.trim() : null)
+                .metadata(meta)
+                .source(source)
+                .build());
+        }
+
+        if (resolved.isEmpty()) {
+            return context;
+        }
+
+        resolved = rehydrateResolvedTargetsIfNeeded(resolved);
+
+        return context.toBuilder()
+            .resolvedTargets(Collections.unmodifiableList(resolved))
+            .build();
+    }
+
+    private List<ResolvedTarget> rehydrateResolvedTargetsIfNeeded(List<ResolvedTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return targets;
+        }
+
+        VectorDatabaseService vectorDatabaseService = vectorDatabaseServiceProvider != null
+            ? vectorDatabaseServiceProvider.getIfAvailable()
+            : null;
+        if (vectorDatabaseService == null) {
+            return targets;
+        }
+
+        List<ResolvedTarget> updated = new ArrayList<>(targets.size());
+        boolean changed = false;
+
+        for (ResolvedTarget target : targets) {
+            if (target == null || !StringUtils.hasText(target.getId()) || !StringUtils.hasText(target.getVectorSpace())) {
+                updated.add(target);
+                continue;
+            }
+
+            boolean needsContent = !StringUtils.hasText(target.getContentText());
+            boolean needsMetadata = target.getMetadata() == null || target.getMetadata().isEmpty();
+            if (!needsContent && !needsMetadata) {
+                updated.add(target);
+                continue;
+            }
+
+            VectorRecord record;
+            try {
+                record = vectorDatabaseService.getVectorByEntity(target.getVectorSpace(), target.getId()).orElse(null);
+            } catch (Exception ex) {
+                record = null;
+            }
+
+            if (record == null) {
+                updated.add(target);
+                continue;
+            }
+
+            String contentText = needsContent ? buildContentText(record.getContent()) : target.getContentText();
+            Map<String, String> metadata = needsMetadata ? buildMetadata(record.getMetadata()) : target.getMetadata();
+
+            ResolvedTarget enriched = target.toBuilder()
+                .contentText(contentText)
+                .metadata(metadata)
+                .build();
+
+            updated.add(enriched);
+            changed = changed || enriched != target;
+        }
+
+        if (!changed) {
+            return targets;
+        }
+        return Collections.unmodifiableList(updated);
+    }
+
+    private String buildContentText(String content) {
+        if (!StringUtils.hasText(content)) {
+            return null;
+        }
+        String trimmed = content.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.length() <= REHYDRATED_CONTENT_TEXT_MAX_CHARS) {
+            return trimmed;
+        }
+        return trimmed.substring(0, REHYDRATED_CONTENT_TEXT_MAX_CHARS);
+    }
+
+    private Map<String, String> buildMetadata(Map<String, Object> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+
+        LinkedHashMap<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : raw.entrySet()) {
+            if (out.size() >= REHYDRATED_METADATA_MAX_ENTRIES) {
+                break;
+            }
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                continue;
+            }
+            String value = String.valueOf(entry.getValue());
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            String trimmedValue = value.trim();
+            if (trimmedValue.isEmpty()) {
+                continue;
+            }
+            if (trimmedValue.length() > REHYDRATED_METADATA_MAX_VALUE_LENGTH) {
+                trimmedValue = trimmedValue.substring(0, REHYDRATED_METADATA_MAX_VALUE_LENGTH);
+            }
+            out.put(entry.getKey(), trimmedValue);
+        }
+
+        return out.isEmpty() ? Map.of() : Collections.unmodifiableMap(out);
+    }
+
+    private int coerceInt(Object value, int defaultValue) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String str && StringUtils.hasText(str)) {
+            try {
+                return Integer.parseInt(str.trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return defaultValue;
+    }
+
+    private String coerceString(Object value) {
+        if (value instanceof String str) {
+            return str;
+        }
+        return value != null ? value.toString() : null;
     }
 
     private Map<String, Object> mergeMetadata(Map<String, Object> base, Map<String, Object> additions) {

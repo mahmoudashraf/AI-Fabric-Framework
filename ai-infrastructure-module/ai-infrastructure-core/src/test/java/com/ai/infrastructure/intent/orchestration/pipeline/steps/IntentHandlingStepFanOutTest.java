@@ -5,6 +5,7 @@ import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.PostActionGenerationProperties;
 import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.Intent;
@@ -21,12 +22,16 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
 import java.util.Map;
@@ -129,7 +134,9 @@ class IntentHandlingStepFanOutTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         Intent intent = Intent.builder()
@@ -183,7 +190,9 @@ class IntentHandlingStepFanOutTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         Intent intent = Intent.builder()
@@ -227,7 +236,9 @@ class IntentHandlingStepFanOutTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
     }
 
@@ -245,5 +256,12 @@ class IntentHandlingStepFanOutTest {
         ObjectProvider<T> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(value);
         return provider;
+    }
+
+    private PromptTemplateResolver promptTemplateResolver() {
+        return new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
     }
 }

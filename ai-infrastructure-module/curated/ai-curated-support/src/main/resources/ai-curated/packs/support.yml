@@ -1,0 +1,13 @@
+ai:
+  orchestration:
+    profile: PRODUCTION_CHAT
+    modes:
+      support_resolver:
+        information-mode: LLM_DRIVEN
+    position-routing:
+      support: support_resolver
+
+  prompts:
+    bundle:
+      overlays:
+        - v1-support

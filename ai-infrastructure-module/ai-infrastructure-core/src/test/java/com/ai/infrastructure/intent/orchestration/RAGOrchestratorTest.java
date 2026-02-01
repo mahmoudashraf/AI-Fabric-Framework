@@ -4,6 +4,7 @@ import com.ai.infrastructure.config.ResponseSanitizationProperties;
 import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.config.AIServiceConfig;
 import com.ai.infrastructure.config.OrchestrationProperties;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
@@ -37,6 +38,9 @@ import com.ai.infrastructure.intent.orchestration.pipeline.steps.SmartSuggestion
 import com.ai.infrastructure.intent.orchestration.pipeline.steps.VectorSpaceResolutionStep;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import com.ai.infrastructure.security.ResponseSanitizer;
 import com.ai.infrastructure.security.AISecurityService;
@@ -50,6 +54,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
 import java.util.Map;
@@ -166,6 +171,12 @@ class RAGOrchestratorTest {
         ObjectProvider<KnowledgeBaseOverviewService> overviewProvider = mock(ObjectProvider.class);
         lenient().when(overviewProvider.getIfAvailable()).thenReturn(null);
 
+        PromptTemplateResolver promptTemplateResolver = new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
+        PromptRenderer promptRenderer = new PromptRenderer();
+
         List<PipelineStep> steps = List.of(
             new SecurityAnalysisStep(securityService),
             new AccessControlStep(accessControlService),
@@ -179,7 +190,9 @@ class RAGOrchestratorTest {
                 orchestrationProperties,
                 overviewProvider,
                 new InMemoryPendingActionStore(),
-                new InMemoryActionDraftStore()),
+                new InMemoryActionDraftStore(),
+                promptTemplateResolver,
+                promptRenderer),
             new OrchestrationResultNormalizationStep(normalizer, normalizationProperties),
             new MetadataBuildingStep(normalizationProperties),
             new SmartSuggestionsStep(smartSuggestionsProperties, ragProviderProvider),

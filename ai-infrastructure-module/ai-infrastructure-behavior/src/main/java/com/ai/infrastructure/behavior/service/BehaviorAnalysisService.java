@@ -14,6 +14,8 @@ import com.ai.infrastructure.llm.structured.StructuredJsonCallExecutor;
 import com.ai.infrastructure.llm.structured.StructuredJsonCallSpec;
 import com.ai.infrastructure.llm.structured.StructuredJsonProviderHints;
 import com.ai.infrastructure.llm.structured.StructuredJsonResult;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,12 +36,29 @@ import java.util.concurrent.atomic.AtomicReference;
 @RequiredArgsConstructor
 @ConditionalOnBean(ExternalEventProvider.class)
 public class BehaviorAnalysisService {
+
+    private static final String TEMPLATE_FAMILY = "behavior/analysis";
+    private static final String TEMPLATE_SYSTEM = "system";
+    private static final String TEMPLATE_USER = "user";
+
+    private static final String TEMPLATE_FAMILY_JSON_REPAIR = "structured-json/repair";
+    private static final String TEMPLATE_JSON_REPAIR_SYSTEM_ADDON = "system-addon";
+    private static final String TEMPLATE_JSON_REPAIR_USER = "user";
+
+    private static final String PLACEHOLDER_USER_CONTEXT_SECTION = "user_context_section";
+    private static final String PLACEHOLDER_PREVIOUS_ANALYSIS_SECTION = "previous_analysis_section";
+    private static final String PLACEHOLDER_EVENTS_COUNT = "events_count";
+    private static final String PLACEHOLDER_NEW_EVENTS_LINES = "new_events_lines";
+    private static final String PLACEHOLDER_USER_REQUEST = "user_request";
+    private static final String PLACEHOLDER_MALFORMED_RESPONSE = "malformed_response";
     
     private final ExternalEventProvider eventProvider;
     private final BehaviorStorageAdapter storageAdapter;
     private final AICoreService aiCoreService;
     private final ObjectMapper objectMapper;
     private final StructuredJsonCallExecutor structuredJsonCallExecutor;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
     
     /**
      * CASE 1: Analyze a specific user (Targeted)
@@ -198,68 +217,68 @@ public class BehaviorAnalysisService {
         List<ExternalEvent> newEvents,
         Map<String, Object> userContext
     ) {
-        StringBuilder prompt = new StringBuilder();
+        String userContextSection = buildUserContextSection(userContext);
+        String previousAnalysisSection = buildPreviousAnalysisSection(oldInsight);
+        String newEventsLines = buildNewEventsLines(newEvents);
 
-        if (userContext != null && !userContext.isEmpty()) {
-            prompt.append("=== USER CONTEXT ===\n");
-            userContext.forEach((key, value) ->
-                prompt.append("- ").append(key).append(": ").append(value).append("\n")
-            );
-            prompt.append("\n");
-        }
-
-        if (oldInsight != null) {
-            prompt.append("=== PREVIOUS ANALYSIS ===\n");
-            prompt.append("- Segment: ").append(oldInsight.getSegment()).append("\n");
-            prompt.append("- Sentiment: ").append(oldInsight.getSentimentScore())
-                .append(" / ").append(oldInsight.getSentimentLabel()).append("\n");
-            prompt.append("- Churn Risk: ").append(oldInsight.getChurnRisk()).append("\n");
-            prompt.append("- Trend: ").append(oldInsight.getTrend()).append("\n\n");
-        } else {
-            prompt.append("This is a NEW user with no previous analysis.\n\n");
-        }
-
-        prompt.append("=== NEW EVENTS (").append(newEvents.size()).append(") ===\n");
-        newEvents.forEach(event -> prompt.append("- ")
-            .append(event.getEventType())
-            .append(" at ").append(event.getTimestamp())
-            .append(" | Data: ").append(event.getEventData())
-            .append("\n"));
-
-        prompt.append("\nAnalyze how this user's behavior has evolved. Compare with previous values when available. ");
-        prompt.append("Provide: segment, patterns, sentiment(score+label), churn(risk+reason), trend, recommendations, insights, confidence.");
-
-        return prompt.toString();
+        return promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_USER).template(),
+            Map.of(
+                PLACEHOLDER_USER_CONTEXT_SECTION, userContextSection,
+                PLACEHOLDER_PREVIOUS_ANALYSIS_SECTION, previousAnalysisSection,
+                PLACEHOLDER_EVENTS_COUNT, String.valueOf(newEvents != null ? newEvents.size() : 0),
+                PLACEHOLDER_NEW_EVENTS_LINES, newEventsLines
+            )
+        );
     }
 
     private String getSystemPrompt() {
-        return """
-            You are an expert Behavioral Psychologist specializing in TREND DETECTION.
+        return promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM).template(),
+            Map.of()
+        );
+    }
 
-            Analyze user behavior and detect CHANGES over time.
+    private String buildUserContextSection(Map<String, Object> userContext) {
+        if (userContext == null || userContext.isEmpty()) {
+            return "";
+        }
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("=== USER CONTEXT ===\n");
+        userContext.forEach((key, value) -> prompt.append("- ").append(key).append(": ").append(value).append("\n"));
+        return prompt.append("\n").toString().trim();
+    }
 
-            Output Dimensions:
-            1. Segment
-            2. Patterns
-            3. Sentiment {score: -1..1, label: DELIGHTED|SATISFIED|NEUTRAL|CONFUSED|FRUSTRATED|CHURNING}
-            4. Churn {risk: 0..1, reason: string}
-            5. Trend {RAPIDLY_IMPROVING|IMPROVING|STABLE|DECLINING|RAPIDLY_DECLINING|NEW_USER}
-            6. Recommendations
-            7. Insights
-            8. Confidence (0..1)
+    private String buildPreviousAnalysisSection(BehaviorInsights oldInsight) {
+        if (oldInsight == null) {
+            return "This is a NEW user with no previous analysis.\n";
+        }
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("=== PREVIOUS ANALYSIS ===\n");
+        prompt.append("- Segment: ").append(oldInsight.getSegment()).append("\n");
+        prompt.append("- Sentiment: ").append(oldInsight.getSentimentScore())
+            .append(" / ").append(oldInsight.getSentimentLabel()).append("\n");
+        prompt.append("- Churn Risk: ").append(oldInsight.getChurnRisk()).append("\n");
+        prompt.append("- Trend: ").append(oldInsight.getTrend()).append("\n\n");
+        return prompt.toString().trim();
+    }
 
-            Respond with valid JSON:
-            {
-              "segment": "string",
-              "patterns": ["string"],
-              "sentiment": {"score": 0.0, "label": "string"},
-              "churn": {"risk": 0.0, "reason": "string"},
-              "trend": "string",
-              "recommendations": ["string"],
-              "insights": {},
-              "confidence": 0.0-1.0
+    private String buildNewEventsLines(List<ExternalEvent> newEvents) {
+        if (newEvents == null || newEvents.isEmpty()) {
+            return "";
+        }
+        StringBuilder prompt = new StringBuilder();
+        for (ExternalEvent event : newEvents) {
+            if (event == null) {
+                continue;
             }
-            """;
+            prompt.append("- ")
+                .append(event.getEventType())
+                .append(" at ").append(event.getTimestamp())
+                .append(" | Data: ").append(event.getEventData())
+                .append("\n");
+        }
+        return prompt.toString().trim();
     }
 
     private BehaviorInsights parseLLMResponse(
@@ -327,27 +346,21 @@ public class BehaviorAnalysisService {
 
     private AIGenerationRequest buildRepairRequest(AIGenerationRequest originalRequest, String originalPrompt, String malformedContent) {
         String originalSystemPrompt = originalRequest != null ? originalRequest.getSystemPrompt() : null;
-        String repairSystemPrompt = (org.springframework.util.StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "") + """
-            You are repairing a previously malformed assistant response.
-            Output MUST be a single JSON object that matches the schema above exactly.
-            Include ALL schema fields (use null/false/empty values where appropriate) so downstream systems can operate safely.
-            Never wrap the JSON in markdown code fences and never add commentary.
-            """;
+        String repairSystemPrompt = (org.springframework.util.StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "")
+            + promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY_JSON_REPAIR, TEMPLATE_JSON_REPAIR_SYSTEM_ADDON).template(),
+                Map.of()
+            );
 
-        String repairPrompt = """
-            Convert the malformed assistant response into valid JSON that matches the schema in the system prompt.
-            This is a STRUCTURAL repair step only: fix JSON/schema correctness, do NOT infer or guess semantic fields.
-
-            ORIGINAL USER REQUEST (for context):
-            ---BEGIN USER REQUEST---
-            %s
-            ---END USER REQUEST---
-
-            MALFORMED ASSISTANT RESPONSE:
-            ---BEGIN MALFORMED---
-            %s
-            ---END MALFORMED---
-            """.formatted(originalPrompt, malformedContent != null ? malformedContent : "");
+        String safeOriginalPrompt = originalPrompt != null ? originalPrompt : "";
+        String safeMalformedContent = malformedContent != null ? malformedContent : "";
+        String repairPrompt = promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY_JSON_REPAIR, TEMPLATE_JSON_REPAIR_USER).template(),
+            Map.of(
+                PLACEHOLDER_USER_REQUEST, safeOriginalPrompt,
+                PLACEHOLDER_MALFORMED_RESPONSE, safeMalformedContent
+            )
+        );
 
         String repairEntityId = originalRequest != null && originalRequest.getEntityId() != null
             ? originalRequest.getEntityId() + "-repair"

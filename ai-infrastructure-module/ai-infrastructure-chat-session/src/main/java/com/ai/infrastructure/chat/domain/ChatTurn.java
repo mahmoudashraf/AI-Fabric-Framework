@@ -80,6 +80,11 @@ public class ChatTurn {
             builder.append("\n").append(actionContext);
         }
 
+        String workingSetContext = buildWorkingSetContextForPrompt();
+        if (workingSetContext != null) {
+            builder.append("\n").append(workingSetContext);
+        }
+
         return builder.toString();
     }
 
@@ -140,5 +145,52 @@ public class ChatTurn {
         }
 
         return out.toString();
+    }
+
+    private String buildWorkingSetContextForPrompt() {
+        if (turnMetadata == null || turnMetadata.isEmpty()) {
+            return null;
+        }
+
+        Object workingSet = turnMetadata.get("_workingSet");
+        if (!(workingSet instanceof Map<?, ?> map) || map.isEmpty()) {
+            return null;
+        }
+
+        Object refs = map.get("topDocumentRefs");
+        if (!(refs instanceof List<?> list) || list.isEmpty()) {
+            return null;
+        }
+
+        List<String> items = new java.util.ArrayList<>();
+        boolean truncated = false;
+
+        for (Object entry : list) {
+            if (items.size() >= 8) {
+                truncated = true;
+                break;
+            }
+            if (!(entry instanceof Map<?, ?> ref)) {
+                continue;
+            }
+            Object id = ref.get("id");
+            if (!(id instanceof String idText) || idText.isBlank()) {
+                continue;
+            }
+
+            Object vs = ref.get("vectorSpace");
+            if (vs instanceof String vsText && !vsText.isBlank()) {
+                items.add(vsText.trim() + ":" + idText.trim());
+            } else {
+                items.add(idText.trim());
+            }
+        }
+
+        if (items.isEmpty()) {
+            return null;
+        }
+
+        String summary = "Working Set: " + String.join(", ", items);
+        return truncated ? summary + ", ..." : summary;
     }
 }

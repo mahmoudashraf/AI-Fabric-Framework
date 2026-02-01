@@ -9,7 +9,10 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
+import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -30,11 +33,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.hibernate.Hibernate;
 
 import java.util.List;
 import java.util.UUID;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -57,6 +64,7 @@ public class ChatController {
     private final ObjectProvider<RAGOrchestrator> orchestratorProvider;
     private final ObjectProvider<ChatSessionService> chatSessionServiceProvider;
     private final ObjectProvider<AICoreService> aiCoreServiceProvider;
+    private final ObjectProvider<AIActionRegistry> aiActionRegistryProvider;
 
     @PostMapping("/query")
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request) {
@@ -91,17 +99,25 @@ public class ChatController {
      */
     @PostMapping("/suggestions")
     public ResponseEntity<SuggestionsResponse> suggestions(@Valid @RequestBody SuggestionsRequest request) {
+        int n = request.getMaxSuggestions() != null ? request.getMaxSuggestions() : 5;
+        n = Math.max(1, Math.min(n, 10));
+
+        AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
+        List<AIActionMetaData> actions = registry != null ? registry.getAllMetadata() : List.of();
+        List<OrchestrationAttachment> attachments = request.getAttachments() != null ? request.getAttachments() : List.of();
+        List<String> activeIds = request.getActiveAttachmentIds() != null ? request.getActiveAttachmentIds() : List.of();
+
+        String prompt = buildActionAwareSuggestionsPrompt(request.getContent(), actions, attachments, activeIds, n);
+
         AICoreService aiCoreService = aiCoreServiceProvider.getIfAvailable();
         if (aiCoreService == null) {
             return ResponseEntity.ok(SuggestionsResponse.builder()
-                .success(false)
-                .message("AI core service not configured")
-                .suggestions(List.of())
+                .success(true)
+                .message("AI provider not configured; returning fallback suggestions")
+                .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, activeIds, n))
+                .raw(null)
                 .build());
         }
-
-        int n = request.getMaxSuggestions() != null ? request.getMaxSuggestions() : 5;
-        String prompt = buildSuggestionsPrompt(request.getContent(), n);
 
         try {
             AIGenerationResponse response = aiCoreService.generateContent(AIGenerationRequest.builder()
@@ -112,10 +128,15 @@ public class ChatController {
                 .prompt(prompt)
                 .maxTokens(300)
                 .temperature(0.4)
+                .userId(request.getUserId())
                 .build(), LlmPurpose.GENERATION);
 
             String raw = response != null ? response.getContent() : null;
             List<String> suggestions = normalizeSuggestions(parseSuggestions(raw), n);
+
+            if (suggestions.isEmpty()) {
+                suggestions = buildFallbackSuggestions(request.getContent(), actions, attachments, activeIds, n);
+            }
 
             return ResponseEntity.ok(SuggestionsResponse.builder()
                 .success(true)
@@ -125,40 +146,58 @@ public class ChatController {
                 .build());
         } catch (Exception ex) {
             return ResponseEntity.ok(SuggestionsResponse.builder()
-                .success(false)
-                .message("Failed to generate suggestions: " + ex.getMessage())
-                .suggestions(List.of())
+                .success(true)
+                .message("AI suggestions unavailable; returning fallback suggestions")
+                .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, activeIds, n))
+                .raw(null)
                 .build());
         }
     }
 
     @GetMapping("/conversations/{conversationId}")
     public ResponseEntity<ConversationResponse> getConversation(@PathVariable String conversationId,
-                                                                @RequestParam("ownerId") String ownerId) {
+                                                                @RequestParam(value = "userId", required = false) String userId,
+                                                                @RequestParam(value = "ownerId", required = false) String ownerId) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(toConversationResponse(service.getSession(conversationId, ownerId)));
+        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(toConversationResponse(service.getSession(conversationId, resolvedOwnerId)));
     }
 
     @GetMapping("/conversations")
-    public ResponseEntity<List<ConversationSummaryResponse>> listConversations(@RequestParam("ownerId") String ownerId) {
+    public ResponseEntity<List<ConversationSummaryResponse>> listConversations(
+        @RequestParam(value = "userId", required = false) String userId,
+        @RequestParam(value = "ownerId", required = false) String ownerId
+    ) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.ok(List.of());
         }
-        return ResponseEntity.ok(service.getUserConversations(ownerId).stream().map(this::toConversationSummaryResponse).toList());
+        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(service.getUserConversations(resolvedOwnerId).stream().map(this::toConversationSummaryResponse).toList());
     }
 
     @DeleteMapping("/conversations/{conversationId}")
     public ResponseEntity<Void> deleteConversation(@PathVariable String conversationId,
-                                                   @RequestParam("ownerId") String ownerId) {
+                                                   @RequestParam(value = "userId", required = false) String userId,
+                                                   @RequestParam(value = "ownerId", required = false) String ownerId) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.noContent().build();
         }
-        service.deleteConversation(conversationId, ownerId);
+        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return ResponseEntity.badRequest().build();
+        }
+        service.deleteConversation(conversationId, resolvedOwnerId);
         return ResponseEntity.noContent().build();
     }
 
@@ -168,17 +207,42 @@ public class ChatController {
             ? request.getSessionId()
             : "anon-" + UUID.randomUUID();
 
-        OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
-            .conversationId(conversationId);
+        String ownerId = StringUtils.hasText(userId) ? userId : sessionId;
 
-        if (StringUtils.hasText(userId)) {
-            builder.userId(userId);
-            builder.sessionId(sessionId);
-        } else {
-            builder.sessionId(sessionId);
+        OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
+            .conversationId(conversationId)
+            // Demo app: temporarily force a single orchestration mode.
+            .mode("navigator");
+
+        // TODO: Re-enable client-driven position/mode routing once multi-mode UX is finalized.
+        // if (StringUtils.hasText(request.getPosition())) {
+        //     builder.position(request.getPosition());
+        // }
+        // if (StringUtils.hasText(request.getMode())) {
+        //     builder.mode(request.getMode());
+        // }
+
+        if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
+            builder.attachments(request.getAttachments());
+        }
+        if (request.getActiveAttachmentIds() != null && !request.getActiveAttachmentIds().isEmpty()) {
+            builder.activeAttachmentIds(request.getActiveAttachmentIds());
         }
 
+        builder.userId(ownerId);
+        builder.sessionId(sessionId);
+
         return builder.build();
+    }
+
+    private String resolveOwnerId(String userId, String ownerId) {
+        if (StringUtils.hasText(userId)) {
+            return userId;
+        }
+        if (StringUtils.hasText(ownerId)) {
+            return ownerId;
+        }
+        return null;
     }
 
     private String buildSuggestionsPrompt(String content, int n) {
@@ -190,6 +254,203 @@ public class ChatController {
 
             Output format: JSON array of %d strings.
             """.formatted(content, n, n);
+    }
+
+    private String buildActionAwareSuggestionsPrompt(String content,
+                                                    List<AIActionMetaData> actions,
+                                                    List<OrchestrationAttachment> attachments,
+                                                    List<String> activeAttachmentIds,
+                                                    int n) {
+        String availableActions = formatActions(actions);
+        String attachedItems = formatAttachments(attachments, activeAttachmentIds);
+
+        return """
+            Task:
+            Give me most suitable %d suggestions (questions/actions) based on the available actions and attached items.
+
+            Output MUST be valid JSON: an array of strings.
+            Return exactly %d suggestions (no more, no less).
+            Each suggestion should be short, clickable, and phrased as a user request.
+            Prefer suggestions that map to one of the available actions.
+            If attachments are present, ground suggestions in them.
+            Do not include explanations.
+
+            User context (optional):
+            %s
+
+            Attached items (may be empty):
+            %s
+
+            Available actions (may be empty):
+            %s
+            """.formatted(n, n,
+            StringUtils.hasText(content) ? content.trim() : "(none)",
+            attachedItems,
+            availableActions);
+    }
+
+    private String formatActions(List<AIActionMetaData> actions) {
+        if (actions == null || actions.isEmpty()) {
+            return "(none)";
+        }
+        return actions.stream()
+            .filter(a -> a != null && StringUtils.hasText(a.getName()))
+            .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+            .limit(60)
+            .map(a -> {
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("name", a.getName());
+                out.put("category", a.getCategory());
+                out.put("description", a.getDescription());
+                out.put("accessMode", a.getAccessMode() != null ? a.getAccessMode().name() : null);
+                out.put("requiredParameters", a.getRequiredParameters());
+                out.put("parameters", a.getParameters());
+                try {
+                    return OBJECT_MAPPER.writeValueAsString(out);
+                } catch (Exception ex) {
+                    return out.toString();
+                }
+            })
+            .collect(Collectors.joining("\n"));
+    }
+
+    private String formatAttachments(List<OrchestrationAttachment> attachments, List<String> activeAttachmentIds) {
+        if (attachments == null || attachments.isEmpty()) {
+            return "(none)";
+        }
+        java.util.Set<String> active = activeAttachmentIds != null ? java.util.Set.copyOf(activeAttachmentIds) : java.util.Set.of();
+        return attachments.stream()
+            .filter(a -> a != null)
+            .filter(a -> active.isEmpty() || (StringUtils.hasText(a.getId()) && active.contains(a.getId())))
+            .limit(20)
+            .map(a -> {
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("id", a.getId());
+                out.put("vectorSpace", a.getVectorSpace());
+                out.put("contentText", a.getContentText());
+                out.put("metadata", a.getMetadata());
+                out.put("source", a.getSource());
+                out.put("url", a.getUrl());
+                out.put("imageUrl", a.getImageUrl());
+                try {
+                    return OBJECT_MAPPER.writeValueAsString(out);
+                } catch (Exception ex) {
+                    return out.toString();
+                }
+            })
+            .collect(Collectors.joining("\n"));
+    }
+
+    private List<String> buildFallbackSuggestions(String content,
+                                                 List<AIActionMetaData> actions,
+                                                 List<OrchestrationAttachment> attachments,
+                                                 List<String> activeAttachmentIds,
+                                                 int n) {
+        String hint = extractHint(content, attachments, activeAttachmentIds);
+        java.util.Set<String> actionNames = actions != null
+            ? actions.stream()
+            .filter(a -> a != null && StringUtils.hasText(a.getName()))
+            .map(a -> a.getName().toLowerCase())
+            .collect(Collectors.toSet())
+            : java.util.Set.of();
+
+        List<String> out = new ArrayList<>(n);
+
+        if (containsAny(actionNames, "list_products", "search_products")) {
+            out.add("Show me products related to " + hint);
+        }
+        if (containsAny(actionNames, "list_products")) {
+            out.add("Show me more options for " + hint);
+        }
+        if (containsAny(actionNames, "list_products", "search_products")) {
+            out.add("Compare the top options for " + hint);
+        }
+        if (containsAny(actionNames, "list_orders", "get_active_orders", "get_orders", "list_my_orders")) {
+            out.add("Show my recent orders");
+        }
+        if (containsAny(actionNames, "list_my_addresses", "list_addresses")) {
+            out.add("Show my saved addresses");
+        }
+
+        if (out.isEmpty()) {
+            out.add("What can you do with these attached items?");
+            out.add("Summarize the attached items");
+            out.add("What are the next best actions?");
+        }
+
+        // Ensure exactly n suggestions (dedupe + trim/pad).
+        List<String> deduped = out.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
+
+        List<String> normalized = new ArrayList<>(Math.min(n, deduped.size()));
+        for (String s : deduped) {
+            if (normalized.size() >= n) {
+                break;
+            }
+            normalized.add(s);
+        }
+        while (normalized.size() < n) {
+            normalized.add("Tell me more about " + hint);
+        }
+        return normalized;
+    }
+
+    private boolean containsAny(java.util.Set<String> haystack, String... needles) {
+        if (haystack == null || haystack.isEmpty() || needles == null) {
+            return false;
+        }
+        for (String needle : needles) {
+            if (!StringUtils.hasText(needle)) {
+                continue;
+            }
+            if (haystack.contains(needle.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String extractHint(String content, List<OrchestrationAttachment> attachments, List<String> activeAttachmentIds) {
+        String raw = StringUtils.hasText(content) ? content.trim() : null;
+        if (!StringUtils.hasText(raw)) {
+            raw = firstAttachmentText(attachments, activeAttachmentIds);
+        }
+        if (!StringUtils.hasText(raw)) {
+            return "your request";
+        }
+        String trimmed = raw.replaceAll("\\s+", " ").trim();
+        if (trimmed.length() > 60) {
+            trimmed = trimmed.substring(0, 60).trim();
+        }
+        return "\"" + trimmed + "\"";
+    }
+
+    private String firstAttachmentText(List<OrchestrationAttachment> attachments, List<String> activeAttachmentIds) {
+        if (attachments == null || attachments.isEmpty()) {
+            return null;
+        }
+        java.util.Set<String> active = activeAttachmentIds != null ? java.util.Set.copyOf(activeAttachmentIds) : java.util.Set.of();
+        for (OrchestrationAttachment a : attachments) {
+            if (a == null) {
+                continue;
+            }
+            if (!active.isEmpty() && (!StringUtils.hasText(a.getId()) || !active.contains(a.getId()))) {
+                continue;
+            }
+            if (StringUtils.hasText(a.getContentText())) {
+                return a.getContentText();
+            }
+            if (StringUtils.hasText(a.getUrl())) {
+                return a.getUrl();
+            }
+            if (StringUtils.hasText(a.getVectorSpace())) {
+                return a.getVectorSpace();
+            }
+        }
+        return null;
     }
 
     private List<String> parseSuggestions(String raw) {
@@ -247,6 +508,10 @@ public class ChatController {
         private String userId;
         private String sessionId;
         private String conversationId;
+        private String position;
+        private String mode;
+        private List<OrchestrationAttachment> attachments;
+        private List<String> activeAttachmentIds;
     }
 
     @Data
@@ -292,8 +557,10 @@ public class ChatController {
 
     @Data
     public static class SuggestionsRequest {
-        @NotBlank
         private String content;
+        private String userId;
+        private List<OrchestrationAttachment> attachments;
+        private List<String> activeAttachmentIds;
         @Min(1)
         @Max(10)
         private Integer maxSuggestions = 5;
@@ -312,7 +579,9 @@ public class ChatController {
         if (session == null) {
             return null;
         }
-        List<ChatTurn> turns = session.getTurns() != null ? session.getTurns() : List.of();
+        List<ChatTurn> turns = (session.getTurns() != null && Hibernate.isInitialized(session.getTurns()))
+            ? session.getTurns()
+            : List.of();
         List<TurnResponse> mappedTurns = turns.stream()
             .filter(t -> t != null)
             .map(t -> TurnResponse.builder()
@@ -335,7 +604,9 @@ public class ChatController {
         if (session == null) {
             return null;
         }
-        int turnsCount = session.getTurns() != null ? session.getTurns().size() : 0;
+        int turnsCount = (session.getTurns() != null && Hibernate.isInitialized(session.getTurns()))
+            ? session.getTurns().size()
+            : 0;
         return ConversationSummaryResponse.builder()
             .id(session.getId())
             .ownerId(session.getOwnerId())

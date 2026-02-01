@@ -149,6 +149,37 @@ public class ChatSessionServiceImpl implements ChatSessionService {
     }
 
     @Override
+    @Transactional
+    public void mergeSessionMetadata(String conversationId, String ownerId, Map<String, Object> updates) {
+        if (!StringUtils.hasText(conversationId) || !StringUtils.hasText(ownerId)) {
+            return;
+        }
+        if (updates == null || updates.isEmpty()) {
+            return;
+        }
+
+        if (!accessPolicy.canAccessConversation(ownerId, conversationId)) {
+            throw new ChatSessionAccessDeniedException("Access denied to conversation: " + conversationId);
+        }
+
+        ChatSession session = storageProvider.findById(conversationId)
+            .orElseGet(() -> autoCreateSession(conversationId, ownerId));
+
+        if (!session.isOwnedBy(ownerId)) {
+            throw new ChatSessionAccessDeniedException("Conversation is owned by a different user");
+        }
+
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (session.getSessionMetadata() != null && !session.getSessionMetadata().isEmpty()) {
+            merged.putAll(session.getSessionMetadata());
+        }
+        merged.putAll(updates);
+
+        session.setSessionMetadata(merged);
+        storageProvider.save(session);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ChatSession> getUserConversations(String ownerId) {
         if (!StringUtils.hasText(ownerId)) {

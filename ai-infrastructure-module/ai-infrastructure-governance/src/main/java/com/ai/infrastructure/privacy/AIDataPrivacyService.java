@@ -3,6 +3,8 @@ package com.ai.infrastructure.privacy;
 import com.ai.infrastructure.dto.AIDataPrivacyRequest;
 import com.ai.infrastructure.dto.AIDataPrivacyResponse;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +20,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AIDataPrivacyService {
 
+    private static final String TEMPLATE_FAMILY = "governance/data-privacy";
+    private static final String TEMPLATE_CLASSIFY_SENSITIVITY = "classify-sensitivity";
+    private static final String PLACEHOLDER_CONTENT = "content";
+
     private final AICoreService aiCoreService;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
     private final Map<String, Map<String, Object>> privacySettings = new ConcurrentHashMap<>();
     private final Map<String, List<String>> dataClassifications = new ConcurrentHashMap<>();
 
@@ -86,13 +94,9 @@ public class AIDataPrivacyService {
         }
         
         try {
-            String prompt = String.format(
-                "Classify the sensitivity level of this data content. " +
-                "Return one of: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED\n\n" +
-                "Content: %s\n\n" +
-                "Consider factors like: personal information, financial data, " +
-                "health information, trade secrets, or other sensitive data.",
-                content
+            String prompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_CLASSIFY_SENSITIVITY).template(),
+                Map.of(PLACEHOLDER_CONTENT, content)
             );
             
             String response = aiCoreService.generateText(prompt);
@@ -438,4 +442,3 @@ public class AIDataPrivacyService {
         dataClassifications.remove(userId);
     }
 }
-

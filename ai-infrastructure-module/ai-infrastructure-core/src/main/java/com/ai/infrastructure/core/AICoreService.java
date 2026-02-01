@@ -9,6 +9,8 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.provider.AIProviderManager;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -32,20 +34,32 @@ import java.util.UUID;
 @Slf4j
 @Service
 public class AICoreService {
+
+    private static final String TEMPLATE_FAMILY = "core/content-validation";
+    private static final String TEMPLATE_SYSTEM = "system";
+    private static final String TEMPLATE_USER = "user";
+    private static final String PLACEHOLDER_CONTENT = "content";
+    private static final String PLACEHOLDER_VALIDATION_RULES = "validation_rules";
     
     private final AIProviderConfig aiProviderConfig;
     private final AIProviderManager providerManager;
     private final ObjectProvider<AIEmbeddingService> embeddingServiceProvider;
     private final ObjectProvider<AISearchService> searchServiceProvider;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
 
     public AICoreService(AIProviderConfig aiProviderConfig,
                          AIProviderManager providerManager,
                          ObjectProvider<AIEmbeddingService> embeddingServiceProvider,
-                         ObjectProvider<AISearchService> searchServiceProvider) {
+                         ObjectProvider<AISearchService> searchServiceProvider,
+                         PromptTemplateResolver promptTemplateResolver,
+                         PromptRenderer promptRenderer) {
         this.aiProviderConfig = aiProviderConfig;
         this.providerManager = providerManager;
         this.embeddingServiceProvider = embeddingServiceProvider;
         this.searchServiceProvider = searchServiceProvider;
+        this.promptTemplateResolver = promptTemplateResolver;
+        this.promptRenderer = promptRenderer;
     }
     
     /**
@@ -190,12 +204,24 @@ public class AICoreService {
     public Map<String, Object> validateContent(String content, Map<String, Object> validationRules) {
         try {
             log.debug("Validating content using AI");
-            
-            String prompt = buildValidationPrompt(content, validationRules);
-            
+
+            String safeContent = content != null ? content : "";
+            String validationRulesText = formatValidationRules(validationRules);
+            String prompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_USER).template(),
+                Map.of(
+                    PLACEHOLDER_CONTENT, safeContent,
+                    PLACEHOLDER_VALIDATION_RULES, validationRulesText
+                )
+            );
+            String systemPrompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM).template(),
+                Map.of()
+            );
+
             AIGenerationRequest request = AIGenerationRequest.builder()
                 .prompt(prompt)
-                .systemPrompt("You are an AI content validator. Analyze the content and provide validation results with suggestions for improvement.")
+                .systemPrompt(systemPrompt)
                 .build();
             
             AIGenerationResponse response = generateContent(request);
@@ -210,18 +236,15 @@ public class AICoreService {
     }
     
     /**
-     * Build validation prompt for AI
+     * Format validation rules for AI.
      */
-    private String buildValidationPrompt(String content, Map<String, Object> validationRules) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("Validate the following content:\n\n");
-        prompt.append("Content: ").append(content).append("\n\n");
-        prompt.append("Validation Rules:\n");
-        validationRules.forEach((key, value) -> 
-            prompt.append("- ").append(key).append(": ").append(value).append("\n"));
-        prompt.append("\nProvide validation results in JSON format with 'valid', 'errors', and 'suggestions' fields.");
-        
-        return prompt.toString();
+    private String formatValidationRules(Map<String, Object> validationRules) {
+        if (validationRules == null || validationRules.isEmpty()) {
+            return "";
+        }
+        StringBuilder formatted = new StringBuilder();
+        validationRules.forEach((key, value) -> formatted.append("- ").append(key).append(": ").append(value).append("\n"));
+        return formatted.toString().trim();
     }
     
     /**

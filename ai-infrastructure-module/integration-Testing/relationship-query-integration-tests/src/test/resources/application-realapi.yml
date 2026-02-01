@@ -40,6 +40,9 @@ spring:
     allow-bean-definition-overriding: true
 
 ai:
+  curated:
+    pack: ${AI_CURATED_PACK:support}
+
   providers:
     llm-provider: ${AI_INFRASTRUCTURE_LLM_PROVIDER:${LLM_PROVIDER:openai}}
     embedding-provider: ${AI_INFRASTRUCTURE_EMBEDDING_PROVIDER:${EMBEDDING_PROVIDER:onnx}}

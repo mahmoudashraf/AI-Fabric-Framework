@@ -6,9 +6,13 @@ import com.ai.infrastructure.behavior.model.SentimentLabel;
 import com.ai.infrastructure.behavior.model.UserEventBatch;
 import com.ai.infrastructure.behavior.spi.ExternalEventProvider;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.llm.structured.DefaultStructuredJsonCallExecutor;
 import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,12 +50,19 @@ class BehaviorAnalysisServiceTest {
     @BeforeEach
     void setup() {
         objectMapper = new ObjectMapper();
+        PromptRenderer promptRenderer = new PromptRenderer();
+        PromptTemplateResolver promptTemplateResolver = new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
         service = new BehaviorAnalysisService(
             eventProvider,
             storageAdapter,
             aiCoreService,
             objectMapper,
-            new DefaultStructuredJsonCallExecutor(new StructuredJsonExtractor(), objectMapper)
+            new DefaultStructuredJsonCallExecutor(new StructuredJsonExtractor(), objectMapper),
+            promptTemplateResolver,
+            promptRenderer
         );
     }
 

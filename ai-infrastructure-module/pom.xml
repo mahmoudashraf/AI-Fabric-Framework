@@ -35,6 +35,10 @@
         <module>ai-infrastructure-governance</module>
         <module>ai-fabric-starter</module>
         <module>ai-fabric-provider-starter</module>
+        <module>curated/ai-curated-default</module>
+        <module>curated/ai-curated-catalog</module>
+        <module>curated/ai-curated-commerce</module>
+        <module>curated/ai-curated-support</module>
         <module>ai-infrastructure-rag</module>
         <module>ai-infrastructure-web</module>
         <module>providers/ai-infrastructure-provider-openai</module>
@@ -140,6 +144,28 @@
             <dependency>
                 <groupId>com.ai.fabric</groupId>
                 <artifactId>ai-infrastructure-pii</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Curated Packs (optional) -->
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-curated-default</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-curated-catalog</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-curated-commerce</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-curated-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
             

@@ -24,3 +24,14 @@ POST {{baseUrl}}/api/ai/debug/indexing/demo?mode=sync
 ### Guest login (returns numeric userId + UUID)
 POST {{baseUrl}}/api/auth/guest/login
 
+### Natural language orchestration (position-aware: support)
+POST {{baseUrl}}/api/subscriptions/query
+Content-Type: application/json
+
+{
+  "userId": "1",
+  "sessionId": "subhub-session-1",
+  "conversationId": "chat-subhub-1",
+  "position": "support",
+  "query": "Which subscription plan is best for a small team that needs API access and analytics?"
+}

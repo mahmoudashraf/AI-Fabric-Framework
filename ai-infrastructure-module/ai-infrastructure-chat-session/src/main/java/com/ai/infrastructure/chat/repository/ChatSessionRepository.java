@@ -14,6 +14,9 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, String
     @EntityGraph(attributePaths = "turns")
     Optional<ChatSession> findWithTurnsById(String id);
 
+    @EntityGraph(attributePaths = "turns")
+    List<ChatSession> findWithTurnsByOwnerId(String ownerId);
+
     List<ChatSession> findByOwnerId(String ownerId);
 
     List<ChatSession> findByLastInteractionAtBeforeAndStatus(LocalDateTime cutoff, SessionStatus status);

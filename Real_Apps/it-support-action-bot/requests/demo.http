@@ -18,6 +18,9 @@ Content-Type: application/json
 
 {
   "userId": "agent_alex",
+  "sessionId": "agent-alex-session",
+  "conversationId": "chat-agent-alex",
+  "position": "support",
   "query": "Create a new ticket for Outlook not syncing email on Windows 11. Priority HIGH."
 }
 
@@ -27,6 +30,9 @@ Content-Type: application/json
 
 {
   "userId": "agent_alex",
+  "sessionId": "agent-alex-session",
+  "conversationId": "chat-agent-alex",
+  "position": "support",
   "query": "Assign ticket 1001 to agent_maya"
 }
 
@@ -36,6 +42,9 @@ Content-Type: application/json
 
 {
   "userId": "agent_alex",
+  "sessionId": "agent-alex-session",
+  "conversationId": "chat-agent-alex",
+  "position": "support",
   "query": "Escalate ticket 1002 because the customer is blocked and the issue is impacting production."
 }
 
@@ -45,9 +54,11 @@ Content-Type: application/json
 
 {
   "userId": "agent_alex",
+  "sessionId": "agent-alex-session",
+  "conversationId": "chat-agent-alex",
+  "position": "support",
   "query": "Close ticket 1003. Resolution: restarted the print spooler service and reinstalled the driver."
 }
 
 ### Inspect a ticket by number
 GET {{baseUrl}}/api/tickets/1001
-

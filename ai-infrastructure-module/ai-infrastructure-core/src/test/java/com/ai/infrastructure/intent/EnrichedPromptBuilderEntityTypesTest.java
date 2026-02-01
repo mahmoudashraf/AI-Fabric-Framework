@@ -1,13 +1,17 @@
 package com.ai.infrastructure.intent;
 
-import com.ai.infrastructure.config.IntentExtractionPromptProperties;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.config.PromptBundleProperties;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.time.Clock;
 import java.util.List;
@@ -30,7 +34,7 @@ class EnrichedPromptBuilderEntityTypesTest {
         SystemContextBuilder contextBuilder = createContextBuilderWithEntityTypes(
             Set.of("customer", "order", "product")
         );
-        EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(contextBuilder, new IntentExtractionPromptProperties());
+        EnrichedPromptBuilder promptBuilder = newPromptBuilder(contextBuilder);
         
         // Act
         String prompt = promptBuilder.buildSystemPrompt(OrchestrationContext.forUser("user-123"));
@@ -63,7 +67,7 @@ class EnrichedPromptBuilderEntityTypesTest {
     void shouldShowNoEntityTypesMessageWhenEmpty() {
         // Arrange
         SystemContextBuilder contextBuilder = createContextBuilderWithEntityTypes(Set.of());
-        EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(contextBuilder, new IntentExtractionPromptProperties());
+        EnrichedPromptBuilder promptBuilder = newPromptBuilder(contextBuilder);
         
         // Act
         String prompt = promptBuilder.buildSystemPrompt(OrchestrationContext.forUser("user-123"));
@@ -87,7 +91,7 @@ class EnrichedPromptBuilderEntityTypesTest {
     void shouldIncludeEntityTypesExtractionInstruction() {
         // Arrange
         SystemContextBuilder contextBuilder = createContextBuilderWithEntityTypes(Set.of("user"));
-        EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(contextBuilder, new IntentExtractionPromptProperties());
+        EnrichedPromptBuilder promptBuilder = newPromptBuilder(contextBuilder);
         
         // Act
         String prompt = promptBuilder.buildSystemPrompt(OrchestrationContext.forUser("user-123"));
@@ -163,5 +167,13 @@ class EnrichedPromptBuilderEntityTypesTest {
         };
         
         return builder;
+    }
+
+    private EnrichedPromptBuilder newPromptBuilder(SystemContextBuilder contextBuilder) {
+        PromptTemplateResolver promptTemplateResolver = new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
+        return new EnrichedPromptBuilder(contextBuilder, promptTemplateResolver, new PromptRenderer());
     }
 }

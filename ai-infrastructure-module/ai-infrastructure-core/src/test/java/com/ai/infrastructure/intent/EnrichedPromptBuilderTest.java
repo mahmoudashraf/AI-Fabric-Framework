@@ -1,11 +1,15 @@
 package com.ai.infrastructure.intent;
 
-import com.ai.infrastructure.config.IntentExtractionPromptProperties;
 import com.ai.infrastructure.intent.action.ActionInfo;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
+import com.ai.infrastructure.config.PromptBundleProperties;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.time.Clock;
 import java.util.List;
@@ -60,7 +64,15 @@ class EnrichedPromptBuilderTest {
             beanFactoryProvider
         );
 
-        EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(contextBuilder, new IntentExtractionPromptProperties());
+        PromptTemplateResolver promptTemplateResolver = new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
+        EnrichedPromptBuilder promptBuilder = new EnrichedPromptBuilder(
+            contextBuilder,
+            promptTemplateResolver,
+            new PromptRenderer()
+        );
 
         String prompt = promptBuilder.buildSystemPrompt("user-123");
 

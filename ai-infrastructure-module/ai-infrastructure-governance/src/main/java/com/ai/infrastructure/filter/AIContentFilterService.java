@@ -3,6 +3,8 @@ package com.ai.infrastructure.filter;
 import com.ai.infrastructure.dto.AIContentFilterRequest;
 import com.ai.infrastructure.dto.AIContentFilterResponse;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +20,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AIContentFilterService {
 
+    private static final String TEMPLATE_FAMILY = "governance/content-filter";
+    private static final String TEMPLATE_ANALYZE_VIOLATIONS = "analyze-violations";
+    private static final String PLACEHOLDER_CONTENT = "content";
+
     private final AICoreService aiCoreService;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
     private final Map<String, List<String>> blockedContent = new ConcurrentHashMap<>();
     private final Map<String, List<String>> allowedContent = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Object>> filterSettings = new ConcurrentHashMap<>();
@@ -89,13 +97,10 @@ public class AIContentFilterService {
         List<String> violations = new ArrayList<>();
         
         try {
-            String prompt = String.format(
-                "Analyze this content for violations. Check for: " +
-                "hate speech, harassment, violence, explicit content, " +
-                "spam, misinformation, or other policy violations.\n\n" +
-                "Content: %s\n\n" +
-                "Return only the violation types found, one per line, or 'NONE' if no violations.",
-                request.getContent()
+            String content = request.getContent() != null ? request.getContent() : "";
+            String prompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_ANALYZE_VIOLATIONS).template(),
+                Map.of(PLACEHOLDER_CONTENT, content)
             );
             
             String response = aiCoreService.generateText(prompt);
@@ -222,4 +227,3 @@ public class AIContentFilterService {
         return Math.max(0.0, 100.0 - lengthPenalty - violationPenalty);
     }
 }
-

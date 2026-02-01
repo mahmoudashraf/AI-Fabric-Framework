@@ -13,7 +13,7 @@ import com.ai.infrastructure.relationship.dto.RelationshipPath;
 import com.ai.infrastructure.relationship.dto.RelationshipQueryPlan;
 import com.ai.infrastructure.relationship.dto.QueryStrategy;
 import com.ai.infrastructure.relationship.integration.IntegrationTestSupport;
-import com.ai.infrastructure.relationship.integration.RelationshipQueryIntegrationTest;
+import com.ai.infrastructure.relationship.integration.RelationshipQueryTestApplication;
 import com.ai.infrastructure.relationship.integration.entity.BrandEntity;
 import com.ai.infrastructure.relationship.integration.entity.ProductEntity;
 import com.ai.infrastructure.relationship.integration.repository.BrandRepository;
@@ -57,7 +57,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(
-    classes = RelationshipQueryIntegrationTest.IntegrationTestApplication.class,
+    classes = RelationshipQueryTestApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.NONE
 )
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

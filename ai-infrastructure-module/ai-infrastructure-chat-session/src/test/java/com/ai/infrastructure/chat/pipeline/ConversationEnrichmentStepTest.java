@@ -1,6 +1,8 @@
 package com.ai.infrastructure.chat.pipeline;
 
 import com.ai.infrastructure.chat.config.ChatSessionProperties;
+import com.ai.infrastructure.chat.domain.ChatSession;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import com.ai.infrastructure.chat.exception.ChatSessionAccessDeniedException;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.intent.action.PendingAction;
@@ -9,7 +11,9 @@ import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Instant;
 import java.util.Map;
@@ -36,7 +40,13 @@ class ConversationEnrichmentStepTest {
         properties.setWindowSize(5);
         properties.setMaxContextChars(10_000);
 
-        ConversationEnrichmentStep step = new ConversationEnrichmentStep(service, properties, pendingActionStore, actionDraftStore);
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore,
+            emptyVectorDbProvider()
+        );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
@@ -69,7 +79,13 @@ class ConversationEnrichmentStepTest {
         ChatSessionProperties properties = new ChatSessionProperties();
         properties.setEnabled(true);
 
-        ConversationEnrichmentStep step = new ConversationEnrichmentStep(service, properties, pendingActionStore, actionDraftStore);
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore,
+            emptyVectorDbProvider()
+        );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
@@ -100,7 +116,13 @@ class ConversationEnrichmentStepTest {
         ChatSessionProperties properties = new ChatSessionProperties();
         properties.setEnabled(true);
 
-        ConversationEnrichmentStep step = new ConversationEnrichmentStep(service, properties, pendingActionStore, actionDraftStore);
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore,
+            emptyVectorDbProvider()
+        );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
@@ -114,5 +136,71 @@ class ConversationEnrichmentStepTest {
         assertThat(updated.getProcessedQuery()).contains("CONFIRMATION CONTEXT:");
         assertThat(updated.getProcessedQuery()).contains("pendingAction (most recent):");
         assertThat(updated.getProcessedQuery()).contains("create_purchase_order");
+    }
+
+    @Test
+    void shouldSeedResolvedTargetsFromSessionMetadataWhenWithinReuseWindow() {
+        ChatSessionService service = mock(ChatSessionService.class);
+        when(service.getConversationContext(anyString(), anyString())).thenReturn("User: hi\nAssistant: hello");
+
+        ChatSession session = ChatSession.builder()
+            .id("conv-1")
+            .ownerId("user-1")
+            .turns(java.util.List.of(
+                com.ai.infrastructure.chat.domain.ChatTurn.builder().build(),
+                com.ai.infrastructure.chat.domain.ChatTurn.builder().build(),
+                com.ai.infrastructure.chat.domain.ChatTurn.builder().build()
+            ))
+            .sessionMetadata(Map.of(
+                "lastResolvedTargetsTurnIndex", 2,
+                "lastResolvedTargets", java.util.List.of(
+                    Map.of(
+                        "id", "85",
+                        "vectorSpace", "product",
+                        "contentText", "snippet"
+                    )
+                )
+            ))
+            .createdAt(java.time.LocalDateTime.now())
+            .lastInteractionAt(java.time.LocalDateTime.now())
+            .build();
+
+        when(service.getSession(anyString(), anyString())).thenReturn(session);
+
+        PendingActionStore pendingActionStore = mock(PendingActionStore.class);
+        when(pendingActionStore.peekPendingAction(anyString(), anyString())).thenReturn(Optional.empty());
+        ActionDraftStore actionDraftStore = mock(ActionDraftStore.class);
+        when(actionDraftStore.peekDraft(anyString(), anyString())).thenReturn(Optional.empty());
+
+        ChatSessionProperties properties = new ChatSessionProperties();
+        properties.setEnabled(true);
+        properties.setPinnedTargetReuseWindowTurns(3);
+
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore,
+            emptyVectorDbProvider()
+        );
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user-1")
+            .conversationId("conv-1")
+            .build();
+
+        PipelineContext context = PipelineContext.from("summarize this", orchestrationContext);
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated.getResolvedTargets()).hasSize(1);
+        assertThat(updated.getResolvedTargets().getFirst().getId()).isEqualTo("85");
+        assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.SESSION_METADATA);
+    }
+
+    private ObjectProvider<VectorDatabaseService> emptyVectorDbProvider() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<VectorDatabaseService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(null);
+        return provider;
     }
 }

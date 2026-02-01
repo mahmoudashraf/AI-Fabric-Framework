@@ -4,6 +4,8 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.provider.AIProviderManager;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 
@@ -45,7 +47,14 @@ class AICoreServicePurposeRoutingTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<AISearchService> searchProvider = mock(ObjectProvider.class);
 
-        AICoreService coreService = new AICoreService(providerConfig, providerManager, embeddingProvider, searchProvider);
+        AICoreService coreService = new AICoreService(
+            providerConfig,
+            providerManager,
+            embeddingProvider,
+            searchProvider,
+            mock(PromptTemplateResolver.class),
+            mock(PromptRenderer.class)
+        );
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("id")
@@ -76,7 +85,14 @@ class AICoreServicePurposeRoutingTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<AISearchService> searchProvider = mock(ObjectProvider.class);
 
-        AICoreService coreService = new AICoreService(providerConfig, providerManager, embeddingProvider, searchProvider);
+        AICoreService coreService = new AICoreService(
+            providerConfig,
+            providerManager,
+            embeddingProvider,
+            searchProvider,
+            mock(PromptTemplateResolver.class),
+            mock(PromptRenderer.class)
+        );
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("id")
@@ -109,7 +125,14 @@ class AICoreServicePurposeRoutingTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<AISearchService> searchProvider = mock(ObjectProvider.class);
 
-        AICoreService coreService = new AICoreService(providerConfig, providerManager, embeddingProvider, searchProvider);
+        AICoreService coreService = new AICoreService(
+            providerConfig,
+            providerManager,
+            embeddingProvider,
+            searchProvider,
+            mock(PromptTemplateResolver.class),
+            mock(PromptRenderer.class)
+        );
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("id")

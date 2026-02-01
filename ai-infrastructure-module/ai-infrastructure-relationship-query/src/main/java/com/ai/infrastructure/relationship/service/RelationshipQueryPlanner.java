@@ -15,6 +15,8 @@ import com.ai.infrastructure.relationship.metrics.QueryMetrics;
 import com.ai.infrastructure.llm.structured.StructuredJsonExtraction;
 import com.ai.infrastructure.llm.structured.StructuredJsonExtractor;
 import com.ai.infrastructure.llm.structured.StructuredJsonProviderHints;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
@@ -48,138 +50,24 @@ public class RelationshipQueryPlanner {
     private final ObjectMapper objectMapper;
     private final StructuredJsonExtractor structuredJsonExtractor;
 
-    private static final List<String> PLAN_EXAMPLES = List.of(
-        """
-        Example plan for query "Find all brands":
-        {
-          "primaryEntityType": "brand",
-          "candidateEntityTypes": ["brand"],
-          "relationshipPaths": [],
-          "directFilters": {},
-          "relationshipFilters": {},
-          "metadataFilters": {},
-          "queryStrategy": "RELATIONSHIP",
-          "needsSemanticSearch": false,
-          "confidence": 0.9,
-          "context": {}
-        }
-        """,
-        """
-        Example plan for query "Show me blue shoes under $100 from Nike":
-        {
-          "primaryEntityType": "product",
-          "candidateEntityTypes": ["product", "brand"],
-          "relationshipPaths": [
-            {
-              "fromEntityType": "product",
-              "relationshipType": "brand",
-              "toEntityType": "brand",
-              "direction": "FORWARD",
-              "optional": false,
-              "conditions": [
-                {"field": "name", "operator": "EQUALS", "value": "Nike", "entityType": "brand"}
-              ]
-            }
-          ],
-          "directFilters": {
-            "product": [
-              {"field": "color", "operator": "LIKE", "value": "%blue%", "entityType": "product"},
-              {"field": "price", "operator": "LESS_THAN", "value": 100, "entityType": "product"}
-            ]
-          },
-          "relationshipFilters": {}
-        }
-        """,
-        """
-        Example plan for query "Find suspicious wires over $25k routed through the same counterparty":
-        {
-          "primaryEntityType": "transaction",
-          "candidateEntityTypes": ["transaction"],
-          "relationshipPaths": [
-            {
-              "fromEntityType": "transaction",
-              "relationshipType": "destinationAccount",
-              "toEntityType": "destination-account",
-              "direction": "FORWARD",
-              "optional": false,
-              "conditions": [
-                {"field": "region", "operator": "ILIKE", "value": "%high-risk%", "entityType": "destination-account"}
-              ]
-            },
-            {
-              "fromEntityType": "transaction",
-              "relationshipType": "sourceAccount",
-              "toEntityType": "origin-account",
-              "direction": "FORWARD",
-              "optional": false,
-              "conditions": [
-                {"field": "riskScore", "operator": "GREATER_THAN_OR_EQUAL", "value": 0.7, "entityType": "origin-account"},
-                {"field": "ownerName", "operator": "EQUALS", "value": "destination-account.ownerName", "entityType": "origin-account"}
-              ]
-            }
-          ],
-          "directFilters": {
-            "transaction": [
-              {"field": "amount", "operator": "GREATER_THAN", "value": 25000, "entityType": "transaction"}
-            ]
-          },
-          "relationshipFilters": {}
-        }
-        """,
-        """
-        Example plan for query "Find all contracts related to John Smith in Q4 2023":
-        {
-          "primaryEntityType": "document",
-          "candidateEntityTypes": ["document"],
-          "relationshipPaths": [
-            {
-              "fromEntityType": "document",
-              "relationshipType": "author",
-              "toEntityType": "user",
-              "direction": "FORWARD",
-              "optional": false,
-              "conditions": [
-                {"field": "fullName", "operator": "EQUALS", "value": "John Smith", "entityType": "user"}
-              ]
-            }
-          ],
-          "directFilters": {
-            "document": [
-              {"field": "creationDate", "operator": "GREATER_THAN_OR_EQUAL", "value": "2023-10-01T00:00:00", "entityType": "document"},
-              {"field": "creationDate", "operator": "LESS_THAN_OR_EQUAL", "value": "2023-12-31T23:59:59", "entityType": "document"}
-            ]
-          },
-          "relationshipFilters": {}
-        }
-        """,
-        """
-        Example plan for query "Show active Nike or Adidas running shoes priced between $80 and $120 available in red or blue":
-        {
-          "primaryEntityType": "product",
-          "candidateEntityTypes": ["product", "brand"],
-          "relationshipPaths": [
-            {
-              "fromEntityType": "product",
-              "relationshipType": "brand",
-              "toEntityType": "brand",
-              "direction": "FORWARD",
-              "optional": false,
-              "conditions": [
-                {"field": "name", "operator": "IN", "value": ["Nike", "Adidas"], "entityType": "brand"}
-              ]
-            }
-          ],
-          "directFilters": {
-            "product": [
-              {"field": "status", "operator": "EQUALS", "value": "ACTIVE", "entityType": "product"},
-              {"field": "price", "operator": "BETWEEN", "value": 80, "secondaryValue": 120, "entityType": "product"},
-              {"field": "color", "operator": "IN", "value": ["red", "blue"], "entityType": "product"}
-            ]
-          },
-          "relationshipFilters": {}
-        }
-        """
-    );
+    private static final String TEMPLATE_FAMILY = "relationship-query/planner";
+    private static final String TEMPLATE_SYSTEM = "system";
+    private static final String TEMPLATE_SYSTEM_REPAIR = "system-repair";
+    private static final String TEMPLATE_PLAN = "plan";
+    private static final String TEMPLATE_PLAN_COMPACT = "plan-compact";
+    private static final String TEMPLATE_EXAMPLES = "examples";
+    private static final String TEMPLATE_REPAIR = "repair";
+
+    private static final String PLACEHOLDER_SCHEMA = "schema";
+    private static final String PLACEHOLDER_USER_QUERY = "user_query";
+    private static final String PLACEHOLDER_EXAMPLES = "examples";
+    private static final String PLACEHOLDER_FEEDBACK_SECTION = "feedback_section";
+    private static final String PLACEHOLDER_ALLOWED_ENTITY_TYPES_LINE = "allowed_entity_types_line";
+    private static final String PLACEHOLDER_MALFORMED_RESPONSE = "malformed_response";
+    private static final String PLACEHOLDER_SAFE_PRIMARY_ENTITY = "safe_primary_entity";
+
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
 
     public RelationshipQueryPlanner(AICoreService aiCoreService,
                                     RelationshipSchemaProvider schemaProvider,
@@ -188,7 +76,9 @@ public class RelationshipQueryPlanner {
                                     QueryCache queryCache,
                                     QueryMetrics queryMetrics,
                                     ObjectMapper objectMapper,
-                                    StructuredJsonExtractor structuredJsonExtractor) {
+                                    StructuredJsonExtractor structuredJsonExtractor,
+                                    PromptTemplateResolver promptTemplateResolver,
+                                    PromptRenderer promptRenderer) {
         this.aiCoreService = aiCoreService;
         this.schemaProvider = schemaProvider;
         this.properties = properties;
@@ -197,6 +87,8 @@ public class RelationshipQueryPlanner {
         this.queryMetrics = queryMetrics;
         this.objectMapper = objectMapper;
         this.structuredJsonExtractor = Objects.requireNonNull(structuredJsonExtractor, "structuredJsonExtractor");
+        this.promptTemplateResolver = Objects.requireNonNull(promptTemplateResolver, "promptTemplateResolver");
+        this.promptRenderer = Objects.requireNonNull(promptRenderer, "promptRenderer");
     }
 
     public RelationshipQueryPlan planQuery(String query, List<String> entityTypes) {
@@ -582,12 +474,16 @@ public class RelationshipQueryPlanner {
         RelationshipQueryProperties.LlmProperties llm = properties.getLlm();
         Map<String, Object> parameters = new LinkedHashMap<>(StructuredJsonProviderHints.jsonObjectResponseParameters());
         parameters.put("min_confidence", llm.getMinConfidence());
+        String systemPrompt = promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM).template(),
+            Map.of()
+        );
         return AIGenerationRequest.builder()
             .entityId("relationship-query-" + UUID.randomUUID())
             .entityType("relationship-query")
             .generationType("planning")
             .prompt(prompt)
-            .systemPrompt("You are an expert database planner. Return ONLY a JSON object.")
+            .systemPrompt(systemPrompt)
             .model(llm.getModel())
             .temperature(llm.getTemperature())
             .maxTokens(llm.getMaxTokens())
@@ -603,6 +499,10 @@ public class RelationshipQueryPlanner {
 
     private String buildPrompt(String query, List<String> entityTypes, List<String> feedback) {
         String schemaDescription = schemaProvider.getSchemaDescription(entityTypes);
+        if (schemaDescription == null) {
+            schemaDescription = "";
+        }
+        String safeQuery = query != null ? query : "";
 
         if (shouldUseCompactPrompt(feedback)) {
             List<String> allowedTypes = CollectionUtils.isEmpty(entityTypes)
@@ -613,79 +513,45 @@ public class RelationshipQueryPlanner {
                 ? ""
                 : "Allowed entityTypes: " + String.join(", ", allowedTypes) + "\n";
 
-            return """
-                Return ONLY a valid JSON object (no markdown, no commentary).
-                Output MUST be a single-line minified JSON string (no newlines).
-
-                Keep the JSON extremely small (hard goal: <= 350 characters).
-                Emit ONLY the minimum required keys (omit everything else):
-                {"primaryEntityType":"...","candidateEntityTypes":["..."],"relationshipPaths":[],"directFilters":{},"confidence":0.7}
-
-                IMPORTANT shape rules:
-                - directFilters / relationshipFilters / metadataFilters MUST be JSON objects mapping entityType -> array of filter objects.
-                - A filter object shape is: {"field":"<fieldName>","operator":"EQUALS","value":<value>,"entityType":"<entityType>"}
-                - For cross-entity comparisons, set value to "<entity-slug>.<field>" (example: "destination-account.ownerName").
-                - To keep output small, omit "entityType" when it can be inferred (e.g., filters under directFilters.product).
-                - If unsure about relationships or filter fields, return empty relationshipPaths and empty directFilters.
-                - If the plan would require more than ONE relationshipPath, set relationshipPaths to [] and only use directFilters on the primary entity.
-                - If a constraint requires cross-entity equality and you cannot express it concisely, omit it (prefer a smaller valid plan over truncation).
-                - candidateEntityTypes MUST include primaryEntityType.
-                - Never invent entity types not listed below.
-
-                Schema:
-                %s
-
-                %sUser Query: "%s"
-                """.formatted(schemaDescription, allowedTypesLine, query);
+            return promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_PLAN_COMPACT).template(),
+                Map.of(
+                    PLACEHOLDER_SCHEMA, schemaDescription,
+                    PLACEHOLDER_ALLOWED_ENTITY_TYPES_LINE, allowedTypesLine,
+                    PLACEHOLDER_USER_QUERY, safeQuery
+                )
+            );
         }
 
-        StringBuilder builder = new StringBuilder("""
-            Analyze the user's request using the provided entity schema. Produce a JSON payload with:
-            - primaryEntityType (snake-case)
-            - candidateEntityTypes (array)
-            - relationshipPaths (array of {fromEntityType, relationshipType, toEntityType, direction, optional, conditions})
-            - directFilters (map of entity -> array of filters)
-            - relationshipFilters (map)
-            - needsSemanticSearch (boolean)
-            - queryStrategy ("RELATIONSHIP", "SEMANTIC", or "HYBRID")
-            - confidence (0.0 - 1.0 decimal)
-            - semanticQuery (string)
+        String examples = promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_EXAMPLES).template(),
+            Map.of()
+        );
+        String feedbackSection = buildFeedbackSection(feedback);
+        return promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_PLAN).template(),
+            Map.of(
+                PLACEHOLDER_SCHEMA, schemaDescription,
+                PLACEHOLDER_USER_QUERY, safeQuery,
+                PLACEHOLDER_EXAMPLES, examples,
+                PLACEHOLDER_FEEDBACK_SECTION, feedbackSection
+            )
+        );
+    }
 
-            Guidelines:
-            - candidateEntityTypes MUST always include the primaryEntityType.
-            - Each element inside directFilters/relationshipFilters MUST be an array of objects shaped like {"field":"entity.field","operator":"GREATER_THAN","value":123}. Valid operators: EQUALS, NOT_EQUALS, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, BETWEEN, IN, LIKE.
-            - relationshipPaths[].relationshipType MUST be the relationship field name exactly as shown under "Relationships" in the schema (e.g., "brand", "destinationAccount", "sourceAccount", "author").
-            - relationshipPaths[].conditions follows the exact same object structure (arrays of filter objects).
-            - Use fully-qualified field names such as "transaction.amount" or "destinationAccount.region".
-            - When a predicate needs to compare two entities (e.g., "same counterparty"), set the filter value to "<entity-slug>.<field>" (example: {"field":"ownerName","operator":"EQUALS","value":"destination-account.ownerName"}).
-            - When the request lists multiple acceptable values for the same field (e.g., "Nike or Adidas"), prefer the IN operator with an array of values.
-            - Use the exact field names shown in the schema (e.g., "creationDate", "author.fullName"); do not invent shorthand names like "date" or "author".
-            - NEVER copy literal values from the example plans. Examples are illustrative only.
-            - Only include literal filter values that are explicitly stated in the user's query (except for enumerated constants defined in the schema, e.g., statuses).
-            - For broad list queries like "find all <entity>" or "list all <entity>", return empty filters unless the user explicitly requests constraints.
-            - Do NOT emit raw strings, bare values, or shorthand expressions for any filter/condition.
-            - If the user mentions a concept that is not represented as a schema field, do NOT invent a new field. Either omit that constraint or map it to an existing field (commonly "name") if appropriate.
-
-            Output requirements:
-            - Return ONLY a single-line minified JSON object (no markdown, no commentary, no leading/trailing text, no newlines).
-            - Keep the JSON as small as possible: omit optional keys when empty/unknown (e.g., relationshipFilters, metadataFilters, context).
-            - Omit filter "entityType" when it can be inferred from its parent map key (e.g., directFilters.product).
-
-            Schema:
-            """);
-        builder.append(schemaDescription)
-            .append("\n\nUser Query: \"").append(query).append("\"\n");
-
-        builder.append("\nExample plans:\n");
-        PLAN_EXAMPLES.forEach(example -> builder.append(example).append("\n"));
-        if (!CollectionUtils.isEmpty(feedback)) {
-            builder.append("\nPrevious attempt issues:\n");
-            feedback.forEach(issue -> builder.append("- ").append(issue).append("\n"));
-            builder.append("Correct the issues above and return JSON only.\n");
-        } else {
-            builder.append("\nRespond with valid JSON only.\n");
+    private String buildFeedbackSection(List<String> feedback) {
+        if (CollectionUtils.isEmpty(feedback)) {
+            return "";
         }
-        return builder.toString();
+        StringBuilder builder = new StringBuilder();
+        builder.append("Previous attempt issues:\n");
+        for (String issue : feedback) {
+            if (StringUtils.hasText(issue)) {
+                builder.append("- ").append(issue).append("\n");
+            }
+        }
+        builder.append("Correct the issues above and return JSON only.\n");
+        return builder.toString().trim();
     }
 
     private boolean shouldUseCompactPrompt(List<String> feedback) {
@@ -764,40 +630,24 @@ public class RelationshipQueryPlanner {
             ? ""
             : "Allowed entityTypes: " + String.join(", ", allowedTypes) + "\n";
 
-        String prompt = """
-            You are repairing a malformed assistant response that was supposed to be a RelationshipQueryPlan JSON object.
-            Return ONLY a single JSON object. Do NOT wrap in markdown. Do NOT add commentary.
-            Output MUST be valid JSON that can be parsed.
+        String safeSchema = schema != null ? schema : "";
+        String safeMalformed = structuredJsonExtractor.stripCodeFences(rawResponse);
+        String safePrimaryEntity = safePrimaryEntity(entityTypes);
 
-            REQUIRED KEYS (others allowed but keep it minimal):
-            - primaryEntityType (string)
-            - candidateEntityTypes (array)
-            - relationshipPaths (array)
-            - directFilters (object)
-            - relationshipFilters (object)
-            - metadataFilters (object)
-            - needsSemanticSearch (boolean)
-            - queryStrategy (string)
-            - confidence (number 0..1)
+        String prompt = promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_REPAIR).template(),
+            Map.of(
+                PLACEHOLDER_ALLOWED_ENTITY_TYPES_LINE, allowedTypesLine,
+                PLACEHOLDER_SCHEMA, safeSchema,
+                PLACEHOLDER_USER_QUERY, originalQuery,
+                PLACEHOLDER_MALFORMED_RESPONSE, safeMalformed != null ? safeMalformed : "",
+                PLACEHOLDER_SAFE_PRIMARY_ENTITY, safePrimaryEntity
+            )
+        );
 
-            %sSchema:
-            %s
-
-            Original user query:
-            "%s"
-
-            Malformed assistant payload:
-            %s
-
-            If the payload is truncated or cannot be repaired, return a safe minimal plan:
-            {"primaryEntityType":"%s","candidateEntityTypes":["%s"],"relationshipPaths":[],"directFilters":{},"relationshipFilters":{},"metadataFilters":{},"needsSemanticSearch":false,"queryStrategy":"RELATIONSHIP","confidence":0.25}
-            """.formatted(
-            allowedTypesLine,
-            schema,
-            originalQuery,
-            structuredJsonExtractor.stripCodeFences(rawResponse),
-            safePrimaryEntity(entityTypes),
-            safePrimaryEntity(entityTypes)
+        String systemPrompt = promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM_REPAIR).template(),
+            Map.of()
         );
 
         AIGenerationRequest request = AIGenerationRequest.builder()
@@ -805,7 +655,7 @@ public class RelationshipQueryPlanner {
             .entityType("relationship-query")
             .generationType("planning_repair")
             .prompt(prompt)
-            .systemPrompt("Return ONLY a JSON object.")
+            .systemPrompt(systemPrompt)
             .model(llm.getModel())
             .temperature(0.0)
             .maxTokens(Math.min(1200, llm.getMaxTokens()))

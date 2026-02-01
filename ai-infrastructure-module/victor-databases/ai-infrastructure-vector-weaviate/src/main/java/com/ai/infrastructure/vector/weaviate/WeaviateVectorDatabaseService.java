@@ -267,11 +267,14 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             .map(record -> {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("vectorId", record.getVectorId());
+                row.put("id", record.getEntityId());
                 row.put("entityId", record.getEntityId());
                 row.put("entityType", record.getEntityType());
+                row.put("vectorSpace", record.getEntityType());
                 row.put("content", record.getContent());
                 row.put("metadata", record.getMetadata());
                 row.put("score", record.getSimilarityScore());
+                row.put("similarity", record.getSimilarityScore());
                 return row;
             })
             .toList();

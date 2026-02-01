@@ -36,9 +36,7 @@ public class CompoundIntentExtractionStrategy implements IntentExtractionStrateg
     @Override
     public ExtractionAttempt attemptExtract(String query, OrchestrationContext context) {
         String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(context);
-        String userPrompt = "analyze the following request from a user and extract the user intents from it in the provided format in system prompt\n\n-----------\n\nUser's question is :( "
-            + query
-            + ")";
+        String userPrompt = enrichedPromptBuilder.buildUserPrompt(query);
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())

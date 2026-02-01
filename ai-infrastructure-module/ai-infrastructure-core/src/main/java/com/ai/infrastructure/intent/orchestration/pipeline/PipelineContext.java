@@ -1,8 +1,10 @@
 package com.ai.infrastructure.intent.orchestration.pipeline;
 
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
@@ -126,12 +128,23 @@ public class PipelineContext {
     private final Map<String, Object> smartSuggestion = new LinkedHashMap<>();
 
     /**
+     * Server-resolved orchestration policy for this request.
+     */
+    private final OrchestrationPolicy orchestrationPolicy;
+
+    /**
      * Set of action names that have been explicitly confirmed for this request.
      *
      * <p>This is internal pipeline state (not user-supplied) used to prevent re-confirmation loops.</p>
      */
     @Builder.Default
     private final Set<String> confirmedActions = Set.of();
+
+    /**
+     * Deterministically resolved targets for this request (attachments / working set).
+     */
+    @Builder.Default
+    private final List<ResolvedTarget> resolvedTargets = new ArrayList<>();
 
     /**
      * The sanitized payload for the response.

@@ -4,18 +4,23 @@ import com.ai.infrastructure.chat.config.ChatSessionProperties;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.PIIDetection;
 import com.ai.infrastructure.dto.PIIDetectionResult;
+import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.intent.action.ActionListPayload;
 import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -38,9 +43,21 @@ public class ConversationRecordingStep implements PipelineStep {
     private static final String TURN_META_KEY_ACTION = "_action";
     private static final String TURN_META_KEY_ACTION_SUCCESS = "_actionSuccess";
     private static final String TURN_META_KEY_ACTION_REFS = "_actionRefs";
+    private static final String TURN_META_KEY_WORKING_SET = "_workingSet";
+
+    private static final String RESULT_DATA_KEY_ACTION_RESULT = "actionResult";
+    private static final String TARGET_REF_KEY_ID = "id";
+    private static final String TARGET_REF_KEY_VECTOR_SPACE = "vectorSpace";
+    private static final String TARGET_REF_KEY_CONTENT_TEXT = "contentText";
+    private static final String TARGET_REF_KEY_METADATA = "metadata";
+
+    private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS = "lastResolvedTargets";
+    private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX = "lastResolvedTargetsTurnIndex";
 
     private static final int ACTION_REFS_MAX_FIELDS = 12;
     private static final int ACTION_REFS_MAX_STRING_LENGTH = 120;
+    private static final int WORKING_SET_MAX_DOCS = 8;
+    private static final int RESOLVED_TARGETS_MAX = 8;
 
     private final ChatSessionService chatSessionService;
     private final ChatSessionProperties properties;
@@ -100,10 +117,181 @@ public class ConversationRecordingStep implements PipelineStep {
         try {
             Map<String, Object> turnMetadata = buildTurnMetadata(context);
             chatSessionService.recordTurn(conversationId, ownerId, userQuery, assistantResponse, turnMetadata);
+            persistPinnedTargets(context, conversationId, ownerId);
         } catch (Exception ex) {
             log.warn("Failed to record conversation turn conversationId={}: {}", conversationId, ex.getMessage());
         }
         return context;
+    }
+
+    private void persistPinnedTargets(PipelineContext context, String conversationId, String ownerId) {
+        if (context == null || !StringUtils.hasText(conversationId) || !StringUtils.hasText(ownerId)) {
+            return;
+        }
+
+        List<ResolvedTarget> targets = extractPinnedTargetsFromActionListResult(context);
+        if (targets.isEmpty()) {
+            targets = context.getResolvedTargets();
+        }
+        if (targets == null || targets.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> stored = new ArrayList<>();
+        for (ResolvedTarget target : targets) {
+            if (stored.size() >= RESOLVED_TARGETS_MAX) {
+                break;
+            }
+            if (target == null || !StringUtils.hasText(target.getId())) {
+                continue;
+            }
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put(TARGET_REF_KEY_ID, target.getId().trim());
+            if (StringUtils.hasText(target.getVectorSpace())) {
+                entry.put(TARGET_REF_KEY_VECTOR_SPACE, target.getVectorSpace().trim());
+            }
+            if (StringUtils.hasText(target.getContentText())) {
+                entry.put(TARGET_REF_KEY_CONTENT_TEXT, target.getContentText());
+            }
+            if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+                entry.put(TARGET_REF_KEY_METADATA, new LinkedHashMap<>(target.getMetadata()));
+            }
+            if (target.getSource() != null) {
+                entry.put("source", target.getSource().name());
+            }
+            stored.add(Collections.unmodifiableMap(entry));
+        }
+
+        if (stored.isEmpty()) {
+            return;
+        }
+
+        int turnIndex = 0;
+        try {
+            var session = chatSessionService.getSession(conversationId, ownerId);
+            turnIndex = session != null && session.getTurns() != null ? session.getTurns().size() : 0;
+        } catch (Exception ignored) {
+        }
+
+        Map<String, Object> updates = new LinkedHashMap<>();
+        updates.put(SESSION_META_KEY_LAST_RESOLVED_TARGETS, Collections.unmodifiableList(stored));
+        updates.put(SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX, turnIndex);
+
+        try {
+            chatSessionService.mergeSessionMetadata(conversationId, ownerId, updates);
+        } catch (Exception ex) {
+            log.debug("Failed to persist lastResolvedTargets for conversationId={}: {}", conversationId, ex.getMessage());
+        }
+    }
+
+    private List<ResolvedTarget> extractPinnedTargetsFromActionListResult(PipelineContext context) {
+        if (context == null || context.getIntentResult() == null || context.getIntentResult().getData() == null) {
+            return List.of();
+        }
+
+        OrchestrationResult result = context.getIntentResult();
+        if (result.getType() != OrchestrationResultType.ACTION_EXECUTED) {
+            return List.of();
+        }
+
+        Map<String, Object> data = result.getData();
+        ActionResult actionResult = coerceActionResult(data.get(RESULT_DATA_KEY_ACTION_RESULT));
+        if (actionResult == null || !actionResult.isSuccess()) {
+            return List.of();
+        }
+
+        ActionPayload payload = actionResult.getData();
+        if (!(payload instanceof ActionListPayload listPayload)) {
+            return List.of();
+        }
+
+        List<?> items = listPayload.getItems();
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+
+        List<ResolvedTarget> targets = new ArrayList<>();
+        for (Object item : items) {
+            if (targets.size() >= RESOLVED_TARGETS_MAX) {
+                break;
+            }
+
+            ResolvedTarget extracted = extractTargetFromListItem(item);
+            if (extracted != null) {
+                targets.add(extracted);
+            }
+        }
+
+        return targets.isEmpty() ? List.of() : Collections.unmodifiableList(targets);
+    }
+
+    private ResolvedTarget extractTargetFromListItem(Object item) {
+        if (item == null) {
+            return null;
+        }
+
+        if (item instanceof ActionTargetRef ref) {
+            if (!StringUtils.hasText(ref.id())) {
+                return null;
+            }
+            return ResolvedTarget.builder()
+                .id(ref.id().trim())
+                .vectorSpace(StringUtils.hasText(ref.vectorSpace()) ? ref.vectorSpace().trim() : null)
+                .contentText(StringUtils.hasText(ref.contentText()) ? ref.contentText().trim() : null)
+                .metadata(ref.metadata() != null ? ref.metadata() : Map.of())
+                .source(com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.ACTION_RESULT_ITEMS)
+                .build();
+        }
+
+        if (!(item instanceof Map<?, ?> map)) {
+            return null;
+        }
+
+        String id = coerceToString(map.get(TARGET_REF_KEY_ID));
+        if (!StringUtils.hasText(id)) {
+            return null;
+        }
+
+        String vectorSpace = coerceToString(map.get(TARGET_REF_KEY_VECTOR_SPACE));
+        String contentText = coerceToString(map.get(TARGET_REF_KEY_CONTENT_TEXT));
+        Map<String, String> metadata = coerceToStringMap(map.get(TARGET_REF_KEY_METADATA));
+
+        return ResolvedTarget.builder()
+            .id(id.trim())
+            .vectorSpace(StringUtils.hasText(vectorSpace) ? vectorSpace.trim() : null)
+            .contentText(StringUtils.hasText(contentText) ? contentText.trim() : null)
+            .metadata(metadata)
+            .source(com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.ACTION_RESULT_ITEMS)
+            .build();
+    }
+
+    private String coerceToString(Object value) {
+        if (value instanceof String str) {
+            return str;
+        }
+        return value != null ? value.toString() : null;
+    }
+
+    private Map<String, String> coerceToStringMap(Object value) {
+        if (!(value instanceof Map<?, ?> map) || map.isEmpty()) {
+            return Map.of();
+        }
+
+        LinkedHashMap<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry == null || entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            String key = String.valueOf(entry.getKey());
+            String val = String.valueOf(entry.getValue());
+            if (!StringUtils.hasText(key) || !StringUtils.hasText(val)) {
+                continue;
+            }
+            out.put(key, val);
+        }
+
+        return out.isEmpty() ? Map.of() : Collections.unmodifiableMap(out);
     }
 
     private boolean shouldRecordAfterTermination(PipelineContext context) {
@@ -165,6 +353,13 @@ public class ConversationRecordingStep implements PipelineStep {
             }
         }
 
+        if (result.getType() == OrchestrationResultType.INFORMATION_PROVIDED) {
+            Map<String, Object> workingSet = extractWorkingSet(result);
+            if (!workingSet.isEmpty()) {
+                metadata.put(TURN_META_KEY_WORKING_SET, workingSet);
+            }
+        }
+
         return Collections.unmodifiableMap(metadata);
     }
 
@@ -220,6 +415,136 @@ public class ConversationRecordingStep implements PipelineStep {
         }
 
         return Collections.unmodifiableMap(refs);
+    }
+
+    private Map<String, Object> extractWorkingSet(OrchestrationResult result) {
+        if (result == null || result.getData() == null || result.getData().isEmpty()) {
+            return Map.of();
+        }
+
+        Object ragValue = result.getData().get("ragResponse");
+        if (!(ragValue instanceof RAGResponse ragResponse)) {
+            return Map.of();
+        }
+
+        List<RAGResponse.RAGDocument> documents = ragResponse.getDocuments();
+        if (documents == null || documents.isEmpty()) {
+            return Map.of();
+        }
+
+        String fallbackVectorSpace = normalizeVectorSpace(ragResponse.getEntityType());
+        boolean fallbackSingle = StringUtils.hasText(fallbackVectorSpace) && fallbackVectorSpace.indexOf(',') < 0;
+
+        List<Map<String, Object>> refs = new java.util.ArrayList<>();
+        java.util.Set<String> vectorSpaces = new java.util.LinkedHashSet<>();
+
+        for (RAGResponse.RAGDocument doc : documents) {
+            if (refs.size() >= WORKING_SET_MAX_DOCS) {
+                break;
+            }
+            if (doc == null || !StringUtils.hasText(doc.getId())) {
+                continue;
+            }
+            String id = doc.getId().trim();
+            if (!isSafeRefString(id)) {
+                continue;
+            }
+
+            String vectorSpace = null;
+            Map<String, Object> docMeta = doc.getMetadata();
+            if (docMeta != null) {
+                Object vs = docMeta.get("vectorSpace");
+                if (vs instanceof String vsText) {
+                    vectorSpace = normalizeVectorSpace(vsText);
+                }
+            }
+            if (!StringUtils.hasText(vectorSpace) && fallbackSingle) {
+                vectorSpace = fallbackVectorSpace;
+            }
+
+            if (StringUtils.hasText(vectorSpace) && isSafeRefString(vectorSpace)) {
+                vectorSpaces.add(vectorSpace);
+            } else {
+                vectorSpace = null;
+            }
+
+            Map<String, Object> ref = new LinkedHashMap<>();
+            ref.put("id", id);
+            if (vectorSpace != null) {
+                ref.put("vectorSpace", vectorSpace);
+            }
+            if (doc.getScore() != null) {
+                ref.put("score", doc.getScore());
+            }
+
+            Map<String, Object> safeMeta = extractWorkingSetMetadata(docMeta);
+            if (!safeMeta.isEmpty()) {
+                ref.put("metadata", safeMeta);
+            }
+            refs.add(Collections.unmodifiableMap(ref));
+        }
+
+        if (refs.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, Object> workingSet = new LinkedHashMap<>();
+        workingSet.put("vectorSpacesUsed", List.copyOf(vectorSpaces));
+        workingSet.put("topDocumentRefs", Collections.unmodifiableList(refs));
+        workingSet.put("documentsCount", documents.size());
+        return Collections.unmodifiableMap(workingSet);
+    }
+
+    private Map<String, Object> extractWorkingSetMetadata(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, Object> safe = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+            if (safe.size() >= 8) {
+                break;
+            }
+            if (entry == null || !StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            String key = entry.getKey().trim();
+            if (key.isEmpty() || key.length() > 40) {
+                continue;
+            }
+            if ("vectorSpace".equalsIgnoreCase(key)) {
+                continue;
+            }
+
+            Object value = entry.getValue();
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof Number || value instanceof Boolean) {
+                safe.put(key, value);
+                continue;
+            }
+            if (value instanceof String text) {
+                String trimmed = text.trim();
+                if (isSafeRefString(trimmed)) {
+                    safe.put(key, trimmed);
+                }
+            }
+        }
+
+        return safe.isEmpty() ? Map.of() : Collections.unmodifiableMap(safe);
+    }
+
+    private String normalizeVectorSpace(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        trimmed = trimmed.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private boolean isSafeRefString(String value) {

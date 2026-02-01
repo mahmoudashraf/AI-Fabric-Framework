@@ -1,0 +1,18 @@
+ai:
+  orchestration:
+    profile: PRODUCTION_NAVIGATOR
+    modes:
+      navigator:
+        information-mode: DETERMINISTIC_RAG_GENERATE
+      navigator_deep:
+        information-mode: DETERMINISTIC_RAG_GENERATE
+        use-advanced-rag: true
+    position-routing:
+      landing: navigator
+      cart: navigator
+      support: navigator
+
+  prompts:
+    bundle:
+      overlays:
+        - v1-catalog

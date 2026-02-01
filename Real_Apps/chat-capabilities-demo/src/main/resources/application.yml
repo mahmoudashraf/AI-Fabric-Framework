@@ -20,11 +20,8 @@ ai:
   config:
     default-file: ai-entity-config.yml
 
-  orchestration:
-    information-mode: DETERMINISTIC_RAG_GENERATE
-
-  intent-extraction:
-    prompt-mode: MINIMAL_FOR_RAG
+  curated:
+    pack: commerce
 
   chat:
     enabled: true

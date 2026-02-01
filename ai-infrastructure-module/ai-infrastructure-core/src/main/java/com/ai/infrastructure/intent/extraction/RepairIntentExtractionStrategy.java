@@ -8,10 +8,14 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import java.util.Map;
 
 /**
  * Structural repair step for malformed/invalid compound extraction outputs.
@@ -21,9 +25,18 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class RepairIntentExtractionStrategy {
 
+    private static final String TEMPLATE_FAMILY = "intent-extraction/repair";
+    private static final String TEMPLATE_SYSTEM_ADDON = "system-addon";
+    private static final String TEMPLATE_USER = "user";
+
+    private static final String PLACEHOLDER_USER_REQUEST = "user_request";
+    private static final String PLACEHOLDER_MALFORMED_RESPONSE = "malformed_response";
+
     private final AICoreService aiCoreService;
     private final IntentExtractionJsonSupport jsonSupport;
     private final IntentExtractionValidator validator;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
 
     public ExtractionAttempt attemptRepair(String query, OrchestrationContext context, ExtractionAttempt previousAttempt) {
         if (previousAttempt == null || previousAttempt.getGenerationRequest() == null || !StringUtils.hasText(previousAttempt.getRawContent())) {
@@ -37,29 +50,17 @@ public class RepairIntentExtractionStrategy {
 
         AIGenerationRequest originalRequest = previousAttempt.getGenerationRequest();
         String originalSystemPrompt = originalRequest.getSystemPrompt();
-        String repairSystemPrompt = (StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "") + """
-            You are repairing a previously malformed assistant response.
-            Output MUST be a single JSON object that matches the schema above exactly.
-            Include ALL schema fields (use null/false/empty values where appropriate) so downstream systems can operate safely.
-            Never wrap the JSON in markdown code fences and never add commentary.
-            """;
+        String repairSystemPrompt = (StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "")
+            + promptRenderer.render(promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM_ADDON).template(), Map.of());
 
-        String repairPrompt = """
-            Convert the malformed assistant response into valid JSON that matches the schema in the system prompt.
-            This is a STRUCTURAL repair step only: fix JSON/schema correctness, do NOT infer or guess semantic fields.
-            Do NOT guess vectorSpace or other routing fields. If a semantic field is missing, leave it unset/null and keep the schema intact.
-            If the assistant response cannot be repaired into a valid schema, choose a safe default (e.g., OUT_OF_SCOPE with neutral confidence).
-
-            ORIGINAL USER REQUEST (for context):
-            ---BEGIN USER REQUEST---
-            %s
-            ---END USER REQUEST---
-
-            MALFORMED ASSISTANT RESPONSE:
-            ---BEGIN MALFORMED---
-            %s
-            ---END MALFORMED---
-            """.formatted(query, previousAttempt.getRawContent());
+        String safeQuery = query != null ? query : "";
+        String repairPrompt = promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_USER).template(),
+            Map.of(
+                PLACEHOLDER_USER_REQUEST, safeQuery,
+                PLACEHOLDER_MALFORMED_RESPONSE, previousAttempt.getRawContent()
+            )
+        );
 
         AIGenerationRequest repairRequest = AIGenerationRequest.builder()
             .entityId(originalRequest.getEntityId() + "-repair")
@@ -115,4 +116,3 @@ public class RepairIntentExtractionStrategy {
         return "repair";
     }
 }
-

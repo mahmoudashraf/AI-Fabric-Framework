@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent.extraction;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
@@ -9,12 +10,16 @@ import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
 import java.util.Map;
@@ -39,10 +44,17 @@ class MultiStepIntentExtractionStrategyTest {
     private IntentExtractionValidator validator;
 
     private IntentExtractionJsonSupport jsonSupport;
+    private PromptRenderer promptRenderer;
+    private PromptTemplateResolver promptTemplateResolver;
 
     @BeforeEach
     void setUp() {
         jsonSupport = new IntentExtractionJsonSupport(new ObjectMapper());
+        promptRenderer = new PromptRenderer();
+        promptTemplateResolver = new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
     }
 
     @Test
@@ -60,7 +72,9 @@ class MultiStepIntentExtractionStrategyTest {
             aiCoreService,
             actionHandlerRegistry,
             jsonSupport,
-            validator
+            validator,
+            promptRenderer,
+            promptTemplateResolver
         );
 
         ExtractionAttempt attempt = strategy.attemptExtract("Cancel my subscription", OrchestrationContext.forUser("user-1"));
@@ -81,7 +95,9 @@ class MultiStepIntentExtractionStrategyTest {
             aiCoreService,
             actionHandlerRegistry,
             jsonSupport,
-            validator
+            validator,
+            promptRenderer,
+            promptTemplateResolver
         );
 
         ExtractionAttempt attempt = strategy.attemptExtract("What is your refund policy?", OrchestrationContext.forUser("user-2"));
@@ -102,7 +118,9 @@ class MultiStepIntentExtractionStrategyTest {
             aiCoreService,
             actionHandlerRegistry,
             jsonSupport,
-            validator
+            validator,
+            promptRenderer,
+            promptTemplateResolver
         );
 
         ExtractionAttempt attempt = strategy.attemptExtract("Cancel my subscription", OrchestrationContext.forUser("user-3"));

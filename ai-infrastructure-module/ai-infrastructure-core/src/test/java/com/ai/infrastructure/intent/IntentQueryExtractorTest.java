@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
@@ -10,11 +11,15 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
 import java.util.Map;
@@ -70,7 +75,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
@@ -111,7 +118,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
@@ -146,7 +155,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
@@ -194,7 +205,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         MultiIntentResponse response = extractor.extract("What is your refund policy?", OrchestrationContext.forUser("user-456"));
@@ -234,7 +247,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         MultiIntentResponse response = extractor.extract("Build me a spaceship", OrchestrationContext.forUser("user-789"));
@@ -270,7 +285,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         MultiIntentResponse response = extractor.extract("What analytics solutions do you offer?",
@@ -314,7 +331,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         MultiIntentResponse response = extractor.extract("Update my payment details", OrchestrationContext.forUser("user-321"));
@@ -331,7 +350,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         assertThatThrownBy(() -> extractor.extract("   ", OrchestrationContext.forUser("user-123")))
@@ -355,7 +376,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         assertThatThrownBy(() -> extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123")))
@@ -393,7 +416,9 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
@@ -427,12 +452,21 @@ class IntentQueryExtractorTest {
             aiCoreService,
             enrichedPromptBuilder,
             actionHandlerRegistry,
-            objectMapper
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         MultiIntentResponse response = extractor.extract("Find products", OrchestrationContext.forUser("user-123"));
 
         assertThat(response.getIntents()).hasSize(1);
         assertThat(response.getIntents().getFirst().getVectorSpace()).isNull();
+    }
+
+    private PromptTemplateResolver promptTemplateResolver() {
+        return new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
     }
 }

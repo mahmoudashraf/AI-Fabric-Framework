@@ -5,6 +5,7 @@ import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.PostActionGenerationProperties;
 import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
+import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -20,7 +21,12 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
+import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,9 +36,11 @@ import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class IntentHandlingStepRequiredParamsPlaceholderTest {
@@ -69,7 +77,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         // Simulate the extractor "filling" the missing value by copying the parameter description.
@@ -126,7 +136,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         Intent intent = Intent.builder()
@@ -182,7 +194,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         String userMessage = "Use action 'confirmable_echo'.";
@@ -242,7 +256,9 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
             new InMemoryPendingActionStore(),
-            new InMemoryActionDraftStore()
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
         );
 
         // Simulate a single-value follow-up reply (email/address/etc.) where the entire user message is the value.
@@ -265,6 +281,82 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
+    }
+
+    @Test
+    void shouldFillMissingRequiredParamFromResolvedTargetMetadata() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(registry.findHandler("create_purchase_order")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+        when(handler.executeAction(org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(ActionResult.builder().success(true).message("ok").build());
+
+        AIActionMetaData meta = AIActionMetaData.builder()
+            .name("create_purchase_order")
+            .description("Create purchase order")
+            .category("commerce")
+            .parameters(Map.of(
+                "sku", "Product SKU (required)"
+            ))
+            .requiredParameters(Set.of("sku"))
+            .build();
+        when(registry.findMetadata("create_purchase_order")).thenReturn(Optional.of(meta));
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf(mock(RAGProvider.class)),
+            mock(AICoreService.class),
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("create_purchase_order")
+            .actionParams(Map.of())
+            .build();
+
+        ResolvedTarget target = ResolvedTarget.builder()
+            .id("78")
+            .vectorSpace("product")
+            .metadata(Map.of("sku", "ELEC-PHONE-002"))
+            .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
+            .build();
+
+        PipelineContext context = PipelineContext.from("buy it", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .resolvedTargets(List.of(target))
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
+        verify(handler).executeAction(org.mockito.ArgumentMatchers.argThat(map ->
+            map != null && "ELEC-PHONE-002".equals(map.get("sku"))
+        ), org.mockito.ArgumentMatchers.any());
+    }
+
+    private PromptTemplateResolver promptTemplateResolver() {
+        return new PromptTemplateResolver(
+            new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
+            new PromptBundleProperties()
+        );
     }
 
     private static <T> ObjectProvider<T> providerOf(T value) {

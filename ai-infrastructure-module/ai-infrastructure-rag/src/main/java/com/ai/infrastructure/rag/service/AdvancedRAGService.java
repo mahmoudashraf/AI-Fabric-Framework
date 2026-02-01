@@ -8,6 +8,8 @@ import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import lombok.RequiredArgsConstructor;
@@ -80,21 +82,17 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
     // Scoring weights
     private static final double SCORE_WEIGHT = 0.6;
     private static final double SIMILARITY_WEIGHT = 0.4;
-    
-    // Prompt templates
-    private static final String EXPANSION_PROMPT_TEMPLATE = 
-        "Generate %d related queries for: '%s'. " +
-        "Include synonyms, alternative phrasings, and related concepts. " +
-        "Return only the queries, one per line.";
-    
-    private static final String OPTIMIZATION_PROMPT_TEMPLATE = 
-        "Optimize this context for better AI generation. " +
-        "Remove redundancy, improve clarity, and maintain key information:\n\n%s";
-    
-    private static final String RESPONSE_GENERATION_PROMPT_TEMPLATE = 
-        "Based on the following context, answer the question: %s\n\n" +
-        "Context:\n%s\n\n" +
-        "Provide a comprehensive, accurate answer based on the context provided.";
+
+    private static final String TEMPLATE_FAMILY = "rag/advanced";
+    private static final String TEMPLATE_EXPAND = "expand";
+    private static final String TEMPLATE_OPTIMIZE = "optimize";
+    private static final String TEMPLATE_GENERATE = "generate";
+    private static final String TEMPLATE_GENERATE_AUTHORITATIVE = "generate-authoritative";
+
+    private static final String PLACEHOLDER_EXPANSION_LEVEL = "expansion_level";
+    private static final String PLACEHOLDER_QUERY = "query";
+    private static final String PLACEHOLDER_CONTEXT = "context";
+    private static final String PLACEHOLDER_AUTHORITATIVE_CONTEXT = "authoritative_context";
     
     // Messages
     private static final String ERROR_MESSAGE_TEMPLATE = "Error processing request: %s";
@@ -119,6 +117,8 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
     private final AIEmbeddingService aiEmbeddingService;
     private final AICoreService aiCoreService;
     private final RAGProvider ragProvider;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
 
     // =========================================================================
     // Public Methods
@@ -201,22 +201,29 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
 
     private List<String> expandQuery(String originalQuery, int expansionLevel) {
         try {
-            String expansionPrompt = String.format(EXPANSION_PROMPT_TEMPLATE, 
-                expansionLevel, originalQuery);
+            String safeQuery = originalQuery != null ? originalQuery : "";
+            String expansionPrompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_EXPAND).template(),
+                Map.of(
+                    PLACEHOLDER_EXPANSION_LEVEL, String.valueOf(expansionLevel),
+                    PLACEHOLDER_QUERY, safeQuery
+                )
+            );
             
             String response = aiCoreService.generateText(expansionPrompt);
             List<String> expandedQueries = Arrays.stream(response.split("\n"))
                 .map(String::trim)
-                .filter(q -> !q.isEmpty() && !q.equals(originalQuery))
+                .filter(q -> !q.isEmpty() && !q.equals(safeQuery))
                 .limit(expansionLevel)
                 .collect(Collectors.toList());
             
-            expandedQueries.add(0, originalQuery);
+            expandedQueries.add(0, safeQuery);
             return expandedQueries;
             
         } catch (Exception e) {
             log.warn("Query expansion failed, using original query only", e);
-            return Collections.singletonList(originalQuery);
+            String safeQuery = originalQuery != null ? originalQuery : "";
+            return Collections.singletonList(safeQuery);
         }
     }
 
@@ -398,8 +405,12 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
             String context = documents.stream()
                 .map(RAGResponse.RAGDocument::getContent)
                 .collect(Collectors.joining("\n\n"));
-            
-            String optimizationPrompt = String.format(OPTIMIZATION_PROMPT_TEMPLATE, context);
+
+            String safeContext = context != null ? context : "";
+            String optimizationPrompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_OPTIMIZE).template(),
+                Map.of(PLACEHOLDER_CONTEXT, safeContext)
+            );
             
             return aiCoreService.generateText(optimizationPrompt);
             
@@ -430,7 +441,26 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
 
     private String generateResponse(String query, String context, AdvancedRAGRequest request) {
         try {
-            String prompt = String.format(RESPONSE_GENERATION_PROMPT_TEMPLATE, query, context);
+            String safeQuery = query != null ? query : "";
+            String safeContext = context != null ? context : "";
+
+            String authoritativeContext = request != null ? request.getContext() : null;
+            String prompt = authoritativeContext != null && !authoritativeContext.isBlank()
+                ? promptRenderer.render(
+                    promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_GENERATE_AUTHORITATIVE).template(),
+                    Map.of(
+                        PLACEHOLDER_QUERY, safeQuery,
+                        PLACEHOLDER_AUTHORITATIVE_CONTEXT, authoritativeContext,
+                        PLACEHOLDER_CONTEXT, safeContext
+                    )
+                )
+                : promptRenderer.render(
+                    promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_GENERATE).template(),
+                    Map.of(
+                        PLACEHOLDER_QUERY, safeQuery,
+                        PLACEHOLDER_CONTEXT, safeContext
+                    )
+                );
             
             return aiCoreService.generateText(prompt);
             

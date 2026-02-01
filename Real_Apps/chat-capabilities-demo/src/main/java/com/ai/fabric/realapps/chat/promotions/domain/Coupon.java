@@ -26,6 +26,7 @@ public class Coupon {
     @Column(nullable = false, unique = true)
     private String code;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(columnDefinition = "TEXT")
@@ -61,4 +62,3 @@ public class Coupon {
         updatedAt = LocalDateTime.now();
     }
 }
-

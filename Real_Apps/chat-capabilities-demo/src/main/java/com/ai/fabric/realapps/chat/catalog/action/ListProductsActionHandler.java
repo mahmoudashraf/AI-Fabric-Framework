@@ -9,6 +9,8 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @AIAction(
     name = "list_products",
-    description = "List products from the catalog",
+    description = "List products by query (matches product title + category). Falls back to trending products.",
     category = "commerce",
     accessMode = ActionAccessMode.READ,
     requiresConfirmation = false
@@ -28,38 +30,54 @@ public class ListProductsActionHandler {
     private final ProductService productService;
 
     @ActionExecute
-    public ActionResult execute(@Param(value = "limit", description = "Max number of products to return") Integer limit,
-                                ActionContext context) {
+    public ActionResult execute(
+        @Param(value = "query", description = "What products are you looking for?", required = true) String query,
+        ActionContext context
+    ) {
         try {
-            int effectiveLimit = limit != null ? limit : 50;
-            List<Product> products = productService.list(effectiveLimit);
+            List<Product> products = productService.searchByNameAndCategory(query, 10);
+            boolean matched = !products.isEmpty();
+            if (!matched) {
+                products = productService.trending(10);
+            }
 
             List<Map<String, Object>> payload = products.stream()
-                .map(p -> Map.<String, Object>of(
-                    "id", p.getId(),
-                    "sku", p.getSku(),
-                    "name", p.getName(),
-                    "category", p.getCategory(),
-                    "tags", p.getTags(),
-                    "price", p.getPrice(),
-                    "currency", p.getCurrency(),
-                    "inStockQty", p.getInStockQty()
-                ))
+                .map(ListProductsActionHandler::toPayload)
                 .toList();
 
             return ActionResult.builder()
                 .success(true)
-                .message(payload.isEmpty() ? "No products found" : "Products")
+                .message(payload.isEmpty()
+                    ? "No products found"
+                    : (matched ? "Matching products" : "Trending products"))
                 .data(ActionResultContracts.list(payload))
                 .build();
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;
             log.error("List products failed for user {}", userId, e);
+            String details = e != null && e.getMessage() != null ? e.getMessage() : (e != null ? e.getClass().getSimpleName() : "unknown");
             return ActionResult.builder()
                 .success(false)
-                .message("Failed to list products: " + (e != null ? e.getMessage() : "unknown"))
+                .message("Failed to list products: " + details)
                 .errorCode("LIST_PRODUCTS_FAILED")
                 .build();
         }
+    }
+
+    private static Map<String, Object> toPayload(Product product) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", product != null ? product.getId() : null);
+        out.put("sku", product != null ? product.getSku() : null);
+        out.put("name", product != null ? product.getName() : null);
+        out.put("description", product != null ? product.getDescription() : null);
+        out.put("category", product != null ? product.getCategory() : null);
+        out.put("tags", product != null ? product.getTags() : null);
+        out.put("imageUrl", product != null ? product.getImageUrl() : null);
+        out.put("price", product != null ? product.getPrice() : null);
+        out.put("currency", product != null ? product.getCurrency() : null);
+        out.put("inStockQty", product != null ? product.getInStockQty() : null);
+        out.put("createdAt", product != null ? product.getCreatedAt() : null);
+        out.put("updatedAt", product != null ? product.getUpdatedAt() : null);
+        return Collections.unmodifiableMap(out);
     }
 }

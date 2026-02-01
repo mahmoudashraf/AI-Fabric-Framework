@@ -5,7 +5,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
+import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
+
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -16,7 +21,7 @@ import java.util.UUID;
  * At least one identifier (userId or sessionId) must be present.
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrchestrationContext {
@@ -63,6 +68,57 @@ public class OrchestrationContext {
      */
     @Builder.Default
     private Map<String, Object> metadata = new HashMap<>();
+
+    /**
+     * Optional UI/system position hint (e.g., "landing", "cart", "support").
+     *
+     * <p>This is treated as an input hint only; the server resolves the effective policy.</p>
+     */
+    private String position;
+
+    /**
+     * Optional requested orchestration mode (e.g., "navigator", "cart_assistant").
+     *
+     * <p>This is treated as an input hint only; the server resolves the effective policy.</p>
+     */
+    private String mode;
+
+    /**
+     * Optional attachments provided by the client (e.g., UI cards/search results).
+     *
+     * <p>This is input-only; use {@link #attachmentsNormalized} after pipeline normalization.</p>
+     */
+    @Builder.Default
+    private List<OrchestrationAttachment> attachments = new ArrayList<>();
+
+    /**
+     * Optional attachment ids currently selected/highlighted by the client.
+     *
+     * <p>This is input-only; use {@link #activeAttachmentIdsResolved} after pipeline normalization.</p>
+     */
+    @Builder.Default
+    private List<String> activeAttachmentIds = new ArrayList<>();
+
+    /**
+     * Normalized attachment list (server-validated, bounded, scalar metadata only).
+     *
+     * <p>Populated by {@code AttachmentNormalizationStep}.</p>
+     */
+    @Builder.Default
+    private List<NormalizedAttachment> attachmentsNormalized = new ArrayList<>();
+
+    /**
+     * Normalized active attachment ids (intersection of declared ids and provided selection).
+     *
+     * <p>Populated by {@code AttachmentNormalizationStep}.</p>
+     */
+    @Builder.Default
+    private List<String> activeAttachmentIdsResolved = new ArrayList<>();
+
+    /**
+     * Server-resolved orchestration policy for this request.
+     */
+    private com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy orchestrationPolicy;
 
     /**
      * True if an authenticated userId was provided.

@@ -10,6 +10,8 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.processor.AICapableProcessor;
 import com.ai.infrastructure.processor.AnnotationFieldScanner;
 import com.ai.infrastructure.processor.EmbeddingProcessor;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.security.AISecurityService;
@@ -81,23 +83,24 @@ import jakarta.persistence.EntityManagerFactory;
     org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration.class,
     org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration.class
 })
-	        @EnableConfigurationProperties({
-	        AIProviderConfig.class,
-	        AIServiceConfig.class,
-            VectorDatabaseConfig.class,
-            OrchestrationProperties.class,
-            IntentExtractionPromptProperties.class,
-            ProgressiveIntentExtractionProperties.class,
-            RelationshipQueryPostActionGenerationProperties.class,
-            PostActionGenerationProperties.class,
-            VectorSpaceRoutingProperties.class,
-	        SmartSuggestionsProperties.class,
-	        ResponseSanitizationProperties.class,
-	        OrchestrationResultNormalizationProperties.class,
-	        IntentHistoryProperties.class,
-	        SecurityProperties.class,
-            AIHttpClientProperties.class
-		    })
+@EnableConfigurationProperties({
+    AIProviderConfig.class,
+    AIServiceConfig.class,
+    VectorDatabaseConfig.class,
+    OrchestrationProperties.class,
+    AttachmentsProperties.class,
+    PromptBundleProperties.class,
+    ProgressiveIntentExtractionProperties.class,
+    RelationshipQueryPostActionGenerationProperties.class,
+    PostActionGenerationProperties.class,
+    VectorSpaceRoutingProperties.class,
+    SmartSuggestionsProperties.class,
+    ResponseSanitizationProperties.class,
+    OrchestrationResultNormalizationProperties.class,
+    IntentHistoryProperties.class,
+    SecurityProperties.class,
+    AIHttpClientProperties.class
+})
 @ComponentScan(
     basePackages = "com.ai.infrastructure",
     excludeFilters = @ComponentScan.Filter(
@@ -113,8 +116,8 @@ import jakarta.persistence.EntityManagerFactory;
             "com\\.ai\\.infrastructure\\.onnxstarter\\..*",
             "com\\.ai\\.infrastructure\\.config\\..*"
         }
-	    )
-	)
+    )
+)
 @ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AIInfrastructureAutoConfiguration {
     
@@ -269,8 +272,18 @@ public class AIInfrastructureAutoConfiguration {
             AICoreService aiCoreService,
             AIEntityConfigurationLoader entityConfigurationLoader,
             VectorManagementService vectorManagementService,
-            AnnotationFieldScanner annotationFieldScanner) {
-        return new AICapabilityService(embeddingService, aiCoreService, entityConfigurationLoader, vectorManagementService, annotationFieldScanner);
+            AnnotationFieldScanner annotationFieldScanner,
+            PromptTemplateResolver promptTemplateResolver,
+            PromptRenderer promptRenderer) {
+        return new AICapabilityService(
+            embeddingService,
+            aiCoreService,
+            entityConfigurationLoader,
+            vectorManagementService,
+            annotationFieldScanner,
+            promptTemplateResolver,
+            promptRenderer
+        );
     }
     
     @Bean

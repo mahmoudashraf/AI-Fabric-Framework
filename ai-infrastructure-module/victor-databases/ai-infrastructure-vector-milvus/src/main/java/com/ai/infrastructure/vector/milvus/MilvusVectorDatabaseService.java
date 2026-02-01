@@ -316,23 +316,30 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
                 }
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("vectorId", vectorId);
+                row.put("id", record.get().getEntityId());
                 row.put("entityId", record.get().getEntityId());
                 row.put("entityType", requestedEntityType);
+                row.put("vectorSpace", requestedEntityType);
                 row.put("content", record.get().getContent());
                 row.put("metadata", record.get().getMetadata() != null ? record.get().getMetadata() : Collections.emptyMap());
                 row.put("score", similarity);
+                row.put("similarity", similarity);
                 results.add(row);
                 continue;
             }
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("vectorId", vectorId);
-            row.put("entityId", entityIds != null && i < entityIds.size() ? String.valueOf(entityIds.get(i)) : null);
+            String entityId = entityIds != null && i < entityIds.size() ? String.valueOf(entityIds.get(i)) : null;
+            row.put("id", entityId);
+            row.put("entityId", entityId);
             row.put("entityType", requestedEntityType);
+            row.put("vectorSpace", requestedEntityType);
             row.put("content", contents != null && i < contents.size() ? Objects.toString(contents.get(i), null) : null);
             Object metadataRaw = metadata != null && i < metadata.size() ? metadata.get(i) : null;
             row.put("metadata", parseMetadata(metadataRaw));
             row.put("score", similarity);
+            row.put("similarity", similarity);
             results.add(row);
         }
 
