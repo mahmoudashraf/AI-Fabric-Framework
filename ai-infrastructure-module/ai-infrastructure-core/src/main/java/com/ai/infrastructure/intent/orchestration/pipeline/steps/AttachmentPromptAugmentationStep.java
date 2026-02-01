@@ -5,6 +5,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -55,7 +56,10 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
 
         OrchestrationContext orchContext = context.getOrchestrationContext();
         List<NormalizedAttachment> attachments = orchContext != null ? orchContext.getAttachmentsNormalized() : null;
-        if (attachments == null || attachments.isEmpty()) {
+        List<ResolvedTarget> storedPinnedTargets = context.getResolvedTargets();
+        boolean hasAttachments = attachments != null && !attachments.isEmpty();
+        boolean hasStoredPinnedTargets = storedPinnedTargets != null && !storedPinnedTargets.isEmpty();
+        if (!hasAttachments && !hasStoredPinnedTargets) {
             return context;
         }
 
@@ -66,7 +70,7 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
                 .collect(Collectors.toSet())
             : Set.of();
 
-        String prefix = buildAttachmentsBlock(attachments, activeIds);
+        String prefix = buildPinnedContextBlock(activeIds, storedPinnedTargets, attachments);
         if (!StringUtils.hasText(prefix)) {
             return context;
         }
@@ -82,14 +86,94 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
 
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("injected", true);
-        meta.put("attachmentsCount", attachments.size());
+        meta.put("attachmentsCount", hasAttachments ? attachments.size() : 0);
         meta.put("activeCount", activeIds.size());
+        meta.put("storedPinnedTargetsCount", hasStoredPinnedTargets ? storedPinnedTargets.size() : 0);
         return updated.withMetadata(METADATA_KEY_ATTACHMENTS_PROMPT, Collections.unmodifiableMap(meta));
     }
 
-    private String buildAttachmentsBlock(List<NormalizedAttachment> attachments, Set<String> activeIds) {
+    private String buildPinnedContextBlock(Set<String> activeAttachmentIds,
+                                           List<ResolvedTarget> storedPinnedTargets,
+                                           List<NormalizedAttachment> attachments) {
+        StringBuilder sb = new StringBuilder(768);
+        sb.append("PINNED CONTEXT (authoritative; prefer answering from this; avoid retrieval if sufficient):\n");
+
+        boolean hasAny = false;
+
+        String storedTargetsBlock = buildStoredPinnedTargetsBlock(activeAttachmentIds, storedPinnedTargets);
+        if (StringUtils.hasText(storedTargetsBlock)) {
+            hasAny = true;
+            sb.append(storedTargetsBlock).append("\n");
+        }
+
+        String attachmentsBlock = buildAttachmentsBlock(attachments, activeAttachmentIds);
+        if (StringUtils.hasText(attachmentsBlock)) {
+            hasAny = true;
+            if (StringUtils.hasText(storedTargetsBlock)) {
+                sb.append("\n");
+            }
+            sb.append(attachmentsBlock).append("\n");
+        }
+
+        return hasAny ? sb.toString().trim() : null;
+    }
+
+    private String buildStoredPinnedTargetsBlock(Set<String> activeAttachmentIds, List<ResolvedTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return null;
+        }
+
         StringBuilder sb = new StringBuilder(512);
-        sb.append("ATTACHMENTS (authoritative UI context; [ACTIVE] is pinned):\n");
+        sb.append("STORED PINNED TARGETS (authoritative; may be stale):\n");
+        int index = 1;
+        for (ResolvedTarget target : targets) {
+            if (target == null || !StringUtils.hasText(target.getId())) {
+                continue;
+            }
+            String id = target.getId().trim();
+            if (!StringUtils.hasText(id)) {
+                continue;
+            }
+            // Active attachments (this request) override stored pinned targets.
+            if (activeAttachmentIds != null && activeAttachmentIds.contains(id)) {
+                continue;
+            }
+
+            sb.append(index).append(") ");
+            if (StringUtils.hasText(target.getVectorSpace())) {
+                sb.append("vectorSpace=").append(target.getVectorSpace()).append(" ");
+            }
+            sb.append("id=").append(id);
+
+            if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+                sb.append(" metadata={");
+                String meta = target.getMetadata().entrySet().stream()
+                    .filter(e -> e != null && StringUtils.hasText(e.getKey()) && StringUtils.hasText(e.getValue()))
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(Collectors.joining(", "));
+                sb.append(meta).append("}");
+            }
+
+            if (StringUtils.hasText(target.getContentText())) {
+                sb.append(" contentTextTruncated=").append(target.isContentTextTruncated());
+                sb.append(" contentText=\"").append(target.getContentText()).append("\"");
+            }
+
+            sb.append("\n");
+            index++;
+        }
+
+        String out = sb.toString().trim();
+        return out.endsWith(":") ? null : out;
+    }
+
+    private String buildAttachmentsBlock(List<NormalizedAttachment> attachments, Set<String> activeIds) {
+        if (attachments == null || attachments.isEmpty()) {
+            return null;
+        }
+
+        StringBuilder sb = new StringBuilder(512);
+        sb.append("ACTIVE ATTACHMENTS (authoritative UI context; [ACTIVE] is pinned):\n");
 
         int index = 1;
         for (NormalizedAttachment attachment : attachments) {

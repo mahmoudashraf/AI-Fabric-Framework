@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.AttachmentsProperties;
+import com.ai.infrastructure.intent.KnowledgeBaseOverview;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
@@ -172,5 +173,53 @@ class AttachmentNormalizationStepTest {
         assertThat(normalized.getVectorSpace()).isNull();
         assertThat(normalized.isContentTextTruncated()).isFalse();
         assertThat(updated.getOrchestrationContext().getActiveAttachmentIdsResolved()).containsExactly("att-1");
+    }
+
+    @Test
+    void shouldInferVectorSpaceFromMetadataWhenProvidedVectorSpaceIsInvalid() {
+        AttachmentsProperties properties = new AttachmentsProperties();
+        properties.setMaxAttachments(10);
+        properties.setMaxActiveAttachmentIds(10);
+        properties.setVectorSpaceValidationMode(AttachmentsProperties.VectorSpaceValidationMode.BEST_EFFORT);
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
+        when(piiProvider.getIfAvailable()).thenReturn(null);
+
+        KnowledgeBaseOverviewService overviewService = mock(KnowledgeBaseOverviewService.class);
+        when(overviewService.getOverview()).thenReturn(
+            KnowledgeBaseOverview.builder()
+                .entityTypes(List.of("product", "review"))
+                .build()
+        );
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<KnowledgeBaseOverviewService> kbProvider = mock(ObjectProvider.class);
+        when(kbProvider.getIfAvailable()).thenReturn(overviewService);
+
+        AttachmentNormalizationStep step = new AttachmentNormalizationStep(properties, piiProvider, kbProvider);
+
+        OrchestrationAttachment attachment = OrchestrationAttachment.builder()
+            .id("1")
+            .vectorSpace("electronics") // invalid
+            .metadata(Map.of("vectorSpace", "product")) // valid
+            .build();
+
+        OrchestrationContext orch = OrchestrationContext.builder()
+            .userId("demo")
+            .attachments(List.of(attachment))
+            .activeAttachmentIds(List.of("1"))
+            .build();
+
+        PipelineContext ctx = PipelineContext.from("q", orch);
+        PipelineContext updated = step.process(ctx);
+
+        NormalizedAttachment normalized = updated.getOrchestrationContext().getAttachmentsNormalized().getFirst();
+        assertThat(normalized.getVectorSpace()).isEqualTo("product");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) updated.getMetadata().get("attachments");
+        assertThat(meta.get("invalidVectorSpacesCount")).isEqualTo(1);
+        assertThat(meta.get("invalidVectorSpaces")).isEqualTo(List.of("electronics"));
     }
 }
