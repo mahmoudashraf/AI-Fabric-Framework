@@ -85,7 +85,7 @@ class IntentHandlingStepRetrievalQueryHintTest {
 
         ArgumentCaptor<com.ai.infrastructure.dto.RAGRequest> captor = ArgumentCaptor.forClass(com.ai.infrastructure.dto.RAGRequest.class);
         verify(ragProvider).performRag(captor.capture());
-        assertThat(captor.getValue().getQuery()).isEqualTo("gaming laptop sku-lux-41113");
+        assertThat(captor.getValue().getQuery()).isEqualTo("I need a gaming laptop sku-lux-41113");
         assertThat(captor.getValue().getMetadata()).containsEntry("retrievalQueryHintApplied", true);
     }
 
@@ -146,9 +146,9 @@ class IntentHandlingStepRetrievalQueryHintTest {
 
         List<com.ai.infrastructure.dto.RAGRequest> requests = captor.getAllValues();
         assertThat(requests).hasSize(2);
-        assertThat(requests.get(0).getQuery()).isEqualTo("laptop");
+        assertThat(requests.get(0).getQuery()).isEqualTo("compare laptop and tablet");
         assertThat(requests.get(0).getMetadata()).containsEntry("retrievalQueryHintApplied", false);
-        assertThat(requests.get(1).getQuery()).isEqualTo("tablet");
+        assertThat(requests.get(1).getQuery()).isEqualTo("compare laptop and tablet");
         assertThat(requests.get(1).getMetadata()).containsEntry("retrievalQueryHintApplied", false);
     }
 

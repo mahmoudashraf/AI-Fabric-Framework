@@ -1123,12 +1123,14 @@ public class IntentHandlingStep implements PipelineStep {
 
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
         String optimizedQuery = normalizeOptimizedQueryForRetrieval(intent != null ? intent.getOptimizedQuery() : null, processedQuery);
-        String retrievalFallbackQuery = extractUserQueryForRetrieval(processedQuery, pipelineContext != null ? pipelineContext.getOriginalQuery() : null);
-        String retrievalBaseQuery = StringUtils.hasText(optimizedQuery)
-            ? optimizedQuery
+        String originalUserQuery = pipelineContext != null ? pipelineContext.getOriginalQuery() : null;
+        String retrievalFallbackQuery = extractUserQueryForRetrieval(processedQuery, originalUserQuery);
+        boolean piiProcessed = pipelineContext != null && !pipelineContext.getDetectedPiiTypesView().isEmpty();
+        String retrievalBaseQuery = StringUtils.hasText(originalUserQuery)
+            ? (piiProcessed && StringUtils.hasText(retrievalFallbackQuery) ? retrievalFallbackQuery : originalUserQuery.trim())
             : (StringUtils.hasText(retrievalFallbackQuery) ? retrievalFallbackQuery : intent.getIntentOrAction());
         String generationQuery = StringUtils.hasText(processedQuery) ? processedQuery : retrievalBaseQuery;
-        
+
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put(METADATA_KEY_SOURCE, METADATA_VALUE_ORCHESTRATOR);
         metadata.put(METADATA_KEY_USER_ID, context.getIdentifier());
