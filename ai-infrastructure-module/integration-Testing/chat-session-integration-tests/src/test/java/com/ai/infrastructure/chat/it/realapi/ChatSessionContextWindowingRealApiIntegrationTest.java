@@ -31,9 +31,9 @@ class ChatSessionContextWindowingRealApiIntegrationTest {
         String ownerId = "window-user-" + UUID.randomUUID();
         String conversationId = "chat-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Q1", "A1", Map.of());
-        chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2", Map.of());
-        chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q1", "A1", Map.of(), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2", Map.of(), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3", Map.of(), Map.of());
 
         String context = chatSessionService.getConversationContext(conversationId, ownerId);
 

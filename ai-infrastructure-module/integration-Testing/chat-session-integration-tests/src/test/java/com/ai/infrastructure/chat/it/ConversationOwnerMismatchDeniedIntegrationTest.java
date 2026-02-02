@@ -45,7 +45,7 @@ class ConversationOwnerMismatchDeniedIntegrationTest {
         String otherUserId = "other-user";
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Hello", "Hi", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Hello", "Hi", Map.of(), Map.of());
         ChatSession owned = chatSessionService.getSession(conversationId, ownerId);
         assertThat(owned.getTurns()).hasSize(1);
 

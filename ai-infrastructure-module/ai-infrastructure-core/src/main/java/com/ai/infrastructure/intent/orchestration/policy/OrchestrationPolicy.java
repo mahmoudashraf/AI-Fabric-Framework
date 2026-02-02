@@ -13,7 +13,9 @@ public record OrchestrationPolicy(
     OrchestrationProfile profile,
     String mode,
     String position,
-    OrchestrationProperties.InformationMode informationMode
+    OrchestrationProperties.InformationMode informationMode,
+    int workingSetWindowTurns,
+    boolean readProbeFallbackEnabled
 ) {
 
     public OrchestrationPolicy {
@@ -21,6 +23,7 @@ public record OrchestrationPolicy(
         mode = normalize(mode);
         position = normalize(position);
         informationMode = informationMode != null ? informationMode : profile.defaultInformationMode();
+        workingSetWindowTurns = Math.max(0, workingSetWindowTurns);
     }
 
     private static String normalize(String value) {

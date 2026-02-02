@@ -84,8 +84,8 @@ ai:
         information-mode: DETERMINISTIC_RAG_GENERATE
     position-routing:
       landing: navigator
-      cart: navigator
-      support: navigator
+      catalog: navigator
+      search: navigator
 ```
 
 ---

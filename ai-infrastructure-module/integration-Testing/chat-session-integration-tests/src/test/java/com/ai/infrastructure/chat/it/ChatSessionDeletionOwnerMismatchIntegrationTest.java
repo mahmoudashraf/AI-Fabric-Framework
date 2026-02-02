@@ -28,7 +28,7 @@ class ChatSessionDeletionOwnerMismatchIntegrationTest {
         String ownerB = "delete-owner-b-" + UUID.randomUUID();
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerA, "Hello", "Hi", Map.of());
+        chatSessionService.recordTurn(conversationId, ownerA, "Hello", "Hi", Map.of(), Map.of());
 
         assertThatThrownBy(() -> chatSessionService.deleteConversation(conversationId, ownerB))
             .isInstanceOf(ChatSessionAccessDeniedException.class);

@@ -108,6 +108,12 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
     private static final String METADATA_KEY_ENABLE_HYBRID_SEARCH = "enableHybridSearch";
     private static final String METADATA_KEY_ENABLE_CONTEXTUAL_SEARCH = "enableContextualSearch";
     private static final String METADATA_KEY_USER_CONTEXT = "userContext";
+    private static final String METADATA_KEY_RAG_SCOPE = "ragScope";
+
+    private static final int EXPANSION_CONTEXT_MAX_TARGETS = 5;
+    private static final int EXPANSION_CONTEXT_MAX_METADATA_KEYS = 8;
+    private static final int EXPANSION_CONTEXT_MAX_METADATA_VALUE_CHARS = 80;
+    private static final int EXPANSION_CONTEXT_MAX_TOTAL_CHARS = 900;
 
     // =========================================================================
     // Dependencies
@@ -145,7 +151,7 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
         try {
             long startTime = System.currentTimeMillis();
             
-            List<String> expandedQueries = expandQuery(request.getQuery(), request.getExpansionLevel());
+            List<String> expandedQueries = expandQuery(request);
             log.debug("Expanded queries: {}", expandedQueries);
             
             List<RAGResponse> searchResults = performMultiStrategySearch(expandedQueries, request);
@@ -199,14 +205,23 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
     // Private Methods - Query Expansion
     // =========================================================================
 
-    private List<String> expandQuery(String originalQuery, int expansionLevel) {
+    private List<String> expandQuery(AdvancedRAGRequest request) {
+        String originalQuery = request != null ? request.getQuery() : null;
+        Integer expansionLevel = request != null ? request.getExpansionLevel() : null;
+        String authoritativeContext = renderAuthoritativeContextForExpansion(request);
+        return expandQuery(originalQuery, expansionLevel != null ? expansionLevel.intValue() : 1, authoritativeContext);
+    }
+
+    private List<String> expandQuery(String originalQuery, int expansionLevel, String authoritativeContext) {
         try {
             String safeQuery = originalQuery != null ? originalQuery : "";
+            String safeAuthoritativeContext = authoritativeContext != null ? authoritativeContext : "";
             String expansionPrompt = promptRenderer.render(
                 promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_EXPAND).template(),
                 Map.of(
                     PLACEHOLDER_EXPANSION_LEVEL, String.valueOf(expansionLevel),
-                    PLACEHOLDER_QUERY, safeQuery
+                    PLACEHOLDER_QUERY, safeQuery,
+                    PLACEHOLDER_AUTHORITATIVE_CONTEXT, safeAuthoritativeContext
                 )
             );
             
@@ -225,6 +240,118 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
             String safeQuery = originalQuery != null ? originalQuery : "";
             return Collections.singletonList(safeQuery);
         }
+    }
+
+    private String renderAuthoritativeContextForExpansion(AdvancedRAGRequest request) {
+        if (request == null) {
+            return "";
+        }
+
+        Map<String, Object> metadata = request.getMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return "";
+        }
+
+        Object scopeObj = metadata.get(METADATA_KEY_RAG_SCOPE);
+        if (!(scopeObj instanceof Map<?, ?> scope)) {
+            return "";
+        }
+
+        List<?> targets = scope.get("targets") instanceof List<?> list ? list : List.of();
+        List<?> activeTargetIds = scope.get("activeTargetIds") instanceof List<?> list ? list : List.of();
+
+        StringBuilder out = new StringBuilder();
+        if (!activeTargetIds.isEmpty()) {
+            String ids = activeTargetIds.stream()
+                .filter(v -> v instanceof String)
+                .map(v -> ((String) v).trim())
+                .filter(v -> !v.isBlank())
+                .limit(EXPANSION_CONTEXT_MAX_TARGETS)
+                .collect(Collectors.joining(", "));
+            if (!ids.isBlank()) {
+                out.append("activeTargetIds: [").append(ids).append("]").append("\n");
+            }
+        }
+
+        int includedTargets = 0;
+        for (Object rawTarget : targets) {
+            if (includedTargets >= EXPANSION_CONTEXT_MAX_TARGETS) {
+                out.append("(truncated)").append("\n");
+                break;
+            }
+            if (!(rawTarget instanceof Map<?, ?> target)) {
+                continue;
+            }
+
+            String id = normalizeScalar(target.get("id"));
+            if (id.isBlank()) {
+                continue;
+            }
+            String vectorSpace = normalizeScalar(target.get("vectorSpace"));
+
+            out.append("- id=").append(id);
+            if (!vectorSpace.isBlank()) {
+                out.append(" vectorSpace=").append(vectorSpace);
+            }
+
+            Map<?, ?> rawMd = target.get("metadata") instanceof Map<?, ?> md ? md : Map.of();
+            String mdText = renderMetadata(rawMd);
+            if (!mdText.isBlank()) {
+                out.append(" metadata=").append(mdText);
+            }
+            out.append("\n");
+            includedTargets++;
+
+            if (out.length() >= EXPANSION_CONTEXT_MAX_TOTAL_CHARS) {
+                break;
+            }
+        }
+
+        String rendered = out.toString().trim();
+        if (rendered.length() > EXPANSION_CONTEXT_MAX_TOTAL_CHARS) {
+            rendered = rendered.substring(0, EXPANSION_CONTEXT_MAX_TOTAL_CHARS);
+        }
+        return rendered;
+    }
+
+    private static String renderMetadata(Map<?, ?> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        int keys = 0;
+        for (Map.Entry<?, ?> entry : metadata.entrySet()) {
+            if (keys >= EXPANSION_CONTEXT_MAX_METADATA_KEYS) {
+                out.append("…");
+                break;
+            }
+            if (entry == null) {
+                continue;
+            }
+            String key = normalizeScalar(entry.getKey());
+            String value = normalizeScalar(entry.getValue());
+            if (key.isBlank() || value.isBlank()) {
+                continue;
+            }
+            if (value.length() > EXPANSION_CONTEXT_MAX_METADATA_VALUE_CHARS) {
+                value = value.substring(0, EXPANSION_CONTEXT_MAX_METADATA_VALUE_CHARS);
+            }
+            if (out.length() > 0) {
+                out.append("; ");
+            }
+            out.append(key).append("=").append(value);
+            keys++;
+        }
+        return out.toString();
+    }
+
+    private static String normalizeScalar(Object value) {
+        if (!(value instanceof String str)) {
+            return "";
+        }
+        String normalized = str.replace("\n", " ").replace("\r", " ").trim();
+        normalized = normalized.replaceAll("\\s+", " ");
+        return normalized;
     }
 
     // =========================================================================

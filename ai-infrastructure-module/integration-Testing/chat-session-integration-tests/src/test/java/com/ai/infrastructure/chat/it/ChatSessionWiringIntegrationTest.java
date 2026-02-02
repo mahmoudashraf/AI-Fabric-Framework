@@ -60,7 +60,7 @@ class ChatSessionWiringIntegrationTest {
                 "orderId", 9,
                 "sku", "SKU-ABC-1"
             )
-        ));
+        ), Map.of());
 
         ChatSession session = chatSessionService.getSession(conversationId, ownerId);
         assertThat(session.getTurns()).hasSize(1);

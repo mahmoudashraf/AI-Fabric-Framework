@@ -300,17 +300,20 @@ public class AttachmentNormalizationStep implements PipelineStep {
                 continue;
             }
             String vectorSpace = attachment.getVectorSpace();
-            if (!StringUtils.hasText(vectorSpace)) {
-                updated.add(attachment);
+            String canonical = canonicalizeVectorSpace(canonicalByLower, vectorSpace);
+
+            if (StringUtils.hasText(vectorSpace) && !StringUtils.hasText(canonical)) {
+                invalid.add(vectorSpace.trim());
+                // Best-effort: try to infer from metadata instead of dropping the vectorSpace entirely.
+                String inferred = inferVectorSpaceFromMetadata(canonicalByLower, attachment.getMetadata());
+                updated.add(attachment.toBuilder().vectorSpace(inferred).build());
                 continue;
             }
 
-            String normalized = vectorSpace.trim();
-            String canonical = canonicalByLower.get(normalized.toLowerCase(java.util.Locale.ROOT));
             if (!StringUtils.hasText(canonical)) {
-                invalid.add(normalized);
-                // Best-effort: keep the attachment but do not propagate an invalid vectorSpace.
-                updated.add(attachment.toBuilder().vectorSpace(null).build());
+                // Best-effort: if vectorSpace was omitted, try to infer from metadata.
+                String inferred = inferVectorSpaceFromMetadata(canonicalByLower, attachment.getMetadata());
+                updated.add(StringUtils.hasText(inferred) ? attachment.toBuilder().vectorSpace(inferred).build() : attachment);
                 continue;
             }
 
@@ -339,6 +342,41 @@ public class AttachmentNormalizationStep implements PipelineStep {
         }
 
         return new VectorSpaceValidationOutcome(false, null, updated, invalid);
+    }
+
+    private String canonicalizeVectorSpace(Map<String, String> canonicalByLower, String vectorSpace) {
+        if (canonicalByLower == null || canonicalByLower.isEmpty() || !StringUtils.hasText(vectorSpace)) {
+            return null;
+        }
+        String normalized = vectorSpace.trim();
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        String canonical = canonicalByLower.get(normalized.toLowerCase(java.util.Locale.ROOT));
+        return StringUtils.hasText(canonical) ? canonical : null;
+    }
+
+    private String inferVectorSpaceFromMetadata(Map<String, String> canonicalByLower, Map<String, String> metadata) {
+        if (canonicalByLower == null || canonicalByLower.isEmpty() || metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || !StringUtils.hasText(entry.getValue())) {
+                continue;
+            }
+            String key = entry.getKey().trim().toLowerCase(java.util.Locale.ROOT);
+            if (!"vectorspace".equals(key) && !"vector_space".equals(key) && !"vector space".equals(key)) {
+                continue;
+            }
+
+            String inferred = canonicalizeVectorSpace(canonicalByLower, entry.getValue());
+            if (StringUtils.hasText(inferred)) {
+                return inferred;
+            }
+        }
+
+        return null;
     }
 
     private Map<String, String> normalizeMetadata(Map<String, Object> raw, PIIDetectionService pii) {

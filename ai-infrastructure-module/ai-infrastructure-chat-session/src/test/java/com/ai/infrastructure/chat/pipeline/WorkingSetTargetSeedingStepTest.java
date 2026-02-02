@@ -7,8 +7,11 @@ import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationProfile;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +49,14 @@ class WorkingSetTargetSeedingStepTest {
 
         PipelineContext context = PipelineContext.from("compare", orchContext)
             .toBuilder()
+            .orchestrationPolicy(new OrchestrationPolicy(
+                OrchestrationProfile.DEFAULT,
+                "navigator",
+                null,
+                OrchestrationProperties.InformationMode.LLM_DRIVEN,
+                3,
+                false
+            ))
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
             .build();
 
@@ -99,6 +110,14 @@ class WorkingSetTargetSeedingStepTest {
 
         PipelineContext context = PipelineContext.from("compare both", orchContext)
             .toBuilder()
+            .orchestrationPolicy(new OrchestrationPolicy(
+                OrchestrationProfile.DEFAULT,
+                "navigator",
+                null,
+                OrchestrationProperties.InformationMode.LLM_DRIVEN,
+                3,
+                false
+            ))
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
             .build();
 
@@ -132,6 +151,14 @@ class WorkingSetTargetSeedingStepTest {
 
         PipelineContext context = PipelineContext.from("add it", orchContext)
             .toBuilder()
+            .orchestrationPolicy(new OrchestrationPolicy(
+                OrchestrationProfile.DEFAULT,
+                "navigator",
+                null,
+                OrchestrationProperties.InformationMode.LLM_DRIVEN,
+                3,
+                false
+            ))
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
             .build();
 

@@ -15,6 +15,8 @@ Related documents:
 - `changes/MODE_PROFILES_CURATED_OPTIMISATIONS_REVIEW.md`
 - `Final_Documentation/Development_Guides/CURATED_MODES_PACKS_GUIDE.md`
 - `changes/OPTIMIZATION_PROFILES_AND_DETERMINISTIC_RAG_INTEGRATION_PLAN.md`
+- `changes/MODE_DRIVEN_ORCHESTRATION_POLICY_PLAN.md`
+- `changes/ATTACHMENTS_METADATA_AND_RAG_OPTIMIZATION_MASTER_PLAN.md`
 
 ## Principles (must hold in every phase)
 - **No brittle heuristics**: avoid “if query contains …” string matching.
@@ -25,6 +27,7 @@ Related documents:
 - **No deceptive behavior**: avoid “silent replace” of action attempts; keep debug/response visibility.
 - **Bounded context**: all injected context (attachments, pins, action summaries) must be size-limited and sanitized.
 - **Mode/policy gated**: each optimisation is enabled by a coherent mode/profile bundle, not by user knowledge of internal flags.
+- **One control surface**: use `profile` + allowlisted `modes` + `position-routing`; avoid hidden “global override” flags that silently bypass mode/profile behavior.
 
 ## Mode/Policy Matrix (v1)
 This matrix is the “one place to understand behavior”. It should be implemented as both:
@@ -59,8 +62,11 @@ Deliverables
 - A single “effective policy snapshot” is emitted per request (debug metadata) and once at startup (log).
 
 Mode/policy gating
-- Policy is resolved from: profile defaults → curated pack defaults → app overrides → request mode/position (only if allowlisted).
+- Policy is resolved from: curated pack defaults → app overrides → request mode/position (only if allowlisted).
 - Do **not** expose micro-flags as public knobs unless needed; prefer coherent mode bundles.
+- Keep **default pack routing domain-agnostic**:
+  - default pack may route only `landing/catalog/search → navigator`
+  - commerce/support routing belongs to those domain packs (e.g., `cart/checkout` only in commerce pack).
 
 Optimisations covered
 - #3 (mode-driven prioritization via policy decisions inside steps; not runtime pipeline reordering)
@@ -70,6 +76,11 @@ Optimisations covered
 Validation
 - Unit tests for mode allowlisting + precedence rules.
 - A small “policy snapshot” test asserting stable output for each mode.
+
+How to test (manual)
+- Start a demo app and send a request with `position` and/or `mode`.
+- Verify `result.metadata.orchestrationPolicy` contains:
+  - `profile`, `mode`, `position`, `informationModeEffective`, `modeSource`.
 
 ## Phase 1 — Authoritative pinned context (attachments + stored pins) in extraction
 **Goal:** stop “attachments not considered” and make follow-ups work without forcing retrieval.
@@ -96,6 +107,10 @@ Validation
   - “summarize this” with a pinned attachment produces a grounded answer without “id not found” deflection.
   - Follow-up “price?” without re-sending attachments still resolves the pinned target.
 
+How to test (manual)
+- Send a request with `attachments[]` + `activeAttachmentIds[]`.
+- Send a follow-up without attachments (“summarize this” / “price?”) and confirm the pinned target is still used (and shown in debug metadata).
+
 ## Phase 2 — Working set memory + “re-open conversation” rehydration
 **Goal:** keep context stable across turns and across reopening the conversation.
 
@@ -117,6 +132,10 @@ Optimisations covered
 Validation
 - Integration test: after N turns, ensure working set stays bounded and stable.
 - Reload conversation: pinned refs rehydrate best-effort (missing refs do not fail the request).
+
+How to test (manual)
+- Run 3–5 queries, then call “get conversation” API and verify stored pinned refs exist.
+- Ask a follow-up using pronouns (“it/them”) and confirm target resolution uses stored pinned refs when no attachments exist.
 
 ## Phase 3 — Action results as first-class context + “read probe → RAG” fallback
 **Goal:** make action follow-ups (“cancel it”, “change address”) reliable and reduce useless multi-LLM retries.
@@ -145,6 +164,13 @@ Validation
   - After providing params, confirmation occurs once and executes once.
   - Read-only action empty → answer comes from RAG (and debug shows the empty read probe occurred).
 
+How to test (manual)
+- In `cart_assistant` / `support_resolver`, trigger a read action that returns empty (e.g., “list my active orders” on a new user).
+- Confirm response includes:
+  - clear user-facing answer (from RAG/generation if enabled),
+  - debug metadata that a read probe ran and was empty,
+  - no “silent replace” (action attempt remains visible in debug).
+
 ## Phase 4 — Suggestions per mode/position
 **Goal:** make “what next” coherent and predictable per mode.
 
@@ -160,6 +186,10 @@ Optimisations covered
 
 Validation
 - Snapshot tests per mode (suggestion style + max count).
+
+How to test (manual)
+- Compare `navigator` vs `cart_assistant` suggestions for the same user query.
+- Ensure suggestions are consistent with mode: query refinements vs missing-params/action next steps.
 
 ## Phase 5 — Cross-vector-space relation (v0): “product ↔ reviews”
 **Goal:** support “macbook → reviews about macbook” without requiring a full join engine.
@@ -181,6 +211,14 @@ Validation
 - Integration test with seeded products+reviews:
   - Pinned product + “show reviews” returns reviews scoped to that product.
   - If reviews cannot be verified as related, response includes an explicit uncertainty statement.
+
+How to test (manual)
+- Seed products + reviews where reviews include `sku`/`productId` in metadata/content.
+- Attach a product and ask: “show reviews for this”.
+- Verify retrieval is scoped (filter/hint) and response is honest about relation certainty.
+
+
+Add relation-aware filtering: when entityType=review and pinned targets are product, automatically apply a metadata filter like review.productId IN pinnedProductIds (config-driven, not heuristics). Without that, changing “original vs optimized query” won’t reliably retrieve the right reviews.
 
 ## Phase 6 — Confirmation “yes/no” when no pending action
 **Goal:** prevent wasted calls and weird behavior when user replies “yes/confirm” with nothing pending.

@@ -71,6 +71,16 @@ public class ChatTurn {
     @Builder.Default
     private Map<String, Object> turnMetadata = new HashMap<>();
 
+    /**
+     * UI-only metadata persisted per turn for client rendering.
+     *
+     * <p>This must never be included in LLM prompt context.</p>
+     */
+    @Convert(converter = JsonMapConverter.class)
+    @Column(columnDefinition = "TEXT", name = "ui_metadata")
+    @Builder.Default
+    private Map<String, Object> uiMetadata = new HashMap<>();
+
     public String toPromptFormat() {
         StringBuilder builder = new StringBuilder();
         builder.append("User: ").append(userQuery).append("\nAssistant: ").append(aiResponse);

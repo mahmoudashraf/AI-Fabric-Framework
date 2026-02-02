@@ -108,25 +108,31 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
 
         OrchestrationProperties.InformationMode informationModeEffective = profile.defaultInformationMode();
         Boolean advancedRagOverride = null;
+        int workingSetWindowTurns = 0;
+        boolean readProbeFallbackEnabled = false;
 
         if (effectiveModeOverrides != null) {
             if (effectiveModeOverrides.getInformationMode() != null) {
                 informationModeEffective = effectiveModeOverrides.getInformationMode();
             }
+            if (effectiveModeOverrides.getWorkingSetWindowTurns() != null) {
+                workingSetWindowTurns = Math.max(0, effectiveModeOverrides.getWorkingSetWindowTurns());
+            }
             if (effectiveModeOverrides.getUseAdvancedRag() != null) {
                 advancedRagOverride = effectiveModeOverrides.getUseAdvancedRag();
             }
-        }
-
-        if (orchestrationProperties != null && orchestrationProperties.getInformationMode() != null) {
-            informationModeEffective = orchestrationProperties.getInformationMode();
+            if (effectiveModeOverrides.getEnableReadProbeFallback() != null) {
+                readProbeFallbackEnabled = Boolean.TRUE.equals(effectiveModeOverrides.getEnableReadProbeFallback());
+            }
         }
 
         OrchestrationPolicy policy = new OrchestrationPolicy(
             profile,
             effectiveMode,
             normalizedPosition,
-            informationModeEffective
+            informationModeEffective,
+            workingSetWindowTurns,
+            readProbeFallbackEnabled
         );
 
         OrchestrationContext updatedOrchestrationContext = orchestrationContext;
@@ -152,6 +158,8 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("mode", policy.mode());
         debug.put("position", policy.position());
         debug.put("informationModeEffective", policy.informationMode().name());
+        debug.put("workingSetWindowTurns", policy.workingSetWindowTurns());
+        debug.put("readProbeFallbackEnabled", policy.readProbeFallbackEnabled());
         debug.put("modeSource", modeSource);
         if (advancedRagOverride != null) {
             debug.put("advancedRagOverride", advancedRagOverride);

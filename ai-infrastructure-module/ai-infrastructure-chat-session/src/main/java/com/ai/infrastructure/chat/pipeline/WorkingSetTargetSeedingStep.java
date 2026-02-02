@@ -66,6 +66,13 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
             return context;
         }
 
+        int workingSetWindowTurns = context.getOrchestrationPolicy() != null
+            ? context.getOrchestrationPolicy().workingSetWindowTurns()
+            : 0;
+        if (workingSetWindowTurns <= 0) {
+            return context;
+        }
+
         MultiIntentResponse response = context.getIntentResponse();
         if (response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
             return context;
@@ -97,7 +104,7 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
             return context;
         }
 
-        List<ResolvedTarget> targets = session != null ? extractWorkingSetTargets(session.getTurns()) : List.of();
+        List<ResolvedTarget> targets = session != null ? extractWorkingSetTargets(session.getTurns(), workingSetWindowTurns) : List.of();
         if (targets.isEmpty()) {
             return context.withMetadata(METADATA_KEY_TARGET_SEEDING, Map.of("seeded", false));
         }
@@ -108,7 +115,8 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
 
         return updated.withMetadata(METADATA_KEY_TARGET_SEEDING, Map.of(
             "seeded", true,
-            "count", targets.size()
+            "count", targets.size(),
+            "windowTurns", workingSetWindowTurns
         ));
     }
 
@@ -124,12 +132,21 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
         return false;
     }
 
-    private List<ResolvedTarget> extractWorkingSetTargets(List<ChatTurn> turns) {
+    private List<ResolvedTarget> extractWorkingSetTargets(List<ChatTurn> turns, int windowTurns) {
         if (turns == null || turns.isEmpty()) {
             return List.of();
         }
 
-        for (int i = turns.size() - 1; i >= 0; i--) {
+        int boundedWindowTurns = Math.max(1, windowTurns);
+        int startIndex = Math.max(0, turns.size() - boundedWindowTurns);
+
+        Map<String, ResolvedTarget> unique = new LinkedHashMap<>();
+
+        for (int i = turns.size() - 1; i >= startIndex; i--) {
+            if (unique.size() >= WORKING_SET_MAX_TARGETS) {
+                break;
+            }
+
             ChatTurn turn = turns.get(i);
             if (turn == null || turn.getTurnMetadata() == null || turn.getTurnMetadata().isEmpty()) {
                 continue;
@@ -145,9 +162,8 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
                 continue;
             }
 
-            List<ResolvedTarget> out = new ArrayList<>();
             for (Object entry : refs) {
-                if (out.size() >= WORKING_SET_MAX_TARGETS) {
+                if (unique.size() >= WORKING_SET_MAX_TARGETS) {
                     break;
                 }
                 if (!(entry instanceof Map<?, ?> refMap)) {
@@ -162,6 +178,13 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
                     continue;
                 }
 
+                String idNorm = idText.trim();
+                String vsNorm = vsText.trim();
+                String key = vsNorm.toLowerCase() + ":" + idNorm;
+                if (unique.containsKey(key)) {
+                    continue;
+                }
+
                 Map<String, String> metadata = Map.of();
                 Object meta = refMap.get("metadata");
                 if (meta instanceof Map<?, ?> metaMap && !metaMap.isEmpty()) {
@@ -173,29 +196,27 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
                         if (metaEntry == null || metaEntry.getKey() == null || metaEntry.getValue() == null) {
                             continue;
                         }
-                        String key = String.valueOf(metaEntry.getKey());
+                        String metaKey = String.valueOf(metaEntry.getKey());
                         String value = String.valueOf(metaEntry.getValue());
-                        if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+                        if (!StringUtils.hasText(metaKey) || !StringUtils.hasText(value)) {
                             continue;
                         }
-                        normalized.put(key, value);
+                        normalized.put(metaKey, value);
                     }
                     if (!normalized.isEmpty()) {
                         metadata = Collections.unmodifiableMap(normalized);
                     }
                 }
 
-                out.add(ResolvedTarget.builder()
-                    .id(idText.trim())
-                    .vectorSpace(vsText.trim())
+                unique.put(key, ResolvedTarget.builder()
+                    .id(idNorm)
+                    .vectorSpace(vsNorm)
                     .metadata(metadata)
                     .source(ResolvedTargetSource.WORKING_SET)
                     .build());
             }
-
-            return out.isEmpty() ? List.of() : Collections.unmodifiableList(out);
         }
 
-        return List.of();
+        return unique.isEmpty() ? List.of() : Collections.unmodifiableList(new ArrayList<>(unique.values()));
     }
 }

@@ -50,10 +50,8 @@ import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
-import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.beans.factory.annotation.Value;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ai.infrastructure.config.condition.EmbeddingsFeatureEnabledCondition;
 import com.ai.infrastructure.config.condition.SearchFeatureEnabledCondition;
 import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
@@ -63,6 +61,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import jakarta.persistence.EntityManagerFactory;
+import org.springframework.boot.ApplicationRunner;
 
 /**
  * Auto-configuration for AI Infrastructure module
@@ -123,6 +122,42 @@ public class AIInfrastructureAutoConfiguration {
     
     public AIInfrastructureAutoConfiguration() {
         log.debug("AIInfrastructureAutoConfiguration instance created");
+    }
+
+    @Bean
+    public ApplicationRunner aiOrchestrationConfigSnapshotLogger(
+        OrchestrationProperties orchestrationProperties,
+        PromptBundleProperties promptBundleProperties,
+        @Value("${ai.curated.pack:}") String curatedPack
+    ) {
+        return args -> {
+            String pack = curatedPack != null ? curatedPack.trim() : "";
+            if (!pack.isEmpty()) {
+                log.info("Curated pack enabled: ai.curated.pack={}", pack);
+            }
+
+            if (orchestrationProperties == null) {
+                log.info("Orchestration: properties not available");
+                return;
+            }
+
+            log.info(
+                "Orchestration effective config: profile={}, modes={}, positionRoutingKeys={}, strictPositionRouting={}, strictModeRouting={}",
+                orchestrationProperties.getProfile(),
+                orchestrationProperties.getModes() != null ? orchestrationProperties.getModes().keySet() : List.of(),
+                orchestrationProperties.getPositionRouting() != null ? orchestrationProperties.getPositionRouting().keySet() : List.of(),
+                orchestrationProperties.isStrictPositionRouting(),
+                orchestrationProperties.isStrictModeRouting()
+            );
+
+            if (promptBundleProperties != null) {
+                log.info(
+                    "Prompts bundle config: baseVersion={}, overlays={}",
+                    promptBundleProperties.getBaseVersion(),
+                    promptBundleProperties.getOverlays()
+                );
+            }
+        };
     }
     
     // EmbeddingProvider beans - selected based on configuration

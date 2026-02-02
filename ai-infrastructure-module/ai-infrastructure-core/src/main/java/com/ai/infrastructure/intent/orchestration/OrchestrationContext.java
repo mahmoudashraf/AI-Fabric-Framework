@@ -70,6 +70,15 @@ public class OrchestrationContext {
     private Map<String, Object> metadata = new HashMap<>();
 
     /**
+     * Optional UI-only metadata for this request/turn (rendering hints, client state).
+     *
+     * <p>This must never be used to influence action execution, retrieval scope, or LLM prompts. It is intended for
+     * persistence and UI rendering only (e.g., storing which UI panel the message came from).</p>
+     */
+    @Builder.Default
+    private Map<String, Object> uiMetadata = new HashMap<>();
+
+    /**
      * Optional UI/system position hint (e.g., "landing", "cart", "support").
      *
      * <p>This is treated as an input hint only; the server resolves the effective policy.</p>

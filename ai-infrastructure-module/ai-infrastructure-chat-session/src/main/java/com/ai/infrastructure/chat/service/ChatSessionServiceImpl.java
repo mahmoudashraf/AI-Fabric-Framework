@@ -74,7 +74,8 @@ public class ChatSessionServiceImpl implements ChatSessionService {
                            String ownerId,
                            String userQuery,
                            String aiResponse,
-                           Map<String, Object> turnMetadata) {
+                           Map<String, Object> turnMetadata,
+                           Map<String, Object> uiMetadata) {
         if (!StringUtils.hasText(conversationId)) {
             return;
         }
@@ -109,6 +110,9 @@ public class ChatSessionServiceImpl implements ChatSessionService {
 
         if (turnMetadata != null && !turnMetadata.isEmpty()) {
             builder.turnMetadata(new LinkedHashMap<>(turnMetadata));
+        }
+        if (uiMetadata != null && !uiMetadata.isEmpty()) {
+            builder.uiMetadata(new LinkedHashMap<>(uiMetadata));
         }
 
         ChatTurn turn = builder.build();

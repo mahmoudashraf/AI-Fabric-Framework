@@ -22,13 +22,6 @@ public class OrchestrationProperties {
     private OrchestrationProfile profile = OrchestrationProfile.DEFAULT;
 
     /**
-     * Explicit override for how INFORMATION intents are handled.
-     *
-     * <p>When unset (null), the effective value is derived from {@link #profile} and/or mode overrides.</p>
-     */
-    private InformationMode informationMode;
-
-    /**
      * Server-defined orchestration modes (coherent bundles) that can override profile defaults.
      *
      * <p>Clients may request a mode, but the server only accepts allowlisted modes defined here.</p>
@@ -83,11 +76,28 @@ public class OrchestrationProperties {
         private InformationMode informationMode;
 
         /**
+         * Optional mode override for how many prior turns' working-set references may be considered
+         * when resolving follow-ups ("it", "them") without new attachments.
+         *
+         * <p>Set to 0 to disable working-set seeding for the mode.</p>
+         */
+        private Integer workingSetWindowTurns;
+
+        /**
          * Optional mode override to force Advanced RAG on/off.
          *
          * <p>When true, Advanced RAG is enabled for the request (when a provider is present).
          * When false, Advanced RAG is disabled even if the LLM suggests it.</p>
          */
         private Boolean useAdvancedRag;
+
+        /**
+         * Optional mode override enabling "read probe → RAG" fallback behavior.
+         *
+         * <p>When enabled and a READ action executes successfully but returns an empty list payload, the orchestrator may
+         * fall back to RAG (and generation when enabled) to still help the user. This is intended for assistant-style
+         * modes (e.g. cart/support) where read actions are treated as helper tools.</p>
+         */
+        private Boolean enableReadProbeFallback;
     }
 }

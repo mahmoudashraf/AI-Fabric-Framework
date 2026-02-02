@@ -58,6 +58,8 @@ public class ConversationRecordingStep implements PipelineStep {
     private static final int ACTION_REFS_MAX_STRING_LENGTH = 120;
     private static final int WORKING_SET_MAX_DOCS = 8;
     private static final int RESOLVED_TARGETS_MAX = 8;
+    private static final int UI_METADATA_MAX_ENTRIES = 24;
+    private static final int UI_METADATA_MAX_KEY_LENGTH = 40;
 
     private final ChatSessionService chatSessionService;
     private final ChatSessionProperties properties;
@@ -116,7 +118,8 @@ public class ConversationRecordingStep implements PipelineStep {
 
         try {
             Map<String, Object> turnMetadata = buildTurnMetadata(context);
-            chatSessionService.recordTurn(conversationId, ownerId, userQuery, assistantResponse, turnMetadata);
+            Map<String, Object> uiMetadata = extractUiMetadata(context);
+            chatSessionService.recordTurn(conversationId, ownerId, userQuery, assistantResponse, turnMetadata, uiMetadata);
             persistPinnedTargets(context, conversationId, ownerId);
         } catch (Exception ex) {
             log.warn("Failed to record conversation turn conversationId={}: {}", conversationId, ex.getMessage());
@@ -361,6 +364,49 @@ public class ConversationRecordingStep implements PipelineStep {
         }
 
         return Collections.unmodifiableMap(metadata);
+    }
+
+    private Map<String, Object> extractUiMetadata(PipelineContext context) {
+        if (context == null || context.getOrchestrationContext() == null) {
+            return Map.of();
+        }
+
+        Map<String, Object> raw = context.getOrchestrationContext().getUiMetadata();
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, Object> safe = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : raw.entrySet()) {
+            if (safe.size() >= UI_METADATA_MAX_ENTRIES) {
+                break;
+            }
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                continue;
+            }
+
+            String key = entry.getKey().trim();
+            if (key.isEmpty() || key.length() > UI_METADATA_MAX_KEY_LENGTH) {
+                continue;
+            }
+            if (key.indexOf('\n') >= 0 || key.indexOf('\r') >= 0) {
+                continue;
+            }
+
+            Object value = entry.getValue();
+            if (value instanceof Number || value instanceof Boolean) {
+                safe.put(key, value);
+                continue;
+            }
+            if (value instanceof String text) {
+                String trimmed = text.trim();
+                if (isSafeRefString(trimmed)) {
+                    safe.put(key, trimmed);
+                }
+            }
+        }
+
+        return safe.isEmpty() ? Map.of() : Collections.unmodifiableMap(safe);
     }
 
     private ActionResult coerceActionResult(Object value) {

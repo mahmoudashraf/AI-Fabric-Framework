@@ -19,7 +19,7 @@ Output MUST be valid JSON and MUST match the following schema:
     }
   ],
   "metadata": {
-    "retrievalQueryHint": "optional keywords/identifiers to improve retrieval (only when exactly one intent uses retrieval)"
+    "retrievalQueryHint": "optional keywords/identifiers to improve retrieval (max 200 chars; no emails/phones/addresses)"
   }
 }
 

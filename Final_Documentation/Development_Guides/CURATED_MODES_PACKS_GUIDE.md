@@ -18,6 +18,7 @@ Implementation detail:
 - Core loads the pack via `CuratedPackEnvironmentPostProcessor`.
 
 ## Available packs
+- `default` → generic baseline (domain-agnostic); routes only `landing/catalog/search → navigator`.
 - `catalog` → deterministic “navigator” defaults (good for demos/catalogs).
 - `commerce` → `navigator` + `cart_assistant` defaults (commerce flows).
 - `support` → `support_resolver` defaults (support/issue resolution).
@@ -50,6 +51,16 @@ ai:
     profile: PRODUCTION_CHAT
     strict-mode-routing: true
 ```
+
+## Mode override keys (v1)
+Curated packs (and your app config) can define allowlisted modes under:
+- `ai.orchestration.modes.<mode>`
+
+Supported override keys:
+- `information-mode`: `LLM_DRIVEN | DETERMINISTIC_RAG_GENERATE`
+- `use-advanced-rag`: `true | false` (forces Advanced RAG on/off when available)
+- `enable-read-probe-fallback`: `true | false` (helper read action → RAG fallback for empty results)
+- `working-set-window-turns`: `0..N` (how many prior turns’ working set refs may seed follow-up target resolution; `0` disables)
 
 ## Prompt bundle pinning
 Each pack enables its prompt overrides by adding an overlay bundle version via:

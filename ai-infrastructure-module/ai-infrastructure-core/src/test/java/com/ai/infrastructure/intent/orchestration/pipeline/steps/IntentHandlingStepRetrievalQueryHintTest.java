@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
 class IntentHandlingStepRetrievalQueryHintTest {
 
     @Test
-    void shouldAppendRetrievalQueryHintWhenExactlyOneRetrievalIntent() {
+    void shouldAppendRetrievalQueryHintWhenPresent() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         when(ragProvider.performRag(any())).thenReturn(RAGResponse.builder().success(true).documents(List.of()).context("ctx").build());
 
@@ -85,12 +85,12 @@ class IntentHandlingStepRetrievalQueryHintTest {
 
         ArgumentCaptor<com.ai.infrastructure.dto.RAGRequest> captor = ArgumentCaptor.forClass(com.ai.infrastructure.dto.RAGRequest.class);
         verify(ragProvider).performRag(captor.capture());
-        assertThat(captor.getValue().getQuery()).isEqualTo("gaming laptop sku-lux-41113");
+        assertThat(captor.getValue().getQuery()).isEqualTo("I need a gaming laptop sku-lux-41113");
         assertThat(captor.getValue().getMetadata()).containsEntry("retrievalQueryHintApplied", true);
     }
 
     @Test
-    void shouldIgnoreRetrievalQueryHintWhenMultipleRetrievalIntentsExist() {
+    void shouldAppendRetrievalQueryHintWhenMultipleRetrievalIntentsExist() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         when(ragProvider.performRag(any())).thenReturn(RAGResponse.builder().success(true).documents(List.of()).context("ctx").build());
 
@@ -146,10 +146,10 @@ class IntentHandlingStepRetrievalQueryHintTest {
 
         List<com.ai.infrastructure.dto.RAGRequest> requests = captor.getAllValues();
         assertThat(requests).hasSize(2);
-        assertThat(requests.get(0).getQuery()).isEqualTo("laptop");
-        assertThat(requests.get(0).getMetadata()).containsEntry("retrievalQueryHintApplied", false);
-        assertThat(requests.get(1).getQuery()).isEqualTo("tablet");
-        assertThat(requests.get(1).getMetadata()).containsEntry("retrievalQueryHintApplied", false);
+        assertThat(requests.get(0).getQuery()).isEqualTo("compare laptop and tablet sku-lux-41113");
+        assertThat(requests.get(0).getMetadata()).containsEntry("retrievalQueryHintApplied", true);
+        assertThat(requests.get(1).getQuery()).isEqualTo("compare laptop and tablet sku-lux-41113");
+        assertThat(requests.get(1).getMetadata()).containsEntry("retrievalQueryHintApplied", true);
     }
 
     private <T> ObjectProvider<T> providerOf(T value) {
