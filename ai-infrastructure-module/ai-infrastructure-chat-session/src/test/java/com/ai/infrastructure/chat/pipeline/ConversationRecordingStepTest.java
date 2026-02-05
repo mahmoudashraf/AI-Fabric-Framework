@@ -8,6 +8,7 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -103,6 +104,9 @@ class ConversationRecordingStepTest {
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
             .conversationId("conv-1")
+            .attachmentsNormalized(java.util.List.of(NormalizedAttachment.builder()
+                .contentText("snippet")
+                .build()))
             .build();
 
         OrchestrationResult result = OrchestrationResult.builder()
@@ -115,7 +119,7 @@ class ConversationRecordingStepTest {
             .toBuilder()
             .intentResult(result)
             .resolvedTargets(java.util.List.of(ResolvedTarget.builder()
-                .id("85")
+                .id(null)
                 .vectorSpace("product")
                 .contentText("snippet")
                 .metadata(Map.of("sku", "SKU-1"))
@@ -126,9 +130,22 @@ class ConversationRecordingStepTest {
 
         step.process(context);
 
-        verify(chatSessionService).mergeSessionMetadata(eq("conv-1"), eq("user-1"), argThat(map ->
-            map.containsKey("lastResolvedTargets") && map.containsKey("lastResolvedTargetsTurnIndex")
-        ));
+        verify(chatSessionService).mergeSessionMetadata(eq("conv-1"), eq("user-1"), argThat(map -> {
+            if (!(map.containsKey("lastResolvedTargets") && map.containsKey("lastResolvedTargetsTurnIndex"))) {
+                return false;
+            }
+            Object rawTargets = map.get("lastResolvedTargets");
+            if (!(rawTargets instanceof java.util.List<?> list) || list.isEmpty()) {
+                return false;
+            }
+            Object first = list.getFirst();
+            if (!(first instanceof Map<?, ?> entry)) {
+                return false;
+            }
+            return !entry.containsKey("id")
+                && "snippet".equals(entry.get("contentText"))
+                && "REQUEST_ATTACHMENTS".equals(entry.get("originSource"));
+        }));
     }
 
     @Test
@@ -194,7 +211,7 @@ class ConversationRecordingStepTest {
             if (!(first instanceof Map<?, ?> entry)) {
                 return false;
             }
-            return "85".equals(entry.get("id")) && "ACTION_RESULT_ITEMS".equals(entry.get("source"));
+            return "85".equals(entry.get("id")) && "ACTION_RESULT_ITEMS".equals(entry.get("originSource"));
         }));
     }
 }

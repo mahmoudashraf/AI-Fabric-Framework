@@ -2015,42 +2015,38 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private String buildPinnedTargetsBlock(List<ResolvedTarget> targets) {
-        StringBuilder sb = new StringBuilder(512);
-        sb.append("PINNED TARGETS (authoritative):\n");
-        int index = 1;
-        for (ResolvedTarget target : targets) {
-            if (target == null) {
-                continue;
-            }
+        String header = resolvePinnedTargetsHeader(targets);
+        return com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetsContextRenderer.render(
+            header,
+            "target",
+            targets
+        );
+    }
 
-            sb.append(index).append(") ");
-            sb.append("ref=target#").append(index).append(" ");
-            if (StringUtils.hasText(target.getVectorSpace())) {
-                sb.append("vectorSpace=").append(target.getVectorSpace()).append(" ");
-            }
-            if (StringUtils.hasText(target.getId())) {
-                sb.append("id=").append(target.getId()).append(" ");
-            }
-
-            if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
-                sb.append(" metadata={");
-                String meta = target.getMetadata().entrySet().stream()
-                    .filter(e -> e != null && StringUtils.hasText(e.getKey()) && StringUtils.hasText(e.getValue()))
-                    .map(e -> e.getKey() + "=" + e.getValue())
-                    .collect(Collectors.joining(", "));
-                sb.append(meta).append("}");
-            }
-
-            if (StringUtils.hasText(target.getContentText())) {
-                sb.append(" contentTextTruncated=").append(target.isContentTextTruncated());
-                sb.append(" contentText=\"").append(target.getContentText()).append("\"");
-            }
-
-            sb.append("\n");
-            index++;
+    private String resolvePinnedTargetsHeader(List<ResolvedTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return "PINNED TARGETS:";
         }
 
-        return sb.toString().trim();
+        com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource uniform = null;
+        for (ResolvedTarget target : targets) {
+            if (target == null || target.getSource() == null) {
+                return "PINNED TARGETS:";
+            }
+            if (uniform == null) {
+                uniform = target.getSource();
+                continue;
+            }
+            if (uniform != target.getSource()) {
+                return "PINNED TARGETS:";
+            }
+        }
+
+        if (uniform == com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.SESSION_METADATA) {
+            return "PINNED TARGETS (previously pinned; not current UI selection):";
+        }
+
+        return "PINNED TARGETS (authoritative):";
     }
 
     private boolean shouldSkipRetrievalForPinnedTargets(Intent intent, PipelineContext pipelineContext) {

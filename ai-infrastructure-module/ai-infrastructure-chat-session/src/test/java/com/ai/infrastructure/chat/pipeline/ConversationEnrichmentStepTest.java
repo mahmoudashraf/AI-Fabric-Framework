@@ -11,9 +11,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.dto.AIChatMessage;
-import com.ai.infrastructure.rag.VectorDatabaseService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.Map;
 import java.util.Optional;
@@ -47,8 +45,7 @@ class ConversationEnrichmentStepTest {
             service,
             properties,
             pendingActionStore,
-            actionDraftStore,
-            emptyVectorDbProvider()
+            actionDraftStore
         );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
@@ -85,8 +82,7 @@ class ConversationEnrichmentStepTest {
             service,
             properties,
             pendingActionStore,
-            actionDraftStore,
-            emptyVectorDbProvider()
+            actionDraftStore
         );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
@@ -120,9 +116,9 @@ class ConversationEnrichmentStepTest {
                 "lastResolvedTargetsTurnIndex", 2,
                 "lastResolvedTargets", java.util.List.of(
                     Map.of(
-                        "id", "85",
                         "vectorSpace", "product",
-                        "contentText", "snippet"
+                        "contentText", "snippet",
+                        "contentTextTruncated", false
                     )
                 )
             ))
@@ -145,8 +141,7 @@ class ConversationEnrichmentStepTest {
             service,
             properties,
             pendingActionStore,
-            actionDraftStore,
-            emptyVectorDbProvider()
+            actionDraftStore
         );
 
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
@@ -158,14 +153,11 @@ class ConversationEnrichmentStepTest {
         PipelineContext updated = step.process(context);
 
         assertThat(updated.getResolvedTargets()).hasSize(1);
-        assertThat(updated.getResolvedTargets().getFirst().getId()).isEqualTo("85");
+        assertThat(updated.getResolvedTargets().getFirst().getId()).isNull();
+        assertThat(updated.getResolvedTargets().getFirst().getContentText()).isEqualTo("snippet");
         assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.SESSION_METADATA);
+        assertThat(updated.getPinnedTargetsContext()).startsWith("PINNED TARGETS (previously pinned; not current UI selection):");
     }
 
-    private ObjectProvider<VectorDatabaseService> emptyVectorDbProvider() {
-        @SuppressWarnings("unchecked")
-        ObjectProvider<VectorDatabaseService> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(null);
-        return provider;
-    }
+    // no vector database provider needed (pinned targets are persisted as full documents)
 }
