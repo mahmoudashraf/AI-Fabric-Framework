@@ -92,28 +92,12 @@ public class OrchestrationContext {
     private List<OrchestrationAttachment> attachments = new ArrayList<>();
 
     /**
-     * Optional attachment ids currently selected/highlighted by the client.
-     *
-     * <p>This is input-only; use {@link #activeAttachmentIdsResolved} after pipeline normalization.</p>
-     */
-    @Builder.Default
-    private List<String> activeAttachmentIds = new ArrayList<>();
-
-    /**
      * Normalized attachment list (server-validated, bounded, scalar metadata only).
      *
      * <p>Populated by {@code AttachmentNormalizationStep}.</p>
      */
     @Builder.Default
     private List<NormalizedAttachment> attachmentsNormalized = new ArrayList<>();
-
-    /**
-     * Normalized active attachment ids (intersection of declared ids and provided selection).
-     *
-     * <p>Populated by {@code AttachmentNormalizationStep}.</p>
-     */
-    @Builder.Default
-    private List<String> activeAttachmentIdsResolved = new ArrayList<>();
 
     /**
      * Server-resolved orchestration policy for this request.

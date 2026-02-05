@@ -24,16 +24,15 @@ It is intended for frontend/UI clients calling:
   "mode": "string (optional; only used if position is missing or not routed)",
   "attachments": [
     {
-      "id": "string (required)",
-      "vectorSpace": "string (recommended; e.g. \"product\")",
+      "id": "string (optional; stable entity id when available)",
+      "vectorSpace": "string (optional; e.g. \"product\")",
       "contentText": "string (optional; bounded, best-effort grounding text)",
       "metadata": { "anyScalar": "..." },
       "source": "string (optional)",
       "url": "string (optional)",
       "imageUrl": "string (optional)"
     }
-  ],
-  "activeAttachmentIds": ["string (ids from attachments)"]
+  ]
 }
 ```
 
@@ -78,7 +77,7 @@ Temporary demo behavior:
 
 ## 3) When to send attachments
 
-Send `attachments` + `activeAttachmentIds` when the user is interacting with a **specific UI object** (e.g., a selected product card) and the user’s message is ambiguous:
+Send `attachments` when the user is interacting with **specific UI objects** (e.g., selected product cards) and the user’s message is ambiguous:
 - “Add it to my cart”
 - “Buy this”
 - “Compare these”
@@ -86,8 +85,8 @@ Send `attachments` + `activeAttachmentIds` when the user is interacting with a *
 This enables deterministic resolution without relying on the LLM to “guess” the target.
 
 Recommended UI pattern:
-- Include attachments for everything visible/selected in the UI list/cards.
-- Set `activeAttachmentIds` to what the user currently selected/focused on.
+- Send `attachments` as the list of pinned/selected cards/items the assistant should consider for this turn.
+- If the user changes selection, send a new `attachments` list reflecting the updated pinned set.
 - Set `vectorSpace` to the entity type configured in your `ai-entity-config.yml` (for the demo catalog: `product`) when known.
 - Include `contentText` when available so the LLM can answer from pinned context without extra retrieval.
 
@@ -144,8 +143,7 @@ If you want the backend to store and later return chat history via `/api/chat/co
       "metadata": { "sku": "SKU-0002", "category": "Keyboards" },
       "source": "ui-card"
     }
-  ],
-  "activeAttachmentIds": ["SKU-0002"]
+  ]
 }
 ```
 

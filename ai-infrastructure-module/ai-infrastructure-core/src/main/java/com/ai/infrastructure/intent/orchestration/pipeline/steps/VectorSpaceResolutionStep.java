@@ -198,8 +198,8 @@ public class VectorSpaceResolutionStep implements PipelineStep {
     private List<String> resolveScopedVectorSpaces(PipelineContext context) {
         OrchestrationContext orchContext = context != null ? context.getOrchestrationContext() : null;
         if (orchContext == null
-            || orchContext.getActiveAttachmentIdsResolved() == null
-            || orchContext.getActiveAttachmentIdsResolved().isEmpty()) {
+            || orchContext.getAttachmentsNormalized() == null
+            || orchContext.getAttachmentsNormalized().isEmpty()) {
             return List.of();
         }
 

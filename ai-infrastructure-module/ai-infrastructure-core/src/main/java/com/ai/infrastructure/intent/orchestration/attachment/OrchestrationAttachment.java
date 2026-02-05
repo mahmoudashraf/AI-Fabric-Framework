@@ -20,12 +20,17 @@ import java.util.Map;
 public class OrchestrationAttachment {
 
     /**
-     * Client-provided attachment identifier (required).
+     * Optional client-provided attachment identifier.
+     *
+     * <p>When present, this should be a stable identifier for an entity (e.g., product id) that can drive actions.
+     * When absent, the attachment can still provide grounding via {@link #contentText} and/or {@link #metadata}.</p>
      */
     private String id;
 
     /**
-     * Knowledge base vector space / entity type for retrieval scoping (required).
+     * Optional knowledge base vector space / entity type for retrieval scoping.
+     *
+     * <p>This is best-effort; omit when unknown.</p>
      */
     private String vectorSpace;
 

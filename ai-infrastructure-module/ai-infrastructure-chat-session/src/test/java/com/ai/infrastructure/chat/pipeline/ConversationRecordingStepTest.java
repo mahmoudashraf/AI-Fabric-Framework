@@ -119,7 +119,7 @@ class ConversationRecordingStepTest {
                 .vectorSpace("product")
                 .contentText("snippet")
                 .metadata(Map.of("sku", "SKU-1"))
-                .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
+                .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
                 .build()))
             .sanitizedPayload(Map.of("message", "ok"))
             .build();

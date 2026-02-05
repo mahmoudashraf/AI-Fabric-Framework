@@ -26,11 +26,6 @@ public class AttachmentsProperties {
     private int maxAttachments = 10;
 
     /**
-     * Maximum number of active attachment ids accepted per request.
-     */
-    private int maxActiveAttachmentIds = 10;
-
-    /**
      * Maximum characters kept for attachment content used for grounding.
      */
     private int maxContentTextChars = 2000;

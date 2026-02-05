@@ -21,11 +21,8 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 /**
  * Normalizes request attachments into a bounded, scalar-only structure for downstream steps.
@@ -75,21 +72,18 @@ public class AttachmentNormalizationStep implements PipelineStep {
         }
 
         List<OrchestrationAttachment> raw = orchContext.getAttachments();
-        List<String> active = orchContext.getActiveAttachmentIds();
-        boolean hasAny = (raw != null && !raw.isEmpty()) || (active != null && !active.isEmpty());
-        if (!hasAny) {
+        if (raw == null || raw.isEmpty()) {
             return context;
         }
 
         PIIDetectionService pii = piiDetectionServiceProvider != null ? piiDetectionServiceProvider.getIfAvailable() : null;
 
         int maxAttachments = Math.max(0, properties != null ? properties.getMaxAttachments() : 10);
-        int maxActiveIds = Math.max(0, properties != null ? properties.getMaxActiveAttachmentIds() : 10);
 
         List<NormalizedAttachment> normalized = new ArrayList<>();
         boolean attachmentsTruncated = false;
 
-        int provided = raw != null ? raw.size() : 0;
+        int provided = raw.size();
         if (raw != null && !raw.isEmpty() && maxAttachments > 0) {
             for (OrchestrationAttachment attachment : raw) {
                 if (normalized.size() >= maxAttachments) {
@@ -108,13 +102,6 @@ public class AttachmentNormalizationStep implements PipelineStep {
             attachmentsTruncated = true;
         }
 
-        Set<String> normalizedIds = new LinkedHashSet<>();
-        for (NormalizedAttachment attachment : normalized) {
-            if (attachment != null && StringUtils.hasText(attachment.getId())) {
-                normalizedIds.add(attachment.getId());
-            }
-        }
-
         VectorSpaceValidationOutcome validation = validateAttachmentVectorSpaces(normalized);
         if (validation.shouldTerminate) {
             return context.terminate(validation.result);
@@ -123,39 +110,14 @@ public class AttachmentNormalizationStep implements PipelineStep {
             normalized = validation.updatedAttachments;
         }
 
-        List<String> activeResolved = new ArrayList<>();
-        boolean activeTruncated = false;
-        int activeProvided = active != null ? active.size() : 0;
-        if (active != null && !active.isEmpty() && maxActiveIds > 0) {
-            for (String id : active) {
-                if (activeResolved.size() >= maxActiveIds) {
-                    activeTruncated = true;
-                    break;
-                }
-                String normalizedId = normalizeToken(id, properties != null ? properties.getMaxIdChars() : 80, false, pii);
-                if (StringUtils.hasText(normalizedId) && normalizedIds.contains(normalizedId)) {
-                    activeResolved.add(normalizedId);
-                }
-            }
-            if (active.size() > maxActiveIds) {
-                activeTruncated = true;
-            }
-        } else if (active != null && !active.isEmpty()) {
-            activeTruncated = true;
-        }
-
         OrchestrationContext updatedOrchContext = orchContext.toBuilder()
             .attachmentsNormalized(List.copyOf(normalized))
-            .activeAttachmentIdsResolved(List.copyOf(activeResolved))
             .build();
 
         Map<String, Object> attachmentMeta = new LinkedHashMap<>();
         attachmentMeta.put("providedCount", provided);
         attachmentMeta.put("acceptedCount", normalized.size());
         attachmentMeta.put("truncated", attachmentsTruncated);
-        attachmentMeta.put("activeProvidedCount", activeProvided);
-        attachmentMeta.put("activeResolvedCount", activeResolved.size());
-        attachmentMeta.put("activeTruncated", activeTruncated);
         if (properties != null && properties.getVectorSpaceValidationMode() != null) {
             attachmentMeta.put(META_KEY_VECTOR_SPACE_VALIDATION_MODE, properties.getVectorSpaceValidationMode().name());
         }
@@ -178,9 +140,6 @@ public class AttachmentNormalizationStep implements PipelineStep {
 
         String id = normalizeToken(attachment.getId(), properties != null ? properties.getMaxIdChars() : 80, false, pii);
         String vectorSpace = normalizeToken(attachment.getVectorSpace(), properties != null ? properties.getMaxVectorSpaceChars() : 80, false, pii);
-        if (!StringUtils.hasText(id)) {
-            return null;
-        }
 
         NormalizedText content = normalizeContentText(
             attachment.getContentText(),
@@ -196,6 +155,13 @@ public class AttachmentNormalizationStep implements PipelineStep {
             false,
             pii
         );
+
+        boolean hasId = StringUtils.hasText(id);
+        boolean hasContentText = content != null && StringUtils.hasText(content.value());
+        boolean hasMetadata = metadata != null && !metadata.isEmpty();
+        if (!hasId && !hasContentText && !hasMetadata) {
+            return null;
+        }
 
         return NormalizedAttachment.builder()
             .id(id)

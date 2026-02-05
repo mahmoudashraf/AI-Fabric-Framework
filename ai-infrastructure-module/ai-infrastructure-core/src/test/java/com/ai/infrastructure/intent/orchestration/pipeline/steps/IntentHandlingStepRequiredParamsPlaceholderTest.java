@@ -333,7 +333,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             .id("78")
             .vectorSpace("product")
             .metadata(Map.of("sku", "ELEC-PHONE-002"))
-            .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
+            .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
             .build();
 
         PipelineContext context = PipelineContext.from("buy it", OrchestrationContext.forUser("user"))

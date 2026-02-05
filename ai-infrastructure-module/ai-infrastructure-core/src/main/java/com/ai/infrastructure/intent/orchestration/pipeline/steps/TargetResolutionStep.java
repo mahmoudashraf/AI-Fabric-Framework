@@ -64,16 +64,15 @@ public class TargetResolutionStep implements PipelineStep {
             && !intentResponse.getIntents().isEmpty()
             && anyIntentRequiresTargetResolution(intentResponse.getIntents());
 
-        List<String> activeIds = orchContext.getActiveAttachmentIdsResolved();
         List<NormalizedAttachment> attachments = orchContext.getAttachmentsNormalized();
 
         PipelineContext updated = context;
 
-        // Always pin active attachments when they exist, regardless of LLM intent flags.
-        List<ResolvedTarget> resolved = resolveActiveAttachments(activeIds, attachments);
+        // Always pin request attachments when they exist, regardless of LLM intent flags.
+        List<ResolvedTarget> resolved = resolveRequestAttachments(attachments);
         if (!resolved.isEmpty()) {
             Map<String, Object> meta = new LinkedHashMap<>();
-            meta.put("source", ResolvedTargetSource.ACTIVE_ATTACHMENTS.name());
+            meta.put("source", ResolvedTargetSource.REQUEST_ATTACHMENTS.name());
             meta.put("count", resolved.size());
 
             updated = context.toBuilder()
@@ -113,39 +112,23 @@ public class TargetResolutionStep implements PipelineStep {
         return false;
     }
 
-    private NormalizedAttachment findById(List<NormalizedAttachment> attachments, String id) {
-        for (NormalizedAttachment attachment : attachments) {
-            if (attachment == null || !StringUtils.hasText(attachment.getId())) {
-                continue;
-            }
-            if (attachment.getId().equals(id)) {
-                return attachment;
-            }
-        }
-        return null;
-    }
-
-    private List<ResolvedTarget> resolveActiveAttachments(List<String> activeIds, List<NormalizedAttachment> attachments) {
-        if (activeIds == null || activeIds.isEmpty() || attachments == null || attachments.isEmpty()) {
+    private List<ResolvedTarget> resolveRequestAttachments(List<NormalizedAttachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
             return List.of();
         }
 
         List<ResolvedTarget> resolved = new ArrayList<>();
-        for (String id : activeIds) {
-            if (!StringUtils.hasText(id)) {
-                continue;
-            }
-            NormalizedAttachment attachment = findById(attachments, id.trim());
+        for (NormalizedAttachment attachment : attachments) {
             if (attachment == null) {
                 continue;
             }
             resolved.add(ResolvedTarget.builder()
-                .id(attachment.getId())
+                .id(StringUtils.hasText(attachment.getId()) ? attachment.getId() : null)
                 .vectorSpace(attachment.getVectorSpace())
                 .contentText(attachment.getContentText())
                 .contentTextTruncated(attachment.isContentTextTruncated())
                 .metadata(attachment.getMetadata() != null ? attachment.getMetadata() : Map.of())
-                .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
+                .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
                 .build());
         }
 

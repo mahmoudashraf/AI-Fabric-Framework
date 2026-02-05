@@ -14,7 +14,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -59,14 +58,7 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
             return context;
         }
 
-        Set<String> activeIds = orchContext != null && orchContext.getActiveAttachmentIdsResolved() != null
-            ? orchContext.getActiveAttachmentIdsResolved().stream()
-                .filter(StringUtils::hasText)
-                .map(String::trim)
-                .collect(Collectors.toSet())
-            : Set.of();
-
-        String prefix = buildAttachmentsBlock(attachments, activeIds);
+        String prefix = buildAttachmentsBlock(attachments);
         if (!StringUtils.hasText(prefix)) {
             return context;
         }
@@ -78,30 +70,27 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("injected", true);
         meta.put("attachmentsCount", attachments.size());
-        meta.put("activeCount", activeIds.size());
         return updated.withMetadata(METADATA_KEY_ATTACHMENTS_PROMPT, Collections.unmodifiableMap(meta));
     }
 
-    private String buildAttachmentsBlock(List<NormalizedAttachment> attachments, Set<String> activeIds) {
+    private String buildAttachmentsBlock(List<NormalizedAttachment> attachments) {
         StringBuilder sb = new StringBuilder(512);
-        sb.append("PINNED TARGETS (user-selected candidates; [ACTIVE] is pinned):\n");
+        sb.append("ATTACHMENTS (user context; pinned targets):\n");
 
         int index = 1;
         for (NormalizedAttachment attachment : attachments) {
-            if (attachment == null
-                || !StringUtils.hasText(attachment.getId())) {
+            if (attachment == null) {
                 continue;
             }
 
-            boolean active = activeIds != null && activeIds.contains(attachment.getId());
             sb.append(index).append(") ");
-            if (active) {
-                sb.append("[ACTIVE] ");
-            }
+            sb.append("ref=att#").append(index).append(" ");
             if (StringUtils.hasText(attachment.getVectorSpace())) {
                 sb.append("vectorSpace=").append(attachment.getVectorSpace()).append(" ");
             }
-            sb.append("id=").append(attachment.getId());
+            if (StringUtils.hasText(attachment.getId())) {
+                sb.append("id=").append(attachment.getId()).append(" ");
+            }
 
             if (StringUtils.hasText(attachment.getSource())) {
                 sb.append(" source=").append(attachment.getSource());

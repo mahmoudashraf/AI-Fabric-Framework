@@ -133,9 +133,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
         // Only reuse targets when the current request does not include new attachments.
         if (context.getOrchestrationContext() == null
             || (context.getOrchestrationContext().getAttachmentsNormalized() != null
-                && !context.getOrchestrationContext().getAttachmentsNormalized().isEmpty())
-            || (context.getOrchestrationContext().getActiveAttachmentIdsResolved() != null
-                && !context.getOrchestrationContext().getActiveAttachmentIdsResolved().isEmpty())) {
+                && !context.getOrchestrationContext().getAttachmentsNormalized().isEmpty())) {
             return context;
         }
 

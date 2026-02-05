@@ -72,9 +72,6 @@ public class NaturalLanguageController {
         if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
             builder.attachments(request.getAttachments());
         }
-        if (request.getActiveAttachmentIds() != null && !request.getActiveAttachmentIds().isEmpty()) {
-            builder.activeAttachmentIds(request.getActiveAttachmentIds());
-        }
 
         OrchestrationContext context = userId != null && !userId.isBlank()
             ? builder.userId(userId).sessionId(sessionId).build()
@@ -164,6 +161,5 @@ public class NaturalLanguageController {
         private String position;
         private String mode;
         private List<OrchestrationAttachment> attachments;
-        private List<String> activeAttachmentIds;
     }
 }

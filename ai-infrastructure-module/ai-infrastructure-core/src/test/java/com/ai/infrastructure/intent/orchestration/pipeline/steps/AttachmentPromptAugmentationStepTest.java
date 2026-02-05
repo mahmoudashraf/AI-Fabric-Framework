@@ -24,20 +24,29 @@ class AttachmentPromptAugmentationStepTest {
             .metadata(Map.of("sku", "SKU-1"))
             .build();
 
+        NormalizedAttachment idLess = NormalizedAttachment.builder()
+            .id(null)
+            .vectorSpace("policy")
+            .contentText("Return policy excerpt")
+            .build();
+
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId("demo-user")
-            .attachmentsNormalized(List.of(attachment))
-            .activeAttachmentIdsResolved(List.of("1"))
+            .attachmentsNormalized(List.of(attachment, idLess))
             .build();
 
         PipelineContext ctx = PipelineContext.from("hello", orch);
         PipelineContext updated = step.process(ctx);
 
         assertThat(updated.getEffectiveQuery()).isEqualTo("hello");
-        assertThat(updated.getPinnedTargetsContext()).startsWith("PINNED TARGETS (user-selected candidates; [ACTIVE] is pinned):");
-        assertThat(updated.getPinnedTargetsContext()).contains("[ACTIVE]");
-        assertThat(updated.getPinnedTargetsContext()).contains("vectorSpace=product id=1");
+        assertThat(updated.getPinnedTargetsContext()).startsWith("ATTACHMENTS (user context; pinned targets):");
+        assertThat(updated.getPinnedTargetsContext()).contains("ref=att#1");
+        assertThat(updated.getPinnedTargetsContext()).contains("vectorSpace=product");
+        assertThat(updated.getPinnedTargetsContext()).contains("id=1");
         assertThat(updated.getPinnedTargetsContext()).contains("metadata={sku=SKU-1}");
+        assertThat(updated.getPinnedTargetsContext()).contains("ref=att#2");
+        assertThat(updated.getPinnedTargetsContext()).doesNotContain("id=null");
+        assertThat(updated.getPinnedTargetsContext()).contains("Return policy excerpt");
         assertThat(updated.getMetadata()).containsKey("attachmentsPrompt");
     }
 
@@ -55,13 +64,12 @@ class AttachmentPromptAugmentationStepTest {
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId("demo-user")
             .attachmentsNormalized(List.of(attachment))
-            .activeAttachmentIdsResolved(List.of("85"))
             .build();
 
         PipelineContext ctx = PipelineContext.from("summarize this", orch);
         PipelineContext updated = step.process(ctx);
 
         assertThat(updated.getPinnedTargetsContext()).contains("id=85");
-        assertThat(updated.getPinnedTargetsContext()).doesNotContain("vectorSpace=null");
+        assertThat(updated.getPinnedTargetsContext()).doesNotContain("vectorSpace=");
     }
 }
