@@ -4,6 +4,8 @@ import com.ai.infrastructure.chat.domain.ChatSession;
 import com.ai.infrastructure.chat.pipeline.ConversationEnrichmentStep;
 import com.ai.infrastructure.chat.pipeline.ConversationRecordingStep;
 import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.dto.AIChatMessage;
+import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.intent.orchestration.pipeline.Pipeline;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import org.junit.jupiter.api.Test;
@@ -65,14 +67,17 @@ class ChatSessionWiringIntegrationTest {
         ChatSession session = chatSessionService.getSession(conversationId, ownerId);
         assertThat(session.getTurns()).hasSize(1);
 
-        String context = chatSessionService.getConversationContext(conversationId, ownerId);
-        assertThat(context).contains("User: Hello");
-        assertThat(context).contains("Assistant: Hi there");
-        assertThat(context).contains("Action Context:");
-        assertThat(context).contains("action=create_purchase_order");
-        assertThat(context).contains("success=true");
-        assertThat(context).contains("orderNumber=PO-123");
-        assertThat(context).contains("orderId=9");
-        assertThat(context).contains("sku=SKU-ABC-1");
+        List<AIChatMessage> messages = chatSessionService.getConversationMessages(conversationId, ownerId);
+        assertThat(messages).hasSize(2);
+        assertThat(messages.get(0).getRole()).isEqualTo(AIChatRole.USER);
+        assertThat(messages.get(0).getContent()).isEqualTo("Hello");
+        assertThat(messages.get(1).getRole()).isEqualTo(AIChatRole.ASSISTANT);
+        assertThat(messages.get(1).getContent()).contains("Hi there");
+        assertThat(messages.get(1).getContent()).contains("Action Context:");
+        assertThat(messages.get(1).getContent()).contains("action=create_purchase_order");
+        assertThat(messages.get(1).getContent()).contains("success=true");
+        assertThat(messages.get(1).getContent()).contains("orderNumber=PO-123");
+        assertThat(messages.get(1).getContent()).contains("orderId=9");
+        assertThat(messages.get(1).getContent()).contains("sku=SKU-ABC-1");
     }
 }

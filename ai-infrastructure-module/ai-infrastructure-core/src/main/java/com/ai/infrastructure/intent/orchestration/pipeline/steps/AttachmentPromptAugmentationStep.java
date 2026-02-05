@@ -71,13 +71,8 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
             return context;
         }
 
-        String existing = context.getEffectiveQuery();
-        String merged = StringUtils.hasText(existing)
-            ? prefix + "\n\n" + existing
-            : prefix;
-
         PipelineContext updated = context.toBuilder()
-            .processedQuery(merged)
+            .pinnedTargetsContext(prefix)
             .build();
 
         Map<String, Object> meta = new LinkedHashMap<>();
@@ -89,7 +84,7 @@ public class AttachmentPromptAugmentationStep implements PipelineStep {
 
     private String buildAttachmentsBlock(List<NormalizedAttachment> attachments, Set<String> activeIds) {
         StringBuilder sb = new StringBuilder(512);
-        sb.append("ATTACHMENTS (authoritative UI context; [ACTIVE] is pinned):\n");
+        sb.append("PINNED TARGETS (user-selected candidates; [ACTIVE] is pinned):\n");
 
         int index = 1;
         for (NormalizedAttachment attachment : attachments) {

@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline;
 
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -145,6 +146,20 @@ public class PipelineContext {
      */
     @Builder.Default
     private final List<ResolvedTarget> resolvedTargets = new ArrayList<>();
+
+    /**
+     * Structured conversation history messages for provider-native multi-message prompting.
+     */
+    @Builder.Default
+    private final List<AIChatMessage> historyMessages = new ArrayList<>();
+
+    /**
+     * Rendered pinned targets context (attachments / selected UI cards) to be injected into the
+     * current user message for LLM calls.
+     *
+     * <p>Must never be used as a vector/embedding query input.</p>
+     */
+    private final String pinnedTargetsContext;
 
     /**
      * The sanitized payload for the response.

@@ -19,6 +19,7 @@ import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.history.IntentHistoryService;
 import com.ai.infrastructure.intent.action.AIActionHandler;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
@@ -209,7 +210,7 @@ class RAGOrchestratorTest {
             .action("cancel_subscription")
             .actionParams(Map.of("reason", "too expensive"))
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
@@ -235,7 +236,7 @@ class RAGOrchestratorTest {
             .type(IntentType.ACTION)
             .action("unknown_action")
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("unknown_action")).thenReturn(Optional.empty());
 
@@ -251,7 +252,7 @@ class RAGOrchestratorTest {
             .type(IntentType.ACTION)
             .action("cancel_subscription")
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(false);
@@ -268,7 +269,7 @@ class RAGOrchestratorTest {
             .type(IntentType.ACTION)
             .action("cancel_subscription")
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
@@ -293,7 +294,7 @@ class RAGOrchestratorTest {
             .vectorSpace("policies")
             .requiresGeneration(true)
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         RAGResponse ragResponse = RAGResponse.builder()
@@ -322,7 +323,7 @@ class RAGOrchestratorTest {
             .optimizedQuery("Product entities where price_usd < 100 and stock_status = 'in_stock'")
             .requiresGeneration(true)
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         RAGResponse ragResponse = RAGResponse.builder()
@@ -354,7 +355,7 @@ class RAGOrchestratorTest {
             .requiresGeneration(true)
             .needsAdvancedRAG(true)
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         AIServiceConfig.FeatureFlags features = AIServiceConfig.FeatureFlags.builder()
@@ -397,7 +398,7 @@ class RAGOrchestratorTest {
             .requiresGeneration(true)
             .needsAdvancedRAG(false) // LLM explicitly says no
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         AIServiceConfig.FeatureFlags features = AIServiceConfig.FeatureFlags.builder()
@@ -437,7 +438,7 @@ class RAGOrchestratorTest {
             .requiresGeneration(true)
             .needsAdvancedRAG(true)
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         AIServiceConfig.FeatureFlags features = AIServiceConfig.FeatureFlags.builder()
@@ -476,7 +477,7 @@ class RAGOrchestratorTest {
             .optimizedQuery("Can you recommend a wireless headset with ANC, low latency, multi-device pairing, and long battery life?")
             .requiresGeneration(true)
             .build(); // needsAdvancedRAG is null (LLM did not provide)
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         AIServiceConfig.FeatureFlags features = AIServiceConfig.FeatureFlags.builder()
@@ -512,7 +513,7 @@ class RAGOrchestratorTest {
             .type(IntentType.OUT_OF_SCOPE)
             .actionParams(Map.of("reason", "Unsupported domain"))
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         OrchestrationResult result = orchestrator.orchestrate("Build me a spaceship", "user");
@@ -527,7 +528,7 @@ class RAGOrchestratorTest {
             .type(IntentType.ACTION)
             .action("cancel_subscription")
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         OrchestrationContext anonymous = OrchestrationContext.forSession("sess-123");
@@ -553,7 +554,7 @@ class RAGOrchestratorTest {
             .compound(true)
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class))).thenReturn(compound);
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(compound);
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
         when(actionHandler.requiresConfirmation()).thenReturn(true);
@@ -584,7 +585,7 @@ class RAGOrchestratorTest {
             .action("update_payment_method")
             .nextStepRecommended(recommendation)
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
@@ -625,7 +626,7 @@ class RAGOrchestratorTest {
             .nextStepRecommended(recommendation)
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
@@ -660,7 +661,7 @@ class RAGOrchestratorTest {
             .nextStepRecommended(recommendation)
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("update_payment_method")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);

@@ -9,6 +9,7 @@ import com.ai.infrastructure.chat.exception.ChatSessionNotFoundException;
 import com.ai.infrastructure.chat.spi.ChatSessionAccessControlPolicy;
 import com.ai.infrastructure.chat.spi.ChatSessionStorageProvider;
 import com.ai.infrastructure.chat.strategy.MemoryStrategy;
+import com.ai.infrastructure.dto.AIChatMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,12 +33,12 @@ public class ChatSessionServiceImpl implements ChatSessionService {
 
     @Override
     @Transactional
-    public String getConversationContext(String conversationId, String ownerId) {
+    public List<AIChatMessage> getConversationMessages(String conversationId, String ownerId) {
         if (!StringUtils.hasText(conversationId)) {
-            return "";
+            return List.of();
         }
         if (!StringUtils.hasText(ownerId)) {
-            throw new IllegalArgumentException("ownerId cannot be blank when loading conversation context");
+            throw new IllegalArgumentException("ownerId cannot be blank when loading conversation messages");
         }
 
         if (!accessPolicy.canAccessConversation(ownerId, conversationId)) {
@@ -53,19 +54,42 @@ public class ChatSessionServiceImpl implements ChatSessionService {
 
         List<ChatTurn> history = session.getTurns() != null ? session.getTurns() : List.of();
         if (history.isEmpty()) {
-            return "";
+            return List.of();
         }
 
         int windowSize = properties != null ? properties.getWindowSize() : 10;
         List<ChatTurn> pruned = memoryStrategy.prune(history, windowSize);
-        String context = memoryStrategy.toPromptContext(pruned);
 
-        int maxChars = properties != null ? properties.getMaxContextChars() : 8_000;
-        if (StringUtils.hasText(context) && context.length() > maxChars) {
-            context = context.substring(context.length() - maxChars);
+        List<AIChatMessage> messages = memoryStrategy.toMessages(pruned);
+        if (messages.isEmpty()) {
+            return List.of();
         }
 
-        return context != null ? context : "";
+        int maxChars = properties != null ? properties.getMaxContextChars() : 8_000;
+        if (maxChars <= 0) {
+            return messages;
+        }
+
+        // Bound by dropping oldest whole messages; never substring content.
+        int totalChars = messages.stream()
+            .map(AIChatMessage::getContent)
+            .filter(Objects::nonNull)
+            .mapToInt(String::length)
+            .sum();
+
+        if (totalChars <= maxChars) {
+            return messages;
+        }
+
+        List<AIChatMessage> bounded = new ArrayList<>(messages);
+        while (totalChars > maxChars && !bounded.isEmpty()) {
+            AIChatMessage removed = bounded.remove(0);
+            if (removed != null && removed.getContent() != null) {
+                totalChars -= removed.getContent().length();
+            }
+        }
+
+        return bounded.isEmpty() ? List.of() : List.copyOf(bounded);
     }
 
     @Override

@@ -7,8 +7,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
  */
 public interface IntentExtractionStrategy {
 
-    ExtractionAttempt attemptExtract(String query, OrchestrationContext context);
+    ExtractionAttempt attemptExtract(IntentExtractionInput input, OrchestrationContext context);
 
     String getStrategyName();
 }
-

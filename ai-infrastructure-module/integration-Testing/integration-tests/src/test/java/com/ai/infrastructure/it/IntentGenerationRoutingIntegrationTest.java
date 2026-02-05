@@ -13,6 +13,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -112,7 +113,7 @@ class IntentGenerationRoutingIntegrationTest {
             .optimizedQuery("Product entities with price_usd < 60 and stock_status = 'in_stock'")
             .requiresGeneration(false)
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().context("search-only").documents(List.of()).success(true).build()
@@ -139,7 +140,7 @@ class IntentGenerationRoutingIntegrationTest {
             .optimizedQuery("Product entities with sentiment = 'positive'")
             .requiresGeneration(true)
             .build();
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().context("generation-context").documents(List.of()).success(true).build()

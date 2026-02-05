@@ -1097,10 +1097,9 @@ public class IntentHandlingStep implements PipelineStep {
 
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
-        String retrievalFallbackQuery = extractUserQueryForRetrieval(processedQuery, pipelineContext != null ? pipelineContext.getOriginalQuery() : null);
         String retrievalBaseQuery = StringUtils.hasText(optimizedQuery)
             ? optimizedQuery
-            : (StringUtils.hasText(retrievalFallbackQuery) ? retrievalFallbackQuery : intent.getIntentOrAction());
+            : (StringUtils.hasText(processedQuery) ? processedQuery : intent.getIntentOrAction());
         String generationQuery = StringUtils.hasText(processedQuery) ? processedQuery : retrievalBaseQuery;
         
         Map<String, Object> metadata = new LinkedHashMap<>();
@@ -1180,53 +1179,8 @@ public class IntentHandlingStep implements PipelineStep {
         return handleInformationBasic(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata);
     }
 
-    private String extractUserQueryForRetrieval(String effectiveQuery, String originalQuery) {
-        if (!StringUtils.hasText(effectiveQuery)) {
-            return StringUtils.hasText(originalQuery) ? originalQuery : null;
-        }
-
-        String extracted = extractBetweenMarkers(effectiveQuery, "---BEGIN QUERY---", "---END QUERY---");
-        if (StringUtils.hasText(extracted)) {
-            return extracted;
-        }
-
-        extracted = extractBetweenMarkers(effectiveQuery, "---BEGIN MESSAGE---", "---END MESSAGE---");
-        if (StringUtils.hasText(extracted)) {
-            return extracted;
-        }
-
-        // If attachments were injected into the effective query, they are separated from the original user query by a blank line.
-        String trimmed = effectiveQuery.trim();
-        if (trimmed.startsWith("ATTACHMENTS (")) {
-            int split = trimmed.indexOf("\n\n");
-            if (split > 0 && split + 2 < trimmed.length()) {
-                String remainder = trimmed.substring(split + 2).trim();
-                if (StringUtils.hasText(remainder)) {
-                    return remainder;
-                }
-            }
-        }
-
-        return trimmed;
-    }
-
-    private String extractBetweenMarkers(String text, String beginMarker, String endMarker) {
-        if (!StringUtils.hasText(text) || !StringUtils.hasText(beginMarker) || !StringUtils.hasText(endMarker)) {
-            return null;
-        }
-        int begin = text.indexOf(beginMarker);
-        if (begin < 0) {
-            return null;
-        }
-        begin += beginMarker.length();
-        int end = text.indexOf(endMarker, begin);
-        if (end < 0 || end <= begin) {
-            return null;
-        }
-        String extracted = text.substring(begin, end);
-        String trimmed = extracted != null ? extracted.trim() : null;
-        return StringUtils.hasText(trimmed) ? trimmed : null;
-    }
+    // Retrieval queries must always be derived from the user's actual query (PII-processed if enabled),
+    // never from any carrier string that mixes history/attachments into the query.
 
     private boolean hasPendingAction(OrchestrationContext context) {
         if (context == null || !context.hasConversation() || pendingActionStore == null) {

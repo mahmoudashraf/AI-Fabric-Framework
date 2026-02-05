@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,6 +37,14 @@ public class AIGenerationRequest {
     private String context;
     
     private String systemPrompt;
+
+    /**
+     * Optional multi-message chat history to send to chat-capable LLM providers.
+     *
+     * <p>When present, providers MUST send these as native chat messages (role/user/assistant),
+     * and MUST NOT pack them into the {@link #prompt} string.</p>
+     */
+    private List<AIChatMessage> messages;
     
     private String purpose;
     

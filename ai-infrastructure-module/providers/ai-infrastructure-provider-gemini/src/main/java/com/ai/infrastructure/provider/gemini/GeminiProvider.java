@@ -4,6 +4,8 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.dto.AIChatMessage;
+import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
@@ -97,7 +99,6 @@ public class GeminiProvider implements AIProvider {
             
             // Build contents array - Gemini uses "contents" instead of "messages"
             List<Map<String, Object>> contents = new ArrayList<>();
-            Map<String, Object> content = new HashMap<>();
 
             Map<String, Object> requestParams = request.getParameters() != null ? request.getParameters() : Map.of();
             boolean jsonMimeTypeRequested = isJsonMimeTypeRequested(requestParams);
@@ -124,10 +125,25 @@ public class GeminiProvider implements AIProvider {
             }
             
             // Gemini uses "parts" array with text content
-            List<Map<String, Object>> parts = new ArrayList<>();
-            parts.add(Map.of("text", request.getPrompt()));
-            content.put("parts", parts);
-            contents.add(content);
+            if (request.getMessages() != null && !request.getMessages().isEmpty()) {
+                for (AIChatMessage msg : request.getMessages()) {
+                    if (msg == null || msg.getRole() == null || msg.getContent() == null || msg.getContent().isBlank()) {
+                        continue;
+                    }
+                    if (AIChatRole.SYSTEM.equals(msg.getRole())) {
+                        continue;
+                    }
+                    String role = AIChatRole.USER.equals(msg.getRole()) ? "user" : "model";
+                    contents.add(Map.of(
+                        "role", role,
+                        "parts", List.of(Map.of("text", msg.getContent()))
+                    ));
+                }
+            }
+            contents.add(Map.of(
+                "role", "user",
+                "parts", List.of(Map.of("text", request.getPrompt() != null ? request.getPrompt() : ""))
+            ));
             requestBody.put("contents", contents);
             
             // Add generation config

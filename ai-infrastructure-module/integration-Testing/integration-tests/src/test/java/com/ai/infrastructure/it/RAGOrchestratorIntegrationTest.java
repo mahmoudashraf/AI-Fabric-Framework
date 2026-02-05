@@ -20,6 +20,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.action.AIActionHandler;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.ActionResult;
@@ -114,7 +115,7 @@ class RAGOrchestratorIntegrationTest {
             .vectorSpace("default")
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class))).thenReturn(
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(
             MultiIntentResponse.builder()
                 .compound(false)
                 .intents(List.of(informationIntent))

@@ -3,6 +3,7 @@ package com.ai.infrastructure.chat.it.realapi;
 import com.ai.infrastructure.chat.domain.ChatSession;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.chat.it.ChatSessionIntegrationTestApplication;
+import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -48,10 +49,10 @@ class ChatSessionConversationRealApiIntegrationTest {
         ChatSession session = chatSessionService.getSession(conversationId, ownerId);
         assertThat(session.getTurns()).hasSizeGreaterThanOrEqualTo(2);
 
-        String history = chatSessionService.getConversationContext(conversationId, ownerId);
-        assertThat(history).isNotBlank();
-        assertThat(history).contains("User:");
-        assertThat(history).contains("Assistant:");
+        var messages = chatSessionService.getConversationMessages(conversationId, ownerId);
+        assertThat(messages).isNotEmpty();
+        assertThat(messages.stream().anyMatch(m -> AIChatRole.USER.equals(m.getRole()))).isTrue();
+        assertThat(messages.stream().anyMatch(m -> AIChatRole.ASSISTANT.equals(m.getRole()))).isTrue();
     }
 
     @Test

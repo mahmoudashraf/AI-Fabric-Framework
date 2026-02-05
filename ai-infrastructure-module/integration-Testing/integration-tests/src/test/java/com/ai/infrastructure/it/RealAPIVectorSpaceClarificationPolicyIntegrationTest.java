@@ -4,6 +4,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -95,7 +96,7 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
             .optimizedQuery("enterprise security suite incident response and privacy compliance audits")
             .build();
 
-        when(progressiveIntentExtractionEngine.extract(anyString(), any(OrchestrationContext.class)))
+        when(progressiveIntentExtractionEngine.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(new ProgressiveIntentExtractionEngine.ExtractionOutput(
                 MultiIntentResponse.builder().intents(List.of(retrievalIntentMissingSpace)).build(),
                 Map.of()

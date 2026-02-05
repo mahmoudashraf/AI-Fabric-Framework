@@ -34,9 +34,12 @@ public class CompoundIntentExtractionStrategy implements IntentExtractionStrateg
     private final IntentExtractionValidator validator;
 
     @Override
-    public ExtractionAttempt attemptExtract(String query, OrchestrationContext context) {
+    public ExtractionAttempt attemptExtract(IntentExtractionInput input, OrchestrationContext context) {
+        String query = input != null ? input.userQuery() : null;
+        String currentUserMessage = input != null ? input.currentUserMessage() : null;
+
         String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(context);
-        String userPrompt = enrichedPromptBuilder.buildUserPrompt(query);
+        String userPrompt = enrichedPromptBuilder.buildUserPrompt(currentUserMessage);
 
         AIGenerationRequest request = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())
@@ -44,6 +47,7 @@ public class CompoundIntentExtractionStrategy implements IntentExtractionStrateg
             .generationType(GENERATION_TYPE)
             .systemPrompt(systemPrompt)
             .prompt(userPrompt)
+            .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(context != null ? context.getUserId() : null)
             .build();

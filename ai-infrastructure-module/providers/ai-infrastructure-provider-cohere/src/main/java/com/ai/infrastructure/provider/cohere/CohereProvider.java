@@ -2,6 +2,8 @@ package com.ai.infrastructure.provider.cohere;
 
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIChatMessage;
+import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
@@ -88,14 +90,11 @@ public class CohereProvider implements AIProvider {
             requestBody.put("model", request.getModel() != null ? request.getModel() : 
                           (config.getDefaultModel() != null ? config.getDefaultModel() : "command-r7b-12-2024"));
             
-            // Cohere Chat API uses messages array
-            List<Map<String, Object>> messages = new java.util.ArrayList<>();
-            
             // Add system prompt if present
             if (request.getSystemPrompt() != null && !request.getSystemPrompt().trim().isEmpty()) {
                 // For intent extraction, enhance the system prompt to be very explicit about JSON-only responses
                 String systemPrompt = request.getSystemPrompt();
-                if (request.getGenerationType() != null && request.getGenerationType().equals("intent_extraction")) {
+                if (request.getGenerationType() != null && request.getGenerationType().contains("intent_extraction")) {
                     String jsonInstruction = "CRITICAL JSON REQUIREMENT: You are a JSON-only API endpoint. " +
                         "You MUST respond with ONLY valid JSON. No markdown code blocks (no ```json or ```), " +
                         "no explanations, no text before or after the JSON, no comments, no additional formatting. " +
@@ -108,9 +107,24 @@ public class CohereProvider implements AIProvider {
                 }
                 requestBody.put("preamble", systemPrompt);
             }
-            
-            // Add user message
-            messages.add(Map.of("role", "user", "content", request.getPrompt()));
+
+            if (request.getMessages() != null && !request.getMessages().isEmpty()) {
+                List<Map<String, Object>> chatHistory = new java.util.ArrayList<>();
+                for (AIChatMessage msg : request.getMessages()) {
+                    if (msg == null || msg.getRole() == null || msg.getContent() == null || msg.getContent().isBlank()) {
+                        continue;
+                    }
+                    if (AIChatRole.SYSTEM.equals(msg.getRole())) {
+                        continue;
+                    }
+                    String role = AIChatRole.USER.equals(msg.getRole()) ? "USER" : "CHATBOT";
+                    chatHistory.add(Map.of("role", role, "message", msg.getContent()));
+                }
+                if (!chatHistory.isEmpty()) {
+                    requestBody.put("chat_history", chatHistory);
+                }
+            }
+
             requestBody.put("message", request.getPrompt());
             
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());

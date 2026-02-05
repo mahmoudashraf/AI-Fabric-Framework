@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AttachmentPromptAugmentationStepTest {
 
     @Test
-    void shouldPrefixProcessedQueryWithAttachmentsBlock() {
+    void shouldInjectPinnedTargetsContextBlock() {
         AttachmentsProperties properties = new AttachmentsProperties();
         AttachmentPromptAugmentationStep step = new AttachmentPromptAugmentationStep(properties);
 
@@ -33,10 +33,11 @@ class AttachmentPromptAugmentationStepTest {
         PipelineContext ctx = PipelineContext.from("hello", orch);
         PipelineContext updated = step.process(ctx);
 
-        assertThat(updated.getEffectiveQuery()).startsWith("ATTACHMENTS (authoritative UI context; [ACTIVE] is pinned):");
-        assertThat(updated.getEffectiveQuery()).contains("[ACTIVE]");
-        assertThat(updated.getEffectiveQuery()).contains("vectorSpace=product id=1");
-        assertThat(updated.getEffectiveQuery()).contains("metadata={sku=SKU-1}");
+        assertThat(updated.getEffectiveQuery()).isEqualTo("hello");
+        assertThat(updated.getPinnedTargetsContext()).startsWith("PINNED TARGETS (user-selected candidates; [ACTIVE] is pinned):");
+        assertThat(updated.getPinnedTargetsContext()).contains("[ACTIVE]");
+        assertThat(updated.getPinnedTargetsContext()).contains("vectorSpace=product id=1");
+        assertThat(updated.getPinnedTargetsContext()).contains("metadata={sku=SKU-1}");
         assertThat(updated.getMetadata()).containsKey("attachmentsPrompt");
     }
 
@@ -60,7 +61,7 @@ class AttachmentPromptAugmentationStepTest {
         PipelineContext ctx = PipelineContext.from("summarize this", orch);
         PipelineContext updated = step.process(ctx);
 
-        assertThat(updated.getEffectiveQuery()).contains("id=85");
-        assertThat(updated.getEffectiveQuery()).doesNotContain("vectorSpace=null");
+        assertThat(updated.getPinnedTargetsContext()).contains("id=85");
+        assertThat(updated.getPinnedTargetsContext()).doesNotContain("vectorSpace=null");
     }
 }

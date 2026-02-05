@@ -47,8 +47,9 @@ public class ProgressiveIntentExtractionEngine {
 
     public record ExtractionOutput(MultiIntentResponse response, Map<String, Object> diagnostics) {}
 
-    public ExtractionOutput extract(String query, OrchestrationContext context) {
-        if (!StringUtils.hasText(query)) {
+    public ExtractionOutput extract(IntentExtractionInput input, OrchestrationContext context) {
+        String userQuery = input != null ? input.userQuery() : null;
+        if (!StringUtils.hasText(userQuery)) {
             return new ExtractionOutput(safeDefault("Blank query"), Map.of("extractionPath", "fallback"));
         }
 
@@ -63,9 +64,9 @@ public class ProgressiveIntentExtractionEngine {
 
         ExtractionAttempt compoundAttempt = null;
         if (!"multi_step".equals(forceMode)) {
-            ExtractionAttempt rawAttempt = compoundStrategy.attemptExtract(query, safeContext);
+            ExtractionAttempt rawAttempt = compoundStrategy.attemptExtract(input, safeContext);
             totalLlmCalls += rawAttempt.getLlmCalls();
-            compoundAttempt = assessAttempt(rawAttempt, query);
+            compoundAttempt = assessAttempt(rawAttempt, userQuery);
             attemptEvents.add(toAttemptEvent(compoundAttempt));
 
             if (compoundAttempt.isSuccess()) {
@@ -98,9 +99,9 @@ public class ProgressiveIntentExtractionEngine {
             int configuredAttempts = properties != null ? properties.getRepairMaxAttempts() : 1;
             int maxRepairAttempts = Math.max("repair".equals(forceMode) ? 1 : 0, configuredAttempts);
             for (int attempt = 0; attempt < maxRepairAttempts && totalLlmCalls < maxCalls; attempt++) {
-                ExtractionAttempt rawRepairAttempt = repairStrategy.attemptRepair(query, safeContext, compoundAttempt);
+                ExtractionAttempt rawRepairAttempt = repairStrategy.attemptRepair(input, safeContext, compoundAttempt);
                 totalLlmCalls += rawRepairAttempt.getLlmCalls();
-                ExtractionAttempt repairAttempt = assessAttempt(rawRepairAttempt, query);
+                ExtractionAttempt repairAttempt = assessAttempt(rawRepairAttempt, userQuery);
                 attemptEvents.add(toAttemptEvent(repairAttempt));
                 latestAttempt = repairAttempt;
 
@@ -132,9 +133,9 @@ public class ProgressiveIntentExtractionEngine {
             ExtractionAttempt current = attemptForCompletion;
 
             for (int attempt = 0; attempt < maxAttempts && totalLlmCalls < maxCalls; attempt++) {
-                ExtractionAttempt rawCompletionAttempt = completionStrategy.attemptComplete(query, safeContext, current);
+                ExtractionAttempt rawCompletionAttempt = completionStrategy.attemptComplete(input, safeContext, current);
                 totalLlmCalls += rawCompletionAttempt.getLlmCalls();
-                ExtractionAttempt completed = assessAttempt(rawCompletionAttempt, query);
+                ExtractionAttempt completed = assessAttempt(rawCompletionAttempt, userQuery);
                 attemptEvents.add(toAttemptEvent(completed));
 
                 if (completed.isSuccess()) {
@@ -161,9 +162,9 @@ public class ProgressiveIntentExtractionEngine {
         int remainingCalls = maxCalls - totalLlmCalls;
         // Multi-step extraction can use up to 3 LLM calls: classify + select actions + fill action params.
         if (multiStepEnabled && remainingCalls >= 3) {
-            ExtractionAttempt rawMultiStepAttempt = multiStepStrategy.attemptExtract(query, safeContext);
+            ExtractionAttempt rawMultiStepAttempt = multiStepStrategy.attemptExtract(input, safeContext);
             totalLlmCalls += rawMultiStepAttempt.getLlmCalls();
-            ExtractionAttempt multiStepAttempt = assessAttempt(rawMultiStepAttempt, query);
+            ExtractionAttempt multiStepAttempt = assessAttempt(rawMultiStepAttempt, userQuery);
             attemptEvents.add(toAttemptEvent(multiStepAttempt));
 
             if (multiStepAttempt.isSuccess()) {

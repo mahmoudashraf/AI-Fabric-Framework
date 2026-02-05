@@ -6,7 +6,9 @@ import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -23,7 +25,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(
@@ -65,7 +66,7 @@ class ChatInformationTurnRecordedIntegrationTest {
             .build();
 
         when(intentQueryExtractor.extract(
-            anyString(),
+            any(IntentExtractionInput.class),
             any(com.ai.infrastructure.intent.orchestration.OrchestrationContext.class)
         )).thenReturn(response);
 
@@ -90,9 +91,8 @@ class ChatInformationTurnRecordedIntegrationTest {
         assertThat(session.getTurns().getFirst().getUserQuery()).isEqualTo(query);
         assertThat(session.getTurns().getFirst().getAiResponse()).isEqualTo(result.getSanitizedPayload().get("message"));
 
-        String history = chatSessionService.getConversationContext(conversationId, ownerId);
-        assertThat(history).contains("User: " + query);
-        assertThat(history).contains("Assistant:");
+        var messages = chatSessionService.getConversationMessages(conversationId, ownerId);
+        assertThat(messages.stream().anyMatch(m -> AIChatRole.USER.equals(m.getRole()) && query.equals(m.getContent()))).isTrue();
+        assertThat(messages.stream().anyMatch(m -> AIChatRole.ASSISTANT.equals(m.getRole()))).isTrue();
     }
 }
-

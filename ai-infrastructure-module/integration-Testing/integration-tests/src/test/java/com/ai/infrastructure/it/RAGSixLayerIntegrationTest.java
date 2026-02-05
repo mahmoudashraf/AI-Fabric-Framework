@@ -9,6 +9,7 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
@@ -17,6 +18,7 @@ import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.repository.IntentHistoryRepository;
 import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.spi.RAGProvider;
@@ -216,7 +218,7 @@ class RAGSixLayerIntegrationTest {
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
-        Mockito.when(intentQueryExtractor.extract("Please email me the refund process at user.medium@example.com", "user-info"))
+        Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(response);
 
         OrchestrationResult result = orchestrator.orchestrate(
@@ -296,9 +298,7 @@ class RAGSixLayerIntegrationTest {
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
-        Mockito.when(intentQueryExtractor.extract(
-            "Customer wants card 5555-2222-3333-4444 wiped and discount catalog emailed to hq@company.com",
-            "user-compound"))
+        Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(compound);
 
         OrchestrationResult result = orchestrator.orchestrate(
@@ -350,7 +350,7 @@ class RAGSixLayerIntegrationTest {
             .metadata(Map.of("sessionId", "session-oos-001"))
             .build();
 
-        Mockito.when(intentQueryExtractor.extract("Explain why card 4333-2222-1111-0000 is invalid", "user-oos"))
+        Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(response);
 
         sanitizationEventRecorder.clear();
@@ -450,7 +450,7 @@ class RAGSixLayerIntegrationTest {
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
-        Mockito.when(intentQueryExtractor.extract("What are your featured products today?", "user-suggest"))
+        Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(response);
 
         sanitizationEventRecorder.clear();
@@ -519,7 +519,7 @@ class RAGSixLayerIntegrationTest {
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
-        Mockito.when(intentQueryExtractor.extract("My api key is sk-THISSHOULDBEREDACTED, is that safe?", "user-api"))
+        Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(response);
 
         OrchestrationResult result = orchestrator.orchestrate(
@@ -561,7 +561,7 @@ class RAGSixLayerIntegrationTest {
             .metadata(Map.of("sessionId", "session-error-001"))
             .build();
 
-        Mockito.when(intentQueryExtractor.extract("Run failing action with card 4999-8888-7777-6666", "user-error"))
+        Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(response);
 
         sanitizationEventRecorder.clear();
@@ -622,7 +622,7 @@ class RAGSixLayerIntegrationTest {
             .success(true)
             .build()).when(ragProvider).performRag(any(RAGRequest.class));
 
-        Mockito.when(intentQueryExtractor.extract(query, userId)).thenReturn(response);
+        Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(response);
     }
 
     @TestConfiguration

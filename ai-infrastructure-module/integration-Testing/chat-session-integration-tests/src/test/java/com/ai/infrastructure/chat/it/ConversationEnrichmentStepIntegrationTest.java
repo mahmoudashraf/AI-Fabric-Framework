@@ -41,7 +41,7 @@ class ConversationEnrichmentStepIntegrationTest {
     }
 
     @Test
-    void shouldIncludeOnlyLastWindowTurnsInEnrichment() {
+    void shouldIncludeOnlyLastWindowTurnsInHistoryMessages() {
         String ownerId = "enrichment-user";
         String conversationId = "conv-" + UUID.randomUUID();
 
@@ -57,34 +57,39 @@ class ConversationEnrichmentStepIntegrationTest {
         PipelineContext ctx = PipelineContext.from("Current question", orch);
         PipelineContext enriched = enrichmentStep.process(ctx);
 
-        assertThat(enriched.getProcessedQuery()).contains("Conversation History:");
-        assertThat(enriched.getProcessedQuery()).contains("Current Query:");
-
-        assertThat(enriched.getProcessedQuery()).doesNotContain("User: Q1");
-        assertThat(enriched.getProcessedQuery()).contains("User: Q2");
-        assertThat(enriched.getProcessedQuery()).contains("User: Q3");
-        assertThat(enriched.getProcessedQuery()).contains("Current question");
+        assertThat(enriched.getProcessedQuery()).isEqualTo("Current question");
+        assertThat(enriched.getHistoryMessages()).hasSize(4);
+        assertThat(enriched.getHistoryMessages().get(0).getContent()).isEqualTo("Q2");
+        assertThat(enriched.getHistoryMessages().get(1).getContent()).isEqualTo("A2");
+        assertThat(enriched.getHistoryMessages().get(2).getContent()).isEqualTo("Q3");
+        assertThat(enriched.getHistoryMessages().get(3).getContent()).isEqualTo("A3");
     }
 
     @Test
-    void shouldTruncateEnrichedPromptToMaxContextChars() {
+    void shouldBoundHistoryMessagesToMaxContextChars() {
         String ownerId = "enrichment-user-truncate";
         String conversationId = "conv-" + UUID.randomUUID();
 
-        chatSessionService.recordTurn(conversationId, ownerId, "Q1-" + "x".repeat(4000), "A1-" + "y".repeat(4000), Map.of());
-        chatSessionService.recordTurn(conversationId, ownerId, "Q2-" + "x".repeat(4000), "A2-" + "y".repeat(4000), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q1-" + "x".repeat(900), "A1-" + "y".repeat(900), Map.of());
+        chatSessionService.recordTurn(conversationId, ownerId, "Q2-" + "x".repeat(900), "A2-" + "y".repeat(900), Map.of());
 
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId(ownerId)
             .conversationId(conversationId)
             .build();
 
-        PipelineContext ctx = PipelineContext.from("z".repeat(4000) + " TAIL_SENTINEL", orch);
+        PipelineContext ctx = PipelineContext.from("TAIL_SENTINEL", orch);
         PipelineContext enriched = enrichmentStep.process(ctx);
 
-        assertThat(enriched.getProcessedQuery()).hasSize(2000);
-        assertThat(enriched.getProcessedQuery()).contains("---END QUERY---");
-        assertThat(enriched.getProcessedQuery()).contains("TAIL_SENTINEL");
+        int totalHistoryChars = enriched.getHistoryMessages().stream()
+            .map(m -> m.getContent() != null ? m.getContent().length() : 0)
+            .reduce(0, Integer::sum);
+        assertThat(totalHistoryChars).isLessThanOrEqualTo(2000);
+
+        // Bounded by dropping oldest whole messages (no substring truncation).
+        assertThat(enriched.getHistoryMessages()).hasSize(2);
+        assertThat(enriched.getHistoryMessages().get(0).getContent()).startsWith("Q2-");
+        assertThat(enriched.getHistoryMessages().get(1).getContent()).startsWith("A2-");
     }
 
     @Test
@@ -97,5 +102,6 @@ class ConversationEnrichmentStepIntegrationTest {
         PipelineContext enriched = enrichmentStep.process(ctx);
 
         assertThat(enriched.getProcessedQuery()).isEqualTo("Hello");
+        assertThat(enriched.getHistoryMessages()).isEmpty();
     }
 }

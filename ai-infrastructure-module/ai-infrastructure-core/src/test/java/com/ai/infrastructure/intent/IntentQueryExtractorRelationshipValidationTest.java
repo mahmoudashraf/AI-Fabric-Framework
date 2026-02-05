@@ -10,6 +10,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -48,6 +49,10 @@ class IntentQueryExtractorRelationshipValidationTest {
     private AIActionRegistry actionHandlerRegistry;
 
     private IntentQueryExtractor extractor;
+
+    private static IntentExtractionInput input(String userQuery) {
+        return new IntentExtractionInput(userQuery, userQuery, List.of());
+    }
 
     @BeforeEach
     void setUp() {
@@ -96,7 +101,7 @@ class IntentQueryExtractorRelationshipValidationTest {
         
         // Act
         MultiIntentResponse response = extractor.extract(
-            "find customers",
+            input("find customers"),
             OrchestrationContext.forUser("user-123")
         );
         
@@ -134,7 +139,7 @@ class IntentQueryExtractorRelationshipValidationTest {
         
         // Act
         MultiIntentResponse response = extractor.extract(
-            "find stuff",
+            input("find stuff"),
             OrchestrationContext.forUser("user-123")
         );
         
@@ -177,7 +182,7 @@ class IntentQueryExtractorRelationshipValidationTest {
         
         // Act
         MultiIntentResponse response = extractor.extract(
-            "find customers",
+            input("find customers"),
             OrchestrationContext.forUser("user-123")
         );
         
@@ -216,7 +221,7 @@ class IntentQueryExtractorRelationshipValidationTest {
         
         // Act
         MultiIntentResponse response = extractor.extract(
-            "find stuff",
+            input("find stuff"),
             OrchestrationContext.forUser("user-123")
         );
         
@@ -255,7 +260,7 @@ class IntentQueryExtractorRelationshipValidationTest {
 
         // Act
         MultiIntentResponse response = extractor.extract(
-            "relationship query: find all brands",
+            input("relationship query: find all brands"),
             OrchestrationContext.forUser("user-123")
         );
 
@@ -290,7 +295,7 @@ class IntentQueryExtractorRelationshipValidationTest {
 
         // Act
         MultiIntentResponse response = extractor.extract(
-            "relationship query: find all brands",
+            input("relationship query: find all brands"),
             OrchestrationContext.forUser("user-123")
         );
 
@@ -326,7 +331,7 @@ class IntentQueryExtractorRelationshipValidationTest {
 
         // Act
         MultiIntentResponse response = extractor.extract(
-            "relationship query: find transactions over $10000",
+            input("relationship query: find transactions over $10000"),
             OrchestrationContext.forUser("user-123")
         );
 
@@ -360,7 +365,7 @@ class IntentQueryExtractorRelationshipValidationTest {
 
         // Act
         MultiIntentResponse response = extractor.extract(
-            "relationship query: find products under $100 and then explain why they are good options",
+            input("relationship query: find products under $100 and then explain why they are good options"),
             OrchestrationContext.forUser("user-123")
         );
 
@@ -394,7 +399,7 @@ class IntentQueryExtractorRelationshipValidationTest {
         
         // Act
         MultiIntentResponse response = extractor.extract(
-            "cancel subscription",
+            input("cancel subscription"),
             OrchestrationContext.forUser("user-123")
         );
         
