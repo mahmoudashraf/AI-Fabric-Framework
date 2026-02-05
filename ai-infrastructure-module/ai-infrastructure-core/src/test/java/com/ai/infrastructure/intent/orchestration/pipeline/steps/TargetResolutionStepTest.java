@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TargetResolutionStepTest {
 
     @Test
-    void shouldResolveActiveAttachmentsEvenWhenNoIntentRequiresTargetResolution() {
+    void shouldResolveRequestAttachmentsEvenWhenNoIntentRequiresTargetResolution() {
         TargetResolutionStep step = new TargetResolutionStep();
 
         Intent intent = Intent.builder()
@@ -29,12 +29,18 @@ class TargetResolutionStepTest {
 
         OrchestrationContext orchContext = OrchestrationContext.builder()
             .userId("user-1")
-            .attachmentsNormalized(List.of(NormalizedAttachment.builder()
-                .id("att-1")
-                .vectorSpace("product")
-                .metadata(Map.of("sku", "ELEC-1"))
-                .build()))
-            .activeAttachmentIdsResolved(List.of("att-1"))
+            .attachmentsNormalized(List.of(
+                NormalizedAttachment.builder()
+                    .id("att-1")
+                    .vectorSpace("product")
+                    .metadata(Map.of("sku", "ELEC-1"))
+                    .build(),
+                NormalizedAttachment.builder()
+                    .id(null)
+                    .vectorSpace("policy")
+                    .contentText("Return policy excerpt")
+                    .build()
+            ))
             .build();
 
         PipelineContext context = PipelineContext.from("q", orchContext)
@@ -45,13 +51,13 @@ class TargetResolutionStepTest {
         PipelineContext updated = step.process(context);
 
         assertThat(updated.isShouldTerminate()).isFalse();
-        assertThat(updated.getResolvedTargets()).hasSize(1);
-        assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.ACTIVE_ATTACHMENTS);
+        assertThat(updated.getResolvedTargets()).hasSize(2);
+        assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.REQUEST_ATTACHMENTS);
         assertThat(updated.getMetadata()).containsKey("targetResolution");
     }
 
     @Test
-    void shouldResolveActiveAttachmentsWhenRequired() {
+    void shouldResolveRequestAttachmentsWhenRequired() {
         TargetResolutionStep step = new TargetResolutionStep();
 
         Intent intent = Intent.builder()
@@ -67,7 +73,6 @@ class TargetResolutionStepTest {
                 .vectorSpace("product")
                 .metadata(Map.of("sku", "ELEC-1"))
                 .build()))
-            .activeAttachmentIdsResolved(List.of("att-1"))
             .build();
 
         PipelineContext context = PipelineContext.from("add it", orchContext)
@@ -79,7 +84,7 @@ class TargetResolutionStepTest {
 
         assertThat(updated.isShouldTerminate()).isFalse();
         assertThat(updated.getResolvedTargets()).hasSize(1);
-        assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.ACTIVE_ATTACHMENTS);
+        assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.REQUEST_ATTACHMENTS);
         assertThat(updated.getMetadata()).containsKey("targetResolution");
     }
 

@@ -78,8 +78,8 @@ public class WorkingSetTargetSeedingStep implements PipelineStep {
         if (orchContext == null || !orchContext.hasConversation()) {
             return context;
         }
-        if (orchContext.getActiveAttachmentIdsResolved() != null && !orchContext.getActiveAttachmentIdsResolved().isEmpty()) {
-            // Active attachments are authoritative; do not seed targets from prior working set.
+        if (orchContext.getAttachmentsNormalized() != null && !orchContext.getAttachmentsNormalized().isEmpty()) {
+            // Request attachments are authoritative; do not seed targets from prior working set.
             return context;
         }
 

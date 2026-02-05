@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import org.junit.jupiter.api.Test;
@@ -111,7 +112,7 @@ class WorkingSetTargetSeedingStepTest {
     }
 
     @Test
-    void shouldNotSeedWhenActiveAttachmentsExist() {
+    void shouldNotSeedWhenRequestAttachmentsExist() {
         ChatSessionService service = mock(ChatSessionService.class);
         ChatSessionProperties properties = new ChatSessionProperties();
         properties.setEnabled(true);
@@ -127,7 +128,10 @@ class WorkingSetTargetSeedingStepTest {
         OrchestrationContext orchContext = OrchestrationContext.builder()
             .userId("user-1")
             .conversationId("conv-1")
-            .activeAttachmentIdsResolved(List.of("att-1"))
+            .attachmentsNormalized(List.of(NormalizedAttachment.builder()
+                .id("att-1")
+                .vectorSpace("product")
+                .build()))
             .build();
 
         PipelineContext context = PipelineContext.from("add it", orchContext)

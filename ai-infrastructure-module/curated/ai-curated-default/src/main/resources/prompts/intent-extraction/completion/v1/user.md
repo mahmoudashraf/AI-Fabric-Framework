@@ -14,4 +14,4 @@ PARTIAL JSON (to complete):
 {{partial_json}}
 
 Notes:
-- If the USER REQUEST includes [ACTIVE] attachments, use their metadata/contentText as the primary source for completing actionParams identifiers instead of guessing.
+- If the USER REQUEST includes attachments, use their metadata/contentText as the primary source for completing identifiers instead of guessing.

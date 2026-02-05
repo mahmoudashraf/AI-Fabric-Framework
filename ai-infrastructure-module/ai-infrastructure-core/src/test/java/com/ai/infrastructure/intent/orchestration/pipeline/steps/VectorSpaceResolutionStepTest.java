@@ -8,6 +8,7 @@ import com.ai.infrastructure.intent.KnowledgeBaseOverview;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
+import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
@@ -245,12 +246,15 @@ class VectorSpaceResolutionStepTest {
         ResolvedTarget target = ResolvedTarget.builder()
             .id("1")
             .vectorSpace("product")
-            .source(ResolvedTargetSource.ACTIVE_ATTACHMENTS)
+            .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
             .build();
 
         OrchestrationContext orchContext = OrchestrationContext.builder()
             .userId("user")
-            .activeAttachmentIdsResolved(List.of("1"))
+            .attachmentsNormalized(List.of(NormalizedAttachment.builder()
+                .id("1")
+                .vectorSpace("product")
+                .build()))
             .build();
 
         PipelineContext context = PipelineContext.from("q", orchContext)

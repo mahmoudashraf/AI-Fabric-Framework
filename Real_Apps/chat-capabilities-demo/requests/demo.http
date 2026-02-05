@@ -85,7 +85,6 @@ Content-Type: application/json
       "source": "ui-card"
     }
   ],
-  "activeAttachmentIds": ["SKU-0002"]
 }
 
 ### List orders for the user

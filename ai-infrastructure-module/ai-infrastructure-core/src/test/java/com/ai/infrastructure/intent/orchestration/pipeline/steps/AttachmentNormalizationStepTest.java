@@ -20,10 +20,9 @@ import static org.mockito.Mockito.when;
 class AttachmentNormalizationStepTest {
 
     @Test
-    void shouldNormalizeAttachmentsAndResolveActiveIds() {
+    void shouldNormalizeAttachmentsAndKeepIdLessAttachments() {
         AttachmentsProperties properties = new AttachmentsProperties();
         properties.setMaxAttachments(2);
-        properties.setMaxActiveAttachmentIds(10);
         properties.setMaxContentTextChars(10);
         properties.setMaxMetadataKeys(2);
         properties.setMaxMetadataValueChars(5);
@@ -53,7 +52,7 @@ class AttachmentNormalizationStepTest {
             .build();
 
         OrchestrationAttachment a2 = OrchestrationAttachment.builder()
-            .id("2")
+            .id(null)
             .vectorSpace("product")
             .metadata(Map.of("price", "123456"))
             .build();
@@ -66,7 +65,6 @@ class AttachmentNormalizationStepTest {
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId("demo")
             .attachments(List.of(a1, a2, a3))
-            .activeAttachmentIds(List.of("1", "3", "missing"))
             .build();
 
         PipelineContext ctx = PipelineContext.from("q", orch);
@@ -74,7 +72,6 @@ class AttachmentNormalizationStepTest {
 
         OrchestrationContext out = updated.getOrchestrationContext();
         assertThat(out.getAttachmentsNormalized()).hasSize(2);
-        assertThat(out.getActiveAttachmentIdsResolved()).containsExactly("1");
 
         NormalizedAttachment first = out.getAttachmentsNormalized().getFirst();
         assertThat(first.getId()).isEqualTo("1");
@@ -86,21 +83,23 @@ class AttachmentNormalizationStepTest {
         assertThat(first.getMetadata()).containsEntry("rank", "7");
         assertThat(first.getMetadata()).doesNotContainKey("ignored");
 
+        NormalizedAttachment second = out.getAttachmentsNormalized().get(1);
+        assertThat(second.getId()).isNull();
+        assertThat(second.getVectorSpace()).isEqualTo("product");
+        assertThat(second.getMetadata()).containsEntry("price", "12345");
+
         assertThat(updated.getMetadata()).containsKey("attachments");
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) updated.getMetadata().get("attachments");
         assertThat(meta.get("providedCount")).isEqualTo(3);
         assertThat(meta.get("acceptedCount")).isEqualTo(2);
         assertThat(meta.get("truncated")).isEqualTo(true);
-        assertThat(meta.get("activeProvidedCount")).isEqualTo(3);
-        assertThat(meta.get("activeResolvedCount")).isEqualTo(1);
     }
 
     @Test
     void shouldRespectAttachmentLimitsWhenMaxIsZero() {
         AttachmentsProperties properties = new AttachmentsProperties();
         properties.setMaxAttachments(0);
-        properties.setMaxActiveAttachmentIds(0);
 
         @SuppressWarnings("unchecked")
         ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
@@ -120,26 +119,22 @@ class AttachmentNormalizationStepTest {
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId("demo")
             .attachments(List.of(a1))
-            .activeAttachmentIds(List.of("1"))
             .build();
 
         PipelineContext ctx = PipelineContext.from("q", orch);
         PipelineContext updated = step.process(ctx);
 
         assertThat(updated.getOrchestrationContext().getAttachmentsNormalized()).isEmpty();
-        assertThat(updated.getOrchestrationContext().getActiveAttachmentIdsResolved()).isEmpty();
 
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) updated.getMetadata().get("attachments");
         assertThat(meta.get("truncated")).isEqualTo(true);
-        assertThat(meta.get("activeTruncated")).isEqualTo(true);
     }
 
     @Test
     void shouldAcceptAttachmentWhenVectorSpaceIsMissing() {
         AttachmentsProperties properties = new AttachmentsProperties();
         properties.setMaxAttachments(10);
-        properties.setMaxActiveAttachmentIds(10);
 
         @SuppressWarnings("unchecked")
         ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
@@ -160,7 +155,6 @@ class AttachmentNormalizationStepTest {
         OrchestrationContext orch = OrchestrationContext.builder()
             .userId("demo")
             .attachments(List.of(attachment))
-            .activeAttachmentIds(List.of("att-1"))
             .build();
 
         PipelineContext ctx = PipelineContext.from("q", orch);
@@ -171,6 +165,41 @@ class AttachmentNormalizationStepTest {
         assertThat(normalized.getId()).isEqualTo("att-1");
         assertThat(normalized.getVectorSpace()).isNull();
         assertThat(normalized.isContentTextTruncated()).isFalse();
-        assertThat(updated.getOrchestrationContext().getActiveAttachmentIdsResolved()).containsExactly("att-1");
+    }
+
+    @Test
+    void shouldAcceptAttachmentWhenIdIsMissingButContentTextIsPresent() {
+        AttachmentsProperties properties = new AttachmentsProperties();
+        properties.setMaxAttachments(10);
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> piiProvider = mock(ObjectProvider.class);
+        when(piiProvider.getIfAvailable()).thenReturn(null);
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<KnowledgeBaseOverviewService> kbProvider = mock(ObjectProvider.class);
+        when(kbProvider.getIfAvailable()).thenReturn(null);
+
+        AttachmentNormalizationStep step = new AttachmentNormalizationStep(properties, piiProvider, kbProvider);
+
+        OrchestrationAttachment attachment = OrchestrationAttachment.builder()
+            .id(null)
+            .vectorSpace("policy")
+            .contentText("Return policy excerpt")
+            .build();
+
+        OrchestrationContext orch = OrchestrationContext.builder()
+            .userId("demo")
+            .attachments(List.of(attachment))
+            .build();
+
+        PipelineContext ctx = PipelineContext.from("q", orch);
+        PipelineContext updated = step.process(ctx);
+
+        assertThat(updated.getOrchestrationContext().getAttachmentsNormalized()).hasSize(1);
+        NormalizedAttachment normalized = updated.getOrchestrationContext().getAttachmentsNormalized().getFirst();
+        assertThat(normalized.getId()).isNull();
+        assertThat(normalized.getVectorSpace()).isEqualTo("policy");
+        assertThat(normalized.getContentText()).isEqualTo("Return policy excerpt");
     }
 }

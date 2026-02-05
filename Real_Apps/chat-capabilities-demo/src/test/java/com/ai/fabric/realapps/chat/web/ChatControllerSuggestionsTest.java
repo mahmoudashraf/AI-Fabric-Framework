@@ -61,8 +61,7 @@ class ChatControllerSuggestionsTest {
                       "maxSuggestions": 5,
                       "attachments": [
                         {"id":"att-1","vectorSpace":"product","contentText":"iPhone 15 Pro details","source":"ui-card"}
-                      ],
-                      "activeAttachmentIds": ["att-1"]
+                      ]
                     }
                     """))
             .andExpect(status().isOk())
@@ -78,4 +77,3 @@ class ChatControllerSuggestionsTest {
         assertThat(sent.getPrompt()).contains("iPhone 15 Pro details");
     }
 }
-

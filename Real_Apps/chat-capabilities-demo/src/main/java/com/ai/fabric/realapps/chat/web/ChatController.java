@@ -105,16 +105,15 @@ public class ChatController {
         AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
         List<AIActionMetaData> actions = registry != null ? registry.getAllMetadata() : List.of();
         List<OrchestrationAttachment> attachments = request.getAttachments() != null ? request.getAttachments() : List.of();
-        List<String> activeIds = request.getActiveAttachmentIds() != null ? request.getActiveAttachmentIds() : List.of();
 
-        String prompt = buildActionAwareSuggestionsPrompt(request.getContent(), actions, attachments, activeIds, n);
+        String prompt = buildActionAwareSuggestionsPrompt(request.getContent(), actions, attachments, n);
 
         AICoreService aiCoreService = aiCoreServiceProvider.getIfAvailable();
         if (aiCoreService == null) {
             return ResponseEntity.ok(SuggestionsResponse.builder()
                 .success(true)
                 .message("AI provider not configured; returning fallback suggestions")
-                .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, activeIds, n))
+                .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
                 .raw(null)
                 .build());
         }
@@ -135,7 +134,7 @@ public class ChatController {
             List<String> suggestions = normalizeSuggestions(parseSuggestions(raw), n);
 
             if (suggestions.isEmpty()) {
-                suggestions = buildFallbackSuggestions(request.getContent(), actions, attachments, activeIds, n);
+                suggestions = buildFallbackSuggestions(request.getContent(), actions, attachments, n);
             }
 
             return ResponseEntity.ok(SuggestionsResponse.builder()
@@ -148,7 +147,7 @@ public class ChatController {
             return ResponseEntity.ok(SuggestionsResponse.builder()
                 .success(true)
                 .message("AI suggestions unavailable; returning fallback suggestions")
-                .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, activeIds, n))
+                .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
                 .raw(null)
                 .build());
         }
@@ -225,9 +224,6 @@ public class ChatController {
         if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
             builder.attachments(request.getAttachments());
         }
-        if (request.getActiveAttachmentIds() != null && !request.getActiveAttachmentIds().isEmpty()) {
-            builder.activeAttachmentIds(request.getActiveAttachmentIds());
-        }
 
         builder.userId(ownerId);
         builder.sessionId(sessionId);
@@ -259,10 +255,9 @@ public class ChatController {
     private String buildActionAwareSuggestionsPrompt(String content,
                                                     List<AIActionMetaData> actions,
                                                     List<OrchestrationAttachment> attachments,
-                                                    List<String> activeAttachmentIds,
                                                     int n) {
         String availableActions = formatActions(actions);
-        String attachedItems = formatAttachments(attachments, activeAttachmentIds);
+        String attachedItems = formatAttachments(attachments);
 
         return """
             Task:
@@ -314,14 +309,12 @@ public class ChatController {
             .collect(Collectors.joining("\n"));
     }
 
-    private String formatAttachments(List<OrchestrationAttachment> attachments, List<String> activeAttachmentIds) {
+    private String formatAttachments(List<OrchestrationAttachment> attachments) {
         if (attachments == null || attachments.isEmpty()) {
             return "(none)";
         }
-        java.util.Set<String> active = activeAttachmentIds != null ? java.util.Set.copyOf(activeAttachmentIds) : java.util.Set.of();
         return attachments.stream()
             .filter(a -> a != null)
-            .filter(a -> active.isEmpty() || (StringUtils.hasText(a.getId()) && active.contains(a.getId())))
             .limit(20)
             .map(a -> {
                 Map<String, Object> out = new LinkedHashMap<>();
@@ -344,9 +337,8 @@ public class ChatController {
     private List<String> buildFallbackSuggestions(String content,
                                                  List<AIActionMetaData> actions,
                                                  List<OrchestrationAttachment> attachments,
-                                                 List<String> activeAttachmentIds,
                                                  int n) {
-        String hint = extractHint(content, attachments, activeAttachmentIds);
+        String hint = extractHint(content, attachments);
         java.util.Set<String> actionNames = actions != null
             ? actions.stream()
             .filter(a -> a != null && StringUtils.hasText(a.getName()))
@@ -413,10 +405,10 @@ public class ChatController {
         return false;
     }
 
-    private String extractHint(String content, List<OrchestrationAttachment> attachments, List<String> activeAttachmentIds) {
+    private String extractHint(String content, List<OrchestrationAttachment> attachments) {
         String raw = StringUtils.hasText(content) ? content.trim() : null;
         if (!StringUtils.hasText(raw)) {
-            raw = firstAttachmentText(attachments, activeAttachmentIds);
+            raw = firstAttachmentText(attachments);
         }
         if (!StringUtils.hasText(raw)) {
             return "your request";
@@ -428,16 +420,12 @@ public class ChatController {
         return "\"" + trimmed + "\"";
     }
 
-    private String firstAttachmentText(List<OrchestrationAttachment> attachments, List<String> activeAttachmentIds) {
+    private String firstAttachmentText(List<OrchestrationAttachment> attachments) {
         if (attachments == null || attachments.isEmpty()) {
             return null;
         }
-        java.util.Set<String> active = activeAttachmentIds != null ? java.util.Set.copyOf(activeAttachmentIds) : java.util.Set.of();
         for (OrchestrationAttachment a : attachments) {
             if (a == null) {
-                continue;
-            }
-            if (!active.isEmpty() && (!StringUtils.hasText(a.getId()) || !active.contains(a.getId()))) {
                 continue;
             }
             if (StringUtils.hasText(a.getContentText())) {
@@ -511,7 +499,6 @@ public class ChatController {
         private String position;
         private String mode;
         private List<OrchestrationAttachment> attachments;
-        private List<String> activeAttachmentIds;
     }
 
     @Data
@@ -560,7 +547,6 @@ public class ChatController {
         private String content;
         private String userId;
         private List<OrchestrationAttachment> attachments;
-        private List<String> activeAttachmentIds;
         @Min(1)
         @Max(10)
         private Integer maxSuggestions = 5;

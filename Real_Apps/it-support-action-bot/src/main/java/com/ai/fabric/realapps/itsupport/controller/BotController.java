@@ -78,9 +78,6 @@ public class BotController {
         if (payload.getAttachments() != null && !payload.getAttachments().isEmpty()) {
             builder.attachments(payload.getAttachments());
         }
-        if (payload.getActiveAttachmentIds() != null && !payload.getActiveAttachmentIds().isEmpty()) {
-            builder.activeAttachmentIds(payload.getActiveAttachmentIds());
-        }
 
         OrchestrationContext context = userId != null && !userId.isBlank()
             ? builder.userId(userId).sessionId(sessionId).build()
@@ -99,6 +96,5 @@ public class BotController {
         private String position;
         private String mode;
         private List<OrchestrationAttachment> attachments;
-        private List<String> activeAttachmentIds;
     }
 }

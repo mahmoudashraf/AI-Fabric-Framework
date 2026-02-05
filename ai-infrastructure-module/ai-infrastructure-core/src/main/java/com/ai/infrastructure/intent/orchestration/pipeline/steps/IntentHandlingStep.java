@@ -2019,15 +2019,18 @@ public class IntentHandlingStep implements PipelineStep {
         sb.append("PINNED TARGETS (authoritative):\n");
         int index = 1;
         for (ResolvedTarget target : targets) {
-            if (target == null || !StringUtils.hasText(target.getId())) {
+            if (target == null) {
                 continue;
             }
 
             sb.append(index).append(") ");
+            sb.append("ref=target#").append(index).append(" ");
             if (StringUtils.hasText(target.getVectorSpace())) {
                 sb.append("vectorSpace=").append(target.getVectorSpace()).append(" ");
             }
-            sb.append("id=").append(target.getId());
+            if (StringUtils.hasText(target.getId())) {
+                sb.append("id=").append(target.getId()).append(" ");
+            }
 
             if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
                 sb.append(" metadata={");
@@ -2062,11 +2065,11 @@ public class IntentHandlingStep implements PipelineStep {
 
         boolean requiresTargetResolution = Boolean.TRUE.equals(intent.getRequiresTargetResolution());
         OrchestrationContext orchContext = pipelineContext.getOrchestrationContext();
-        boolean hasActiveAttachments = orchContext != null
-            && orchContext.getActiveAttachmentIdsResolved() != null
-            && !orchContext.getActiveAttachmentIdsResolved().isEmpty();
+        boolean hasRequestAttachments = orchContext != null
+            && orchContext.getAttachmentsNormalized() != null
+            && !orchContext.getAttachmentsNormalized().isEmpty();
 
-        if (!requiresTargetResolution && !hasActiveAttachments) {
+        if (!requiresTargetResolution && !hasRequestAttachments) {
             return false;
         }
 
