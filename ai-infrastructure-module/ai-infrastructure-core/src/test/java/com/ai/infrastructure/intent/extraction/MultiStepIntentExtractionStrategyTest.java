@@ -47,6 +47,10 @@ class MultiStepIntentExtractionStrategyTest {
     private PromptRenderer promptRenderer;
     private PromptTemplateResolver promptTemplateResolver;
 
+    private static IntentExtractionInput input(String userQuery) {
+        return new IntentExtractionInput(userQuery, userQuery, List.of());
+    }
+
     @BeforeEach
     void setUp() {
         jsonSupport = new IntentExtractionJsonSupport(new ObjectMapper());
@@ -77,7 +81,7 @@ class MultiStepIntentExtractionStrategyTest {
             promptTemplateResolver
         );
 
-        ExtractionAttempt attempt = strategy.attemptExtract("Cancel my subscription", OrchestrationContext.forUser("user-1"));
+        ExtractionAttempt attempt = strategy.attemptExtract(input("Cancel my subscription"), OrchestrationContext.forUser("user-1"));
 
         assertThat(attempt.getLlmCalls()).isEqualTo(2);
         verify(aiCoreService, times(2)).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.ORCHESTRATION));
@@ -100,7 +104,7 @@ class MultiStepIntentExtractionStrategyTest {
             promptTemplateResolver
         );
 
-        ExtractionAttempt attempt = strategy.attemptExtract("What is your refund policy?", OrchestrationContext.forUser("user-2"));
+        ExtractionAttempt attempt = strategy.attemptExtract(input("What is your refund policy?"), OrchestrationContext.forUser("user-2"));
 
         assertThat(attempt.getLlmCalls()).isEqualTo(1);
         verify(aiCoreService, times(1)).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.ORCHESTRATION));
@@ -123,7 +127,7 @@ class MultiStepIntentExtractionStrategyTest {
             promptTemplateResolver
         );
 
-        ExtractionAttempt attempt = strategy.attemptExtract("Cancel my subscription", OrchestrationContext.forUser("user-3"));
+        ExtractionAttempt attempt = strategy.attemptExtract(input("Cancel my subscription"), OrchestrationContext.forUser("user-3"));
 
         assertThat(attempt.isSuccess()).isFalse();
         assertThat(attempt.getLlmCalls()).isEqualTo(2);

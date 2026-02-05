@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
@@ -71,8 +72,11 @@ public class IntentQueryExtractor {
         this.promptRenderer = promptRenderer;
     }
 
-    public MultiIntentResponse extract(String query, OrchestrationContext context) {
-        if (!StringUtils.hasText(query)) {
+    public MultiIntentResponse extract(IntentExtractionInput input, OrchestrationContext context) {
+        String userQuery = input != null ? input.userQuery() : null;
+        String currentUserMessage = input != null ? input.currentUserMessage() : null;
+
+        if (!StringUtils.hasText(userQuery)) {
             throw new AIServiceException("Query cannot be blank when extracting intents");
         }
 
@@ -81,7 +85,7 @@ public class IntentQueryExtractor {
 
         String systemPrompt = enrichedPromptBuilder.buildSystemPrompt(safeContext);
 
-        String userPrompt = enrichedPromptBuilder.buildUserPrompt(query);
+        String userPrompt = enrichedPromptBuilder.buildUserPrompt(StringUtils.hasText(currentUserMessage) ? currentUserMessage : userQuery);
 
         AIGenerationRequest generationRequest = AIGenerationRequest.builder()
             .entityId("intent-" + UUID.randomUUID())
@@ -89,6 +93,7 @@ public class IntentQueryExtractor {
             .generationType("intent_extraction")
             .systemPrompt(systemPrompt)
             .prompt(userPrompt)
+            .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonOnlyResponseParameters())
             .userId(safeContext.getUserId())
             .build();
@@ -110,9 +115,9 @@ public class IntentQueryExtractor {
 
         response.normalize();
         coerceMisclassifiedActionIntents(response);
-        validateResponse(response, query);
+        validateResponse(response, userQuery);
         if (!response.hasIntents()) {
-            log.warn("Intent extractor returned no intents for query '{}'", query);
+            log.warn("Intent extractor returned no intents for query '{}'", userQuery);
         }
         return response;
     }
@@ -216,6 +221,7 @@ public class IntentQueryExtractor {
             .generationType("intent_extraction_repair")
             .systemPrompt(repairSystemPrompt)
             .prompt(repairPrompt)
+            .messages(originalRequest.getMessages() != null ? originalRequest.getMessages() : List.of())
             .parameters(jsonOnlyResponseParameters())
             .userId(userId)
             .build();
@@ -366,11 +372,6 @@ public class IntentQueryExtractor {
 
         mutable.put("entityTypes", normalizedEntityTypes);
         intent.setActionParams(mutable);
-    }
-
-    @Deprecated(forRemoval = true)
-    public MultiIntentResponse extract(String query, String userId) {
-        return extract(query, OrchestrationContext.forUser(userId));
     }
 
     private String stripCodeFences(String content) {

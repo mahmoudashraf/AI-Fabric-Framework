@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,7 +39,7 @@ public class RepairIntentExtractionStrategy {
     private final PromptTemplateResolver promptTemplateResolver;
     private final PromptRenderer promptRenderer;
 
-    public ExtractionAttempt attemptRepair(String query, OrchestrationContext context, ExtractionAttempt previousAttempt) {
+    public ExtractionAttempt attemptRepair(IntentExtractionInput input, OrchestrationContext context, ExtractionAttempt previousAttempt) {
         if (previousAttempt == null || previousAttempt.getGenerationRequest() == null || !StringUtils.hasText(previousAttempt.getRawContent())) {
             return ExtractionAttempt.builder()
                 .success(false)
@@ -53,7 +54,9 @@ public class RepairIntentExtractionStrategy {
         String repairSystemPrompt = (StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "")
             + promptRenderer.render(promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM_ADDON).template(), Map.of());
 
-        String safeQuery = query != null ? query : "";
+        String safeQuery = input != null && StringUtils.hasText(input.currentUserMessage())
+            ? input.currentUserMessage()
+            : (input != null && StringUtils.hasText(input.userQuery()) ? input.userQuery() : "");
         String repairPrompt = promptRenderer.render(
             promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_USER).template(),
             Map.of(
@@ -68,6 +71,7 @@ public class RepairIntentExtractionStrategy {
             .generationType("intent_extraction_repair")
             .systemPrompt(repairSystemPrompt)
             .prompt(repairPrompt)
+            .messages(originalRequest.getMessages() != null ? originalRequest.getMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(context != null ? context.getUserId() : null)
             .build();

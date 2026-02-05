@@ -88,6 +88,33 @@ public class ChatTurn {
         return builder.toString();
     }
 
+    /**
+     * Content for the assistant message when sending structured multi-message history to an LLM.
+     *
+     * <p>Includes the assistant's natural-language response plus any bounded, structured
+     * context derived from {@link #turnMetadata} (e.g., action summary / working set refs),
+     * without adding "User:"/"Assistant:" labels.</p>
+     */
+    public String toAssistantMessageContent() {
+        if (aiResponse == null) {
+            return null;
+        }
+
+        StringBuilder builder = new StringBuilder(aiResponse);
+
+        String actionContext = buildActionContextForPrompt();
+        if (actionContext != null) {
+            builder.append("\n").append(actionContext);
+        }
+
+        String workingSetContext = buildWorkingSetContextForPrompt();
+        if (workingSetContext != null) {
+            builder.append("\n").append(workingSetContext);
+        }
+
+        return builder.toString();
+    }
+
     private String buildActionContextForPrompt() {
         if (turnMetadata == null || turnMetadata.isEmpty()) {
             return null;

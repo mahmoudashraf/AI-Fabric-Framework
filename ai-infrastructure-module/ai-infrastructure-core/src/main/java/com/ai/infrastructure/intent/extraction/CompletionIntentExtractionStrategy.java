@@ -58,7 +58,10 @@ public class CompletionIntentExtractionStrategy {
     private final PromptTemplateResolver promptTemplateResolver;
     private final PromptRenderer promptRenderer;
 
-    public ExtractionAttempt attemptComplete(String query, OrchestrationContext context, ExtractionAttempt previousAttempt) {
+    public ExtractionAttempt attemptComplete(IntentExtractionInput input, OrchestrationContext context, ExtractionAttempt previousAttempt) {
+        String query = input != null ? input.userQuery() : null;
+        String currentUserMessage = input != null ? input.currentUserMessage() : null;
+
         if (!StringUtils.hasText(query)) {
             return ExtractionAttempt.builder()
                 .success(false)
@@ -99,7 +102,7 @@ public class CompletionIntentExtractionStrategy {
             Map.of(
                 PLACEHOLDER_ALLOWED_ACTIONS, allowedActions,
                 PLACEHOLDER_VALIDATION_ISSUES, issuesPayload,
-                PLACEHOLDER_USER_REQUEST, query,
+                PLACEHOLDER_USER_REQUEST, StringUtils.hasText(currentUserMessage) ? currentUserMessage : query,
                 PLACEHOLDER_PARTIAL_JSON, partialJson
             )
         );
@@ -110,6 +113,7 @@ public class CompletionIntentExtractionStrategy {
             .generationType(GENERATION_TYPE)
             .systemPrompt(systemPrompt)
             .prompt(prompt)
+            .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(safeContext.getUserId())
             .build();

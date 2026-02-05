@@ -3,6 +3,8 @@ package com.ai.infrastructure.provider.azure;
 import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import com.ai.infrastructure.dto.AIChatMessage;
+import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.exception.AIServiceException;
@@ -122,6 +124,25 @@ public class AzureOpenAIProvider implements AIProvider {
                 }
                 messages.add(Map.of("role", "system", "content", systemPrompt));
             }
+
+            // Add structured history messages (provider-native multi-message prompting)
+            if (request.getMessages() != null && !request.getMessages().isEmpty()) {
+                for (AIChatMessage msg : request.getMessages()) {
+                    if (msg == null || msg.getRole() == null || !hasText(msg.getContent())) {
+                        continue;
+                    }
+                    String role = msg.getRole().getApiValue();
+                    if (!hasText(role)) {
+                        continue;
+                    }
+                    // Avoid duplicating system prompt when systemPrompt is already provided.
+                    if (AIChatRole.SYSTEM.equals(msg.getRole()) && hasText(systemPrompt)) {
+                        continue;
+                    }
+                    messages.add(Map.of("role", role, "content", msg.getContent()));
+                }
+            }
+
             if (hasText(request.getPrompt())) {
                 messages.add(Map.of("role", "user", "content", request.getPrompt()));
             }

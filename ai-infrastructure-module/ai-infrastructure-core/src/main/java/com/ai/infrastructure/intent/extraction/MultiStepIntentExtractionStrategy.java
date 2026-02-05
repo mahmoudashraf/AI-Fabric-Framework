@@ -102,10 +102,15 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     }
 
     @Override
-    public ExtractionAttempt attemptExtract(String query, OrchestrationContext context) {
+    public ExtractionAttempt attemptExtract(IntentExtractionInput input, OrchestrationContext context) {
+        String userQuery = input != null ? input.userQuery() : null;
+        String currentUserMessage = input != null && StringUtils.hasText(input.currentUserMessage())
+            ? input.currentUserMessage()
+            : userQuery;
+
         int llmCalls = 0;
         try {
-            ClassificationResult classificationResult = classify(query, context);
+            ClassificationResult classificationResult = classify(currentUserMessage, input, context);
             llmCalls += classificationResult.llmCalls();
             ClassificationResponse classification = classificationResult.response();
             if (classification == null || CollectionUtils.isEmpty(classification.getIntents())) {
@@ -117,14 +122,14 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                     .build();
             }
 
-            ActionSelectionResult selection = selectActionsIfNeeded(query, context, classification);
+            ActionSelectionResult selection = selectActionsIfNeeded(currentUserMessage, input, context, classification);
             llmCalls += selection.llmCalls();
             Map<Integer, String> selectedActions = selection.mappings();
 
-            ActionParamsFillResult paramFill = fillActionParamsIfNeeded(query, context, classification, selectedActions);
+            ActionParamsFillResult paramFill = fillActionParamsIfNeeded(currentUserMessage, input, context, classification, selectedActions);
             llmCalls += paramFill.llmCalls();
 
-            MultiIntentResponse response = buildResponse(query, classification, selectedActions, paramFill.paramsByIntentIndex());
+            MultiIntentResponse response = buildResponse(userQuery, classification, selectedActions, paramFill.paramsByIntentIndex());
             IntentExtractionValidator.ValidationResult validation = validator.validate(response);
 
             return ExtractionAttempt.builder()
@@ -161,9 +166,9 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         return "multi_step";
     }
 
-    private ClassificationResult classify(String query, OrchestrationContext context) {
+    private ClassificationResult classify(String currentUserMessage, IntentExtractionInput input, OrchestrationContext context) {
         String prompt = renderTemplate(TEMPLATE_CLASSIFY, Map.of(
-            PLACEHOLDER_USER_QUERY, query
+            PLACEHOLDER_USER_QUERY, currentUserMessage
         ));
 
         AIGenerationRequest request = AIGenerationRequest.builder()
@@ -172,6 +177,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .generationType(GENERATION_TYPE + "_classify")
             .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
             .prompt(prompt)
+            .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(context != null ? context.getUserId() : null)
             .build();
@@ -200,6 +206,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     }
 
     private ActionSelectionResult selectActionsIfNeeded(String query,
+                                                        IntentExtractionInput input,
                                                         OrchestrationContext context,
                                                         ClassificationResponse classification) {
         List<ClassificationIntent> actionIntents = new ArrayList<>();
@@ -250,6 +257,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .generationType(GENERATION_TYPE + "_select_actions")
             .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
             .prompt(prompt)
+            .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(context != null ? context.getUserId() : null)
             .build();
@@ -298,6 +306,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     }
 
     private ActionParamsFillResult fillActionParamsIfNeeded(String query,
+                                                            IntentExtractionInput input,
                                                             OrchestrationContext context,
                                                             ClassificationResponse classification,
                                                             Map<Integer, String> selectedActions) {
@@ -383,6 +392,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .generationType(GENERATION_TYPE + "_fill_params")
             .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
             .prompt(prompt)
+            .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
             .userId(context != null ? context.getUserId() : null)
             .build();

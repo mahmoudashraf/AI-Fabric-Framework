@@ -5,6 +5,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.Pipeline;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +63,7 @@ class ChatFollowUpReferenceIntegrationTest {
             .build();
 
         when(intentQueryExtractor.extract(
-            anyString(),
+            any(IntentExtractionInput.class),
             any(com.ai.infrastructure.intent.orchestration.OrchestrationContext.class)
         )).thenReturn(outOfScope);
 
@@ -76,21 +77,22 @@ class ChatFollowUpReferenceIntegrationTest {
         pipeline.execute("I want to echo hello.", orch);
         pipeline.execute("Do it.", orch);
 
-        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<IntentExtractionInput> inputCaptor = ArgumentCaptor.forClass(IntentExtractionInput.class);
         verify(intentQueryExtractor, times(2)).extract(
-            promptCaptor.capture(),
+            inputCaptor.capture(),
             any(com.ai.infrastructure.intent.orchestration.OrchestrationContext.class)
         );
 
-        List<String> prompts = promptCaptor.getAllValues();
-        assertThat(prompts).hasSize(2);
-        assertThat(prompts.getFirst()).isEqualTo("I want to echo hello.");
+        List<IntentExtractionInput> inputs = inputCaptor.getAllValues();
+        assertThat(inputs).hasSize(2);
 
-        String secondPrompt = prompts.get(1);
-        assertThat(secondPrompt).contains("Conversation History:");
-        assertThat(secondPrompt).contains("User: I want to echo hello.");
-        assertThat(secondPrompt).contains("Assistant:");
-        assertThat(secondPrompt).contains("Current Query:");
-        assertThat(secondPrompt).contains("Do it.");
+        IntentExtractionInput first = inputs.getFirst();
+        assertThat(first.userQuery()).isEqualTo("I want to echo hello.");
+        assertThat(first.historyMessages()).isEmpty();
+
+        IntentExtractionInput second = inputs.get(1);
+        assertThat(second.userQuery()).isEqualTo("Do it.");
+        assertThat(second.historyMessages()).isNotEmpty();
+        assertThat(second.historyMessages().stream().anyMatch(m -> m.getContent() != null && m.getContent().contains("I want to echo hello."))).isTrue();
     }
 }

@@ -1,11 +1,11 @@
 package com.ai.infrastructure.chat.strategy;
 
 import com.ai.infrastructure.chat.domain.ChatTurn;
+import com.ai.infrastructure.dto.AIChatMessage;
 import org.springframework.util.StringUtils;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class SlidingWindowMemoryStrategy implements MemoryStrategy {
 
@@ -22,15 +22,28 @@ public class SlidingWindowMemoryStrategy implements MemoryStrategy {
     }
 
     @Override
-    public String toPromptContext(List<ChatTurn> prunedHistory) {
+    public List<AIChatMessage> toMessages(List<ChatTurn> prunedHistory) {
         if (prunedHistory == null || prunedHistory.isEmpty()) {
-            return "";
+            return List.of();
         }
-        String context = prunedHistory.stream()
-            .map(ChatTurn::toPromptFormat)
-            .filter(StringUtils::hasText)
-            .collect(Collectors.joining("\n\n"));
-        return context != null ? context : "";
+
+        List<AIChatMessage> messages = new java.util.ArrayList<>();
+        for (ChatTurn turn : prunedHistory) {
+            if (turn == null) {
+                continue;
+            }
+
+            if (StringUtils.hasText(turn.getUserQuery())) {
+                messages.add(AIChatMessage.user(turn.getUserQuery()));
+            }
+
+            String assistant = turn.toAssistantMessageContent();
+            if (StringUtils.hasText(assistant)) {
+                messages.add(AIChatMessage.assistant(assistant));
+            }
+        }
+
+        return Collections.unmodifiableList(messages);
     }
 
     @Override

@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.security.AISecurityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -79,7 +81,10 @@ class RAGOrchestratorLiveHandlersTest {
             .type(IntentType.ACTION)
             .action("clear_vector_index")
             .build();
-        when(intentQueryExtractor.extract(eq("Clear index"), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(
+            argThat(input -> input != null && "Clear index".equals(input.userQuery())),
+            any(OrchestrationContext.class)
+        ))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         OrchestrationResult result = orchestrator.orchestrate("Clear index", "test-user");
@@ -113,7 +118,10 @@ class RAGOrchestratorLiveHandlersTest {
             .action("remove_vector")
             .actionParams(Map.of("entityType", entityType, "entityId", entityId))
             .build();
-        when(intentQueryExtractor.extract(eq("Remove vector"), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(
+            argThat(input -> input != null && "Remove vector".equals(input.userQuery())),
+            any(OrchestrationContext.class)
+        ))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         OrchestrationResult result = orchestrator.orchestrate("Remove vector", "test-user");

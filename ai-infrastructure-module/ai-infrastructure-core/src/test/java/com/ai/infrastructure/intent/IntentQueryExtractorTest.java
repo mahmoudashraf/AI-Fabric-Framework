@@ -11,6 +11,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -47,6 +48,10 @@ class IntentQueryExtractorTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private static IntentExtractionInput input(String userQuery) {
+        return new IntentExtractionInput(userQuery, userQuery, List.of());
+    }
+
     @Test
     void shouldParseJsonResponseIntoMultiIntentResponse() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
@@ -80,7 +85,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
+        MultiIntentResponse response = extractor.extract(input("Cancel my subscription"), OrchestrationContext.forUser("user-123"));
 
         assertThat(response.getIntents()).hasSize(1);
         Intent intent = response.getIntents().getFirst();
@@ -123,7 +128,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
+        MultiIntentResponse response = extractor.extract(input("Cancel my subscription"), OrchestrationContext.forUser("user-123"));
         assertThat(response.getIntents()).hasSize(1);
         assertThat(response.getIntents().getFirst().getIntent()).isEqualTo("cancel_subscription");
     }
@@ -160,7 +165,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
+        extractor.extract(input("Cancel my subscription"), OrchestrationContext.forUser("user-123"));
 
         org.mockito.ArgumentCaptor<AIGenerationRequest> captor =
             org.mockito.ArgumentCaptor.forClass(AIGenerationRequest.class);
@@ -210,7 +215,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        MultiIntentResponse response = extractor.extract("What is your refund policy?", OrchestrationContext.forUser("user-456"));
+        MultiIntentResponse response = extractor.extract(input("What is your refund policy?"), OrchestrationContext.forUser("user-456"));
 
         assertThat(response.getIntents()).hasSize(1);
         Intent intent = response.getIntents().getFirst();
@@ -252,7 +257,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        MultiIntentResponse response = extractor.extract("Build me a spaceship", OrchestrationContext.forUser("user-789"));
+        MultiIntentResponse response = extractor.extract(input("Build me a spaceship"), OrchestrationContext.forUser("user-789"));
 
         assertThat(response.getIntents()).hasSize(1);
         Intent intent = response.getIntents().getFirst();
@@ -290,7 +295,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        MultiIntentResponse response = extractor.extract("What analytics solutions do you offer?",
+        MultiIntentResponse response = extractor.extract(input("What analytics solutions do you offer?"),
             OrchestrationContext.forUser("user-789"));
 
         assertThat(response.getIntents()).hasSize(1);
@@ -336,7 +341,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        MultiIntentResponse response = extractor.extract("Update my payment details", OrchestrationContext.forUser("user-321"));
+        MultiIntentResponse response = extractor.extract(input("Update my payment details"), OrchestrationContext.forUser("user-321"));
 
         Intent intent = response.getIntents().getFirst();
         assertThat(intent.getNextStepRecommended()).isNotNull();
@@ -355,7 +360,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        assertThatThrownBy(() -> extractor.extract("   ", OrchestrationContext.forUser("user-123")))
+        assertThatThrownBy(() -> extractor.extract(input("   "), OrchestrationContext.forUser("user-123")))
             .isInstanceOf(AIServiceException.class)
             .hasMessageContaining("Query cannot be blank");
     }
@@ -381,7 +386,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        assertThatThrownBy(() -> extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123")))
+        assertThatThrownBy(() -> extractor.extract(input("Cancel my subscription"), OrchestrationContext.forUser("user-123")))
             .isInstanceOf(AIServiceException.class)
             .hasMessageContaining("Unable to parse intent extraction response");
     }
@@ -421,7 +426,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        MultiIntentResponse response = extractor.extract("Cancel my subscription", OrchestrationContext.forUser("user-123"));
+        MultiIntentResponse response = extractor.extract(input("Cancel my subscription"), OrchestrationContext.forUser("user-123"));
 
         assertThat(response.getIntents()).hasSize(1);
         assertThat(response.getIntents().getFirst().getIntent()).isEqualTo("cancel_subscription");
@@ -457,7 +462,7 @@ class IntentQueryExtractorTest {
             new PromptRenderer()
         );
 
-        MultiIntentResponse response = extractor.extract("Find products", OrchestrationContext.forUser("user-123"));
+        MultiIntentResponse response = extractor.extract(input("Find products"), OrchestrationContext.forUser("user-123"));
 
         assertThat(response.getIntents()).hasSize(1);
         assertThat(response.getIntents().getFirst().getVectorSpace()).isNull();

@@ -50,7 +50,7 @@ class ProgressiveIntentExtractionEngineTest {
             .llmCalls(1)
             .build();
 
-        when(compound.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
+        when(compound.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
         when(postProcessor.postProcess(any(MultiIntentResponse.class), anyString())).thenReturn(response);
         when(validator.validate(any(MultiIntentResponse.class), anyString()))
             .thenReturn(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()));
@@ -65,7 +65,8 @@ class ProgressiveIntentExtractionEngineTest {
             validator
         );
 
-        ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract("q", OrchestrationContext.forUser("user"));
+        ProgressiveIntentExtractionEngine.ExtractionOutput output =
+            engine.extract(new IntentExtractionInput("q", "q", List.of()), OrchestrationContext.forUser("user"));
 
         assertThat(output).isNotNull();
         assertThat(output.response()).isNotNull();
@@ -73,9 +74,9 @@ class ProgressiveIntentExtractionEngineTest {
         assertThat(output.diagnostics()).containsEntry("extractionPath", "compound");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 1);
 
-        verify(repair, never()).attemptRepair(anyString(), any(), any());
-        verify(completion, never()).attemptComplete(anyString(), any(), any());
-        verify(multiStep, never()).attemptExtract(anyString(), any());
+        verify(repair, never()).attemptRepair(any(IntentExtractionInput.class), any(), any());
+        verify(completion, never()).attemptComplete(any(IntentExtractionInput.class), any(), any());
+        verify(multiStep, never()).attemptExtract(any(IntentExtractionInput.class), any());
     }
 
     @Test
@@ -119,8 +120,8 @@ class ProgressiveIntentExtractionEngineTest {
             .llmCalls(1)
             .build();
 
-        when(compound.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
-        when(repair.attemptRepair(anyString(), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(repairAttempt);
+        when(compound.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
+        when(repair.attemptRepair(any(IntentExtractionInput.class), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(repairAttempt);
         when(postProcessor.postProcess(any(MultiIntentResponse.class), anyString())).thenReturn(repaired);
         when(validator.validate(any(MultiIntentResponse.class), anyString()))
             .thenReturn(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()));
@@ -135,12 +136,13 @@ class ProgressiveIntentExtractionEngineTest {
             validator
         );
 
-        ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract("q", OrchestrationContext.forUser("user"));
+        ProgressiveIntentExtractionEngine.ExtractionOutput output =
+            engine.extract(new IntentExtractionInput("q", "q", List.of()), OrchestrationContext.forUser("user"));
 
         assertThat(output.diagnostics()).containsEntry("extractionPath", "repair");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 2);
-        verify(completion, never()).attemptComplete(anyString(), any(), any());
-        verify(multiStep, never()).attemptExtract(anyString(), any());
+        verify(completion, never()).attemptComplete(any(IntentExtractionInput.class), any(), any());
+        verify(multiStep, never()).attemptExtract(any(IntentExtractionInput.class), any());
     }
 
     @Test
@@ -196,9 +198,9 @@ class ProgressiveIntentExtractionEngineTest {
             .llmCalls(2)
             .build();
 
-        when(compound.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
-        when(repair.attemptRepair(anyString(), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(repairAttempt);
-        when(multiStep.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(multiStepAttempt);
+        when(compound.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
+        when(repair.attemptRepair(any(IntentExtractionInput.class), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(repairAttempt);
+        when(multiStep.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(multiStepAttempt);
         when(postProcessor.postProcess(any(MultiIntentResponse.class), anyString())).thenReturn(multiStepResponse);
         when(validator.validate(any(MultiIntentResponse.class), anyString()))
             .thenReturn(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()));
@@ -213,11 +215,12 @@ class ProgressiveIntentExtractionEngineTest {
             validator
         );
 
-        ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract("q", OrchestrationContext.forUser("user"));
+        ProgressiveIntentExtractionEngine.ExtractionOutput output =
+            engine.extract(new IntentExtractionInput("q", "q", List.of()), OrchestrationContext.forUser("user"));
 
         assertThat(output.diagnostics()).containsEntry("extractionPath", "multi_step");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 4);
-        verify(multiStep).attemptExtract(anyString(), any(OrchestrationContext.class));
+        verify(multiStep).attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class));
     }
 
     @Test
@@ -263,8 +266,8 @@ class ProgressiveIntentExtractionEngineTest {
             .llmCalls(1)
             .build();
 
-        when(compound.attemptExtract(anyString(), any(OrchestrationContext.class))).thenReturn(rawCompound);
-        when(completion.attemptComplete(anyString(), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(rawCompletion);
+        when(compound.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(rawCompound);
+        when(completion.attemptComplete(any(IntentExtractionInput.class), any(OrchestrationContext.class), any(ExtractionAttempt.class))).thenReturn(rawCompletion);
         when(postProcessor.postProcess(any(MultiIntentResponse.class), anyString()))
             .thenReturn(incomplete)
             .thenReturn(completedResponse);
@@ -289,12 +292,13 @@ class ProgressiveIntentExtractionEngineTest {
             validator
         );
 
-        ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract("q", OrchestrationContext.forUser("user"));
+        ProgressiveIntentExtractionEngine.ExtractionOutput output =
+            engine.extract(new IntentExtractionInput("q", "q", List.of()), OrchestrationContext.forUser("user"));
 
         assertThat(output.diagnostics()).containsEntry("extractionPath", "completion");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 2);
-        verify(repair, never()).attemptRepair(anyString(), any(), any());
-        verify(multiStep, never()).attemptExtract(anyString(), any());
-        verify(completion).attemptComplete(anyString(), any(), any());
+        verify(repair, never()).attemptRepair(any(IntentExtractionInput.class), any(), any());
+        verify(multiStep, never()).attemptExtract(any(IntentExtractionInput.class), any());
+        verify(completion).attemptComplete(any(IntentExtractionInput.class), any(), any());
     }
 }

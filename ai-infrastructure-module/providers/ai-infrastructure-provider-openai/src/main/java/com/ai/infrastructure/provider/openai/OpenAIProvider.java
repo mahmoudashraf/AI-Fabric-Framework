@@ -2,6 +2,8 @@ package com.ai.infrastructure.provider.openai;
 
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIChatMessage;
+import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
@@ -96,11 +98,29 @@ public class OpenAIProvider implements AIProvider {
                     "content", request.getSystemPrompt()
                 ));
             }
+
+            // Add structured history messages (provider-native multi-message prompting)
+            if (request.getMessages() != null && !request.getMessages().isEmpty()) {
+                for (AIChatMessage msg : request.getMessages()) {
+                    if (msg == null || msg.getRole() == null || msg.getContent() == null || msg.getContent().isBlank()) {
+                        continue;
+                    }
+                    String role = msg.getRole().getApiValue();
+                    if (role == null || role.isBlank()) {
+                        continue;
+                    }
+                    // Avoid duplicating system prompt when systemPrompt is already provided.
+                    if (AIChatRole.SYSTEM.equals(msg.getRole()) && request.getSystemPrompt() != null && !request.getSystemPrompt().isBlank()) {
+                        continue;
+                    }
+                    messages.add(Map.of("role", role, "content", msg.getContent()));
+                }
+            }
             
             // Add user prompt
             messages.add(Map.of(
                 "role", "user",
-                "content", request.getPrompt()
+                "content", request.getPrompt() != null ? request.getPrompt() : ""
             ));
             
             Map<String, Object> requestBody = new HashMap<>();

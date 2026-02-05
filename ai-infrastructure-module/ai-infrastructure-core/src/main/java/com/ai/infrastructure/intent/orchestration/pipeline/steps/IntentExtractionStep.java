@@ -5,6 +5,7 @@ import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
 import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -101,19 +102,33 @@ public class IntentExtractionStep implements PipelineStep {
     public PipelineContext process(PipelineContext context) {
         log.debug("Extracting intent for request {}", context.getRequestId());
         
-        String processedQuery = context.getEffectiveQuery();
+        String userQuery = context.getEffectiveQuery();
+        String currentUserMessage = buildCurrentUserMessage(context.getPinnedTargetsContext(), userQuery);
+        IntentExtractionInput input = new IntentExtractionInput(
+            userQuery,
+            currentUserMessage,
+            context.getHistoryMessages()
+        );
 
         ProgressiveIntentExtractionEngine engine = progressiveEngineProvider != null
             ? progressiveEngineProvider.getIfAvailable()
             : null;
 
         MultiIntentResponse intentResponse;
-        PipelineContext updatedContext = context;
+        PipelineContext updatedContext = context.withMetadata(
+            "llmPrompting",
+            Map.of(
+                "standard", "MULTI_MESSAGE",
+                "historyMessagesCount", input.historyMessages() != null ? input.historyMessages().size() : 0,
+                "currentUserMessageChars", currentUserMessage != null ? currentUserMessage.length() : 0,
+                "pinnedTargetsContextChars", context.getPinnedTargetsContext() != null ? context.getPinnedTargetsContext().length() : 0
+            )
+        );
 
         try {
             if (engine != null) {
                 ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract(
-                    processedQuery,
+                    input,
                     context.getOrchestrationContext()
                 );
                 intentResponse = output != null ? output.response() : null;
@@ -122,7 +137,7 @@ public class IntentExtractionStep implements PipelineStep {
                 }
             } else {
                 intentResponse = intentQueryExtractor.extract(
-                    processedQuery,
+                    input,
                     context.getOrchestrationContext()
                 );
             }
@@ -137,7 +152,7 @@ public class IntentExtractionStep implements PipelineStep {
         
         if (!intentResponse.hasIntents()) {
             log.warn("No intents extracted for query '{}' in request {}", 
-                processedQuery, context.getRequestId());
+                userQuery, context.getRequestId());
             updatedContext = updatedContext.withMetadata(
                 "intentExtractionError",
                 Map.of("message", ERROR_MSG_NO_INTENT, "fallback", true)
@@ -154,6 +169,16 @@ public class IntentExtractionStep implements PipelineStep {
         return updatedContext.toBuilder()
             .intentResponse(intentResponse)
             .build();
+    }
+
+    private String buildCurrentUserMessage(String pinnedTargetsContext, String userQuery) {
+        if (!StringUtils.hasText(pinnedTargetsContext)) {
+            return userQuery != null ? userQuery : "";
+        }
+        if (!StringUtils.hasText(userQuery)) {
+            return pinnedTargetsContext;
+        }
+        return pinnedTargetsContext.trim() + "\n\n" + userQuery.trim();
     }
 
     private MultiIntentResponse fallbackIntentResponse(String reason) {

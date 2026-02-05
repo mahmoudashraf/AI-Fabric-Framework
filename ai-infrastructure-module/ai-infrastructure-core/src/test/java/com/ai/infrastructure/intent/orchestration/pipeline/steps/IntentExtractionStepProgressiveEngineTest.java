@@ -4,6 +4,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -15,7 +16,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,7 +39,7 @@ class IntentExtractionStepProgressiveEngineTest {
         ProgressiveIntentExtractionEngine.ExtractionOutput output =
             new ProgressiveIntentExtractionEngine.ExtractionOutput(response, Map.of("extractionPath", "compound"));
 
-        when(engine.extract(anyString(), any(OrchestrationContext.class))).thenReturn(output);
+        when(engine.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(output);
 
         IntentExtractionStep step = new IntentExtractionStep(extractor, provider);
         PipelineContext ctx = PipelineContext.from("q", OrchestrationContext.forUser("user"));
@@ -49,7 +49,6 @@ class IntentExtractionStepProgressiveEngineTest {
         assertThat(updated.getIntentResponse()).isNotNull();
         assertThat(updated.getIntentResponse().hasIntents()).isTrue();
         assertThat(updated.getMetadata()).containsKey("extractionDiagnostics");
-        verify(extractor, never()).extract(anyString(), any(OrchestrationContext.class));
+        verify(extractor, never()).extract(any(IntentExtractionInput.class), any(OrchestrationContext.class));
     }
 }
-

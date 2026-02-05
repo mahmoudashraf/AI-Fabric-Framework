@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.entity.IntentHistory;
 import com.ai.infrastructure.access.AIAccessControlService;
@@ -103,7 +104,7 @@ class RAGIntegrationFlowTest {
 
     @Test
     void shouldHandleActionFlowAndPersistHistory() {
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder()
                 .intents(List.of(Intent.builder()
                     .type(IntentType.ACTION)
@@ -138,7 +139,7 @@ class RAGIntegrationFlowTest {
 
     @Test
     void shouldHandleInformationFlowAndPersistHistory() {
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder()
                 .intents(List.of(Intent.builder()
                     .type(IntentType.INFORMATION)
@@ -170,7 +171,7 @@ class RAGIntegrationFlowTest {
 
     @Test
     void shouldHandleCompoundFlowAndPersistHistory() {
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder()
                 .intents(List.of(
                     Intent.builder()
@@ -205,7 +206,7 @@ class RAGIntegrationFlowTest {
 
     @Test
     void shouldHandleOutOfScopeAndPersistHistory() {
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder()
                 .intents(List.of(Intent.builder()
                     .type(IntentType.OUT_OF_SCOPE)

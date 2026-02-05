@@ -4,6 +4,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
@@ -88,7 +89,7 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
             .actionParams(Map.of("verificationToken", verificationToken))
             .build();
 
-        when(intentQueryExtractor.extract(anyString(), any(OrchestrationContext.class))).thenReturn(
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(
             MultiIntentResponse.builder()
                 .intents(java.util.List.of(intent))
                 .compound(false)

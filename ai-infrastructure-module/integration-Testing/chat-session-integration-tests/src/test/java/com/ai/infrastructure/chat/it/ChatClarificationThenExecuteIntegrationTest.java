@@ -5,6 +5,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -94,7 +95,7 @@ class ChatClarificationThenExecuteIntegrationTest {
             .build();
 
         when(intentQueryExtractor.extract(
-            anyString(),
+            any(IntentExtractionInput.class),
             any(com.ai.infrastructure.intent.orchestration.OrchestrationContext.class)
         )).thenReturn(needsDomain, resolved);
 
@@ -112,16 +113,15 @@ class ChatClarificationThenExecuteIntegrationTest {
         assertThat(second.getType()).isNotEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
         assertThat(second.getType()).isNotEqualTo(OrchestrationResultType.ERROR);
 
-        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<IntentExtractionInput> inputCaptor = ArgumentCaptor.forClass(IntentExtractionInput.class);
         verify(intentQueryExtractor, times(2)).extract(
-            promptCaptor.capture(),
+            inputCaptor.capture(),
             any(com.ai.infrastructure.intent.orchestration.OrchestrationContext.class)
         );
 
-        String secondPrompt = promptCaptor.getAllValues().get(1);
-        assertThat(secondPrompt).contains("Conversation History:");
-        assertThat(secondPrompt).contains("Search for policy details.");
-        assertThat(secondPrompt).contains("Which knowledge base domain should I search?");
-        assertThat(secondPrompt).contains("Use the ragconversation domain.");
+        IntentExtractionInput secondInput = inputCaptor.getAllValues().get(1);
+        assertThat(secondInput.userQuery()).isEqualTo("Use the ragconversation domain.");
+        assertThat(secondInput.historyMessages().stream().anyMatch(m -> m.getContent() != null && m.getContent().contains("Search for policy details."))).isTrue();
+        assertThat(secondInput.historyMessages().stream().anyMatch(m -> m.getContent() != null && m.getContent().contains("Which knowledge base domain should I search?"))).isTrue();
     }
 }

@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -99,7 +100,7 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
             .requiresGeneration(true)
             .build();
 
-        when(progressiveIntentExtractionEngine.extract(anyString(), any(OrchestrationContext.class)))
+        when(progressiveIntentExtractionEngine.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(new ProgressiveIntentExtractionEngine.ExtractionOutput(
                 MultiIntentResponse.builder().intents(List.of(intent)).build(),
                 Map.of()

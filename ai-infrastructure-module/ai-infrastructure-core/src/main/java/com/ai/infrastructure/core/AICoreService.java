@@ -324,6 +324,7 @@ public class AICoreService {
             .prompt(request.getPrompt())
             .context(request.getContext())
             .systemPrompt(request.getSystemPrompt())
+            .messages(request.getMessages())
             .purpose(request.getPurpose())
             .parameters(request.getParameters())
             .userId(request.getUserId())

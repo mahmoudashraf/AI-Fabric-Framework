@@ -2,6 +2,7 @@ package com.ai.infrastructure.chat.it.realapi;
 
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.chat.it.ChatSessionIntegrationTestApplication;
+import com.ai.infrastructure.dto.AIChatRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,10 +36,10 @@ class ChatSessionContextWindowingRealApiIntegrationTest {
         chatSessionService.recordTurn(conversationId, ownerId, "Q2", "A2", Map.of());
         chatSessionService.recordTurn(conversationId, ownerId, "Q3", "A3", Map.of());
 
-        String context = chatSessionService.getConversationContext(conversationId, ownerId);
+        var messages = chatSessionService.getConversationMessages(conversationId, ownerId);
 
-        assertThat(context).contains("User: Q2");
-        assertThat(context).contains("User: Q3");
-        assertThat(context).doesNotContain("User: Q1");
+        assertThat(messages.stream().anyMatch(m -> AIChatRole.USER.equals(m.getRole()) && "Q2".equals(m.getContent()))).isTrue();
+        assertThat(messages.stream().anyMatch(m -> AIChatRole.USER.equals(m.getRole()) && "Q3".equals(m.getContent()))).isTrue();
+        assertThat(messages.stream().anyMatch(m -> AIChatRole.USER.equals(m.getRole()) && "Q1".equals(m.getContent()))).isFalse();
     }
 }

@@ -2,6 +2,8 @@ package com.ai.infrastructure.provider.anthropic;
 
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIChatMessage;
+import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderStatus;
@@ -116,7 +118,18 @@ public class AnthropicProvider implements AIProvider {
             
             // Build messages list - only user messages, no system role (Anthropic doesn't allow system role in messages)
             List<Map<String, Object>> messages = new java.util.ArrayList<>();
-            messages.add(Map.of("role", "user", "content", request.getPrompt()));
+            if (request.getMessages() != null && !request.getMessages().isEmpty()) {
+                for (AIChatMessage msg : request.getMessages()) {
+                    if (msg == null || msg.getRole() == null || msg.getContent() == null || msg.getContent().isBlank()) {
+                        continue;
+                    }
+                    if (AIChatRole.SYSTEM.equals(msg.getRole())) {
+                        continue;
+                    }
+                    messages.add(Map.of("role", msg.getRole().getApiValue(), "content", msg.getContent()));
+                }
+            }
+            messages.add(Map.of("role", "user", "content", request.getPrompt() != null ? request.getPrompt() : ""));
             requestBody.put("messages", messages);
 
             if (log.isInfoEnabled()) {

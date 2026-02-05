@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.IntentQueryExtractor;
+import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.extraction.ProgressiveIntentExtractionEngine;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -34,6 +35,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
@@ -81,6 +83,10 @@ public class RealAPILlmPurposePropagationIntegrationTest {
     @MockBean
     private ProgressiveIntentExtractionEngine progressiveIntentExtractionEngine;
 
+    private static IntentExtractionInput input(String userQuery) {
+        return new IntentExtractionInput(userQuery, userQuery, List.of());
+    }
+
     @BeforeEach
     void setUp() {
         assumeRealApiConfigured();
@@ -93,7 +99,7 @@ public class RealAPILlmPurposePropagationIntegrationTest {
     void intentExtractionShouldUseOrchestrationPurpose() {
         OrchestrationContext context = OrchestrationContext.forUser("purpose-orchestration-user");
         MultiIntentResponse response = intentQueryExtractor.extract(
-            "Search the knowledge base for CyberShield incident response capabilities.",
+            input("Search the knowledge base for CyberShield incident response capabilities."),
             context
         );
 
@@ -114,7 +120,9 @@ public class RealAPILlmPurposePropagationIntegrationTest {
             .requiresGeneration(true)
             .build();
 
-        org.mockito.Mockito.when(progressiveIntentExtractionEngine.extract(eq("force-generation-purpose"), any(OrchestrationContext.class)))
+        org.mockito.Mockito.when(progressiveIntentExtractionEngine.extract(
+                argThat(in -> in != null && "force-generation-purpose".equals(in.userQuery())),
+                any(OrchestrationContext.class)))
             .thenReturn(new ProgressiveIntentExtractionEngine.ExtractionOutput(
                 MultiIntentResponse.builder().intents(List.of(intent)).build(),
                 Map.of()
