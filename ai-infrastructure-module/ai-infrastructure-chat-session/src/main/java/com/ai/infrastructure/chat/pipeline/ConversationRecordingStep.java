@@ -49,7 +49,10 @@ public class ConversationRecordingStep implements PipelineStep {
     private static final String TARGET_REF_KEY_ID = "id";
     private static final String TARGET_REF_KEY_VECTOR_SPACE = "vectorSpace";
     private static final String TARGET_REF_KEY_CONTENT_TEXT = "contentText";
+    private static final String TARGET_REF_KEY_CONTENT_TEXT_TRUNCATED = "contentTextTruncated";
     private static final String TARGET_REF_KEY_METADATA = "metadata";
+    private static final String TARGET_REF_KEY_ORIGIN_SOURCE = "originSource";
+    private static final String TARGET_REF_KEY_STORED_AT_TURN_INDEX = "storedAtTurnIndex";
 
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS = "lastResolvedTargets";
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX = "lastResolvedTargetsTurnIndex";
@@ -128,50 +131,115 @@ public class ConversationRecordingStep implements PipelineStep {
         if (context == null || !StringUtils.hasText(conversationId) || !StringUtils.hasText(ownerId)) {
             return;
         }
-
-        List<ResolvedTarget> targets = extractPinnedTargetsFromActionListResult(context);
-        if (targets.isEmpty()) {
-            targets = context.getResolvedTargets();
+        if (properties == null || properties.getPinnedTargetPersistence() == null) {
+            return;
         }
+        ChatSessionProperties.PinnedTargetPersistence persistence = properties.getPinnedTargetPersistence();
+        if (!persistence.isEnabled()) {
+            return;
+        }
+
+        boolean requestHasAttachments = context.getOrchestrationContext() != null
+            && context.getOrchestrationContext().getAttachmentsNormalized() != null
+            && !context.getOrchestrationContext().getAttachmentsNormalized().isEmpty();
+
+        List<ResolvedTarget> actionListTargets = extractPinnedTargetsFromActionListResult(context);
+        boolean hasActionListTargets = actionListTargets != null && !actionListTargets.isEmpty();
+
+        // Only persist pinned targets when they are fresh (request attachments or action list items),
+        // otherwise reuse-window TTL would be extended indefinitely.
+        if (!requestHasAttachments && !hasActionListTargets) {
+            return;
+        }
+
+        List<ResolvedTarget> targets = hasActionListTargets ? actionListTargets : context.getResolvedTargets();
         if (targets == null || targets.isEmpty()) {
             return;
         }
 
-        List<Map<String, Object>> stored = new ArrayList<>();
-        for (ResolvedTarget target : targets) {
-            if (stored.size() >= RESOLVED_TARGETS_MAX) {
-                break;
-            }
-            if (target == null || !StringUtils.hasText(target.getId())) {
-                continue;
-            }
-
-            Map<String, Object> entry = new LinkedHashMap<>();
-            entry.put(TARGET_REF_KEY_ID, target.getId().trim());
-            if (StringUtils.hasText(target.getVectorSpace())) {
-                entry.put(TARGET_REF_KEY_VECTOR_SPACE, target.getVectorSpace().trim());
-            }
-            if (StringUtils.hasText(target.getContentText())) {
-                entry.put(TARGET_REF_KEY_CONTENT_TEXT, target.getContentText());
-            }
-            if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
-                entry.put(TARGET_REF_KEY_METADATA, new LinkedHashMap<>(target.getMetadata()));
-            }
-            if (target.getSource() != null) {
-                entry.put("source", target.getSource().name());
-            }
-            stored.add(Collections.unmodifiableMap(entry));
-        }
-
-        if (stored.isEmpty()) {
-            return;
-        }
+        int maxTargets = persistence.getMaxTargets() > 0 ? persistence.getMaxTargets() : RESOLVED_TARGETS_MAX;
+        int maxContentChars = Math.max(0, persistence.getMaxContentChars());
+        int maxMetadataEntries = Math.max(0, persistence.getMaxMetadataEntries());
+        int maxMetadataValueChars = Math.max(0, persistence.getMaxMetadataValueChars());
+        boolean storeIdlessTargets = persistence.isStoreIdlessTargets();
 
         int turnIndex = 0;
         try {
             var session = chatSessionService.getSession(conversationId, ownerId);
             turnIndex = session != null && session.getTurns() != null ? session.getTurns().size() : 0;
         } catch (Exception ignored) {
+        }
+
+        List<Map<String, Object>> stored = new ArrayList<>();
+        for (ResolvedTarget target : targets) {
+            if (stored.size() >= maxTargets) {
+                break;
+            }
+            if (target == null) {
+                continue;
+            }
+
+            boolean hasId = StringUtils.hasText(target.getId());
+            if (!hasId && !storeIdlessTargets) {
+                continue;
+            }
+
+            boolean hasContentText = StringUtils.hasText(target.getContentText());
+            boolean hasMetadata = target.getMetadata() != null && !target.getMetadata().isEmpty();
+            if (!hasId && !hasContentText && !hasMetadata) {
+                continue;
+            }
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            if (hasId) {
+                entry.put(TARGET_REF_KEY_ID, target.getId().trim());
+            }
+            if (StringUtils.hasText(target.getVectorSpace())) {
+                entry.put(TARGET_REF_KEY_VECTOR_SPACE, target.getVectorSpace().trim());
+            }
+            if (hasContentText) {
+                String contentText = target.getContentText();
+                boolean truncated = target.isContentTextTruncated();
+                if (maxContentChars > 0 && contentText.length() > maxContentChars) {
+                    contentText = contentText.substring(0, maxContentChars).trim();
+                    truncated = true;
+                }
+                entry.put(TARGET_REF_KEY_CONTENT_TEXT, contentText);
+                entry.put(TARGET_REF_KEY_CONTENT_TEXT_TRUNCATED, truncated);
+            }
+            if (hasMetadata) {
+                Map<String, String> targetMetadata = target.getMetadata();
+                LinkedHashMap<String, String> safe = new LinkedHashMap<>();
+                for (Map.Entry<String, String> metaEntry : targetMetadata.entrySet()) {
+                    if (safe.size() >= maxMetadataEntries) {
+                        break;
+                    }
+                    if (metaEntry == null || !StringUtils.hasText(metaEntry.getKey()) || !StringUtils.hasText(metaEntry.getValue())) {
+                        continue;
+                    }
+                    String key = metaEntry.getKey().trim();
+                    String value = metaEntry.getValue().trim();
+                    if (key.isEmpty() || value.isEmpty()) {
+                        continue;
+                    }
+                    if (maxMetadataValueChars > 0 && value.length() > maxMetadataValueChars) {
+                        value = value.substring(0, maxMetadataValueChars);
+                    }
+                    safe.put(key, value);
+                }
+                if (!safe.isEmpty()) {
+                    entry.put(TARGET_REF_KEY_METADATA, Collections.unmodifiableMap(safe));
+                }
+            }
+            if (target.getSource() != null) {
+                entry.put(TARGET_REF_KEY_ORIGIN_SOURCE, target.getSource().name());
+            }
+            entry.put(TARGET_REF_KEY_STORED_AT_TURN_INDEX, turnIndex);
+            stored.add(Collections.unmodifiableMap(entry));
+        }
+
+        if (stored.isEmpty()) {
+            return;
         }
 
         Map<String, Object> updates = new LinkedHashMap<>();
