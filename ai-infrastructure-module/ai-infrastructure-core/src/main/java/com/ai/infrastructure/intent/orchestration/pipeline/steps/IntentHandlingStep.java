@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
@@ -30,6 +31,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
+import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
@@ -114,6 +116,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_RESULTS = "results";
     private static final String DATA_KEY_CANDIDATE_VECTOR_SPACES = "candidateVectorSpaces";
     private static final String DATA_KEY_ROUTING_STRATEGY = "vectorSpaceRoutingStrategy";
+    private static final String METADATA_KEY_ACTION_PARAM_VALIDATION = "actionParamValidation";
 
     // Advanced RAG data keys
     private static final String DATA_KEY_EXPANDED_QUERIES = "expandedQueries";
@@ -339,14 +342,10 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         AIActionMetaData meta = getMetadataForAction(actionName);
-        mergeResolvedTargetsIntoActionParams(meta, effectiveParams, pipelineContext);
         postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
 
-        boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
-        String originalQuery = pipelineContext != null ? pipelineContext.getOriginalQuery() : null;
-        String evidenceText = pipelineContext != null ? pipelineContext.getProcessedQuery() : null;
-        boolean skipEvidenceCheck = confirmedThisRequest || !context.hasConversation();
-        List<String> missingRequired = findMissingRequiredParams(meta, effectiveParams, originalQuery, evidenceText, skipEvidenceCheck);
+        ActionParamValidation validation = validateRequiredActionParams(meta, effectiveParams, pipelineContext);
+        List<String> missingRequired = validation != null ? validation.missingRequired() : List.of();
         if (!missingRequired.isEmpty()) {
             if (context.hasConversation() && actionDraftStore != null) {
                 String missingSummary = String.join(", ", missingRequired);
@@ -380,10 +379,13 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                 .success(false)
                 .message(message)
+                .metadata(validation != null ? Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, validation.debugMetadata()) : Map.of())
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(Collections.unmodifiableList(nextSteps))
                 .build();
         }
+
+        boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
         
         boolean requiresConfirmation = requiresActionConfirmation(handler);
 
@@ -433,6 +435,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .success(false)
                 .message(message)
                 .data(Collections.unmodifiableMap(data))
+                .metadata(validation != null ? Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, validation.debugMetadata()) : Map.of())
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
@@ -483,6 +486,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.ACTION_EXECUTED)
                 .success(success)
                 .message(message)
+                .metadata(validation != null ? Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, validation.debugMetadata()) : Map.of())
                 .data(resultData)
                 .nextSteps(extractNextSteps(intent))
                 .build();
@@ -500,6 +504,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.ERROR)
                 .success(false)
                 .message(errorResult != null ? errorResult.getMessage() : ex.getMessage())
+                .metadata(validation != null ? Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, validation.debugMetadata()) : Map.of())
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
@@ -2302,75 +2307,39 @@ public class IntentHandlingStep implements PipelineStep {
         }
     }
 
-    private void mergeResolvedTargetsIntoActionParams(AIActionMetaData meta,
-                                                     Map<String, Object> params,
-                                                     PipelineContext pipelineContext) {
+    private record EvidenceBundle(
+        String userEvidenceLower,
+        String pinnedEvidenceLower,
+        Map<String, Object> sourcesUsed
+    ) {}
+
+    private record ActionParamValidation(
+        List<String> missingRequired,
+        List<String> provenanceMissing,
+        Map<String, Object> debugMetadata
+    ) {}
+
+    private ActionParamValidation validateRequiredActionParams(AIActionMetaData meta,
+                                                              Map<String, Object> params,
+                                                              PipelineContext pipelineContext) {
         if (meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty()) {
-            return;
-        }
-        if (params == null || pipelineContext == null) {
-            return;
+            return null;
         }
 
-        List<ResolvedTarget> targets = pipelineContext.getResolvedTargets();
-        if (targets == null || targets.isEmpty() || targets.size() != 1) {
-            return;
-        }
-
-        ResolvedTarget target = targets.getFirst();
-        if (target == null) {
-            return;
-        }
-
-        for (String required : meta.getRequiredParameters()) {
-            if (!StringUtils.hasText(required)) {
-                continue;
-            }
-            if (hasParamValue(params.get(required))) {
-                continue;
-            }
-
-            String value = null;
-            if (target.getMetadata() != null) {
-                String candidate = target.getMetadata().get(required);
-                if (StringUtils.hasText(candidate)) {
-                    value = candidate.trim();
-                }
-            }
-
-            if (!StringUtils.hasText(value) && "id".equalsIgnoreCase(required) && StringUtils.hasText(target.getId())) {
-                value = target.getId().trim();
-            }
-
-            if (StringUtils.hasText(value)) {
-                params.put(required, value);
-            }
-        }
-    }
-
-    private boolean hasParamValue(Object value) {
-        if (value == null) {
-            return false;
-        }
-        if (value instanceof String text) {
-            return StringUtils.hasText(text);
-        }
-        return true;
-    }
-
-    private List<String> findMissingRequiredParams(AIActionMetaData meta,
-                                                   Map<String, Object> params,
-                                                   String originalQuery,
-                                                   String evidenceText,
-                                                   boolean skipEvidenceCheck) {
-        if (meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty()) {
-            return List.of();
-        }
-        String normalizedOriginalQuery = StringUtils.hasText(originalQuery) ? originalQuery.trim() : "";
-        String evidenceLower = StringUtils.hasText(evidenceText)
-            ? evidenceText.toLowerCase(java.util.Locale.ROOT)
+        EvidenceBundle evidence = buildEvidenceBundle(pipelineContext);
+        String userEvidenceLower = evidence != null && StringUtils.hasText(evidence.userEvidenceLower())
+            ? evidence.userEvidenceLower()
             : "";
+        String pinnedEvidenceLower = evidence != null && StringUtils.hasText(evidence.pinnedEvidenceLower())
+            ? evidence.pinnedEvidenceLower()
+            : "";
+
+        String originalQuery = pipelineContext != null ? pipelineContext.getOriginalQuery() : null;
+        String normalizedOriginalQuery = StringUtils.hasText(originalQuery) ? originalQuery.trim() : "";
+
         List<String> missing = new ArrayList<>();
+        List<String> provenanceMissing = new ArrayList<>();
+
         for (String required : meta.getRequiredParameters()) {
             if (!StringUtils.hasText(required)) {
                 continue;
@@ -2387,66 +2356,184 @@ public class IntentHandlingStep implements PipelineStep {
                 continue;
             }
 
-            // Simple guardrail: if the value looks like instruction text ("required/optional/example"),
-            // treat it as missing and ask the user for the real value.
-            String lowered = raw.trim().toLowerCase(java.util.Locale.ROOT);
-            if (lowered.contains("required") || lowered.contains("optional") || lowered.contains("example") || lowered.contains("e.g")) {
+            // Guardrails: placeholders / instruction text / param-name echoes.
+            if (isPlaceholderOrInstructionEcho(required, raw, meta, normalizedOriginalQuery)) {
                 missing.add(required);
                 continue;
             }
 
-            // Guardrail: some intent extractors incorrectly "fill" missing values by copying the parameter
-            // description from action metadata. Treat that as missing so we ask the user for the real value.
-            Map<String, String> descriptions = meta.getParameters();
-            String description = descriptions != null ? descriptions.get(required) : null;
-            if (StringUtils.hasText(description) && raw.trim().equalsIgnoreCase(description.trim())) {
-                missing.add(required);
-                continue;
-            }
-
-            // Also treat "self-filled" placeholders like "shippingAddress" as missing.
-            if (raw.trim().equalsIgnoreCase(required.trim())) {
-                missing.add(required);
-                continue;
-            }
-
-            // Guardrail: some extractors will "fill" a required string param with the entire user message.
-            // This is often an instruction echo (e.g., "use action X"), but it can also be a valid single-value
-            // reply (e.g., the user only sends an email or an address).
-            //
-            // Treat it as missing ONLY when the message looks like it is describing the action/params.
-            if (value instanceof String && StringUtils.hasText(normalizedOriginalQuery)
-                && raw.trim().equalsIgnoreCase(normalizedOriginalQuery)) {
-                String originalLower = normalizedOriginalQuery.toLowerCase(java.util.Locale.ROOT);
-                boolean looksLikeInstruction = false;
-                if (StringUtils.hasText(meta.getName())
-                    && originalLower.contains(meta.getName().toLowerCase(java.util.Locale.ROOT))) {
-                    looksLikeInstruction = true;
-                }
-                if (!looksLikeInstruction && descriptions != null && !descriptions.isEmpty()) {
-                    for (String key : descriptions.keySet()) {
-                        if (StringUtils.hasText(key) && originalLower.contains(key.toLowerCase(java.util.Locale.ROOT))) {
-                            looksLikeInstruction = true;
-                            break;
-                        }
-                    }
-                }
-                if (looksLikeInstruction) {
-                    missing.add(required);
-                    continue;
-                }
-            }
-
-            // Guardrail: if an extractor "filled" a required string param with a value that does not
-            // appear anywhere in the processed user prompt (current message + any included history),
-            // treat it as missing so we ask the user rather than executing on hallucinated values.
-            if (!skipEvidenceCheck && value instanceof String && StringUtils.hasText(evidenceLower)) {
+            // Provenance validation: for string params, value must appear in user text history OR pinned targets.
+            if (value instanceof String) {
                 String needle = raw.trim().toLowerCase(java.util.Locale.ROOT);
-                if (StringUtils.hasText(needle) && !evidenceLower.contains(needle)) {
+                if (StringUtils.hasText(needle)
+                    && !userEvidenceLower.contains(needle)
+                    && !pinnedEvidenceLower.contains(needle)) {
                     missing.add(required);
+                    provenanceMissing.add(required);
                 }
             }
         }
-        return missing;
+
+        Map<String, Object> debug = new LinkedHashMap<>();
+        debug.put("missing", List.copyOf(missing));
+        debug.put("provenanceMissing", List.copyOf(provenanceMissing));
+        debug.put("sourcesUsed", evidence != null ? evidence.sourcesUsed() : Map.of());
+        return new ActionParamValidation(
+            List.copyOf(missing),
+            List.copyOf(provenanceMissing),
+            Collections.unmodifiableMap(debug)
+        );
+    }
+
+    private EvidenceBundle buildEvidenceBundle(PipelineContext pipelineContext) {
+        if (pipelineContext == null) {
+            return new EvidenceBundle("", "", Map.of(
+                "user", false,
+                "history", false,
+                "pinned", false
+            ));
+        }
+
+        StringBuilder userEvidence = new StringBuilder(512);
+        boolean hasUser = false;
+        if (StringUtils.hasText(pipelineContext.getOriginalQuery())) {
+            userEvidence.append(pipelineContext.getOriginalQuery().trim());
+            hasUser = true;
+        }
+
+        boolean hasHistory = false;
+        if (pipelineContext.getHistoryMessages() != null && !pipelineContext.getHistoryMessages().isEmpty()) {
+            for (AIChatMessage msg : pipelineContext.getHistoryMessages()) {
+                if (msg == null || msg.getRole() != com.ai.infrastructure.dto.AIChatRole.USER) {
+                    continue;
+                }
+                if (!StringUtils.hasText(msg.getContent())) {
+                    continue;
+                }
+                userEvidence.append("\n").append(msg.getContent().trim());
+                hasHistory = true;
+            }
+        }
+
+        StringBuilder pinnedEvidence = new StringBuilder(512);
+        boolean hasPinned = false;
+
+        OrchestrationContext orchContext = pipelineContext.getOrchestrationContext();
+        List<NormalizedAttachment> attachments = orchContext != null ? orchContext.getAttachmentsNormalized() : null;
+        if (attachments != null && !attachments.isEmpty()) {
+            for (NormalizedAttachment attachment : attachments) {
+                if (attachment == null) {
+                    continue;
+                }
+                if (StringUtils.hasText(attachment.getId())) {
+                    pinnedEvidence.append("\n").append(attachment.getId().trim());
+                    hasPinned = true;
+                }
+                if (StringUtils.hasText(attachment.getVectorSpace())) {
+                    pinnedEvidence.append("\n").append(attachment.getVectorSpace().trim());
+                    hasPinned = true;
+                }
+                if (StringUtils.hasText(attachment.getContentText())) {
+                    pinnedEvidence.append("\n").append(attachment.getContentText().trim());
+                    hasPinned = true;
+                }
+                if (attachment.getMetadata() != null && !attachment.getMetadata().isEmpty()) {
+                    for (String value : attachment.getMetadata().values()) {
+                        if (!StringUtils.hasText(value)) {
+                            continue;
+                        }
+                        pinnedEvidence.append("\n").append(value.trim());
+                        hasPinned = true;
+                    }
+                }
+            }
+        }
+
+        List<ResolvedTarget> targets = pipelineContext.getResolvedTargets();
+        if (targets != null && !targets.isEmpty()) {
+            for (ResolvedTarget target : targets) {
+                if (target == null) {
+                    continue;
+                }
+                if (StringUtils.hasText(target.getId())) {
+                    pinnedEvidence.append("\n").append(target.getId().trim());
+                    hasPinned = true;
+                }
+                if (StringUtils.hasText(target.getVectorSpace())) {
+                    pinnedEvidence.append("\n").append(target.getVectorSpace().trim());
+                    hasPinned = true;
+                }
+                if (StringUtils.hasText(target.getContentText())) {
+                    pinnedEvidence.append("\n").append(target.getContentText().trim());
+                    hasPinned = true;
+                }
+                if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+                    for (String value : target.getMetadata().values()) {
+                        if (!StringUtils.hasText(value)) {
+                            continue;
+                        }
+                        pinnedEvidence.append("\n").append(value.trim());
+                        hasPinned = true;
+                    }
+                }
+            }
+        }
+
+        Map<String, Object> sourcesUsed = Map.of(
+            "user", hasUser,
+            "history", hasHistory,
+            "pinned", hasPinned
+        );
+
+        return new EvidenceBundle(
+            userEvidence.toString().toLowerCase(java.util.Locale.ROOT),
+            pinnedEvidence.toString().toLowerCase(java.util.Locale.ROOT),
+            sourcesUsed
+        );
+    }
+
+    private boolean isPlaceholderOrInstructionEcho(String requiredParamName,
+                                                   String rawValue,
+                                                   AIActionMetaData meta,
+                                                   String normalizedOriginalQuery) {
+        String raw = rawValue != null ? rawValue.trim() : "";
+        if (!StringUtils.hasText(raw)) {
+            return true;
+        }
+
+        String lowered = raw.toLowerCase(java.util.Locale.ROOT);
+        if (lowered.contains("required") || lowered.contains("optional") || lowered.contains("example") || lowered.contains("e.g")) {
+            return true;
+        }
+
+        Map<String, String> descriptions = meta != null ? meta.getParameters() : null;
+        String description = descriptions != null ? descriptions.get(requiredParamName) : null;
+        if (StringUtils.hasText(description) && raw.equalsIgnoreCase(description.trim())) {
+            return true;
+        }
+
+        if (StringUtils.hasText(requiredParamName) && raw.equalsIgnoreCase(requiredParamName.trim())) {
+            return true;
+        }
+
+        if (StringUtils.hasText(normalizedOriginalQuery) && raw.equalsIgnoreCase(normalizedOriginalQuery)) {
+            String originalLower = normalizedOriginalQuery.toLowerCase(java.util.Locale.ROOT);
+            boolean looksLikeInstruction = false;
+            if (meta != null && StringUtils.hasText(meta.getName())
+                && originalLower.contains(meta.getName().toLowerCase(java.util.Locale.ROOT))) {
+                looksLikeInstruction = true;
+            }
+            if (!looksLikeInstruction && descriptions != null && !descriptions.isEmpty()) {
+                for (String key : descriptions.keySet()) {
+                    if (StringUtils.hasText(key) && originalLower.contains(key.toLowerCase(java.util.Locale.ROOT))) {
+                        looksLikeInstruction = true;
+                        break;
+                    }
+                }
+            }
+            return looksLikeInstruction;
+        }
+
+        return false;
     }
 }

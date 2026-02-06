@@ -284,7 +284,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
     }
 
     @Test
-    void shouldFillMissingRequiredParamFromResolvedTargetMetadata() {
+    void shouldExecuteActionWhenRequiredParamIsPresentInPinnedEvidence() {
         AIActionRegistry registry = mock(AIActionRegistry.class);
         AIActionHandler handler = mock(AIActionHandler.class);
         when(registry.findHandler("create_purchase_order")).thenReturn(Optional.of(handler));
@@ -323,10 +323,11 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
             new PromptRenderer()
         );
 
+        // Simulate the extractor proposing the param from pinned evidence (attachments/targets).
         Intent intent = Intent.builder()
             .type(IntentType.ACTION)
             .action("create_purchase_order")
-            .actionParams(Map.of())
+            .actionParams(Map.of("sku", "ELEC-PHONE-002"))
             .build();
 
         ResolvedTarget target = ResolvedTarget.builder()
@@ -350,6 +351,70 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
         verify(handler).executeAction(org.mockito.ArgumentMatchers.argThat(map ->
             map != null && "ELEC-PHONE-002".equals(map.get("sku"))
         ), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldReturnClarificationRequiredWhenRequiredParamHasNoProvenance() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(registry.findHandler("create_purchase_order")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+
+        AIActionMetaData meta = AIActionMetaData.builder()
+            .name("create_purchase_order")
+            .description("Create purchase order")
+            .category("commerce")
+            .parameters(Map.of(
+                "sku", "Product SKU (required)"
+            ))
+            .requiredParameters(Set.of("sku"))
+            .build();
+        when(registry.findMetadata("create_purchase_order")).thenReturn(Optional.of(meta));
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf(mock(RAGProvider.class)),
+            mock(AICoreService.class),
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        // Extractor proposes a value, but it's not present in the user text or pinned evidence.
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("create_purchase_order")
+            .actionParams(Map.of("sku", "ELEC-PHONE-002"))
+            .build();
+
+        PipelineContext context = PipelineContext.from("buy it", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .resolvedTargets(List.of(ResolvedTarget.builder()
+                .id("78")
+                .vectorSpace("product")
+                .metadata(Map.of("sku", "DIFFERENT-SKU"))
+                .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
+                .build()))
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getData()).containsEntry("missingRequiredParameters", List.of("sku"));
     }
 
     private PromptTemplateResolver promptTemplateResolver() {
