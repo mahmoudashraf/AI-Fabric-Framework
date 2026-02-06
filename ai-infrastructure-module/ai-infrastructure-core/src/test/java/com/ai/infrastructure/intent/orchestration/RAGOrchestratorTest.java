@@ -569,8 +569,8 @@ class RAGOrchestratorTest {
 
         OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", "user");
 
-        // Provider-agnostic contract: compound wrappers are normalized into the primary intent type.
-        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        // When compound children include pending clarification/confirmation, keep the compound visible.
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
         assertThat(result.getChildren()).hasSize(2);
     }
 

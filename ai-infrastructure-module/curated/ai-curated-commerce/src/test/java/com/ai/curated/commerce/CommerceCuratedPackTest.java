@@ -38,15 +38,14 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes().get("navigator_deep").getUseAdvancedRag()).isEqualTo(true);
         assertThat(props.getModes()).containsKey("cart_assistant");
 
-        PromptBundleProperties promptBundle = Binder.get(environment)
-            .bind("ai.prompts.bundle", PromptBundleProperties.class)
-            .orElseThrow(() -> new IllegalStateException("Failed to bind ai.prompts.bundle"));
-        assertThat(promptBundle.getOverlays()).contains("v1-commerce");
+        // Commerce pack intentionally uses the default prompt bundle (no overlays) to avoid duplication.
+        assertThat(environment.getProperty("ai.prompts.bundle.overlays[0]")).isNull();
+        PromptBundleProperties promptBundle = new PromptBundleProperties();
 
         PromptTemplateResolver resolver = new PromptTemplateResolver(
             new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
             promptBundle
         );
-        assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1-commerce");
+        assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1");
     }
 }
