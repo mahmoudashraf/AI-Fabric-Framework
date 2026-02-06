@@ -12,6 +12,70 @@ class OrchestrationResultNormalizerTest {
     private final OrchestrationResultNormalizer normalizer = new OrchestrationResultNormalizer();
 
     @Test
+    void normalize_compoundWithOnlyConfirmations_promotesNextConfirmationInsteadOfFailureWrapper() {
+        OrchestrationResult confirmA = OrchestrationResult.builder()
+            .type(OrchestrationResultType.CONFIRMATION_REQUIRED)
+            .success(false)
+            .message("Confirm A?")
+            .data(Map.of("action", "a"))
+            .build();
+
+        OrchestrationResult confirmB = OrchestrationResult.builder()
+            .type(OrchestrationResultType.CONFIRMATION_REQUIRED)
+            .success(false)
+            .message("Confirm B?")
+            .data(Map.of("action", "b"))
+            .build();
+
+        OrchestrationResult raw = OrchestrationResult.builder()
+            .type(OrchestrationResultType.COMPOUND_HANDLED)
+            .success(false)
+            .message("Some intents failed. See results for details.")
+            .children(List.of(confirmA, confirmB))
+            .build();
+
+        OrchestrationResult normalized = normalizer.normalize(raw);
+        assertThat(normalized.getType()).isEqualTo(OrchestrationResultType.CONFIRMATION_REQUIRED);
+        assertThat(normalized.isSuccess()).isFalse();
+        assertThat(normalized.getMessage()).isEqualTo("Confirm B?");
+        assertThat(normalized.getData()).containsEntry("action", "b");
+        assertThat(normalized.getChildren()).hasSize(2);
+        assertThat(normalized.getMetadata())
+            .containsKey("compoundAggregation");
+    }
+
+    @Test
+    void normalize_compoundWithSuccessAndPending_keepsCompoundVisible() {
+        OrchestrationResult action = OrchestrationResult.builder()
+            .type(OrchestrationResultType.ACTION_EXECUTED)
+            .success(true)
+            .message("Action succeeded")
+            .data(Map.of("action", "safe_read"))
+            .build();
+
+        OrchestrationResult confirm = OrchestrationResult.builder()
+            .type(OrchestrationResultType.CONFIRMATION_REQUIRED)
+            .success(false)
+            .message("Confirm write?")
+            .data(Map.of("action", "write"))
+            .build();
+
+        OrchestrationResult raw = OrchestrationResult.builder()
+            .type(OrchestrationResultType.COMPOUND_HANDLED)
+            .success(false)
+            .message("Some intents failed. See results for details.")
+            .children(List.of(action, confirm))
+            .build();
+
+        OrchestrationResult normalized = normalizer.normalize(raw);
+        assertThat(normalized.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
+        assertThat(normalized.isSuccess()).isTrue();
+        assertThat(normalized.getMessage()).contains("completed").contains("require confirmation");
+        assertThat(normalized.getChildren()).hasSize(2);
+        assertThat(normalized.getMetadata()).containsKey("compoundAggregation");
+    }
+
+    @Test
     void normalize_compoundWithOnlyChildError_bubblesToTopLevelError() {
         OrchestrationResult childError = OrchestrationResult.builder()
             .type(OrchestrationResultType.ERROR)
@@ -134,4 +198,3 @@ class OrchestrationResultNormalizerTest {
         assertThat(normalized.getMetadata()).containsEntry("errorCode", OrchestrationResultNormalizer.ERROR_CODE_ACTION_NOT_FOUND);
     }
 }
-
