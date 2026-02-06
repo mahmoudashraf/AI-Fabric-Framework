@@ -113,18 +113,20 @@ class RAGOrchestratorLiveHandlersTest {
             Map.of()
         );
 
+        String query = "Remove vector entityType=" + entityType + " entityId=" + entityId;
+
         Intent intent = Intent.builder()
             .type(IntentType.ACTION)
             .action("remove_vector")
             .actionParams(Map.of("entityType", entityType, "entityId", entityId))
             .build();
         when(intentQueryExtractor.extract(
-            argThat(input -> input != null && "Remove vector".equals(input.userQuery())),
+            argThat(input -> input != null && query.equals(input.userQuery())),
             any(OrchestrationContext.class)
         ))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Remove vector", "test-user");
+        OrchestrationResult result = orchestrator.orchestrate(query, "test-user");
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();

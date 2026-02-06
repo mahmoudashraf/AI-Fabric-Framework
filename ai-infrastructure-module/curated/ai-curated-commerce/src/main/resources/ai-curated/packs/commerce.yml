@@ -12,8 +12,3 @@ ai:
     position-routing:
       landing: navigator
       cart: cart_assistant
-
-  prompts:
-    bundle:
-      overlays:
-        - v1-commerce
