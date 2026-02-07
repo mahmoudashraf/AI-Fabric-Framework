@@ -41,6 +41,11 @@ Important properties:
 - bounded by `max-targets`, `max-chars`, and `max-content-text-chars-per-target`
 - single-line (newlines collapsed)
 - metadata keys are **explicitly allowlisted**
+  - Allowlist values are read from `ResolvedTarget.metadata` by default.
+  - A small set of **reserved root keys** may also be used when allowlisted (domain-agnostic):
+    - `id`
+    - `vectorSpace` / `type`
+    - `text` / `content` / `contentText`
 
 ## Configuration
 
@@ -102,4 +107,3 @@ These appear in the INFORMATION result’s `data.metadata` and flow through to `
 3) Confirm:
    - `ragResponse.metadata.embeddingQuery` includes `Targets: [...]`
    - RAG returns review documents for those products more reliably than without the hint.
-

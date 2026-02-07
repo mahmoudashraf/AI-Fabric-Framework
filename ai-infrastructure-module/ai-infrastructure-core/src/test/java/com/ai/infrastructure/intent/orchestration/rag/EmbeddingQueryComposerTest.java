@@ -110,5 +110,37 @@ class EmbeddingQueryComposerTest {
         assertThat(result.targetHintEnabled()).isTrue();
         assertThat(result.targetHintApplied()).isTrue();
     }
-}
 
+    @Test
+    void shouldAllowAllowlistedRootFieldsWhenMetadataIsEmpty() {
+        OrchestrationProperties props = new OrchestrationProperties();
+        props.getRag().getTargetHint().setEnabled(true);
+        props.getRag().getTargetHint().setIncludeId(false);
+        props.getRag().getTargetHint().setIncludeVectorSpace(false);
+        props.getRag().getTargetHint().setIncludeContentText(false);
+        props.getRag().getTargetHint().setMetadataKeysAllowlist(List.of("id", "type", "text"));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .requiresTargetResolution(true)
+            .build();
+
+        PipelineContext ctx = PipelineContext.builder()
+            .originalQuery("q")
+            .resolvedTargets(List.of(ResolvedTarget.builder()
+                .id("30")
+                .vectorSpace("product")
+                .contentText("Bose Pro Headphones")
+                .metadata(Map.of())
+                .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
+                .build()))
+            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null))
+            .build();
+
+        EmbeddingQueryComposer.Result result = EmbeddingQueryComposer.compose("any negative reviews?", intent, ctx, props);
+        assertThat(result.embeddingQuery()).contains("Targets:");
+        assertThat(result.embeddingQuery()).contains("id=30");
+        assertThat(result.embeddingQuery()).contains("type=product");
+        assertThat(result.embeddingQuery()).contains("text=\"Bose Pro Headphones\"");
+    }
+}
