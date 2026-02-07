@@ -5,6 +5,7 @@ import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
@@ -134,6 +135,33 @@ class MultiStepIntentExtractionStrategyTest {
         verify(aiCoreService, times(2)).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.ORCHESTRATION));
     }
 
+    @Test
+    void shouldParseConfirmationIntentTypeWithoutExtraCalls() {
+        when(validator.validate(any())).thenReturn(
+            new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of())
+        );
+
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.ORCHESTRATION)))
+            .thenReturn(AIGenerationResponse.builder().content(classificationConfirmationPositive()).build());
+
+        MultiStepIntentExtractionStrategy strategy = new MultiStepIntentExtractionStrategy(
+            aiCoreService,
+            actionHandlerRegistry,
+            jsonSupport,
+            validator,
+            promptRenderer,
+            promptTemplateResolver
+        );
+
+        ExtractionAttempt attempt = strategy.attemptExtract(input("Yes, confirm"), OrchestrationContext.forUser("user-4"));
+
+        assertThat(attempt.isSuccess()).isTrue();
+        assertThat(attempt.getLlmCalls()).isEqualTo(1);
+        assertThat(attempt.getResponse().getIntents()).hasSize(1);
+        assertThat(attempt.getResponse().getIntents().getFirst().getType()).isEqualTo(IntentType.CONFIRMATION_POSITIVE);
+        verify(aiCoreService, times(1)).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.ORCHESTRATION));
+    }
+
     private String classificationWithAction() {
         return """
             {
@@ -145,6 +173,19 @@ class MultiStepIntentExtractionStrategyTest {
                   "actionHint": "cancel subscription",
                   "requiresRetrieval": false,
                   "requiresGeneration": false
+                }
+              ]
+            }
+            """;
+    }
+
+    private String classificationConfirmationPositive() {
+        return """
+            {
+              "isCompound": false,
+              "intents": [
+                {
+                  "type": "CONFIRMATION_POSITIVE"
                 }
               ]
             }

@@ -5,7 +5,7 @@ Output MUST be valid JSON and MUST match the following schema:
   "isCompound": false,
   "intents": [
     {
-      "type": "ACTION | INFORMATION | OUT_OF_SCOPE",
+      "type": "ACTION | INFORMATION | OUT_OF_SCOPE | CONFIRMATION_POSITIVE | CONFIRMATION_NEGATIVE",
       "intent": "canonical_intent_name",
       "actionHint": "short verb phrase (only when type=ACTION)",
       "requiresRetrieval": true,
@@ -26,6 +26,10 @@ Output MUST be valid JSON and MUST match the following schema:
 Rules:
 - Keep it simple and deterministic.
 - Do NOT invent action names; for ACTION use actionHint only.
+- The USER REQUEST may include a "PENDING ACTION (requires confirmation)" section describing an action awaiting approval.
+  - If the user is clearly approving/confirming the pending action, output a single intent with type=CONFIRMATION_POSITIVE.
+  - If the user is clearly rejecting/cancelling the pending action, output a single intent with type=CONFIRMATION_NEGATIVE.
+  - For confirmation intents: set requiresRetrieval=false, requiresGeneration=false, requiresTargetResolution=false, and leave actionHint/optimizedQuery/vectorSpace empty.
 - You are part of a RAG system with access to an indexed knowledge base. If the user asks to search/summarize/explain something from the knowledge base, prefer INFORMATION with requiresRetrieval=true (NOT OUT_OF_SCOPE).
 - Retrieval (RAG) is slower and more expensive than answering from already-provided context. Set requiresRetrieval=true ONLY when you cannot answer without consulting the indexed knowledge base.
 - If the user asks to execute something AND then summarize/explain/recommend/translate the results, set requiresGeneration=true and put that instruction in generationInstructions.
