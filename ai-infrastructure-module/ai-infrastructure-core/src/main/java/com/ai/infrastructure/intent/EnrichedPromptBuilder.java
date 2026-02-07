@@ -1,11 +1,14 @@
 package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.intent.action.ActionInfo;
+import com.ai.infrastructure.intent.action.AIActionParamSchema;
+import com.ai.infrastructure.intent.action.AIActionParamType;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -92,7 +95,13 @@ public class EnrichedPromptBuilder {
             if (action.getCategory() != null && !action.getCategory().isBlank()) {
                 prompt.append(" [category=").append(action.getCategory()).append("]");
             }
-            if (!action.getParameters().isEmpty()) {
+            if (!CollectionUtils.isEmpty(action.getParameterSchemas())) {
+                String schemas = action.getParameterSchemas().entrySet().stream()
+                    .filter(entry -> entry.getKey() != null)
+                    .map(entry -> entry.getKey() + ":" + summarizeSchema(entry.getValue(), 0))
+                    .collect(Collectors.joining(", "));
+                prompt.append(" (paramsSchema: ").append(schemas).append(")");
+            } else if (!action.getParameters().isEmpty()) {
                 String parameters = action.getParameters().entrySet().stream()
                     .map(entry -> entry.getKey() + "=" + entry.getValue())
                     .collect(Collectors.joining(", "));
@@ -102,6 +111,39 @@ public class EnrichedPromptBuilder {
         }
         prompt.append("\n");
         return prompt.toString();
+    }
+
+    private String summarizeSchema(AIActionParamSchema schema, int depth) {
+        if (schema == null || depth > 3) {
+            return "unknown";
+        }
+
+        AIActionParamType type = schema.getType() != null ? schema.getType() : AIActionParamType.UNKNOWN;
+        String suffix = Boolean.TRUE.equals(schema.getRequired()) ? "!" : "";
+        String batch = Boolean.TRUE.equals(schema.getBatchTargets()) ? " [batchTargets]" : "";
+
+        return switch (type) {
+            case STRING -> "string" + suffix + batch;
+            case INTEGER -> "integer" + suffix + batch;
+            case NUMBER -> "number" + suffix + batch;
+            case BOOLEAN -> "boolean" + suffix + batch;
+            case ARRAY -> {
+                String item = schema.getItems() != null ? summarizeSchema(schema.getItems(), depth + 1) : "unknown";
+                yield "array<" + item + ">" + suffix + batch;
+            }
+            case OBJECT -> {
+                if (!CollectionUtils.isEmpty(schema.getProperties())) {
+                    String props = schema.getProperties().entrySet().stream()
+                        .filter(e -> e.getKey() != null)
+                        .limit(12)
+                        .map(e -> e.getKey() + ":" + summarizeSchema(e.getValue(), depth + 1))
+                        .collect(Collectors.joining(", "));
+                    yield "object{" + props + "}" + suffix + batch;
+                }
+                yield "object" + suffix + batch;
+            }
+            case UNKNOWN -> "unknown" + suffix + batch;
+        };
     }
 
     private String buildKnowledgeBaseOverviewSection(SystemContext context) {

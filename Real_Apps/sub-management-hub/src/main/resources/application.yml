@@ -26,9 +26,6 @@ server:
 ai:
   config:
     default-file: ai-entity-config.yml
-
-  curated:
-    pack: support
   
   providers:
     llm-provider: cohere

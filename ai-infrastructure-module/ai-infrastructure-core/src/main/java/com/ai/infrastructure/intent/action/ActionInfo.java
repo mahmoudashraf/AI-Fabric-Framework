@@ -44,12 +44,22 @@ public class ActionInfo {
     private Map<String, String> parameters = Collections.emptyMap();
 
     /**
+     * Structured parameter schema contract (optional).
+     */
+    @Builder.Default
+    private Map<String, AIActionParamSchema> parameterSchemas = Collections.emptyMap();
+
+    /**
      * Optional hint for how the confirmation message should be retrieved from configuration.
      */
     private String confirmationMessageKey;
 
     public void setParameters(Map<String, String> parameters) {
         this.parameters = parameters == null ? Collections.emptyMap() : Map.copyOf(parameters);
+    }
+
+    public void setParameterSchemas(Map<String, AIActionParamSchema> parameterSchemas) {
+        this.parameterSchemas = parameterSchemas == null ? Collections.emptyMap() : Map.copyOf(parameterSchemas);
     }
 
     public boolean hasValidName() {
@@ -63,6 +73,7 @@ public class ActionInfo {
             .category(category != null ? category.trim() : null)
             .confirmationMessageKey(confirmationMessageKey != null ? confirmationMessageKey.trim() : null)
             .parameters(parameters == null ? Collections.emptyMap() : parameters)
+            .parameterSchemas(parameterSchemas == null ? Collections.emptyMap() : parameterSchemas)
             .build();
         if (copy.parameters != null && !copy.parameters.isEmpty()) {
             copy.parameters = copy.parameters.entrySet().stream()

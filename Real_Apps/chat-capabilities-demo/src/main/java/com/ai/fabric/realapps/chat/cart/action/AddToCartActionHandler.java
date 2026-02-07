@@ -10,6 +10,8 @@ import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +19,7 @@ import org.springframework.util.StringUtils;
 
 @AIAction(
     name = "add_to_cart",
-    description = "Add a product SKU to my active cart",
+    description = "Add one or more product SKUs to my active cart",
     category = "commerce",
     accessMode = ActionAccessMode.WRITE_ONLY,
     requiresConfirmation = true
@@ -28,27 +30,78 @@ public class AddToCartActionHandler {
 
     private final CartService cartService;
 
+    public record CartItemInput(
+        String sku,
+        Integer quantity
+    ) {
+    }
+
     @ActionConfirmation
     public String confirm(
-        @Param(value = "sku", description = "Product SKU", required = true) String sku,
-        @Param(value = "quantity", description = "Quantity", required = true, min = 1) Integer quantity
+        @Param(value = "items", description = "Cart items to add", required = true, batchTargets = true) List<CartItemInput> items
     ) {
-        Integer qty = quantity;
-        if (StringUtils.hasText(sku) && qty != null) {
-            return "Add " + qty + " × " + sku.trim() + " to your cart?";
+        if (items == null || items.isEmpty()) {
+            return "Add items to your cart?";
         }
-        return "Add item to cart?";
+        if (items.size() == 1) {
+            CartItemInput item = items.getFirst();
+            String sku = item != null ? item.sku() : null;
+            Integer qty = item != null ? item.quantity() : null;
+            if (StringUtils.hasText(sku) && qty != null) {
+                return "Add " + qty + " × " + sku.trim() + " to your cart?";
+            }
+            if (StringUtils.hasText(sku)) {
+                return "Add 1 × " + sku.trim() + " to your cart?";
+            }
+            return "Add item to your cart?";
+        }
+
+        List<String> parts = new ArrayList<>();
+        for (CartItemInput item : items) {
+            if (item == null || !StringUtils.hasText(item.sku())) {
+                continue;
+            }
+            int qty = item.quantity() != null ? item.quantity() : 1;
+            parts.add(qty + " × " + item.sku().trim());
+            if (parts.size() >= 4) {
+                break;
+            }
+        }
+
+        String tail = parts.size() < items.size() ? " …" : "";
+        String joined = parts.isEmpty() ? "" : " (" + String.join(", ", parts) + tail + ")";
+        return "Add " + items.size() + " items to your cart?" + joined;
     }
 
     @ActionExecute
     public ActionResult execute(
-        @Param(value = "sku", description = "Product SKU", required = true) String sku,
-        @Param(value = "quantity", description = "Quantity", required = true, min = 1) Integer quantity,
+        @Param(value = "items", description = "Cart items to add", required = true, batchTargets = true) List<CartItemInput> items,
         ActionContext context
     ) {
         try {
+            if (items == null || items.isEmpty()) {
+                return ActionResult.builder()
+                    .success(false)
+                    .message("No items provided")
+                    .errorCode("CART_ITEMS_REQUIRED")
+                    .build();
+            }
             String userId = context != null ? context.userId() : null;
-            Cart cart = cartService.addItem(userId, sku, quantity != null ? quantity : 1);
+            Cart cart = null;
+            for (CartItemInput item : items) {
+                if (item == null || !StringUtils.hasText(item.sku())) {
+                    continue;
+                }
+                int qty = item.quantity() != null ? item.quantity() : 1;
+                cart = cartService.addItem(userId, item.sku(), qty);
+            }
+            if (cart == null) {
+                return ActionResult.builder()
+                    .success(false)
+                    .message("No valid items provided")
+                    .errorCode("CART_ITEMS_INVALID")
+                    .build();
+            }
             return ActionResult.builder()
                 .success(true)
                 .message("Added to cart")

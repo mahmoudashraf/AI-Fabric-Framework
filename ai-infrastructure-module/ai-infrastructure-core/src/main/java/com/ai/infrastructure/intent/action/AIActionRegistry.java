@@ -21,12 +21,19 @@ import org.springframework.util.StringUtils;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.RecordComponent;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.List;
 
 /**
  * Discovers {@link AIAction} beans and exposes lookup utilities by action name.
@@ -36,6 +43,8 @@ import java.util.Set;
 @Slf4j
 @Service
 public class AIActionRegistry {
+
+    private static final int PARAM_SCHEMA_MAX_DEPTH = 4;
 
     private final ApplicationContext applicationContext;
     private final ObjectProvider<ConversionService> conversionServiceProvider;
@@ -157,7 +166,8 @@ public class AIActionRegistry {
 
     private AIActionMetaData buildMetadata(AIAction action, Method executeMethod) {
         Map<String, String> parameters = new LinkedHashMap<>();
-        Set<String> requiredParameters = new java.util.LinkedHashSet<>();
+        Map<String, AIActionParamSchema> parameterSchemas = new LinkedHashMap<>();
+        Set<String> requiredParameters = new LinkedHashSet<>();
 
         for (Parameter parameter : executeMethod.getParameters()) {
             if (ActionMethodArgumentBinder.isContextParameter(parameter.getType())) {
@@ -182,6 +192,7 @@ public class AIActionRegistry {
 
             description = description + (param.required() ? " (required)" : " (optional)");
             parameters.put(name, description);
+            parameterSchemas.put(name, buildParamSchema(name, param.description(), param, parameter.getParameterizedType(), 0));
             if (param.required()) {
                 requiredParameters.add(name);
             }
@@ -193,8 +204,158 @@ public class AIActionRegistry {
             .category(action.category())
             .accessMode(action.accessMode())
             .parameters(Collections.unmodifiableMap(parameters))
+            .parameterSchemas(Collections.unmodifiableMap(parameterSchemas))
             .requiredParameters(Collections.unmodifiableSet(requiredParameters))
             .build();
+    }
+
+    private AIActionParamSchema buildParamSchema(String name,
+                                                 String description,
+                                                 Param param,
+                                                 Type type,
+                                                 int depth) {
+        if (depth >= PARAM_SCHEMA_MAX_DEPTH || type == null) {
+            return AIActionParamSchema.builder()
+                .name(name)
+                .description(StringUtils.hasText(description) ? description.trim() : null)
+                .type(AIActionParamType.UNKNOWN)
+                .required(param != null ? param.required() : null)
+                .batchTargets(param != null ? param.batchTargets() : null)
+                .build();
+        }
+
+        Class<?> raw = rawClass(type);
+        AIActionParamType paramType = toParamType(raw);
+
+        AIActionParamSchema.AIActionParamSchemaBuilder builder = AIActionParamSchema.builder()
+            .name(name)
+            .description(StringUtils.hasText(description) ? description.trim() : null)
+            .type(paramType)
+            .required(param != null ? param.required() : null)
+            .batchTargets(param != null && param.batchTargets() ? Boolean.TRUE : null);
+
+        if (param != null) {
+            if (StringUtils.hasText(param.pattern())) {
+                builder.pattern(param.pattern());
+            }
+            if (param.allowedValues() != null && param.allowedValues().length > 0) {
+                List<String> allowed = java.util.Arrays.stream(param.allowedValues())
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .toList();
+                if (!allowed.isEmpty()) {
+                    builder.allowedValues(allowed);
+                }
+            } else if (raw != null && raw.isEnum()) {
+                @SuppressWarnings("unchecked")
+                Class<? extends Enum<?>> enumClass = (Class<? extends Enum<?>>) raw;
+                builder.allowedValues(java.util.Arrays.stream(enumClass.getEnumConstants())
+                    .map(Enum::name)
+                    .toList());
+            }
+            if (param.min() != Long.MIN_VALUE) {
+                builder.min(param.min());
+            }
+            if (param.max() != Long.MAX_VALUE) {
+                builder.max(param.max());
+            }
+        } else if (raw != null && raw.isEnum()) {
+            @SuppressWarnings("unchecked")
+            Class<? extends Enum<?>> enumClass = (Class<? extends Enum<?>>) raw;
+            builder.allowedValues(java.util.Arrays.stream(enumClass.getEnumConstants())
+                .map(Enum::name)
+                .toList());
+        }
+
+        if (paramType == AIActionParamType.ARRAY) {
+            Type itemType = resolveItemType(type, raw);
+            builder.items(buildParamSchema(null, null, null, itemType, depth + 1));
+        } else if (paramType == AIActionParamType.OBJECT) {
+            if (raw != null && raw.isRecord()) {
+                Map<String, AIActionParamSchema> props = new LinkedHashMap<>();
+                List<String> requiredProps = new java.util.ArrayList<>();
+                for (RecordComponent component : raw.getRecordComponents()) {
+                    if (component == null || !StringUtils.hasText(component.getName())) {
+                        continue;
+                    }
+                    String propName = component.getName();
+                    props.put(propName, buildParamSchema(propName, component.getType().getSimpleName(), null, component.getGenericType(), depth + 1));
+                    requiredProps.add(propName);
+                }
+                if (!props.isEmpty()) {
+                    builder.properties(Collections.unmodifiableMap(props));
+                    builder.requiredProperties(List.copyOf(requiredProps));
+                }
+            }
+        }
+
+        return builder.build();
+    }
+
+    private AIActionParamType toParamType(Class<?> raw) {
+        if (raw == null) {
+            return AIActionParamType.UNKNOWN;
+        }
+        if (raw == String.class || raw == CharSequence.class) {
+            return AIActionParamType.STRING;
+        }
+        if (raw == boolean.class || raw == Boolean.class) {
+            return AIActionParamType.BOOLEAN;
+        }
+        if (isIntegerType(raw)) {
+            return AIActionParamType.INTEGER;
+        }
+        if (Number.class.isAssignableFrom(raw) || raw == BigDecimal.class) {
+            return AIActionParamType.NUMBER;
+        }
+        if (raw.isEnum()) {
+            return AIActionParamType.STRING;
+        }
+        if (raw.isArray() || java.util.Collection.class.isAssignableFrom(raw)) {
+            return AIActionParamType.ARRAY;
+        }
+        if (java.util.Map.class.isAssignableFrom(raw) || raw.isRecord()) {
+            return AIActionParamType.OBJECT;
+        }
+        return AIActionParamType.UNKNOWN;
+    }
+
+    private boolean isIntegerType(Class<?> type) {
+        return type == int.class
+            || type == Integer.class
+            || type == long.class
+            || type == Long.class
+            || type == short.class
+            || type == Short.class
+            || type == byte.class
+            || type == Byte.class
+            || type == BigInteger.class;
+    }
+
+    private Class<?> rawClass(Type type) {
+        if (type instanceof Class<?> clazz) {
+            return clazz;
+        }
+        if (type instanceof ParameterizedType parameterized) {
+            Type raw = parameterized.getRawType();
+            if (raw instanceof Class<?> clazz) {
+                return clazz;
+            }
+        }
+        return null;
+    }
+
+    private Type resolveItemType(Type declared, Class<?> raw) {
+        if (raw != null && raw.isArray()) {
+            return raw.getComponentType();
+        }
+        if (declared instanceof ParameterizedType parameterized) {
+            Type[] args = parameterized.getActualTypeArguments();
+            if (args != null && args.length >= 1 && args[0] != null) {
+                return args[0];
+            }
+        }
+        return Object.class;
     }
 
     private String normalize(String value) {
