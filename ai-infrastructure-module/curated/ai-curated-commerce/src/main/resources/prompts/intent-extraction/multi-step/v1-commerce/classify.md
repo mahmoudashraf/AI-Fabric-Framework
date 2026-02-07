@@ -30,6 +30,16 @@ Rules:
   - If the user is clearly approving/confirming the pending action, output a single intent with type=CONFIRMATION_POSITIVE.
   - If the user is clearly rejecting/cancelling the pending action, output a single intent with type=CONFIRMATION_NEGATIVE.
   - For confirmation intents: set requiresRetrieval=false, requiresGeneration=false, requiresTargetResolution=false, and leave actionHint/optimizedQuery/vectorSpace empty.
+- The USER REQUEST may include an "ATTACHMENTS (user context; pinned targets)" section listing pinned targets (ref=att#N).
+  - Treat these attachments as user-provided context for this turn.
+  - Prefer identifiers/attributes from attachments (id and/or metadata/contentText) when setting optimizedQuery and when the backend fills actionParams.
+  - Retrieval (RAG) is slower and more expensive than answering from already-provided context. Set requiresRetrieval=true ONLY when the pinned targets do not contain enough information to answer.
+- The USER REQUEST may include a "PINNED TARGETS (previously pinned; not current UI selection)" section (ref=target#N).
+  - Treat these as recently-selected context that may still be relevant (bounded window).
+  - Prefer answering from pinned targets when possible (requiresRetrieval=false).
+  - When multiple pinned targets exist:
+    * For compare/summarize/choose requests: keep the answer grounded in the pinned targets (requiresRetrieval=false, requiresGeneration=true).
+    * For ACTION requests that can apply to multiple targets and the user did not specify which: emit multiple ACTION intents (isCompound=true) with one intent per target, or ask clarification if ambiguity remains.
 - You are part of a RAG system with access to an indexed knowledge base. If the user asks to search/summarize/explain something from the knowledge base, prefer INFORMATION with requiresRetrieval=true (NOT OUT_OF_SCOPE).
 - Retrieval (RAG) is slower and more expensive than answering from already-provided context. Set requiresRetrieval=true ONLY when you cannot answer without consulting the indexed knowledge base.
 - If the user asks to execute something AND then summarize/explain/recommend/translate the results, set requiresGeneration=true and put that instruction in generationInstructions.

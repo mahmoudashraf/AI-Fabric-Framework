@@ -11,6 +11,8 @@ import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.AIActionParamSchema;
+import com.ai.infrastructure.intent.action.AIActionParamType;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -370,7 +372,15 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             } else {
                 specs.append("  required: (none)\n");
             }
-            if (meta.getParameters() != null && !meta.getParameters().isEmpty()) {
+            if (meta.getParameterSchemas() != null && !meta.getParameterSchemas().isEmpty()) {
+                specs.append("  paramsSchema:\n");
+                for (Map.Entry<String, AIActionParamSchema> entry : meta.getParameterSchemas().entrySet()) {
+                    if (entry.getKey() == null) {
+                        continue;
+                    }
+                    specs.append("    ").append(entry.getKey()).append(": ").append(summarizeSchema(entry.getValue(), 0)).append("\n");
+                }
+            } else if (meta.getParameters() != null && !meta.getParameters().isEmpty()) {
                 for (Map.Entry<String, String> param : meta.getParameters().entrySet()) {
                     if (param.getKey() == null) {
                         continue;
@@ -468,6 +478,38 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             return null;
         }
         return normalized;
+    }
+
+    private String summarizeSchema(AIActionParamSchema schema, int depth) {
+        if (schema == null || depth > 3) {
+            return "unknown";
+        }
+        AIActionParamType type = schema.getType() != null ? schema.getType() : AIActionParamType.UNKNOWN;
+        String suffix = Boolean.TRUE.equals(schema.getRequired()) ? "!" : "";
+        String batch = Boolean.TRUE.equals(schema.getBatchTargets()) ? " [batchTargets]" : "";
+
+        return switch (type) {
+            case STRING -> "string" + suffix + batch;
+            case INTEGER -> "integer" + suffix + batch;
+            case NUMBER -> "number" + suffix + batch;
+            case BOOLEAN -> "boolean" + suffix + batch;
+            case ARRAY -> {
+                String item = schema.getItems() != null ? summarizeSchema(schema.getItems(), depth + 1) : "unknown";
+                yield "array<" + item + ">" + suffix + batch;
+            }
+            case OBJECT -> {
+                if (schema.getProperties() != null && !schema.getProperties().isEmpty()) {
+                    String props = schema.getProperties().entrySet().stream()
+                        .filter(e -> e.getKey() != null)
+                        .limit(12)
+                        .map(e -> e.getKey() + ":" + summarizeSchema(e.getValue(), depth + 1))
+                        .collect(Collectors.joining(", "));
+                    yield "object{" + props + "}" + suffix + batch;
+                }
+                yield "object" + suffix + batch;
+            }
+            case UNKNOWN -> "unknown" + suffix + batch;
+        };
     }
 
     private MultiIntentResponse buildResponse(String query,

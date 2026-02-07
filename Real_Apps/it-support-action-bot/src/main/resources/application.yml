@@ -20,9 +20,6 @@ spring:
 ai:
   enabled: true
 
-  curated:
-    pack: support
-
   # Provider-only scenario:
   # - No vector DB, no embeddings, no search, no indexing.
   vector-db:

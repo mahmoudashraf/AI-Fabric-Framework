@@ -18,5 +18,5 @@ USER REQUEST (context only):
 {{user_query}}
 
 Notes:
-- The USER REQUEST may include an "ATTACHMENTS (user context; pinned targets)" section listing pinned targets (ref=att#N).
-- Use attachment metadata/contentText as the primary source when interpreting vague references like "this", "it", or "that product".
+- The USER REQUEST may include an "ATTACHMENTS (user context; pinned targets)" section (ref=att#N) and/or a "PINNED TARGETS (previously pinned; not current UI selection)" section (ref=target#N).
+- Use pinned target metadata/contentText as the primary source when interpreting vague references like "this", "it", "that product", "both", or "these".

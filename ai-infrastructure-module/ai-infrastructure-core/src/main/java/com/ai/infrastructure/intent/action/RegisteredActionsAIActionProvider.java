@@ -27,6 +27,7 @@ public class RegisteredActionsAIActionProvider implements AIActionProvider {
                 .description(meta.getDescription())
                 .category(meta.getCategory())
                 .parameters(meta.getParameters())
+                .parameterSchemas(meta.getParameterSchemas())
                 .build())
             .filter(ActionInfo::hasValidName)
             .toList();
@@ -37,4 +38,3 @@ public class RegisteredActionsAIActionProvider implements AIActionProvider {
         return "registered-actions";
     }
 }
-

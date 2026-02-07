@@ -48,5 +48,12 @@ public @interface Param {
      * Optional numeric upper bound (only for numeric target types).
      */
     long max() default Long.MAX_VALUE;
-}
 
+    /**
+     * When true, this parameter can be populated by batching pinned targets.
+     *
+     * <p>Example: an {@code add_to_cart} action may accept {@code items: [{sku, quantity}, ...]} derived from
+     * multiple UI-selected pinned targets.</p>
+     */
+    boolean batchTargets() default false;
+}

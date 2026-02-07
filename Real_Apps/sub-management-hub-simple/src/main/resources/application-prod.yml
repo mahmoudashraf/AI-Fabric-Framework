@@ -23,9 +23,6 @@ spring:
 
 ai:
   enabled: true
-
-  curated:
-    pack: support
   providers:
     llm-provider: cohere
     embedding-provider: onnx
