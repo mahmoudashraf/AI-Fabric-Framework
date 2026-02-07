@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
 class IntentHandlingStepEmbeddingQueryExpansionTest {
 
     @Test
-    void shouldBuildSemanticEmbeddingQueryFromUserQueryAndPinnedTargets() {
+    void shouldBuildSemanticEmbeddingQueryFromOptimizedQueryAndPinnedTargets() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         when(ragProvider.performRag(any())).thenReturn(RAGResponse.builder().success(true).documents(List.of()).context("ctx").build());
 
@@ -106,7 +106,7 @@ class IntentHandlingStepEmbeddingQueryExpansionTest {
         assertThat(metadata).containsEntry("userQuery", "any negative reviews on them?");
         assertThat(metadata).containsKey("embeddingQuery");
         assertThat(String.valueOf(metadata.get("embeddingQuery")))
-            .contains("any negative reviews on them?")
+            .contains("negative reviews")
             .contains("Targets:")
             .contains("sku=SKU-BOS-20002");
 

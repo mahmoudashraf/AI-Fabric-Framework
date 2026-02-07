@@ -1165,7 +1165,10 @@ public class IntentHandlingStep implements PipelineStep {
 
         String retrievalQuery = applyRetrievalQueryHint(retrievalBaseQuery, pipelineContext, intent, metadata);
 
-        String embeddingBaseQuery = StringUtils.hasText(processedQuery) ? processedQuery : retrievalBaseQuery;
+        // Prefer the LLM-provided optimizedQuery (when present) as the base for the embedding query.
+        // The user query may be too short/ambiguous (e.g., "price?", "compare") while optimizedQuery carries
+        // the resolved intent semantics and identifiers.
+        String embeddingBaseQuery = retrievalBaseQuery;
         embeddingBaseQuery = applyRetrievalQueryHint(embeddingBaseQuery, pipelineContext, intent, null);
 
         EmbeddingQueryComposer.Result embedding = EmbeddingQueryComposer.compose(
@@ -2103,8 +2106,9 @@ public class IntentHandlingStep implements PipelineStep {
 
         String intentVectorSpace = intent.getVectorSpace();
         if (!StringUtils.hasText(intentVectorSpace)) {
-            // No retrieval scope was provided; prefer answering from authoritative pinned targets.
-            return true;
+            // vectorSpace is optional. If the model omitted it while still requiring retrieval,
+            // do NOT skip retrieval here; allow routing/fan-out to fetch the missing knowledge.
+            return false;
         }
 
         Set<String> targetSpaces = targets.stream()

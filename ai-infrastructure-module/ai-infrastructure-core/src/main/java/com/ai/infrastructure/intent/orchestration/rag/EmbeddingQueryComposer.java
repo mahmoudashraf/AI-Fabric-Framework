@@ -218,20 +218,28 @@ public final class EmbeddingQueryComposer {
             }
         }
 
-        if (allowlist != null && !allowlist.isEmpty() && target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+        if (allowlist != null && !allowlist.isEmpty()) {
             Map<String, String> normalizedMetadata = new LinkedHashMap<>();
-            target.getMetadata().forEach((key, value) -> {
-                if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
-                    return;
-                }
-                normalizedMetadata.put(key.trim().toLowerCase(Locale.ROOT), value);
-            });
+            if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+                target.getMetadata().forEach((key, value) -> {
+                    if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+                        return;
+                    }
+                    normalizedMetadata.put(key.trim().toLowerCase(Locale.ROOT), value);
+                });
+            }
 
             for (String key : allowlist) {
                 if (!StringUtils.hasText(key)) {
                     continue;
                 }
+                if (shouldSkipReservedKeyBecauseAlreadyIncluded(key, target, cfg)) {
+                    continue;
+                }
                 String raw = normalizedMetadata.get(key);
+                if (!StringUtils.hasText(raw)) {
+                    raw = resolveReservedRootValue(target, key, cfg);
+                }
                 String normalized = normalizeAtom(raw, 96);
                 if (!StringUtils.hasText(normalized) || containsEmailMarker(normalized)) {
                     continue;
@@ -263,6 +271,50 @@ public final class EmbeddingQueryComposer {
         sb.append(']');
 
         return appended ? sb.toString() : null;
+    }
+
+    private static boolean shouldSkipReservedKeyBecauseAlreadyIncluded(String normalizedKey,
+                                                                      ResolvedTarget target,
+                                                                      OrchestrationProperties.TargetHintProperties cfg) {
+        if (!StringUtils.hasText(normalizedKey) || cfg == null || target == null) {
+            return false;
+        }
+        return (cfg.isIncludeId() && StringUtils.hasText(target.getId()) && "id".equals(normalizedKey))
+            || (cfg.isIncludeVectorSpace() && StringUtils.hasText(target.getVectorSpace()) && ("vectorspace".equals(normalizedKey) || "type".equals(normalizedKey)))
+            || (cfg.isIncludeContentText() && StringUtils.hasText(target.getContentText()) && ("text".equals(normalizedKey) || "content".equals(normalizedKey) || "contenttext".equals(normalizedKey)));
+    }
+
+    /**
+     * Some allowlisted attributes may be present on the target root object rather than in metadata.
+     *
+     * <p>This remains domain-agnostic by only supporting a small set of reserved keys.</p>
+     */
+    private static String resolveReservedRootValue(ResolvedTarget target,
+                                                  String normalizedKey,
+                                                  OrchestrationProperties.TargetHintProperties cfg) {
+        if (target == null || cfg == null || !StringUtils.hasText(normalizedKey)) {
+            return null;
+        }
+
+        return switch (normalizedKey) {
+            case "id" -> normalizeAtom(target.getId(), 64);
+            case "vectorspace", "type" -> normalizeAtom(target.getVectorSpace(), 64);
+            case "text", "content", "contenttext" -> quoteIfPresent(target.getContentText(), cfg.getMaxContentTextCharsPerTarget());
+            default -> null;
+        };
+    }
+
+    private static String quoteIfPresent(String raw, int maxLen) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String snippet = normalizeSingleLine(raw);
+        int max = maxLen > 0 ? maxLen : 0;
+        if (max > 0 && snippet.length() > max) {
+            snippet = snippet.substring(0, max);
+        }
+        snippet = snippet.replace('"', '\'');
+        return StringUtils.hasText(snippet) ? ("\"" + snippet + "\"") : null;
     }
 
     private static List<String> normalizeAllowlist(List<String> rawKeys) {
@@ -323,4 +375,3 @@ public final class EmbeddingQueryComposer {
         return value != null && value.indexOf('@') >= 0;
     }
 }
-

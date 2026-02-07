@@ -227,8 +227,15 @@ class VectorSpaceResolutionStepTest {
     }
 
     @Test
-    void shouldScopeVectorSpaceWhenResolvedTargetsPresent() {
+    void shouldRouteVectorSpaceEvenWhenResolvedTargetsPresent() {
         VectorSpaceRouter router = mock(VectorSpaceRouter.class);
+        when(router.route(any(), anyString())).thenReturn(RoutingResult.builder()
+            .success(true)
+            .vectorSpace("product")
+            .strategy(RoutingStrategy.HEURISTIC)
+            .confidence(0.5d)
+            .rationale("test")
+            .build());
 
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
@@ -267,7 +274,7 @@ class VectorSpaceResolutionStepTest {
 
         assertThat(updated.isShouldTerminate()).isFalse();
         assertThat(updated.getIntentResponse().getIntents().getFirst().getVectorSpace()).isEqualTo("product");
-        verify(router, never()).route(any(), anyString());
+        verify(router).route(any(), anyString());
     }
 
     @Test
