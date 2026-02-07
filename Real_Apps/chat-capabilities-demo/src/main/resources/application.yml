@@ -23,6 +23,20 @@ ai:
   curated:
     pack: commerce
 
+  orchestration:
+    rag:
+      target-hint:
+        enabled: false # keep global OFF; enable per-mode below
+        metadata-keys-allowlist: # optional (explicit domain choice)
+          - sku
+          - name
+          - title
+          - category
+          - brand
+    modes:
+      navigator:
+        rag-target-hint-enabled: true
+
   chat:
     enabled: true
     window-size: 12
