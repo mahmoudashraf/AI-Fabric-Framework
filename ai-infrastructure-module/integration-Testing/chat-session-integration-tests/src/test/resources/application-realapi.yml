@@ -21,7 +21,7 @@ spring:
 
 ai:
   curated:
-    pack: ${AI_CURATED_PACK:support}
+    pack: ${AI_CURATED_PACK:}
 
   chat:
     enabled: true

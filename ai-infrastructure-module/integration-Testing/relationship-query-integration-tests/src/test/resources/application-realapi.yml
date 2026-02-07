@@ -41,7 +41,7 @@ spring:
 
 ai:
   curated:
-    pack: ${AI_CURATED_PACK:support}
+    pack: ${AI_CURATED_PACK:}
 
   providers:
     llm-provider: ${AI_INFRASTRUCTURE_LLM_PROVIDER:${LLM_PROVIDER:openai}}
