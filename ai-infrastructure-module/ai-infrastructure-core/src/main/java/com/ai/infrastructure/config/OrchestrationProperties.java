@@ -5,7 +5,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,6 +36,11 @@ public class OrchestrationProperties {
      * <p>Clients may request a mode, but the server only accepts allowlisted modes defined here.</p>
      */
     private Map<String, ModeOverrides> modes = new LinkedHashMap<>();
+
+    /**
+     * Configuration for RAG request composition.
+     */
+    private RagProperties rag = new RagProperties();
 
     /**
      * Server-side routing from a UI position signal to an orchestration mode.
@@ -89,5 +96,65 @@ public class OrchestrationProperties {
          * When false, Advanced RAG is disabled even if the LLM suggests it.</p>
          */
         private Boolean useAdvancedRag;
+
+        /**
+         * Optional mode override for whether pinned-target hints may be appended to the embedding query.
+         *
+         * <p>When unset, the global {@code ai.orchestration.rag.target-hint.enabled} value applies.</p>
+         */
+        private Boolean ragTargetHintEnabled;
+    }
+
+    @Data
+    public static class RagProperties {
+        /**
+         * When enabled, the orchestrator may expand the embedding query using pinned target evidence.
+         */
+        private TargetHintProperties targetHint = new TargetHintProperties();
+    }
+
+    @Data
+    public static class TargetHintProperties {
+        /**
+         * Master switch for embedding query target hints.
+         */
+        private boolean enabled = false;
+
+        /**
+         * Max number of targets to include in the hint.
+         */
+        private int maxTargets = 3;
+
+        /**
+         * Max total chars for the appended hint (excluding the base query).
+         */
+        private int maxChars = 500;
+
+        /**
+         * Include the target vectorSpace in the hint when present.
+         */
+        private boolean includeVectorSpace = true;
+
+        /**
+         * Include the target id in the hint when present.
+         */
+        private boolean includeId = true;
+
+        /**
+         * Include a bounded snippet of target contentText when present.
+         */
+        private boolean includeContentText = true;
+
+        /**
+         * Max chars of contentText included per target.
+         */
+        private int maxContentTextCharsPerTarget = 120;
+
+        /**
+         * Allowlisted metadata keys to include in the hint.
+         *
+         * <p>When empty, arbitrary metadata keys are not appended (safe-by-default).</p>
+         */
+        private List<String> metadataKeysAllowlist = new ArrayList<>();
     }
 }

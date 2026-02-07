@@ -35,6 +35,7 @@ import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachmen
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.intent.orchestration.rag.EmbeddingQueryComposer;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
@@ -1164,6 +1165,29 @@ public class IntentHandlingStep implements PipelineStep {
 
         String retrievalQuery = applyRetrievalQueryHint(retrievalBaseQuery, pipelineContext, intent, metadata);
 
+        String embeddingBaseQuery = StringUtils.hasText(processedQuery) ? processedQuery : retrievalBaseQuery;
+        embeddingBaseQuery = applyRetrievalQueryHint(embeddingBaseQuery, pipelineContext, intent, null);
+
+        EmbeddingQueryComposer.Result embedding = EmbeddingQueryComposer.compose(
+            embeddingBaseQuery,
+            intent,
+            pipelineContext,
+            orchestrationProperties
+        );
+
+        if (StringUtils.hasText(processedQuery)) {
+            metadata.put(EmbeddingQueryComposer.METADATA_KEY_USER_QUERY, processedQuery);
+        }
+        if (embedding != null && StringUtils.hasText(embedding.embeddingQuery())) {
+            metadata.put(EmbeddingQueryComposer.METADATA_KEY_EMBEDDING_QUERY, embedding.embeddingQuery());
+        }
+        if (embedding != null) {
+            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_ENABLED, embedding.targetHintEnabled());
+            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_APPLIED, embedding.targetHintApplied());
+            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_TARGETS_USED, embedding.targetHintTargetsUsed());
+            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_CHARS, embedding.targetHintChars());
+        }
+
         if (vectorSpaces.size() > 1) {
             return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, generationQuery, retrievalQuery, metadata, vectorSpaces);
         }
@@ -1175,7 +1199,10 @@ public class IntentHandlingStep implements PipelineStep {
                 : generationQuery);
 
         if (shouldUseAdvancedRag(intent, needsGeneration, advancedDecisionQuery, context, pipelineContext)) {
-            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata);
+            String advancedQuery = embedding != null && StringUtils.hasText(embedding.embeddingQuery())
+                ? embedding.embeddingQuery()
+                : retrievalQuery;
+            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, generationQuery, advancedQuery, metadata);
             if (advanced != null) {
                 return advanced;
             }

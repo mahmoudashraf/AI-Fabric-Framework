@@ -68,6 +68,7 @@ public class RAGService implements RAGProvider {
     private static final String METADATA_KEY_OPTIMIZED_QUERY_PROVIDED = "optimizedQueryProvided";
     private static final String METADATA_KEY_EMBEDDING_QUERY = "embeddingQuery";
     private static final String METADATA_KEY_OPTIMIZED_QUERY = "optimizedQuery";
+    private static final String METADATA_KEY_USER_QUERY = "userQuery";
     
     // Result keys
     private static final String RESULT_KEY_CONTENT = "content";
@@ -239,6 +240,8 @@ public class RAGService implements RAGProvider {
 
             Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
                 request.getMetadata(), embeddingQuery);
+
+            String originalUserQuery = extractUserQuery(request.getMetadata());
             
             return RAGResponse.builder()
                 .context(context)
@@ -259,7 +262,7 @@ public class RAGService implements RAGProvider {
                     .average().orElse(0.0))
                 .processingTimeMs(searchResponse.getProcessingTimeMs())
                 .requestId(request.getRequestId())
-                .originalQuery(processedQuery)
+                .originalQuery(StringUtils.hasText(originalUserQuery) ? originalUserQuery : processedQuery)
                 .entityType(request.getEntityType())
                 .model(config.resolveEmbeddingDefaults().model())
                 .timestamp(java.time.LocalDateTime.now())
@@ -321,6 +324,8 @@ public class RAGService implements RAGProvider {
 
             Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
                 request.getMetadata(), embeddingQuery);
+
+            String originalUserQuery = extractUserQuery(request.getMetadata());
             
             return RAGResponse.builder()
                 .context(context)
@@ -337,7 +342,7 @@ public class RAGService implements RAGProvider {
                 .success(true)
                 .hybridSearchUsed(Boolean.TRUE.equals(request.getEnableHybridSearch()))
                 .contextualSearchUsed(Boolean.TRUE.equals(request.getEnableContextualSearch()))
-                .originalQuery(processedQuery)
+                .originalQuery(StringUtils.hasText(originalUserQuery) ? originalUserQuery : processedQuery)
                 .entityType(request.getEntityType())
                 .searchedCategories(request.getCategories())
                 .metadata(Collections.unmodifiableMap(aggregatedMetadata))
@@ -468,11 +473,38 @@ public class RAGService implements RAGProvider {
     }
     
     private String resolveEmbeddingQuery(RAGRequest request, String processedQuery) {
-        String optimized = extractOptimizedQuery(request.getMetadata());
+        String explicit = extractEmbeddingQuery(request != null ? request.getMetadata() : null);
+        if (StringUtils.hasText(explicit)) {
+            return explicit;
+        }
+
+        String optimized = extractOptimizedQuery(request != null ? request.getMetadata() : null);
         if (StringUtils.hasText(optimized)) {
             return optimized;
         }
         return processedQuery;
+    }
+
+    private String extractEmbeddingQuery(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        Object candidate = metadata.get(METADATA_KEY_EMBEDDING_QUERY);
+        if (candidate instanceof String str && StringUtils.hasText(str)) {
+            return str;
+        }
+        return null;
+    }
+
+    private String extractUserQuery(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        Object candidate = metadata.get(METADATA_KEY_USER_QUERY);
+        if (candidate instanceof String str && StringUtils.hasText(str)) {
+            return str;
+        }
+        return null;
     }
 
     private String extractOptimizedQuery(Map<String, Object> metadata) {
