@@ -18,6 +18,7 @@ class MultiTargetPromptRulesTest {
 
         assertThat(system.template()).contains("MULTI-TARGET");
         assertThat(system.template()).contains("one ACTION intent per target");
+        assertThat(system.template()).contains("[batchTargets]");
     }
 
     @Test
@@ -32,4 +33,3 @@ class MultiTargetPromptRulesTest {
         assertThat(classify.template()).contains("PINNED TARGETS");
     }
 }
-

@@ -33,3 +33,6 @@ Notes:
   - Attachments/targets may be missing id; use metadata/contentText instead.
   - When the user refers to a target indirectly ("buy it", "add this"), prefer identifiers/fields from target metadata/contentText for actionParams (e.g., id/sku/orderNumber) rather than inventing values.
   - If the classifier produced multiple ACTION intents to operate on multiple pinned targets, fill params for each intent using the corresponding target in order (first target for the first intent, etc.) unless the user explicitly specified otherwise.
+  - If the selected action paramsSchema includes an array parameter marked [batchTargets] and multiple pinned targets exist:
+    - Populate that array with one element per pinned target by default (unless the user narrowed scope to a single target).
+    - Each array element must follow the item schema (object/fields) and use only identifiers/attributes present in the pinned targets metadata/contentText.

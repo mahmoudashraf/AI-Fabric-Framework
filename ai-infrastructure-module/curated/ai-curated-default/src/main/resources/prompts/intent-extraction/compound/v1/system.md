@@ -22,7 +22,7 @@ EXTRACTION RULES:
    - If 2+ pinned targets are present, treat them as a set the user may be referring to.
    - For comparisons/summaries/selection among pinned targets: answer using ONLY pinned targets when possible (requiresRetrieval=false, requiresGeneration=true).
    - For ACTION requests that can apply to multiple pinned targets and the user did not specify which one:
-     * If the chosen action exposes a batch-capable array parameter in paramsSchema (marked with [batchTargets]), you MAY return a single ACTION intent and batch all pinned targets into that parameter.
+     * If the chosen action exposes a batch-capable array parameter in paramsSchema (marked with [batchTargets]), you MUST return a single ACTION intent and batch all pinned targets into that parameter by default (unless the user explicitly narrowed scope to a single target).
      * Otherwise, return a COMPOUND response with one ACTION intent per target (set isCompound=true).
      * Default assumption: if multiple pinned targets are present and the user does not narrow scope, apply the action to all pinned targets (batch or one intent per target).
      * Never merge multiple target values into one parameter unless the action paramsSchema explicitly supports it via an array param marked [batchTargets].

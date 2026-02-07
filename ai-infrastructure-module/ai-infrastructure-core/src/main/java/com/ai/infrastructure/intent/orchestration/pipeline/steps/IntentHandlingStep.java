@@ -164,6 +164,10 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String TEMPLATE_RAG_ANSWER = "answer";
     private static final String TEMPLATE_RAG_NO_CONTEXT = "no-context";
 
+    private static final String TEMPLATE_FAMILY_CONFIRMATION_RESOLUTION = "intent-extraction/confirmation";
+    private static final String TEMPLATE_CONFIRMATION_RESOLUTION_SYSTEM = "system";
+    private static final String TEMPLATE_CONFIRMATION_RESOLUTION_USER = "user";
+
     private static final String TEMPLATE_FAMILY_POST_ACTION_GENERATION = "orchestration/post-action-generation";
     private static final String TEMPLATE_POST_ACTION_SYSTEM = "system";
     private static final String TEMPLATE_POST_ACTION_USER_GENERIC = "user-generic";
@@ -407,6 +411,20 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         if (requiresConfirmation && !confirmedThisRequest && context.hasConversation()) {
+            // Loop breaker: if the LLM keeps re-issuing the same ACTION instead of emitting
+            // CONFIRMATION_POSITIVE/NEGATIVE, resolve confirmation using a dedicated LLM prompt
+            // (no backend string matching) and execute/cancel accordingly.
+            OrchestrationResult resolved = maybeResolvePendingConfirmationForMisclassifiedAction(
+                actionName,
+                effectiveParams,
+                confirmationMessage,
+                context,
+                pipelineContext
+            );
+            if (resolved != null) {
+                return resolved;
+            }
+
             if (context.hasConversation() && actionDraftStore != null) {
                 actionDraftStore.clearDrafts(context.getConversationId(), identifier);
             }
@@ -681,6 +699,317 @@ public class IntentHandlingStep implements PipelineStep {
             .success(true)
             .message("Okay —  All sorted, You do not need to do any further action.")
             .build();
+    }
+
+    private enum ConfirmationResolutionDecision {
+        POSITIVE,
+        NEGATIVE,
+        UNKNOWN
+    }
+
+    private record ConfirmationResolutionOutcome(
+        ConfirmationResolutionDecision decision,
+        double confidence,
+        Map<String, Object> debugMetadata
+    ) {
+    }
+
+    /**
+     * If there is a pending action, and the LLM emitted the same ACTION again, try to interpret the user's
+     * message as confirmation/rejection using a dedicated confirmation prompt.
+     *
+     * <p>This avoids brittle backend string-matching ("yes/no") while preventing repeated CONFIRMATION_REQUIRED loops.</p>
+     */
+    private OrchestrationResult maybeResolvePendingConfirmationForMisclassifiedAction(String actionName,
+                                                                                      Map<String, Object> effectiveParams,
+                                                                                      String confirmationMessage,
+                                                                                      OrchestrationContext context,
+                                                                                      PipelineContext pipelineContext) {
+        if (!StringUtils.hasText(actionName)
+            || context == null
+            || !context.hasConversation()
+            || pendingActionStore == null
+            || aiCoreService == null
+            || promptTemplateResolver == null
+            || promptRenderer == null) {
+            return null;
+        }
+
+        PendingAction pending;
+        try {
+            pending = pendingActionStore.peekPendingAction(context.getConversationId(), context.getIdentifier()).orElse(null);
+        } catch (Exception ex) {
+            return null;
+        }
+        if (pending == null || !StringUtils.hasText(pending.action())) {
+            return null;
+        }
+        if (!actionName.trim().equalsIgnoreCase(pending.action().trim())) {
+            return null;
+        }
+
+        Map<String, Object> pendingParams = pending.actionParams() != null ? pending.actionParams() : Map.of();
+        Map<String, Object> currentParams = effectiveParams != null ? effectiveParams : Map.of();
+        if (!actionParamsEquivalentOrSubset(currentParams, pendingParams)) {
+            // The user might be adjusting params rather than confirming; do not force-confirm.
+            return null;
+        }
+
+        // Use the original user message, never the processed query (which may include injected context blocks).
+        String userMessage = pipelineContext != null ? pipelineContext.getOriginalQuery() : null;
+        if (!StringUtils.hasText(userMessage)) {
+            return null;
+        }
+
+        ConfirmationResolutionOutcome outcome = resolveConfirmationDecision(
+            pending.action(),
+            StringUtils.hasText(pending.description()) ? pending.description() : confirmationMessage,
+            userMessage,
+            context
+        );
+        if (outcome == null || outcome.decision() == null || outcome.decision() == ConfirmationResolutionDecision.UNKNOWN) {
+            return null;
+        }
+
+        OrchestrationResult resolved;
+        if (outcome.decision() == ConfirmationResolutionDecision.POSITIVE) {
+            resolved = handleConfirmationPositive(context, pipelineContext);
+        } else {
+            resolved = handleConfirmationNegative(context, pipelineContext);
+        }
+
+        if (resolved == null) {
+            return null;
+        }
+
+        Map<String, Object> merged = new LinkedHashMap<>(resolved.getMetadata() != null ? resolved.getMetadata() : Map.of());
+        merged.put("pendingActionResolution", outcome.debugMetadata() != null ? outcome.debugMetadata() : Map.of());
+        resolved.setMetadata(Collections.unmodifiableMap(merged));
+        return resolved;
+    }
+
+    private boolean actionParamsEquivalentOrSubset(Map<String, Object> currentParams, Map<String, Object> pendingParams) {
+        if (currentParams == null || currentParams.isEmpty()) {
+            return true;
+        }
+        if (pendingParams == null || pendingParams.isEmpty()) {
+            return currentParams.isEmpty();
+        }
+        if (pendingParams.equals(currentParams)) {
+            return true;
+        }
+        // Subset check: allow missing keys in currentParams as long as provided keys match.
+        for (Map.Entry<String, Object> entry : currentParams.entrySet()) {
+            if (entry == null) {
+                continue;
+            }
+            String key = entry.getKey();
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            if (!pendingParams.containsKey(key)) {
+                return false;
+            }
+            Object pendingValue = pendingParams.get(key);
+            if (!valuesEquivalentOrSubset(entry.getValue(), pendingValue)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean valuesEquivalentOrSubset(Object currentValue, Object pendingValue) {
+        if (currentValue == null) {
+            return true;
+        }
+        if (pendingValue == null) {
+            return false;
+        }
+        if (java.util.Objects.equals(currentValue, pendingValue)) {
+            return true;
+        }
+
+        if (currentValue instanceof String currentText && pendingValue instanceof String pendingText) {
+            return currentText.trim().equalsIgnoreCase(pendingText.trim());
+        }
+
+        if (currentValue instanceof Number currentNumber && pendingValue instanceof Number pendingNumber) {
+            return Double.compare(currentNumber.doubleValue(), pendingNumber.doubleValue()) == 0;
+        }
+
+        if (currentValue instanceof Map<?, ?> currentMap && pendingValue instanceof Map<?, ?> pendingMap) {
+            return mapEquivalentOrSubset(currentMap, pendingMap);
+        }
+
+        if (currentValue instanceof List<?> currentList && pendingValue instanceof List<?> pendingList) {
+            return listEquivalentOrSubset(currentList, pendingList);
+        }
+
+        return false;
+    }
+
+    private boolean mapEquivalentOrSubset(Map<?, ?> currentMap, Map<?, ?> pendingMap) {
+        if (currentMap == null || currentMap.isEmpty()) {
+            return true;
+        }
+        if (pendingMap == null || pendingMap.isEmpty()) {
+            return currentMap == null || currentMap.isEmpty();
+        }
+        for (Map.Entry<?, ?> entry : currentMap.entrySet()) {
+            if (entry == null || entry.getKey() == null) {
+                continue;
+            }
+            if (!pendingMap.containsKey(entry.getKey())) {
+                return false;
+            }
+            if (!valuesEquivalentOrSubset(entry.getValue(), pendingMap.get(entry.getKey()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean listEquivalentOrSubset(List<?> currentList, List<?> pendingList) {
+        if (currentList == null || currentList.isEmpty()) {
+            return true;
+        }
+        if (pendingList == null || pendingList.isEmpty()) {
+            return false;
+        }
+
+        // Subset: each current element must appear in pending list (order-insensitive).
+        for (Object currentElement : currentList) {
+            boolean found = false;
+            for (Object pendingElement : pendingList) {
+                if (valuesEquivalentOrSubset(currentElement, pendingElement)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private ConfirmationResolutionOutcome resolveConfirmationDecision(String actionName,
+                                                                     String confirmationMessage,
+                                                                     String userMessage,
+                                                                     OrchestrationContext context) {
+        String safeAction = StringUtils.hasText(actionName) ? actionName.trim() : "";
+        String safeUserMessage = StringUtils.hasText(userMessage) ? userMessage.trim() : "";
+
+        String systemPrompt;
+        String userPrompt;
+        try {
+            systemPrompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY_CONFIRMATION_RESOLUTION, TEMPLATE_CONFIRMATION_RESOLUTION_SYSTEM).template(),
+                Map.of()
+            );
+            userPrompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY_CONFIRMATION_RESOLUTION, TEMPLATE_CONFIRMATION_RESOLUTION_USER).template(),
+                Map.of(
+                    "action_name", safeAction,
+                    "confirmation_message", StringUtils.hasText(confirmationMessage) ? confirmationMessage.trim() : "",
+                    "user_query", safeUserMessage
+                )
+            );
+        } catch (Exception ex) {
+            return null;
+        }
+
+        AIGenerationRequest request = AIGenerationRequest.builder()
+            .entityId("confirm-" + UUID.randomUUID())
+            .entityType("confirmation")
+            .generationType("confirmation_resolution")
+            .systemPrompt(systemPrompt)
+            .prompt(userPrompt)
+            .maxTokens(120)
+            .temperature(0.0d)
+            .userId(context != null ? context.getIdentifier() : null)
+            .build();
+
+        AIGenerationResponse response;
+        try {
+            response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+        } catch (Exception ex) {
+            return new ConfirmationResolutionOutcome(
+                ConfirmationResolutionDecision.UNKNOWN,
+                0.0d,
+                Map.of("used", true, "error", "llm_call_failed")
+            );
+        }
+
+        String content = response != null ? response.getContent() : null;
+        ConfirmationResolutionDecision decision = parseConfirmationDecision(content);
+        double confidence = parseConfirmationConfidence(content);
+
+        Map<String, Object> debug = new LinkedHashMap<>();
+        debug.put("used", true);
+        debug.put("action", safeAction);
+        debug.put("decision", decision != null ? decision.name() : "UNKNOWN");
+        debug.put("confidence", confidence);
+        debug.put("model", response != null ? response.getModel() : null);
+        return new ConfirmationResolutionOutcome(
+            decision != null ? decision : ConfirmationResolutionDecision.UNKNOWN,
+            confidence,
+            Collections.unmodifiableMap(debug)
+        );
+    }
+
+    private ConfirmationResolutionDecision parseConfirmationDecision(String content) {
+        if (!StringUtils.hasText(content)) {
+            return ConfirmationResolutionDecision.UNKNOWN;
+        }
+
+        ObjectMapper mapper = objectMapperProvider != null ? objectMapperProvider.getIfAvailable() : null;
+        if (mapper == null) {
+            mapper = new ObjectMapper();
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = mapper.readValue(content, Map.class);
+            Object value = map != null ? map.get("decision") : null;
+            if (!(value instanceof String text) || !StringUtils.hasText(text)) {
+                return ConfirmationResolutionDecision.UNKNOWN;
+            }
+            String normalized = text.trim().toUpperCase(java.util.Locale.ROOT);
+            return switch (normalized) {
+                case "POSITIVE", "CONFIRM", "CONFIRMED", "YES", "APPROVE", "APPROVED" -> ConfirmationResolutionDecision.POSITIVE;
+                case "NEGATIVE", "REJECT", "REJECTED", "NO", "CANCEL", "CANCELLED" -> ConfirmationResolutionDecision.NEGATIVE;
+                default -> ConfirmationResolutionDecision.UNKNOWN;
+            };
+        } catch (Exception ignored) {
+            return ConfirmationResolutionDecision.UNKNOWN;
+        }
+    }
+
+    private double parseConfirmationConfidence(String content) {
+        if (!StringUtils.hasText(content)) {
+            return 0.0d;
+        }
+        ObjectMapper mapper = objectMapperProvider != null ? objectMapperProvider.getIfAvailable() : null;
+        if (mapper == null) {
+            mapper = new ObjectMapper();
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = mapper.readValue(content, Map.class);
+            Object value = map != null ? map.get("confidence") : null;
+            if (value instanceof Number number) {
+                double raw = number.doubleValue();
+                if (Double.isNaN(raw) || Double.isInfinite(raw)) {
+                    return 0.0d;
+                }
+                return Math.max(0.0d, Math.min(1.0d, raw));
+            }
+        } catch (Exception ignored) {
+            // ignore
+        }
+        return 0.0d;
     }
 
     private PostActionGenerationOutcome maybeGeneratePostActionSummary(String actionName,
