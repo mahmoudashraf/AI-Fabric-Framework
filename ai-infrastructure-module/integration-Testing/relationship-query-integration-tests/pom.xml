@@ -30,12 +30,6 @@
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-curated-support</artifactId>
-            <version>${project.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-governance</artifactId>
             <version>${project.version}</version>
         </dependency>
