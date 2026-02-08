@@ -2,10 +2,12 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.OrchestrationResultNormalizationProperties;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultDebugSnapshotStore;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -13,6 +15,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,6 +53,8 @@ public class MetadataBuildingStep implements PipelineStep {
     private static final String METADATA_KEY_COMPOUND = "compound";
     private static final String METADATA_KEY_AUTHENTICATED = "authenticated";
     private static final String METADATA_KEY_INTENT_METADATA = "intentMetadata";
+    private static final String METADATA_KEY_TARGET_RESOLUTION = "targetResolution";
+    private static final String METADATA_KEY_TARGET_RESOLUTION_PINNED_TARGETS = "pinnedTargets";
 
     private final OrchestrationResultNormalizationProperties normalizationProperties;
     
@@ -122,6 +127,8 @@ public class MetadataBuildingStep implements PipelineStep {
             metadata.put(METADATA_KEY_INTENT_METADATA, intentResponse.getMetadata());
         }
 
+        attachPinnedTargetsTargetResolution(metadata, result);
+
         result.setMetadata(Collections.unmodifiableMap(metadata));
 
         if (normalizationProperties != null && normalizationProperties.isDebugSnapshotEnabled()) {
@@ -134,5 +141,47 @@ public class MetadataBuildingStep implements PipelineStep {
         return context.toBuilder()
             .metadata(metadata)
             .build();
+    }
+
+    private void attachPinnedTargetsTargetResolution(Map<String, Object> metadata, OrchestrationResult result) {
+        if (metadata == null || result == null) {
+            return;
+        }
+        if (result.getType() != com.ai.infrastructure.intent.orchestration.OrchestrationResultType.ACTION_EXECUTED) {
+            return;
+        }
+        if (result.getData() == null || result.getData().isEmpty()) {
+            return;
+        }
+
+        Object raw = result.getData().get("actionResult");
+        if (!(raw instanceof ActionResult actionResult)) {
+            return;
+        }
+        List<com.ai.infrastructure.intent.action.ActionTargetRef> pinned = actionResult.getPinnedTargets();
+        if (pinned == null || pinned.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> pinnedMeta = Map.of(
+            "source", ResolvedTargetSource.ACTION_RESULT_ITEMS.name(),
+            "count", pinned.size()
+        );
+
+        Object existing = metadata.get(METADATA_KEY_TARGET_RESOLUTION);
+        if (!(existing instanceof Map<?, ?> existingMap) || existingMap.isEmpty()) {
+            metadata.put(METADATA_KEY_TARGET_RESOLUTION, pinnedMeta);
+            return;
+        }
+
+        LinkedHashMap<String, Object> merged = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : existingMap.entrySet()) {
+            if (entry == null || entry.getKey() == null) {
+                continue;
+            }
+            merged.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+        merged.put(METADATA_KEY_TARGET_RESOLUTION_PINNED_TARGETS, pinnedMeta);
+        metadata.put(METADATA_KEY_TARGET_RESOLUTION, Collections.unmodifiableMap(merged));
     }
 }
