@@ -4,10 +4,12 @@ import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
@@ -47,6 +49,9 @@ public class OfferOrderDiscountActionHandler {
 
             log.info("Issued retention offer {}% (coupon={}) for user={} orderRef={}", percent, coupon, userId, ref);
 
+            ActionTargetRef orderTarget = StringUtils.hasText(ref) && !"your order".equals(ref)
+                ? new ActionTargetRef(ref, "order", "purchase order", Map.of("orderRef", ref))
+                : null;
             return ActionResult.builder()
                 .success(true)
                 .message("Discount offer applied")
@@ -56,6 +61,7 @@ public class OfferOrderDiscountActionHandler {
                     "couponCode", coupon,
                     "note", "This demo does not persist discounts to the order record."
                 )))
+                .pinnedTargets(orderTarget != null ? List.of(orderTarget) : null)
                 .build();
         } catch (Exception e) {
             log.error("Offer discount failed for user {}", userId, e);

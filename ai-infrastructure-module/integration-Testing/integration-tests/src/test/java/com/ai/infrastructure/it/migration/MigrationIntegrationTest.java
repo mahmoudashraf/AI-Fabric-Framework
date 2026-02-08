@@ -255,20 +255,25 @@ class MigrationIntegrationTest {
             .build();
         MigrationJob job = migrationService.startMigration(req);
 
-        // pause after first page
-        job.setStatus(com.ai.infrastructure.migration.domain.MigrationStatus.PAUSED);
-        jobRepository.save(job);
+        // Wait until the first page is processed, then pause via the service API.
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
+            assertThat(refreshed.getCurrentPage()).isGreaterThanOrEqualTo(1);
+            assertThat(refreshed.getProcessedEntities()).isGreaterThanOrEqualTo(1);
+        });
+
+        migrationService.pauseMigration(job.getId());
 
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
             MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.PAUSED);
             assertThat(refreshed.getProcessedEntities()).isLessThanOrEqualTo(1);
         });
 
-        // resume
-        job.setStatus(com.ai.infrastructure.migration.domain.MigrationStatus.RUNNING);
-        jobRepository.save(job);
+        // Resume via the service API (re-submits the worker task).
+        migrationService.resumeMigration(job.getId());
 
-        await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             MigrationJob refreshed = jobRepository.findById(job.getId()).orElseThrow();
             assertThat(refreshed.getStatus()).isEqualTo(com.ai.infrastructure.migration.domain.MigrationStatus.COMPLETED);
             assertThat(refreshed.getProcessedEntities()).isEqualTo(2);

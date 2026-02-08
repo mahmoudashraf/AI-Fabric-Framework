@@ -118,7 +118,8 @@ class ConversationEnrichmentStepTest {
                     Map.of(
                         "vectorSpace", "product",
                         "contentText", "snippet",
-                        "contentTextTruncated", false
+                        "contentTextTruncated", false,
+                        "originSource", "REQUEST_ATTACHMENTS"
                     )
                 )
             ))
@@ -155,7 +156,7 @@ class ConversationEnrichmentStepTest {
         assertThat(updated.getResolvedTargets()).hasSize(1);
         assertThat(updated.getResolvedTargets().getFirst().getId()).isNull();
         assertThat(updated.getResolvedTargets().getFirst().getContentText()).isEqualTo("snippet");
-        assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.SESSION_METADATA);
+        assertThat(updated.getResolvedTargets().getFirst().getSource()).isEqualTo(ResolvedTargetSource.REQUEST_ATTACHMENTS);
         assertThat(updated.getPinnedTargetsContext()).startsWith("PINNED TARGETS (previously pinned; not current UI selection):");
     }
 

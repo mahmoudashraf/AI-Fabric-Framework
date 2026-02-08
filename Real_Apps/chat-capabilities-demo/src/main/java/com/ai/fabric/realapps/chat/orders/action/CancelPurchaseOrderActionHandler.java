@@ -6,10 +6,12 @@ import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +54,18 @@ public class CancelPurchaseOrderActionHandler {
         try {
             String orderRef = orderId != null ? String.valueOf(orderId) : orderNumber;
             PurchaseOrder cancelled = purchaseOrderService.cancelForUser(orderRef, userId);
+            String cancelledOrderNumber = cancelled != null ? cancelled.getOrderNumber() : null;
+            ActionTargetRef orderTarget = StringUtils.hasText(cancelledOrderNumber)
+                ? new ActionTargetRef(
+                    cancelledOrderNumber.trim(),
+                    "order",
+                    "purchase order",
+                    Map.of(
+                        "orderNumber", cancelledOrderNumber.trim(),
+                        "orderId", cancelled.getId() != null ? String.valueOf(cancelled.getId()) : ""
+                    )
+                )
+                : null;
             return ActionResult.builder()
                 .success(true)
                 .message("Order cancelled")
@@ -60,6 +74,7 @@ public class CancelPurchaseOrderActionHandler {
                     "orderNumber", cancelled.getOrderNumber(),
                     "status", cancelled.getStatus() != null ? cancelled.getStatus().name() : null
                 )))
+                .pinnedTargets(orderTarget != null ? List.of(orderTarget) : null)
                 .build();
         } catch (Exception e) {
             log.error("Cancel purchase order failed for user {}", userId, e);
