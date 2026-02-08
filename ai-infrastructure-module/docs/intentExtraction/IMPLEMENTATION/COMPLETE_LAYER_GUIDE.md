@@ -30,7 +30,7 @@
 │  │  ├─ executeAction() (YOUR LOGIC)            │
 │  │  └─ handleError()                           │
 │  ├─ INFORMATION → Retrieve from RAG            │
-│  ├─ COMPOUND → Handle multiple intents         │
+│  ├─ Multi-intent (intents[] > 1) → Handle multiple intents │
 │  └─ OUT_OF_SCOPE → Return honest answer        │
 └────────────────────┬────────────────────────────┘
                      ↓
@@ -439,8 +439,7 @@ LAYER 2: Intent Extraction
 │      "action": "cancel_subscription",
 │      "actionParams": {"reason": "too expensive"},
 │      "confidence": 0.98
-│    }],
-│    "isCompound": false
+│    }]
 │  }
 └─ Output: MultiIntentResponse
 
@@ -613,4 +612,3 @@ After implementation:
 Start with configuration, then implement per-service handlers.
 
 Questions? Refer to specific layer documents.
-

@@ -1,0 +1,49 @@
+Queue:
+1-the below query is tends to be more structured not semantic -> next
+2
+      "originalQuery": "list_products with price_usd < 1000 AND different_makers budget under 1000, different makers",
+3
+3-Do we send history to intent extration ? do we need to  ?
+4
+4-fix IDs
+5
+5-store only ids for working Set, chat message contain infor about it, WorkingSetTargetSeedingStep no need
+6
+6- write action result to be pinned, chat messages - next 
+7
+delete read-search actions
+8
+9
+7- optimized query for embdeding should be more sematic -> next 
+
+
+
+Ideas:
+1-In deep mode , attachment should somehow be part of rag search query
+
+2-User should be able to store ui custom metadata for each message
+You sent For layout appearance (user query ,action request , action result ,rag result , each can be represented differently)
+3-Resolver mode → We might need read actions and rag and generation, We should priotize steps and actions per mode
+
+4-
+We might need to send the resolved attachments into intend extraction to keep the focus on the previously attached docs , and answer it if all required information already provided
+
+clarifying :What is the difference between sending attachments and speaking on them on next call ?
+5-Store document ids in history to be fetched again, when use open chat again  , with limit
+
+6-Suggestions should be dived by mode , position (action, questions)
+
+7-we need to check if user query require generation  , if it comes from  action result
+
+8-Do we need to replace readonly empty result with rag result ?
+
+9- We need LLM to relate rag data (multiple vector spaces) with the resolved targets ex(Reviews → product by product ids) → if ca not related , answer should be clearly telling the user this might miss the relation.
+10-should we consider  accumulating documents in context , remove old add new ones  / instead or relacing? can be configured for optimization /performance matrix
+
+11-Action result should not replace resoluted targets if result is empty, or it does if action is successfully return data
+
+12-Do we consider aCTION RESULT as a PART OF THE CONTEXT
+
+13-If user sent confirmation response while no actions ,Does it being  send it to llm to generate response based on previous context ?  validate
+
+14-For Ui purpose We might need new data attribute  (so LLM  feed it with the document Ids he is mentioning specifically in response)

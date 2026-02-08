@@ -109,7 +109,7 @@ The system prompt for `IntentQueryExtractor` should include:
 
 ```
 Extract the user intent and include these fields in JSON:
-- type: INFORMATION, ACTION, OUT_OF_SCOPE, or COMPOUND
+- type: INFORMATION, ACTION, OUT_OF_SCOPE, CONFIRMATION_POSITIVE, or CONFIRMATION_NEGATIVE
 - intent: canonical intent name
 - requires_retrieval: boolean - does this need document search?
 - requires_generation: boolean - does this need LLM generation/analysis?
@@ -350,4 +350,3 @@ The `requiresGeneration` flag should be:
 - ✅ Default to false if LLM doesn't set it
 - ✅ Used to determine if context filtering is needed
 - ❌ NOT auto-detected using heuristics
-

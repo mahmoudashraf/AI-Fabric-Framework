@@ -50,7 +50,7 @@ private void appendOutputFormat(StringBuilder prompt) {
         {
           "intents": [
             {
-              "type": "ACTION | INFORMATION | OUT_OF_SCOPE | COMPOUND",
+              "type": "ACTION | INFORMATION | OUT_OF_SCOPE | CONFIRMATION_POSITIVE | CONFIRMATION_NEGATIVE",
               "intent": "canonical_intent_name",
               "confidence": 0.95,
               "action": "action_name_if_applicable",
@@ -67,7 +67,6 @@ private void appendOutputFormat(StringBuilder prompt) {
               }
             }
           ],
-          "isCompound": false,
           "orchestrationStrategy": "DIRECT_ACTION | RETRIEVE_AND_GENERATE | ADMIT_UNKNOWN",
           "metadata": {}
         }
@@ -238,4 +237,3 @@ Once LLM is updated with the new prompt, we need to:
 - RAGOrchestrator can use it for routing
 
 **Status**: ✅ LLM Prompt Updated | ⏳ RAGOrchestrator Routing Pending | ⏳ Tests Pending
-

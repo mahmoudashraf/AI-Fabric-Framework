@@ -488,7 +488,8 @@ public class RAGOrchestrator {
             case ACTION -> handleAction(intent, context);
             case INFORMATION -> handleInformation(intent, context);
             case OUT_OF_SCOPE -> handleOutOfScope(intent);
-            case COMPOUND -> handleSyntheticCompound(intent, context);
+            case CONFIRMATION_POSITIVE -> handleConfirmationPositive(context);
+            case CONFIRMATION_NEGATIVE -> handleConfirmationNegative(context);
             default -> OrchestrationResult.error("Unknown intent type: " + intent.getType());
         };
     }
@@ -1726,5 +1727,4 @@ This allows framework users to:
 **Owner:** AI Infrastructure Team  
 
 **Key Change:** Added SPI pattern (Phase 5) to avoid circular dependency between core and behavior modules.
-
 

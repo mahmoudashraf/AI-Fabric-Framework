@@ -157,7 +157,8 @@ public class EnrichedPromptBuilder {
                   "confidence": 0.88
                 }
               }],
-              "isCompound": false
+              "orchestrationStrategy": "DIRECT_ACTION|RETRIEVE_AND_GENERATE|ADMIT_UNKNOWN",
+              "metadata": {}
             }
             """);
         
@@ -527,4 +528,3 @@ Response to User (with smart suggestion!)
 ---
 
 **Layer 4 complete! Smart suggestions make your system feel intelligent and delightful.** 🎯
-

@@ -684,9 +684,8 @@ When responding to user queries:
    - Explain what you can help with
 
 4. If user asks multiple things:
-   - Respond with type: "COMPOUND"
-   - List all sub-intents
-   - Suggest orchestration strategy
+   - Return multiple intents in the root `intents[]` array (no `type=COMPOUND`)
+   - Suggest orchestration strategy if needed
 ```
 
 ---
@@ -712,7 +711,6 @@ The LLM then decides:
 - Should I retrieve information? → INFORMATION intent
 - Should I execute an action? → ACTION intent
 - Should I admit I don't know? → OUT_OF_SCOPE intent
-- Is this multiple questions? → COMPOUND intent
+- Is this multiple questions? → return multiple `intents[]` entries
 
 That's it! 🎯
-

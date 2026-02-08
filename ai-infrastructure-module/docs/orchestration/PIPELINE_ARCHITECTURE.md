@@ -178,7 +178,8 @@ IntentHandlingStep (60)
     │
     ├── ACTION: Execute handler → ACTION_EXECUTED/ACTION_DENIED
     ├── INFORMATION: RAG query → INFORMATION_PROVIDED
-    ├── COMPOUND: Process all → COMPOUND_HANDLED
+    ├── MULTI-INTENT (intents.size>1): Process all → COMPOUND_HANDLED
+    ├── CONFIRMATION_POSITIVE / CONFIRMATION_NEGATIVE: Resolve pending action
     └── OUT_OF_SCOPE: Guidance → OUT_OF_SCOPE
 ```
 

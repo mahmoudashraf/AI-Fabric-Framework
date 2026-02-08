@@ -483,7 +483,6 @@ curl -X POST https://api.ai-infrastructure.cloud/extract \
       }
     }
   ],
-  "isCompound": false,
   "orchestrationStrategy": "retrieve_and_generate"
 }
 ```
@@ -1043,4 +1042,3 @@ COMBINED: ~$18M/year, 72% margins, $100M+ exit potential
    - Non-Java market
 
 **Your path to $20M+/year business is clear!** 💰
-

@@ -16,7 +16,7 @@ RAGOrchestrator.orchestrate()
     - ACTION → handleAction()
     - INFORMATION → handleInformation()  ← THIS WE'RE MODIFYING
     - OUT_OF_SCOPE → handleOutOfScope()
-    - COMPOUND → handleCompound()
+    - Multi-intent (intents[] > 1) → handleCompoundIntents()
     ↓
   handleInformation() currently does:
     1. Build RAGRequest
@@ -44,7 +44,7 @@ RAGOrchestrator.orchestrate()
     - ACTION → handleAction()
     - INFORMATION → handleInformation()  ← ENHANCED
     - OUT_OF_SCOPE → handleOutOfScope()
-    - COMPOUND → handleCompound()
+    - Multi-intent (intents[] > 1) → handleCompoundIntents()
     ↓
   handleInformation() NEW logic:
     1. Build RAGRequest
@@ -548,4 +548,3 @@ No changes needed to configuration format
 5. **Context Compression**
    - Summarize documents before LLM
    - Reduce token usage
-

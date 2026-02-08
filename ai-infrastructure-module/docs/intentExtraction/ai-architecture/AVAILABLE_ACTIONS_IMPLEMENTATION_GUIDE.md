@@ -643,15 +643,13 @@ public class IntentQueryExtractor {
                - Extract what to retrieve
             4. If query is out of scope:
                - Set intent.type = "OUT_OF_SCOPE"
-            5. If multiple questions: set isCompound = true
+            5. If multiple questions: return multiple intents[] entries (no COMPOUND type)
             
             ==== RESPONSE FORMAT ====
             Respond ONLY with valid JSON (no markdown, no extra text):
             {
-              "rawQuery": "original query",
-              "primaryIntent": "intent name",
               "intents": [{
-                "type": "ACTION|INFORMATION|OUT_OF_SCOPE|COMPOUND",
+                "type": "ACTION|INFORMATION|OUT_OF_SCOPE|CONFIRMATION_POSITIVE|CONFIRMATION_NEGATIVE",
                 "intent": "specific intent",
                 "confidence": 0.0-1.0,
                 "action": "action name if type=ACTION",
@@ -659,8 +657,8 @@ public class IntentQueryExtractor {
                 "normalizedQuery": "cleaned query for retrieval",
                 "requiresRetrieval": true|false
               }],
-              "isCompound": true|false,
-              "requiresOrchestration": true|false
+              "orchestrationStrategy": "DIRECT_ACTION|RETRIEVE_AND_GENERATE|ADMIT_UNKNOWN",
+              "metadata": {}
             }
             """;
         
@@ -912,4 +910,3 @@ You now have:
 **Result:** Professional, scalable, enterprise-ready action management
 
 **You're done!** 🎉
-
