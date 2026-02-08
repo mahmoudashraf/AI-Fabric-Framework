@@ -7,10 +7,12 @@ import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +47,19 @@ public class CheckoutCartActionHandler {
             Payment.Method method = paymentMethod != null ? paymentMethod : Payment.Method.CARD;
             PurchaseOrder order = cartService.checkout(userId, shippingAddress, email, method);
 
+            String orderNumber = order != null ? order.getOrderNumber() : null;
+            ActionTargetRef orderTarget = org.springframework.util.StringUtils.hasText(orderNumber)
+                ? new ActionTargetRef(
+                    orderNumber,
+                    "order",
+                    "purchase order",
+                    Map.of(
+                        "orderNumber", orderNumber,
+                        "orderId", order.getId() != null ? String.valueOf(order.getId()) : ""
+                    )
+                )
+                : null;
+
             return ActionResult.builder()
                 .success(true)
                 .message("Checkout complete")
@@ -55,6 +70,7 @@ public class CheckoutCartActionHandler {
                     "currency", order.getCurrency(),
                     "status", order.getStatus() != null ? order.getStatus().name() : null
                 )))
+                .pinnedTargets(orderTarget != null ? List.of(orderTarget) : null)
                 .build();
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;

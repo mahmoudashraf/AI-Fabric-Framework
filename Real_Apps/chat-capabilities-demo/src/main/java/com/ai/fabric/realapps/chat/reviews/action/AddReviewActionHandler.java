@@ -6,10 +6,12 @@ import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +45,10 @@ public class AddReviewActionHandler {
         String userId = context != null ? context.userId() : null;
         try {
             Review created = reviewService.create(userId, productId, sku, rating, text);
+            String reviewId = created != null && created.getId() != null ? String.valueOf(created.getId()) : null;
+            ActionTargetRef reviewTarget = reviewId != null
+                ? new ActionTargetRef(reviewId, "review", "review", Map.of("reviewId", reviewId))
+                : null;
             return ActionResult.builder()
                 .success(true)
                 .message("Review submitted")
@@ -52,6 +58,7 @@ public class AddReviewActionHandler {
                     "productId", created.getProductId(),
                     "sku", created.getSku()
                 )))
+                .pinnedTargets(reviewTarget != null ? List.of(reviewTarget) : null)
                 .build();
         } catch (Exception e) {
             log.error("Add review failed for user {}", userId, e);

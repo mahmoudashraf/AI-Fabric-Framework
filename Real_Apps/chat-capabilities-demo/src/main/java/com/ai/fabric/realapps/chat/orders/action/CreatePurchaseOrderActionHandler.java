@@ -6,10 +6,12 @@ import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +59,20 @@ public class CreatePurchaseOrderActionHandler {
                 email
             );
 
+            String orderNumber = created != null ? created.getOrderNumber() : null;
+            ActionTargetRef orderTarget = StringUtils.hasText(orderNumber)
+                ? new ActionTargetRef(
+                    orderNumber.trim(),
+                    "order",
+                    "purchase order",
+                    Map.of(
+                        "orderNumber", orderNumber.trim(),
+                        "orderId", created.getId() != null ? String.valueOf(created.getId()) : "",
+                        "sku", created.getSku() != null ? created.getSku() : ""
+                    )
+                )
+                : null;
+
             return ActionResult.builder()
                 .success(true)
                 .message("Purchase order created")
@@ -69,6 +85,7 @@ public class CreatePurchaseOrderActionHandler {
                     "currency", created.getCurrency(),
                     "status", created.getStatus() != null ? created.getStatus().name() : null
                 )))
+                .pinnedTargets(orderTarget != null ? List.of(orderTarget) : null)
                 .build();
         } catch (Exception e) {
             log.error("Create purchase order failed for user {}", userId, e);

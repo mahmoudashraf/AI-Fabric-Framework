@@ -6,10 +6,12 @@ import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,10 @@ public class RemoveFromCartActionHandler {
         try {
             String userId = context != null ? context.userId() : null;
             Cart cart = cartService.removeItem(userId, sku);
+            String cartId = cart != null && cart.getId() != null ? String.valueOf(cart.getId()) : null;
+            ActionTargetRef cartTarget = cartId != null
+                ? new ActionTargetRef(cartId, "cart", "active cart", Map.of("cartId", cartId))
+                : null;
             return ActionResult.builder()
                 .success(true)
                 .message("Removed from cart")
@@ -51,6 +57,7 @@ public class RemoveFromCartActionHandler {
                     "currency", cart.getCurrency(),
                     "itemsCount", cart.getItems() != null ? cart.getItems().size() : 0
                 )))
+                .pinnedTargets(cartTarget != null ? List.of(cartTarget) : null)
                 .build();
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;

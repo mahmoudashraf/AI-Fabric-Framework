@@ -349,6 +349,8 @@ public class IntentHandlingStep implements PipelineStep {
         AIActionMetaData meta = getMetadataForAction(actionName);
         postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
 
+        effectiveParams = applyBatchTargetsDefaulting(meta, effectiveParams, pipelineContext);
+
         ActionParamValidation validation = validateRequiredActionParams(meta, effectiveParams, pipelineContext);
         List<String> missingRequired = validation != null ? validation.missingRequired() : List.of();
         if (!missingRequired.isEmpty()) {
@@ -528,6 +530,138 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
+    }
+
+    /**
+     * Default population for batch-capable array parameters using resolved targets (attachments / stored pinned targets).
+     *
+     * <p>This is schema-driven and domain-agnostic: for an action that exposes an array param marked {@code batchTargets},
+     * the framework may populate/expand that array by mapping each resolved target's metadata into the item schema.</p>
+     *
+     * <p>This is intended as a safety net to align runtime behavior with the extraction contract ("apply to all pinned
+     * targets by default") while remaining explicit and observable through the confirmation message.</p>
+     */
+    private Map<String, Object> applyBatchTargetsDefaulting(AIActionMetaData meta,
+                                                           Map<String, Object> effectiveParams,
+                                                           PipelineContext pipelineContext) {
+        BatchParamSpec batchSpec = findBatchParamSpec(meta);
+        if (batchSpec == null || !StringUtils.hasText(batchSpec.paramName())) {
+            return effectiveParams;
+        }
+        if (pipelineContext == null || pipelineContext.getResolvedTargets() == null || pipelineContext.getResolvedTargets().isEmpty()) {
+            return effectiveParams;
+        }
+
+        com.ai.infrastructure.intent.action.AIActionParamSchema schema = batchSpec.schema();
+        com.ai.infrastructure.intent.action.AIActionParamSchema itemSchema = schema != null ? schema.getItems() : null;
+        Map<String, com.ai.infrastructure.intent.action.AIActionParamSchema> props = itemSchema != null ? itemSchema.getProperties() : null;
+        if (props == null || props.isEmpty()) {
+            return effectiveParams;
+        }
+
+        Map<String, Object> params = effectiveParams != null ? effectiveParams : new LinkedHashMap<>();
+        Object rawExisting = params.get(batchSpec.paramName());
+        List<Object> existing = new ArrayList<>(coerceToObjectList(rawExisting));
+
+        java.util.Set<String> existingKeys = new java.util.HashSet<>();
+        for (Object element : existing) {
+            if (element instanceof Map<?, ?> map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> item = (Map<String, Object>) map;
+                existingKeys.add(buildBatchItemKey(item, props));
+            }
+        }
+
+        List<Object> merged = new ArrayList<>(existing);
+        for (ResolvedTarget target : pipelineContext.getResolvedTargets()) {
+            if (target == null) {
+                continue;
+            }
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            for (String propName : props.keySet()) {
+                if (!StringUtils.hasText(propName)) {
+                    continue;
+                }
+                Object value = null;
+
+                if ("id".equalsIgnoreCase(propName) && StringUtils.hasText(target.getId())) {
+                    value = target.getId().trim();
+                } else if ("vectorSpace".equalsIgnoreCase(propName) && StringUtils.hasText(target.getVectorSpace())) {
+                    value = target.getVectorSpace().trim();
+                } else if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+                    String metaValue = getMetadataValueIgnoreCase(target.getMetadata(), propName);
+                    if (StringUtils.hasText(metaValue)) {
+                        value = metaValue.trim();
+                    }
+                }
+
+                if (value == null && "quantity".equalsIgnoreCase(propName)) {
+                    // Default quantities for batch actions (e.g., add_to_cart) to 1 when not provided.
+                    value = 1;
+                }
+
+                if (value != null) {
+                    item.put(propName, value);
+                }
+            }
+
+            if (item.isEmpty()) {
+                continue;
+            }
+
+            String key = buildBatchItemKey(item, props);
+            if (existingKeys.add(key)) {
+                merged.add(Collections.unmodifiableMap(item));
+            }
+        }
+
+        if (merged.equals(existing) || merged.isEmpty()) {
+            return params;
+        }
+
+        Map<String, Object> updated = new LinkedHashMap<>(params);
+        updated.put(batchSpec.paramName(), Collections.unmodifiableList(merged));
+        return updated;
+    }
+
+    private String getMetadataValueIgnoreCase(Map<String, String> metadata, String key) {
+        if (metadata == null || metadata.isEmpty() || !StringUtils.hasText(key)) {
+            return null;
+        }
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            if (entry.getKey().trim().equalsIgnoreCase(key.trim())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private String buildBatchItemKey(Map<String, Object> item,
+                                     Map<String, com.ai.infrastructure.intent.action.AIActionParamSchema> props) {
+        if (item == null || item.isEmpty()) {
+            return "";
+        }
+        if (props == null || props.isEmpty()) {
+            return item.toString();
+        }
+        StringBuilder sb = new StringBuilder(64);
+        for (String prop : props.keySet()) {
+            if (!StringUtils.hasText(prop)) {
+                continue;
+            }
+            Object value = item.get(prop);
+            if (value == null) {
+                continue;
+            }
+            sb.append(prop.trim().toLowerCase(java.util.Locale.ROOT)).append('=')
+                .append(value.toString().trim().toLowerCase(java.util.Locale.ROOT)).append(';');
+        }
+        String key = sb.toString();
+        return StringUtils.hasText(key) ? key : item.toString();
     }
 
     /**
@@ -2368,7 +2502,16 @@ public class IntentHandlingStep implements PipelineStep {
             return ragContext;
         }
 
-        String block = buildPinnedTargetsBlock(targets);
+        String block = null;
+        String pinnedTargetsContext = pipelineContext.getPinnedTargetsContext();
+        if (StringUtils.hasText(pinnedTargetsContext) && pinnedTargetsContext.trim().startsWith("PINNED TARGETS")) {
+            // Reuse the enrichment-rendered pinned targets block (e.g., "previously pinned") when available.
+            // Do NOT reuse the attachments prompt block here, since it has a different contract/format.
+            block = pinnedTargetsContext.trim();
+        }
+        if (!StringUtils.hasText(block)) {
+            block = buildPinnedTargetsBlock(targets);
+        }
         if (!StringUtils.hasText(block)) {
             return ragContext;
         }
@@ -2613,6 +2756,13 @@ public class IntentHandlingStep implements PipelineStep {
     }
     
     private OrchestrationResult handleCompoundIntents(MultiIntentResponse response, OrchestrationContext context, PipelineContext pipelineContext) {
+        response = coalesceBatchActionIntents(response);
+        if (response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
+            return OrchestrationResult.error("No intents to process.");
+        }
+        if (response.getIntents().size() == 1) {
+            return handleSingleIntent(response.getIntents().getFirst(), context, pipelineContext);
+        }
         List<OrchestrationResult> childResults = new ArrayList<>();
         List<NextStepRecommendation> nextSteps = new ArrayList<>();
         
@@ -2644,6 +2794,213 @@ public class IntentHandlingStep implements PipelineStep {
             .nextSteps(Collections.unmodifiableList(nextSteps))
             .data(data)
             .build();
+    }
+
+    /**
+     * If the model emits multiple ACTION intents for the same action, but that action exposes a batch-capable
+     * array parameter (marked with {@code [batchTargets]} in the paramsSchema), coalesce them into a single
+     * ACTION intent by concatenating the batch parameter list.
+     *
+     * <p>This is schema-driven and domain-agnostic. It reduces multi-confirmation loops and aligns with the
+     * "true batch schema" contract for actions like {@code add_to_cart(items=[...])}.</p>
+     */
+    private MultiIntentResponse coalesceBatchActionIntents(MultiIntentResponse response) {
+        if (response == null || response.getIntents() == null || response.getIntents().size() < 2) {
+            return response;
+        }
+
+        List<Intent> intents = response.getIntents();
+        Map<String, List<Integer>> indicesByAction = new LinkedHashMap<>();
+        Map<String, String> actionNameByKey = new LinkedHashMap<>();
+
+        for (int i = 0; i < intents.size(); i++) {
+            Intent intent = intents.get(i);
+            if (intent == null || intent.getType() != com.ai.infrastructure.dto.IntentType.ACTION) {
+                continue;
+            }
+            String actionName = resolveActionName(intent);
+            if (!StringUtils.hasText(actionName)) {
+                continue;
+            }
+            AIActionMetaData meta = getMetadataForAction(actionName);
+            BatchParamSpec batchSpec = findBatchParamSpec(meta);
+            if (batchSpec == null) {
+                continue;
+            }
+
+            String key = actionName.trim().toLowerCase(java.util.Locale.ROOT);
+            indicesByAction.computeIfAbsent(key, ignored -> new ArrayList<>()).add(i);
+            actionNameByKey.putIfAbsent(key, actionName);
+        }
+
+        if (indicesByAction.isEmpty()) {
+            return response;
+        }
+
+        Map<Integer, Intent> mergedAtIndex = new LinkedHashMap<>();
+        java.util.Set<Integer> remove = new java.util.HashSet<>();
+
+        for (Map.Entry<String, List<Integer>> entry : indicesByAction.entrySet()) {
+            List<Integer> indices = entry.getValue();
+            if (indices == null || indices.size() < 2) {
+                continue;
+            }
+            String actionName = actionNameByKey.get(entry.getKey());
+            AIActionMetaData meta = getMetadataForAction(actionName);
+            BatchParamSpec batchSpec = findBatchParamSpec(meta);
+            if (batchSpec == null) {
+                continue;
+            }
+
+            int firstIndex = indices.getFirst();
+            Intent first = intents.get(firstIndex);
+            if (first == null) {
+                continue;
+            }
+
+            List<Object> combined = new ArrayList<>();
+            for (Integer idx : indices) {
+                if (idx == null) {
+                    continue;
+                }
+                Intent it = intents.get(idx);
+                if (it == null) {
+                    continue;
+                }
+                Map<String, Object> params = it.getActionParams() != null ? it.getActionParams() : Map.of();
+                Object raw = params.get(batchSpec.paramName());
+                List<Object> list = coerceToObjectList(raw);
+                if (!list.isEmpty()) {
+                    combined.addAll(list);
+                }
+            }
+
+            List<Object> deduped = dedupeListElements(combined);
+            if (deduped.isEmpty()) {
+                continue;
+            }
+
+            Map<String, Object> mergedParams = new LinkedHashMap<>(first.getActionParams() != null ? first.getActionParams() : Map.of());
+            mergedParams.put(batchSpec.paramName(), deduped);
+
+            Intent merged = Intent.builder()
+                .type(com.ai.infrastructure.dto.IntentType.ACTION)
+                .intent(first.getIntent())
+                .confidence(first.getConfidence())
+                .action(actionName)
+                .actionParams(Collections.unmodifiableMap(mergedParams))
+                .vectorSpace(first.getVectorSpace())
+                .requiresRetrieval(first.getRequiresRetrieval())
+                .requiresGeneration(first.getRequiresGeneration())
+                .requiresTargetResolution(first.getRequiresTargetResolution())
+                .directAnswer(first.getDirectAnswer())
+                .generationInstructions(first.getGenerationInstructions())
+                .needsAdvancedRAG(first.getNeedsAdvancedRAG())
+                .optimizedQuery(first.getOptimizedQuery())
+                .nextStepRecommended(first.getNextStepRecommended())
+                .build();
+
+            mergedAtIndex.put(firstIndex, merged);
+            for (Integer idx : indices) {
+                if (idx != null && idx != firstIndex) {
+                    remove.add(idx);
+                }
+            }
+        }
+
+        if (mergedAtIndex.isEmpty() || remove.isEmpty()) {
+            return response;
+        }
+
+        List<Intent> out = new ArrayList<>();
+        for (int i = 0; i < intents.size(); i++) {
+            if (remove.contains(i)) {
+                continue;
+            }
+            Intent replacement = mergedAtIndex.get(i);
+            out.add(replacement != null ? replacement : intents.get(i));
+        }
+
+        return MultiIntentResponse.builder()
+            .intents(out)
+            .compound(out.size() > 1)
+            .orchestrationStrategy(response.getOrchestrationStrategy())
+            .metadata(response.getMetadata() != null ? response.getMetadata() : Map.of())
+            .build();
+    }
+
+    private record BatchParamSpec(String paramName, com.ai.infrastructure.intent.action.AIActionParamSchema schema) {}
+
+    private BatchParamSpec findBatchParamSpec(AIActionMetaData meta) {
+        if (meta == null || meta.getParameterSchemas() == null || meta.getParameterSchemas().isEmpty()) {
+            return null;
+        }
+        for (Map.Entry<String, com.ai.infrastructure.intent.action.AIActionParamSchema> entry : meta.getParameterSchemas().entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                continue;
+            }
+            com.ai.infrastructure.intent.action.AIActionParamSchema schema = entry.getValue();
+            if (!Boolean.TRUE.equals(schema.getBatchTargets())) {
+                continue;
+            }
+            if (schema.getType() != com.ai.infrastructure.intent.action.AIActionParamType.ARRAY) {
+                continue;
+            }
+            if (schema.getItems() == null) {
+                continue;
+            }
+            return new BatchParamSpec(entry.getKey(), schema);
+        }
+        return null;
+    }
+
+    private String resolveActionName(Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        if (StringUtils.hasText(intent.getAction())) {
+            return intent.getAction().trim();
+        }
+        if (StringUtils.hasText(intent.getIntent())) {
+            return intent.getIntent().trim();
+        }
+        return null;
+    }
+
+    private List<Object> coerceToObjectList(Object raw) {
+        if (raw == null) {
+            return List.of();
+        }
+        if (raw instanceof List<?> list) {
+            List<Object> out = new ArrayList<>();
+            for (Object item : list) {
+                if (item != null) {
+                    out.add(item);
+                }
+            }
+            return out;
+        }
+        if (raw instanceof Map<?, ?> map) {
+            return List.of(map);
+        }
+        return List.of();
+    }
+
+    private List<Object> dedupeListElements(List<Object> combined) {
+        if (combined == null || combined.isEmpty()) {
+            return List.of();
+        }
+        List<Object> out = new ArrayList<>();
+        java.util.Set<Object> seen = new java.util.HashSet<>();
+        for (Object item : combined) {
+            if (item == null) {
+                continue;
+            }
+            if (seen.add(item)) {
+                out.add(item);
+            }
+        }
+        return out;
     }
     
     // =========================================================================

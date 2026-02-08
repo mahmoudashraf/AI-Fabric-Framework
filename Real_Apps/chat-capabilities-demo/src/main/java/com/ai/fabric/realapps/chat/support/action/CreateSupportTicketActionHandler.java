@@ -6,10 +6,12 @@ import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
+import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionConfirmation;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
 import com.ai.infrastructure.intent.action.annotation.Param;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,10 @@ public class CreateSupportTicketActionHandler {
         String userId = context != null ? context.userId() : null;
         try {
             SupportTicket created = supportTicketService.create(userId, issueType, description, orderNumber);
+            String ticketId = created != null && created.getId() != null ? String.valueOf(created.getId()) : null;
+            ActionTargetRef ticketTarget = ticketId != null
+                ? new ActionTargetRef(ticketId, "support_ticket", "support ticket", Map.of("ticketId", ticketId))
+                : null;
             return ActionResult.builder()
                 .success(true)
                 .message("Support ticket created")
@@ -50,6 +56,7 @@ public class CreateSupportTicketActionHandler {
                     "status", created.getStatus() != null ? created.getStatus().name() : null,
                     "issueType", created.getIssueType()
                 )))
+                .pinnedTargets(ticketTarget != null ? List.of(ticketTarget) : null)
                 .build();
         } catch (Exception e) {
             log.error("Create support ticket failed for user {}", userId, e);

@@ -4,6 +4,8 @@ import com.ai.infrastructure.chat.config.ChatSessionProperties;
 import com.ai.infrastructure.chat.domain.ChatSession;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.PIIDetectionResult;
+import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionTargetRef;
@@ -149,7 +151,7 @@ class ConversationRecordingStepTest {
     }
 
     @Test
-    void shouldPersistActionListItemsAsPinnedTargets() {
+    void shouldPersistWriteActionPinnedTargetsAndAttachments() {
         ChatSessionService chatSessionService = mock(ChatSessionService.class);
 
         ChatSessionProperties properties = new ChatSessionProperties();
@@ -174,14 +176,20 @@ class ConversationRecordingStepTest {
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-1")
             .conversationId("conv-1")
+            .attachmentsNormalized(java.util.List.of(NormalizedAttachment.builder()
+                .contentText("selected")
+                .vectorSpace("product")
+                .metadata(Map.of("sku", "SKU-1"))
+                .build()))
             .build();
 
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("ok")
-            .data(ActionResultContracts.targets(java.util.List.of(
-                new ActionTargetRef("85", "product", "snippet", Map.of("sku", "SKU-85"))
-            )))
+            .data(ActionResultContracts.object(Map.of("cartId", 1)))
+            .pinnedTargets(java.util.List.of(
+                new ActionTargetRef("1", "cart", "active cart", Map.of("cartId", "1"))
+            ))
             .build();
 
         OrchestrationResult result = OrchestrationResult.builder()
@@ -190,6 +198,7 @@ class ConversationRecordingStepTest {
             .message("ok")
             .data(Map.of(
                 "action", "list_products",
+                "metadata", AIActionMetaData.builder().name("add_to_cart").accessMode(ActionAccessMode.WRITE_ONLY).build(),
                 "actionResult", actionResult
             ))
             .build();
@@ -197,6 +206,13 @@ class ConversationRecordingStepTest {
         PipelineContext context = PipelineContext.from("list products", orchestrationContext)
             .toBuilder()
             .intentResult(result)
+            .resolvedTargets(java.util.List.of(ResolvedTarget.builder()
+                .id(null)
+                .vectorSpace("product")
+                .contentText("selected")
+                .metadata(Map.of("sku", "SKU-1"))
+                .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
+                .build()))
             .sanitizedPayload(Map.of("message", "ok"))
             .build();
 
@@ -207,11 +223,18 @@ class ConversationRecordingStepTest {
             if (!(raw instanceof java.util.List<?> list) || list.isEmpty()) {
                 return false;
             }
-            Object first = list.getFirst();
-            if (!(first instanceof Map<?, ?> entry)) {
+            if (list.size() < 2) {
                 return false;
             }
-            return "85".equals(entry.get("id")) && "ACTION_RESULT_ITEMS".equals(entry.get("originSource"));
+            Object first = list.get(0);
+            Object second = list.get(1);
+            if (!(first instanceof Map<?, ?> firstEntry) || !(second instanceof Map<?, ?> secondEntry)) {
+                return false;
+            }
+            return "1".equals(firstEntry.get("id"))
+                && "ACTION_RESULT_ITEMS".equals(firstEntry.get("originSource"))
+                && "selected".equals(secondEntry.get("contentText"))
+                && "REQUEST_ATTACHMENTS".equals(secondEntry.get("originSource"));
         }));
     }
 }

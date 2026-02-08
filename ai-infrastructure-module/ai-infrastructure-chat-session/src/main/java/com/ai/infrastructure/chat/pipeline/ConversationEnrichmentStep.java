@@ -179,6 +179,14 @@ public class ConversationEnrichmentStep implements PipelineStep {
             String vectorSpace = coerceString(map.get("vectorSpace"));
             String contentText = coerceString(map.get("contentText"));
             boolean contentTextTruncated = Boolean.TRUE.equals(map.get("contentTextTruncated"));
+            ResolvedTargetSource originSource = ResolvedTargetSource.SESSION_METADATA;
+            String originSourceText = coerceString(map.get("originSource"));
+            if (StringUtils.hasText(originSourceText)) {
+                try {
+                    originSource = ResolvedTargetSource.valueOf(originSourceText.trim());
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
 
             Map<String, String> meta = Map.of();
             Object rawMeta = map.get("metadata");
@@ -212,7 +220,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
                 .contentText(StringUtils.hasText(contentText) ? contentText.trim() : null)
                 .contentTextTruncated(contentTextTruncated)
                 .metadata(meta)
-                .source(ResolvedTargetSource.SESSION_METADATA)
+                .source(originSource)
                 .build());
         }
 
@@ -230,10 +238,16 @@ public class ConversationEnrichmentStep implements PipelineStep {
         if (targets == null || targets.isEmpty()) {
             return null;
         }
-        return com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetsContextRenderer.render(
+        return com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetsContextRenderer.renderGrouped(
             "PINNED TARGETS (previously pinned; not current UI selection):",
             "target",
-            targets
+            targets,
+            List.of(ResolvedTargetSource.ACTION_RESULT_ITEMS, ResolvedTargetSource.REQUEST_ATTACHMENTS),
+            Map.of(
+                ResolvedTargetSource.ACTION_RESULT_ITEMS, "Write Result (latest):",
+                ResolvedTargetSource.REQUEST_ATTACHMENTS, "User Selection (attachments):"
+            ),
+            "Other:"
         );
     }
 
