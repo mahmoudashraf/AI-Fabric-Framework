@@ -119,7 +119,6 @@ public class AnnotatedConfirmationInterceptorsResolver extends ConfirmationResol
 
         MultiIntentResponse updatedResponse = MultiIntentResponse.builder()
             .intents(decision.intents())
-            .compound(decision.intents().size() > 1)
             .orchestrationStrategy(intentResponse != null ? intentResponse.getOrchestrationStrategy() : null)
             .metadata(intentResponse != null && intentResponse.getMetadata() != null ? intentResponse.getMetadata() : Map.of())
             .build();
@@ -199,7 +198,7 @@ public class AnnotatedConfirmationInterceptorsResolver extends ConfirmationResol
                 continue;
             }
             if (handler.requireSingleIntent) {
-                if (intentResponse == null || intentResponse.isCompound() || intentResponse.getIntents() == null || intentResponse.getIntents().size() != 1) {
+                if (intentResponse == null || intentResponse.getIntents() == null || intentResponse.getIntents().size() != 1) {
                     continue;
                 }
             }

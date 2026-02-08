@@ -117,7 +117,6 @@ class RAGOrchestratorIntegrationTest {
 
         when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(
             MultiIntentResponse.builder()
-                .compound(false)
                 .intents(List.of(informationIntent))
                 .build()
         );

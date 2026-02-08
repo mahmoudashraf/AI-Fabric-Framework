@@ -59,7 +59,6 @@ class ChatActionMissingParamsClarificationIntegrationTest {
                 .actionParams(Map.of())
                 .confidence(0.9)
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 
@@ -70,7 +69,6 @@ class ChatActionMissingParamsClarificationIntegrationTest {
                 .actionParams(Map.of("message", "hello"))
                 .confidence(0.9)
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 
@@ -80,7 +78,6 @@ class ChatActionMissingParamsClarificationIntegrationTest {
                 .intent("confirm")
                 .confidence(1.0)
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

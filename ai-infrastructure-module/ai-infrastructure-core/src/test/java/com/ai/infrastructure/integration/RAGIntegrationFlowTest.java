@@ -185,7 +185,6 @@ class RAGIntegrationFlowTest {
                         .confidence(0.85)
                         .vectorSpace("offers")
                         .build()))
-                .compound(true)
                 .build());
 
         doReturn(RAGResponse.builder().context("Here are current offers.").build())

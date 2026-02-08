@@ -92,7 +92,6 @@ public class RealAPIActionPostActionGenerationIntegrationTest {
         when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(
             MultiIntentResponse.builder()
                 .intents(java.util.List.of(intent))
-                .compound(false)
                 .orchestrationStrategy("DIRECT_ACTION")
                 .build()
         );

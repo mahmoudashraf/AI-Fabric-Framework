@@ -68,7 +68,6 @@ class IntentQueryExtractorTest {
                   "requiresRetrieval": false
                 }
               ],
-              "isCompound": false,
               "orchestrationStrategy": null
             }
             """;
@@ -111,7 +110,6 @@ class IntentQueryExtractorTest {
                   "requiresRetrieval": false,
                 }
               ],
-              "isCompound": false,
               "orchestrationStrategy": null,
             }
             """;
@@ -148,8 +146,7 @@ class IntentQueryExtractorTest {
                   "actionParams": {"reason": "too expensive"},
                   "requiresRetrieval": false
                 }
-              ],
-              "isCompound": false
+              ]
             }
             """;
 
@@ -198,8 +195,7 @@ class IntentQueryExtractorTest {
                   "optimizedQuery": "Policy documents where type = 'refund' and status = 'active'",
                   "vectorSpace": "policies"
                 }
-              ],
-              "isCompound": false
+              ]
             }
             """;
 
@@ -240,7 +236,6 @@ class IntentQueryExtractorTest {
                   "actionParams": {"reason": "Unsupported domain"}
                 }
               ],
-              "isCompound": false,
               "orchestrationStrategy": "ADMIT_UNKNOWN"
             }
             """;
@@ -278,8 +273,7 @@ class IntentQueryExtractorTest {
                   "confidence": 1.0,
                   "actionParams": {"reason": "Unrelated to available knowledge base"}
                 }
-              ],
-              "isCompound": false
+              ]
             }
             """;
 
@@ -311,7 +305,7 @@ class IntentQueryExtractorTest {
 
         String json = """
             {
-              "intents": [
+	              "intents": [
                 {
                   "type": "ACTION",
                   "intent": "update_payment_method",
@@ -323,11 +317,10 @@ class IntentQueryExtractorTest {
                     "rationale": "Users updating payment methods often review billing history next.",
                     "confidence": 0.71
                   }
-                }
-              ],
-              "isCompound": false
-            }
-            """;
+	                }
+	              ]
+	            }
+	        """;
 
         when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(json).build());
@@ -400,19 +393,18 @@ class IntentQueryExtractorTest {
             .thenReturn(AIGenerationResponse.builder().content("not-json").build());
         // Mock repair attempt returning valid JSON (repair succeeds)
         String repairedJson = """
-            {
-              "intents": [
-                {
-                  "type": "ACTION",
-                  "intent": "cancel_subscription",
-                  "confidence": 0.85,
-                  "action": "cancel_subscription",
-                  "requiresRetrieval": false
-                }
-              ],
-              "isCompound": false
-            }
-        """;
+	            {
+	              "intents": [
+	                {
+	                  "type": "ACTION",
+	                  "intent": "cancel_subscription",
+	                  "confidence": 0.85,
+	                  "action": "cancel_subscription",
+	                  "requiresRetrieval": false
+	                }
+	              ]
+	            }
+	        """;
         when(aiCoreService.generateContent(argThat(req ->
             req != null && "intent_extraction_repair".equals(req.getGenerationType())), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder().content(repairedJson).build());
@@ -445,8 +437,7 @@ class IntentQueryExtractorTest {
                   "intent": "query about products",
                   "requiresRetrieval": true
                 }
-              ],
-              "isCompound": false
+              ]
             }
             """;
 

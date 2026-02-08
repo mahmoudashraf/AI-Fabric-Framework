@@ -93,7 +93,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
 
         PipelineContext context = PipelineContext.from("change my address", OrchestrationContext.forUser("user"))
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
         PipelineContext updated = step.process(context);
@@ -151,7 +151,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
 
         PipelineContext context = PipelineContext.from("change my address", OrchestrationContext.forUser("user"))
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
         PipelineContext updated = step.process(context);
@@ -210,7 +210,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
 
         PipelineContext context = PipelineContext.from(userMessage, OrchestrationContext.forUser("user"))
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
         PipelineContext updated = step.process(context);
@@ -273,7 +273,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
 
         PipelineContext context = PipelineContext.from(userMessage, OrchestrationContext.forUser("user"))
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
         PipelineContext updated = step.process(context);
@@ -339,7 +339,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
 
         PipelineContext context = PipelineContext.from("buy it", OrchestrationContext.forUser("user"))
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .resolvedTargets(List.of(target))
             .build();
 
@@ -400,7 +400,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
 
         PipelineContext context = PipelineContext.from("buy it", OrchestrationContext.forUser("user"))
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .resolvedTargets(List.of(ResolvedTarget.builder()
                 .id("78")
                 .vectorSpace("product")

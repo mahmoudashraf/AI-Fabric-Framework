@@ -32,7 +32,7 @@ public class SingleConfirmationPositiveResolver extends ConfirmationResolverSupp
         if (!hasPositiveConfirmation(intentResponse)) {
             return false;
         }
-        return !intentResponse.isCompound() && intentResponse.getIntents().size() == 1;
+        return intentResponse.getIntents().size() == 1;
     }
 
     @Override
@@ -53,7 +53,6 @@ public class SingleConfirmationPositiveResolver extends ConfirmationResolverSupp
 
         MultiIntentResponse updated = MultiIntentResponse.builder()
             .intents(List.of(confirmedAction))
-            .compound(false)
             .orchestrationStrategy(intentResponse != null ? intentResponse.getOrchestrationStrategy() : null)
             .metadata(intentResponse != null ? intentResponse.getMetadata() : Map.of())
             .build();

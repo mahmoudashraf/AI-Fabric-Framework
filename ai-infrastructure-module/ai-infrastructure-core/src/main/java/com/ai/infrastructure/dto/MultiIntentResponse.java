@@ -1,6 +1,5 @@
 package com.ai.infrastructure.dto;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
@@ -26,9 +25,6 @@ public class MultiIntentResponse {
 
     @Builder.Default
     private List<Intent> intents = new ArrayList<>();
-
-    @JsonAlias({"compound"})
-    private boolean compound;
 
     private String orchestrationStrategy;
 

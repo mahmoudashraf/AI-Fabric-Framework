@@ -23,7 +23,8 @@ import java.util.Map;
  * 
  * <p>This step uses the {@link IntentQueryExtractor} to analyze the processed
  * query and extract structured intents. The LLM determines intent type (ACTION,
- * INFORMATION, OUT_OF_SCOPE, COMPOUND), action names, and parameters.</p>
+ * INFORMATION, OUT_OF_SCOPE), action names, and parameters. Multiple intents are
+ * represented as multiple entries in the {@code intents[]} array.</p>
  * 
  * <p><strong>Order:</strong> 50 (after compliance check)</p>
  * 
@@ -161,7 +162,7 @@ public class IntentExtractionStep implements PipelineStep {
         }
         
         int intentCount = intentResponse.getIntents().size();
-        boolean isCompound = intentResponse.isCompound();
+        boolean isCompound = intentCount > 1;
         
         log.debug("Extracted {} intent(s) for request {} (compound: {})", 
             intentCount, context.getRequestId(), isCompound);
@@ -193,7 +194,6 @@ public class IntentExtractionStep implements PipelineStep {
 
         return MultiIntentResponse.builder()
             .intents(List.of(fallbackIntent))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .metadata(Map.of("fallback", true))
             .build();

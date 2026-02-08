@@ -65,7 +65,6 @@ class ChatActionExecutedIntegrationTest {
                 .confidence(0.9)
                 .actionParams(Map.of("message", "hello"))
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

@@ -61,7 +61,6 @@ class ChatInformationTurnRecordedIntegrationTest {
                 .requiresRetrieval(false)
                 .requiresGeneration(true)
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

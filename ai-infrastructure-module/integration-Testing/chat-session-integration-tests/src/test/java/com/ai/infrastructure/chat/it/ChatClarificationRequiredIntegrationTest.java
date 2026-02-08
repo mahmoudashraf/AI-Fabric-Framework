@@ -61,7 +61,6 @@ class ChatClarificationRequiredIntegrationTest {
                 .requiresGeneration(false)
                 .vectorSpace(null)
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

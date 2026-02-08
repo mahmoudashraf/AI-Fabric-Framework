@@ -20,11 +20,6 @@ public enum IntentType {
     OUT_OF_SCOPE,
 
     /**
-     * The user request contains multiple intents that should be handled sequentially.
-     */
-    COMPOUND,
-
-    /**
      * The user is positively confirming a previously requested action (e.g., "yes", "confirm", "go ahead").
      */
     CONFIRMATION_POSITIVE,

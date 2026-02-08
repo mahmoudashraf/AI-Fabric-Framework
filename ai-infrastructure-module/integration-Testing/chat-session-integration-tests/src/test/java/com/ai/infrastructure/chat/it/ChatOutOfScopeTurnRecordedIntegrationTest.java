@@ -60,7 +60,6 @@ class ChatOutOfScopeTurnRecordedIntegrationTest {
                 .confidence(0.9)
                 .actionParams(Map.of("reason", "smalltalk"))
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

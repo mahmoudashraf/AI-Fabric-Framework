@@ -75,7 +75,6 @@ class ChatMultiActionCompoundIntegrationTest {
                     .actionParams(Map.of("message", "world"))
                     .build()
             ))
-            .compound(true)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

@@ -46,7 +46,6 @@ class AnnotatedConfirmationInterceptorsResolverTest {
 
         MultiIntentResponse response = MultiIntentResponse.builder()
             .intents(java.util.List.of(Intent.builder().type(IntentType.CONFIRMATION_POSITIVE).build()))
-            .compound(false)
             .build();
 
         assertThat(resolver.canResolve(response, Map.of(), context)).isTrue();
@@ -88,7 +87,6 @@ class AnnotatedConfirmationInterceptorsResolverTest {
 
         MultiIntentResponse response = MultiIntentResponse.builder()
             .intents(java.util.List.of(Intent.builder().type(IntentType.CONFIRMATION_POSITIVE).build()))
-            .compound(false)
             .build();
 
         PipelineContext updated = resolver.resolve(response, Map.of(), context);

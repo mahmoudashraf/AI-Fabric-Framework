@@ -45,7 +45,7 @@ class TargetResolutionStepTest {
 
         PipelineContext context = PipelineContext.from("q", orchContext)
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
         PipelineContext updated = step.process(context);
@@ -77,7 +77,7 @@ class TargetResolutionStepTest {
 
         PipelineContext context = PipelineContext.from("add it", orchContext)
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
         PipelineContext updated = step.process(context);
@@ -102,7 +102,7 @@ class TargetResolutionStepTest {
 
         PipelineContext context = PipelineContext.from("compare both", orchContext)
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).compound(false).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
         PipelineContext updated = step.process(context);

@@ -177,7 +177,7 @@ public class Intent {
             confidence = Math.max(0.0d, Math.min(1.0d, confidence));
         }
         if (requiresRetrieval == null) {
-            requiresRetrieval = type == IntentType.INFORMATION || type == IntentType.COMPOUND;
+            requiresRetrieval = type == IntentType.INFORMATION;
         }
         if (requiresGeneration == null) {
             requiresGeneration = Boolean.FALSE;

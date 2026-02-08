@@ -121,7 +121,7 @@ public class IntentExtractionPostProcessor {
             canonicalizeActionName(intent, appliedRules);
             validateRelationshipActionParams(intent, originalQuery, appliedRules);
             if (intent.getRequiresRetrieval() == null) {
-                intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION || intent.getType() == IntentType.COMPOUND);
+                intent.setRequiresRetrieval(intent.getType() == IntentType.INFORMATION);
             }
             if (Boolean.TRUE.equals(intent.getRequiresRetrieval()) && !StringUtils.hasText(intent.getVectorSpace())) {
                 log.debug("Intent requires retrieval but vectorSpace is missing; deferring routing to VectorSpaceResolutionStep");
