@@ -3,6 +3,7 @@ package com.ai.infrastructure.chat.config;
 import com.ai.infrastructure.chat.pipeline.ConversationEnrichmentStep;
 import com.ai.infrastructure.chat.pipeline.ConfirmationResolutionStep;
 import com.ai.infrastructure.chat.pipeline.ConversationRecordingStep;
+import com.ai.infrastructure.chat.pipeline.WorkingSetTargetSeedingStep;
 import com.ai.infrastructure.chat.resolver.AnnotatedConfirmationInterceptorsResolver;
 import com.ai.infrastructure.chat.resolver.CompoundConfirmationResolver;
 import com.ai.infrastructure.chat.resolver.ExpiredConfirmationResolver;
@@ -105,6 +106,13 @@ class ChatSessionBaseConfiguration {
                                                         ChatSessionProperties properties,
                                                         ObjectProvider<PIIDetectionService> piiDetectionService) {
         return new ConversationRecordingStep(chatSessionService, properties, piiDetectionService);
+    }
+
+    @Bean
+    @ConditionalOnBean(ChatSessionService.class)
+    WorkingSetTargetSeedingStep workingSetTargetSeedingStep(ChatSessionService chatSessionService,
+                                                            ChatSessionProperties properties) {
+        return new WorkingSetTargetSeedingStep(chatSessionService, properties);
     }
 
     @Bean

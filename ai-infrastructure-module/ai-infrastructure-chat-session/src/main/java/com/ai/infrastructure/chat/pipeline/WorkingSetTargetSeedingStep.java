@@ -13,7 +13,6 @@ import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -29,7 +28,6 @@ import java.util.Map;
  * <p><strong>Order:</strong> 51 (after IntentExtractionStep (50), before TargetResolutionStep (52))</p>
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class WorkingSetTargetSeedingStep implements PipelineStep {
 
