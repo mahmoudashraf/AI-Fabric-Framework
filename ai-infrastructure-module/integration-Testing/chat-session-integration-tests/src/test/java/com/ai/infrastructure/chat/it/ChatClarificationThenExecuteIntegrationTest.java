@@ -77,7 +77,6 @@ class ChatClarificationThenExecuteIntegrationTest {
                 .requiresGeneration(false)
                 .vectorSpace(null)
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 
@@ -90,7 +89,6 @@ class ChatClarificationThenExecuteIntegrationTest {
                 .requiresGeneration(true)
                 .vectorSpace("ragconversation")
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

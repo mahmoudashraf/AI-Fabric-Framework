@@ -579,7 +579,6 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             intents.add(builder.build());
         }
 
-        boolean compound = Boolean.TRUE.equals(classification.getIsCompound()) || intents.size() > 1;
         Map<String, Object> responseMetadata = new LinkedHashMap<>();
         responseMetadata.put(RESPONSE_METADATA_KEY_EXTRACTION_MODE, RESPONSE_METADATA_VALUE_MULTI_STEP);
         if (classification != null
@@ -590,7 +589,6 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         }
         return MultiIntentResponse.builder()
             .intents(intents)
-            .compound(compound)
             .metadata(Collections.unmodifiableMap(responseMetadata))
             .build();
     }
@@ -619,7 +617,6 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             case ACTION -> "action_request";
             case INFORMATION -> "information_request";
             case OUT_OF_SCOPE -> "out_of_scope";
-            case COMPOUND -> "compound";
             case CONFIRMATION_POSITIVE -> "confirmation_positive";
             case CONFIRMATION_NEGATIVE -> "confirmation_negative";
         };
@@ -628,7 +625,6 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class ClassificationResponse {
-        private Boolean isCompound;
         private List<ClassificationIntent> intents = new ArrayList<>();
         private Map<String, Object> metadata = Collections.emptyMap();
     }

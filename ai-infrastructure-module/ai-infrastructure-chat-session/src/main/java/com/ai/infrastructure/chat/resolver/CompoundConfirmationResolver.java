@@ -34,7 +34,7 @@ public class CompoundConfirmationResolver extends ConfirmationResolverSupport {
         if (!hasAnyConfirmationIntent(intentResponse)) {
             return false;
         }
-        return intentResponse.isCompound() || intentResponse.getIntents().size() > 1;
+        return intentResponse.getIntents().size() > 1;
     }
 
     @Override
@@ -82,7 +82,6 @@ public class CompoundConfirmationResolver extends ConfirmationResolverSupport {
 
         MultiIntentResponse updated = MultiIntentResponse.builder()
             .intents(next)
-            .compound(next.size() > 1)
             .orchestrationStrategy(intentResponse.getOrchestrationStrategy())
             .metadata(intentResponse.getMetadata())
             .build();

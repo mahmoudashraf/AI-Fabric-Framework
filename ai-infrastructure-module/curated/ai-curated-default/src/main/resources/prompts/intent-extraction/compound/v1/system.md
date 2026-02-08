@@ -21,12 +21,12 @@ EXTRACTION RULES:
 7b. MULTI-TARGET AUTHORITATIVE CONTEXT:
    - If 2+ pinned targets are present, treat them as a set the user may be referring to.
    - For comparisons/summaries/selection among pinned targets: answer using ONLY pinned targets when possible (requiresRetrieval=false, requiresGeneration=true).
-   - For ACTION requests that can apply to multiple pinned targets and the user did not specify which one:
-     * If the chosen action exposes a batch-capable array parameter in paramsSchema (marked with [batchTargets]), you MUST return a single ACTION intent and batch all pinned targets into that parameter by default (unless the user explicitly narrowed scope to a single target).
-     * Otherwise, return a COMPOUND response with one ACTION intent per target (set isCompound=true).
-     * Default assumption: if multiple pinned targets are present and the user does not narrow scope, apply the action to all pinned targets (batch or one intent per target).
-     * Never merge multiple target values into one parameter unless the action paramsSchema explicitly supports it via an array param marked [batchTargets].
-     * Use only identifiers/fields present in each target's metadata/contentText (never invent).
+	   - For ACTION requests that can apply to multiple pinned targets and the user did not specify which one:
+	     * If the chosen action exposes a batch-capable array parameter in paramsSchema (marked with [batchTargets]), you MUST return a single ACTION intent and batch all pinned targets into that parameter by default (unless the user explicitly narrowed scope to a single target).
+	     * Otherwise, return multiple ACTION intents with one ACTION intent per target.
+	     * Default assumption: if multiple pinned targets are present and the user does not narrow scope, apply the action to all pinned targets (batch or one intent per target).
+	     * Never merge multiple target values into one parameter unless the action paramsSchema explicitly supports it via an array param marked [batchTargets].
+	     * Use only identifiers/fields present in each target's metadata/contentText (never invent).
    - If the user clearly refers to a single item but multiple pinned targets exist and you cannot disambiguate: ask for clarification (requiresTargetResolution=true).
 8. requiresGeneration (INFORMATION): set true when the final user response needs synthesis (summaries, explanations, comparisons, recommendations).
    - requiresGeneration=false for pure retrieval/listing requests where the user wants records/results without synthesis.
@@ -77,15 +77,15 @@ NEXT-STEP RECOMMENDATIONS:
 - Only surface recommendations with confidence >= 0.70.
 - Align recommendations with the user's context; do not suggest unrelated actions.
 
-OUTPUT JSON SCHEMA:
-{
-  "intents": [
-    {
-      "type": "ACTION | INFORMATION | OUT_OF_SCOPE | COMPOUND | CONFIRMATION_POSITIVE | CONFIRMATION_NEGATIVE",
-      "intent": "canonical_intent_name",
-      "confidence": 0.95,
-      "action": "action_name_if_applicable",
-      "actionParams": {"key": "value"},
+	OUTPUT JSON SCHEMA:
+	{
+	  "intents": [
+	    {
+	      "type": "ACTION | INFORMATION | OUT_OF_SCOPE | CONFIRMATION_POSITIVE | CONFIRMATION_NEGATIVE",
+	      "intent": "canonical_intent_name",
+	      "confidence": 0.95,
+	      "action": "action_name_if_applicable",
+	      "actionParams": {"key": "value"},
       "vectorSpace": "policies | faq | ...",
       "requiresRetrieval": true,
       "requiresGeneration": false,
@@ -100,15 +100,14 @@ OUTPUT JSON SCHEMA:
         "rationale": "Why this is useful",
         "confidence": 0.88,
         "vectorSpace": "faq | policies | test-product | ..."
-      }
-    }
-  ],
-  "isCompound": false,
-  "orchestrationStrategy": "DIRECT_ACTION | RETRIEVE_AND_GENERATE | ADMIT_UNKNOWN",
-  "metadata": {
-    "retrievalQueryHint": "optional keywords/identifiers to improve retrieval"
-  }
-}
+	      }
+	    }
+	  ],
+	  "orchestrationStrategy": "DIRECT_ACTION | RETRIEVE_AND_GENERATE | ADMIT_UNKNOWN",
+	  "metadata": {
+	    "retrievalQueryHint": "optional keywords/identifiers to improve retrieval"
+	  }
+	}
 
 CRITICAL JSON REQUIREMENTS:
 - Respond with ONLY valid JSON. No markdown, no code blocks, no explanations.

@@ -258,7 +258,6 @@ public class ProgressiveIntentExtractionEngine {
 
         return MultiIntentResponse.builder()
             .intents(List.of(fallbackIntent))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .metadata(Map.of("fallback", true))
             .build();

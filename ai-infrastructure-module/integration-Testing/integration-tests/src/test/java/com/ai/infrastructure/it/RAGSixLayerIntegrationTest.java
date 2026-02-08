@@ -280,7 +280,6 @@ class RAGSixLayerIntegrationTest {
 
         MultiIntentResponse compound = MultiIntentResponse.builder()
             .intents(List.of(actionIntent, infoIntent))
-            .compound(true)
             .metadata(Map.of("sessionId", "session-compound-789"))
             .build();
 

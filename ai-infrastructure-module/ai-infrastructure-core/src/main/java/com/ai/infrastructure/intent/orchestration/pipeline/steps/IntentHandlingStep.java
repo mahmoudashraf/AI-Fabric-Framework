@@ -73,7 +73,6 @@ import java.time.Instant;
  *   <li>{@code ACTION} - Executes via registered action handlers</li>
  *   <li>{@code INFORMATION} - Performs RAG search/generation</li>
  *   <li>{@code OUT_OF_SCOPE} - Returns guidance message</li>
- *   <li>{@code COMPOUND} - Processes multiple intents</li>
  * </ul>
  * 
  * <p><strong>Order:</strong> 60 (after intent extraction)</p>
@@ -144,8 +143,6 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String ERROR_MSG_NO_HANDLER = "No action handler registered for action '";
     private static final String ERROR_MSG_ACTION_NOT_PERMITTED_ANON = "Action not permitted for anonymous users.";
     private static final String ERROR_MSG_ACTION_NOT_PERMITTED_USER = "Action not permitted for this user.";
-    private static final String ERROR_MSG_COMPOUND_MISSING = "Compound intent payload is missing component intents.";
-    private static final String ERROR_MSG_COMPOUND_EMPTY = "Compound intent payload did not include any child intents.";
     private static final String MSG_SEARCH_COMPLETED = "Search completed.";
     private static final String MSG_OUT_OF_SCOPE =
         "Sorry — I can’t help with that request. If you rephrase it into a task related to your indexed knowledge base (search/summarize/explain) or an available action, I’ll do my best to help.";
@@ -192,9 +189,6 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CONFIRMATION_REQUIRED = "confirmationRequired";
     private static final String DATA_KEY_MISSING_REQUIRED_PARAMETERS = "missingRequiredParameters";
     private static final String DATA_KEY_PROVIDED_PARAMETERS = "providedParameters";
-    
-    // Intent params key
-    private static final String PARAM_KEY_INTENTS = "intents";
     
     // =========================================================================
     // Dependencies
@@ -254,7 +248,7 @@ public class IntentHandlingStep implements PipelineStep {
         OrchestrationContext orchContext = context.getOrchestrationContext();
 
         OrchestrationResult result;
-        if (intentResponse.isCompound() || intentResponse.getIntents().size() > 1) {
+        if (intentResponse.getIntents().size() > 1) {
             result = handleCompoundIntents(intentResponse, orchContext, context);
         } else {
             result = handleSingleIntent(intentResponse.getIntents().getFirst(), orchContext, context);
@@ -281,7 +275,6 @@ public class IntentHandlingStep implements PipelineStep {
             case CONFIRMATION_POSITIVE -> handleConfirmationPositive(context, pipelineContext);
             case CONFIRMATION_NEGATIVE -> handleConfirmationNegative(context, pipelineContext);
             case OUT_OF_SCOPE -> handleOutOfScope(intent);
-            case COMPOUND -> handleSyntheticCompound(intent, context, pipelineContext);
             default -> OrchestrationResult.error(ERROR_MSG_UNKNOWN_INTENT + intent.getType());
         };
     }
@@ -2727,34 +2720,6 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
     
-    private OrchestrationResult handleSyntheticCompound(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
-        if (CollectionUtils.isEmpty(intent.getActionParams())) {
-            return OrchestrationResult.error(ERROR_MSG_COMPOUND_MISSING);
-        }
-        
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> rawChildren = (List<Map<String, Object>>) intent.getActionParams().get(PARAM_KEY_INTENTS);
-        if (CollectionUtils.isEmpty(rawChildren)) {
-            return OrchestrationResult.error(ERROR_MSG_COMPOUND_EMPTY);
-        }
-        
-        List<Intent> children = rawChildren.stream()
-            .map(map -> Intent.builder()
-                .type(intent.getType())
-                .intent((String) map.get("intent"))
-                .action((String) map.get("action"))
-                .confidence(map.get("confidence") instanceof Number number ? number.doubleValue() : null)
-                .actionParams(map instanceof Map ? (Map<String, Object>) map.get("actionParams") : Map.of())
-                .build())
-            .collect(Collectors.toList());
-        
-        MultiIntentResponse syntheticResponse = MultiIntentResponse.builder()
-            .intents(children)
-            .compound(true)
-            .build();
-        return handleCompoundIntents(syntheticResponse, context, pipelineContext);
-    }
-    
     private OrchestrationResult handleCompoundIntents(MultiIntentResponse response, OrchestrationContext context, PipelineContext pipelineContext) {
         response = coalesceBatchActionIntents(response);
         if (response == null || response.getIntents() == null || response.getIntents().isEmpty()) {
@@ -2923,7 +2888,6 @@ public class IntentHandlingStep implements PipelineStep {
 
         return MultiIntentResponse.builder()
             .intents(out)
-            .compound(out.size() > 1)
             .orchestrationStrategy(response.getOrchestrationStrategy())
             .metadata(response.getMetadata() != null ? response.getMetadata() : Map.of())
             .build();

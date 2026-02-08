@@ -63,7 +63,6 @@ class ConfirmationResolutionStepTest {
 
         MultiIntentResponse extracted = MultiIntentResponse.builder()
             .intents(List.of(Intent.builder().type(IntentType.CONFIRMATION_POSITIVE).confidence(1.0d).build()))
-            .compound(false)
             .build();
 
         PipelineContext ctx = PipelineContext.from("yes", orch).toBuilder()
@@ -78,4 +77,3 @@ class ConfirmationResolutionStepTest {
         assertThat(resolved.isActionConfirmed("create_purchase_order")).isTrue();
     }
 }
-

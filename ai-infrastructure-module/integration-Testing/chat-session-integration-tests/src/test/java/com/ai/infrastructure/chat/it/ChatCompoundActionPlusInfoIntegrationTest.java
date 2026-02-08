@@ -75,7 +75,6 @@ class ChatCompoundActionPlusInfoIntegrationTest {
 
         MultiIntentResponse response = MultiIntentResponse.builder()
             .intents(List.of(action, info))
-            .compound(true)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

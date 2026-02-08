@@ -40,7 +40,6 @@ class IntentExtractionValidatorMissingParamsTest {
                 .action("create_purchase_order")
                 .actionParams(Map.of("sku", "ELEC-PHONE-002", "quantity", 1))
                 .build()))
-            .compound(false)
             .build();
 
         IntentExtractionValidator.ValidationResult result = validator.validate(response, "i want to buy");

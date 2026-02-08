@@ -57,7 +57,6 @@ class ChatSessionLifecycleIntegrationTest {
                 .intent("out_of_scope")
                 .confidence(0.9)
                 .build()))
-            .compound(false)
             .orchestrationStrategy("ADMIT_UNKNOWN")
             .build();
 

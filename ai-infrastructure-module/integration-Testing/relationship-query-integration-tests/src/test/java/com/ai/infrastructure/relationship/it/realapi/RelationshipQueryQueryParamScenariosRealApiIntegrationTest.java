@@ -191,11 +191,10 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
                   "requiresRetrieval": true,
                   "requiresGeneration": false
                 }
-              ],
-              "isCompound": false,
-              "orchestrationStrategy": "DIRECT_ACTION"
-            }
-            """).build();
+	              ],
+	              "orchestrationStrategy": "DIRECT_ACTION"
+	            }
+	            """).build();
 
         when(aiCoreService.generateContent(argThat(req ->
             req != null && "intent_extraction".equals(req.getGenerationType())
@@ -223,11 +222,10 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
                   "requiresRetrieval": true,
                   "requiresGeneration": false
                 }
-              ],
-              "isCompound": false,
-              "orchestrationStrategy": "DIRECT_ACTION"
-            }
-            """.formatted(query)).build();
+	              ],
+	              "orchestrationStrategy": "DIRECT_ACTION"
+	            }
+	            """.formatted(query)).build();
 
         when(aiCoreService.generateContent(argThat(req ->
             req != null && "intent_extraction".equals(req.getGenerationType())
@@ -256,11 +254,10 @@ class RelationshipQueryQueryParamScenariosRealApiIntegrationTest {
                   "requiresGeneration": true,
                   "generationInstructions": "%s"
                 }
-              ],
-              "isCompound": false,
-              "orchestrationStrategy": "DIRECT_ACTION"
-            }
-            """.formatted(query, generationInstructions)).build();
+	              ],
+	              "orchestrationStrategy": "DIRECT_ACTION"
+	            }
+	            """.formatted(query, generationInstructions)).build();
 
         when(aiCoreService.generateContent(argThat(req ->
             req != null && "intent_extraction".equals(req.getGenerationType())

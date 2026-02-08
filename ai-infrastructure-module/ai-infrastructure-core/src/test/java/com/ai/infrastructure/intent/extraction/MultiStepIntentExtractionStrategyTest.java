@@ -165,7 +165,6 @@ class MultiStepIntentExtractionStrategyTest {
     private String classificationWithAction() {
         return """
             {
-              "isCompound": false,
               "intents": [
                 {
                   "type": "ACTION",
@@ -182,7 +181,6 @@ class MultiStepIntentExtractionStrategyTest {
     private String classificationConfirmationPositive() {
         return """
             {
-              "isCompound": false,
               "intents": [
                 {
                   "type": "CONFIRMATION_POSITIVE"
@@ -195,7 +193,6 @@ class MultiStepIntentExtractionStrategyTest {
     private String classificationInformationOnly() {
         return """
             {
-              "isCompound": false,
               "intents": [
                 {
                   "type": "INFORMATION",

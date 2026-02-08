@@ -135,7 +135,7 @@ class IntentHandlingStepBatchTargetsTest {
 
         PipelineContext context = PipelineContext.from("add to cart", OrchestrationContext.forUser("user"))
             .toBuilder()
-            .intentResponse(MultiIntentResponse.builder().compound(true).intents(List.of(one, two)).build())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(one, two)).build())
             .resolvedTargets(List.of(
                 target("p1", Map.of("sku", "SKU-HP-31150")),
                 target("p2", Map.of("sku", "SKU-APP-83635"))

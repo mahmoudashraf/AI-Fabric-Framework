@@ -551,7 +551,6 @@ class RAGOrchestratorTest {
             .build();
         MultiIntentResponse compound = MultiIntentResponse.builder()
             .intents(List.of(actionIntent, infoIntent))
-            .compound(true)
             .build();
 
         when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(compound);
