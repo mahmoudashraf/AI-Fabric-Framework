@@ -96,7 +96,7 @@ public class EnrichedPromptBuilder {
         prompt.append("1. If user wants to perform an action → Return type: ACTION\n");
         prompt.append("2. If user wants information → Return type: INFORMATION\n");
         prompt.append("3. If query is outside scope → Return type: OUT_OF_SCOPE\n");
-        prompt.append("4. If multiple intents → Return type: COMPOUND\n");
+        prompt.append("4. If multiple intents → Return multiple root intents[] entries (no COMPOUND type)\n");
         
         // Add output format
         prompt.append("\nOUTPUT FORMAT (JSON):\n");
@@ -104,7 +104,7 @@ public class EnrichedPromptBuilder {
             {
               "intents": [
                 {
-                  "type": "ACTION|INFORMATION|OUT_OF_SCOPE",
+                  "type": "ACTION|INFORMATION|OUT_OF_SCOPE|CONFIRMATION_POSITIVE|CONFIRMATION_NEGATIVE",
                   "intent": "specific_intent_name",
                   "confidence": 0.95,
                   "action": "action_name (if ACTION)",
@@ -113,7 +113,6 @@ public class EnrichedPromptBuilder {
                   "requiresRetrieval": true|false
                 }
               ],
-              "isCompound": false,
               "orchestrationStrategy": "DIRECT_ACTION|RETRIEVE_AND_GENERATE|ADMIT_UNKNOWN"
             }
             """);
@@ -165,14 +164,13 @@ public class IntentQueryExtractor {
 @Builder
 public class MultiIntentResponse {
     private List<Intent> intents;
-    private boolean isCompound;
     private String orchestrationStrategy;  // DIRECT_ACTION, RETRIEVE_AND_GENERATE, ADMIT_UNKNOWN
 }
 
 @Data
 @Builder
 public class Intent {
-    private IntentType type;                      // ACTION, INFORMATION, OUT_OF_SCOPE, COMPOUND
+    private IntentType type;                      // ACTION, INFORMATION, OUT_OF_SCOPE, CONFIRMATION_POSITIVE, CONFIRMATION_NEGATIVE
     private String intent;                        // Specific intent name
     private Double confidence;                    // 0.0 - 1.0
     private String action;                        // If type = ACTION
@@ -197,7 +195,8 @@ public enum IntentType {
     ACTION,              // Execute an action
     INFORMATION,         // Retrieve from documents
     OUT_OF_SCOPE,        // Can't help
-    COMPOUND             // Multiple intents
+    CONFIRMATION_POSITIVE, // Confirm a pending action
+    CONFIRMATION_NEGATIVE  // Reject/cancel a pending action
 }
 ```
 
@@ -379,7 +378,6 @@ User query processed by GPT-4o-mini
       "requiresRetrieval": false
     }
   ],
-  "isCompound": false,
   "orchestrationStrategy": "DIRECT_ACTION"
 }
 ```
@@ -452,4 +450,3 @@ MultiIntentResponse (structured intents)
 ```
 
 Next: Go to `03_RAG_ORCHESTRATOR_LAYER.md`
-

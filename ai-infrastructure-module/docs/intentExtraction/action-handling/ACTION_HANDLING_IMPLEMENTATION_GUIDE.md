@@ -176,7 +176,7 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class OrchestrationResult {
     
-    private String type;  // ACTION, INFORMATION, OUT_OF_SCOPE, COMPOUND
+    private String type;  // ACTION_EXECUTED, ACTION_DENIED, INFORMATION_PROVIDED, CONFIRMATION_REQUIRED, OUT_OF_SCOPE, COMPOUND_HANDLED, ERROR, ...
     private String message;
     private boolean success;
     private Double confidence;
@@ -620,4 +620,3 @@ After implementation:
 6. ✅ Monitor execution
 
 **You're done! 🚀**
-

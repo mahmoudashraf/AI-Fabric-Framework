@@ -93,7 +93,7 @@ private Boolean requiresGeneration;
 public void normalize() {
     // Existing code...
     if (requiresRetrieval == null) {
-        requiresRetrieval = type == IntentType.INFORMATION || type == IntentType.COMPOUND;
+        requiresRetrieval = type == IntentType.INFORMATION;
     }
     
     // NEW: Auto-detect if generation needed
@@ -515,4 +515,3 @@ If issues occur:
 - Intent.java: `ai-infrastructure-core/src/main/java/com/ai/infrastructure/dto/Intent.java`
 - RAGOrchestrator.java: `ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/RAGOrchestrator.java`
 - SearchableFieldConfig.java: `ai-infrastructure-core/src/main/java/com/ai/infrastructure/dto/SearchableFieldConfig.java`
-

@@ -391,11 +391,6 @@ public class RAGOrchestrator {
             case OUT_OF_SCOPE:
                 return handleOutOfScope(intent, userId);
                 
-            case COMPOUND:
-                // Shouldn't happen here, but handle just in case
-                log.warn("COMPOUND type in single intent handler");
-                return OrchestrationResult.failure("Invalid intent structure");
-                
             default:
                 return OrchestrationResult.failure("Unknown intent type");
         }
@@ -505,10 +500,10 @@ public class RAGOrchestrator {
         );
     }
     
-    // ==================== COMPOUND INTENT HANDLING ====================
+    // ==================== MULTI-INTENT HANDLING ====================
     
     /**
-     * Handle compound intents (multiple intents)
+     * Handle multi-intent responses (multiple root intents)
      * 
      * @param intents the compound response
      * @param userId the user
@@ -1210,4 +1205,3 @@ RAGOrchestrator builds response
 - Professional and maintainable
 
 **This is enterprise-grade architecture!** 🚀
-

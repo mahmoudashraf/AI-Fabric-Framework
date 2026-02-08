@@ -228,8 +228,11 @@ Extracts the user's intent(s) from the processed query using AI/LLM-based analys
 
 - `ACTION`: User wants to perform an action
 - `INFORMATION`: User wants information
-- `COMPOUND`: Multiple intents in one query
 - `OUT_OF_SCOPE`: Query outside supported domain
+- `CONFIRMATION_POSITIVE`: User confirms a pending action
+- `CONFIRMATION_NEGATIVE`: User rejects a pending action
+
+Multi-intent is represented by returning multiple root `intents[]` entries (there is no `type=COMPOUND`).
 
 ---
 
@@ -269,9 +272,9 @@ Routes based on intent type:
 3. Otherwise: Calls `ragService.performRag()`
 4. Returns `INFORMATION_PROVIDED`
 
-#### COMPOUND Intent
+#### Multi-intent (intents[].size > 1)
 
-1. Processes each sub-intent
+1. Processes each intent in order
 2. Collects results into children list
 3. Returns `COMPOUND_HANDLED`
 

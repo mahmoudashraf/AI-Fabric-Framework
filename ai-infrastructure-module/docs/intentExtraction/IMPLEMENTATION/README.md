@@ -137,7 +137,7 @@ public class SubscriptionActionHandler implements ActionHandler {
   - Handles errors
 - **INFORMATION** → Retrieves from RAG
 - **OUT_OF_SCOPE** → Returns honest answer
-- **COMPOUND** → Handles multiple intents
+- **Multi-intent (intents[] > 1)** → Handles multiple intents
 
 ### Layer 4: Response Sanitization
 - Cleans response of any PII

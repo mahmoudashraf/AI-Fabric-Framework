@@ -1,7 +1,7 @@
 # Remove Synthetic `intent.type=COMPOUND` (Use `intents[]` Only)
 
 ## Status
-- Proposed (greenfield refactor)
+- Implemented (greenfield refactor)
 
 ## Problem
 We currently have legacy support for a “synthetic compound intent” representation:

@@ -483,7 +483,8 @@ public class RAGOrchestrator {
             case ACTION -> handleAction(intent, context);
             case INFORMATION -> handleInformation(intent, context);
             case OUT_OF_SCOPE -> handleOutOfScope(intent);
-            case COMPOUND -> handleSyntheticCompound(intent, context);
+            case CONFIRMATION_POSITIVE -> handleConfirmationPositive(context);
+            case CONFIRMATION_NEGATIVE -> handleConfirmationNegative(context);
             default -> OrchestrationResult.error("Unknown intent type: " + intent.getType());
         };
     }
@@ -1038,4 +1039,3 @@ orchestrator.orchestrate("query", OrchestrationContext.forUser("user-123"));
 **Created:** 2025-12-29  
 **Status:** Ready for Implementation  
 **Owner:** AI Infrastructure Team
-

@@ -199,12 +199,11 @@ public class RAGOrchestrator {
         // STEP 1: Extract intents (from Layer 2)
         MultiIntentResponse intents = intentExtractor.extract(query, userId);
         
-        // STEP 2: Single vs Compound
-        if (!intents.isCompound()) {
+        // STEP 2: Single vs Multi-intent (multi-intent is inferred from intents[].size > 1)
+        if (intents.getIntents().size() <= 1) {
             return handleSingleIntent(intents.getIntents().get(0), userId);
-        } else {
-            return handleCompoundIntents(intents, userId);
         }
+        return handleCompoundIntents(intents, userId);
     }
     
     private OrchestrationResult handleSingleIntent(Intent intent, String userId) {
@@ -382,8 +381,7 @@ LLM extracts:
     "action": "cancel_subscription",
     "actionParams": {"reason": "user request"},
     "confidence": 0.99
-  }],
-  "isCompound": false
+  }]
 }
 ```
 
@@ -492,4 +490,3 @@ Action/Retrieval Result
 ```
 
 Next: Go to `04_RESPONSE_SANITIZATION_LAYER.md`
-
