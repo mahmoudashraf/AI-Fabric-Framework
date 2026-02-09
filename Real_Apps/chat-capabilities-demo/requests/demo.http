@@ -51,6 +51,18 @@ Content-Type: application/json
   "query": "I'm looking for wireless headphones under $250. Recommend options from the catalog and explain briefly."
 }
 
+### Chat (RAG deep) - forces navigator_deep (ignore position routing)
+POST {{baseUrl}}/api/chat/query
+Content-Type: application/json
+
+{
+  "userId": "user-1",
+  "sessionId": "user-1-session",
+  "conversationId": "chat-user-1",
+  "mode": "navigator_deep",
+  "query": "I need deep info: show alternatives, common complaints, and any related policies for returns."
+}
+
 ### Chat (ACTION) create purchase order - requires OPENAI_ENABLED=true + OPENAI_API_KEY
 POST {{baseUrl}}/api/chat/query
 Content-Type: application/json
@@ -61,6 +73,18 @@ Content-Type: application/json
   "conversationId": "chat-user-1",
   "position": "cart",
   "query": "Create a purchase order for sku SKU-0001 quantity 2, ship to 1 Market St, San Francisco, CA 94105, email alice@example.com."
+}
+
+### Chat (EXECUTOR) policy lookup - executor restricts retrieval to allowlisted vectorSpace(s)
+POST {{baseUrl}}/api/chat/query
+Content-Type: application/json
+
+{
+  "userId": "user-1",
+  "sessionId": "user-1-session",
+  "conversationId": "chat-user-1",
+  "mode": "executor",
+  "query": "What is the refund policy?"
 }
 
 ### Chat (ACTION) add to cart using attachments (deterministic target resolution)
@@ -84,7 +108,7 @@ Content-Type: application/json
       },
       "source": "ui-card"
     }
-  ],
+  ]
 }
 
 ### List orders for the user
