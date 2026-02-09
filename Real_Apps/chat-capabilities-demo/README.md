@@ -4,6 +4,7 @@ This Real App demonstrates:
 - **Chat sessions**: multi-turn context + turn recording + conversation lifecycle APIs (get/list/delete)
 - **Product catalog + RAG**: CRUD products, index into **Lucene**, and retrieve via chat (OpenAI embeddings + LLM)
 - **Actions**: `create_purchase_order` action executed from chat
+- **Curated modes** (commerce pack): `navigator`, `navigator_deep`, `executor`, `cart_assistant`
 
 ## Run
 

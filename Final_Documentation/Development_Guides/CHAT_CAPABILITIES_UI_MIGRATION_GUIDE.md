@@ -68,10 +68,8 @@ That pack defines **position routing**:
 Notes:
 - **Position routing wins over `mode`.** If you send both, the routed mode for the position is applied.
 - If you send a `position` that is not configured, the request falls back to normal mode resolution (unless the app enables strict routing).
-
-Temporary demo behavior:
-- The current demo backend forces `.mode("navigator")` server-side (see `Real_Apps/chat-capabilities-demo/src/main/java/com/ai/fabric/realapps/chat/web/ChatController.java`).
-- `position` / `mode` are accepted in the request contract but are not used until multi-mode UX is re-enabled.
+ - To force a mode (e.g. `navigator_deep` / `executor`) while still sending a UI `position`,
+   use a position that is **not routed** in the active pack (or omit `position`) so `mode` is honored.
 
 ---
 
@@ -114,6 +112,18 @@ If you want the backend to store and later return chat history via `/api/chat/co
 }
 ```
 
+### A2) Deep navigator query (explicit mode)
+
+```json
+{
+  "userId": "user-1",
+  "sessionId": "user-1-session",
+  "conversationId": "chat-user-1",
+  "mode": "navigator_deep",
+  "query": "Go deep: show alternatives, common complaints, and any relevant policies for returns."
+}
+```
+
 ### B) Cart (action) request
 
 ```json
@@ -123,6 +133,18 @@ If you want the backend to store and later return chat history via `/api/chat/co
   "conversationId": "chat-user-1",
   "position": "cart",
   "query": "Create a purchase order for sku SKU-0001 quantity 2, ship to 1 Market St, SF, email alice@example.com."
+}
+```
+
+### B2) Executor query (explicit mode)
+
+```json
+{
+  "userId": "user-1",
+  "sessionId": "user-1-session",
+  "conversationId": "chat-user-1",
+  "mode": "executor",
+  "query": "What is the refund policy?"
 }
 ```
 
