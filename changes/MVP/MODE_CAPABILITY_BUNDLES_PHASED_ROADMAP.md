@@ -35,6 +35,16 @@ Implemented in code:
   - test default embeddings uses ONNX
 - ONNX classpath model load fix (avoid temp-file extraction).
 
+### Phase 1 — Completed (`navigator_deep` retrieval semantics)
+Implemented in code:
+- `rag.fanout-enabled` is enforced at runtime:
+  - when `false`, multi-space fanout is not executed (single-space only).
+  - when `true`, multi-space fanout is allowed and bounded by budgets.
+- `deepRetrievalEnabled` now broadens retrieval when routing is missing/weak:
+  - deterministic space selection uses KB doc-count ordering, bounded by `rag.max-spaces`.
+- `rag.max-spaces` now caps deterministic fallback vector spaces (instead of router defaults).
+- Added deep-mode retrieval observability in debug metadata (strategy, selected spaces, source, effective budgets).
+
 Docs present:
 - `changes/MVP/MODE_CAPABILITY_BUNDLES_MINIMAL_LLM_CONTEXT_PLAN.md`
 - `Final_Documentation/Development_Guides/CURATED_MODES_PACKS_GUIDE.md` (commerce pack)
@@ -50,52 +60,37 @@ Docs present:
 - See “Current Status Snapshot”.
 
 **Open follow‑ups (review-only, not required for Phase 1)**
-- `ai-curated-default` module currently ships no pack resources → decide whether to:
-  - remove the module, OR
-  - add a minimal `default.yml` pack.
+- Curated pack selection semantics (v1):
+  - We support **exactly one active pack** (`ai.curated.pack=<name>`), with **no inheritance/merging**.
+  - We will add a minimal `default.yml` pack that supports **only `navigator`** (no position routing; all positions resolve to `navigator`).
+  - If the active pack is `default`, **all other modes are unsupported** and must fail‑closed (`CLARIFICATION_REQUIRED`) with `data.supportedModes=["navigator"]`.
+  - If the app selects `commerce`, the `default` pack is **ignored** (no parent layering).
 
 ---
 
-### Phase 1 — `navigator_deep` Retrieval Semantics (Fanout + Multi-space Strategy) ⏳ PENDING
+### Phase 1 — `navigator_deep` Retrieval Semantics (Fanout + Multi-space Strategy) ✅ DONE
 **Goal:** make `navigator_deep` actually behave “deep” even when the LLM output is imperfect, while keeping `navigator` unchanged.
 
-#### What’s missing today (must review)
-1) **`rag.fanout-enabled` is not wired**
-- It appears only in debug metadata; the retrieval path does not respect it.
-
-2) **`deepRetrievalEnabled` is not used**
-- The policy flag exists but does not affect vectorSpace selection or retrieval expansion.
-
-3) **Budgets don’t influence deterministic fallback vectorSpaces count**
-- In deterministic mode, when LLM omits `vectorSpace`, fallback uses `vectorSpaceRoutingProperties.fanOutMaxSpaces` (often 3).
-- This ignores mode budget `rag.max-spaces` (e.g., 6 in `navigator_deep`).
-
-#### Deliverables (Phase 1)
+#### Delivered
 1) **Wire `rag.fanout-enabled`**
 - If `fanoutEnabled=false`:
-  - Never call the fanout path automatically.
-  - Prefer a single best vectorSpace (LLM‑selected, else deterministic single‑space selection).
+  - Never call the fanout path.
+  - Prefer a single best vectorSpace (LLM‑selected when valid; else deterministic single‑space selection).
 - If `fanoutEnabled=true`:
   - Allow multi‑space fanout, bounded by budgets.
 
 2) **Use `deepRetrievalEnabled` to broaden search strategy**
-When `deepRetrievalEnabled=true` and the user intent requires retrieval:
-- If the LLM provides vectorSpaces → honor them (subject to allowlist).
-- If the LLM omits vectorSpaces → select spaces deterministically (subject to budgets), e.g.:
-  - take top N spaces by KB doc count, where `N = rag.maxSpaces`.
+- In deep mode, when routing is missing/weak, select top-N spaces by KB doc count (deterministic),
+  where `N = rag.max-spaces`, and enforce fanout-enabled.
 
 3) **Budget-driven deterministic fallback**
-In deterministic fallback vectorSpace selection:
-- Replace “always cap to routingProps.fanOutMaxSpaces” with:
-  - `cap = rag.maxSpaces (mode)` when present, else routingProps default.
+- Deterministic fallback vectorSpace selection is capped by `rag.max-spaces` (when set).
 
 4) **Deep mode observability**
-Add debug metadata fields:
-- `retrievalStrategy`: `SINGLE_SPACE` | `FAN_OUT`
-- `vectorSpacesSelected`: `[ ... ]`
-- `vectorSpacesSelectionSource`: `LLM` | `KB_OVERVIEW` | `DEFAULT_FALLBACK` | `ALLOWLIST`
-- `fanoutEnabledEffective`, `deepRetrievalEnabledEffective`
-- budgets used (`maxSpaces`, `topKPerSpace`, etc.)
+- Debug metadata includes:
+  - `retrievalStrategy`: `SINGLE_SPACE` | `FAN_OUT`
+  - `vectorSpacesSelected`, `vectorSpacesSelectionSource`
+  - effective budgets (`fanoutEnabledEffective`, `ragMaxSpacesEffective`, etc.)
 
 #### Validation (Phase 1)
 Manual:
@@ -105,7 +100,7 @@ Manual:
   - Observe single-space retrieval only.
 
 Tests:
-- Add unit/integration tests for:
+- Unit tests cover:
   - “deepRetrievalEnabled expands spaces”
   - “fanoutEnabled disables fanout”
   - “rag.maxSpaces overrides deterministic fallback cap”
@@ -200,4 +195,3 @@ Deliverables (examples):
 - Confirm whether `fanoutEnabled` should default to:
   - enabled only in `navigator_deep`, disabled elsewhere.
 - Confirm if any spaces must be excluded from deep mode (security/performance).
-

@@ -1564,6 +1564,9 @@ public class IntentHandlingStep implements PipelineStep {
             || policy.capabilities() == null
             || policy.capabilities().retrievalEnabled();
         OrchestrationPolicy.RagBudgets ragBudgets = policy != null ? policy.ragBudgets() : null;
+        boolean fanoutAllowed = ragBudgets == null
+            || ragBudgets.fanoutEnabled() == null
+            || Boolean.TRUE.equals(ragBudgets.fanoutEnabled());
 
         boolean deterministic = isDeterministicInformationMode(pipelineContext);
         boolean requiresRetrieval = intent.requiresRetrievalOrDefault(true);
@@ -1634,23 +1637,30 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
+        String vectorSpacesSelectionSource = !vectorSpaces.isEmpty() ? "LLM" : null;
         if (vectorSpaces.isEmpty()
             && ragBudgets != null
             && ragBudgets.hasVectorSpaceAllowlist()) {
             vectorSpaces = ragBudgets.retrievalVectorSpacesAllowlist();
             intent.setVectorSpace(String.join(",", vectorSpaces));
+            vectorSpacesSelectionSource = "ALLOWLIST";
         }
         if (vectorSpaces.isEmpty()) {
             List<String> allSpaces = deterministic
-                ? resolveDeterministicFallbackVectorSpaces()
+                ? resolveDeterministicFallbackVectorSpaces(ragBudgets)
                 : resolveAllVectorSpaces();
             if (!allSpaces.isEmpty()) {
-                Integer maxSpacesOverride = ragBudgets != null ? ragBudgets.maxSpaces() : null;
-                if (maxSpacesOverride != null && maxSpacesOverride > 0 && allSpaces.size() > maxSpacesOverride) {
-                    allSpaces = allSpaces.subList(0, maxSpacesOverride);
-                }
+                allSpaces = capVectorSpacesToBudget(allSpaces, ragBudgets);
                 vectorSpaces = allSpaces;
                 intent.setVectorSpace(String.join(",", allSpaces));
+                vectorSpacesSelectionSource = deterministic ? "DETERMINISTIC_FALLBACK" : "KB_OVERVIEW";
+            }
+        }
+
+        if (!vectorSpaces.isEmpty()) {
+            vectorSpaces = capVectorSpacesToBudget(vectorSpaces, ragBudgets);
+            if (vectorSpacesSelectionSource == null) {
+                vectorSpacesSelectionSource = "UNKNOWN";
             }
         }
         if (vectorSpaces.isEmpty()) {
@@ -1686,6 +1696,24 @@ public class IntentHandlingStep implements PipelineStep {
                     .nextSteps(extractNextSteps(intent))
                     .build();
             }
+        }
+
+        if (!fanoutAllowed && vectorSpaces.size() > 1) {
+            metadata.put("fanoutSuppressed", true);
+            metadata.put("fanoutSuppressedReason", "POLICY");
+            metadata.put("fanoutSuppressedRequestedSpaces", vectorSpaces);
+            vectorSpaces = List.of(vectorSpaces.getFirst());
+            intent.setVectorSpace(vectorSpaces.getFirst());
+        }
+
+        metadata.put("retrievalStrategy", vectorSpaces.size() > 1 ? "FAN_OUT" : "SINGLE_SPACE");
+        metadata.put("vectorSpacesSelected", vectorSpaces);
+        metadata.put("vectorSpacesSelectionSource", vectorSpacesSelectionSource);
+        if (ragBudgets != null && ragBudgets.fanoutEnabled() != null) {
+            metadata.put("fanoutEnabledEffective", ragBudgets.fanoutEnabled());
+        }
+        if (ragBudgets != null && ragBudgets.maxSpaces() != null) {
+            metadata.put("ragMaxSpacesEffective", ragBudgets.maxSpaces());
         }
 
         String retrievalQuery = applyRetrievalQueryHint(retrievalBaseQuery, pipelineContext, intent, metadata);
@@ -2056,6 +2084,9 @@ public class IntentHandlingStep implements PipelineStep {
             .context(mergedContext)
             .originalQuery(generationQuery)
             .entityType(String.join(",", vectorSpaces))
+            .metadata(metadata != null && !metadata.isEmpty()
+                ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata))
+                : null)
             .success(true)
             .build();
 
@@ -2170,17 +2201,33 @@ public class IntentHandlingStep implements PipelineStep {
             .toList();
     }
 
-    private List<String> resolveDeterministicFallbackVectorSpaces() {
+    private List<String> resolveDeterministicFallbackVectorSpaces(OrchestrationPolicy.RagBudgets ragBudgets) {
         List<String> spaces = resolveAllVectorSpaces();
         if (spaces.isEmpty()) {
             return spaces;
         }
 
-        int maxSpaces = vectorSpaceRoutingProperties != null ? vectorSpaceRoutingProperties.getFanOutMaxSpaces() : 3;
-        if (maxSpaces <= 0) {
+        Integer maxOverride = ragBudgets != null ? ragBudgets.maxSpaces() : null;
+        if (maxOverride != null && maxOverride > 0) {
+            return spaces.size() > maxOverride ? spaces.subList(0, maxOverride) : spaces;
+        }
+
+        int maxDefault = vectorSpaceRoutingProperties != null ? vectorSpaceRoutingProperties.getFanOutMaxSpaces() : 3;
+        if (maxDefault <= 0) {
             return spaces;
         }
-        return spaces.size() > maxSpaces ? spaces.subList(0, maxSpaces) : spaces;
+        return spaces.size() > maxDefault ? spaces.subList(0, maxDefault) : spaces;
+    }
+
+    private List<String> capVectorSpacesToBudget(List<String> vectorSpaces, OrchestrationPolicy.RagBudgets ragBudgets) {
+        if (vectorSpaces == null || vectorSpaces.isEmpty() || ragBudgets == null) {
+            return vectorSpaces;
+        }
+        Integer maxSpaces = ragBudgets.maxSpaces();
+        if (maxSpaces == null || maxSpaces <= 0) {
+            return vectorSpaces;
+        }
+        return vectorSpaces.size() > maxSpaces ? vectorSpaces.subList(0, maxSpaces) : vectorSpaces;
     }
 
     private OrchestrationResult handleInformationAdvanced(Intent intent,

@@ -21,6 +21,8 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationProfile;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
 import com.ai.infrastructure.prompt.PromptRenderer;
@@ -42,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -215,6 +218,117 @@ class IntentHandlingStepFanOutTest {
         assertThat(result.getMessage()).isEqualTo("Answer");
         verify(aiCoreService).generateText(anyString(), eq(LlmPurpose.GENERATION));
         verify(aiCoreService, never()).generateText(anyString(), eq(LlmPurpose.ORCHESTRATION));
+    }
+
+    @Test
+    void shouldNotFanOutWhenFanoutDisabledByPolicy() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder().documents(List.of()).success(true).build()
+        );
+
+        IntentHandlingStep step = newStep(ragProvider, mock(AICoreService.class));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("refund_policy")
+            .vectorSpace("faq,policies")
+            .requiresGeneration(false)
+            .build();
+
+        OrchestrationPolicy policy = new OrchestrationPolicy(
+            OrchestrationProfile.DEFAULT,
+            "navigator",
+            null,
+            OrchestrationProperties.InformationMode.LLM_DRIVEN,
+            OrchestrationPolicy.OrchestrationCapabilities.defaults(),
+            new OrchestrationPolicy.RagBudgets(false, null, null, null, null, null, List.of())
+        );
+
+        PipelineContext context = PipelineContext.from("q", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(policy)
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        step.process(context);
+
+        ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
+        verify(ragProvider, times(1)).performRag(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getEntityType()).isEqualTo("faq");
+    }
+
+    @Test
+    void shouldUseMaxSpacesBudgetForDeterministicFallbackVectorSpaces() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder().documents(List.of()).context("").success(true).build()
+        );
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateText(anyString(), eq(LlmPurpose.GENERATION))).thenReturn("Answer");
+
+        KnowledgeBaseOverviewService overviewService = mock(KnowledgeBaseOverviewService.class);
+        when(overviewService.getOverview()).thenReturn(com.ai.infrastructure.intent.KnowledgeBaseOverview.builder()
+            .entityTypes(List.of("a", "b", "c", "d", "e"))
+            .documentsByType(Map.of("a", 10L, "b", 9L, "c", 8L, "d", 7L, "e", 6L))
+            .build());
+
+        VectorSpaceRoutingProperties routingProperties = new VectorSpaceRoutingProperties();
+        routingProperties.setFanOutMaxSpaces(2);
+        routingProperties.setFanOutTopKPerSpace(1);
+        routingProperties.setClarificationThreshold(0.0d);
+
+        OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            mock(AIActionRegistry.class),
+            providerOf(ragProvider),
+            aiCoreService,
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            routingProperties,
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            orchestrationProperties,
+            providerOf(overviewService),
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("search")
+            .requiresRetrieval(true)
+            .vectorSpace(null)
+            .build();
+
+        OrchestrationPolicy policy = new OrchestrationPolicy(
+            OrchestrationProfile.DEFAULT,
+            "navigator_deep",
+            null,
+            OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE,
+            OrchestrationPolicy.OrchestrationCapabilities.defaults(),
+            new OrchestrationPolicy.RagBudgets(true, 4, 1, null, null, null, List.of())
+        );
+
+        PipelineContext context = PipelineContext.from("q", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(policy)
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        step.process(context);
+
+        ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
+        verify(ragProvider, times(4)).performRAGQuery(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues())
+            .extracting(RAGRequest::getEntityType)
+            .containsExactly("a", "b", "c", "d");
     }
 
     private IntentHandlingStep newStep(RAGProvider ragProvider, AICoreService aiCoreService) {

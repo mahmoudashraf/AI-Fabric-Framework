@@ -178,15 +178,15 @@ class RAGOrchestratorTest {
         );
         PromptRenderer promptRenderer = new PromptRenderer();
 
-        List<PipelineStep> steps = List.of(
-            new SecurityAnalysisStep(securityService),
-            new AccessControlStep(accessControlService),
-            new IntentExtractionStep(intentQueryExtractor, progressiveEngineProvider),
-            new VectorSpaceResolutionStep(vectorSpaceRouter, orchestrationProperties, overviewProvider),
-            new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider,
-                vectorSpaceRoutingProperties, rankBasedMerger,
-                new com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties(),
-                new com.ai.infrastructure.config.PostActionGenerationProperties(),
+	        List<PipelineStep> steps = List.of(
+	            new SecurityAnalysisStep(securityService),
+	            new AccessControlStep(accessControlService),
+	            new IntentExtractionStep(intentQueryExtractor, progressiveEngineProvider),
+	            new VectorSpaceResolutionStep(vectorSpaceRouter, orchestrationProperties, vectorSpaceRoutingProperties, overviewProvider),
+	            new IntentHandlingStep(actionHandlerRegistry, ragProviderProvider, aiCoreService, aiServiceConfig, advancedRagProvider,
+	                vectorSpaceRoutingProperties, rankBasedMerger,
+	                new com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties(),
+	                new com.ai.infrastructure.config.PostActionGenerationProperties(),
                 org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class),
                 orchestrationProperties,
                 overviewProvider,
