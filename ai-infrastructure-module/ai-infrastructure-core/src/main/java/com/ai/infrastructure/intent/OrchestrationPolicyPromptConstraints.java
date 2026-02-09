@@ -23,6 +23,7 @@ public final class OrchestrationPolicyPromptConstraints {
 
         OrchestrationPolicy.OrchestrationCapabilities capabilities = policy.capabilities();
         OrchestrationPolicy.RagBudgets budgets = policy.ragBudgets();
+        boolean isExecutorMode = policy.mode() != null && "executor".equalsIgnoreCase(policy.mode());
 
         boolean isDefaultCapabilities =
             capabilities.actionsEnabled()
@@ -45,6 +46,10 @@ public final class OrchestrationPolicyPromptConstraints {
         }
         if (!capabilities.retrievalEnabled()) {
             out.append("- Do NOT request retrieval (requiresRetrieval=false).\n");
+        }
+        if (isExecutorMode) {
+            out.append("- Executor mode: prefer ACTION intents; use retrieval only when necessary and only from allowed vectorSpace values.\n");
+            out.append("  If requiresRetrieval=true you MUST set vectorSpace explicitly (do NOT omit).\n");
         }
 
         if (budgets != null && budgets.hasVectorSpaceAllowlist()) {

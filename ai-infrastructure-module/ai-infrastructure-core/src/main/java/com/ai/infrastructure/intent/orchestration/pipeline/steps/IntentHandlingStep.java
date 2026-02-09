@@ -1560,6 +1560,7 @@ public class IntentHandlingStep implements PipelineStep {
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
         OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        boolean isExecutorMode = policy != null && "executor".equalsIgnoreCase(policy.mode());
         boolean retrievalEnabled = policy == null
             || policy.capabilities() == null
             || policy.capabilities().retrievalEnabled();
@@ -1622,6 +1623,21 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
+        if (requiresRetrieval
+            && isExecutorMode
+            && (ragBudgets == null || !ragBudgets.hasVectorSpaceAllowlist())) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("suggestedMode", "navigator");
+            data.put("reason", "EXECUTOR_RETRIEVAL_ALLOWLIST_REQUIRED");
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message("Retrieval in executor mode requires an explicit vectorSpace allowlist. Switch to navigator to search.")
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
         if (!requiresRetrieval) {
             if (!needsGeneration) {
                 if (hasPendingAction(context)) {
@@ -1640,10 +1656,26 @@ public class IntentHandlingStep implements PipelineStep {
         String vectorSpacesSelectionSource = !vectorSpaces.isEmpty() ? "LLM" : null;
         if (vectorSpaces.isEmpty()
             && ragBudgets != null
-            && ragBudgets.hasVectorSpaceAllowlist()) {
+            && ragBudgets.hasVectorSpaceAllowlist()
+            && !isExecutorMode) {
             vectorSpaces = ragBudgets.retrievalVectorSpacesAllowlist();
             intent.setVectorSpace(String.join(",", vectorSpaces));
             vectorSpacesSelectionSource = "ALLOWLIST";
+        }
+        if (vectorSpaces.isEmpty()
+            && isExecutorMode
+            && ragBudgets != null
+            && ragBudgets.hasVectorSpaceAllowlist()) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("allowedVectorSpaces", ragBudgets.retrievalVectorSpacesAllowlist());
+            data.put("reason", "VECTOR_SPACE_REQUIRED_IN_MODE");
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message("Which knowledge base domain should I search in this mode?")
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
         }
         if (vectorSpaces.isEmpty()) {
             List<String> allSpaces = deterministic
@@ -1688,6 +1720,9 @@ public class IntentHandlingStep implements PipelineStep {
                 data.put("requestedVectorSpaces", vectorSpaces);
                 data.put("deniedVectorSpaces", denied);
                 data.put("reason", "VECTOR_SPACE_NOT_ALLOWED_IN_MODE");
+                if (isExecutorMode) {
+                    data.put("suggestedMode", "navigator");
+                }
                 return OrchestrationResult.builder()
                     .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                     .success(false)
