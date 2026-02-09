@@ -4,11 +4,13 @@ import com.ai.infrastructure.intent.action.ActionInfo;
 import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.AIActionParamType;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -42,11 +44,15 @@ public class EnrichedPromptBuilder {
         SystemContext context = systemContextBuilder.buildContext(contextInput);
 
         String behavior = buildBehaviorContextSection(context);
-        String actions = buildAvailableActionsSection(context);
-        String knowledge = buildKnowledgeBaseOverviewSection(context);
+        OrchestrationPolicy policy = contextInput != null ? contextInput.getOrchestrationPolicy() : null;
+        boolean actionsEnabled = policy == null || policy.capabilities() == null || policy.capabilities().actionsEnabled();
+        boolean retrievalEnabled = policy == null || policy.capabilities() == null || policy.capabilities().retrievalEnabled();
+
+        String actions = actionsEnabled ? buildAvailableActionsSection(context) : "";
+        String knowledge = retrievalEnabled ? buildKnowledgeBaseOverviewSection(context) : "";
         String entityTypesRule = buildRelationshipQueryEntityTypesRule(context);
 
-        return promptRenderer.render(
+        String base = promptRenderer.render(
             promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM).template(),
             Map.of(
                 PLACEHOLDER_BEHAVIOR_CONTEXT, behavior,
@@ -55,6 +61,12 @@ public class EnrichedPromptBuilder {
                 PLACEHOLDER_RELATIONSHIP_QUERY_ENTITY_TYPES_RULE, entityTypesRule
             )
         );
+
+        String addon = OrchestrationPolicyPromptConstraints.buildSystemAddon(policy);
+        if (!StringUtils.hasText(addon)) {
+            return base;
+        }
+        return base.trim() + "\n\n" + addon + "\n";
     }
 
     @Deprecated(forRemoval = true)

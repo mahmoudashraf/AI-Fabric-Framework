@@ -110,6 +110,8 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         Boolean advancedRagOverride = null;
 
         if (effectiveModeOverrides != null) {
+            // Capability bundle (mode-level gating).
+            // Defaults preserve existing behavior when unset (greenfield-compatible, but non-breaking).
             if (effectiveModeOverrides.getInformationMode() != null) {
                 informationModeEffective = effectiveModeOverrides.getInformationMode();
             }
@@ -122,11 +124,45 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             informationModeEffective = orchestrationProperties.getInformationMode();
         }
 
+        boolean actionsEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getActionsEnabled() != null
+            ? effectiveModeOverrides.getActionsEnabled()
+            : true;
+        boolean retrievalEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getRetrievalEnabled() != null
+            ? effectiveModeOverrides.getRetrievalEnabled()
+            : true;
+        boolean deepRetrievalEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getDeepRetrievalEnabled() != null
+            ? effectiveModeOverrides.getDeepRetrievalEnabled()
+            : false;
+        boolean suggestionsEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getSuggestionsEnabled() != null
+            ? effectiveModeOverrides.getSuggestionsEnabled()
+            : true;
+
+        OrchestrationPolicy.RagBudgets ragBudgets = null;
+        if (effectiveModeOverrides != null && effectiveModeOverrides.getRag() != null) {
+            OrchestrationProperties.RagModeOverrides rag = effectiveModeOverrides.getRag();
+            ragBudgets = new OrchestrationPolicy.RagBudgets(
+                rag.getFanoutEnabled(),
+                rag.getMaxSpaces(),
+                rag.getTopKPerSpace(),
+                rag.getMaxDocumentsReturnedToClient(),
+                rag.getMaxDocumentsUsedForContext(),
+                rag.getMaxContextChars(),
+                rag.getRetrievalVectorSpacesAllowlist()
+            );
+        }
+
         OrchestrationPolicy policy = new OrchestrationPolicy(
             profile,
             effectiveMode,
             normalizedPosition,
-            informationModeEffective
+            informationModeEffective,
+            new OrchestrationPolicy.OrchestrationCapabilities(
+                actionsEnabled,
+                retrievalEnabled,
+                deepRetrievalEnabled,
+                suggestionsEnabled
+            ),
+            ragBudgets
         );
 
         OrchestrationContext updatedOrchestrationContext = orchestrationContext;
@@ -153,9 +189,37 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("position", policy.position());
         debug.put("informationModeEffective", policy.informationMode().name());
         debug.put("modeSource", modeSource);
+        debug.put("actionsEnabled", policy.capabilities().actionsEnabled());
+        debug.put("retrievalEnabled", policy.capabilities().retrievalEnabled());
+        debug.put("deepRetrievalEnabled", policy.capabilities().deepRetrievalEnabled());
+        debug.put("suggestionsEnabled", policy.capabilities().suggestionsEnabled());
         if (advancedRagOverride != null) {
             debug.put("advancedRagOverride", advancedRagOverride);
             debug.put("advancedRagOverrideSource", "MODE");
+        }
+        if (policy.ragBudgets() != null) {
+            OrchestrationPolicy.RagBudgets b = policy.ragBudgets();
+            if (b.fanoutEnabled() != null) {
+                debug.put("ragFanoutEnabled", b.fanoutEnabled());
+            }
+            if (b.maxSpaces() != null) {
+                debug.put("ragMaxSpaces", b.maxSpaces());
+            }
+            if (b.topKPerSpace() != null) {
+                debug.put("ragTopKPerSpace", b.topKPerSpace());
+            }
+            if (b.maxDocumentsReturnedToClient() != null) {
+                debug.put("ragMaxDocumentsReturnedToClient", b.maxDocumentsReturnedToClient());
+            }
+            if (b.maxDocumentsUsedForContext() != null) {
+                debug.put("ragMaxDocumentsUsedForContext", b.maxDocumentsUsedForContext());
+            }
+            if (b.maxContextChars() != null) {
+                debug.put("ragMaxContextChars", b.maxContextChars());
+            }
+            if (b.hasVectorSpaceAllowlist()) {
+                debug.put("ragRetrievalVectorSpacesAllowlist", b.retrievalVectorSpacesAllowlist());
+            }
         }
 
         PipelineContext updated = context.toBuilder()

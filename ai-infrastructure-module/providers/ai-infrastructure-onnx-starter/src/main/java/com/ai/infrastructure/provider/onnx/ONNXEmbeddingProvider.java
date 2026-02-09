@@ -58,6 +58,7 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     private OrtSession ortSession;
     private int embeddingDimension = 384; // Default for all-MiniLM-L6-v2
     private Path resolvedModelPath;
+    private byte[] resolvedModelBytes;
     private Path resolvedTokenizerPath;
     private boolean tokenizerReady = false;
     private Object tokenizerInstance;
@@ -78,6 +79,7 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
     private static final int TOKEN_UNK = 100;  // [UNK] token
     private static final int VOCAB_SIZE = 30522; // BERT vocabulary size
     private static final ConcurrentMap<String, Path> CLASSPATH_RESOURCE_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, byte[]> CLASSPATH_RESOURCE_BYTES_CACHE = new ConcurrentHashMap<>();
     
     @PostConstruct
     public void initialize() {
@@ -100,16 +102,44 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
             log.info("Current working directory: {}", System.getProperty("user.dir"));
             log.info("========================================");
 
-            resolvedModelPath = resolvePath(modelPath, "model");
-            if (resolvedModelPath == null || !Files.exists(resolvedModelPath)) {
-                log.error("========================================");
-                log.error("ONNX model file not found (requested='{}', resolved='{}')", modelPath, resolvedModelPath);
-                log.error("Provider will not be available.");
-                log.error("========================================");
-                return;
-            }
+            // Model resolution (avoid temp-file extraction for classpath models to prevent filling disk during tests).
+            if (modelPath != null && modelPath.startsWith("classpath:")) {
+                String resourcePath = modelPath.substring("classpath:".length());
+                if (resourcePath.startsWith("/")) {
+                    resourcePath = resourcePath.substring(1);
+                }
 
-            log.info("Model file resolved to: {}", resolvedModelPath.toAbsolutePath());
+                byte[] cached = CLASSPATH_RESOURCE_BYTES_CACHE.get(resourcePath);
+                if (cached == null) {
+                    try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+                        if (inputStream == null) {
+                            log.error("========================================");
+                            log.error("ONNX model classpath resource not found (requested='{}')", modelPath);
+                            log.error("Provider will not be available.");
+                            log.error("========================================");
+                            return;
+                        }
+                        byte[] bytes = inputStream.readAllBytes();
+                        byte[] existing = CLASSPATH_RESOURCE_BYTES_CACHE.putIfAbsent(resourcePath, bytes);
+                        cached = existing != null ? existing : bytes;
+                    }
+                }
+
+                resolvedModelBytes = cached;
+                resolvedModelPath = null;
+                log.info("Model loaded from classpath resource: {} ({} bytes)", resourcePath, cached != null ? cached.length : 0);
+            } else {
+                resolvedModelPath = resolvePath(modelPath, "model");
+                if (resolvedModelPath == null || !Files.exists(resolvedModelPath)) {
+                    log.error("========================================");
+                    log.error("ONNX model file not found (requested='{}', resolved='{}')", modelPath, resolvedModelPath);
+                    log.error("Provider will not be available.");
+                    log.error("========================================");
+                    return;
+                }
+
+                log.info("Model file resolved to: {}", resolvedModelPath.toAbsolutePath());
+            }
 
             ortEnvironment = OrtEnvironment.getEnvironment();
             OrtSession.SessionOptions sessionOptions = new OrtSession.SessionOptions();
@@ -127,7 +157,11 @@ public class ONNXEmbeddingProvider implements EmbeddingProvider {
                 log.info("Using CPU for ONNX inference");
             }
 
-            ortSession = ortEnvironment.createSession(resolvedModelPath.toString(), sessionOptions);
+            if (resolvedModelBytes != null && resolvedModelBytes.length > 0) {
+                ortSession = ortEnvironment.createSession(resolvedModelBytes, sessionOptions);
+            } else {
+                ortSession = ortEnvironment.createSession(resolvedModelPath.toString(), sessionOptions);
+            }
 
             Map<String, NodeInfo> inputInfo = ortSession.getInputInfo();
             log.info("Model input names: {}", inputInfo.keySet());

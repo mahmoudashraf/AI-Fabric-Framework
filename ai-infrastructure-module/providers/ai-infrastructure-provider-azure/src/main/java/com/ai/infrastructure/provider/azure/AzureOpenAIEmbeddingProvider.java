@@ -67,6 +67,14 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             }
         }
 
+        // Mark configured as available without performing external network calls by default.
+        available = true;
+
+        if (!azure.isValidateOnStartup()) {
+            log.info("Azure embedding startup validation disabled (validate-on-startup=false). Skipping probe call.");
+            return;
+        }
+
         try {
             log.info("Validating Azure embedding deployment '{}'", azure.getEmbeddingDeploymentName());
             AIEmbeddingRequest probe = AIEmbeddingRequest.builder().text("ping").build();

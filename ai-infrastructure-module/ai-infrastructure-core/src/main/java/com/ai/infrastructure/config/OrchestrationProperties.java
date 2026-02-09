@@ -85,6 +85,34 @@ public class OrchestrationProperties {
     @Data
     public static class ModeOverrides {
         /**
+         * Whether ACTION intents may be executed in this mode.
+         *
+         * <p>When unset (null), ACTION handling remains enabled (backwards-compatible default).</p>
+         */
+        private Boolean actionsEnabled;
+
+        /**
+         * Whether retrieval (RAG) may be performed in this mode.
+         *
+         * <p>When unset (null), retrieval remains enabled (backwards-compatible default).</p>
+         */
+        private Boolean retrievalEnabled;
+
+        /**
+         * Whether broad retrieval expansion beyond pinned targets is permitted in this mode.
+         *
+         * <p>This is intended for explicit deep modes (e.g., navigator_deep).</p>
+         */
+        private Boolean deepRetrievalEnabled;
+
+        /**
+         * Whether smart suggestions should run in this mode.
+         *
+         * <p>When unset (null), suggestions remain enabled (backwards-compatible default).</p>
+         */
+        private Boolean suggestionsEnabled;
+
+        /**
          * Optional mode override for information orchestration behavior.
          */
         private InformationMode informationMode;
@@ -103,6 +131,51 @@ public class OrchestrationProperties {
          * <p>When unset, the global {@code ai.orchestration.rag.target-hint.enabled} value applies.</p>
          */
         private Boolean ragTargetHintEnabled;
+
+        /**
+         * Optional mode override for RAG budgeting and scoping.
+         */
+        private RagModeOverrides rag;
+    }
+
+    @Data
+    public static class RagModeOverrides {
+        /**
+         * Whether fan-out across multiple vector spaces is allowed when routing requires it.
+         */
+        private Boolean fanoutEnabled;
+
+        /**
+         * Max number of vector spaces to search in fan-out mode.
+         */
+        private Integer maxSpaces;
+
+        /**
+         * Top K documents to retrieve per space in fan-out mode.
+         */
+        private Integer topKPerSpace;
+
+        /**
+         * Max documents returned to the client (UI payload).
+         */
+        private Integer maxDocumentsReturnedToClient;
+
+        /**
+         * Max documents used to build LLM grounding context.
+         */
+        private Integer maxDocumentsUsedForContext;
+
+        /**
+         * Max chars of grounding context passed to the LLM.
+         */
+        private Integer maxContextChars;
+
+        /**
+         * Allowlisted vector spaces for retrieval in this mode (fail-closed).
+         *
+         * <p>When non-empty, retrieval may only use spaces from this list.</p>
+         */
+        private List<String> retrievalVectorSpacesAllowlist = new ArrayList<>();
     }
 
     @Data

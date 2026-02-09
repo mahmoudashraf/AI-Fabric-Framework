@@ -7,8 +7,32 @@ ai:
       navigator_deep:
         information-mode: DETERMINISTIC_RAG_GENERATE
         use-advanced-rag: true
+        actions-enabled: false
+        retrieval-enabled: true
+        deep-retrieval-enabled: true
+        rag:
+          fanout-enabled: true
+          max-spaces: 6
+          top-k-per-space: 8
+          max-documents-returned-to-client: 30
+          max-documents-used-for-context: 8
+          max-context-chars: 6000
+      executor:
+        information-mode: LLM_DRIVEN
+        actions-enabled: true
+        retrieval-enabled: true
+        deep-retrieval-enabled: false
+        suggestions-enabled: false
+        rag:
+          max-documents-returned-to-client: 10
+          max-documents-used-for-context: 5
+          max-context-chars: 4000
+          retrieval-vector-spaces-allowlist:
+            - policy
       cart_assistant:
         information-mode: LLM_DRIVEN
     position-routing:
       landing: navigator
+      catalog: navigator
+      search: navigator
       cart: cart_assistant

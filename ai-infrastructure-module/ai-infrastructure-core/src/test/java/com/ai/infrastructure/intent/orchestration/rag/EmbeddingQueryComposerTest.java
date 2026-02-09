@@ -33,7 +33,7 @@ class EmbeddingQueryComposerTest {
                 .contentText("Bose Pro Headphones")
                 .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
                 .build()))
-            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null))
+            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null, null, null))
             .build();
 
         EmbeddingQueryComposer.Result result = EmbeddingQueryComposer.compose("any negative reviews?", intent, ctx, props);
@@ -62,7 +62,7 @@ class EmbeddingQueryComposerTest {
                 .metadata(Map.of("sku", "SKU-BOS-20002", "email", "test@example.com"))
                 .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
                 .build()))
-            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null))
+            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null, null, null))
             .build();
 
         EmbeddingQueryComposer.Result result = EmbeddingQueryComposer.compose("any negative reviews?", intent, ctx, props);
@@ -103,7 +103,7 @@ class EmbeddingQueryComposerTest {
                 .metadata(Map.of("sku", "SKU-BOS-20002"))
                 .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
                 .build()))
-            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null))
+            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null, null, null))
             .build();
 
         EmbeddingQueryComposer.Result result = EmbeddingQueryComposer.compose("any negative reviews?", intent, ctx, props);
@@ -134,7 +134,7 @@ class EmbeddingQueryComposerTest {
                 .metadata(Map.of())
                 .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
                 .build()))
-            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null))
+            .orchestrationPolicy(new OrchestrationPolicy(OrchestrationProfile.DEFAULT, "navigator_deep", null, null, null, null))
             .build();
 
         EmbeddingQueryComposer.Result result = EmbeddingQueryComposer.compose("any negative reviews?", intent, ctx, props);
