@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
 import com.ai.infrastructure.config.OrchestrationProperties;
+import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -12,12 +13,15 @@ import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachmen
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationProfile;
 import com.ai.infrastructure.intent.vectorspace.RoutingResult;
 import com.ai.infrastructure.intent.vectorspace.RoutingStrategy;
 import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 
+import java.util.Map;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,6 +40,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf((KnowledgeBaseOverviewService) null)
         );
 
@@ -69,6 +74,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf(overviewService)
         );
 
@@ -98,6 +104,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf((KnowledgeBaseOverviewService) null)
         );
 
@@ -134,6 +141,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf((KnowledgeBaseOverviewService) null)
         );
 
@@ -170,6 +178,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf((KnowledgeBaseOverviewService) null)
         );
 
@@ -205,6 +214,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf((KnowledgeBaseOverviewService) null)
         );
 
@@ -240,6 +250,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf((KnowledgeBaseOverviewService) null)
         );
 
@@ -291,6 +302,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf((KnowledgeBaseOverviewService) null)
         );
 
@@ -328,6 +340,7 @@ class VectorSpaceResolutionStepTest {
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
             router,
             new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
             providerOf((KnowledgeBaseOverviewService) null)
         );
 
@@ -349,6 +362,63 @@ class VectorSpaceResolutionStepTest {
         assertThat(updated.getEarlyTerminationResult()).isNotNull();
         assertThat(updated.getEarlyTerminationResult().getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
         assertThat(updated.getEarlyTerminationResult().getData()).containsEntry("candidateVectorSpaces", List.of());
+    }
+
+    @Test
+    void shouldFallbackToDeepVectorSpacesWhenRoutingFailsInDeepMode() {
+        VectorSpaceRouter router = mock(VectorSpaceRouter.class);
+        when(router.route(any(), anyString())).thenReturn(RoutingResult.builder()
+            .success(false)
+            .candidateSpaces(List.of("faq"))
+            .strategy(RoutingStrategy.CLARIFICATION)
+            .confidence(0.0d)
+            .rationale("need clarification")
+            .build());
+
+        KnowledgeBaseOverviewService overviewService = mock(KnowledgeBaseOverviewService.class);
+        when(overviewService.getOverview()).thenReturn(KnowledgeBaseOverview.builder()
+            .entityTypes(List.of("product", "review", "policy"))
+            .documentsByType(Map.of(
+                "review", 50L,
+                "product", 100L,
+                "policy", 10L
+            ))
+            .build());
+
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
+            providerOf(overviewService)
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("compare")
+            .requiresRetrieval(true)
+            .vectorSpace(null)
+            .build();
+
+        OrchestrationPolicy policy = new OrchestrationPolicy(
+            OrchestrationProfile.DEFAULT,
+            "navigator_deep",
+            null,
+            OrchestrationProperties.InformationMode.LLM_DRIVEN,
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, true, true),
+            new OrchestrationPolicy.RagBudgets(true, 2, null, null, null, null, List.of())
+        );
+
+        PipelineContext context = PipelineContext.from("q", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(policy)
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated.isShouldTerminate()).isFalse();
+        assertThat(updated.getIntentResponse().getIntents().getFirst().getVectorSpace()).isEqualTo("product,review");
+        assertThat(updated.getMetadata()).containsKey("vectorSpaceRouting");
     }
 
     private <T> ObjectProvider<T> providerOf(T value) {

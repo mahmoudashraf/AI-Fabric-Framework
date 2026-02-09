@@ -96,6 +96,21 @@ This requires explicit, policy-driven budgets:
 ---
 
 ## Configuration (curated‑pack driven)
+### Curated pack selection semantics (default pack behavior)
+We want curated packs to be **explicit, non‑layered**, and predictable:
+
+- **One active pack per app/environment** (no inheritance/merging in v1).
+  - If the app sets `ai.curated.pack=commerce`, the `default` pack is **not** loaded/merged.
+- The **`default` pack is navigator‑only**:
+  - It should define **only** the `navigator` mode (no position routing; all positions resolve to `navigator`).
+  - It should **not** ship `navigator_deep` / `executor` / `cart_assistant` overrides.
+- **Fail‑closed for unsupported modes**:
+  - If a request specifies a mode that is **not supported by the active pack**, terminate with `CLARIFICATION_REQUIRED` (or `ERROR` if that is more consistent) and include a debug/data payload such as:
+    - `data.supportedModes=["navigator"]`
+    - `data.suggestedPack="commerce"` (optional)
+
+> Rationale: “default pack = navigator only” avoids accidental partial enablement of advanced modes and keeps v1 predictable.
+
 ### New mode overrides (additive)
 Extend `ai.orchestration.modes.<mode>` overrides to include the capability bundle flags:
 
@@ -152,9 +167,13 @@ ai:
 ```
 
 ### Position routing defaults (curated packs)
-Keep the minimal generic default:
-- `landing/catalog/search → navigator`
-No default routing for cart/support/etc in the core pack (apps can override).
+Default pack:
+- No position routing (all positions resolve to `navigator`).
+
+Commerce pack (optional):
+- May use minimal routing such as `landing/catalog/search → navigator`.
+
+No default routing for cart/support/etc in the default pack (apps can override via curated packs).
 
 ---
 
@@ -241,7 +260,9 @@ Add/extend `metadata.rag` debug block to include:
 1) Add capability flags + debug fields (no behavior changes).
 2) Wire capability flags into prompt section rendering.
 3) Add pipeline enforcement gates.
-4) Add curated pack defaults for `navigator_deep` and `executor`.
+4) Add curated packs:
+   - `default` (navigator‑only) + “unsupported mode” fail‑closed behavior.
+   - `commerce` defaults for `navigator_deep` and `executor`.
 5) Add docs updates:
    - extend `Final_Documentation/Development_Guides/CURATED_MODES_PACKS_GUIDE.md` with new flags
    - add a short “Mode capabilities” section to `changes/MVP/V1_PRODUCTION_WORKING_SOLUTION_DEFINITION_OF_DONE.md` (optional)

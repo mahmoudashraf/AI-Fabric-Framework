@@ -11,6 +11,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.intent.vectorspace.RoutingResult;
 import com.ai.infrastructure.intent.vectorspace.VectorSpaceRouter;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -46,6 +48,7 @@ public class VectorSpaceResolutionStep implements PipelineStep {
 
     private final VectorSpaceRouter vectorSpaceRouter;
     private final OrchestrationProperties orchestrationProperties;
+    private final VectorSpaceRoutingProperties vectorSpaceRoutingProperties;
     private final ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider;
 
     @Override
@@ -66,6 +69,13 @@ public class VectorSpaceResolutionStep implements PipelineStep {
         }
 
         OrchestrationPolicy policy = context.getOrchestrationPolicy();
+        OrchestrationPolicy.OrchestrationCapabilities capabilities = policy != null ? policy.capabilities() : null;
+        OrchestrationPolicy.RagBudgets ragBudgets = policy != null ? policy.ragBudgets() : null;
+        boolean deepRetrievalEnabled = capabilities != null && capabilities.deepRetrievalEnabled();
+        boolean fanoutAllowed = ragBudgets == null
+            || ragBudgets.fanoutEnabled() == null
+            || Boolean.TRUE.equals(ragBudgets.fanoutEnabled());
+        int maxSpacesBudget = resolveEffectiveMaxSpaces(ragBudgets, fanoutAllowed);
         boolean deterministic = policy != null
             ? policy.informationMode() == OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE
             : (orchestrationProperties != null
@@ -97,15 +107,22 @@ public class VectorSpaceResolutionStep implements PipelineStep {
                 }
                 if (availableVectorSpaces != null && !availableVectorSpaces.isEmpty() && canonicalByLower != null && !canonicalByLower.isEmpty()) {
                     VectorSpaceNormalization normalization = normalizeVectorSpaces(intent.getVectorSpace(), canonicalByLower);
-                    if (normalization != null && !normalization.invalidTokens().isEmpty()) {
-                        String prior = intent.getVectorSpace();
-                        if (normalization.normalizedValid().isEmpty()) {
-                            intent.setVectorSpace(String.join(",", availableVectorSpaces));
-                            routingEvents.add(toNormalizationEvent(i, "INVALID_FALLBACK_FAN_OUT", prior, intent.getVectorSpace(),
-                                normalization.invalidTokens(), availableVectorSpaces));
-                        } else {
-                            intent.setVectorSpace(String.join(",", normalization.normalizedValid()));
-                            routingEvents.add(toNormalizationEvent(i, "INVALID_FILTERED", prior, intent.getVectorSpace(),
+	                    if (normalization != null && !normalization.invalidTokens().isEmpty()) {
+	                        String prior = intent.getVectorSpace();
+	                        if (normalization.normalizedValid().isEmpty()) {
+	                            List<String> fallbackSpaces = availableVectorSpaces;
+	                            if (ragBudgets != null
+	                                && ragBudgets.maxSpaces() != null
+	                                && ragBudgets.maxSpaces() > 0
+	                                && fallbackSpaces.size() > ragBudgets.maxSpaces()) {
+	                                fallbackSpaces = fallbackSpaces.subList(0, ragBudgets.maxSpaces());
+	                            }
+	                            intent.setVectorSpace(String.join(",", fallbackSpaces));
+	                            routingEvents.add(toNormalizationEvent(i, "INVALID_FALLBACK_FAN_OUT", prior, intent.getVectorSpace(),
+	                                normalization.invalidTokens(), availableVectorSpaces));
+	                        } else {
+	                            intent.setVectorSpace(String.join(",", normalization.normalizedValid()));
+	                            routingEvents.add(toNormalizationEvent(i, "INVALID_FILTERED", prior, intent.getVectorSpace(),
                                 normalization.invalidTokens(), availableVectorSpaces));
                         }
                         anyUpdate = true;
@@ -121,15 +138,22 @@ public class VectorSpaceResolutionStep implements PipelineStep {
 
             if (deterministic) {
                 if (!hasText(intent.getVectorSpace())) {
-                    RoutingResult routing = vectorSpaceRouter.route(intent, context.getOriginalQuery());
-                    routingEvents.add(toRoutingEvent(i, routing));
+	                    RoutingResult routing = vectorSpaceRouter.route(intent, context.getOriginalQuery());
+	                    routingEvents.add(toRoutingEvent(i, routing));
 
-                    String resolvedVectorSpace = resolveVectorSpaceString(routing);
-                    if (!hasText(resolvedVectorSpace)
-                        && routing != null
-                        && routing.getCandidateSpaces() != null
-                        && !routing.getCandidateSpaces().isEmpty()) {
-                        // Deterministic mode: use router candidates instead of terminating for clarification.
+	                    String resolvedVectorSpace = resolveVectorSpaceString(routing);
+	                    if (deepRetrievalEnabled && (routing == null || routing.requiresFanOut() || !hasText(resolvedVectorSpace))) {
+	                        List<String> fallback = resolveDeepFallbackVectorSpaces(maxSpacesBudget, ragBudgets);
+	                        if (!fallback.isEmpty()) {
+	                            resolvedVectorSpace = String.join(",", fallback);
+	                            routingEvents.add(toDeepFallbackEvent(i, resolvedVectorSpace, fallback));
+	                        }
+	                    }
+	                    if (!hasText(resolvedVectorSpace)
+	                        && routing != null
+	                        && routing.getCandidateSpaces() != null
+	                        && !routing.getCandidateSpaces().isEmpty()) {
+	                        // Deterministic mode: use router candidates instead of terminating for clarification.
                         resolvedVectorSpace = String.join(",", routing.getCandidateSpaces());
                     }
 
@@ -147,18 +171,44 @@ public class VectorSpaceResolutionStep implements PipelineStep {
                 continue;
             }
 
-            RoutingResult routing = vectorSpaceRouter.route(intent, context.getOriginalQuery());
-            routingEvents.add(toRoutingEvent(i, routing));
+	            RoutingResult routing = vectorSpaceRouter.route(intent, context.getOriginalQuery());
+	            routingEvents.add(toRoutingEvent(i, routing));
 
-            if (routing == null || !routing.isSuccess()) {
-                List<String> candidates = routing != null ? routing.getCandidateSpaces() : List.of();
-                return context.terminate(buildClarificationResult(candidates, context, routingEvents));
-            }
+	            if (routing == null || !routing.isSuccess()) {
+	                if (deepRetrievalEnabled) {
+	                    List<String> fallback = resolveDeepFallbackVectorSpaces(maxSpacesBudget, ragBudgets);
+	                    if (!fallback.isEmpty()) {
+	                        String resolvedVectorSpace = String.join(",", fallback);
+	                        intent.setVectorSpace(resolvedVectorSpace);
+	                        routingEvents.add(toDeepFallbackEvent(i, resolvedVectorSpace, fallback));
+	                        anyUpdate = true;
+	                        continue;
+	                    }
+	                }
+	                List<String> candidates = routing != null ? routing.getCandidateSpaces() : List.of();
+	                return context.terminate(buildClarificationResult(candidates, context, routingEvents));
+	            }
 
-            String resolvedVectorSpace = resolveVectorSpaceString(routing);
-            if (!hasText(resolvedVectorSpace)) {
-                return context.terminate(buildClarificationResult(List.of(), context, routingEvents));
-            }
+	            String resolvedVectorSpace = resolveVectorSpaceString(routing);
+	            if (deepRetrievalEnabled && routing != null && routing.requiresFanOut()) {
+	                List<String> fallback = resolveDeepFallbackVectorSpaces(maxSpacesBudget, ragBudgets);
+	                if (!fallback.isEmpty()) {
+	                    resolvedVectorSpace = String.join(",", fallback);
+	                    routingEvents.add(toDeepFallbackEvent(i, resolvedVectorSpace, fallback));
+	                }
+	            }
+	            if (!hasText(resolvedVectorSpace)) {
+	                if (deepRetrievalEnabled) {
+	                    List<String> fallback = resolveDeepFallbackVectorSpaces(maxSpacesBudget, ragBudgets);
+	                    if (!fallback.isEmpty()) {
+	                        resolvedVectorSpace = String.join(",", fallback);
+	                        routingEvents.add(toDeepFallbackEvent(i, resolvedVectorSpace, fallback));
+	                    }
+	                }
+	                if (!hasText(resolvedVectorSpace)) {
+	                    return context.terminate(buildClarificationResult(List.of(), context, routingEvents));
+	                }
+	            }
 
             intent.setVectorSpace(resolvedVectorSpace);
             anyUpdate = true;
@@ -178,13 +228,90 @@ public class VectorSpaceResolutionStep implements PipelineStep {
                 .build();
         }
 
-        return updated;
-    }
+	        return updated;
+	    }
 
-    private List<String> resolveAllVectorSpaces() {
-        KnowledgeBaseOverviewService overviewService = knowledgeBaseOverviewServiceProvider != null
-            ? knowledgeBaseOverviewServiceProvider.getIfAvailable()
-            : null;
+	    private int resolveEffectiveMaxSpaces(OrchestrationPolicy.RagBudgets ragBudgets, boolean fanoutAllowed) {
+	        if (!fanoutAllowed) {
+	            return 1;
+	        }
+	        Integer maxOverride = ragBudgets != null ? ragBudgets.maxSpaces() : null;
+	        if (maxOverride != null && maxOverride > 0) {
+	            return maxOverride;
+	        }
+	        int maxDefault = vectorSpaceRoutingProperties != null ? vectorSpaceRoutingProperties.getFanOutMaxSpaces() : 3;
+	        return Math.max(1, maxDefault);
+	    }
+
+	    private List<String> resolveDeepFallbackVectorSpaces(int maxSpaces,
+	                                                        OrchestrationPolicy.RagBudgets ragBudgets) {
+	        KnowledgeBaseOverviewService overviewService = knowledgeBaseOverviewServiceProvider != null
+	            ? knowledgeBaseOverviewServiceProvider.getIfAvailable()
+	            : null;
+	        if (overviewService == null) {
+	            return List.of();
+	        }
+
+	        KnowledgeBaseOverview overview = overviewService.getOverview();
+	        if (overview == null) {
+	            return List.of();
+	        }
+
+	        List<String> entityTypes = overview.getEntityTypes();
+	        Map<String, Long> byType = overview.getDocumentsByType();
+
+	        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+	        if (byType != null && !byType.isEmpty()) {
+	            byType.entrySet().stream()
+	                .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank())
+	                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.nullsLast(Long::compareTo)).reversed())
+	                .map(Map.Entry::getKey)
+	                .forEach(ordered::add);
+	        }
+
+	        if (entityTypes != null && !entityTypes.isEmpty()) {
+	            entityTypes.stream()
+	                .filter(this::hasText)
+	                .map(String::trim)
+	                .forEach(ordered::add);
+	        }
+
+	        List<String> out = ordered.stream()
+	            .filter(this::hasText)
+	            .map(String::trim)
+	            .distinct()
+	            .toList();
+
+	        if (ragBudgets != null && ragBudgets.hasVectorSpaceAllowlist()) {
+	            List<String> allowlist = ragBudgets.retrievalVectorSpacesAllowlist();
+	            out = out.stream()
+	                .filter(space -> allowlist.contains(space.toLowerCase(Locale.ROOT)))
+	                .toList();
+	        }
+
+	        int effectiveMax = Math.max(1, maxSpaces);
+	        if (out.size() > effectiveMax) {
+	            out = out.subList(0, effectiveMax);
+	        }
+	        return out;
+	    }
+
+	    private Map<String, Object> toDeepFallbackEvent(int intentIndex,
+	                                                    String resolvedVectorSpace,
+	                                                    List<String> selectedSpaces) {
+	        Map<String, Object> event = new LinkedHashMap<>();
+	        event.put("intentIndex", intentIndex);
+	        event.put("success", true);
+	        event.put("strategy", "DEEP_FALLBACK");
+	        event.put("vectorSpace", resolvedVectorSpace);
+	        event.put("selectedSpaces", selectedSpaces != null ? selectedSpaces : List.of());
+	        return Collections.unmodifiableMap(event);
+	    }
+
+	    private List<String> resolveAllVectorSpaces() {
+	        KnowledgeBaseOverviewService overviewService = knowledgeBaseOverviewServiceProvider != null
+	            ? knowledgeBaseOverviewServiceProvider.getIfAvailable()
+	            : null;
         if (overviewService == null) {
             return List.of();
         }
