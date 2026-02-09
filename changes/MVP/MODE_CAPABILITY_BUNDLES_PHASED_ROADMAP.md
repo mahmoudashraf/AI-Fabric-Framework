@@ -107,43 +107,38 @@ Tests:
 
 ---
 
-### Phase 2 — `executor` Mode (Action-first, Retrieval Restricted & Minimal Prompting) ⏳ PENDING
+### Phase 2 — `executor` Mode (Action-first, Retrieval Restricted & Minimal Prompting) ✅ DONE
 **Goal:** a reliable action-oriented mode that does not confuse the LLM with RAG browsing.
 
-#### What’s missing / needs review
-- We already enforce capabilities + allowlist at runtime.
-- What’s not yet “tight” is the *experience contract*:
-  - prompt tuning for action-first extraction
-  - clear developer-facing config guide
-  - optional restricted retrieval for policies without leaking KB dump
+#### Delivered
+1) **Executor prompt minimalism**
+- Knowledge base overview section is suppressed in `executor` to avoid “KB browsing” confusion.
+- Policy constraints addon explicitly instructs:
+  - action-first behavior
+  - retrieval is restricted
+  - `vectorSpace` is mandatory when `requiresRetrieval=true` (executor only)
 
-#### Deliverables (Phase 2)
-1) **Executor prompt “minimalism”**
-- In `executor`, system prompt should:
-  - emphasize action selection + parameter filling
-  - either exclude KB overview entirely, OR
-  - include only allowlisted spaces (policy) and minimal retrieval instructions.
-
-2) **Restricted retrieval enforcement**
-- Keep `retrievalVectorSpacesAllowlist` as the only supported retrieval in executor.
-- If allowlist present:
-  - enforce it strictly
-  - apply tight budgets (UI docs + LLM context)
+2) **Restricted retrieval enforcement (fail-closed)**
+- Executor retrieval requires a non-empty `retrievalVectorSpacesAllowlist`:
+  - missing allowlist → `CLARIFICATION_REQUIRED` (`reason=EXECUTOR_RETRIEVAL_ALLOWLIST_REQUIRED`, `suggestedMode=navigator`)
+- Executor no longer defaults missing `vectorSpace` to the allowlist (prevents “product search accidentally searches policy”):
+  - missing vectorSpace → `CLARIFICATION_REQUIRED` (`reason=VECTOR_SPACE_REQUIRED_IN_MODE`, `allowedVectorSpaces=[...]`)
 
 3) **Clear “mode errors”**
-When a request is incompatible with executor:
-- Return `CLARIFICATION_REQUIRED` with:
-  - `suggestedMode=navigator` (for broad search)
-  - a short reason code.
+- When the extractor requests a non-allowlisted vectorSpace in executor:
+  - returns `CLARIFICATION_REQUIRED` with `reason=VECTOR_SPACE_NOT_ALLOWED_IN_MODE`
+  - includes `suggestedMode=navigator` for broad KB searches
 
 #### Validation (Phase 2)
-Manual:
-- In executor, ask “search for laptops under $1000” → should ask to switch to navigator (no RAG browse).
-- In executor, ask “what is the refund policy?” → if allowlist includes `policy`, retrieval can run.
+Manual (example checks):
+- executor + “search for laptops under $1000” → denied vectorSpace + `suggestedMode=navigator`
+- executor + “what is the refund policy?” → requires vectorSpace (policy) or clarifies allowlist
 
 Tests:
-- executor + retrieval disabled → retrieval intent → `CLARIFICATION_REQUIRED`.
-- executor + allowlist configured → denied space → `CLARIFICATION_REQUIRED`.
+- `IntentHandlingStepExecutorModeTest`
+  - allowlist missing → `EXECUTOR_RETRIEVAL_ALLOWLIST_REQUIRED`
+  - vectorSpace missing → `VECTOR_SPACE_REQUIRED_IN_MODE`
+  - denied vectorSpace → `VECTOR_SPACE_NOT_ALLOWED_IN_MODE` + `suggestedMode=navigator`
 
 ---
 
