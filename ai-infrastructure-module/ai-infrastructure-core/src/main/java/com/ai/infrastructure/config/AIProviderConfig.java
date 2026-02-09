@@ -241,6 +241,13 @@ public class AIProviderConfig {
     @Data
     public static class OpenAIConfig {
         private boolean enabled = true;
+        /**
+         * When true, performs a small network probe during provider initialization to validate credentials
+         * and detect the embedding dimension.
+         *
+         * <p>Default is {@code false} to keep startup fast and to avoid external network calls in tests.</p>
+         */
+        private boolean validateOnStartup = false;
         private String apiKey;
         private String baseUrl;
         private String model;
@@ -276,6 +283,12 @@ public class AIProviderConfig {
     @Data
     public static class AzureConfig {
         private boolean enabled;
+        /**
+         * When true, performs a small network probe during provider initialization to validate the embedding deployment.
+         *
+         * <p>Default is {@code false} to avoid external network calls during unit/integration tests.</p>
+         */
+        private boolean validateOnStartup = false;
         private String apiKey;
         private String endpoint;
         private String deploymentName;
@@ -326,6 +339,12 @@ public class AIProviderConfig {
     @Data
     public static class GeminiConfig {
         private boolean enabled;
+        /**
+         * When true, performs a small network probe during provider initialization to validate credentials.
+         *
+         * <p>Default is {@code false} to avoid external network calls during unit/integration tests.</p>
+         */
+        private boolean validateOnStartup = false;
         private String apiKey;
         private String baseUrl;
         private String model;
@@ -354,6 +373,12 @@ public class AIProviderConfig {
     @Data
     public static class CohereConfig {
         private boolean enabled;
+        /**
+         * When true, performs a small network probe during provider initialization to validate credentials.
+         *
+         * <p>Default is {@code false} to avoid external network calls during unit/integration tests.</p>
+         */
+        private boolean validateOnStartup = false;
         private String apiKey;
         private String baseUrl;
         private String model;
@@ -435,6 +460,12 @@ public class AIProviderConfig {
     @Data
     public static class RestConfig {
         private boolean enabled;
+        /**
+         * When true, performs a health check during provider initialization.
+         *
+         * <p>Default is {@code false} to keep startup fast and avoid failing tests when a local service is absent.</p>
+         */
+        private boolean validateOnStartup = false;
         private String baseUrl;
         private String endpoint = "/embed";
         private String batchEndpoint = "/embed/batch";

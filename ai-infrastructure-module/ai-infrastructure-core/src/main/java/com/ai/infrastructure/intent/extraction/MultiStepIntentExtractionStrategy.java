@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.OrchestrationPolicyPromptConstraints;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
@@ -177,7 +178,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .entityId("intent-" + UUID.randomUUID())
             .entityType(ENTITY_TYPE)
             .generationType(GENERATION_TYPE + "_classify")
-            .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
+            .systemPrompt(buildSystemPrompt(context))
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
@@ -257,7 +258,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .entityId("intent-" + UUID.randomUUID())
             .entityType(ENTITY_TYPE)
             .generationType(GENERATION_TYPE + "_select_actions")
-            .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
+            .systemPrompt(buildSystemPrompt(context))
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
@@ -400,7 +401,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .entityId("intent-" + UUID.randomUUID())
             .entityType(ENTITY_TYPE)
             .generationType(GENERATION_TYPE + "_fill_params")
-            .systemPrompt(renderTemplate(TEMPLATE_SYSTEM, Map.of()))
+            .systemPrompt(buildSystemPrompt(context))
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
@@ -461,6 +462,17 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             promptTemplateResolver.resolve(TEMPLATE_FAMILY, name).template(),
             values
         );
+    }
+
+    private String buildSystemPrompt(OrchestrationContext context) {
+        String base = renderTemplate(TEMPLATE_SYSTEM, Map.of());
+        String addon = OrchestrationPolicyPromptConstraints.buildSystemAddon(
+            context != null ? context.getOrchestrationPolicy() : null
+        );
+        if (!StringUtils.hasText(addon)) {
+            return base;
+        }
+        return (StringUtils.hasText(base) ? base.trim() + "\n\n" : "") + addon;
     }
 
     private String normalizeActionName(String value) {

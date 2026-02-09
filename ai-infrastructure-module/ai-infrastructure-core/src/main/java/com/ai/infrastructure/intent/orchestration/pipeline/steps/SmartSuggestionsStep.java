@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -131,7 +132,15 @@ public class SmartSuggestionsStep implements PipelineStep {
     @Override
     public PipelineContext process(PipelineContext context) {
         OrchestrationResult result = context.getIntentResult();
-        
+
+        OrchestrationPolicy policy = context.getOrchestrationPolicy();
+        if (policy != null
+            && policy.capabilities() != null
+            && !policy.capabilities().suggestionsEnabled()) {
+            log.debug("Smart suggestions skipped for request {} (suggestions disabled by policy)", context.getRequestId());
+            return context;
+        }
+
         if (result == null || !smartSuggestionsProperties.isEnabled()) {
             log.debug("Smart suggestions skipped for request {} (result={}, enabled={})", 
                 context.getRequestId(), result != null, smartSuggestionsProperties.isEnabled());

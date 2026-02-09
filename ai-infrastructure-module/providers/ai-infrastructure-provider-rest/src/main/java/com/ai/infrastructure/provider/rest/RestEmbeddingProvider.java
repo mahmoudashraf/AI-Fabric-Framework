@@ -44,6 +44,19 @@ public class RestEmbeddingProvider implements EmbeddingProvider {
         try {
             log.info("Initializing REST Embedding Provider");
 
+            AIProviderConfig.RestConfig rest = config.getRest();
+            if (rest == null || !rest.isEnabled()) {
+                log.info("REST embedding provider disabled via configuration");
+                available = false;
+                return;
+            }
+
+            if (!rest.isValidateOnStartup()) {
+                log.info("REST embedding startup validation disabled (validate-on-startup=false). Skipping health check.");
+                available = false;
+                return;
+            }
+
             // Test connection
             testConnection();
             

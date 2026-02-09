@@ -18,17 +18,23 @@ Implementation detail:
 - Core loads the pack via `CuratedPackEnvironmentPostProcessor`.
 
 ## Available packs
-- `catalog` → deterministic “navigator” defaults (good for demos/catalogs).
-- `commerce` → `navigator` + `cart_assistant` defaults (commerce flows).
-- `support` → `support_resolver` defaults (support/issue resolution).
+- `commerce` → production chat defaults for e-commerce flows:
+  - `navigator` (keep current behavior)
+  - `navigator_deep` (deep retrieval, actions disabled)
+  - `executor` (action-first; optionally restricted retrieval)
+  - `cart_assistant` (action-oriented commerce helper)
+
+Planned (not shipped in this repo yet):
+- `catalog`
+- `support`
 
 ## Enable a pack
-Example (catalog):
+Example (commerce):
 
 ```yaml
 ai:
   curated:
-    pack: catalog
+    pack: commerce
 ```
 
 Dependency (Maven):
@@ -36,7 +42,7 @@ Dependency (Maven):
 ```xml
 <dependency>
   <groupId>com.ai.fabric</groupId>
-  <artifactId>ai-curated-catalog</artifactId>
+  <artifactId>ai-curated-commerce</artifactId>
   <version>1.0.0</version>
 </dependency>
 ```

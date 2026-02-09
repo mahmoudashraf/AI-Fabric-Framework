@@ -86,6 +86,14 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                 embeddingDimension = requestedDimensions;
                 log.info("Dimension reduction configured: {} dimensions. Using direct HTTP calls to OpenAI API.", requestedDimensions);
             }
+
+            // Mark configured as available without performing external network calls by default.
+            available = true;
+
+            if (!openai.isValidateOnStartup()) {
+                log.info("OpenAI embedding startup validation disabled (validate-on-startup=false). Skipping probe call.");
+                return;
+            }
             
             // Test connection with a small embedding call
             try {

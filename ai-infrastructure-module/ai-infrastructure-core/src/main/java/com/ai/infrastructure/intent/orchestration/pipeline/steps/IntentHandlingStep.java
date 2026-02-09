@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -285,6 +286,22 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.ACTION_DENIED)
                 .success(false)
                 .message(ERROR_MSG_ACTION_NOT_PERMITTED_ANON)
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        if (policy != null
+            && policy.capabilities() != null
+            && !policy.capabilities().actionsEnabled()) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("suggestedMode", "executor");
+            data.put("reason", "ACTIONS_DISABLED_IN_MODE");
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message("Actions are disabled in this mode. Switch to executor to run actions.")
+                .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
@@ -1542,6 +1559,12 @@ public class IntentHandlingStep implements PipelineStep {
     }
     
     private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        boolean retrievalEnabled = policy == null
+            || policy.capabilities() == null
+            || policy.capabilities().retrievalEnabled();
+        OrchestrationPolicy.RagBudgets ragBudgets = policy != null ? policy.ragBudgets() : null;
+
         boolean deterministic = isDeterministicInformationMode(pipelineContext);
         boolean requiresRetrieval = intent.requiresRetrievalOrDefault(true);
         boolean llmRequiresGeneration = intent.requiresGenerationOrDefault(false);
@@ -1583,6 +1606,19 @@ public class IntentHandlingStep implements PipelineStep {
             metadata.put("piiDetectedTypes", pipelineContext.getDetectedPiiTypesView());
         }
 
+        if (requiresRetrieval && !retrievalEnabled) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("suggestedMode", "navigator");
+            data.put("reason", "RETRIEVAL_DISABLED_IN_MODE");
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message("Retrieval is disabled in this mode. Switch to navigator to search.")
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
         if (!requiresRetrieval) {
             if (!needsGeneration) {
                 if (hasPendingAction(context)) {
@@ -1598,11 +1634,21 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
+        if (vectorSpaces.isEmpty()
+            && ragBudgets != null
+            && ragBudgets.hasVectorSpaceAllowlist()) {
+            vectorSpaces = ragBudgets.retrievalVectorSpacesAllowlist();
+            intent.setVectorSpace(String.join(",", vectorSpaces));
+        }
         if (vectorSpaces.isEmpty()) {
             List<String> allSpaces = deterministic
                 ? resolveDeterministicFallbackVectorSpaces()
                 : resolveAllVectorSpaces();
             if (!allSpaces.isEmpty()) {
+                Integer maxSpacesOverride = ragBudgets != null ? ragBudgets.maxSpaces() : null;
+                if (maxSpacesOverride != null && maxSpacesOverride > 0 && allSpaces.size() > maxSpacesOverride) {
+                    allSpaces = allSpaces.subList(0, maxSpacesOverride);
+                }
                 vectorSpaces = allSpaces;
                 intent.setVectorSpace(String.join(",", allSpaces));
             }
@@ -1617,6 +1663,29 @@ public class IntentHandlingStep implements PipelineStep {
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
+        }
+
+        if (ragBudgets != null && ragBudgets.hasVectorSpaceAllowlist()) {
+            List<String> allowlist = ragBudgets.retrievalVectorSpacesAllowlist();
+            List<String> denied = vectorSpaces.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .filter(vs -> !allowlist.contains(vs.toLowerCase(Locale.ROOT)))
+                .toList();
+            if (!denied.isEmpty()) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("allowedVectorSpaces", allowlist);
+                data.put("requestedVectorSpaces", vectorSpaces);
+                data.put("deniedVectorSpaces", denied);
+                data.put("reason", "VECTOR_SPACE_NOT_ALLOWED_IN_MODE");
+                return OrchestrationResult.builder()
+                    .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                    .success(false)
+                    .message("That request requires retrieval from a vector space that is not allowed in this mode.")
+                    .data(Collections.unmodifiableMap(data))
+                    .nextSteps(extractNextSteps(intent))
+                    .build();
+            }
         }
 
         String retrievalQuery = applyRetrievalQueryHint(retrievalBaseQuery, pipelineContext, intent, metadata);
@@ -1648,7 +1717,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         if (vectorSpaces.size() > 1) {
-            return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, generationQuery, retrievalQuery, metadata, vectorSpaces);
+            return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, generationQuery, retrievalQuery, metadata, vectorSpaces, ragBudgets);
         }
 
         String advancedDecisionQuery = StringUtils.hasText(optimizedQuery)
@@ -1667,7 +1736,7 @@ public class IntentHandlingStep implements PipelineStep {
             }
         }
 
-        return handleInformationBasic(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata);
+        return handleInformationBasic(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata, ragBudgets);
     }
 
     // Retrieval queries must always be derived from the user's actual query (PII-processed if enabled),
@@ -1774,7 +1843,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                        boolean needsGeneration,
                                                        String generationQuery,
                                                        String retrievalQuery,
-                                                       Map<String, Object> metadata) {
+                                                       Map<String, Object> metadata,
+                                                       OrchestrationPolicy.RagBudgets ragBudgets) {
         RAGProvider provider = ragProvider.getIfAvailable();
         if (provider == null) {
             Map<String, Object> data = new LinkedHashMap<>();
@@ -1793,10 +1863,15 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
+        int limit = DEFAULT_RAG_LIMIT;
+        if (ragBudgets != null && ragBudgets.maxDocumentsReturnedToClient() != null && ragBudgets.maxDocumentsReturnedToClient() > 0) {
+            limit = ragBudgets.maxDocumentsReturnedToClient();
+        }
+
         RAGRequest ragRequest = RAGRequest.builder()
             .query(retrievalQuery)
             .entityType(intent.getVectorSpace())
-            .limit(DEFAULT_RAG_LIMIT)
+            .limit(limit)
             .threshold(DEFAULT_RAG_THRESHOLD)
             .metadata(Collections.unmodifiableMap(metadata))
             .userId(context.getIdentifier())
@@ -1813,7 +1888,19 @@ public class IntentHandlingStep implements PipelineStep {
         String answer = null;
         if (needsGeneration) {
             try {
-                String generationContext = prependPinnedTargetsContext(ragResponse.getContext(), pipelineContext);
+                String baseContext = ragResponse.getContext();
+                if (ragBudgets != null && (ragBudgets.maxDocumentsUsedForContext() != null || ragBudgets.maxContextChars() != null)) {
+                    List<RAGResponse.RAGDocument> docs = ragResponse.getDocuments() != null ? ragResponse.getDocuments() : List.of();
+                    int docsForContext = DEFAULT_RAG_LIMIT;
+                    if (ragBudgets.maxDocumentsUsedForContext() != null && ragBudgets.maxDocumentsUsedForContext() > 0) {
+                        docsForContext = ragBudgets.maxDocumentsUsedForContext();
+                    }
+                    docsForContext = Math.min(docsForContext, docs.size());
+                    Integer maxChars = ragBudgets.maxContextChars();
+                    baseContext = buildContextFromDocuments(docs.subList(0, docsForContext), maxChars);
+                }
+
+                String generationContext = prependPinnedTargetsContext(baseContext, pipelineContext);
                 answer = generateRagAnswer(generationQuery, generationContext);
             } catch (Exception ex) {
                 log.error("RAG generation failed for request {}: {}",
@@ -1865,7 +1952,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                         String generationQuery,
                                                         String retrievalQuery,
                                                         Map<String, Object> metadata,
-                                                        List<String> vectorSpaces) {
+                                                        List<String> vectorSpaces,
+                                                        OrchestrationPolicy.RagBudgets ragBudgets) {
         RAGProvider provider = ragProvider.getIfAvailable();
         if (provider == null) {
             Map<String, Object> data = new LinkedHashMap<>();
@@ -1886,9 +1974,11 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
-        int topKPerSpace = vectorSpaceRoutingProperties != null
-            ? vectorSpaceRoutingProperties.getFanOutTopKPerSpace()
-            : DEFAULT_RAG_LIMIT;
+        int topKPerSpace = ragBudgets != null && ragBudgets.topKPerSpace() != null && ragBudgets.topKPerSpace() > 0
+            ? ragBudgets.topKPerSpace()
+            : (vectorSpaceRoutingProperties != null
+                ? vectorSpaceRoutingProperties.getFanOutTopKPerSpace()
+                : DEFAULT_RAG_LIMIT);
 
         double fanOutThreshold = vectorSpaceRoutingProperties != null
             ? vectorSpaceRoutingProperties.getFanOutRagThreshold()
@@ -1924,6 +2014,13 @@ public class IntentHandlingStep implements PipelineStep {
         List<RAGResponse.RAGDocument> merged = rankBasedMerger.mergeByRank(docsBySpace, topKPerSpace);
         merged = rankBasedMerger.dedupePreserveOrder(merged, doc -> doc != null ? doc.getId() : null);
 
+        if (ragBudgets != null
+            && ragBudgets.maxDocumentsReturnedToClient() != null
+            && ragBudgets.maxDocumentsReturnedToClient() > 0
+            && merged.size() > ragBudgets.maxDocumentsReturnedToClient()) {
+            merged = merged.subList(0, ragBudgets.maxDocumentsReturnedToClient());
+        }
+
         Double bestScore = bestDocumentScore(merged);
         double threshold = vectorSpaceRoutingProperties != null
             ? vectorSpaceRoutingProperties.getClarificationThreshold()
@@ -1947,8 +2044,13 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
-        int docsForContext = Math.min(DEFAULT_RAG_LIMIT, merged.size());
-        String mergedContext = buildContextFromDocuments(merged.subList(0, docsForContext));
+        int docsForContext = DEFAULT_RAG_LIMIT;
+        if (ragBudgets != null && ragBudgets.maxDocumentsUsedForContext() != null && ragBudgets.maxDocumentsUsedForContext() > 0) {
+            docsForContext = ragBudgets.maxDocumentsUsedForContext();
+        }
+        docsForContext = Math.min(docsForContext, merged.size());
+        Integer maxContextChars = ragBudgets != null ? ragBudgets.maxContextChars() : null;
+        String mergedContext = buildContextFromDocuments(merged.subList(0, docsForContext), maxContextChars);
         RAGResponse mergedResponse = RAGResponse.builder()
             .documents(merged)
             .context(mergedContext)
@@ -2666,9 +2768,14 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents) {
+        return buildContextFromDocuments(documents, null);
+    }
+
+    private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents, Integer maxChars) {
         if (documents == null || documents.isEmpty()) {
             return RAG_NO_CONTEXT_MESSAGE;
         }
+        int effectiveMaxChars = maxChars != null && maxChars > 0 ? maxChars : Integer.MAX_VALUE;
         StringBuilder builder = new StringBuilder();
         for (RAGResponse.RAGDocument doc : documents) {
             if (doc == null) {
@@ -2702,8 +2809,16 @@ public class IntentHandlingStep implements PipelineStep {
                 builder.append(doc.getContent()).append("\n");
             }
             builder.append("---\n");
+
+            if (builder.length() >= effectiveMaxChars) {
+                break;
+            }
         }
-        return builder.toString();
+        String out = builder.toString();
+        if (out.length() <= effectiveMaxChars) {
+            return out;
+        }
+        return out.substring(0, effectiveMaxChars);
     }
     
     private OrchestrationResult handleOutOfScope(Intent intent) {

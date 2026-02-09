@@ -65,7 +65,7 @@ Use a curated pack to enable “a coherent set” (profile + modes + prompt over
 ```yaml
 ai:
   curated:
-    pack: catalog   # or commerce / support
+    pack: commerce
 ```
 
 Curated packs:
@@ -141,7 +141,7 @@ Include **only** what is needed to ground intent decisions:
 - unbounded metadata (risk: prompt injection, token explosion)
 
 ### Why this matches the framework philosophy
-From `Final_Documentation/Development_Guides/AI_FABRIC_FRAMEWORK_PHILOSOPHY.md`:
+From `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_FRAMEWORK_PHILOSOPHY.md`:
 - **Respecting intelligence:** don’t ask the LLM to decide without giving it the relevant system facts.
 - **Performance as a feature:** keep the context bounded and structured.
 - **Security is not optional:** apply sanitization/PII rules before prompts.

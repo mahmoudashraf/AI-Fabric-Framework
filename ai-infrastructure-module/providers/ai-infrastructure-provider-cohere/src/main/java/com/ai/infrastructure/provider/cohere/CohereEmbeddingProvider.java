@@ -55,6 +55,14 @@ public class CohereEmbeddingProvider implements EmbeddingProvider {
                 available = false;
                 return;
             }
+
+            // Mark configured as available without performing external network calls by default.
+            available = true;
+
+            if (!cohere.isValidateOnStartup()) {
+                log.info("Cohere embedding startup validation disabled (validate-on-startup=false). Skipping probe call.");
+                return;
+            }
             
             // Test connection with a small embedding call
             try {
