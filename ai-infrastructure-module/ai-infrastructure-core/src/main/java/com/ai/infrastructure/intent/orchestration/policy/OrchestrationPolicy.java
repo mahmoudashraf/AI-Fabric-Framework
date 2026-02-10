@@ -45,10 +45,14 @@ public record OrchestrationPolicy(
         boolean retrievalEnabled,
         boolean deepRetrievalEnabled,
         boolean suggestionsEnabled,
-        boolean exposeReadProbeFallbackAttempt
+        boolean exposeReadProbeFallbackAttempt,
+        boolean actionsPreferred,
+        boolean knowledgeBaseOverviewEnabled,
+        boolean retrievalAllowlistRequired,
+        boolean vectorSpaceSelectionRequired
     ) {
         public static OrchestrationCapabilities defaults() {
-            return new OrchestrationCapabilities(true, true, false, true, false);
+            return new OrchestrationCapabilities(true, true, false, true, false, false, true, false, false);
         }
     }
 

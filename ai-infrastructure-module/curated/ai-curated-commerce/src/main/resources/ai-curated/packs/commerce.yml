@@ -1,6 +1,7 @@
 ai:
   orchestration:
     profile: PRODUCTION_CHAT
+    default-mode: navigator
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
@@ -23,6 +24,9 @@ ai:
         retrieval-enabled: true
         deep-retrieval-enabled: false
         suggestions-enabled: false
+        actions-preferred: true
+        knowledge-base-overview-enabled: false
+        retrieval-allowlist-required: true
         rag:
           max-documents-returned-to-client: 10
           max-documents-used-for-context: 5

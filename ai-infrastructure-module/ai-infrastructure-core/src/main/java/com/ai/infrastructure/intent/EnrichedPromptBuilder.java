@@ -47,10 +47,12 @@ public class EnrichedPromptBuilder {
         OrchestrationPolicy policy = contextInput != null ? contextInput.getOrchestrationPolicy() : null;
         boolean actionsEnabled = policy == null || policy.capabilities() == null || policy.capabilities().actionsEnabled();
         boolean retrievalEnabled = policy == null || policy.capabilities() == null || policy.capabilities().retrievalEnabled();
-        boolean isExecutorMode = policy != null && "executor".equalsIgnoreCase(policy.mode());
+        boolean knowledgeBaseOverviewEnabled = policy == null
+            || policy.capabilities() == null
+            || policy.capabilities().knowledgeBaseOverviewEnabled();
 
         String actions = actionsEnabled ? buildAvailableActionsSection(context) : "";
-        String knowledge = (retrievalEnabled && !isExecutorMode) ? buildKnowledgeBaseOverviewSection(context) : "";
+        String knowledge = (retrievalEnabled && knowledgeBaseOverviewEnabled) ? buildKnowledgeBaseOverviewSection(context) : "";
         String entityTypesRule = buildRelationshipQueryEntityTypesRule(context);
 
         String base = promptRenderer.render(

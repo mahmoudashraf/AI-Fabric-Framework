@@ -55,6 +55,15 @@ public class OrchestrationProperties {
     private Map<String, ModeOverrides> modes = new LinkedHashMap<>();
 
     /**
+     * Default orchestration mode to apply when the client does not provide a mode.
+     *
+     * <p>This enables "pack default mode" without requiring UI position routing in core.</p>
+     *
+     * <p>When unset (null/blank), no mode is applied and profile defaults are used.</p>
+     */
+    private String defaultMode;
+
+    /**
      * Configuration for RAG request composition.
      */
     private RagProperties rag = new RagProperties();
@@ -63,6 +72,9 @@ public class OrchestrationProperties {
      * Server-side routing from a UI position signal to an orchestration mode.
      *
      * <p>Used to allow the client to send a low-spoof-risk position (e.g. "cart") while the server selects the mode.</p>
+     *
+     * <p><strong>Note:</strong> this is intended for app/web-layer routing only. Core orchestration policy resolution
+     * should not depend on UI positions.</p>
      */
     private Map<String, String> positionRouting = new LinkedHashMap<>();
 
@@ -128,6 +140,34 @@ public class OrchestrationProperties {
          * <p>When unset (null), suggestions remain enabled (backwards-compatible default).</p>
          */
         private Boolean suggestionsEnabled;
+
+        /**
+         * Whether the LLM should prefer ACTION intents when both actions and retrieval are possible.
+         *
+         * <p>This is a prompting hint only; the pipeline still enforces capabilities and constraints deterministically.</p>
+         */
+        private Boolean actionsPreferred;
+
+        /**
+         * Whether the knowledge base overview section should be injected into the intent extraction prompt.
+         *
+         * <p>This can be disabled for action-focused modes to reduce retrieval "wandering" across unrelated vector spaces.</p>
+         */
+        private Boolean knowledgeBaseOverviewEnabled;
+
+        /**
+         * When true, retrieval requires a non-empty vector space allowlist in this mode (fail-closed).
+         *
+         * <p>This is useful for action-focused modes that allow limited retrieval (e.g., "policy" only).</p>
+         */
+        private Boolean retrievalAllowlistRequired;
+
+        /**
+         * When true, the LLM must explicitly set {@code vectorSpace} for retrieval in this mode.
+         *
+         * <p>When false, the server may default to the configured allowlist (when present) or the KB overview.</p>
+         */
+        private Boolean vectorSpaceSelectionRequired;
 
         /**
          * Optional mode override for information orchestration behavior.

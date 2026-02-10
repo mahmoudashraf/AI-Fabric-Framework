@@ -40,8 +40,8 @@ class OrchestrationPolicyResolutionStepTest {
     class ProcessMethod {
 
         @Test
-        @DisplayName("Should attach resolved policy to context and metadata (position routing)")
-        void shouldAttachResolvedPolicyToContextAndMetadataPositionRouting() {
+        @DisplayName("Should attach resolved policy to context and metadata (default mode; position ignored)")
+        void shouldAttachResolvedPolicyToContextAndMetadataDefaultModePositionIgnored() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
             orchestrationProperties.setProfile(OrchestrationProfile.DEFAULT);
 
@@ -49,13 +49,13 @@ class OrchestrationPolicyResolutionStepTest {
             navigator.setInformationMode(OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
             orchestrationProperties.getModes().put("navigator", navigator);
             orchestrationProperties.getPositionRouting().put("landing", "navigator");
+            orchestrationProperties.setDefaultMode("navigator");
 
             OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
 
             OrchestrationContext orch = OrchestrationContext.forUser("user-123")
                 .toBuilder()
                 .position("landing")
-                .mode("chatty")
                 .build();
 
             PipelineContext input = PipelineContext.from("hello", orch);
@@ -80,7 +80,7 @@ class OrchestrationPolicyResolutionStepTest {
             assertThat(policyMeta).containsEntry("mode", "navigator");
             assertThat(policyMeta).containsEntry("position", "landing");
             assertThat(policyMeta).containsEntry("informationModeEffective", "DETERMINISTIC_RAG_GENERATE");
-            assertThat(policyMeta).containsEntry("modeSource", "POSITION");
+            assertThat(policyMeta).containsEntry("modeSource", "DEFAULT_MODE");
         }
 
         @Test

@@ -32,8 +32,8 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
 
     private static final String METADATA_KEY_POLICY = "orchestrationPolicy";
 
-    private static final String ERROR_UNSUPPORTED_POSITION_PREFIX = "Unsupported position: ";
     private static final String ERROR_UNSUPPORTED_MODE_PREFIX = "Unsupported mode: ";
+    private static final String ERROR_UNSUPPORTED_DEFAULT_MODE_PREFIX = "Unsupported default mode: ";
 
     private final OrchestrationProperties orchestrationProperties;
 
@@ -69,26 +69,6 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         String modeSource = null;
         String effectiveMode = null;
 
-        String routedMode = normalizedPosition != null
-            ? lookupCaseInsensitive(orchestrationProperties != null ? orchestrationProperties.getPositionRouting() : null, normalizedPosition)
-            : null;
-
-        if (routedMode != null) {
-            String normalizedRoutedMode = normalizeKey(routedMode);
-            OrchestrationProperties.ModeOverrides routedOverrides = normalizedRoutedMode != null
-                ? lookupCaseInsensitive(orchestrationProperties != null ? orchestrationProperties.getModes() : null, normalizedRoutedMode)
-                : null;
-
-            if (routedOverrides != null) {
-                effectiveMode = normalizedRoutedMode;
-                modeSource = "POSITION";
-            } else {
-                return context.terminate(OrchestrationResult.error(ERROR_UNSUPPORTED_MODE_PREFIX + normalizedRoutedMode));
-            }
-        } else if (normalizedPosition != null && orchestrationProperties != null && orchestrationProperties.isStrictPositionRouting()) {
-            return context.terminate(OrchestrationResult.error(ERROR_UNSUPPORTED_POSITION_PREFIX + normalizedPosition));
-        }
-
         if (effectiveMode == null && normalizedRequestedMode != null) {
             OrchestrationProperties.ModeOverrides modeOverrides = lookupCaseInsensitive(
                 orchestrationProperties != null ? orchestrationProperties.getModes() : null,
@@ -99,6 +79,22 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 modeSource = "REQUEST_MODE";
             } else if (orchestrationProperties != null && orchestrationProperties.isStrictModeRouting()) {
                 return context.terminate(OrchestrationResult.error(ERROR_UNSUPPORTED_MODE_PREFIX + normalizedRequestedMode));
+            }
+        }
+
+        if (effectiveMode == null) {
+            String normalizedDefaultMode = normalizeKey(orchestrationProperties != null ? orchestrationProperties.getDefaultMode() : null);
+            if (normalizedDefaultMode != null) {
+                OrchestrationProperties.ModeOverrides defaultOverrides = lookupCaseInsensitive(
+                    orchestrationProperties != null ? orchestrationProperties.getModes() : null,
+                    normalizedDefaultMode
+                );
+                if (defaultOverrides != null) {
+                    effectiveMode = normalizedDefaultMode;
+                    modeSource = "DEFAULT_MODE";
+                } else {
+                    return context.terminate(OrchestrationResult.error(ERROR_UNSUPPORTED_DEFAULT_MODE_PREFIX + normalizedDefaultMode));
+                }
             }
         }
 
@@ -137,6 +133,22 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             ? effectiveModeOverrides.getSuggestionsEnabled()
             : true;
 
+        boolean actionsPreferred = effectiveModeOverrides != null && effectiveModeOverrides.getActionsPreferred() != null
+            ? effectiveModeOverrides.getActionsPreferred()
+            : false;
+
+        boolean knowledgeBaseOverviewEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getKnowledgeBaseOverviewEnabled() != null
+            ? effectiveModeOverrides.getKnowledgeBaseOverviewEnabled()
+            : true;
+
+        boolean retrievalAllowlistRequired = effectiveModeOverrides != null && effectiveModeOverrides.getRetrievalAllowlistRequired() != null
+            ? effectiveModeOverrides.getRetrievalAllowlistRequired()
+            : false;
+
+        boolean vectorSpaceSelectionRequired = effectiveModeOverrides != null && effectiveModeOverrides.getVectorSpaceSelectionRequired() != null
+            ? effectiveModeOverrides.getVectorSpaceSelectionRequired()
+            : false;
+
         boolean exposeReadProbeFallbackAttempt = orchestrationProperties != null
             && orchestrationProperties.isExposeReadProbeFallbackAttempt();
         if (effectiveModeOverrides != null && effectiveModeOverrides.getExposeReadProbeFallbackAttempt() != null) {
@@ -167,7 +179,11 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 retrievalEnabled,
                 deepRetrievalEnabled,
                 suggestionsEnabled,
-                exposeReadProbeFallbackAttempt
+                exposeReadProbeFallbackAttempt,
+                actionsPreferred,
+                knowledgeBaseOverviewEnabled,
+                retrievalAllowlistRequired,
+                vectorSpaceSelectionRequired
             ),
             ragBudgets
         );
@@ -201,6 +217,10 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("deepRetrievalEnabled", policy.capabilities().deepRetrievalEnabled());
         debug.put("suggestionsEnabled", policy.capabilities().suggestionsEnabled());
         debug.put("exposeReadProbeFallbackAttempt", policy.capabilities().exposeReadProbeFallbackAttempt());
+        debug.put("actionsPreferred", policy.capabilities().actionsPreferred());
+        debug.put("knowledgeBaseOverviewEnabled", policy.capabilities().knowledgeBaseOverviewEnabled());
+        debug.put("retrievalAllowlistRequired", policy.capabilities().retrievalAllowlistRequired());
+        debug.put("vectorSpaceSelectionRequired", policy.capabilities().vectorSpaceSelectionRequired());
         if (advancedRagOverride != null) {
             debug.put("advancedRagOverride", advancedRagOverride);
             debug.put("advancedRagOverrideSource", "MODE");

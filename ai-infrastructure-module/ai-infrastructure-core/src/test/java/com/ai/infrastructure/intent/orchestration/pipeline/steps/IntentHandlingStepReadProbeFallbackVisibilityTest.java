@@ -152,7 +152,7 @@ class IntentHandlingStepReadProbeFallbackVisibilityTest {
             "support_resolver",
             null,
             null,
-            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, true, true),
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, true, true, false, true, false, false),
             null
         );
 
