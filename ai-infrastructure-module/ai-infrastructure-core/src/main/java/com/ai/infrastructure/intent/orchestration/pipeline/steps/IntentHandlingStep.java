@@ -722,7 +722,38 @@ public class IntentHandlingStep implements PipelineStep {
         }
         infoIntent.setVectorSpace(String.join(",", vectorSpaces));
 
-        return handleInformation(infoIntent, context, pipelineContext);
+        OrchestrationResult result = handleInformation(infoIntent, context, pipelineContext);
+        if (result == null) {
+            return null;
+        }
+
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        boolean exposeProbe = policy != null
+            && policy.capabilities() != null
+            && policy.capabilities().exposeReadProbeFallbackAttempt();
+
+        if (exposeProbe) {
+            Map<String, Object> probe = new LinkedHashMap<>();
+            probe.put("action", meta.getName());
+            if (meta.getAccessMode() != null) {
+                probe.put("accessMode", meta.getAccessMode().name());
+            }
+            probe.put("success", true);
+            probe.put("emptyPayload", true);
+            if (StringUtils.hasText(actionResult.getMessage())) {
+                probe.put("message", actionResult.getMessage());
+            }
+            probe.put("fallbackToRag", true);
+
+            Map<String, Object> merged = new LinkedHashMap<>();
+            if (result.getMetadata() != null && !result.getMetadata().isEmpty()) {
+                merged.putAll(result.getMetadata());
+            }
+            merged.put("readProbe", Collections.unmodifiableMap(probe));
+            result.setMetadata(Collections.unmodifiableMap(merged));
+        }
+
+        return result;
     }
 
     private boolean isEmptyActionResultPayload(com.ai.infrastructure.intent.action.ActionPayload data) {

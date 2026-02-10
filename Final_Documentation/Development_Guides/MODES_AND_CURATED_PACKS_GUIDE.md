@@ -18,6 +18,7 @@ Per request, the server resolves an `OrchestrationPolicy` with:
   - `retrievalEnabled`
   - `deepRetrievalEnabled`
   - `suggestionsEnabled`
+  - `exposeReadProbeFallbackAttempt` (optional debug visibility for READ→RAG fallback)
 - rag budgets:
   - `fanoutEnabled`
   - `maxSpaces`
@@ -168,6 +169,11 @@ In the orchestrator response `metadata.orchestrationPolicy`:
 - `position`
 - `modeSource` (`POSITION` vs `REQUEST_MODE`)
 - `actionsEnabled`, `retrievalEnabled`, `deepRetrievalEnabled`, `suggestionsEnabled`
+- `exposeReadProbeFallbackAttempt` (when true, READ→RAG fallback attempts may be surfaced)
+
+In the orchestrator response `result.metadata.readProbe` (only when enabled by policy):
+- Present when a READ action returned an empty successful payload and the orchestrator fell back to RAG.
+- Contains a structured summary of the attempted READ action (no silent replacement).
 
 In `result.data.ragResponse.metadata` (when retrieval runs):
 - `embeddingQuery`
@@ -189,4 +195,3 @@ Recommended patterns:
 - normal browsing: send `position=landing|catalog|search`
 - deep search: send `mode=navigator_deep` (omit routed `position`)
 - executor: send `mode=executor` (omit routed `position`)
-

@@ -36,6 +36,12 @@ ai:
     modes:
       navigator:
         rag-target-hint-enabled: true
+      cart_assistant:
+        # If a READ action returns an empty successful payload and the orchestrator falls back to RAG,
+        # include a structured `metadata.readProbe` block to make the attempted action visible to the UI/logs.
+        expose-read-probe-fallback-attempt: true
+      executor:
+        expose-read-probe-fallback-attempt: true
 
   chat:
     enabled: true

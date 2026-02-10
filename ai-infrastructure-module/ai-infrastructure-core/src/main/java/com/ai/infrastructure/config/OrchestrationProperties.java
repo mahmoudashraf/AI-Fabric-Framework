@@ -39,6 +39,15 @@ public class OrchestrationProperties {
     private boolean alwaysGenerateInformation = false;
 
     /**
+     * When true, if a READ action returns an empty successful payload and the orchestrator falls back to RAG,
+     * the final {@code INFORMATION_PROVIDED} result will include a structured {@code readProbe} metadata block
+     * describing the attempted action.
+     *
+     * <p>Defaults to false to keep responses minimal and preserve legacy behavior.</p>
+     */
+    private boolean exposeReadProbeFallbackAttempt = false;
+
+    /**
      * Server-defined orchestration modes (coherent bundles) that can override profile defaults.
      *
      * <p>Clients may request a mode, but the server only accepts allowlisted modes defined here.</p>
@@ -139,6 +148,17 @@ public class OrchestrationProperties {
          * <p>When unset, the global {@code ai.orchestration.rag.target-hint.enabled} value applies.</p>
          */
         private Boolean ragTargetHintEnabled;
+
+        /**
+         * Optional mode override for exposing READ probe fallback attempts.
+         *
+         * <p>When true, if a READ action returns an empty successful payload and the orchestrator falls back to RAG,
+         * the final {@code INFORMATION_PROVIDED} result will include a structured {@code readProbe} metadata block
+         * describing the attempted action.</p>
+         *
+         * <p>When unset (null), the global {@link OrchestrationProperties#exposeReadProbeFallbackAttempt} value applies.</p>
+         */
+        private Boolean exposeReadProbeFallbackAttempt;
 
         /**
          * Optional mode override for RAG budgeting and scoping.

@@ -57,6 +57,21 @@ ai:
     strict-mode-routing: true
 ```
 
+## Optional: READ→RAG probe visibility (debug)
+Some modes may treat READ actions as “helper tools”: if a READ action returns an empty successful payload, the orchestrator can fall back to RAG.
+
+By default, the final response does **not** include any extra metadata about the attempted READ action (to keep payloads minimal).
+
+To surface the attempted READ action in the final response (as `result.metadata.readProbe`), enable it per mode:
+
+```yaml
+ai:
+  orchestration:
+    modes:
+      cart_assistant:
+        expose-read-probe-fallback-attempt: true
+```
+
 ## Prompt bundle pinning
 Each pack enables its prompt overrides by adding an overlay bundle version via:
 - `ai.prompts.bundle.overlays`
