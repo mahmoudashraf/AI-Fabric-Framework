@@ -70,14 +70,14 @@ public class OrchestrationContext {
     private Map<String, Object> metadata = new HashMap<>();
 
     /**
-     * Optional UI/system position hint (e.g., "landing", "cart", "support").
+     * Optional UI/system position hint (application-defined string).
      *
      * <p>This is treated as an input hint only; the server resolves the effective policy.</p>
      */
     private String position;
 
     /**
-     * Optional requested orchestration mode (e.g., "navigator", "cart_assistant").
+     * Optional requested orchestration mode (application-defined string).
      *
      * <p>This is treated as an input hint only; the server resolves the effective policy.</p>
      */

@@ -404,7 +404,7 @@ class VectorSpaceResolutionStepTest {
             "navigator_deep",
             null,
             OrchestrationProperties.InformationMode.LLM_DRIVEN,
-            new OrchestrationPolicy.OrchestrationCapabilities(true, true, true, true, false),
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, true, true, false, false, true, false, false),
             new OrchestrationPolicy.RagBudgets(true, 2, null, null, null, null, List.of())
         );
 

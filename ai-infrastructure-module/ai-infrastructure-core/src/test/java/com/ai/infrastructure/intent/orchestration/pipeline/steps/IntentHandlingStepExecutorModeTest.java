@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 class IntentHandlingStepExecutorModeTest {
 
     @Test
-    void shouldReturnClarificationWhenExecutorRetrievalAllowlistIsMissing() {
+    void shouldReturnClarificationWhenRetrievalAllowlistIsRequiredButMissing() {
         IntentHandlingStep step = new IntentHandlingStep(
             mock(AIActionRegistry.class),
             providerOf(mock(RAGProvider.class)),
@@ -64,7 +64,7 @@ class IntentHandlingStepExecutorModeTest {
             "executor",
             null,
             OrchestrationProperties.InformationMode.LLM_DRIVEN,
-            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false),
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, true, false),
             new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of())
         );
 
@@ -84,12 +84,11 @@ class IntentHandlingStepExecutorModeTest {
         OrchestrationResult result = step.process(context).getIntentResult();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
         assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getData()).containsEntry("reason", "EXECUTOR_RETRIEVAL_ALLOWLIST_REQUIRED");
-        assertThat(result.getData()).containsEntry("suggestedMode", "navigator");
+        assertThat(result.getData()).containsEntry("reason", "RETRIEVAL_ALLOWLIST_REQUIRED");
     }
 
     @Test
-    void shouldReturnClarificationWhenExecutorRequiresVectorSpaceAndLlmOmittedIt() {
+    void shouldReturnClarificationWhenVectorSpaceSelectionIsRequiredAndLlmOmittedIt() {
         IntentHandlingStep step = new IntentHandlingStep(
             mock(AIActionRegistry.class),
             providerOf(mock(RAGProvider.class)),
@@ -114,8 +113,8 @@ class IntentHandlingStepExecutorModeTest {
             "executor",
             null,
             OrchestrationProperties.InformationMode.LLM_DRIVEN,
-            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false),
-            new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of("policy"))
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, false, true),
+            new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of("policy", "product"))
         );
 
         Intent intent = Intent.builder()
@@ -135,12 +134,12 @@ class IntentHandlingStepExecutorModeTest {
         OrchestrationResult result = step.process(context).getIntentResult();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
         assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getData()).containsEntry("reason", "VECTOR_SPACE_REQUIRED_IN_MODE");
-        assertThat(result.getData()).containsEntry("allowedVectorSpaces", List.of("policy"));
+        assertThat(result.getData()).containsEntry("reason", "VECTOR_SPACE_REQUIRED_BY_POLICY");
+        assertThat(result.getData()).containsEntry("allowedVectorSpaces", List.of("policy", "product"));
     }
 
     @Test
-    void shouldSuggestNavigatorWhenExecutorRequestsDeniedVectorSpace() {
+    void shouldReturnClarificationWhenRequestedVectorSpaceIsDeniedByAllowlist() {
         IntentHandlingStep step = new IntentHandlingStep(
             mock(AIActionRegistry.class),
             providerOf(mock(RAGProvider.class)),
@@ -165,7 +164,7 @@ class IntentHandlingStepExecutorModeTest {
             "executor",
             null,
             OrchestrationProperties.InformationMode.LLM_DRIVEN,
-            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false),
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, true, false),
             new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of("policy"))
         );
 
@@ -186,8 +185,7 @@ class IntentHandlingStepExecutorModeTest {
         OrchestrationResult result = step.process(context).getIntentResult();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
         assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getData()).containsEntry("reason", "VECTOR_SPACE_NOT_ALLOWED_IN_MODE");
-        assertThat(result.getData()).containsEntry("suggestedMode", "navigator");
+        assertThat(result.getData()).containsEntry("reason", "VECTOR_SPACE_NOT_ALLOWED_BY_POLICY");
     }
 
     private <T> ObjectProvider<T> providerOf(T value) {
