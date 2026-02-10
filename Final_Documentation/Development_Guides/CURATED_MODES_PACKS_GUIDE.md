@@ -17,6 +17,10 @@ Curated packs are **transparent**:
 Implementation detail:
 - Core loads the pack via `CuratedPackEnvironmentPostProcessor`.
 
+Important:
+- Curated packs are **configuration only**. Core does not branch on specific mode names.
+- `mode` is treated as a **selector key**: core looks up `ai.orchestration.modes.<mode>` and applies those overrides as a policy capability bundle.
+
 ## Available packs
 - `commerce` → production chat defaults for e-commerce flows:
   - `navigator` (keep current behavior)
@@ -56,6 +60,25 @@ ai:
     profile: PRODUCTION_CHAT
     strict-mode-routing: true
 ```
+
+Mode resolution semantics (core):
+1) If request has `mode` and it exists under `ai.orchestration.modes.*` → requested mode wins.
+2) Otherwise, `ai.orchestration.default-mode` is used (must also exist under `ai.orchestration.modes.*`).
+
+`position` is carried for observability only; core does **not** route based on it.
+
+If you want “position → mode” convenience:
+- keep a `position-routing` map in your curated pack as advisory config, and
+- implement a small app/web-layer router that sets `mode` when it is missing.
+
+## Capability flags (policy-driven, mode-agnostic)
+Modes can set explicit capability flags that drive core behavior (no mode-name branching), e.g.:
+- `actions-preferred` (bias extraction toward actions when actions are enabled)
+- `knowledge-base-overview-enabled` (include/exclude KB overview in prompts)
+- `retrieval-allowlist-required` (require a retrieval allowlist when retrieval is requested)
+- `vector-space-selection-required` (require explicit vectorSpace selection when allowlist has >1 space)
+
+These appear in `metadata.orchestrationPolicy` for debugging.
 
 ## Optional: READ→RAG probe visibility (debug)
 Some modes may treat READ actions as “helper tools”: if a READ action returns an empty successful payload, the orchestrator can fall back to RAG.
