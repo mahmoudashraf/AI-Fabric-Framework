@@ -22,20 +22,26 @@ Current profiles:
 Profiles are designed for **one-setting enablement** and reproducibility.
 
 ### Mode (`ai.orchestration.modes.*`)
-An allowlisted **bundle of overrides** (selected by the server via `position`, or optionally requested by the client).
+An allowlisted **bundle of overrides** (selected by the server using the resolved `mode`).
+
+The request may provide `mode` explicitly; otherwise the server uses `ai.orchestration.default-mode`.
 
 Example modes (app-defined):
 - `navigator`
 - `cart_assistant`
 - `support_resolver`
 
-### Position routing (`ai.orchestration.position-routing`)
-Maps a UI/system “position” to a mode (server-controlled):
+### Position routing (`ai.orchestration.position-routing`) (advisory)
+Maps a UI/system “position” to a mode:
 - `landing → navigator`
 - `cart → cart_assistant`
 - `support → support_resolver`
 
-This is a safety feature: the client can send a low-spoof-risk signal (`position`), and the server chooses the orchestration behavior.
+Core does **not** route based on `position`. If you want “position → mode” convenience, implement it **outside core** (app/web layer) as a pre-orchestration router that sets `mode` when it is missing.
+
+Rationale:
+- Keeps core position-agnostic and domain/UI-agnostic.
+- Makes behavior predictable: only `mode` + policy capability flags drive execution.
 
 ### Information mode (`LLM_DRIVEN` vs `DETERMINISTIC_RAG_GENERATE`)
 This controls how INFORMATION intents are executed:
@@ -82,10 +88,7 @@ ai:
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
-    position-routing:
-      landing: navigator
-      cart: navigator
-      support: navigator
+    default-mode: navigator
 ```
 
 ---

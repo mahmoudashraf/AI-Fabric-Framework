@@ -44,13 +44,15 @@ They do not replace pipeline logic.
 ## 2) How the effective mode is chosen
 
 Request inputs (from `OrchestrationContext`):
-- `position` (recommended when you have UI positions)
-- `mode` (optional)
+- `mode` (optional selector key; application-defined string)
+- `position` (optional UI hint; application-defined string; **not used by core for routing**)
 
 Resolution order:
-1) If `position` is routed in the active pack → routed mode wins.
-2) Otherwise, if `mode` is provided and is configured → requested mode is used.
-3) Otherwise, defaults apply.
+1) If request has `mode` and it exists under `ai.orchestration.modes.*` → requested mode wins.
+2) Otherwise, `ai.orchestration.default-mode` is used (must also exist under `ai.orchestration.modes.*`).
+
+Notes:
+- Core does **not** route based on `position`. If you want “position → mode”, implement it in your app/web layer as an optional router (curated packs may ship an advisory `position-routing` map, but core ignores it).
 
 ---
 
@@ -136,7 +138,7 @@ ai:
 
 ## 5) Executor “restricted retrieval” (important)
 
-If you enable retrieval in executor, you must also provide an allowlist:
+If you enable retrieval in an “action-first” mode and require an allowlist, you must provide it:
 
 ```yaml
 ai:
@@ -144,20 +146,18 @@ ai:
     modes:
       executor:
         retrieval-enabled: true
+        retrieval-allowlist-required: true
         rag:
           retrieval-vector-spaces-allowlist:
             - policy
 ```
 
 Behavior:
-- If allowlist is missing/empty and the LLM requests retrieval → `CLARIFICATION_REQUIRED` with:
-  - `reason=EXECUTOR_RETRIEVAL_ALLOWLIST_REQUIRED`
-  - `suggestedMode=navigator`
-- If allowlist exists but the LLM omits `vectorSpace` → `CLARIFICATION_REQUIRED` with:
-  - `reason=VECTOR_SPACE_REQUIRED_IN_MODE`
+- If allowlist is missing/empty and the LLM requests retrieval → `CLARIFICATION_REQUIRED` with `reason=RETRIEVAL_ALLOWLIST_REQUIRED`.
+- If allowlist exists but the LLM omits `vectorSpace` (and policy requires explicit selection) → `CLARIFICATION_REQUIRED` with:
+  - `reason=VECTOR_SPACE_REQUIRED_BY_POLICY`
   - `allowedVectorSpaces=[...]`
-- If the LLM requests a denied space → `CLARIFICATION_REQUIRED` with:
-  - `reason=VECTOR_SPACE_NOT_ALLOWED_IN_MODE`
+- If the LLM requests a denied space → `CLARIFICATION_REQUIRED` with `reason=VECTOR_SPACE_NOT_ALLOWED_BY_POLICY`.
 
 ---
 
@@ -167,8 +167,9 @@ In the orchestrator response `metadata.orchestrationPolicy`:
 - `profile`
 - `mode`
 - `position`
-- `modeSource` (`POSITION` vs `REQUEST_MODE`)
+- `modeSource` (`REQUEST_MODE` vs `DEFAULT_MODE`)
 - `actionsEnabled`, `retrievalEnabled`, `deepRetrievalEnabled`, `suggestionsEnabled`
+- `actionsPreferred`, `knowledgeBaseOverviewEnabled`, `retrievalAllowlistRequired`, `vectorSpaceSelectionRequired`
 - `exposeReadProbeFallbackAttempt` (when true, READ→RAG fallback attempts may be surfaced)
 
 In the orchestrator response `result.metadata.readProbe` (only when enabled by policy):
@@ -193,5 +194,7 @@ Examples live in:
 
 Recommended patterns:
 - normal browsing: send `position=landing|catalog|search`
-- deep search: send `mode=navigator_deep` (omit routed `position`)
-- executor: send `mode=executor` (omit routed `position`)
+- deep search: send `mode=navigator_deep`
+- action flows: send `mode=executor`
+
+If you still want the older “position → mode” convenience, implement it in the demo app (or your app) as a pre-orchestration router that sets `mode` when it is missing.

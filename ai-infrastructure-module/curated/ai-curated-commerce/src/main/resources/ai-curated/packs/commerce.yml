@@ -11,6 +11,9 @@ ai:
         actions-enabled: false
         retrieval-enabled: true
         deep-retrieval-enabled: true
+        # Enable bounded pinned-target evidence expansion for embedding queries in deep mode.
+        # See: Final_Documentation/Development_Guides/RAG_EMBEDDING_QUERY_COMPOSITION_GUIDE.md
+        rag-target-hint-enabled: true
         rag:
           fanout-enabled: true
           max-spaces: 6
