@@ -12,6 +12,7 @@ import com.ai.infrastructure.intent.action.annotation.Param;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 
 @AIAction(
     name = "get_product_details",
@@ -30,6 +31,10 @@ public class GetProductDetailsActionHandler {
     public ActionResult execute(@Param(value = "sku", description = "Product SKU", required = true) String sku,
                                 ActionContext context) {
         try {
+            if (!StringUtils.hasText(sku)) {
+                throw new IllegalArgumentException("Missing required parameter: sku");
+            }
+
             Product product = productService.findBySku(sku)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found for sku: " + sku));
 
@@ -51,9 +56,12 @@ public class GetProductDetailsActionHandler {
         } catch (Exception e) {
             String userId = context != null ? context.userId() : null;
             log.error("Get product details failed for user {}", userId, e);
+            String errorMessage = e != null && StringUtils.hasText(e.getMessage())
+                ? e.getMessage()
+                : e != null ? e.getClass().getSimpleName() : "unknown";
             return ActionResult.builder()
                 .success(false)
-                .message("Failed to fetch product details: " + (e != null ? e.getMessage() : "unknown"))
+                .message("Failed to fetch product details: " + errorMessage)
                 .errorCode("GET_PRODUCT_DETAILS_FAILED")
                 .build();
         }
