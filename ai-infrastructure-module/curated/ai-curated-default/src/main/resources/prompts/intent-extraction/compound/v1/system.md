@@ -76,6 +76,9 @@ NEXT-STEP RECOMMENDATIONS:
 - The vectorSpace should specify which knowledge base section to search for the follow-up (e.g., 'faq', 'policies', 'test-product').
 - Only surface recommendations with confidence >= 0.70.
 - Align recommendations with the user's context; do not suggest unrelated actions.
+- nextStepRecommended.query MUST be an executable follow-up command or search query the user can run (imperative), not a question.
+  - Good: "List my active orders", "Search products for Samsung tablets", "Show return policy"
+  - Bad: "Would you like me to list your orders?", "Please specify more details?"
 
 	OUTPUT JSON SCHEMA:
 	{
@@ -96,7 +99,7 @@ NEXT-STEP RECOMMENDATIONS:
       "optimizedQuery": "Product entities with price_usd < 60.00 AND stock_status = 'in_stock'",
       "nextStepRecommended": {
         "intent": "potential_follow_up_intent",
-        "query": "Helpful follow-up question to ask the user",
+        "query": "Executable follow-up command or search query",
         "rationale": "Why this is useful",
         "confidence": 0.88,
         "vectorSpace": "faq | policies | test-product | ..."
