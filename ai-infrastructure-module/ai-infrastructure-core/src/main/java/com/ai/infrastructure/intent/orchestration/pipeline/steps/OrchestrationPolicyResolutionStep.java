@@ -137,6 +137,12 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             ? effectiveModeOverrides.getSuggestionsEnabled()
             : true;
 
+        boolean exposeReadProbeFallbackAttempt = orchestrationProperties != null
+            && orchestrationProperties.isExposeReadProbeFallbackAttempt();
+        if (effectiveModeOverrides != null && effectiveModeOverrides.getExposeReadProbeFallbackAttempt() != null) {
+            exposeReadProbeFallbackAttempt = effectiveModeOverrides.getExposeReadProbeFallbackAttempt();
+        }
+
         OrchestrationPolicy.RagBudgets ragBudgets = null;
         if (effectiveModeOverrides != null && effectiveModeOverrides.getRag() != null) {
             OrchestrationProperties.RagModeOverrides rag = effectiveModeOverrides.getRag();
@@ -160,7 +166,8 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 actionsEnabled,
                 retrievalEnabled,
                 deepRetrievalEnabled,
-                suggestionsEnabled
+                suggestionsEnabled,
+                exposeReadProbeFallbackAttempt
             ),
             ragBudgets
         );
@@ -193,6 +200,7 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("retrievalEnabled", policy.capabilities().retrievalEnabled());
         debug.put("deepRetrievalEnabled", policy.capabilities().deepRetrievalEnabled());
         debug.put("suggestionsEnabled", policy.capabilities().suggestionsEnabled());
+        debug.put("exposeReadProbeFallbackAttempt", policy.capabilities().exposeReadProbeFallbackAttempt());
         if (advancedRagOverride != null) {
             debug.put("advancedRagOverride", advancedRagOverride);
             debug.put("advancedRagOverrideSource", "MODE");

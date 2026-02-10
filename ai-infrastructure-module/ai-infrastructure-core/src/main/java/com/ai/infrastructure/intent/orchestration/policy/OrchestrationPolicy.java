@@ -44,10 +44,11 @@ public record OrchestrationPolicy(
         boolean actionsEnabled,
         boolean retrievalEnabled,
         boolean deepRetrievalEnabled,
-        boolean suggestionsEnabled
+        boolean suggestionsEnabled,
+        boolean exposeReadProbeFallbackAttempt
     ) {
         public static OrchestrationCapabilities defaults() {
-            return new OrchestrationCapabilities(true, true, false, true);
+            return new OrchestrationCapabilities(true, true, false, true, false);
         }
     }
 

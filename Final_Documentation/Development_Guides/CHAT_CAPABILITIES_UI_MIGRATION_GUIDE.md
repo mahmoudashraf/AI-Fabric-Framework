@@ -51,6 +51,9 @@ The response contract stays the same shape:
 }
 ```
 
+Notes:
+- When enabled by orchestration mode/policy, the backend may add a `result.metadata.readProbe` object (debug visibility) when a READ action returns an empty successful payload and the orchestrator falls back to RAG.
+
 ---
 
 ## 2) Positions to use (Chat Capabilities Demo)
