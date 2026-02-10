@@ -31,6 +31,14 @@ public class OrchestrationProperties {
     private InformationMode informationMode;
 
     /**
+     * When true, INFORMATION intents that perform retrieval will always run LLM generation to produce a user-facing answer,
+     * even if the extracted intent requested {@code requiresGeneration=false}.
+     *
+     * <p>Defaults to false to preserve retrieval-only/listing behavior.</p>
+     */
+    private boolean alwaysGenerateInformation = false;
+
+    /**
      * Server-defined orchestration modes (coherent bundles) that can override profile defaults.
      *
      * <p>Clients may request a mode, but the server only accepts allowlisted modes defined here.</p>

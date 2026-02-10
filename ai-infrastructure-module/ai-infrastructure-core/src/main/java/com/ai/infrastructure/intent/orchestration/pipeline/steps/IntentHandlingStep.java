@@ -1583,6 +1583,12 @@ public class IntentHandlingStep implements PipelineStep {
         boolean needsGeneration = skippedRetrievalForPinnedTargets
             ? true
             : (requiresRetrieval ? (deterministic || llmRequiresGeneration) : llmRequiresGeneration);
+        if (requiresRetrieval
+            && !needsGeneration
+            && orchestrationProperties != null
+            && orchestrationProperties.isAlwaysGenerateInformation()) {
+            needsGeneration = true;
+        }
 
         String optimizedQuery = StringUtils.hasText(intent.getOptimizedQuery()) ? intent.getOptimizedQuery() : null;
         String processedQuery = pipelineContext != null ? pipelineContext.getEffectiveQuery() : null;
