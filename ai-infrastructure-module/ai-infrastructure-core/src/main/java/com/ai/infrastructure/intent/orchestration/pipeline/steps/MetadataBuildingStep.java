@@ -120,9 +120,7 @@ public class MetadataBuildingStep implements PipelineStep {
             intentResponse != null ? intentResponse.getIntents().size() : 0);
         metadata.put(METADATA_KEY_AUTHENTICATED, context.isAuthenticated());
         
-        if (intentResponse != null && !CollectionUtils.isEmpty(intentResponse.getMetadata())) {
-            metadata.put(METADATA_KEY_INTENT_METADATA, intentResponse.getMetadata());
-        }
+        attachIntentMetadata(metadata, intentResponse);
 
         attachPinnedTargetsTargetResolution(metadata, result);
 
@@ -138,6 +136,25 @@ public class MetadataBuildingStep implements PipelineStep {
         return context.toBuilder()
             .metadata(metadata)
             .build();
+    }
+
+    private void attachIntentMetadata(Map<String, Object> metadata, MultiIntentResponse intentResponse) {
+        if (metadata == null || intentResponse == null) {
+            return;
+        }
+
+        boolean requiresTargetResolution = intentResponse.getIntents() != null
+            && intentResponse.getIntents().stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(intent -> Boolean.TRUE.equals(intent.getRequiresTargetResolution()));
+
+        Map<String, Object> enriched = new LinkedHashMap<>();
+        if (!CollectionUtils.isEmpty(intentResponse.getMetadata())) {
+            enriched.putAll(intentResponse.getMetadata());
+        }
+        enriched.put("requiresTargetResolution", requiresTargetResolution);
+
+        metadata.put(METADATA_KEY_INTENT_METADATA, Collections.unmodifiableMap(enriched));
     }
 
     private void attachPinnedTargetsTargetResolution(Map<String, Object> metadata, OrchestrationResult result) {

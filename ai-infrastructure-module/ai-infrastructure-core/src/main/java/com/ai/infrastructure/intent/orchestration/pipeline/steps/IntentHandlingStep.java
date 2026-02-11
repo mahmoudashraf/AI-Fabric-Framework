@@ -37,6 +37,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.intent.orchestration.rag.EmbeddingQueryComposer;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.LlmPurpose;
@@ -1604,8 +1605,45 @@ public class IntentHandlingStep implements PipelineStep {
         boolean deterministic = isDeterministicInformationMode(pipelineContext);
         boolean requiresRetrieval = intent.requiresRetrievalOrDefault(true);
         boolean llmRequiresGeneration = intent.requiresGenerationOrDefault(false);
+        boolean minimizeRagHeuristicEnabled = capabilities == null || capabilities.minimizeRagWhenPinnedTargetsCoverRequest();
+
+        boolean forceRetrievalWhenTargetsPresent = capabilities != null && capabilities.forceRetrievalWhenTargetsPresent();
+        boolean forceRetrievalConsiderStoredTargets = capabilities != null && capabilities.forceRetrievalConsiderStoredTargets();
+
+        boolean ackLike = !requiresRetrieval
+            && !llmRequiresGeneration
+            && StringUtils.hasText(intent.getDirectAnswer());
+
+        boolean retrievalForced = false;
+        String retrievalForcedReason = null;
+
+        if (!requiresRetrieval
+            && retrievalEnabled
+            && forceRetrievalWhenTargetsPresent
+            && !ackLike
+            && pipelineContext != null
+            && pipelineContext.getResolvedTargets() != null
+            && !pipelineContext.getResolvedTargets().isEmpty()) {
+
+            List<ResolvedTarget> targets = pipelineContext.getResolvedTargets();
+            boolean hasActiveTargets = targets.stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(target -> target.getSource() == ResolvedTargetSource.REQUEST_ATTACHMENTS);
+
+            boolean hasStoredTargets = forceRetrievalConsiderStoredTargets && targets.stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(target -> target.getSource() == ResolvedTargetSource.SESSION_METADATA
+                    || target.getSource() == ResolvedTargetSource.WORKING_SET);
+
+            if (hasActiveTargets || hasStoredTargets) {
+                requiresRetrieval = true;
+                retrievalForced = true;
+                retrievalForcedReason = hasActiveTargets ? "ACTIVE_TARGETS" : "STORED_TARGETS";
+            }
+        }
 
         boolean skippedRetrievalForPinnedTargets = deterministic
+            && minimizeRagHeuristicEnabled
             && requiresRetrieval
             && shouldSkipRetrievalForPinnedTargets(intent, pipelineContext);
         if (skippedRetrievalForPinnedTargets) {
@@ -1636,6 +1674,15 @@ public class IntentHandlingStep implements PipelineStep {
         metadata.put(METADATA_KEY_AUTHENTICATED, context.isAuthenticated());
         metadata.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
         metadata.put("requiresRetrieval", requiresRetrieval);
+        metadata.put("minimizeRagHeuristicEnabled", minimizeRagHeuristicEnabled);
+        if (forceRetrievalWhenTargetsPresent) {
+            metadata.put("forceRetrievalWhenTargetsPresentEnabled", true);
+            metadata.put("forceRetrievalConsiderStoredTargetsEnabled", forceRetrievalConsiderStoredTargets);
+        }
+        if (retrievalForced) {
+            metadata.put("retrievalForced", true);
+            metadata.put("retrievalForcedReason", retrievalForcedReason);
+        }
         if (skippedRetrievalForPinnedTargets) {
             metadata.put("retrievalSkipped", true);
             metadata.put("retrievalSkipReason", "PINNED_TARGETS");

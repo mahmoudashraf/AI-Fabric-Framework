@@ -135,6 +135,34 @@ public class OrchestrationProperties {
         private Boolean deepRetrievalEnabled;
 
         /**
+         * When true, if the request contains resolved targets (active attachments and/or stored pinned targets),
+         * the orchestrator may force {@code requiresRetrieval=true} for INFORMATION intents even if the LLM
+         * extracted {@code requiresRetrieval=false}.
+         *
+         * <p>This is intended for deep modes where follow-ups like "negative reviews?" or "return policy?"
+         * must retrieve cross-space data even when the user does not restate the targets.</p>
+         *
+         * <p>Defaults to false.</p>
+         */
+        private Boolean forceRetrievalWhenTargetsPresent;
+
+        /**
+         * When true, stored pinned targets (seeded from session metadata / working set) may be used as evidence
+         * for {@link #forceRetrievalWhenTargetsPresent}.
+         *
+         * <p>Defaults to false. Active request attachments remain the primary signal.</p>
+         */
+        private Boolean forceRetrievalConsiderStoredTargets;
+
+        /**
+         * When true, deterministic modes may skip retrieval when pinned targets already cover the requested
+         * vectorSpace(s) (minimize RAG cost).
+         *
+         * <p>Defaults to true. Deep modes should typically disable this to allow cross-space grounding.</p>
+         */
+        private Boolean minimizeRagWhenPinnedTargetsCoverRequest;
+
+        /**
          * Whether smart suggestions should run in this mode.
          *
          * <p>When unset (null), suggestions remain enabled (backwards-compatible default).</p>

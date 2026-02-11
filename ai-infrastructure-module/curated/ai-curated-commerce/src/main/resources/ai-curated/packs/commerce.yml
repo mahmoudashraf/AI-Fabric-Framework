@@ -11,6 +11,11 @@ ai:
         actions-enabled: false
         retrieval-enabled: true
         deep-retrieval-enabled: true
+        # Deep mode should retrieve across spaces even when targets are pinned (reviews/policies).
+        force-retrieval-when-targets-present: true
+        force-retrieval-consider-stored-targets: true
+        # Disable the deterministic "minimize RAG" skip heuristic in deep mode.
+        minimize-rag-when-pinned-targets-cover-request: false
         # Enable bounded pinned-target evidence expansion for embedding queries in deep mode.
         # See: Final_Documentation/Development_Guides/RAG_EMBEDDING_QUERY_COMPOSITION_GUIDE.md
         rag-target-hint-enabled: true

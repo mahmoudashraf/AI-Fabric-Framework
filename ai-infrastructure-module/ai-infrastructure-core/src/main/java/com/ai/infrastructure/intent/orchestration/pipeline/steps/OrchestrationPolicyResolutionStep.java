@@ -129,6 +129,18 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         boolean deepRetrievalEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getDeepRetrievalEnabled() != null
             ? effectiveModeOverrides.getDeepRetrievalEnabled()
             : false;
+
+        boolean forceRetrievalWhenTargetsPresent = effectiveModeOverrides != null && effectiveModeOverrides.getForceRetrievalWhenTargetsPresent() != null
+            ? effectiveModeOverrides.getForceRetrievalWhenTargetsPresent()
+            : false;
+
+        boolean forceRetrievalConsiderStoredTargets = effectiveModeOverrides != null && effectiveModeOverrides.getForceRetrievalConsiderStoredTargets() != null
+            ? effectiveModeOverrides.getForceRetrievalConsiderStoredTargets()
+            : false;
+
+        boolean minimizeRagWhenPinnedTargetsCoverRequest = effectiveModeOverrides != null && effectiveModeOverrides.getMinimizeRagWhenPinnedTargetsCoverRequest() != null
+            ? effectiveModeOverrides.getMinimizeRagWhenPinnedTargetsCoverRequest()
+            : true;
         boolean suggestionsEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getSuggestionsEnabled() != null
             ? effectiveModeOverrides.getSuggestionsEnabled()
             : true;
@@ -183,7 +195,10 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 actionsPreferred,
                 knowledgeBaseOverviewEnabled,
                 retrievalAllowlistRequired,
-                vectorSpaceSelectionRequired
+                vectorSpaceSelectionRequired,
+                minimizeRagWhenPinnedTargetsCoverRequest,
+                forceRetrievalWhenTargetsPresent,
+                forceRetrievalConsiderStoredTargets
             ),
             ragBudgets
         );
@@ -215,6 +230,9 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("actionsEnabled", policy.capabilities().actionsEnabled());
         debug.put("retrievalEnabled", policy.capabilities().retrievalEnabled());
         debug.put("deepRetrievalEnabled", policy.capabilities().deepRetrievalEnabled());
+        debug.put("forceRetrievalWhenTargetsPresent", policy.capabilities().forceRetrievalWhenTargetsPresent());
+        debug.put("forceRetrievalConsiderStoredTargets", policy.capabilities().forceRetrievalConsiderStoredTargets());
+        debug.put("minimizeRagWhenPinnedTargetsCoverRequest", policy.capabilities().minimizeRagWhenPinnedTargetsCoverRequest());
         debug.put("suggestionsEnabled", policy.capabilities().suggestionsEnabled());
         debug.put("exposeReadProbeFallbackAttempt", policy.capabilities().exposeReadProbeFallbackAttempt());
         debug.put("actionsPreferred", policy.capabilities().actionsPreferred());
