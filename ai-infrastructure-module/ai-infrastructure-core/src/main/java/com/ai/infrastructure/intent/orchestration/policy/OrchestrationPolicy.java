@@ -49,10 +49,13 @@ public record OrchestrationPolicy(
         boolean actionsPreferred,
         boolean knowledgeBaseOverviewEnabled,
         boolean retrievalAllowlistRequired,
-        boolean vectorSpaceSelectionRequired
+        boolean vectorSpaceSelectionRequired,
+        boolean minimizeRagWhenPinnedTargetsCoverRequest,
+        boolean forceRetrievalWhenTargetsPresent,
+        boolean forceRetrievalConsiderStoredTargets
     ) {
         public static OrchestrationCapabilities defaults() {
-            return new OrchestrationCapabilities(true, true, false, true, false, false, true, false, false);
+            return new OrchestrationCapabilities(true, true, false, true, false, false, true, false, false, true, false, false);
         }
     }
 

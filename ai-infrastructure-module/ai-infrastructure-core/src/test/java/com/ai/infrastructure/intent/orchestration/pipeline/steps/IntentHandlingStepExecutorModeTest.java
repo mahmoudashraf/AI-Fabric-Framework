@@ -64,7 +64,7 @@ class IntentHandlingStepExecutorModeTest {
             "executor",
             null,
             OrchestrationProperties.InformationMode.LLM_DRIVEN,
-            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, true, false),
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, true, false, true, false, false),
             new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of())
         );
 
@@ -113,7 +113,7 @@ class IntentHandlingStepExecutorModeTest {
             "executor",
             null,
             OrchestrationProperties.InformationMode.LLM_DRIVEN,
-            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, false, true),
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, false, true, true, false, false),
             new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of("policy", "product"))
         );
 
@@ -164,7 +164,7 @@ class IntentHandlingStepExecutorModeTest {
             "executor",
             null,
             OrchestrationProperties.InformationMode.LLM_DRIVEN,
-            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, true, false),
+            new OrchestrationPolicy.OrchestrationCapabilities(true, true, false, false, false, true, false, true, false, true, false, false),
             new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of("policy"))
         );
 
