@@ -32,6 +32,8 @@ import com.ai.infrastructure.intent.action.InMemoryPendingActionStore;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
+import com.ai.infrastructure.intent.action.connector.AIActionCatalogProperties;
+import com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.beans.factory.ObjectProvider;
@@ -99,7 +101,9 @@ import jakarta.persistence.EntityManagerFactory;
     OrchestrationResultNormalizationProperties.class,
     IntentHistoryProperties.class,
     SecurityProperties.class,
-    AIHttpClientProperties.class
+    AIHttpClientProperties.class,
+    AIActionCatalogProperties.class,
+    AIActionConnectorProperties.class
 })
 @ComponentScan(
     basePackages = "com.ai.infrastructure",

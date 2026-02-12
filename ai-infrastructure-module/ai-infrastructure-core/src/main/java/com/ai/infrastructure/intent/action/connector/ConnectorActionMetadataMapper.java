@@ -1,0 +1,101 @@
+package com.ai.infrastructure.intent.action.connector;
+
+import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.AIActionParamSchema;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Maps file-based connector action definitions into the framework's canonical {@link AIActionMetaData} contract.
+ */
+@Slf4j
+public final class ConnectorActionMetadataMapper {
+
+    private ConnectorActionMetadataMapper() {
+    }
+
+    /**
+     * Convert a connector action definition to canonical metadata.
+     *
+     * <p>This metadata is used for prompt-visible action specs and deterministic parameter validation.</p>
+     *
+     * @param definition connector action definition (required)
+     * @return canonical metadata
+     */
+    public static AIActionMetaData toMetadata(ConnectorActionDefinition definition) {
+        if (definition == null || !StringUtils.hasText(definition.name())) {
+            throw new IllegalArgumentException("definition.name is required");
+        }
+
+        Map<String, String> parameters = new LinkedHashMap<>();
+        Map<String, AIActionParamSchema> schemas = new LinkedHashMap<>();
+        Set<String> required = new LinkedHashSet<>();
+
+        List<ConnectorActionParamDefinition> params = definition.params() != null ? definition.params() : List.of();
+        for (ConnectorActionParamDefinition param : params) {
+            if (param == null || !StringUtils.hasText(param.name())) {
+                continue;
+            }
+            String name = param.name().trim();
+            String desc = StringUtils.hasText(param.description()) ? param.description().trim() : name;
+            desc = desc + (param.required() ? " (required)" : " (optional)");
+            parameters.put(name, desc);
+
+            AIActionParamSchema schema = AIActionParamSchema.builder()
+                .name(name)
+                .description(StringUtils.hasText(param.description()) ? param.description().trim() : null)
+                .type(param.type())
+                .required(param.required())
+                .batchTargets(param.batchTargets())
+                .pattern(StringUtils.hasText(param.pattern()) ? param.pattern().trim() : null)
+                .allowedValues(param.allowedValues() != null ? List.copyOf(param.allowedValues()) : List.of())
+                .min(param.min())
+                .max(param.max())
+                .build();
+
+            schemas.put(name, schema);
+            if (param.required()) {
+                required.add(name);
+            }
+        }
+
+        ActionAccessMode accessMode = definition.accessMode() != null ? definition.accessMode() : ActionAccessMode.READ;
+        return AIActionMetaData.builder()
+            .name(definition.name().trim())
+            .description(StringUtils.hasText(definition.description()) ? definition.description().trim() : null)
+            .category(StringUtils.hasText(definition.category()) ? definition.category().trim() : null)
+            .accessMode(accessMode)
+            .parameters(Collections.unmodifiableMap(parameters))
+            .parameterSchemas(Collections.unmodifiableMap(schemas))
+            .requiredParameters(Collections.unmodifiableSet(required))
+            .build();
+    }
+
+    /**
+     * Extract sensitive param names from a connector action definition.
+     *
+     * <p>Sensitive params are redacted from confirmation messages by default.</p>
+     */
+    public static Set<String> extractSensitiveParams(ConnectorActionDefinition definition) {
+        if (definition == null || definition.params() == null || definition.params().isEmpty()) {
+            return Set.of();
+        }
+        Set<String> out = new LinkedHashSet<>();
+        for (ConnectorActionParamDefinition param : definition.params()) {
+            if (param == null || !param.sensitive() || !StringUtils.hasText(param.name())) {
+                continue;
+            }
+            out.add(param.name().trim());
+        }
+        return Set.copyOf(out);
+    }
+}
+

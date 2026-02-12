@@ -198,7 +198,7 @@ Never rely on “UI-only” gating.
 
 ---
 
-## 6) Control plane: minimal data model (V1)
+## 6) Control plane: minimal data model (V1) - control plane as service
 
 ### 6.1 Entities
 

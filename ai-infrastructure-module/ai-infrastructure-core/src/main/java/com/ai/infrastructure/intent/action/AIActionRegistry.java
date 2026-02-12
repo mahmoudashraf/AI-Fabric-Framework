@@ -38,7 +38,7 @@ import java.util.List;
 /**
  * Discovers {@link AIAction} beans and exposes lookup utilities by action name.
  *
- * <p>Greenfield: the framework exclusively supports annotation-driven actions.</p>
+ * <p>Greenfield: action contracts are unified across sources (annotations + file-based catalogs + future DB catalogs).</p>
  */
 @Slf4j
 @Service
@@ -49,16 +49,19 @@ public class AIActionRegistry {
     private final ApplicationContext applicationContext;
     private final ObjectProvider<ConversionService> conversionServiceProvider;
     private final ObjectProvider<ObjectMapper> objectMapperProvider;
+    private final ObjectProvider<AIActionRegistryContributor> contributorsProvider;
 
     private Map<String, AIActionHandler> handlerByActionName = Collections.emptyMap();
     private Map<String, AIActionMetaData> metadataByActionName = Collections.emptyMap();
 
     public AIActionRegistry(ApplicationContext applicationContext,
                             ObjectProvider<ConversionService> conversionServiceProvider,
-                            ObjectProvider<ObjectMapper> objectMapperProvider) {
+                            ObjectProvider<ObjectMapper> objectMapperProvider,
+                            ObjectProvider<AIActionRegistryContributor> contributorsProvider) {
         this.applicationContext = applicationContext;
         this.conversionServiceProvider = conversionServiceProvider;
         this.objectMapperProvider = objectMapperProvider;
+        this.contributorsProvider = contributorsProvider;
     }
 
     @PostConstruct
@@ -78,6 +81,7 @@ public class AIActionRegistry {
 
         Map<String, AIActionHandler> handlerMap = new LinkedHashMap<>();
         Map<String, AIActionMetaData> metadataMap = new LinkedHashMap<>();
+        Map<String, String> sourceByActionKey = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> entry : beans.entrySet()) {
             Object bean = entry.getValue();
@@ -97,14 +101,46 @@ public class AIActionRegistry {
             Method factsMethod = findOptionalSingleMethod(targetClass, ActionFacts.class, "@ActionFacts");
 
             AIActionMetaData meta = buildMetadata(action, executeMethod);
-            String key = normalize(meta.getName());
+            String key = AIActionNames.normalize(meta.getName());
             if (handlerMap.containsKey(key)) {
-                throw new IllegalStateException("Duplicate AI action name detected: '" + meta.getName() + "'");
+                String existingSource = sourceByActionKey.getOrDefault(key, "unknown");
+                throw new IllegalStateException("Action '" + meta.getName() + "' registered twice: "
+                    + existingSource + " + annotations");
             }
 
             AIActionHandler handler = new AnnotatedAIActionHandler(bean, action, meta, executeMethod, allowedMethod, confirmationMethod, factsMethod, binder);
             handlerMap.put(key, handler);
             metadataMap.put(key, meta);
+            sourceByActionKey.put(key, "annotations");
+        }
+
+        // Merge in additional action sources (connector catalogs, DB catalogs, etc.)
+        if (contributorsProvider != null) {
+            for (AIActionRegistryContributor contributor : contributorsProvider) {
+                if (contributor == null) {
+                    continue;
+                }
+                List<AIActionHandler> contributed = contributor.getHandlers();
+                if (contributed == null || contributed.isEmpty()) {
+                    continue;
+                }
+                String source = contributor.getSourceName();
+                for (AIActionHandler handler : contributed) {
+                    if (handler == null || handler.getActionMetadata() == null || !StringUtils.hasText(handler.getActionMetadata().getName())) {
+                        continue;
+                    }
+                    AIActionMetaData meta = handler.getActionMetadata();
+                    String key = AIActionNames.normalize(meta.getName());
+                    if (handlerMap.containsKey(key)) {
+                        String existingSource = sourceByActionKey.getOrDefault(key, "unknown");
+                        throw new IllegalStateException("Action '" + meta.getName() + "' registered twice: "
+                            + existingSource + " + " + (StringUtils.hasText(source) ? source : "contributor"));
+                    }
+                    handlerMap.put(key, handler);
+                    metadataMap.put(key, meta);
+                    sourceByActionKey.put(key, StringUtils.hasText(source) ? source : contributor.getClass().getSimpleName());
+                }
+            }
         }
 
         handlerByActionName = Collections.unmodifiableMap(handlerMap);
@@ -116,14 +152,14 @@ public class AIActionRegistry {
         if (!StringUtils.hasText(actionName)) {
             return Optional.empty();
         }
-        return Optional.ofNullable(handlerByActionName.get(normalize(actionName)));
+        return Optional.ofNullable(handlerByActionName.get(AIActionNames.normalize(actionName)));
     }
 
     public Optional<AIActionMetaData> findMetadata(String actionName) {
         if (!StringUtils.hasText(actionName)) {
             return Optional.empty();
         }
-        return Optional.ofNullable(metadataByActionName.get(normalize(actionName)));
+        return Optional.ofNullable(metadataByActionName.get(AIActionNames.normalize(actionName)));
     }
 
     public java.util.List<AIActionMetaData> getAllMetadata() {
@@ -358,14 +394,4 @@ public class AIActionRegistry {
         return Object.class;
     }
 
-    private String normalize(String value) {
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        normalized = normalized.replaceAll("[^a-z0-9_]+", "_");
-        normalized = normalized.replaceAll("_+", "_");
-        normalized = normalized.replaceAll("^_+|_+$", "");
-        if (normalized.endsWith("_action")) {
-            normalized = normalized.substring(0, normalized.length() - "_action".length());
-        }
-        return normalized;
-    }
 }

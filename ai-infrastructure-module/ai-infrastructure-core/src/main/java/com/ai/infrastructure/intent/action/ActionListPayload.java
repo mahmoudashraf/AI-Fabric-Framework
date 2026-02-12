@@ -51,8 +51,35 @@ public final class ActionListPayload implements ActionPayload {
     }
 
     public static ActionListPayload of(List<?> items, Map<String, Object> extra) {
+        return of(items, null, null, null, extra);
+    }
+
+    /**
+     * Build a list payload using the reserved list contract keys and optional pagination metadata.
+     *
+     * <p>Greenfield: list payloads are explicit contracts. If pagination metadata is present, it must be provided
+     * via the reserved keys ({@code _totalCount}, {@code _cursor}) rather than custom domain keys.</p>
+     *
+     * @param items list items (nullable)
+     * @param count count of items (nullable; defaults to {@code items.size()})
+     * @param totalCount total number of matches across pages (nullable)
+     * @param cursor cursor token for the next page (nullable)
+     * @param extra additional non-reserved keys (nullable)
+     * @return list payload
+     */
+    public static ActionListPayload of(List<?> items,
+                                      Integer count,
+                                      Long totalCount,
+                                      String cursor,
+                                      Map<String, Object> extra) {
         List<?> safeItems = items != null ? List.copyOf(items) : List.of();
-        int count = safeItems.size();
+        int effectiveCount = count != null ? count : safeItems.size();
+        if (effectiveCount < 0) {
+            throw new IllegalArgumentException("count must be >= 0");
+        }
+        if (effectiveCount != safeItems.size()) {
+            throw new IllegalArgumentException("count must equal items.size()");
+        }
 
         Map<String, Object> safeExtra;
         if (extra == null || extra.isEmpty()) {
@@ -75,7 +102,9 @@ public final class ActionListPayload implements ActionPayload {
             safeExtra = Collections.unmodifiableMap(out);
         }
 
-        return new ActionListPayload(count, Collections.unmodifiableList(safeItems), null, null, safeExtra);
+        Long safeTotalCount = totalCount != null && totalCount >= 0 ? totalCount : null;
+        String safeCursor = cursor != null && !cursor.trim().isEmpty() ? cursor.trim() : null;
+        return new ActionListPayload(effectiveCount, Collections.unmodifiableList(safeItems), safeTotalCount, safeCursor, safeExtra);
     }
 
     public int getCount() {
@@ -120,4 +149,3 @@ public final class ActionListPayload implements ActionPayload {
         return Collections.unmodifiableMap(out);
     }
 }
-

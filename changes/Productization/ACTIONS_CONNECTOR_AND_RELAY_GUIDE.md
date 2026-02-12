@@ -191,6 +191,50 @@ The runtime should treat file + DB sources uniformly (same canonical model).
 
 ---
 
+### 3.4 Action registration lifecycle (startup validation + template safety)
+
+The connector path only works if the action catalog is **validated once** and then treated as stable runtime contract.
+Prefer failing at startup (or at registration time) over discovering problems in production.
+
+#### 3.4.1 Discovery / loading order
+
+Recommended load order (no precedence; duplicates are fatal):
+1. Local annotations (`@AIAction`)
+2. File-based actions (`ai-actions.yml`)
+3. DB-backed actions (when enabled)
+
+**Collision detection**:
+- Build one unified registry from all sources.
+- If any action `name` appears more than once: **fail fast** (startup failure for boot sources; registration failure for DB API).
+
+#### 3.4.2 Schema validation (boot-time / registration-time)
+
+Validate before exposing actions to the LLM:
+- `name`: non-empty, trimmed, stable identifier (recommended: `snake_case`; enforcement should be **optional/configurable**)
+- `accessMode`: must be one of `READ | READ_WRITE | WRITE_ONLY`
+- `params`: validate `required`, `pattern`, `allowedValues`, `min`, `max` using the same rules as the Java binder
+- `requiresConfirmation`: boolean
+- `confirmationMessage` (if present): validate template placeholders
+
+#### 3.4.3 Confirmation template rendering (escape-by-default)
+
+If connector actions declare a `confirmationMessage` template (example: `Create purchase order for {{quantity}} × {{sku}}?`):
+- Rendering happens in **AI Fabric** (not in the connector), using the validated params for that action.
+- Placeholders must match declared `params[].name`.
+- Templates must be **escape-by-default** (UI-safe, no HTML/JS injection).
+- `sensitive: true` params must be **redacted by default** in confirmations (and in logs), unless an app explicitly opts in to showing them.
+
+Rule of thumb:
+- Good: `Cancel order {{orderRef}}?`
+- Avoid: `Ship to {{shippingAddress}}?` (shipping address is typically sensitive)
+
+#### 3.4.4 Runtime expectations
+
+- File-based contracts are immutable at runtime (restart required to change).
+- DB-backed actions can be added/removed via API, but must pass the same validations and must still fail fast on duplicates.
+
+---
+
 ## 4) Customer Connector API (execution contract)
 
 AI Fabric should call a **single connector base URL**.
@@ -198,7 +242,7 @@ Do not let the model provide arbitrary URLs.
 
 ### 4.1 `POST /actions/execute`
 
-Request (example):
+#### Request (example)
 
 ```json
 {
@@ -214,7 +258,13 @@ Request (example):
 }
 ```
 
-Response must match the framework action result contract:
+Notes:
+- `actionId` must refer to an action that is already in the validated catalog (no dynamic URLs, no ad-hoc actions).
+- `trace` is required for auditability and downstream authorization (see Relay security model).
+
+#### Response (success)
+
+Response must match the framework action result contract (`ActionResult`):
 
 ```json
 {
@@ -227,6 +277,52 @@ Response must match the framework action result contract:
   }
 }
 ```
+
+#### Response (error)
+
+For expected business/application failures, return `success=false` with a stable `errorCode`.
+The `message` must be user-safe (no secrets, no internal stack traces).
+
+```json
+{
+  "success": false,
+  "errorCode": "INSUFFICIENT_INVENTORY",
+  "message": "This item is out of stock.",
+  "data": {
+    "sku": "SKU-123",
+    "availableQuantity": 0
+  }
+}
+```
+
+#### HTTP status code guidance
+
+To keep orchestration deterministic:
+- Prefer `HTTP 200` with an `ActionResult` body for **handled** outcomes (success or failure).
+- Use non-2xx responses only for **protocol-level** failures (auth failed, invalid JSON, missing required top-level fields).
+  - If possible, still return an `ActionResult` body even when using non-2xx.
+
+#### Standard error codes (recommended)
+
+Connector implementations should use a small, stable set of error codes so AI Fabric can handle them consistently.
+
+| `errorCode` | Meaning | Retriable by default? | Typical UX behavior |
+|---|---|---:|---|
+| `INVALID_PARAMETER` | Input failed validation | No | Ask user to correct input |
+| `UNAUTHORIZED` | Missing/invalid auth | No | Stop + require configuration fix |
+| `FORBIDDEN` | Auth ok but not allowed | No | Explain insufficient permissions |
+| `NOT_FOUND` | Resource not found | No | Explain it doesn’t exist |
+| `CONFLICT` | State conflict (already cancelled, etc.) | No | Explain current state |
+| `BUSINESS_RULE_VIOLATION` | Domain-specific rule failed | No | Explain rule in message |
+| `RATE_LIMITED` | Too many requests | Yes | Ask user to retry later |
+| `TIMEOUT` | Upstream timed out | Yes | Retry (bounded) |
+| `SERVICE_UNAVAILABLE` | Temporary outage | Yes | Retry (bounded) |
+| `IDEMPOTENCY_CONFLICT` | Same key, different params | No | Treat as integration bug |
+| `ACTION_EXECUTION_FAILED` | Generic failure | Maybe | Retry only if safe for the action |
+
+**Retry semantics note:**
+- Today the framework action result contract carries `errorCode` but not a dedicated `retriable` boolean.
+- Hosted AI Fabric should derive retryability from `errorCode` (and the action `accessMode` + idempotency support).
 
 #### Payload rules (important)
 
@@ -253,12 +349,72 @@ List payload example:
 }
 ```
 
-### 4.2 Idempotency + retries (hosted safety)
+##### Reserved keys validation (connector + framework)
+
+If `data` contains `_items`:
+- `_items` **MUST** be an array
+- `_count` **MUST** be an integer
+- `_count` **SHOULD** equal `len(_items)` (unless using pagination semantics with partial pages)
+- `_totalCount` (optional) **MUST** be an integer
+- `_cursor` (optional) **MUST** be a string
+
+For object payloads:
+- Do **not** use reserved list keys (`_items`, `_count`, `_totalCount`, `_cursor`) as custom fields.
+- Avoid `_`-prefixed custom keys entirely; treat `_` as a reserved namespace.
+
+### 4.2 Idempotency implementation + retries (hosted safety)
 
 For `WRITE_ONLY` / `READ_WRITE` actions:
 - AI Fabric must send an `idempotencyKey`
 - Connector/Relay must implement idempotency (at least “exactly-once per key” best-effort)
 - Retries are only safe when idempotency is supported
+
+#### 4.2.1 Key generation (who + format)
+
+- **AI Fabric generates** `idempotencyKey` (do not accept client-generated keys).
+- Recommended format: `act_{ulid}` (ULID is sortable, URL-safe, and index-friendly).
+  - Example: `act_01HQRS123456789ABCDEFGHJK`
+
+#### 4.2.2 Connector storage requirements (what to remember)
+
+Connector/Relay must store (at minimum):
+- `idempotencyKey`
+- `actionId`
+- a stable fingerprint of `params` (or the serialized request)
+- the resulting `ActionResult`
+- an expiry timestamp (TTL)
+
+**TTL**:
+- Minimum: 24 hours
+- Recommended: 48 hours
+
+#### 4.2.3 Duplicate handling (must be deterministic)
+
+On duplicate request with the same key:
+- Return the **same** `ActionResult` as the first successful/failed execution.
+- Do not execute the side-effect twice.
+- Recommended header: `X-Idempotent: true` (optional, informational).
+
+If the same key is seen with **different** params:
+- Return `success=false` with `errorCode=IDEMPOTENCY_CONFLICT`.
+
+#### 4.2.4 Storage implementation options
+
+- **Redis (recommended for hosted/prod)**: simple TTL, fast, scalable
+- **Database table**: ACID guarantees, requires cleanup
+- **In-memory (dev-only)**: acceptable for local demos; not safe for distributed systems
+
+#### 4.2.5 Retry behavior (framework guidance)
+
+- `READ` actions may be retried (bounded), even without idempotency.
+- `WRITE_ONLY` / `READ_WRITE` actions must only be retried when:
+  1) an `idempotencyKey` was provided, and
+  2) the connector implements idempotency correctly
+
+Hosted AI Fabric should bound retries (example defaults):
+- max attempts: 3
+- exponential backoff: 1s → 2s → 4s
+- do not retry non-retriable `errorCode`s (see table above)
 
 For `READ` actions:
 - Retries are generally acceptable (still bounded)
@@ -285,7 +441,86 @@ Connector execution must be bounded:
 AI Fabric implements and ships the Relay as an official component (Docker image / binary).
 Customers deploy it and configure their internal routes/auth.
 
-### 5.2 Do actions need to be defined in the Relay?
+### 5.2 What the Relay is responsible for (and what it is not)
+
+The Relay implements the **Customer Connector API** boundary.
+
+The Relay is responsible for:
+- verifying inbound requests from AI Fabric (auth + integrity)
+- enforcing rate limits (defense in depth)
+- routing `actionId` safely to internal endpoints (SSRF-safe)
+- forwarding trace/user context for audit + authorization
+- producing a valid `ActionResult` response (success or error)
+
+The Relay is **not** responsible for:
+- defining the action contract (params, required fields, confirmation text)
+- LLM prompting or orchestration logic
+
+### 5.3 Relay security model (production requirements)
+
+#### 5.3.1 Authentication chain (defense in depth)
+
+Recommended chain:
+
+```
+User → AI Fabric (authenticates user/session)
+     → Relay (verifies AI Fabric signature)
+     → Internal service (re-authorizes user)
+```
+
+Critical principle:
+- **Internal services must re-authorize** using forwarded user identity/claims.
+- Do not rely solely on “AI Fabric already checked”.
+
+#### 5.3.2 User context forwarding (required)
+
+The connector request includes `trace` fields (example: `userId`, `requestId`, `conversationId`, `sessionId`).
+
+Relay must forward enough context so internal services can:
+- authorize the user
+- write auditable logs
+- correlate distributed traces
+
+Guidance:
+- Prefer stable internal identifiers (e.g., `userId`) over PII (e.g., email).
+- Never log or forward secrets in `trace`.
+
+#### 5.3.3 Rate limiting (required)
+
+Relay should enforce:
+- per-user limits (to prevent abuse)
+- per-action limits (to protect expensive/mutable operations)
+
+If rate-limited, return:
+- `success=false`, `errorCode=RATE_LIMITED`
+- a user-safe message
+- optional `data.retryAfterSeconds`
+
+#### 5.3.4 Audit logging (required; PII-safe)
+
+Relay must log, at minimum:
+- timestamp (ISO 8601)
+- `actionId`
+- `requestId` (or equivalent correlation id)
+- stable `userId` (no email/phone/address)
+- outcome: success/failure + `errorCode` (if any)
+- latency (ms)
+
+Do not log:
+- `params` containing sensitive values (emails, addresses, payment info, tokens)
+- full request/response bodies
+
+#### 5.3.5 Network security (required)
+
+AI Fabric → Relay:
+- TLS required
+- integrity/auth required (HMAC recommended, mTLS optional later)
+- replay protection (timestamp + nonce)
+
+Relay → internal services:
+- customer choice, but TLS + service auth is recommended
+
+### 5.4 Do actions need to be defined in the Relay?
 
 Not the full action contract (name/params/confirmation text).
 
@@ -304,7 +539,50 @@ Two safe relay designs:
 Avoid:
 - A relay that accepts arbitrary URLs from AI Fabric (SSRF risk)
 
-### 5.3 Deployment patterns
+### 5.5 Relay configuration example (illustrative)
+
+```yaml
+# relay-config.yml
+server:
+  port: 8443
+  tls:
+    enabled: true
+    certPath: /etc/relay/tls/cert.pem
+    keyPath: /etc/relay/tls/key.pem
+
+aiFabric:
+  # used for signature verification / allowlisting
+  hmacSecretEnv: AIFABRIC_HMAC_SECRET
+  maxClockSkewSeconds: 300
+
+rateLimits:
+  perUser:
+    windowSeconds: 60
+    maxRequests: 100
+  perAction:
+    create_purchase_order:
+      windowSeconds: 60
+      maxRequests: 10
+
+actions:
+  # Pattern A: explicit mapping (SSRF-safe)
+  create_purchase_order:
+    endpoint: http://internal-api:8080/orders
+    method: POST
+    timeoutMs: 5000
+  cancel_purchase_order:
+    endpoint: http://internal-api:8080/orders/cancel
+    method: POST
+    timeoutMs: 3000
+
+audit:
+  enabled: true
+  destination: file
+  path: /var/log/relay/audit.jsonl
+  retentionDays: 90
+```
+
+### 5.6 Deployment patterns
 
 - **Customer-side (recommended)**: Relay inside customer VPC/on‑prem, reachable from AI Fabric
 - **Sidecar**: if AI Fabric is deployed into customer environment, run Relay next to it for consistent architecture
@@ -367,3 +645,11 @@ With one unified action model + connector execution:
 - UI request contract (attachments + position/mode):
   - `Final_Documentation/Development_Guides/CHAT_CAPABILITIES_UI_MIGRATION_GUIDE.md`
 
+---
+
+## Appendix: Recommended companion artifacts (next)
+
+To reduce integration variance and support cost, plan to ship:
+- OpenAPI spec for the Customer Connector API (machine-readable contract)
+- Connector implementation guide (language-agnostic + reference examples)
+- Relay deployment guide (Docker Compose + Kubernetes + security checklist)
