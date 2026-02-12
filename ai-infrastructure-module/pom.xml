@@ -32,6 +32,7 @@
         <module>ai-infrastructure-core</module>
         <module>ai-infrastructure-actions-connector</module>
         <module>ai-infrastructure-retrieval-connector</module>
+        <module>ai-infrastructure-data-sync</module>
         <module>ai-infrastructure-indexing</module>
         <module>ai-infrastructure-pii</module>
         <module>ai-infrastructure-governance</module>
@@ -122,17 +123,23 @@
 	                <artifactId>ai-infrastructure-actions-connector</artifactId>
 	                <version>${project.version}</version>
 	            </dependency>
-	            <!-- Optional: documents-only retrieval connector module -->
-	            <dependency>
-	                <groupId>com.ai.fabric</groupId>
-	                <artifactId>ai-infrastructure-retrieval-connector</artifactId>
-	                <version>${project.version}</version>
-	            </dependency>
-	            <dependency>
-	                <groupId>com.ai.fabric</groupId>
-	                <artifactId>ai-fabric-provider-starter</artifactId>
-	                <version>${project.version}</version>
-	            </dependency>
+		            <!-- Optional: documents-only retrieval connector module -->
+		            <dependency>
+		                <groupId>com.ai.fabric</groupId>
+		                <artifactId>ai-infrastructure-retrieval-connector</artifactId>
+		                <version>${project.version}</version>
+		            </dependency>
+		            <!-- Optional: push-based data sync (ingestion) API for managed vector DB -->
+		            <dependency>
+		                <groupId>com.ai.fabric</groupId>
+		                <artifactId>ai-infrastructure-data-sync</artifactId>
+		                <version>${project.version}</version>
+		            </dependency>
+		            <dependency>
+		                <groupId>com.ai.fabric</groupId>
+		                <artifactId>ai-fabric-provider-starter</artifactId>
+		                <version>${project.version}</version>
+		            </dependency>
             <dependency>
                 <groupId>com.ai.fabric</groupId>
                 <artifactId>ai-fabric-web</artifactId>

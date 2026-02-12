@@ -140,14 +140,14 @@ WebhookActionExecutor.execute(
 | Sync Model | Status | Description |
 |------------|--------|-------------|
 | **Embedded AOP** | EXISTS | SDK intercepts entity saves |
-| **Push API** | NEEDED | Customer POSTs entities to sync |
+| **Push API** | IMPLEMENTED (opt-in) | Customer POSTs entities to sync (managed vector DB ingestion) |
 | **Pull Connector** | OPTIONAL | AI Fabric reads customer DB |
 
 **Work Required:**
-- Data ingestion REST API (~800 LOC)
-- Entity normalization layer (~400 LOC)
-- Batch processing support (~300 LOC)
-- Delta sync tracking (~500 LOC)
+- ✅ Data ingestion REST API (implemented in `ai-infrastructure-data-sync`)
+- ✅ Entity normalization layer (searchable-fields + metadata-fields driven)
+- ✅ Batch processing support
+- ⏳ Delta sync tracking / checkpoint persistence (planned)
 
 ---
 
@@ -266,10 +266,10 @@ WebhookActionExecutor.execute(
 │   └─────────────────────────────────────────┘                   │
 │                                                                  │
 │   ┌─────────────────────────────────────────┐                   │
-│   │ ai-infrastructure-data-sync             │  NEW (~1,500 LOC) │
+│   │ ai-infrastructure-data-sync             │  IMPLEMENTED      │
 │   │ - DataSyncController (Push API)         │                   │
-│   │ - EntityNormalizer                      │                   │
-│   │ - SyncCheckpointService                 │                   │
+│   │ - EntityNormalizer (field-driven)       │                   │
+│   │ - Batch upsert/delete                   │                   │
 │   └─────────────────────────────────────────┘                   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘

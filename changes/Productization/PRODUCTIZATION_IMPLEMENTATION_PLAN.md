@@ -354,6 +354,10 @@ References:
 - build `POST /sync/entity` / `POST /sync/doc` style APIs
 - support delete + batch + minimal checkpointing
 
+Implemented in code (opt-in module):
+- `ai-infrastructure-data-sync` exposes `/api/ai/data-sync/*` endpoints for upsert/delete/batch
+- Guide: `changes/Productization/DATA_SYNC_PUSH_API_GUIDE.md`
+
 ### Phase E — Control plane MVP
 - project/env/deploy UI + APIs
 - pack selection + entitlement issuance
@@ -376,4 +380,3 @@ References:
   - `Final_Documentation/System_Archtecture_Guides/ORCHESTRATION_OPTIMIZATION_GUIDE.md`
 - Normalization + pipeline rules:
   - `Final_Documentation/System_Archtecture_Guides/NORMALIZATION_AND_ORCHESTRATION_GUIDE.md`
-
