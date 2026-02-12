@@ -12,7 +12,7 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
 
 ## Status (as of 2026-02-12)
 
-### Implemented in code (ai-infrastructure-actions-connector + ai-fabric-core)
+### Implemented in code (opt-in modules + ai-fabric-core)
 
 - `ai-infrastructure-actions-connector`:
   - File-based connector action catalog loading + validation (`ai.actions.sources[*]`)
@@ -21,6 +21,8 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
   - Bounded retries derived from `errorCode` + idempotency safety
   - Optional API key header + optional HMAC signing headers (outbound)
   - Strict payload parsing (object vs list payload contracts)
+- `ai-infrastructure-retrieval-connector`:
+  - Documents-only external retrieval via `POST /retrieval/search` (as a `RAGProvider`)
 - `ai-fabric-core`:
   - Unified action registry (annotation + contributed sources)
   - Connector actions registered alongside `@AIAction` actions
@@ -28,6 +30,7 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
 
 Opt-in:
 - Add dependency `com.ai.fabric:ai-infrastructure-actions-connector` to enable connector-backed actions.
+- Add dependency `com.ai.fabric:ai-infrastructure-retrieval-connector` to enable documents-only external retrieval.
 
 ### Implemented in docs (changes/Productization)
 
@@ -41,7 +44,6 @@ Opt-in:
 - Relay reference implementation (customer-side component):
   - inbound HMAC verification, rate limiting, audit logging, SSRF-safe routing
 - DB-backed action registration controller (register/deregister/list)
-- Retrieval connector runtime integration (calling `POST /retrieval/search`)
 
 ---
 
@@ -661,6 +663,9 @@ Return:
 This endpoint can be implemented:
 - directly by the customer, or
 - inside the Relay (which calls internal search/RAG systems)
+
+Runtime integration note:
+- AI Fabric supports this via the opt-in module `ai-infrastructure-retrieval-connector` (as a `RAGProvider`).
 
 Details:
 - `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`

@@ -31,6 +31,7 @@
     <modules>
         <module>ai-infrastructure-core</module>
         <module>ai-infrastructure-actions-connector</module>
+        <module>ai-infrastructure-retrieval-connector</module>
         <module>ai-infrastructure-indexing</module>
         <module>ai-infrastructure-pii</module>
         <module>ai-infrastructure-governance</module>
@@ -119,6 +120,12 @@
 	            <dependency>
 	                <groupId>com.ai.fabric</groupId>
 	                <artifactId>ai-infrastructure-actions-connector</artifactId>
+	                <version>${project.version}</version>
+	            </dependency>
+	            <!-- Optional: documents-only retrieval connector module -->
+	            <dependency>
+	                <groupId>com.ai.fabric</groupId>
+	                <artifactId>ai-infrastructure-retrieval-connector</artifactId>
 	                <version>${project.version}</version>
 	            </dependency>
 	            <dependency>

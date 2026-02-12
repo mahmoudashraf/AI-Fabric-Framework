@@ -20,7 +20,11 @@ Reference:
 ## Status (as of 2026-02-12)
 
 - **Contract is documented** (OpenAPI + this guide).
-- **Not implemented yet in runtime:** AI Fabric calling `/retrieval/search` as part of orchestration (planned).
+- **Implemented in code (opt-in module):** `ai-infrastructure-retrieval-connector` provides a `RAGProvider` implementation that calls `/retrieval/search`.
+
+Opt-in:
+- Add dependency `com.ai.fabric:ai-infrastructure-retrieval-connector`
+- Enable with `ai.retrieval.connector.enabled=true`
 
 ---
 
@@ -189,4 +193,3 @@ Do not log full `query` content if it can contain PII; if you must log, hash it 
 - Ordering is stable (highest score first).
 - Pagination via `cursor` works (when implemented).
 - PII-safe logs (no raw queries or sensitive content).
-

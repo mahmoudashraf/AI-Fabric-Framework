@@ -14,7 +14,7 @@ Reference:
 ## Status (as of 2026-02-12)
 
 - **Implemented in AI Fabric:** `ai-infrastructure-actions-connector` calls `/actions/execute`, parses the `ActionResult` contract, generates idempotency keys, and performs bounded retries.
-- **Not implemented yet:** retrieval connector runtime integration (the `/retrieval/search` contract is documented for next steps).
+- **Implemented in AI Fabric:** `ai-infrastructure-retrieval-connector` calls `/retrieval/search` and returns documents/chunks via the `RAGProvider` contract.
 
 ---
 
