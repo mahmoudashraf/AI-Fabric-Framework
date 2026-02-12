@@ -30,6 +30,7 @@
 
     <modules>
         <module>ai-infrastructure-core</module>
+        <module>ai-infrastructure-actions-connector</module>
         <module>ai-infrastructure-indexing</module>
         <module>ai-infrastructure-pii</module>
         <module>ai-infrastructure-governance</module>
@@ -108,17 +109,23 @@
                 <version>${protobuf.version}</version>
             </dependency>
             
-            <!-- AI Infrastructure Core Module -->
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-provider-starter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
+	            <!-- AI Infrastructure Core Module -->
+	            <dependency>
+	                <groupId>com.ai.fabric</groupId>
+	                <artifactId>ai-fabric-core</artifactId>
+	                <version>${project.version}</version>
+	            </dependency>
+	            <!-- Optional: connector-backed actions module -->
+	            <dependency>
+	                <groupId>com.ai.fabric</groupId>
+	                <artifactId>ai-infrastructure-actions-connector</artifactId>
+	                <version>${project.version}</version>
+	            </dependency>
+	            <dependency>
+	                <groupId>com.ai.fabric</groupId>
+	                <artifactId>ai-fabric-provider-starter</artifactId>
+	                <version>${project.version}</version>
+	            </dependency>
             <dependency>
                 <groupId>com.ai.fabric</groupId>
                 <artifactId>ai-fabric-web</artifactId>

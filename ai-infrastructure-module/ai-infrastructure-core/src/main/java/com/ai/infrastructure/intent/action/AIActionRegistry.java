@@ -67,51 +67,50 @@ public class AIActionRegistry {
     @PostConstruct
     void initialize() {
         Map<String, Object> beans = applicationContext.getBeansWithAnnotation(AIAction.class);
-        if (beans == null || beans.isEmpty()) {
-            handlerByActionName = Map.of();
-            metadataByActionName = Map.of();
-            log.info("AIActionRegistry initialized with 0 action(s)");
-            return;
+        if (beans == null) {
+            beans = Map.of();
         }
-
-        ActionMethodArgumentBinder binder = new ActionMethodArgumentBinder(
-            conversionServiceProvider != null ? conversionServiceProvider.getIfAvailable() : null,
-            objectMapperProvider != null ? objectMapperProvider.getIfAvailable(ObjectMapper::new) : new ObjectMapper()
-        );
 
         Map<String, AIActionHandler> handlerMap = new LinkedHashMap<>();
         Map<String, AIActionMetaData> metadataMap = new LinkedHashMap<>();
         Map<String, String> sourceByActionKey = new LinkedHashMap<>();
 
-        for (Map.Entry<String, Object> entry : beans.entrySet()) {
-            Object bean = entry.getValue();
-            if (bean == null) {
-                continue;
+        if (!beans.isEmpty()) {
+            ActionMethodArgumentBinder binder = new ActionMethodArgumentBinder(
+                conversionServiceProvider != null ? conversionServiceProvider.getIfAvailable() : null,
+                objectMapperProvider != null ? objectMapperProvider.getIfAvailable(ObjectMapper::new) : new ObjectMapper()
+            );
+
+            for (Map.Entry<String, Object> entry : beans.entrySet()) {
+                Object bean = entry.getValue();
+                if (bean == null) {
+                    continue;
+                }
+
+                Class<?> targetClass = AopUtils.getTargetClass(bean);
+                AIAction action = AnnotatedElementUtils.findMergedAnnotation(targetClass, AIAction.class);
+                if (action == null || !StringUtils.hasText(action.name())) {
+                    continue;
+                }
+
+                Method executeMethod = findSingleMethod(targetClass, ActionExecute.class, "@ActionExecute");
+                Method allowedMethod = findOptionalSingleMethod(targetClass, ActionAllowed.class, "@ActionAllowed");
+                Method confirmationMethod = findOptionalSingleMethod(targetClass, ActionConfirmation.class, "@ActionConfirmation");
+                Method factsMethod = findOptionalSingleMethod(targetClass, ActionFacts.class, "@ActionFacts");
+
+                AIActionMetaData meta = buildMetadata(action, executeMethod);
+                String key = AIActionNames.normalize(meta.getName());
+                if (handlerMap.containsKey(key)) {
+                    String existingSource = sourceByActionKey.getOrDefault(key, "unknown");
+                    throw new IllegalStateException("Action '" + meta.getName() + "' registered twice: "
+                        + existingSource + " + annotations");
+                }
+
+                AIActionHandler handler = new AnnotatedAIActionHandler(bean, action, meta, executeMethod, allowedMethod, confirmationMethod, factsMethod, binder);
+                handlerMap.put(key, handler);
+                metadataMap.put(key, meta);
+                sourceByActionKey.put(key, "annotations");
             }
-
-            Class<?> targetClass = AopUtils.getTargetClass(bean);
-            AIAction action = AnnotatedElementUtils.findMergedAnnotation(targetClass, AIAction.class);
-            if (action == null || !StringUtils.hasText(action.name())) {
-                continue;
-            }
-
-            Method executeMethod = findSingleMethod(targetClass, ActionExecute.class, "@ActionExecute");
-            Method allowedMethod = findOptionalSingleMethod(targetClass, ActionAllowed.class, "@ActionAllowed");
-            Method confirmationMethod = findOptionalSingleMethod(targetClass, ActionConfirmation.class, "@ActionConfirmation");
-            Method factsMethod = findOptionalSingleMethod(targetClass, ActionFacts.class, "@ActionFacts");
-
-            AIActionMetaData meta = buildMetadata(action, executeMethod);
-            String key = AIActionNames.normalize(meta.getName());
-            if (handlerMap.containsKey(key)) {
-                String existingSource = sourceByActionKey.getOrDefault(key, "unknown");
-                throw new IllegalStateException("Action '" + meta.getName() + "' registered twice: "
-                    + existingSource + " + annotations");
-            }
-
-            AIActionHandler handler = new AnnotatedAIActionHandler(bean, action, meta, executeMethod, allowedMethod, confirmationMethod, factsMethod, binder);
-            handlerMap.put(key, handler);
-            metadataMap.put(key, meta);
-            sourceByActionKey.put(key, "annotations");
         }
 
         // Merge in additional action sources (connector catalogs, DB catalogs, etc.)
@@ -145,7 +144,11 @@ public class AIActionRegistry {
 
         handlerByActionName = Collections.unmodifiableMap(handlerMap);
         metadataByActionName = Collections.unmodifiableMap(metadataMap);
-        log.info("AIActionRegistry initialized with {} action(s)", handlerByActionName.size());
+        if (handlerByActionName.isEmpty()) {
+            log.info("AIActionRegistry initialized with 0 action(s)");
+        } else {
+            log.info("AIActionRegistry initialized with {} action(s)", handlerByActionName.size());
+        }
     }
 
     public Optional<AIActionHandler> findHandler(String actionName) {

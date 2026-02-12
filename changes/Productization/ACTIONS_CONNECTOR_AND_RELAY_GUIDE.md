@@ -10,6 +10,41 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
 
 ---
 
+## Status (as of 2026-02-12)
+
+### Implemented in code (ai-infrastructure-actions-connector + ai-fabric-core)
+
+- `ai-infrastructure-actions-connector`:
+  - File-based connector action catalog loading + validation (`ai.actions.sources[*]`)
+  - Connector-backed execution (`ai.actions.connector.*`) via `POST /actions/execute`
+  - Idempotency key generation for `WRITE_ONLY` / `READ_WRITE` (`act_{ulid}`)
+  - Bounded retries derived from `errorCode` + idempotency safety
+  - Optional API key header + optional HMAC signing headers (outbound)
+  - Strict payload parsing (object vs list payload contracts)
+- `ai-fabric-core`:
+  - Unified action registry (annotation + contributed sources)
+  - Connector actions registered alongside `@AIAction` actions
+  - Name collisions fail fast at startup (no silent overrides)
+
+Opt-in:
+- Add dependency `com.ai.fabric:ai-infrastructure-actions-connector` to enable connector-backed actions.
+
+### Implemented in docs (changes/Productization)
+
+- OpenAPI spec: `changes/Productization/customer-connector-api.openapi.yml`
+- Connector implementation guide: `changes/Productization/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
+- Relay specification + deployment guide: `changes/Productization/RELAY_IMPLEMENTATION_AND_DEPLOYMENT_GUIDE.md`
+- Retrieval connector guide (documents-only): `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
+
+### Not implemented yet (planned)
+
+- Relay reference implementation (customer-side component):
+  - inbound HMAC verification, rate limiting, audit logging, SSRF-safe routing
+- DB-backed action registration controller (register/deregister/list)
+- Retrieval connector runtime integration (calling `POST /retrieval/search`)
+
+---
+
 ## 0) Goal (What we’re shipping)
 
 AI Fabric provides:
@@ -116,6 +151,9 @@ Use the V5 guide:
 ### 3.2 Connector actions (file-based contract — first release)
 
 For hosted + language-agnostic adoption, start with a file-based action contract loaded at boot.
+
+Implementation note:
+- Connector catalogs + execution live in the optional module `ai-infrastructure-actions-connector`.
 
 **Recommended file:** `ai-actions.yml`
 
@@ -354,7 +392,7 @@ List payload example:
 If `data` contains `_items`:
 - `_items` **MUST** be an array
 - `_count` **MUST** be an integer
-- `_count` **SHOULD** equal `len(_items)` (unless using pagination semantics with partial pages)
+- `_count` **MUST** equal `len(_items)` (use `_totalCount` for overall pagination counts)
 - `_totalCount` (optional) **MUST** be an integer
 - `_cursor` (optional) **MUST** be a string
 
@@ -624,6 +662,10 @@ This endpoint can be implemented:
 - directly by the customer, or
 - inside the Relay (which calls internal search/RAG systems)
 
+Details:
+- `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
+- `changes/Productization/customer-connector-api.openapi.yml`
+
 ---
 
 ## 8) What this enables (product outcomes)
@@ -647,9 +689,9 @@ With one unified action model + connector execution:
 
 ---
 
-## Appendix: Recommended companion artifacts (next)
+## Appendix: Companion artifacts (V1)
 
-To reduce integration variance and support cost, plan to ship:
-- OpenAPI spec for the Customer Connector API (machine-readable contract)
-- Connector implementation guide (language-agnostic + reference examples)
-- Relay deployment guide (Docker Compose + Kubernetes + security checklist)
+- `changes/Productization/customer-connector-api.openapi.yml`
+- `changes/Productization/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
+- `changes/Productization/RELAY_IMPLEMENTATION_AND_DEPLOYMENT_GUIDE.md`
+- `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
