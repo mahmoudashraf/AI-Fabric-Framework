@@ -5,13 +5,32 @@ The **AI Fabric Relay** is an optional customer-side component that implements t
 Reference:
 - Architecture + contracts: `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 - OpenAPI spec: `changes/Productization/customer-connector-api.openapi.yml`
+- Implementation plan: `changes/Productization/RELAY_SERVICE_IMPLEMENTATION_PLAN.md`
 
 ---
 
 ## Status (as of 2026-02-12)
 
-- **Not implemented yet in code.** This document is the implementation + deployment specification.
+- **Implemented in code (V1):** `ai-infrastructure-module/ai-infrastructure-relay` (runnable Spring Boot service).
 - The AI Fabric runtime already supports calling a connector endpoint (so the Relay can be introduced without changing orchestration semantics).
+- Still planned for production hardening: Redis-backed nonce/idempotency stores, optional mTLS, and additional operational controls.
+
+---
+
+## Reference implementation (V1)
+
+Source:
+- `ai-infrastructure-module/ai-infrastructure-relay`
+
+Local run:
+- `mvn -f ai-infrastructure-module/pom.xml -pl ai-infrastructure-relay spring-boot:run`
+
+Core configuration keys:
+- `relay.auth.apiKey.*` and/or `relay.auth.hmac.*`
+- `relay.routing.mode=mapping|dispatcher`
+- `relay.routing.actions.{actionId}.url` (mapping mode)
+- `relay.routing.dispatcher.url` (dispatcher mode)
+- `relay.routing.retrieval.url` (optional)
 
 ---
 
@@ -194,4 +213,3 @@ Recommended:
 - SSRF-safe routing (no dynamic URLs)
 - Correctly forwards `trace` and preserves requestId correlation
 - Returns valid `ActionResult` for both success and failure
-

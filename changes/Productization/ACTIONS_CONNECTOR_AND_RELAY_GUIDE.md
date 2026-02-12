@@ -21,8 +21,15 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
   - Bounded retries derived from `errorCode` + idempotency safety
   - Optional API key header + optional HMAC signing headers (outbound)
   - Strict payload parsing (object vs list payload contracts)
+- `ai-infrastructure-actions-registry`:
+  - DB-backed action registration controller (`POST/DELETE/GET /api/ai/actions/registry`)
+  - DB-backed connector action catalog contributor (loaded into the unified action registry)
+  - Enabled by `ai.actions.db.enabled=true`
 - `ai-infrastructure-retrieval-connector`:
   - Documents-only external retrieval via `POST /retrieval/search` (as a `RAGProvider`)
+- `ai-infrastructure-relay` (runnable service):
+  - Customer-side Relay implementation of the Customer Connector API (`/actions/execute`, `/retrieval/search`)
+  - Inbound auth (API key and/or HMAC), replay protection, rate limiting, idempotency (in-memory V1), SSRF-safe routing (mapping/dispatcher)
 - `ai-fabric-core`:
   - Unified action registry (annotation + contributed sources)
   - Connector actions registered alongside `@AIAction` actions
@@ -37,13 +44,14 @@ Opt-in:
 - OpenAPI spec: `changes/Productization/customer-connector-api.openapi.yml`
 - Connector implementation guide: `changes/Productization/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
 - Relay specification + deployment guide: `changes/Productization/RELAY_IMPLEMENTATION_AND_DEPLOYMENT_GUIDE.md`
+- Relay implementation plan (V1 build steps): `changes/Productization/RELAY_SERVICE_IMPLEMENTATION_PLAN.md`
 - Retrieval connector guide (documents-only): `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
 
 ### Not implemented yet (planned)
 
-- Relay reference implementation (customer-side component):
-  - inbound HMAC verification, rate limiting, audit logging, SSRF-safe routing
-- DB-backed action registration controller (register/deregister/list)
+- Relay hardening:
+  - Redis-backed idempotency + nonce stores for HA deployments
+  - optional mTLS inbound auth (enterprise)
 
 ---
 
@@ -220,14 +228,18 @@ Notes:
 
 ### 3.3 DB-backed registration (next)
 
-After file-based adoption, support dynamic registration:
-- Persist action definitions in DB
-- Add a Web module controller:
-  - register / deregister / list actions
-  - return deterministic errors on duplicates (fail fast)
-  - version actions (optional) to support safe updates
+Implemented (opt-in module): `ai-infrastructure-actions-registry`
+- Enable: `ai.actions.db.enabled=true`
+- Endpoints:
+  - `GET /api/ai/actions/registry`
+  - `POST /api/ai/actions/registry`
+  - `DELETE /api/ai/actions/registry/{actionName}`
+- Behavior:
+  - persists action definitions in DB
+  - fails fast on duplicates/collisions
+  - refreshes the unified action registry so changes are available without restart
 
-The runtime should treat file + DB sources uniformly (same canonical model).
+The runtime treats file + DB sources uniformly (same canonical model).
 
 ---
 

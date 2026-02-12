@@ -51,8 +51,8 @@ public class AIActionRegistry {
     private final ObjectProvider<ObjectMapper> objectMapperProvider;
     private final ObjectProvider<AIActionRegistryContributor> contributorsProvider;
 
-    private Map<String, AIActionHandler> handlerByActionName = Collections.emptyMap();
-    private Map<String, AIActionMetaData> metadataByActionName = Collections.emptyMap();
+    private volatile Map<String, AIActionHandler> handlerByActionName = Collections.emptyMap();
+    private volatile Map<String, AIActionMetaData> metadataByActionName = Collections.emptyMap();
 
     public AIActionRegistry(ApplicationContext applicationContext,
                             ObjectProvider<ConversionService> conversionServiceProvider,
@@ -66,6 +66,26 @@ public class AIActionRegistry {
 
     @PostConstruct
     void initialize() {
+        refresh();
+    }
+
+    /**
+     * Rebuild the registry from all known sources (annotations + contributors) and atomically swap the snapshot.
+     *
+     * <p>Greenfield: used by opt-in modules that support runtime registration (e.g. DB-backed connector action catalogs).</p>
+     */
+    public synchronized void refresh() {
+        RegistrySnapshot snapshot = buildSnapshot();
+        handlerByActionName = snapshot.handlerByActionName;
+        metadataByActionName = snapshot.metadataByActionName;
+        if (handlerByActionName.isEmpty()) {
+            log.info("AIActionRegistry refreshed with 0 action(s)");
+        } else {
+            log.info("AIActionRegistry refreshed with {} action(s)", handlerByActionName.size());
+        }
+    }
+
+    private RegistrySnapshot buildSnapshot() {
         Map<String, Object> beans = applicationContext.getBeansWithAnnotation(AIAction.class);
         if (beans == null) {
             beans = Map.of();
@@ -142,13 +162,9 @@ public class AIActionRegistry {
             }
         }
 
-        handlerByActionName = Collections.unmodifiableMap(handlerMap);
-        metadataByActionName = Collections.unmodifiableMap(metadataMap);
-        if (handlerByActionName.isEmpty()) {
-            log.info("AIActionRegistry initialized with 0 action(s)");
-        } else {
-            log.info("AIActionRegistry initialized with {} action(s)", handlerByActionName.size());
-        }
+        Map<String, AIActionHandler> handlers = Collections.unmodifiableMap(handlerMap);
+        Map<String, AIActionMetaData> metadata = Collections.unmodifiableMap(metadataMap);
+        return new RegistrySnapshot(handlers, metadata);
     }
 
     public Optional<AIActionHandler> findHandler(String actionName) {
@@ -171,6 +187,10 @@ public class AIActionRegistry {
 
     public Map<String, AIActionHandler> getHandlerMap() {
         return handlerByActionName;
+    }
+
+    private record RegistrySnapshot(Map<String, AIActionHandler> handlerByActionName,
+                                    Map<String, AIActionMetaData> metadataByActionName) {
     }
 
     private Method findSingleMethod(Class<?> targetClass, Class<? extends Annotation> annotationType, String label) {
