@@ -12,6 +12,22 @@ Related release planning docs (existing):
 - `changes/release/MONOREPO_COMMUNITY_ENTERPRISE_SEPARATION_CHANGE_PLAN.md`
 - `changes/release/ARTIFACT_COORDINATES_AND_NAMING_FIXES_CHANGE_PLAN.md`
 
+Quickstart (what developers should run):
+- `docs/V0_QUICKSTART.md`
+
+---
+
+## Status (as of 2026-02-13)
+
+- Quickstart doc added: `docs/V0_QUICKSTART.md`
+- Build gate verified (in repo environment):
+  - `mvn -f ai-infrastructure-module/pom.xml -DskipTests install`
+  - `mvn -f Real_Apps/chat-capabilities-demo/pom.xml test`
+- Pending for the actual public release:
+  - tag + release notes
+  - short demo video link
+  - final “supported set” statement in root README
+
 ---
 
 ## 0) Release definition (what “v0” means)
@@ -66,6 +82,8 @@ This is the **supported set** for `v0.x`. It is what we test, document, and stan
   - indexing coordination primitives (used by demo)
 - `ai-infrastructure-module/ai-infrastructure-chat-session`
   - chat sessions + conversation recording/pipeline steps
+- `ai-infrastructure-module/ai-infrastructure-governance`
+  - currently required by `Real_Apps/chat-capabilities-demo` (keep scope minimal for v0)
 - `ai-infrastructure-module/ai-infrastructure-web`
   - REST endpoints that are part of the “framework story” (if not strictly required by demo, keep but don’t expand scope)
 
@@ -117,14 +135,10 @@ Rationale:
 - `ai-infrastructure-module/ai-infrastructure-relationship-query`
 - `ai-infrastructure-module/ai-infrastructure-migration`
 - `ai-infrastructure-module/ai-infrastructure-behavior`
-- `ai-infrastructure-module/ai-infrastructure-governance`
 
 Note:
-- The current chat demo depends on `ai-infrastructure-governance`. For v0 scope, either:
-  - (preferred) update the demo to not require governance, or
-  - keep governance in supported set but treat it as “core optional module” (minimal promises)
-
-This is a scope decision to make early.
+- The current chat demo depends on `ai-infrastructure-governance`. For v0 scope we keep it in the **supported set**,
+  but do not expand its surface area beyond what the demo uses.
 
 ### 3.4 Integration testing modules (not part of v0 deliverable)
 - `ai-infrastructure-module/integration-Testing/*`
@@ -216,4 +230,3 @@ Week 3:
 - tag v0.1.0
 - publish release
 - collect early feedback (issues, stars, testimonials)
-

@@ -1,5 +1,8 @@
 # Chat Capabilities Demo (AI Fabric)
 
+v0 quickstart (golden path):
+- `../../docs/V0_QUICKSTART.md`
+
 This Real App demonstrates:
 - **Chat sessions**: multi-turn context + turn recording + conversation lifecycle APIs (get/list/delete)
 - **Product catalog + RAG**: CRUD products, index into **Lucene**, and retrieve via chat (OpenAI embeddings + LLM)

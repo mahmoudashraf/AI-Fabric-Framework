@@ -32,8 +32,7 @@ This plan is designed to align with existing framework contracts and developer d
 
 ### Not implemented yet (platform/product layers)
 
-- Phase E — control plane MVP (projects/environments/deployments, licensing/entitlements issuance, self-serve onboarding UI)
-- Hosted provisioning automation (AWS templates, per-customer vector DB provisioning + lifecycle)
+- Phase E — control plane MVP + provisioning automation (AWS-first): see `changes/Productization/PHASE_E_CONTROL_PLANE_AND_PROVISIONING_PLAN.md`
 - Billing/subscriptions + marketplace packaging/versioning (later)
 
 ---
