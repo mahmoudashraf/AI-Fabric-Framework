@@ -14,6 +14,7 @@ Reference:
 - **Implemented in code (V1):** `ai-infrastructure-module/ai-infrastructure-relay` (runnable Spring Boot service).
 - The AI Fabric runtime already supports calling a connector endpoint (so the Relay can be introduced without changing orchestration semantics).
 - Redis-backed nonce/idempotency/rate-limit stores are implemented and configurable (default remains in-memory for dev/single-instance).
+- Not shipped yet (packaging/ops): Dockerfile + Compose/Helm examples.
 - Still planned for production hardening: optional mTLS and additional operational controls.
 
 ---

@@ -20,6 +20,15 @@ public class AIActionDbRegistryProperties {
      */
     private ApiKeyProperties apiKey = new ApiKeyProperties();
 
+    /**
+     * Liquibase integration for the registry schema.
+     *
+     * <p>When using the optional module {@code ai-infrastructure-actions-registry-liquibase}, these properties
+     * are used to provide safe defaults for {@code spring.liquibase.*} when the host application does not already
+     * configure Liquibase.</p>
+     */
+    private LiquibaseProperties liquibase = new LiquibaseProperties();
+
     @Data
     public static class ApiKeyProperties {
         /**
@@ -36,5 +45,18 @@ public class AIActionDbRegistryProperties {
          * Required API key value.
          */
         private String value;
+    }
+
+    @Data
+    public static class LiquibaseProperties {
+        /**
+         * Enables Liquibase defaults for the DB action registry.
+         */
+        private boolean enabled = true;
+
+        /**
+         * Changelog location to apply when Liquibase is not otherwise configured.
+         */
+        private String changeLog = "classpath:db/changelog/ai-actions-registry-changelog.yaml";
     }
 }

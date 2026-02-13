@@ -26,6 +26,7 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
   - DB-backed connector action catalog contributor (loaded into the unified action registry)
   - Enabled by `ai.actions.db.enabled=true`
   - Liquibase changelog shipped at `ai-infrastructure-module/ai-infrastructure-actions-registry/src/main/resources/db/changelog/ai-actions-registry-changelog.yaml`
+  - Optional “zero-config” Liquibase runner module: `ai-infrastructure-actions-registry-liquibase`
 - `ai-infrastructure-retrieval-connector`:
   - Documents-only external retrieval via `POST /retrieval/search` (as a `RAGProvider`)
 - `ai-infrastructure-relay` (runnable service):
@@ -138,7 +139,7 @@ Regardless of backend, every action should have a canonical model that includes:
 - Execution: in-process via `AIActionRegistry` + `AnnotatedAIActionHandler`
 
 **B) Connector backend**
-- Source of truth: config-defined action contract (file first; DB later)
+- Source of truth: config-defined action contract (file) and/or DB-backed registry (both validated)
 - Execution: HTTP call to the Customer Connector API
 
 ### 2.3 Collision handling (fail fast)
@@ -226,11 +227,16 @@ Notes:
 - `sensitive: true` means “do not log / do not echo in confirmation by default”.
 - The framework remains domain-agnostic: commerce names are illustrative only.
 
-### 3.3 DB-backed registration (next)
+### 3.3 DB-backed registration (V1 optional)
 
 Implemented (opt-in module): `ai-infrastructure-actions-registry`
 - Enable: `ai.actions.db.enabled=true`
 - Security (recommended): `ai.actions.db.api-key.enabled=true` + `ai.actions.db.api-key.value=...`
+- Liquibase (optional, “zero-config”):
+  - Add module: `ai-infrastructure-actions-registry-liquibase`
+  - Default: `ai.actions.db.liquibase.enabled=true`
+  - Override changelog: `ai.actions.db.liquibase.change-log=classpath:db/changelog/ai-actions-registry-changelog.yaml`
+  - If your app already uses Liquibase (`spring.liquibase.*` or a `db.changelog-master.*`), include the changelog in your master instead of relying on defaults.
 - Endpoints:
   - `GET /api/ai/actions/registry`
   - `POST /api/ai/actions/registry`

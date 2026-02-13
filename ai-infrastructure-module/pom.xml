@@ -32,6 +32,7 @@
         <module>ai-infrastructure-core</module>
         <module>ai-infrastructure-actions-connector</module>
         <module>ai-infrastructure-actions-registry</module>
+        <module>ai-infrastructure-actions-registry-liquibase</module>
         <module>ai-infrastructure-retrieval-connector</module>
         <module>ai-infrastructure-data-sync</module>
         <module>ai-infrastructure-relay</module>

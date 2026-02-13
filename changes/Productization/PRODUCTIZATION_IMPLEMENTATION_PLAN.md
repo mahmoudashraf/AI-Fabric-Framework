@@ -14,6 +14,30 @@ This plan is designed to align with existing framework contracts and developer d
 
 ---
 
+## Status (as of 2026-02-13)
+
+### Implemented in code (framework/runtime building blocks)
+
+- Curated packs loader + prompt overlays (core)
+- Phase B — external actions (file-based) + connector execution:
+  - `ai-infrastructure-actions-connector`
+  - optional DB-backed action registration: `ai-infrastructure-actions-registry`
+  - optional “zero-config” Liquibase runner: `ai-infrastructure-actions-registry-liquibase`
+- Phase C — external retrieval (documents-only):
+  - `ai-infrastructure-retrieval-connector`
+- Phase D — ingestion API for “managed retrieval” (opt-in):
+  - `ai-infrastructure-data-sync`
+- Customer-side Relay runnable service (implements the Customer Connector API):
+  - `ai-infrastructure-relay`
+
+### Not implemented yet (platform/product layers)
+
+- Phase E — control plane MVP (projects/environments/deployments, licensing/entitlements issuance, self-serve onboarding UI)
+- Hosted provisioning automation (AWS templates, per-customer vector DB provisioning + lifecycle)
+- Billing/subscriptions + marketplace packaging/versioning (later)
+
+---
+
 ## 0) Non-goals (V1)
 
 To keep V1 focused and shippable:
@@ -41,7 +65,7 @@ Reference:
 Customers define:
 - **Action catalog**
   - file-based contracts in V1 (uploaded / mounted into the runtime)
-  - DB-backed registration in V2 (register/deregister controller)
+  - DB-backed registration (optional; supported via register/deregister controller)
 - **Action execution endpoints**
   - any language, any stack
   - reached via a single “Customer Connector API” base URL
@@ -54,7 +78,7 @@ Customers define:
 
 Reference:
 - Actions + confirmations model: `Final_Documentation/Development_Guides/ACTIONS_AND_CONFIRMATION_INTERCEPTORS_GUIDE.md`
-- Connector + relay architecture: `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+- Connector + relay architecture: `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 
 ---
 
@@ -111,7 +135,7 @@ Recommended endpoints:
 - `POST /retrieval/search` (documents-only retrieval)
 
 Reference:
-- `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+- `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 
 ### 3.3 Data ingestion API (only if AI Fabric hosts retrieval)
 
@@ -152,7 +176,7 @@ Contracts must remain identical:
 
 References:
 - `Final_Documentation/Development_Guides/ACTIONS_AND_CONFIRMATION_INTERCEPTORS_GUIDE.md`
-- `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+- `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 
 ### 4.3 Documents-only external retrieval (customer-owned RAG)
 
@@ -222,7 +246,7 @@ Recommended entities:
   - allowlist options
 - **ActionsCatalogSource**
   - file upload reference in V1
-  - DB source in V2
+  - DB source (optional; supported via actions registry API)
 - **RetrievalConfig**
   - `mode = internal_vector_db | external_documents_endpoint`
   - external retrieval URL + auth refs (if external)
@@ -330,7 +354,7 @@ Even for startups, hosted action execution needs guardrails:
 
 References:
 - framework philosophy (fail-closed): `Final_Documentation/Development_Guides/AI_FABRIC_FRAMEWORK_PHILOSOPHY.md`
-- actions + connector/relay: `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+- actions + connector/relay: `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 
 ---
 
@@ -375,7 +399,7 @@ Implemented in code (opt-in module):
 - Actions + confirmations:
   - `Final_Documentation/Development_Guides/ACTIONS_AND_CONFIRMATION_INTERCEPTORS_GUIDE.md`
 - Actions connector + relay:
-  - `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+  - `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 - Orchestration optimization:
   - `Final_Documentation/System_Archtecture_Guides/ORCHESTRATION_OPTIMIZATION_GUIDE.md`
 - Normalization + pipeline rules:

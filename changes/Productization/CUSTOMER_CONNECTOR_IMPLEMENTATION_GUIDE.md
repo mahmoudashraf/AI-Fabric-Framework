@@ -11,10 +11,11 @@ Reference:
 
 ---
 
-## Status (as of 2026-02-12)
+## Status (as of 2026-02-13)
 
 - **Implemented in AI Fabric:** `ai-infrastructure-actions-connector` calls `/actions/execute`, parses the `ActionResult` contract, generates idempotency keys, and performs bounded retries.
 - **Implemented in AI Fabric:** `ai-infrastructure-retrieval-connector` calls `/retrieval/search` and returns documents/chunks via the `RAGProvider` contract.
+- **Reference implementation available:** `ai-infrastructure-relay` implements the Customer Connector API with inbound auth + replay protection + rate limits + idempotency (in-memory by default; Redis backend supported).
 
 ---
 
