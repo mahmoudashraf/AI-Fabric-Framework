@@ -230,6 +230,7 @@ Notes:
 
 Implemented (opt-in module): `ai-infrastructure-actions-registry`
 - Enable: `ai.actions.db.enabled=true`
+- Security (recommended): `ai.actions.db.api-key.enabled=true` + `ai.actions.db.api-key.value=...`
 - Endpoints:
   - `GET /api/ai/actions/registry`
   - `POST /api/ai/actions/registry`

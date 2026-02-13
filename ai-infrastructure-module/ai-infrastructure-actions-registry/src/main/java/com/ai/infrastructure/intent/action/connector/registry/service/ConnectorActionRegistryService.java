@@ -3,10 +3,10 @@ package com.ai.infrastructure.intent.action.connector.registry.service;
 import com.ai.infrastructure.entity.RegisteredConnectorAction;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.connector.ConnectorActionDefinition;
-import com.ai.infrastructure.intent.action.connector.ConnectorActionParamDefinition;
 import com.ai.infrastructure.repository.RegisteredConnectorActionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -48,8 +48,13 @@ public class ConnectorActionRegistryService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Action '" + actionName + "' collides with an existing action.");
         }
 
-        RegisteredConnectorAction saved = repository.save(RegisteredConnectorAction.fromDefinition(definition));
-        repository.flush();
+        RegisteredConnectorAction saved;
+        try {
+            saved = repository.save(RegisteredConnectorAction.fromDefinition(definition));
+            repository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Action '" + actionName + "' already exists.", ex);
+        }
 
         // Refresh after commit to make the new action immediately available.
         // Collision checks above should prevent refresh failures.
@@ -83,4 +88,3 @@ public class ConnectorActionRegistryService {
         log.info("Deregistered connector action '{}'", entity.getName());
     }
 }
-

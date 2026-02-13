@@ -35,6 +35,12 @@ public class RelayProperties {
 
     @Data
     public static class Auth {
+        /**
+         * When false (default), at least one inbound auth mechanism must be enabled (API key and/or HMAC).
+         * Set to true only when the Relay is strictly protected by network controls and you explicitly accept the risk.
+         */
+        private boolean allowUnauthenticated = false;
+
         @Valid
         private ApiKey apiKey = new ApiKey();
 

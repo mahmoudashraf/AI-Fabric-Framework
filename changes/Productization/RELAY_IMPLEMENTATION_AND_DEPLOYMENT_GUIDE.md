@@ -1,4 +1,4 @@
-# AI Fabric Relay — Implementation & Deployment Guide (Planned)
+# AI Fabric Relay — Implementation & Deployment Guide (V1)
 
 The **AI Fabric Relay** is an optional customer-side component that implements the **Customer Connector API** inside the customer environment (VPC/on‑prem), so internal systems do not need to be exposed publicly.
 
@@ -27,10 +27,14 @@ Local run:
 
 Core configuration keys:
 - `relay.auth.apiKey.*` and/or `relay.auth.hmac.*`
+- (explicit dev-only escape hatch) `relay.auth.allowUnauthenticated=true`
 - `relay.routing.mode=mapping|dispatcher`
 - `relay.routing.actions.{actionId}.url` (mapping mode)
 - `relay.routing.dispatcher.url` (dispatcher mode)
 - `relay.routing.retrieval.url` (optional)
+
+Runtime rule:
+- When `relay.auth.allowUnauthenticated=false` (default), the Relay will **fail startup** unless inbound auth is configured.
 
 ---
 

@@ -9,6 +9,13 @@ References:
 
 ---
 
+## Status (as of 2026-02-12)
+
+- **Implemented in code (V1):** `ai-infrastructure-module/ai-infrastructure-relay`
+- Remaining hardening (planned): Redis-backed nonce/idempotency/rate-limit stores for multi-instance deployments
+
+---
+
 ## 0) Goals / Non-goals
 
 ### 0.1 Goals (V1)
@@ -330,4 +337,3 @@ Rules:
 - Customers can start with:
   - their own connector directly (no Relay), then later
   - adopt Relay for higher security and private routing
-
