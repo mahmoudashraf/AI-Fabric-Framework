@@ -10,7 +10,7 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
 
 ---
 
-## Status (as of 2026-02-12)
+## Status (as of 2026-02-13)
 
 ### Implemented in code (opt-in modules + ai-fabric-core)
 
@@ -25,11 +25,12 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
   - DB-backed action registration controller (`POST/DELETE/GET /api/ai/actions/registry`)
   - DB-backed connector action catalog contributor (loaded into the unified action registry)
   - Enabled by `ai.actions.db.enabled=true`
+  - Liquibase changelog shipped at `ai-infrastructure-module/ai-infrastructure-actions-registry/src/main/resources/db/changelog/ai-actions-registry-changelog.yaml`
 - `ai-infrastructure-retrieval-connector`:
   - Documents-only external retrieval via `POST /retrieval/search` (as a `RAGProvider`)
 - `ai-infrastructure-relay` (runnable service):
   - Customer-side Relay implementation of the Customer Connector API (`/actions/execute`, `/retrieval/search`)
-  - Inbound auth (API key and/or HMAC), replay protection, rate limiting, idempotency (in-memory V1), SSRF-safe routing (mapping/dispatcher)
+  - Inbound auth (API key and/or HMAC), replay protection, rate limiting, idempotency (in-memory by default; Redis backend supported), SSRF-safe routing (mapping/dispatcher)
 - `ai-fabric-core`:
   - Unified action registry (annotation + contributed sources)
   - Connector actions registered alongside `@AIAction` actions
@@ -50,7 +51,6 @@ Opt-in:
 ### Not implemented yet (planned)
 
 - Relay hardening:
-  - Redis-backed idempotency + nonce stores for HA deployments
   - optional mTLS inbound auth (enterprise)
 
 ---

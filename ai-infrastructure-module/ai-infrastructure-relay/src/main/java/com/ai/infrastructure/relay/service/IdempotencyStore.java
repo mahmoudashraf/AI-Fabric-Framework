@@ -4,36 +4,32 @@ import com.ai.infrastructure.relay.api.ActionExecuteRequestDto;
 import com.ai.infrastructure.relay.api.ActionResultDto;
 import com.ai.infrastructure.relay.config.RelayProperties;
 import com.ai.infrastructure.relay.error.RelayRequestRejectedException;
+import com.ai.infrastructure.relay.store.RelayKeyValueStore;
 import com.ai.infrastructure.relay.util.Hashing;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.Clock;
-import java.time.Instant;
+import java.time.Duration;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 @Service
 public class IdempotencyStore {
 
     private static final String ERROR_IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT";
+    private static final String ERROR_IDEMPOTENCY_IN_PROGRESS = "IDEMPOTENCY_IN_PROGRESS";
+    private static final String ERROR_SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
 
     private final RelayProperties properties;
     private final ObjectMapper objectMapper;
-    private final Clock clock;
-    private final ConcurrentHashMap<String, Entry> entries = new ConcurrentHashMap<>();
+    private final RelayKeyValueStore store;
 
-    public IdempotencyStore(RelayProperties properties, ObjectMapper objectMapper) {
-        this(properties, objectMapper, Clock.systemUTC());
-    }
-
-    IdempotencyStore(RelayProperties properties, ObjectMapper objectMapper, Clock clock) {
+    public IdempotencyStore(RelayProperties properties, ObjectMapper objectMapper, RelayKeyValueStore store) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        this.clock = clock != null ? clock : Clock.systemUTC();
+        this.store = store;
     }
 
     public ActionResultDto executeIdempotent(ActionExecuteRequestDto request, Supplier<ActionResultDto> executor) {
@@ -48,35 +44,110 @@ public class IdempotencyStore {
         }
 
         String fingerprint = fingerprint(request);
-        long now = Instant.now(clock).getEpochSecond();
-        int ttl = Math.max(60, cfg.getTtlSeconds());
-        long expiresAt = now + ttl;
+        Duration ttl = Duration.ofSeconds(Math.max(60, cfg.getTtlSeconds()));
 
-        Entry existing = entries.get(key);
-        if (existing != null && existing.expiresAtEpochSeconds > now) {
-            if (!existing.fingerprint.equals(fingerprint)) {
-                throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_CONFLICT, "Idempotency conflict.");
+        String storageKey = "idempotency:" + Hashing.sha256Hex(key.trim());
+        String inProgressJson = toJson(new StoredEntry(Status.IN_PROGRESS, fingerprint, null));
+
+        try {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                if (store.putIfAbsent(storageKey, inProgressJson, ttl)) {
+                    try {
+                        ActionResultDto result = executor.get();
+                        if (result != null) {
+                            store.put(storageKey, toJson(new StoredEntry(Status.DONE, fingerprint, result)), ttl);
+                        } else {
+                            store.delete(storageKey);
+                        }
+                        return result;
+                    } catch (Exception ex) {
+                        store.delete(storageKey);
+                        throw ex;
+                    }
+                }
+
+                StoredEntry existing = readStored(storageKey);
+                if (existing == null) {
+                    continue;
+                }
+
+                if (!fingerprint.equals(existing.fingerprint)) {
+                    throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_CONFLICT, "Idempotency conflict.");
+                }
+
+                if (existing.status == Status.DONE && existing.result != null) {
+                    return existing.result;
+                }
+
+                if (existing.status == Status.IN_PROGRESS) {
+                    return waitForInProgress(cfg, storageKey, fingerprint);
+                }
+
+                throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store returned an invalid entry.");
             }
-            return existing.result;
-        }
-        if (existing != null) {
-            entries.remove(key);
-        }
 
-        ActionResultDto result = executor.get();
-        if (result != null) {
-            entries.put(key, new Entry(fingerprint, expiresAt, result));
+            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
+        } catch (RelayRequestRejectedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
         }
-
-        cleanupIfNeeded(now);
-        return result;
     }
 
-    private void cleanupIfNeeded(long nowEpochSeconds) {
-        if (entries.size() < 10_000) {
-            return;
+    private ActionResultDto waitForInProgress(RelayProperties.Idempotency cfg, String storageKey, String fingerprint) {
+        int maxWaitMs = cfg != null ? cfg.getInProgressMaxWaitMs() : 0;
+        if (maxWaitMs <= 0) {
+            throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_IN_PROGRESS, "Idempotency key is in progress.");
         }
-        entries.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().expiresAtEpochSeconds <= nowEpochSeconds);
+
+        long deadlineNanos = System.nanoTime() + (maxWaitMs * 1_000_000L);
+        long sleepMs = 25;
+
+        while (System.nanoTime() < deadlineNanos) {
+            try {
+                Thread.sleep(sleepMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+
+            StoredEntry entry = readStored(storageKey);
+            if (entry == null) {
+                continue;
+            }
+
+            if (!fingerprint.equals(entry.fingerprint)) {
+                throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_CONFLICT, "Idempotency conflict.");
+            }
+
+            if (entry.status == Status.DONE && entry.result != null) {
+                return entry.result;
+            }
+
+            sleepMs = Math.min(200, sleepMs * 2);
+        }
+
+        throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_IN_PROGRESS, "Idempotency key is in progress.");
+    }
+
+    private StoredEntry readStored(String storageKey) {
+        String json = store.get(storageKey);
+        if (!StringUtils.hasText(json)) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, StoredEntry.class);
+        } catch (Exception ex) {
+            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store returned invalid data.");
+        }
+    }
+
+    private String toJson(StoredEntry entry) {
+        try {
+            return objectMapper.writeValueAsString(entry);
+        } catch (Exception ex) {
+            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
+        }
     }
 
     private String fingerprint(ActionExecuteRequestDto request) {
@@ -90,6 +161,11 @@ public class IdempotencyStore {
         }
     }
 
-    private record Entry(String fingerprint, long expiresAtEpochSeconds, ActionResultDto result) {
+    private enum Status {
+        IN_PROGRESS,
+        DONE
+    }
+
+    private record StoredEntry(Status status, String fingerprint, ActionResultDto result) {
     }
 }

@@ -1,36 +1,44 @@
 package com.ai.infrastructure.relay.ratelimit;
 
 import com.ai.infrastructure.relay.config.RelayProperties;
+import com.ai.infrastructure.relay.error.RelayRequestRejectedException;
+import com.ai.infrastructure.relay.store.RelayKeyValueStore;
+import com.ai.infrastructure.relay.util.Hashing;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class FixedWindowRateLimiter {
 
     private final RelayProperties properties;
+    private final RelayKeyValueStore store;
     private final Clock clock;
-    private final ConcurrentHashMap<String, WindowCounter> counters = new ConcurrentHashMap<>();
 
-    public FixedWindowRateLimiter(RelayProperties properties) {
-        this(properties, Clock.systemUTC());
+    public FixedWindowRateLimiter(RelayProperties properties, RelayKeyValueStore store) {
+        this(properties, store, Clock.systemUTC());
     }
 
-    FixedWindowRateLimiter(RelayProperties properties, Clock clock) {
+    FixedWindowRateLimiter(RelayProperties properties, RelayKeyValueStore store, Clock clock) {
         this.properties = properties;
+        this.store = store;
         this.clock = clock != null ? clock : Clock.systemUTC();
     }
 
     public void check(String userKey, String actionId) {
         String user = StringUtils.hasText(userKey) ? userKey.trim() : "unknown";
         String action = StringUtils.hasText(actionId) ? actionId.trim() : "unknown";
-        checkWindow("user:" + user, perUserConfig());
-        checkWindow("action:" + user + ":" + action, perActionConfig(action));
+        String userHash = Hashing.sha256Hex(user);
+        checkWindow("rl:user:" + userHash, perUserConfig());
+
+        String actionHash = Hashing.sha256Hex(action);
+        checkWindow("rl:action:" + userHash + ":" + actionHash, perActionConfig(action));
     }
 
     private void checkWindow(String key, RelayProperties.Window window) {
@@ -41,19 +49,23 @@ public class FixedWindowRateLimiter {
         int maxRequests = Math.max(1, window.getMaxRequests());
 
         long now = Instant.now(clock).getEpochSecond();
-        counters.compute(key, (k, existing) -> {
-            WindowCounter counter = existing != null ? existing : new WindowCounter(now, 0);
-            if (now >= counter.windowStartEpochSeconds + windowSeconds) {
-                counter = new WindowCounter(now, 0);
-            }
+        long windowStart = now - (now % windowSeconds);
+        long windowEnd = windowStart + windowSeconds;
+        long retryAfter = windowEnd - now;
 
-            int next = counter.count + 1;
-            if (next > maxRequests) {
-                long retryAfter = (counter.windowStartEpochSeconds + windowSeconds) - now;
-                throw new RateLimitedException((int) Math.max(1, retryAfter));
-            }
-            return new WindowCounter(counter.windowStartEpochSeconds, next);
-        });
+        String counterKey = key + ":" + windowStart;
+        long count;
+        try {
+            count = store.increment(counterKey, Duration.ofSeconds(windowSeconds + 5L));
+        } catch (RateLimitedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE", "Rate limit store unavailable.");
+        }
+
+        if (count > maxRequests) {
+            throw new RateLimitedException((int) Math.max(1, retryAfter));
+        }
     }
 
     private RelayProperties.Window perUserConfig() {
@@ -74,8 +86,4 @@ public class FixedWindowRateLimiter {
             .findFirst()
             .orElse(null);
     }
-
-    private record WindowCounter(long windowStartEpochSeconds, int count) {
-    }
 }
-

@@ -22,6 +22,7 @@ public class RelayStartupValidator {
 
         validateAuth(properties);
         validateRouting(properties);
+        validateStore(properties);
     }
 
     private void validateAuth(RelayProperties properties) {
@@ -80,6 +81,48 @@ public class RelayStartupValidator {
         }
     }
 
+    private void validateStore(RelayProperties properties) {
+        RelayProperties.Store store = properties.getStore();
+        if (store == null) {
+            return;
+        }
+
+        if (!StringUtils.hasText(store.getKeyPrefix())) {
+            throw new IllegalStateException("relay.store.keyPrefix must not be blank.");
+        }
+
+        if (store.getBackend() != RelayProperties.Store.Backend.REDIS) {
+            return;
+        }
+
+        RelayProperties.Redis redis = store.getRedis();
+        if (redis == null) {
+            throw new IllegalStateException("relay.store.backend=REDIS requires relay.store.redis configuration.");
+        }
+
+        if (StringUtils.hasText(redis.getUri())) {
+            String uri = redis.getUri().trim();
+            try {
+                URI parsed = URI.create(uri);
+                String scheme = parsed.getScheme();
+                if (!StringUtils.hasText(scheme)) {
+                    throw new IllegalArgumentException("missing scheme");
+                }
+                String normalized = scheme.trim().toLowerCase(Locale.ROOT);
+                if (!"redis".equals(normalized) && !"rediss".equals(normalized)) {
+                    throw new IllegalArgumentException("unsupported scheme '" + scheme + "'");
+                }
+            } catch (Exception ex) {
+                throw new IllegalStateException("relay.store.redis.uri must be a valid redis/rediss URI (got '" + uri + "'): " + ex.getMessage(), ex);
+            }
+            return;
+        }
+
+        if (!StringUtils.hasText(redis.getHost())) {
+            throw new IllegalStateException("relay.store.backend=REDIS requires relay.store.redis.uri or relay.store.redis.host.");
+        }
+    }
+
     private void validateUrl(String url, String key) {
         try {
             URI uri = URI.create(url);
@@ -99,4 +142,3 @@ public class RelayStartupValidator {
         }
     }
 }
-

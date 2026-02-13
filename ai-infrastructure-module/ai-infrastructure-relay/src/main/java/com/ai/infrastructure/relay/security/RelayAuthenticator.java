@@ -21,14 +21,14 @@ public class RelayAuthenticator {
     private final Clock clock;
     private final NonceStore nonceStore;
 
-    public RelayAuthenticator(RelayProperties properties) {
-        this(properties, Clock.systemUTC());
+    public RelayAuthenticator(RelayProperties properties, NonceStore nonceStore) {
+        this(properties, nonceStore, Clock.systemUTC());
     }
 
-    RelayAuthenticator(RelayProperties properties, Clock clock) {
+    RelayAuthenticator(RelayProperties properties, NonceStore nonceStore, Clock clock) {
         this.properties = properties;
         this.clock = clock != null ? clock : Clock.systemUTC();
-        this.nonceStore = new NonceStore(this.clock);
+        this.nonceStore = nonceStore;
     }
 
     public void verify(Map<String, String> headers, String body) {

@@ -2,6 +2,8 @@ package com.ai.infrastructure.relay.security;
 
 import com.ai.infrastructure.relay.config.RelayProperties;
 import com.ai.infrastructure.relay.error.RelayRequestRejectedException;
+import com.ai.infrastructure.relay.store.InMemoryRelayKeyValueStore;
+import com.ai.infrastructure.relay.store.RelayKeyValueStore;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.Mac;
@@ -21,7 +23,9 @@ class RelayAuthenticatorTest {
     @Test
     void verify_acceptsValidHmacSignature() throws Exception {
         Clock clock = Clock.fixed(Instant.ofEpochSecond(1_700_000_000L), ZoneOffset.UTC);
-        RelayAuthenticator authenticator = new RelayAuthenticator(hmacProps("secret"), clock);
+        RelayKeyValueStore kv = new InMemoryRelayKeyValueStore("test:", clock);
+        NonceStore nonceStore = new NonceStore(kv);
+        RelayAuthenticator authenticator = new RelayAuthenticator(hmacProps("secret"), nonceStore, clock);
 
         String body = "{\"actionId\":\"ping\",\"params\":{},\"trace\":{}}";
         String timestamp = String.valueOf(Instant.now(clock).getEpochSecond());
@@ -39,7 +43,9 @@ class RelayAuthenticatorTest {
     @Test
     void verify_rejectsInvalidSignature() {
         Clock clock = Clock.fixed(Instant.ofEpochSecond(1_700_000_000L), ZoneOffset.UTC);
-        RelayAuthenticator authenticator = new RelayAuthenticator(hmacProps("secret"), clock);
+        RelayKeyValueStore kv = new InMemoryRelayKeyValueStore("test:", clock);
+        NonceStore nonceStore = new NonceStore(kv);
+        RelayAuthenticator authenticator = new RelayAuthenticator(hmacProps("secret"), nonceStore, clock);
 
         String body = "{\"actionId\":\"ping\",\"params\":{},\"trace\":{}}";
         String timestamp = String.valueOf(Instant.now(clock).getEpochSecond());
@@ -63,7 +69,9 @@ class RelayAuthenticatorTest {
     @Test
     void verify_rejectsNonceReplay() throws Exception {
         Clock clock = Clock.fixed(Instant.ofEpochSecond(1_700_000_000L), ZoneOffset.UTC);
-        RelayAuthenticator authenticator = new RelayAuthenticator(hmacProps("secret"), clock);
+        RelayKeyValueStore kv = new InMemoryRelayKeyValueStore("test:", clock);
+        NonceStore nonceStore = new NonceStore(kv);
+        RelayAuthenticator authenticator = new RelayAuthenticator(hmacProps("secret"), nonceStore, clock);
 
         String body = "{\"actionId\":\"ping\",\"params\":{},\"trace\":{}}";
         String timestamp = String.valueOf(Instant.now(clock).getEpochSecond());
@@ -103,4 +111,3 @@ class RelayAuthenticatorTest {
         return Base64.getEncoder().encodeToString(sig);
     }
 }
-

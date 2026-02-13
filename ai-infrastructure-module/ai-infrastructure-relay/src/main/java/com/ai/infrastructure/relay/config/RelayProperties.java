@@ -28,6 +28,9 @@ public class RelayProperties {
     private Idempotency idempotency = new Idempotency();
 
     @Valid
+    private Store store = new Store();
+
+    @Valid
     private Audit audit = new Audit();
 
     @Valid
@@ -113,6 +116,54 @@ public class RelayProperties {
         @Min(60)
         @Max(7 * 24 * 3600)
         private int ttlSeconds = 48 * 3600;
+
+        /**
+         * When using a shared store (e.g. Redis), concurrent requests may observe an in-progress key.
+         * This controls how long the Relay waits for the first execution to finish before rejecting the request.
+         */
+        @Min(0)
+        @Max(120_000)
+        private int inProgressMaxWaitMs = 2000;
+    }
+
+    @Data
+    public static class Store {
+        private Backend backend = Backend.IN_MEMORY;
+        private String keyPrefix = "aifabric:relay:";
+
+        @Valid
+        private Redis redis = new Redis();
+
+        public enum Backend {
+            IN_MEMORY,
+            REDIS
+        }
+    }
+
+    @Data
+    public static class Redis {
+        /**
+         * Optional full Redis URI, e.g. redis://:pass@host:6379/0 or rediss://...
+         */
+        private String uri;
+
+        /**
+         * Host/port settings used when {@link #uri} is not provided.
+         */
+        private String host = "localhost";
+
+        @Min(1)
+        @Max(65_535)
+        private int port = 6379;
+
+        private boolean ssl = false;
+        private String password;
+
+        @Min(0)
+        @Max(15)
+        private int database = 0;
+
+        private Duration connectTimeout = Duration.ofSeconds(2);
     }
 
     @Data

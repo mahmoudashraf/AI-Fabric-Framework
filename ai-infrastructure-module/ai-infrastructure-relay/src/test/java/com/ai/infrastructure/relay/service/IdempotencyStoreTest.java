@@ -5,6 +5,8 @@ import com.ai.infrastructure.relay.api.ActionResultDto;
 import com.ai.infrastructure.relay.api.TraceContextDto;
 import com.ai.infrastructure.relay.config.RelayProperties;
 import com.ai.infrastructure.relay.error.RelayRequestRejectedException;
+import com.ai.infrastructure.relay.store.InMemoryRelayKeyValueStore;
+import com.ai.infrastructure.relay.store.RelayKeyValueStore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.Test;
@@ -28,7 +30,8 @@ class IdempotencyStoreTest {
 
         ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
         Clock clock = Clock.fixed(Instant.ofEpochSecond(1_700_000_000L), ZoneOffset.UTC);
-        IdempotencyStore store = new IdempotencyStore(props, mapper, clock);
+        RelayKeyValueStore kv = new InMemoryRelayKeyValueStore("test:", clock);
+        IdempotencyStore store = new IdempotencyStore(props, mapper, kv);
 
         AtomicInteger executions = new AtomicInteger(0);
         ActionExecuteRequestDto request = new ActionExecuteRequestDto(
@@ -60,7 +63,8 @@ class IdempotencyStoreTest {
 
         ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
         Clock clock = Clock.fixed(Instant.ofEpochSecond(1_700_000_000L), ZoneOffset.UTC);
-        IdempotencyStore store = new IdempotencyStore(props, mapper, clock);
+        RelayKeyValueStore kv = new InMemoryRelayKeyValueStore("test:", clock);
+        IdempotencyStore store = new IdempotencyStore(props, mapper, kv);
 
         ActionExecuteRequestDto requestA = new ActionExecuteRequestDto(
             "create_order",
@@ -87,4 +91,3 @@ class IdempotencyStoreTest {
             });
     }
 }
-

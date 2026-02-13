@@ -9,10 +9,11 @@ References:
 
 ---
 
-## Status (as of 2026-02-12)
+## Status (as of 2026-02-13)
 
 - **Implemented in code (V1):** `ai-infrastructure-module/ai-infrastructure-relay`
-- Remaining hardening (planned): Redis-backed nonce/idempotency/rate-limit stores for multi-instance deployments
+- Redis-backed nonce/idempotency/rate-limit stores are implemented and configurable (`relay.store.backend=REDIS`; default stays `IN_MEMORY`).
+- Remaining hardening (planned): optional mTLS inbound auth (enterprise) and additional operational controls.
 
 ---
 

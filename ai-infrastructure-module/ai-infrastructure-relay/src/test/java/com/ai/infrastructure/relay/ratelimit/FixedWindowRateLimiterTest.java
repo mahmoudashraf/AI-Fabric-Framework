@@ -1,6 +1,8 @@
 package com.ai.infrastructure.relay.ratelimit;
 
 import com.ai.infrastructure.relay.config.RelayProperties;
+import com.ai.infrastructure.relay.store.InMemoryRelayKeyValueStore;
+import com.ai.infrastructure.relay.store.RelayKeyValueStore;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -18,7 +20,8 @@ class FixedWindowRateLimiterTest {
         props.getRateLimits().getPerUser().setMaxRequests(2);
 
         Clock clock = Clock.fixed(Instant.ofEpochSecond(1_700_000_000L), ZoneOffset.UTC);
-        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(props, clock);
+        RelayKeyValueStore kv = new InMemoryRelayKeyValueStore("test:", clock);
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(props, kv, clock);
 
         limiter.check("user1", "a1");
         limiter.check("user1", "a1");
@@ -27,4 +30,3 @@ class FixedWindowRateLimiterTest {
             .isInstanceOf(RateLimitedException.class);
     }
 }
-

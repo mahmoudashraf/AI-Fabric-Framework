@@ -9,11 +9,12 @@ Reference:
 
 ---
 
-## Status (as of 2026-02-12)
+## Status (as of 2026-02-13)
 
 - **Implemented in code (V1):** `ai-infrastructure-module/ai-infrastructure-relay` (runnable Spring Boot service).
 - The AI Fabric runtime already supports calling a connector endpoint (so the Relay can be introduced without changing orchestration semantics).
-- Still planned for production hardening: Redis-backed nonce/idempotency stores, optional mTLS, and additional operational controls.
+- Redis-backed nonce/idempotency/rate-limit stores are implemented and configurable (default remains in-memory for dev/single-instance).
+- Still planned for production hardening: optional mTLS and additional operational controls.
 
 ---
 
@@ -28,7 +29,8 @@ Local run:
 Core configuration keys:
 - `relay.auth.apiKey.*` and/or `relay.auth.hmac.*`
 - (explicit dev-only escape hatch) `relay.auth.allowUnauthenticated=true`
-- `relay.routing.mode=mapping|dispatcher`
+- `relay.store.backend=IN_MEMORY|REDIS` (default: `IN_MEMORY`)
+- `relay.routing.mode=MAPPING|DISPATCHER`
 - `relay.routing.actions.{actionId}.url` (mapping mode)
 - `relay.routing.dispatcher.url` (dispatcher mode)
 - `relay.routing.retrieval.url` (optional)
@@ -137,49 +139,53 @@ Avoid:
 ## 4) Configuration schema (example)
 
 ```yaml
-# relay-config.yml
-server:
-  port: 8443
-  tls:
-    enabled: true
-    certPath: /etc/relay/tls/cert.pem
-    keyPath: /etc/relay/tls/key.pem
+relay:
+  auth:
+    # Choose one (or both):
+    apiKey:
+      enabled: true
+      header: X-AIFABRIC-API-KEY
+      value: ${RELAY_API_KEY}
+    # hmac:
+    #   enabled: true
+    #   secret: ${RELAY_HMAC_SECRET}
+    #   maxClockSkewSeconds: 300
+    #   nonceTtlSeconds: 600
 
-aiFabric:
-  hmacSecretEnv: AIFABRIC_HMAC_SECRET
-  maxClockSkewSeconds: 300
+  # In-memory by default (dev/single instance). Use REDIS for HA deployments.
+  store:
+    backend: IN_MEMORY
+    # keyPrefix: aifabric:relay:
+    # redis:
+    #   uri: ${RELAY_REDIS_URI} # redis://:pass@host:6379/0 or rediss://...
 
-rateLimits:
-  perUser:
-    windowSeconds: 60
-    maxRequests: 100
-  perAction:
-    create_purchase_order:
+  rateLimits:
+    perUser:
       windowSeconds: 60
-      maxRequests: 10
+      maxRequests: 100
+    perAction:
+      create_purchase_order:
+        windowSeconds: 60
+        maxRequests: 10
 
-actions:
-  # Pattern A: mapping
-  create_purchase_order:
-    endpoint: http://internal-api:8080/orders
-    method: POST
-    timeoutMs: 5000
-  cancel_purchase_order:
-    endpoint: http://internal-api:8080/orders/cancel
-    method: POST
-    timeoutMs: 3000
+  idempotency:
+    enabled: true
+    ttlSeconds: 172800 # 48h
 
-  # Pattern B: single dispatcher (alternative)
-  # dispatcher:
-  #   endpoint: http://internal-api:8080/actions
-  #   method: POST
-  #   timeoutMs: 5000
-
-audit:
-  enabled: true
-  destination: file
-  path: /var/log/relay/audit.jsonl
-  retentionDays: 90
+  routing:
+    mode: MAPPING
+    actions:
+      create_purchase_order:
+        url: http://internal-api:8080/orders
+        method: POST
+        timeoutMs: 5000
+      cancel_purchase_order:
+        url: http://internal-api:8080/orders/cancel
+        method: POST
+        timeoutMs: 3000
+    retrieval:
+      url: http://internal-api:8080/retrieval/search
+      timeoutMs: 5000
 ```
 
 ---

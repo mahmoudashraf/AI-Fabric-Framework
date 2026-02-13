@@ -1,51 +1,35 @@
 package com.ai.infrastructure.relay.security;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import com.ai.infrastructure.relay.store.RelayKeyValueStore;
+import com.ai.infrastructure.relay.util.Hashing;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
-final class NonceStore {
+import java.time.Duration;
 
-    private final Clock clock;
-    private final ConcurrentHashMap<String, Long> nonceToExpiresAtEpochSeconds = new ConcurrentHashMap<>();
+@Component
+public class NonceStore {
 
-    NonceStore(Clock clock) {
-        this.clock = clock != null ? clock : Clock.systemUTC();
+    private final RelayKeyValueStore store;
+
+    public NonceStore(RelayKeyValueStore store) {
+        this.store = store;
     }
 
-    boolean tryUse(String nonce, int ttlSeconds) {
-        if (nonce == null || nonce.isBlank()) {
+    public boolean tryUse(String nonce, int ttlSeconds) {
+        if (!StringUtils.hasText(nonce)) {
             return false;
         }
 
-        long now = Instant.now(clock).getEpochSecond();
-        long expiresAt = now + Math.max(1, ttlSeconds);
+        String normalized = nonce.trim();
+        int ttl = Math.max(1, ttlSeconds);
+        String key = "nonce:" + Hashing.sha256Hex(normalized);
 
-        Long existing = nonceToExpiresAtEpochSeconds.putIfAbsent(nonce, expiresAt);
-        if (existing != null && existing > now) {
+        try {
+            return store.putIfAbsent(key, "1", Duration.ofSeconds(ttl));
+        } catch (Exception ex) {
+            // Fail closed: if we can't enforce nonce uniqueness, reject the request.
             return false;
-        }
-        if (existing != null) {
-            nonceToExpiresAtEpochSeconds.put(nonce, expiresAt);
-        }
-
-        cleanupIfNeeded(now);
-        return true;
-    }
-
-    private void cleanupIfNeeded(long nowEpochSeconds) {
-        if (nonceToExpiresAtEpochSeconds.size() < 10_000) {
-            return;
-        }
-        Iterator<Map.Entry<String, Long>> it = nonceToExpiresAtEpochSeconds.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, Long> entry = it.next();
-            Long expiresAt = entry.getValue();
-            if (expiresAt == null || expiresAt <= nowEpochSeconds) {
-                it.remove();
-            }
         }
     }
 }
