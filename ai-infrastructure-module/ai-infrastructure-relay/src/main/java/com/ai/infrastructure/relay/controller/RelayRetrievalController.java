@@ -67,8 +67,7 @@ public class RelayRetrievalController {
         int maxBytes = properties != null && properties.getLimits() != null ? properties.getLimits().getMaxBodyBytes() : 256 * 1024;
         int bytes = body != null ? body.getBytes(StandardCharsets.UTF_8).length : 0;
         if (bytes > maxBytes) {
-            throw new RelayRequestRejectedException(HttpStatus.PAYLOAD_TOO_LARGE, "PAYLOAD_TOO_LARGE", "Request too large.");
+            throw new RelayRequestRejectedException(HttpStatus.BAD_REQUEST, "PAYLOAD_TOO_LARGE", "Request too large.");
         }
     }
 }
-

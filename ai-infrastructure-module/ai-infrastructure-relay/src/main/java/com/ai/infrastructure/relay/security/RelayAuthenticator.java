@@ -2,6 +2,7 @@ package com.ai.infrastructure.relay.security;
 
 import com.ai.infrastructure.relay.config.RelayProperties;
 import com.ai.infrastructure.relay.error.RelayRequestRejectedException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -21,6 +22,7 @@ public class RelayAuthenticator {
     private final Clock clock;
     private final NonceStore nonceStore;
 
+    @Autowired
     public RelayAuthenticator(RelayProperties properties, NonceStore nonceStore) {
         this(properties, nonceStore, Clock.systemUTC());
     }

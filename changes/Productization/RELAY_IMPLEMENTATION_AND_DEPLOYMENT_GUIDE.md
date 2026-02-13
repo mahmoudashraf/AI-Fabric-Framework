@@ -14,7 +14,8 @@ Reference:
 - **Implemented in code (V1):** `ai-infrastructure-module/ai-infrastructure-relay` (runnable Spring Boot service).
 - The AI Fabric runtime already supports calling a connector endpoint (so the Relay can be introduced without changing orchestration semantics).
 - Redis-backed nonce/idempotency/rate-limit stores are implemented and configurable (default remains in-memory for dev/single-instance).
-- Not shipped yet (packaging/ops): Dockerfile + Compose/Helm examples.
+- Packaging examples shipped: Dockerfile + Compose quickstart + Helm example chart.
+- OpenAPI contract conformance tests shipped in the Relay module test suite (pinned to `changes/Productization/customer-connector-api.openapi.yml`).
 - Still planned for production hardening: optional mTLS and additional operational controls.
 
 ---
@@ -198,12 +199,27 @@ relay:
 - Run the relay as a container in the customer VPC.
 - Expose only the relay port; keep internal services private.
 
+Build (from repo root):
+- `docker build -f ai-infrastructure-module/ai-infrastructure-relay/Dockerfile -t ai-fabric-relay:dev .`
+
 ### 5.2 Docker Compose (dev / quickstart)
 
-Use Compose to bring up:
-- relay
-- redis (optional, for idempotency/nonce store)
-- internal dispatcher (optional)
+Quickstart (from `ai-infrastructure-module/ai-infrastructure-relay`):
+- `docker compose up --build`
+
+What the Compose quickstart includes:
+- `relay` (apiKey auth enabled, Redis store enabled, dispatcher routing)
+- `redis` (for HA-safe stores)
+- `internal-dispatcher` (WireMock stub for local end-to-end testing)
+
+Try it (api key is `dev-relay-key` in the quickstart):
+
+```bash
+curl -sS http://localhost:8081/actions/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-AIFABRIC-API-KEY: dev-relay-key' \
+  -d '{"actionId":"ping","params":{},"idempotencyKey":"act_1","trace":{"requestId":"req_1","conversationId":"c1","userId":"u1","sessionId":"s1"}}'
+```
 
 ### 5.3 Kubernetes (production)
 
@@ -212,6 +228,9 @@ Recommended:
 - Ingress with TLS
 - ConfigMap/Secret for relay config + HMAC secret
 - Horizontal Pod Autoscaler (optional)
+
+Helm example chart:
+- `ai-infrastructure-module/ai-infrastructure-relay/deploy/helm/ai-fabric-relay/Chart.yaml`
 
 ---
 
@@ -224,3 +243,6 @@ Recommended:
 - SSRF-safe routing (no dynamic URLs)
 - Correctly forwards `trace` and preserves requestId correlation
 - Returns valid `ActionResult` for both success and failure
+
+Contract tests reference:
+- `ai-infrastructure-module/ai-infrastructure-relay/src/test/java/com/ai/infrastructure/relay/contract/RelayOpenApiContractTest.java`

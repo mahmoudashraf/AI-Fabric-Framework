@@ -72,7 +72,7 @@ public class IdempotencyStore {
                 }
 
                 if (!fingerprint.equals(existing.fingerprint)) {
-                    throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_CONFLICT, "Idempotency conflict.");
+                    return ActionResultDto.failure(ERROR_IDEMPOTENCY_CONFLICT, "Idempotency conflict.");
                 }
 
                 if (existing.status == Status.DONE && existing.result != null) {
@@ -83,21 +83,21 @@ public class IdempotencyStore {
                     return waitForInProgress(cfg, storageKey, fingerprint);
                 }
 
-                throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store returned an invalid entry.");
+                throw new RelayRequestRejectedException(HttpStatus.INTERNAL_SERVER_ERROR, ERROR_SERVICE_UNAVAILABLE, "Idempotency store returned an invalid entry.");
             }
 
-            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
+            throw new RelayRequestRejectedException(HttpStatus.INTERNAL_SERVER_ERROR, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
         } catch (RelayRequestRejectedException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
+            throw new RelayRequestRejectedException(HttpStatus.INTERNAL_SERVER_ERROR, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
         }
     }
 
     private ActionResultDto waitForInProgress(RelayProperties.Idempotency cfg, String storageKey, String fingerprint) {
         int maxWaitMs = cfg != null ? cfg.getInProgressMaxWaitMs() : 0;
         if (maxWaitMs <= 0) {
-            throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_IN_PROGRESS, "Idempotency key is in progress.");
+            return ActionResultDto.failure(ERROR_IDEMPOTENCY_IN_PROGRESS, "Idempotency key is in progress.");
         }
 
         long deadlineNanos = System.nanoTime() + (maxWaitMs * 1_000_000L);
@@ -117,7 +117,7 @@ public class IdempotencyStore {
             }
 
             if (!fingerprint.equals(entry.fingerprint)) {
-                throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_CONFLICT, "Idempotency conflict.");
+                return ActionResultDto.failure(ERROR_IDEMPOTENCY_CONFLICT, "Idempotency conflict.");
             }
 
             if (entry.status == Status.DONE && entry.result != null) {
@@ -127,7 +127,7 @@ public class IdempotencyStore {
             sleepMs = Math.min(200, sleepMs * 2);
         }
 
-        throw new RelayRequestRejectedException(HttpStatus.CONFLICT, ERROR_IDEMPOTENCY_IN_PROGRESS, "Idempotency key is in progress.");
+        return ActionResultDto.failure(ERROR_IDEMPOTENCY_IN_PROGRESS, "Idempotency key is in progress.");
     }
 
     private StoredEntry readStored(String storageKey) {
@@ -138,7 +138,7 @@ public class IdempotencyStore {
         try {
             return objectMapper.readValue(json, StoredEntry.class);
         } catch (Exception ex) {
-            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store returned invalid data.");
+            throw new RelayRequestRejectedException(HttpStatus.INTERNAL_SERVER_ERROR, ERROR_SERVICE_UNAVAILABLE, "Idempotency store returned invalid data.");
         }
     }
 
@@ -146,7 +146,7 @@ public class IdempotencyStore {
         try {
             return objectMapper.writeValueAsString(entry);
         } catch (Exception ex) {
-            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
+            throw new RelayRequestRejectedException(HttpStatus.INTERNAL_SERVER_ERROR, ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
         }
     }
 

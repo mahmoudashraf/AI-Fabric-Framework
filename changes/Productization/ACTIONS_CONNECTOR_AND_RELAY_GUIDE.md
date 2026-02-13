@@ -32,6 +32,7 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
 - `ai-infrastructure-relay` (runnable service):
   - Customer-side Relay implementation of the Customer Connector API (`/actions/execute`, `/retrieval/search`)
   - Inbound auth (API key and/or HMAC), replay protection, rate limiting, idempotency (in-memory by default; Redis backend supported), SSRF-safe routing (mapping/dispatcher)
+  - OpenAPI contract conformance tests pinned to `changes/Productization/customer-connector-api.openapi.yml`
 - `ai-fabric-core`:
   - Unified action registry (annotation + contributed sources)
   - Connector actions registered alongside `@AIAction` actions

@@ -13,7 +13,8 @@ References:
 
 - **Implemented in code (V1):** `ai-infrastructure-module/ai-infrastructure-relay`
 - Redis-backed nonce/idempotency/rate-limit stores are implemented and configurable (`relay.store.backend=REDIS`; default stays `IN_MEMORY`).
-- Not shipped yet (packaging/ops): Dockerfile + Compose/Helm examples, and OpenAPI contract conformance tests.
+- Packaging examples shipped: Dockerfile + Compose quickstart + Helm example chart.
+- OpenAPI contract conformance tests shipped (pinned to `changes/Productization/customer-connector-api.openapi.yml`) in `ai-infrastructure-relay` test suite.
 - Remaining hardening (planned): optional mTLS inbound auth (enterprise) and additional operational controls.
 
 ---

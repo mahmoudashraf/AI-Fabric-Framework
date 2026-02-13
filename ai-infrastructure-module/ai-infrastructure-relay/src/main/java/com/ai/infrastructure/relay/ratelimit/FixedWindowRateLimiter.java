@@ -4,6 +4,7 @@ import com.ai.infrastructure.relay.config.RelayProperties;
 import com.ai.infrastructure.relay.error.RelayRequestRejectedException;
 import com.ai.infrastructure.relay.store.RelayKeyValueStore;
 import com.ai.infrastructure.relay.util.Hashing;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -21,6 +22,7 @@ public class FixedWindowRateLimiter {
     private final RelayKeyValueStore store;
     private final Clock clock;
 
+    @Autowired
     public FixedWindowRateLimiter(RelayProperties properties, RelayKeyValueStore store) {
         this(properties, store, Clock.systemUTC());
     }
@@ -60,7 +62,7 @@ public class FixedWindowRateLimiter {
         } catch (RateLimitedException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new RelayRequestRejectedException(HttpStatus.SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE", "Rate limit store unavailable.");
+            throw new RelayRequestRejectedException(HttpStatus.INTERNAL_SERVER_ERROR, "SERVICE_UNAVAILABLE", "Rate limit store unavailable.");
         }
 
         if (count > maxRequests) {

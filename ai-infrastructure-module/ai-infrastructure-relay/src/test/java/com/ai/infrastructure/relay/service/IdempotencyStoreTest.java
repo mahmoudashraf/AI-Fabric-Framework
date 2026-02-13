@@ -4,7 +4,6 @@ import com.ai.infrastructure.relay.api.ActionExecuteRequestDto;
 import com.ai.infrastructure.relay.api.ActionResultDto;
 import com.ai.infrastructure.relay.api.TraceContextDto;
 import com.ai.infrastructure.relay.config.RelayProperties;
-import com.ai.infrastructure.relay.error.RelayRequestRejectedException;
 import com.ai.infrastructure.relay.store.InMemoryRelayKeyValueStore;
 import com.ai.infrastructure.relay.store.RelayKeyValueStore;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +17,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class IdempotencyStoreTest {
 
@@ -82,12 +80,8 @@ class IdempotencyStoreTest {
 
         store.executeIdempotent(requestA, () -> ActionResultDto.ok("ok", Map.of()));
 
-        assertThatThrownBy(() -> store.executeIdempotent(requestB, () -> ActionResultDto.ok("ok", Map.of())))
-            .isInstanceOf(RelayRequestRejectedException.class)
-            .satisfies(ex -> {
-                RelayRequestRejectedException rejected = (RelayRequestRejectedException) ex;
-                assertThat(rejected.getStatus().value()).isEqualTo(409);
-                assertThat(rejected.getErrorCode()).isEqualTo("IDEMPOTENCY_CONFLICT");
-            });
+        ActionResultDto out = store.executeIdempotent(requestB, () -> ActionResultDto.ok("ok", Map.of()));
+        assertThat(out.success()).isFalse();
+        assertThat(out.errorCode()).isEqualTo("IDEMPOTENCY_CONFLICT");
     }
 }

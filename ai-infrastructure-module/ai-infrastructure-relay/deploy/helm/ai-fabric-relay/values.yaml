@@ -1,0 +1,29 @@
+replicaCount: 1
+
+image:
+  repository: ai-fabric-relay
+  tag: dev
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8081
+
+relay:
+  auth:
+    apiKey:
+      enabled: true
+      header: X-AIFABRIC-API-KEY
+      value: "" # stored in a Secret as RELAY_API_KEY
+
+  store:
+    backend: IN_MEMORY # IN_MEMORY | REDIS
+    redisUri: ""       # e.g. redis://:pass@redis:6379/0
+
+  routing:
+    mode: DISPATCHER # MAPPING | DISPATCHER
+    dispatcherUrl: "" # required when mode=DISPATCHER
+    retrievalUrl: ""  # optional
+
+resources: {}
+
