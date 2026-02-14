@@ -1,0 +1,104 @@
+package com.ai.fabric.runtime.config;
+
+import com.ai.infrastructure.access.policy.EntityAccessPolicy;
+import com.ai.infrastructure.chat.spi.ChatSessionAccessControlPolicy;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.SmartLifecycle;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
+@Configuration(proxyBeanMethods = false)
+class RuntimeDevDefaultsConfiguration {
+
+    @Bean
+    SmartLifecycle runtimeEntityAccessPolicyRequiredValidator(RuntimeDevDefaultsProperties devDefaultsProperties,
+                                                              ObjectProvider<EntityAccessPolicy> entityAccessPolicyProvider) {
+        return new EntityAccessPolicyRequiredValidator(devDefaultsProperties, entityAccessPolicyProvider);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ai.fabric.runtime.dev-defaults", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnMissingBean(EntityAccessPolicy.class)
+    EntityAccessPolicy devAllowAllEntityAccessPolicy() {
+        return (userId, entity) -> true;
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "ai.fabric.runtime.dev-defaults", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnMissingBean(ChatSessionAccessControlPolicy.class)
+    ChatSessionAccessControlPolicy devChatSessionAccessControlPolicy() {
+        return new ChatSessionAccessControlPolicy() {
+            @Override
+            public boolean canCreateConversation(String ownerId) {
+                return StringUtils.hasText(ownerId);
+            }
+
+            @Override
+            public boolean canAccessConversation(String ownerId, String conversationId) {
+                return StringUtils.hasText(ownerId) && StringUtils.hasText(conversationId);
+            }
+
+            @Override
+            public boolean canRecordTurn(String ownerId, String conversationId) {
+                return StringUtils.hasText(ownerId) && StringUtils.hasText(conversationId);
+            }
+
+            @Override
+            public boolean canDeleteConversation(String ownerId, String conversationId) {
+                return StringUtils.hasText(ownerId) && StringUtils.hasText(conversationId);
+            }
+        };
+    }
+
+    static final class EntityAccessPolicyRequiredValidator implements SmartLifecycle {
+        private final RuntimeDevDefaultsProperties devDefaultsProperties;
+        private final ObjectProvider<EntityAccessPolicy> entityAccessPolicyProvider;
+        private final AtomicBoolean running = new AtomicBoolean(false);
+
+        EntityAccessPolicyRequiredValidator(RuntimeDevDefaultsProperties devDefaultsProperties,
+                                            ObjectProvider<EntityAccessPolicy> entityAccessPolicyProvider) {
+            this.devDefaultsProperties = devDefaultsProperties;
+            this.entityAccessPolicyProvider = entityAccessPolicyProvider;
+        }
+
+        @Override
+        public void start() {
+            if (devDefaultsProperties != null && !devDefaultsProperties.isEnabled()) {
+                EntityAccessPolicy policy = entityAccessPolicyProvider != null ? entityAccessPolicyProvider.getIfAvailable() : null;
+                if (policy == null) {
+                    throw new IllegalStateException(
+                        "ai.fabric.runtime.dev-defaults.enabled=false requires an EntityAccessPolicy bean. "
+                            + "Provide a com.ai.infrastructure.access.policy.EntityAccessPolicy implementation or enable dev defaults."
+                    );
+                }
+            }
+            running.set(true);
+        }
+
+        @Override
+        public void stop() {
+            running.set(false);
+        }
+
+        @Override
+        public boolean isRunning() {
+            return running.get();
+        }
+
+        @Override
+        public boolean isAutoStartup() {
+            return true;
+        }
+
+        @Override
+        public int getPhase() {
+            return Integer.MIN_VALUE;
+        }
+    }
+}
+

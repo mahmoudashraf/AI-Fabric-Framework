@@ -23,6 +23,9 @@ This is a **plan/spec** (not an implementation guide for customers).
   - Retrieval connector (documents-only external retrieval)
   - Data sync push API (optional managed ingestion)
   - Relay runnable service (customer-side connector implementation)
+- **Resolved decisions (v1 defaults):**
+  - Data plane runtime is **single-tenant**: one runtime deployment per customer environment.
+  - Managed retrieval uses **dedicated Qdrant instance/cluster per merchant/environment** (strongest isolation).
 
 ---
 
@@ -120,7 +123,11 @@ Goal: “works in 5 minutes”.
 Goal: minimize operational burden while scaling.
 
 Supported approach (per prior decision):
-- **Dedicated Qdrant per merchant/environment** (strong isolation, simpler reasoning).
+- **Dedicated Qdrant instance/cluster per merchant/environment** (strong isolation, simpler reasoning).
+
+Decision (selected):
+- For “most isolated per merchant”, the default is **one Qdrant cluster/instance per merchant/environment**.
+- Shared clusters with per-tenant collections are **explicitly not** the default for v1.
 
 Provisioning options (choose one as V1 default):
 1) **Qdrant Cloud** (API-provisioned cluster per customer)
@@ -291,4 +298,3 @@ Phase E4 — UX hardening
 - onboarding UX (templates, quickstart snippets)
 - key rotation
 - upgrades/rollbacks
-

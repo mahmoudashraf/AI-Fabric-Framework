@@ -36,6 +36,7 @@
         <module>ai-infrastructure-retrieval-connector</module>
         <module>ai-infrastructure-data-sync</module>
         <module>ai-infrastructure-relay</module>
+        <module>ai-fabric-runtime</module>
         <module>ai-infrastructure-indexing</module>
         <module>ai-infrastructure-pii</module>
         <module>ai-infrastructure-governance</module>
