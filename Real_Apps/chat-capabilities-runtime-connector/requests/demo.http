@@ -1,0 +1,51 @@
+@runtimeUrl = http://localhost:8097
+@connectorUrl = http://localhost:8098
+
+### Runtime health
+GET {{runtimeUrl}}/actuator/health
+
+### Connector health
+GET {{connectorUrl}}/actuator/health
+
+### Seed product in connector app
+POST {{connectorUrl}}/api/products
+Content-Type: application/json
+
+{
+  "sku": "SKU-0001",
+  "name": "Premium Wireless Headphones",
+  "description": "Noise-cancelling over-ear headphones with 30h battery life.",
+  "category": "Headphones",
+  "tags": "wireless,noise-cancelling,audio",
+  "price": 199.99,
+  "currency": "USD",
+  "inStockQty": 25
+}
+
+### Direct connector contract call
+POST {{connectorUrl}}/actions/execute
+Content-Type: application/json
+
+{
+  "actionId": "list_orders",
+  "params": {
+    "userId": "user-1"
+  },
+  "trace": {
+    "requestId": "req-connector-1",
+    "conversationId": "chat-connector-1",
+    "userId": "user-1",
+    "sessionId": "sess-1"
+  }
+}
+
+### Runtime chat query using connector actions
+POST {{runtimeUrl}}/api/chat/query
+Content-Type: application/json
+
+{
+  "userId": "user-1",
+  "sessionId": "sess-1",
+  "conversationId": "chat-connector-1",
+  "query": "List my orders"
+}
