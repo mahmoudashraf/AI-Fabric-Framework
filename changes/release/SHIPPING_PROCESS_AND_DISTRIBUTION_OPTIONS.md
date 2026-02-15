@@ -99,6 +99,10 @@ You ship a runnable Spring Boot application:
 - loads the orchestrator + optional modules
 - configured entirely via env/properties
 
+Status:
+- Implemented as `ai-infrastructure-module/ai-fabric-runtime` (runnable Spring Boot fat JAR)
+- Quickstart: `docs/RUNTIME_JAR_QUICKSTART.md`
+
 Pros:
 - consistent support story (“run this runtime; call this API”)
 - enables multi-language clients (language-agnostic HTTP)

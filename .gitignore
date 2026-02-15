@@ -34,8 +34,12 @@ logs/
 *.temp
 tmp/
 
+# Local databases (generated at runtime)
+data/*.db*
+
 # Lucene Vector Database Index Files (generated at runtime)
 **/data/lucene-vector-index/
+**/data/lucene-vector-index-*/
 **/data/test-lucene-index/
 **/data/test-lucene-vector-index/
 ai-infrastructure-module/data/

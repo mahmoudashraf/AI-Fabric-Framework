@@ -1,7 +1,7 @@
 # Option D2 — Self‑Hosted AI Fabric Runtime (Runnable JAR) — Plan
 
 ## Status
-Draft (implementation requested)
+Implemented ✅
 
 ## Goal
 Ship a **domain-agnostic**, **self-hosted** Spring Boot runtime JAR that:
@@ -143,4 +143,3 @@ Rationale:
 - `/api/chat/query` responds (with a clear error if provider not enabled).
 - `/api/ai/data-sync/vector-spaces` works when `ai.data-sync.enabled=true`.
 - Connector actions can be loaded from a file-based catalog and executed via a configured base URL.
-
