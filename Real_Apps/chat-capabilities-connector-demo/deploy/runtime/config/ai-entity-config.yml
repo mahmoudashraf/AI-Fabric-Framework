@@ -1,0 +1,67 @@
+ai-entities:
+  product:
+    features: ["embedding", "search"]
+    auto-process: false
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "name"
+        weight: 2.0
+      - name: "description"
+        weight: 1.8
+      - name: "category"
+        weight: 1.0
+      - name: "tags"
+        weight: 1.0
+      - name: "sku"
+        weight: 0.6
+    metadata-fields:
+      - name: "sku"
+        type: "string"
+      - name: "category"
+        type: "string"
+      - name: "price"
+        type: "number"
+      - name: "currency"
+        type: "string"
+      - name: "inStockQty"
+        type: "number"
+
+  policy:
+    features: ["embedding", "search"]
+    auto-process: false
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "title"
+        weight: 2.0
+      - name: "text"
+        weight: 1.8
+      - name: "classification"
+        weight: 1.0
+    metadata-fields:
+      - name: "classification"
+        type: "string"
+      - name: "title"
+        type: "string"
+
+  review:
+    features: ["embedding", "search"]
+    auto-process: false
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    searchable-fields:
+      - name: "text"
+        weight: 1.8
+      - name: "sku"
+        weight: 0.8
+      - name: "rating"
+        weight: 0.4
+    metadata-fields:
+      - name: "sku"
+        type: "string"
+      - name: "rating"
+        type: "number"
