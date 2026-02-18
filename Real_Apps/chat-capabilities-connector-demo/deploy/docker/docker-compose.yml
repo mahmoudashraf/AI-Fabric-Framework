@@ -14,6 +14,12 @@ services:
       # Optional: API key auth for /actions/execute
       CONNECTOR_AUTH_API_KEY: ${CONNECTOR_AUTH_API_KEY:-}
       CONNECTOR_AUTH_API_KEY_HEADER: ${CONNECTOR_AUTH_API_KEY_HEADER:-X-AIFABRIC-API-KEY}
+
+      # Optional: event-based indexing (Connector -> Runtime Data Sync)
+      CONNECTOR_INDEXING_ENABLED: ${CONNECTOR_INDEXING_ENABLED:-true}
+      CONNECTOR_INDEXING_RUNTIME_BASE_URL: ${CONNECTOR_INDEXING_RUNTIME_BASE_URL:-http://ai-fabric-runtime:8097}
+      CONNECTOR_INDEXING_API_KEY: ${CONNECTOR_INDEXING_API_KEY:-}
+      CONNECTOR_INDEXING_API_KEY_HEADER: ${CONNECTOR_INDEXING_API_KEY_HEADER:-X-AIFABRIC-API-KEY}
     volumes:
       - connector_data:/app/data
 

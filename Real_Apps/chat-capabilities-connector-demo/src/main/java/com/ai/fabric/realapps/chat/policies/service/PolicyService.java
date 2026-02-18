@@ -2,10 +2,13 @@ package com.ai.fabric.realapps.chat.policies.service;
 
 import com.ai.fabric.realapps.chat.policies.domain.Policy;
 import com.ai.fabric.realapps.chat.policies.repo.PolicyRepository;
+import com.ai.fabric.realapps.chat.indexing.events.PolicyDeleteIndexingEvent;
+import com.ai.fabric.realapps.chat.indexing.events.PolicyUpsertIndexingEvent;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -15,6 +18,7 @@ import org.springframework.util.StringUtils;
 public class PolicyService {
 
     private final PolicyRepository policyRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public List<Policy> list(int limit) {
@@ -43,7 +47,9 @@ public class PolicyService {
         policy.setTitle(title.trim());
         policy.setText(text.trim());
         policy.setClassification(classification.trim());
-        return policyRepository.save(policy);
+        Policy saved = policyRepository.save(policy);
+        publishUpsert(saved);
+        return saved;
     }
 
     @Transactional
@@ -64,13 +70,16 @@ public class PolicyService {
             throw new IllegalArgumentException("classification is required");
         }
 
-        return policyRepository.save(policy);
+        Policy saved = policyRepository.save(policy);
+        publishUpsert(saved);
+        return saved;
     }
 
     @Transactional
     public Policy deletePolicy(long id) {
         Policy policy = get(id);
         policyRepository.delete(policy);
+        eventPublisher.publishEvent(new PolicyDeleteIndexingEvent(id));
         return policy;
     }
 
@@ -109,5 +118,17 @@ public class PolicyService {
             return false;
         }
         return haystack.toLowerCase().contains(needleLower);
+    }
+
+    private void publishUpsert(Policy saved) {
+        if (saved == null || saved.getId() == null) {
+            return;
+        }
+        eventPublisher.publishEvent(new PolicyUpsertIndexingEvent(
+            saved.getId(),
+            saved.getTitle(),
+            saved.getText(),
+            saved.getClassification()
+        ));
     }
 }

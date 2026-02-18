@@ -1,11 +1,16 @@
 package com.ai.fabric.realapps.chat.reviews.service;
 
+import com.ai.fabric.realapps.chat.catalog.domain.Product;
+import com.ai.fabric.realapps.chat.catalog.repo.ProductRepository;
+import com.ai.fabric.realapps.chat.indexing.events.ReviewDeleteIndexingEvent;
+import com.ai.fabric.realapps.chat.indexing.events.ReviewUpsertIndexingEvent;
 import com.ai.fabric.realapps.chat.reviews.domain.Review;
 import com.ai.fabric.realapps.chat.reviews.repo.ReviewRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -15,6 +20,8 @@ import org.springframework.util.StringUtils;
 public class ReviewService {
 
     private final ReviewRepository reviewRepository;
+    private final ProductRepository productRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public List<Review> list(int limit) {
@@ -57,10 +64,13 @@ public class ReviewService {
         Review review = new Review();
         review.setUserId(userId.trim());
         review.setProductId(productId);
-        review.setSku(StringUtils.hasText(sku) ? sku.trim() : null);
+        String resolvedSku = resolveSku(productId, sku);
+        review.setSku(resolvedSku);
         review.setRating(rating);
         review.setText(text.trim());
-        return reviewRepository.save(review);
+        Review saved = reviewRepository.save(review);
+        publishUpsert(saved);
+        return saved;
     }
 
     @Transactional
@@ -77,13 +87,16 @@ public class ReviewService {
             review.setText(StringUtils.hasText(text) ? text.trim() : review.getText());
         }
 
-        return reviewRepository.save(review);
+        Review saved = reviewRepository.save(review);
+        publishUpsert(saved);
+        return saved;
     }
 
     @Transactional
     public Review delete(long id) {
         Review review = get(id);
         reviewRepository.delete(review);
+        eventPublisher.publishEvent(new ReviewDeleteIndexingEvent(id));
         return review;
     }
 
@@ -118,5 +131,29 @@ public class ReviewService {
             return false;
         }
         return haystack.toLowerCase().contains(needleLower);
+    }
+
+    private String resolveSku(Long productId, String providedSku) {
+        if (StringUtils.hasText(providedSku)) {
+            return providedSku.trim();
+        }
+        if (productId == null) {
+            return null;
+        }
+        Product product = productRepository.findById(productId).orElse(null);
+        return product != null && StringUtils.hasText(product.getSku()) ? product.getSku().trim() : null;
+    }
+
+    private void publishUpsert(Review saved) {
+        if (saved == null || saved.getId() == null) {
+            return;
+        }
+        eventPublisher.publishEvent(new ReviewUpsertIndexingEvent(
+            saved.getId(),
+            saved.getUserId(),
+            saved.getSku(),
+            saved.getRating(),
+            saved.getText()
+        ));
     }
 }

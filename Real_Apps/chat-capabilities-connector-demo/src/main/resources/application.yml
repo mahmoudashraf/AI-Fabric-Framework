@@ -38,3 +38,8 @@ connector:
   auth:
     api-key: ${CONNECTOR_AUTH_API_KEY:}
     api-key-header: ${CONNECTOR_AUTH_API_KEY_HEADER:X-AIFABRIC-API-KEY}
+  indexing:
+    enabled: ${CONNECTOR_INDEXING_ENABLED:false}
+    runtime-base-url: ${CONNECTOR_INDEXING_RUNTIME_BASE_URL:http://ai-fabric-runtime:8097}
+    api-key: ${CONNECTOR_INDEXING_API_KEY:}
+    api-key-header: ${CONNECTOR_INDEXING_API_KEY_HEADER:X-AIFABRIC-API-KEY}

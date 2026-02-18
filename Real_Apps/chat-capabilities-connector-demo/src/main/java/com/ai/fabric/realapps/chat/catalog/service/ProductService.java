@@ -2,6 +2,8 @@ package com.ai.fabric.realapps.chat.catalog.service;
 
 import com.ai.fabric.realapps.chat.catalog.domain.Product;
 import com.ai.fabric.realapps.chat.catalog.repo.ProductRepository;
+import com.ai.fabric.realapps.chat.indexing.events.ProductDeleteIndexingEvent;
+import com.ai.fabric.realapps.chat.indexing.events.ProductUpsertIndexingEvent;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -9,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -18,6 +21,7 @@ import org.springframework.util.StringUtils;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final Pattern TOKEN_SPLIT = Pattern.compile("[^\\p{IsAlphabetic}\\p{IsDigit}]+");
 
@@ -83,7 +87,9 @@ public class ProductService {
         product.setCurrency(StringUtils.hasText(currency) ? currency.trim().toUpperCase() : "USD");
         product.setInStockQty(inStockQty != null ? Math.max(0, inStockQty) : 0);
 
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        publishUpsert(saved);
+        return saved;
     }
 
     @Transactional
@@ -98,6 +104,7 @@ public class ProductService {
                                  String currency,
                                  Integer inStockQty) {
         Product product = get(id);
+        String skuBefore = product.getSku();
 
         if (StringUtils.hasText(sku)) {
             String normalizedSku = SkuNormalizer.normalize(sku);
@@ -134,7 +141,12 @@ public class ProductService {
             product.setInStockQty(Math.max(0, inStockQty));
         }
 
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        if (skuBefore != null && saved.getSku() != null && !skuBefore.equalsIgnoreCase(saved.getSku())) {
+            eventPublisher.publishEvent(new ProductDeleteIndexingEvent(skuBefore));
+        }
+        publishUpsert(saved);
+        return saved;
     }
 
     @Transactional
@@ -146,13 +158,18 @@ public class ProductService {
         Product product = findBySku(normalizedSku)
             .orElseThrow(() -> new EntityNotFoundException("Product not found for sku: " + normalizedSku));
         product.setInStockQty(Math.max(0, newInStockQty));
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        publishUpsert(saved);
+        return saved;
     }
 
     @Transactional
     public Product deleteProduct(long id) {
         Product product = get(id);
         productRepository.delete(product);
+        if (product.getSku() != null) {
+            eventPublisher.publishEvent(new ProductDeleteIndexingEvent(product.getSku()));
+        }
         return product;
     }
 
@@ -262,5 +279,21 @@ public class ProductService {
         }
 
         return score;
+    }
+
+    private void publishUpsert(Product saved) {
+        if (saved == null || saved.getSku() == null) {
+            return;
+        }
+        eventPublisher.publishEvent(new ProductUpsertIndexingEvent(
+            saved.getSku(),
+            saved.getName(),
+            saved.getDescription(),
+            saved.getCategory(),
+            saved.getTags(),
+            saved.getPrice(),
+            saved.getCurrency(),
+            saved.getInStockQty()
+        ));
     }
 }

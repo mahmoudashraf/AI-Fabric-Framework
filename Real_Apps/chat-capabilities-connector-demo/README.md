@@ -31,6 +31,17 @@ Requests file:
 - Runtime: `requests/demo.runtime.http`
 - Connector: `requests/demo.connector.http`
 
+## Event-Based Indexing (Products/Policies/Reviews)
+
+In Docker Compose, the connector can automatically index **product/policy/review** changes into the runtime (via Data Sync) using after-commit event listeners.
+
+- Enabled by default in `deploy/docker/docker-compose.yml` via `CONNECTOR_INDEXING_ENABLED=true`.
+- Disable with:
+
+```bash
+export CONNECTOR_INDEXING_ENABLED=false
+```
+
 ## OpenAI Setup (Runtime)
 
 The runtime expects OpenAI for **LLM + embeddings** (required for RAG + intent extraction + actions).
