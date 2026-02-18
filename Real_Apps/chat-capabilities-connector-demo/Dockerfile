@@ -11,9 +11,8 @@ WORKDIR /app
 RUN addgroup -S spring && adduser -S spring -G spring
 
 COPY --from=build /repo/Real_Apps/chat-capabilities-connector-demo/target/*.jar /app/app.jar
-COPY --from=build /repo/Real_Apps/chat-capabilities-connector-demo/data /app/data
 
-RUN chown -R spring:spring /app
+RUN mkdir -p /app/data && chown -R spring:spring /app
 USER spring:spring
 
 EXPOSE 8096

@@ -18,6 +18,8 @@ The runtime is configured via:
 From repo root:
 
 ```bash
+OPENAI_ENABLED=true \
+OPENAI_API_KEY="$(tr -d '\n' < scripts/openai.env)" \
 docker compose -f Real_Apps/chat-capabilities-connector-demo/deploy/docker/docker-compose.yml up --build
 ```
 
@@ -33,15 +35,27 @@ Requests file:
 
 The runtime expects OpenAI for **LLM + embeddings** (required for RAG + intent extraction + actions).
 
+This repo uses `scripts/openai.env` as a local developer secret. In this setup it contains the raw API key (not `KEY=VALUE`),
+so we strip the trailing newline when exporting.
+
 ```bash
 export OPENAI_ENABLED=true
-export OPENAI_API_KEY="..."
+export OPENAI_API_KEY="$(tr -d '\n' < scripts/openai.env)"
 export OPENAI_MODEL="gpt-4o-mini"                         # optional
 export OPENAI_EMBEDDING_MODEL="text-embedding-3-small"     # optional
 export OPENAI_EMBEDDING_DIMENSIONS="512"                  # recommended for Lucene (max 1024)
 ```
 
 Then open `requests/demo.runtime.http`.
+
+## Demo Seed Data (Connector)
+
+The connector seeds a small demo catalog (including `SKU-0001` and `SKU-0002`) and a demo coupon `SAVE10` on first start.
+Disable this with:
+
+```bash
+export APP_DEMO_SEED_DATA=false
+```
 
 ## CORS (for https://ai-fabric.dev demo UI)
 

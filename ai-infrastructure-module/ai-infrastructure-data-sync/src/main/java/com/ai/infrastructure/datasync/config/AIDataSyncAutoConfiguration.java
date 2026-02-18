@@ -1,13 +1,11 @@
 package com.ai.infrastructure.datasync.config;
 
 import com.ai.infrastructure.access.AIAccessControlService;
-import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.datasync.AIDataSyncProperties;
-import com.ai.infrastructure.datasync.controller.DataSyncController;
 import com.ai.infrastructure.datasync.normalize.DataSyncEntityNormalizer;
 import com.ai.infrastructure.datasync.service.DataSyncService;
 import com.ai.infrastructure.service.VectorManagementService;
@@ -15,7 +13,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -34,7 +31,6 @@ import java.time.Clock;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnProperty(prefix = "ai.data-sync", name = "enabled", havingValue = "true")
 @Conditional(VectorDbConfiguredCondition.class)
-@ConditionalOnBean({EntityAccessPolicy.class, AIEmbeddingService.class, VectorManagementService.class})
 public class AIDataSyncAutoConfiguration {
 
     @Bean
@@ -62,11 +58,5 @@ public class AIDataSyncAutoConfiguration {
             normalizer,
             clock
         );
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DataSyncController dataSyncController(DataSyncService service) {
-        return new DataSyncController(service);
     }
 }

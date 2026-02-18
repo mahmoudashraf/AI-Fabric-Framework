@@ -10,7 +10,6 @@ import com.ai.infrastructure.datasync.service.DataSyncService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/ai/data-sync")
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "ai.data-sync", name = "enabled", havingValue = "true")
-@ConditionalOnBean(DataSyncService.class)
 public class DataSyncController {
 
     private final DataSyncService service;

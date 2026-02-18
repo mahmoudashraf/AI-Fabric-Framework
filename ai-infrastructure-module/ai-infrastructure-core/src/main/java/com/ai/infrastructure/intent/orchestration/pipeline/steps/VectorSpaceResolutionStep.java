@@ -111,6 +111,12 @@ public class VectorSpaceResolutionStep implements PipelineStep {
 	                        String prior = intent.getVectorSpace();
 	                        if (normalization.normalizedValid().isEmpty()) {
 	                            List<String> fallbackSpaces = availableVectorSpaces;
+                                if (ragBudgets != null && ragBudgets.hasVectorSpaceAllowlist()) {
+                                    List<String> allowlist = ragBudgets.retrievalVectorSpacesAllowlist();
+                                    fallbackSpaces = fallbackSpaces.stream()
+                                        .filter(space -> allowlist.contains(space.toLowerCase(Locale.ROOT)))
+                                        .toList();
+                                }
 	                            if (ragBudgets != null
 	                                && ragBudgets.maxSpaces() != null
 	                                && ragBudgets.maxSpaces() > 0

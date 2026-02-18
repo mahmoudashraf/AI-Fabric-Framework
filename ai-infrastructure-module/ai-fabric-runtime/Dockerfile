@@ -16,6 +16,8 @@ WORKDIR /app
 
 RUN useradd -r -u 10001 -g root runtime
 
+RUN mkdir -p /data && chown -R 10001:0 /data
+
 COPY --from=build /workspace/ai-infrastructure-module/ai-fabric-runtime/target/ai-fabric-runtime-*.jar /app/runtime.jar
 
 EXPOSE 8097
@@ -24,4 +26,4 @@ USER 10001
 
 ENV JAVA_OPTS=""
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/runtime.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/runtime.jar \"$@\"", "--"]

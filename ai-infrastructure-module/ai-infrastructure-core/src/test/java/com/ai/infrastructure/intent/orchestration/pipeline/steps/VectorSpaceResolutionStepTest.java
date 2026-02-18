@@ -99,6 +99,52 @@ class VectorSpaceResolutionStepTest {
     }
 
     @Test
+    void shouldFallbackToAllowlistWhenVectorSpaceInvalidAndAllowlistPresent() {
+        VectorSpaceRouter router = mock(VectorSpaceRouter.class);
+
+        KnowledgeBaseOverviewService overviewService = mock(KnowledgeBaseOverviewService.class);
+        when(overviewService.getOverview()).thenReturn(KnowledgeBaseOverview.builder()
+            .entityTypes(List.of("product", "review", "policy"))
+            .build());
+
+        VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
+            router,
+            new OrchestrationProperties(),
+            new VectorSpaceRoutingProperties(),
+            providerOf(overviewService)
+        );
+
+        OrchestrationPolicy policy = new OrchestrationPolicy(
+            OrchestrationProfile.DEFAULT,
+            "executor",
+            null,
+            OrchestrationProperties.InformationMode.LLM_DRIVEN,
+            OrchestrationPolicy.OrchestrationCapabilities.defaults(),
+            new OrchestrationPolicy.RagBudgets(true, null, null, null, null, null, List.of("policy"))
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("refund_policy")
+            .requiresRetrieval(true)
+            .vectorSpace("policies")
+            .build();
+
+        PipelineContext context = PipelineContext.from("refund policy", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(policy)
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated.isShouldTerminate()).isFalse();
+        assertThat(updated.getIntentResponse().getIntents().getFirst().getVectorSpace()).isEqualTo("policy");
+        assertThat(updated.getMetadata()).containsKey("vectorSpaceRouting");
+        verify(router, never()).route(any(), anyString());
+    }
+
+    @Test
     void shouldSkipWhenIntentDoesNotRequireRetrieval() {
         VectorSpaceRouter router = mock(VectorSpaceRouter.class);
         VectorSpaceResolutionStep step = new VectorSpaceResolutionStep(
