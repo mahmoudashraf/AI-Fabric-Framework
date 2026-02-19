@@ -33,6 +33,10 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
   - Customer-side Relay implementation of the Customer Connector API (`/actions/execute`, `/retrieval/search`)
   - Inbound auth (API key and/or HMAC), replay protection, rate limiting, idempotency (in-memory by default; Redis backend supported), SSRF-safe routing (mapping/dispatcher)
   - OpenAPI contract conformance tests pinned to `changes/Productization/customer-connector-api.openapi.yml`
+- `ai-infrastructure-generic-rest-connector` (runnable service):
+  - Customer-side implementation of the Customer Connector API (`/actions/execute`) that routes `actionId → upstream REST endpoint`
+  - File-based routing config + strict templating (`params/trace/body/status/headers`) + in-memory idempotency + response normalization to `ActionResult` payload rules
+  - Intended for “API-ready” upstream systems that do not implement the connector contract themselves (Shopify, ERP, internal services)
 - `ai-fabric-core`:
   - Unified action registry (annotation + contributed sources)
   - Connector actions registered alongside `@AIAction` actions
