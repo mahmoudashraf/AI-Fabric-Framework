@@ -31,6 +31,10 @@ Requests file:
 - Runtime: `requests/demo.runtime.http`
 - Connector: `requests/demo.connector.http`
 
+## Deploy (Railway)
+
+- Connector (this app): `Real_Apps/chat-capabilities-connector-demo/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
+
 ## Event-Based Indexing (Products/Policies/Reviews)
 
 In Docker Compose, the connector can automatically index **product/policy/review** changes into the runtime (via Data Sync) using after-commit event listeners.
