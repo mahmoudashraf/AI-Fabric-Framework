@@ -1,104 +1,49 @@
-2026-02-03T02:20:21.620Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-80] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request message[1]: role=user, contentLength=6842, contentSnippet=Task:
-Each suggestion should be short, clickable, and phrased as a user request.
-Give me most suitable 4 suggestions (questions/actions) based on the available actions and attached items.
-Output MUST be valid JSON: an array of strings.
-Prefer suggestions that map to one of the available actions.
-Return exactly 4 suggestions (no more, no less).
-If attachments are present, ground suggestions in them.
-Do not include explanations.
-User context (optional):
-document: asus zenbook 14 oled the asus ze
-2026-02-03T02:20:21.620Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-80] c.a.i.provider.openai.OpenAIProvider     : === END OPENAI API REQUEST ===
-2026-02-03T02:20:22.825Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-80] c.a.i.provider.openai.OpenAIProvider     : === OPENAI API RESPONSE ===
-2026-02-03T02:20:22.825Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-80] c.a.i.provider.openai.OpenAIProvider     : OpenAI API response: responseTimeMs=1205, model=gpt-4o-mini-2024-07-18, finishReason=stop, contentLength=219
-2026-02-03T02:20:22.825Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-80] c.a.i.provider.openai.OpenAIProvider     : OpenAI API response contentSnippet=```json
-[
-    "Add a review for the Asus Zenbook 14 OLED",
-    "Add the Asus Zenbook 14 OLED to my cart",
-    "Checkout my cart with the Asus Zenbook 14 OLED",
-    "Get more details about the Asus Zenbook 14 OLED"
-]
-```
-2026-02-03T02:20:22.825Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-80] c.a.i.provider.openai.OpenAIProvider     : === END OPENAI API RESPONSE ===
-AVAILABLE ACTIONS:
-- create_purchase_order: Create a purchase order for a product SKU [category=commerce] (params: sku=Product SKU (required), quantity=Quantity (required), shippingAddress=Shipping address (requir
-2026-02-03T02:22:32.550Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request message[1]: role=user, contentLength=5712, contentSnippet=Analyze the following request from a user and extract the user intents from it in the provided format in the system prompt.
------------
-User's question is: (ATTACHMENTS (authoritative UI context; [ACTIVE] is pinned):
-2026-02-03T02:22:32.550Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : === OPENAI API REQUEST ===
-2026-02-03T02:22:32.550Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request: url=https://api.openai.com/v1/chat/completions, model=gpt-4o-mini, temperature=null, topP=0.1, maxTokens=null, messages=2
-2026-02-03T02:22:32.550Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request message[0]: role=system, contentLength=13456, contentSnippet=You are the intent extraction engine powering our Retrieval-Augmented Generation (RAG) assistant.
-Analyse the user message and respond with a JSON payload that follows the schema provided below.
-Use one call to capture intent, generation need, and optimized query (no extra services).
-1) [ACTIVE] vectorSpace=product id=30 source=document metadata={id=30, category=product, imageUrl=https://images.unsplash.com/photo-1484788984921-03950022c9ef?w=800&h=600&fit=crop&auto=format, _indexedCreatedAt=2026-02-03T02:16:09.364124374, _indexedUpdatedAt=2026-02-03T02:16:09.3
-2026-02-03T02:22:32.550Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : === END OPENAI API REQUEST ===
-2026-02-03T02:22:37.546Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : === OPENAI API RESPONSE ===
-2026-02-03T02:22:37.546Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : OpenAI API response: responseTimeMs=4996, model=gpt-4o-mini-2024-07-18, finishReason=stop, contentLength=581
-2026-02-03T02:22:37.546Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : OpenAI API response contentSnippet={
-  "intents": [
-    {
-      "type": "OUT_OF_SCOPE",
-      "intent": "list_products",
-      "confidence": 0.85,
-      "action": "",
-      "actionParams": {},
-      "vectorSpace": "",
-      "requiresRetrieval": false,
-      "requiresGeneration": false,
-      "directAnswer": "I cannot provide a list of Apple laptops based on the current information.",
-      "generationInstructions": "",
-      "needsAdvancedRAG": false,
-      "optimizedQuery": "list products by query: Apple laptops"
-    }
-  ],
-  "i
-2026-02-03T02:22:37.546Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-59] c.a.i.provider.openai.OpenAIProvider     : === END OPENAI API RESPONSE ===
-2026-02-03T02:22:51.252Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : === OPENAI API REQUEST ===
-2026-02-03T02:22:51.253Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request: url=https://api.openai.com/v1/chat/completions, model=gpt-4o-mini, temperature=null, topP=0.1, maxTokens=null, messages=2
-2026-02-03T02:22:51.253Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request message[0]: role=system, contentLength=13456, contentSnippet=You are the intent extraction engine powering our Retrieval-Augmented Generation (RAG) assistant.
-Analyse the user message and respond with a JSON payload that follows the schema provided below.
-Use one call to capture intent, generation need, and optimized query (no extra services).
-AVAILABLE ACTIONS:
-- create_purchase_order: Create a purchase order for a product SKU [category=commerce] (params: sku=Product SKU (required), quantity=Quantity (required), shippingAddress=Shipping address (requir
-2026-02-03T02:22:51.253Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request message[1]: role=user, contentLength=5931, contentSnippet=Analyze the following request from a user and extract the user intents from it in the provided format in the system prompt.
------------
-User's question is: (ATTACHMENTS (authoritative UI context; [ACTIVE] is pinned):
-1) [ACTIVE] vectorSpace=product id=30 source=document metadata={id=30, category=product, imageUrl=https://images.unsplash.com/photo-1484788984921-03950022c9ef?w=800&h=600&fit=crop&auto=format, _indexedCreatedAt=2026-02-03T02:16:09.364124374, _indexedUpdatedAt=2026-02-03T02:16:09.3
-2026-02-03T02:22:51.253Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : === END OPENAI API REQUEST ===
-2026-02-03T02:22:53.522Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : === OPENAI API RESPONSE ===
-2026-02-03T02:22:53.522Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : OpenAI API response: responseTimeMs=2270, model=gpt-4o-mini-2024-07-18, finishReason=stop, contentLength=520
-2026-02-03T02:22:53.522Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : OpenAI API response contentSnippet={
-  "intents": [
-    {
-      "type": "ACTION",
-      "intent": "list_orders",
-      "confidence": 0.95,
-      "action": "list_orders",
-      "actionParams": {},
-      "vectorSpace": "commerce",
-      "requiresRetrieval": false,
-      "requiresGeneration": false,
-      "directAnswer": "I will list your orders now.",
-      "generationInstructions": "",
-      "needsAdvancedRAG": false,
-      "optimizedQuery": "list_orders"
-    }
-  ],
-  "isCompound": false,
-  "orchestrationStrategy": "DIRECT_ACTION"
-2026-02-03T02:22:53.522Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : === END OPENAI API RESPONSE ===
-2026-02-03T02:22:53.542Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.p.openai.OpenAIEmbeddingProvider   : === OPENAI EMBEDDING API REQUEST ===
-2026-02-03T02:22:53.542Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.p.openai.OpenAIEmbeddingProvider   : OpenAI embedding request (http): model=text-embedding-3-small, dimensions=512, textLength=11
-2026-02-03T02:22:53.542Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.p.openai.OpenAIEmbeddingProvider   : OpenAI embedding request textSnippet=list_orders
-2026-02-03T02:22:53.542Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.p.openai.OpenAIEmbeddingProvider   : === END OPENAI EMBEDDING API REQUEST ===
-2026-02-03T02:22:53.728Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.p.openai.OpenAIEmbeddingProvider   : === OPENAI EMBEDDING API RESPONSE ===
-2026-02-03T02:22:53.728Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.p.openai.OpenAIEmbeddingProvider   : OpenAI embedding response (http): responseTimeMs=186, model=text-embedding-3-small, dimensions=512
-2026-02-03T02:22:53.728Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.p.openai.OpenAIEmbeddingProvider   : === END OPENAI EMBEDDING API RESPONSE ===
-2026-02-03T02:22:53.730Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : === OPENAI API REQUEST ===
-2026-02-03T02:22:53.730Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request: url=https://api.openai.com/v1/chat/completions, model=gpt-4o-mini, temperature=null, topP=0.1, maxTokens=null, messages=1
-2026-02-03T02:22:53.730Z  INFO 1 --- [chat-capabilities-demo] [io-8080-exec-24] c.a.i.provider.openai.OpenAIProvider     : OpenAI API request message[0]: role=user, contentLength=7113, contentSnippet=Using only the relevant context below, answer the user's question.
-Notes:
-- If the context includes a "PINNED TARGETS" section, treat it as authoritative user-selected candidates.
-- If the user is asking to compare/choose among "these/those/them", compare the pinned targets directly (do not introduce other candidates).
-- Do not fabricate facts or identifiers not present in the context.
-User question:
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-02-19T16:18:34.126Z ERROR 1 --- [ai-fabric-runtime] [           main] o.s.boot.SpringApplication               : Application run failed
+org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'entityManagerFactory' defined in class path resource [org/springframework/boot/autoconfigure/orm/jpa/HibernateJpaConfiguration.class]: Unable to create requested service [org.hibernate.engine.jdbc.env.spi.JdbcEnvironment] due to: Unable to determine Dialect without JDBC metadata (please set 'javax.persistence.jdbc.url', 'hibernate.connection.url', or 'hibernate.dialect')
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1775) ~[spring-beans-6.1.1.jar!/:6.1.1]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:323) ~[spring-beans-6.1.1.jar!/:6.1.1]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:199) ~[spring-beans-6.1.1.jar!/:6.1.1]
+	at org.springframework.context.support.AbstractApplicationContext.getBean(AbstractApplicationContext.java:1173) ~[spring-context-6.1.1.jar!/:6.1.1]
+	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:936) ~[spring-context-6.1.1.jar!/:6.1.1]
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:616) ~[spring-context-6.1.1.jar!/:6.1.1]
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146) ~[spring-boot-3.2.0.jar!/:3.2.0]
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:753) ~[spring-boot-3.2.0.jar!/:3.2.0]
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:455) ~[spring-boot-3.2.0.jar!/:3.2.0]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:323) ~[spring-boot-3.2.0.jar!/:3.2.0]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1342) ~[spring-boot-3.2.0.jar!/:3.2.0]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1331) ~[spring-boot-3.2.0.jar!/:3.2.0]
+	at com.ai.fabric.runtime.AIFabricRuntimeApplication.main(AIFabricRuntimeApplication.java:13) ~[!/:na]
+	at org.hibernate.service.internal.AbstractServiceRegistryImpl.createService(AbstractServiceRegistryImpl.java:276) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.service.internal.AbstractServiceRegistryImpl.initializeService(AbstractServiceRegistryImpl.java:238) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.service.internal.AbstractServiceRegistryImpl.getService(AbstractServiceRegistryImpl.java:215) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.boot.model.relational.Database.<init>(Database.java:45) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.boot.internal.InFlightMetadataCollectorImpl.getDatabase(InFlightMetadataCollectorImpl.java:223) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.boot.internal.InFlightMetadataCollectorImpl.<init>(InFlightMetadataCollectorImpl.java:191) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(Unknown Source) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:91) ~[runtime.jar:na]
+	at org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:53) ~[runtime.jar:na]
+	at org.springframework.boot.loader.launch.JarLauncher.main(JarLauncher.java:58) ~[runtime.jar:na]
+Caused by: org.hibernate.service.spi.ServiceException: Unable to create requested service [org.hibernate.engine.jdbc.env.spi.JdbcEnvironment] due to: Unable to determine Dialect without JDBC metadata (please set 'javax.persistence.jdbc.url', 'hibernate.connection.url', or 'hibernate.dialect')
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:409) ~[spring-orm-6.1.1.jar!/:6.1.1]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.afterPropertiesSet(AbstractEntityManagerFactoryBean.java:396) ~[spring-orm-6.1.1.jar!/:6.1.1]
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.afterPropertiesSet(LocalContainerEntityManagerFactoryBean.java:352) ~[spring-orm-6.1.1.jar!/:6.1.1]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.invokeInitMethods(AbstractAutowireCapableBeanFactory.java:1822) ~[spring-beans-6.1.1.jar!/:6.1.1]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1771) ~[spring-beans-6.1.1.jar!/:6.1.1]
+	at org.hibernate.boot.model.process.spi.MetadataBuildingProcess.complete(MetadataBuildingProcess.java:169) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.metadata(EntityManagerFactoryBuilderImpl.java:1432) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.build(EntityManagerFactoryBuilderImpl.java:1503) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.springframework.orm.jpa.vendor.SpringHibernateJpaPersistenceProvider.createContainerEntityManagerFactory(SpringHibernateJpaPersistenceProvider.java:75) ~[spring-orm-6.1.1.jar!/:6.1.1]
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.createNativeEntityManagerFactory(LocalContainerEntityManagerFactoryBean.java:376) ~[spring-orm-6.1.1.jar!/:6.1.1]
+	at org.hibernate.engine.jdbc.dialect.internal.DialectFactoryImpl.determineDialect(DialectFactoryImpl.java:190) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.engine.jdbc.dialect.internal.DialectFactoryImpl.buildDialect(DialectFactoryImpl.java:86) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.getJdbcEnvironmentWithDefaults(JdbcEnvironmentInitiator.java:141) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.getJdbcEnvironmentUsingJdbcMetadata(JdbcEnvironmentInitiator.java:344) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.initiateService(JdbcEnvironmentInitiator.java:105) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.initiateService(JdbcEnvironmentInitiator.java:66) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.boot.registry.internal.StandardServiceRegistryImpl.initiateService(StandardServiceRegistryImpl.java:129) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	at org.hibernate.service.internal.AbstractServiceRegistryImpl.createService(AbstractServiceRegistryImpl.java:263) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
+	... 36 common frames omitted
+	... 21 common frames omitted
+Caused by: org.hibernate.HibernateException: Unable to determine Dialect without JDBC metadata (please set 'javax.persistence.jdbc.url', 'hibernate.connection.url', or 'hibernate.dialect')

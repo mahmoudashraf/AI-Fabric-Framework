@@ -34,6 +34,7 @@ Requests file:
 ## Deploy (Railway)
 
 - Connector (this app): `Real_Apps/chat-capabilities-connector-demo/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
+- Runtime (AI Fabric): `ai-infrastructure-module/ai-fabric-runtime/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
 
 ## Event-Based Indexing (Products/Policies/Reviews)
 

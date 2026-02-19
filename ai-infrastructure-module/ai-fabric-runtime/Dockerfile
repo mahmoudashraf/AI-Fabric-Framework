@@ -16,7 +16,7 @@ WORKDIR /app
 
 RUN useradd -r -u 10001 -g root runtime
 
-RUN mkdir -p /data && chown -R 10001:0 /data
+RUN mkdir -p /data /app/data && chown -R 10001:0 /data /app/data
 
 COPY --from=build /workspace/ai-infrastructure-module/ai-fabric-runtime/target/ai-fabric-runtime-*.jar /app/runtime.jar
 
