@@ -1,17 +1,7 @@
 connector:
   inbound-auth:
-    allow-unauthenticated: false
-    api-key:
-      enabled: false
-      header: X-AIFABRIC-API-KEY
-      value: ""
-
-  upstream:
-    base-url: ""
-    auth:
-      type: none
-      header: Authorization
-      value: ""
+    # Dev default only. For production: set allow-unauthenticated=false and enable api-key.
+    allow-unauthenticated: true
 
   http:
     connect-timeout-ms: 2000
@@ -20,7 +10,6 @@ connector:
       enabled: false
       max-attempts: 1
       backoff-ms: 200
-      retry-on: [429, 502, 503, 504]
 
   idempotency:
     enabled: true

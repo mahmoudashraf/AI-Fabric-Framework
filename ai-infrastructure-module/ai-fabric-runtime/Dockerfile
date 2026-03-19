@@ -14,16 +14,19 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+
 RUN useradd -r -u 10001 -g root runtime
 
 RUN mkdir -p /data /app/data && chown -R 10001:0 /data /app/data
 
 COPY --from=build /workspace/ai-infrastructure-module/ai-fabric-runtime/target/ai-fabric-runtime-*.jar /app/runtime.jar
+COPY ai-infrastructure-module/ai-fabric-runtime/docker-entrypoint.sh /app/entrypoint.sh
+
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8097
 
-USER 10001
-
 ENV JAVA_OPTS=""
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/runtime.jar \"$@\"", "--"]
+ENTRYPOINT ["/app/entrypoint.sh"]

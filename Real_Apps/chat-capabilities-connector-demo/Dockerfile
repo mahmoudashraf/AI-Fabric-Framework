@@ -8,13 +8,13 @@ RUN mvn -f Real_Apps/chat-capabilities-connector-demo/pom.xml -DskipTests packag
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-RUN addgroup -S spring && adduser -S spring -G spring
+RUN apk add --no-cache su-exec && addgroup -S spring && adduser -S spring -G spring
 
 COPY --from=build /repo/Real_Apps/chat-capabilities-connector-demo/target/*.jar /app/app.jar
+COPY Real_Apps/chat-capabilities-connector-demo/docker-entrypoint.sh /app/entrypoint.sh
 
-RUN mkdir -p /app/data && chown -R spring:spring /app
-USER spring:spring
+RUN chmod +x /app/entrypoint.sh && mkdir -p /app/data && chown -R spring:spring /app
 
 EXPOSE 8096
 ENV PORT=8096
-ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS:-} -jar /app/app.jar"]
+ENTRYPOINT ["/app/entrypoint.sh"]

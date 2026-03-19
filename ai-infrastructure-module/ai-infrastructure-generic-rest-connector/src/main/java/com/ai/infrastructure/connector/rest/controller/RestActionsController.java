@@ -2,7 +2,7 @@ package com.ai.infrastructure.connector.rest.controller;
 
 import com.ai.infrastructure.connector.rest.api.ActionExecuteRequestDto;
 import com.ai.infrastructure.connector.rest.api.ActionResultDto;
-import com.ai.infrastructure.connector.rest.service.RestConnectorActionService;
+import com.ai.infrastructure.connector.rest.service.RestActionExecutionService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -10,15 +10,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class RestActionsController {
 
-    private final RestConnectorActionService actionService;
+    private final RestActionExecutionService actionExecutionService;
 
-    public RestActionsController(RestConnectorActionService actionService) {
-        this.actionService = actionService;
+    public RestActionsController(RestActionExecutionService actionExecutionService) {
+        this.actionExecutionService = actionExecutionService;
     }
 
-    @PostMapping("/actions/execute")
+    @PostMapping(path = "/actions/execute")
     public ActionResultDto execute(@RequestBody ActionExecuteRequestDto request) {
-        return actionService.execute(request);
+        return actionExecutionService.execute(request);
     }
 }
 

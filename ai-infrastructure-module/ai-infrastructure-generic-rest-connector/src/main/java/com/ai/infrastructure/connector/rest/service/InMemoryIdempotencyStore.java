@@ -1,158 +1,100 @@
 package com.ai.infrastructure.connector.rest.service;
 
-import com.ai.infrastructure.connector.rest.api.ActionExecuteRequestDto;
 import com.ai.infrastructure.connector.rest.api.ActionResultDto;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
-import com.ai.infrastructure.connector.rest.util.Hashing;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.Map;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 @Service
-public class InMemoryIdempotencyStore {
+public class InMemoryIdempotencyStore implements IdempotencyStore {
 
-    private static final String ERROR_IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT";
-    private static final String ERROR_IDEMPOTENCY_IN_PROGRESS = "IDEMPOTENCY_IN_PROGRESS";
-    private static final String ERROR_SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
-
+    private final ConcurrentMap<String, Entry> entries = new ConcurrentHashMap<>();
     private final RestRoutingConfig config;
-    private final ObjectMapper objectMapper;
-    private final ConcurrentHashMap<String, StoredEntry> entries = new ConcurrentHashMap<>();
+    private final Clock clock;
 
-    public InMemoryIdempotencyStore(RestRoutingConfig config, ObjectMapper objectMapper) {
+    public InMemoryIdempotencyStore(RestRoutingConfig config, Clock clock) {
         this.config = config;
-        this.objectMapper = objectMapper;
+        this.clock = clock != null ? clock : Clock.systemUTC();
     }
 
-    public ActionResultDto executeIdempotent(ActionExecuteRequestDto request, Supplier<ActionResultDto> executor) {
-        RestRoutingConfig.Idempotency cfg = config != null && config.getConnector() != null ? config.getConnector().getIdempotency() : null;
-        if (cfg == null || !cfg.isEnabled()) {
-            return executor.get();
+    @Override
+    public ActionResultDto executeIdempotent(String actionId, String idempotencyKey, Supplier<ActionResultDto> execution) {
+        Objects.requireNonNull(execution, "execution");
+        if (!StringUtils.hasText(actionId)) {
+            throw new IllegalArgumentException("actionId is required");
         }
-
-        String idempotencyKey = request != null ? request.idempotencyKey() : null;
         if (!StringUtils.hasText(idempotencyKey)) {
-            return executor.get();
+            return execution.get();
         }
 
-        String storageKey = "idempotency:" + Hashing.sha256Hex(idempotencyKey.trim());
-        String fingerprint = fingerprint(request);
+        int ttlSeconds = config != null && config.getConnector() != null && config.getConnector().getIdempotency() != null
+            ? config.getConnector().getIdempotency().getTtlSeconds()
+            : 300;
 
-        long now = System.currentTimeMillis();
-        cleanupExpired(now);
+        int maxWaitMs = config != null && config.getConnector() != null && config.getConnector().getIdempotency() != null
+            ? config.getConnector().getIdempotency().getInProgressMaxWaitMs()
+            : 2000;
 
-        long ttlMs = Math.max(60, cfg.getTtlSeconds()) * 1000L;
-        long expiresAt = now + ttlMs;
+        evictExpired(ttlSeconds);
 
-        for (int attempt = 0; attempt < 2; attempt++) {
-            StoredEntry existing = entries.get(storageKey);
-
-            if (existing == null || existing.isExpired(now)) {
-                StoredEntry created = StoredEntry.inProgress(fingerprint, expiresAt);
-                boolean won = existing == null
-                    ? entries.putIfAbsent(storageKey, created) == null
-                    : entries.replace(storageKey, existing, created);
-                if (won) {
-                    try {
-                        ActionResultDto result = executor.get();
-                        if (result != null) {
-                            created.future.complete(result);
-                            entries.put(storageKey, created.done());
-                        } else {
-                            entries.remove(storageKey);
-                        }
-                        return result != null ? result : ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Internal service returned no result.");
-                    } catch (Exception ex) {
-                        entries.remove(storageKey);
-                        throw ex;
-                    }
-                }
-                continue;
-            }
-
-            if (!Objects.equals(fingerprint, existing.fingerprint)) {
-                return ActionResultDto.failure(ERROR_IDEMPOTENCY_CONFLICT, "Idempotency conflict.");
-            }
-
-            if (existing.status == Status.DONE && existing.future.isDone()) {
-                ActionResultDto result = existing.future.getNow(null);
-                return result != null ? result : ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Internal service returned no result.");
-            }
-
-            return waitForInProgress(cfg, existing);
+        String key = actionId.trim() + "::" + idempotencyKey.trim();
+        Entry existing = entries.get(key);
+        if (existing != null) {
+            return await(existing.future, maxWaitMs);
         }
 
-        return ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Idempotency store unavailable.");
-    }
-
-    private ActionResultDto waitForInProgress(RestRoutingConfig.Idempotency cfg, StoredEntry entry) {
-        int maxWaitMs = cfg != null ? cfg.getInProgressMaxWaitMs() : 0;
-        if (maxWaitMs <= 0) {
-            return ActionResultDto.failure(ERROR_IDEMPOTENCY_IN_PROGRESS, "Idempotency key is in progress.");
+        CompletableFuture<ActionResultDto> future = new CompletableFuture<>();
+        Entry created = new Entry(Instant.now(clock), future);
+        Entry winner = entries.putIfAbsent(key, created);
+        if (winner != null) {
+            return await(winner.future, maxWaitMs);
         }
 
         try {
-            ActionResultDto result = entry.future.get(maxWaitMs, TimeUnit.MILLISECONDS);
-            return result != null ? result : ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Internal service returned no result.");
+            ActionResultDto result = execution.get();
+            future.complete(result);
+            return result;
         } catch (Exception ex) {
-            return ActionResultDto.failure(ERROR_IDEMPOTENCY_IN_PROGRESS, "Idempotency key is in progress.");
+            future.completeExceptionally(ex);
+            entries.remove(key);
+            throw ex;
         }
     }
 
-    private void cleanupExpired(long now) {
-        if (entries.isEmpty()) {
+    private ActionResultDto await(CompletableFuture<ActionResultDto> future, int maxWaitMs) {
+        if (future == null) {
+            return ActionResultDto.failure("SERVICE_UNAVAILABLE", "Idempotency store error.");
+        }
+        try {
+            if (maxWaitMs <= 0) {
+                return ActionResultDto.failure("IDEMPOTENCY_IN_PROGRESS", "Action is already in progress.");
+            }
+            return future.get(maxWaitMs, TimeUnit.MILLISECONDS);
+        } catch (Exception ex) {
+            return ActionResultDto.failure("IDEMPOTENCY_IN_PROGRESS", "Action is already in progress.");
+        }
+    }
+
+    private void evictExpired(int ttlSeconds) {
+        if (ttlSeconds <= 0) {
             return;
         }
-        entries.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isExpired(now));
+        Instant now = Instant.now(clock);
+        entries.entrySet().removeIf(entry -> entry.getValue() == null
+            || entry.getValue().createdAt == null
+            || entry.getValue().createdAt.plusSeconds(ttlSeconds).isBefore(now));
     }
 
-    private String fingerprint(ActionExecuteRequestDto request) {
-        String actionId = request != null && StringUtils.hasText(request.actionId()) ? request.actionId().trim() : "";
-        Map<String, Object> params = request != null && request.params() != null ? request.params() : Map.of();
-        try {
-            String canonical = objectMapper != null ? objectMapper.writeValueAsString(params) : params.toString();
-            return Hashing.sha256Hex(actionId + "\n" + canonical);
-        } catch (Exception ex) {
-            return Hashing.sha256Hex(actionId + "\n" + params);
-        }
-    }
-
-    private enum Status {
-        IN_PROGRESS,
-        DONE
-    }
-
-    private static final class StoredEntry {
-        private final Status status;
-        private final String fingerprint;
-        private final CompletableFuture<ActionResultDto> future;
-        private final long expiresAt;
-
-        private StoredEntry(Status status, String fingerprint, CompletableFuture<ActionResultDto> future, long expiresAt) {
-            this.status = status;
-            this.fingerprint = fingerprint;
-            this.future = future;
-            this.expiresAt = expiresAt;
-        }
-
-        static StoredEntry inProgress(String fingerprint, long expiresAt) {
-            return new StoredEntry(Status.IN_PROGRESS, fingerprint, new CompletableFuture<>(), expiresAt);
-        }
-
-        StoredEntry done() {
-            return new StoredEntry(Status.DONE, fingerprint, future, expiresAt);
-        }
-
-        boolean isExpired(long now) {
-            return expiresAt > 0 && now >= expiresAt;
-        }
+    private record Entry(Instant createdAt, CompletableFuture<ActionResultDto> future) {
     }
 }
 

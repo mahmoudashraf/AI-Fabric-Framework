@@ -1,49 +1,8 @@
-Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
-2026-02-19T16:18:34.126Z ERROR 1 --- [ai-fabric-runtime] [           main] o.s.boot.SpringApplication               : Application run failed
-org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'entityManagerFactory' defined in class path resource [org/springframework/boot/autoconfigure/orm/jpa/HibernateJpaConfiguration.class]: Unable to create requested service [org.hibernate.engine.jdbc.env.spi.JdbcEnvironment] due to: Unable to determine Dialect without JDBC metadata (please set 'javax.persistence.jdbc.url', 'hibernate.connection.url', or 'hibernate.dialect')
-	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1775) ~[spring-beans-6.1.1.jar!/:6.1.1]
-	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:323) ~[spring-beans-6.1.1.jar!/:6.1.1]
-	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:199) ~[spring-beans-6.1.1.jar!/:6.1.1]
-	at org.springframework.context.support.AbstractApplicationContext.getBean(AbstractApplicationContext.java:1173) ~[spring-context-6.1.1.jar!/:6.1.1]
-	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:936) ~[spring-context-6.1.1.jar!/:6.1.1]
-	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:616) ~[spring-context-6.1.1.jar!/:6.1.1]
-	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146) ~[spring-boot-3.2.0.jar!/:3.2.0]
-	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:753) ~[spring-boot-3.2.0.jar!/:3.2.0]
-	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:455) ~[spring-boot-3.2.0.jar!/:3.2.0]
-	at org.springframework.boot.SpringApplication.run(SpringApplication.java:323) ~[spring-boot-3.2.0.jar!/:3.2.0]
-	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1342) ~[spring-boot-3.2.0.jar!/:3.2.0]
-	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1331) ~[spring-boot-3.2.0.jar!/:3.2.0]
-	at com.ai.fabric.runtime.AIFabricRuntimeApplication.main(AIFabricRuntimeApplication.java:13) ~[!/:na]
-	at org.hibernate.service.internal.AbstractServiceRegistryImpl.createService(AbstractServiceRegistryImpl.java:276) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.service.internal.AbstractServiceRegistryImpl.initializeService(AbstractServiceRegistryImpl.java:238) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.service.internal.AbstractServiceRegistryImpl.getService(AbstractServiceRegistryImpl.java:215) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.boot.model.relational.Database.<init>(Database.java:45) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.boot.internal.InFlightMetadataCollectorImpl.getDatabase(InFlightMetadataCollectorImpl.java:223) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.boot.internal.InFlightMetadataCollectorImpl.<init>(InFlightMetadataCollectorImpl.java:191) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(Unknown Source) ~[na:na]
-	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
-	at org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:91) ~[runtime.jar:na]
-	at org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:53) ~[runtime.jar:na]
-	at org.springframework.boot.loader.launch.JarLauncher.main(JarLauncher.java:58) ~[runtime.jar:na]
-Caused by: org.hibernate.service.spi.ServiceException: Unable to create requested service [org.hibernate.engine.jdbc.env.spi.JdbcEnvironment] due to: Unable to determine Dialect without JDBC metadata (please set 'javax.persistence.jdbc.url', 'hibernate.connection.url', or 'hibernate.dialect')
-	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:409) ~[spring-orm-6.1.1.jar!/:6.1.1]
-	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.afterPropertiesSet(AbstractEntityManagerFactoryBean.java:396) ~[spring-orm-6.1.1.jar!/:6.1.1]
-	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.afterPropertiesSet(LocalContainerEntityManagerFactoryBean.java:352) ~[spring-orm-6.1.1.jar!/:6.1.1]
-	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.invokeInitMethods(AbstractAutowireCapableBeanFactory.java:1822) ~[spring-beans-6.1.1.jar!/:6.1.1]
-	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1771) ~[spring-beans-6.1.1.jar!/:6.1.1]
-	at org.hibernate.boot.model.process.spi.MetadataBuildingProcess.complete(MetadataBuildingProcess.java:169) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.metadata(EntityManagerFactoryBuilderImpl.java:1432) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.build(EntityManagerFactoryBuilderImpl.java:1503) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.springframework.orm.jpa.vendor.SpringHibernateJpaPersistenceProvider.createContainerEntityManagerFactory(SpringHibernateJpaPersistenceProvider.java:75) ~[spring-orm-6.1.1.jar!/:6.1.1]
-	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.createNativeEntityManagerFactory(LocalContainerEntityManagerFactoryBean.java:376) ~[spring-orm-6.1.1.jar!/:6.1.1]
-	at org.hibernate.engine.jdbc.dialect.internal.DialectFactoryImpl.determineDialect(DialectFactoryImpl.java:190) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.engine.jdbc.dialect.internal.DialectFactoryImpl.buildDialect(DialectFactoryImpl.java:86) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.getJdbcEnvironmentWithDefaults(JdbcEnvironmentInitiator.java:141) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.getJdbcEnvironmentUsingJdbcMetadata(JdbcEnvironmentInitiator.java:344) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.initiateService(JdbcEnvironmentInitiator.java:105) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator.initiateService(JdbcEnvironmentInitiator.java:66) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.boot.registry.internal.StandardServiceRegistryImpl.initiateService(StandardServiceRegistryImpl.java:129) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	at org.hibernate.service.internal.AbstractServiceRegistryImpl.createService(AbstractServiceRegistryImpl.java:263) ~[hibernate-core-6.3.1.Final.jar!/:6.3.1.Final]
-	... 36 common frames omitted
-	... 21 common frames omitted
-Caused by: org.hibernate.HibernateException: Unable to determine Dialect without JDBC metadata (please set 'javax.persistence.jdbc.url', 'hibernate.connection.url', or 'hibernate.dialect')
+2026-02-19T23:36:28.769Z  INFO 1 --- [chat-capabilities-connector-demo] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-02-19T23:36:28.829Z  INFO 1 --- [chat-capabilities-connector-demo] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+	at org.h2.message.Trace.error(Trace.java:173)
+	at org.h2.engine.Database.setBackgroundException(Database.java:1825)
+	at org.h2.mvstore.db.Store.lambda$new$0(Store.java:122)
+org.h2.message.DbException: Log file error: "/app/data/chat-capabilities.db.trace.db", cause: "java.nio.file.AccessDeniedException: /app/data/chat-capabilities.db.trace.db" [90034-224]
+org.h2.message.DbException: Log file error: "/app/data/chat-capabilities.db.trace.db", cause: "java.nio.file.AccessDeniedException: /app/data/chat-capabilities.db.trace.db" [90034-224]
+	at org.h2.message.DbException.get(DbException.java:212)

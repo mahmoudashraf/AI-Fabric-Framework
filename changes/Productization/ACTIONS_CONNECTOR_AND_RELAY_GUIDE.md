@@ -4,6 +4,7 @@ This document extends the V5 actions model described in:
 - `Final_Documentation/Development_Guides/ACTIONS_AND_CONFIRMATION_INTERCEPTORS_GUIDE.md`
 
 It adds a **language-agnostic** execution path for actions via a **Customer Connector API** (optionally implemented using an **AI Fabric Relay**).
+It also supports an official **Generic REST API Connector** implementation (actionId → upstream REST endpoint routing).
 
 > This is an architecture + productization guide for the **Actions** solution only.
 > It does **not** define commerce entities, domain logic, or “built-in” domain actions.
@@ -33,6 +34,11 @@ It adds a **language-agnostic** execution path for actions via a **Customer Conn
   - Customer-side Relay implementation of the Customer Connector API (`/actions/execute`, `/retrieval/search`)
   - Inbound auth (API key and/or HMAC), replay protection, rate limiting, idempotency (in-memory by default; Redis backend supported), SSRF-safe routing (mapping/dispatcher)
   - OpenAPI contract conformance tests pinned to `changes/Productization/customer-connector-api.openapi.yml`
+- `ai-infrastructure-generic-rest-connector` (runnable service):
+  - Generic connector implementation of the Customer Connector API (`/actions/execute`)
+  - Routes `actionId` → configured upstream REST endpoint (domain-agnostic)
+  - File-based routing config (`actions-routing.yml`) with strict templating (`params` + `trace` → upstream request; upstream response → `ActionResult`)
+  - Inbound auth (API key), upstream auth (API key), timeouts, bounded retries (safe/idempotent), idempotency (in-memory)
 - `ai-infrastructure-generic-rest-connector` (runnable service):
   - Customer-side implementation of the Customer Connector API (`/actions/execute`) that routes `actionId → upstream REST endpoint`
   - File-based routing config + strict templating (`params/trace/body/status/headers`) + in-memory idempotency + response normalization to `ActionResult` payload rules
