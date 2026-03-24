@@ -204,6 +204,7 @@ class IntentHandlingStepDeepRetrievalPolicyTest {
             providerOf(new ObjectMapper()),
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
+            null,
             new InMemoryPendingActionStore(),
             new InMemoryActionDraftStore(),
             promptTemplateResolver(),

@@ -116,6 +116,7 @@ class IntentHandlingStepPendingConfirmationLoopBreakerTest {
             providerOf(new ObjectMapper()),
             new OrchestrationProperties(),
             providerOf((KnowledgeBaseOverviewService) null),
+            null,
             pendingActionStore,
             new InMemoryActionDraftStore(),
             promptTemplateResolver(),

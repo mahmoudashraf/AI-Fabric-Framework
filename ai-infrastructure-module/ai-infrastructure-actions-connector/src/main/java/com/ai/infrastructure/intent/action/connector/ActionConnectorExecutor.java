@@ -54,6 +54,7 @@ public class ActionConnectorExecutor {
     private static final String ERROR_SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
     private static final String ERROR_TIMEOUT = "TIMEOUT";
     private static final String ERROR_RATE_LIMITED = "RATE_LIMITED";
+    private static final String ERROR_INVALID_CONFIGURATION = "INVALID_CONFIGURATION";
 
     private static final Set<String> RETRYABLE_ERROR_CODES = Set.of(
         ERROR_TIMEOUT,
@@ -103,7 +104,14 @@ public class ActionConnectorExecutor {
             throw new IllegalArgumentException("accessMode is required");
         }
 
-        String url = buildExecuteUrl();
+        String url;
+        try {
+            url = buildExecuteUrl();
+        } catch (Exception ex) {
+            String message = safeConfigErrorMessage(ex != null ? ex.getMessage() : null);
+            log.warn("Connector action '{}' skipped due to invalid connector configuration: {}", actionId, message);
+            return failure(ERROR_INVALID_CONFIGURATION, message);
+        }
         String idempotencyKey = needsIdempotency(accessMode) ? generateIdempotencyKey() : null;
 
         Map<String, Object> request = new LinkedHashMap<>();
@@ -135,6 +143,11 @@ public class ActionConnectorExecutor {
 
                 return result != null ? result : failure(ERROR_SERVICE_UNAVAILABLE, "Connector returned null result.");
             } catch (Exception ex) {
+                if (ex instanceof IllegalArgumentException) {
+                    String message = safeConfigErrorMessage(ex.getMessage());
+                    log.warn("Connector action '{}' skipped due to invalid connector configuration: {}", actionId, message);
+                    return failure(ERROR_INVALID_CONFIGURATION, message);
+                }
                 if (shouldRetryException(ex, accessMode, idempotencyKey) && attempt < maxAttempts) {
                     sleep(backoffForAttempt(backoff, attempt));
                     continue;
@@ -180,6 +193,10 @@ public class ActionConnectorExecutor {
             throw new IllegalStateException("ai.actions.connector.baseUrl is required to execute connector actions.");
         }
         String base = baseUrl.trim();
+        String baseLower = base.toLowerCase(Locale.ROOT);
+        if (!(baseLower.startsWith("http://") || baseLower.startsWith("https://"))) {
+            throw new IllegalStateException("ai.actions.connector.baseUrl must be an absolute URL starting with http:// or https:// (example: https://<connector>.railway.app).");
+        }
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
@@ -194,6 +211,18 @@ public class ActionConnectorExecutor {
         }
 
         return base + p;
+    }
+
+    private String safeConfigErrorMessage(String message) {
+        if (!StringUtils.hasText(message)) {
+            return "Invalid connector configuration.";
+        }
+        String normalized = message.trim();
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.contains("uri is not absolute")) {
+            return "Invalid ai.actions.connector.baseUrl: it must include http:// or https:// (example: https://<connector>.railway.app).";
+        }
+        return normalized;
     }
 
     private HttpClient httpClient() {

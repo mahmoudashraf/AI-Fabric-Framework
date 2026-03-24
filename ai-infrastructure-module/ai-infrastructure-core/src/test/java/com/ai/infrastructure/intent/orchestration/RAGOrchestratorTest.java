@@ -190,6 +190,7 @@ class RAGOrchestratorTest {
                 org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class),
                 orchestrationProperties,
                 overviewProvider,
+                null,
                 new InMemoryPendingActionStore(),
                 new InMemoryActionDraftStore(),
                 promptTemplateResolver,

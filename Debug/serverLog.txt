@@ -1,8 +1,0 @@
-2026-02-19T23:36:28.769Z  INFO 1 --- [chat-capabilities-connector-demo] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
-2026-02-19T23:36:28.829Z  INFO 1 --- [chat-capabilities-connector-demo] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-	at org.h2.message.Trace.error(Trace.java:173)
-	at org.h2.engine.Database.setBackgroundException(Database.java:1825)
-	at org.h2.mvstore.db.Store.lambda$new$0(Store.java:122)
-org.h2.message.DbException: Log file error: "/app/data/chat-capabilities.db.trace.db", cause: "java.nio.file.AccessDeniedException: /app/data/chat-capabilities.db.trace.db" [90034-224]
-org.h2.message.DbException: Log file error: "/app/data/chat-capabilities.db.trace.db", cause: "java.nio.file.AccessDeniedException: /app/data/chat-capabilities.db.trace.db" [90034-224]
-	at org.h2.message.DbException.get(DbException.java:212)

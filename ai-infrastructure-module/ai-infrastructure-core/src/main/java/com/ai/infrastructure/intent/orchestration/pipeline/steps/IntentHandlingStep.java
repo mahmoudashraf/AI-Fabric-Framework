@@ -38,6 +38,7 @@ import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
 import com.ai.infrastructure.intent.orchestration.rag.EmbeddingQueryComposer;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
+import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.LlmPurpose;
@@ -208,6 +209,7 @@ public class IntentHandlingStep implements PipelineStep {
     private final ObjectProvider<ObjectMapper> objectMapperProvider;
     private final OrchestrationProperties orchestrationProperties;
     private final ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider;
+    private final AIEntityConfigurationLoader entityConfigurationLoader;
     private final PendingActionStore pendingActionStore;
     private final ActionDraftStore actionDraftStore;
     private final PromptTemplateResolver promptTemplateResolver;
@@ -1735,8 +1737,21 @@ public class IntentHandlingStep implements PipelineStep {
             return handleInformationGenerationOnly(intent, context, pipelineContext, generationQuery, metadata);
         }
 
-        List<String> vectorSpaces = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
-        String vectorSpacesSelectionSource = !vectorSpaces.isEmpty() ? "LLM" : null;
+        List<String> vectorSpacesRaw = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
+        VectorSpaceValidation validation = validateRequestedVectorSpaces(vectorSpacesRaw);
+        if (validation != null && validation.hasInvalid()) {
+            metadata.put("vectorSpacesInvalidRequested", validation.invalid());
+        }
+
+        List<String> vectorSpaces = validation != null ? validation.valid() : vectorSpacesRaw;
+        String vectorSpacesSelectionSource = !vectorSpaces.isEmpty()
+            ? ((validation != null && validation.normalizedOrFiltered()) ? "LLM_VALIDATED" : "LLM")
+            : null;
+
+        // Keep intent.vectorSpace consistent with what we'll actually search.
+        if (intent != null) {
+            intent.setVectorSpace(vectorSpaces.isEmpty() ? null : String.join(",", vectorSpaces));
+        }
         if (vectorSpaces.isEmpty()
             && ragBudgets != null
             && ragBudgets.hasVectorSpaceAllowlist()) {
@@ -2270,12 +2285,12 @@ public class IntentHandlingStep implements PipelineStep {
             ? knowledgeBaseOverviewServiceProvider.getIfAvailable()
             : null;
         if (overviewService == null) {
-            return List.of();
+            return resolveConfiguredVectorSpaces();
         }
 
         KnowledgeBaseOverview overview = overviewService.getOverview();
         if (overview == null) {
-            return List.of();
+            return resolveConfiguredVectorSpaces();
         }
 
         List<String> entityTypes = overview.getEntityTypes();
@@ -2304,13 +2319,31 @@ public class IntentHandlingStep implements PipelineStep {
 
         entityTypes = ordered.isEmpty() ? null : new ArrayList<>(ordered);
         if (entityTypes == null || entityTypes.isEmpty()) {
-            return List.of();
+            return resolveConfiguredVectorSpaces();
         }
 
         return entityTypes.stream()
             .filter(StringUtils::hasText)
             .map(String::trim)
             .distinct()
+            .toList();
+    }
+
+    private List<String> resolveConfiguredVectorSpaces() {
+        if (entityConfigurationLoader == null) {
+            return List.of();
+        }
+        Set<String> supported = entityConfigurationLoader.getSupportedEntityTypes();
+        if (supported == null || supported.isEmpty()) {
+            return List.of();
+        }
+        // Stable order for deterministic fan-out behavior when KB stats are unavailable.
+        return supported.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .map(s -> s.toLowerCase(java.util.Locale.ROOT))
+            .distinct()
+            .sorted()
             .toList();
     }
 
@@ -2873,6 +2906,79 @@ public class IntentHandlingStep implements PipelineStep {
             }
         }
         return List.copyOf(unique);
+    }
+
+    private VectorSpaceValidation validateRequestedVectorSpaces(List<String> requestedSpaces) {
+        if (requestedSpaces == null || requestedSpaces.isEmpty()) {
+            return VectorSpaceValidation.empty();
+        }
+
+        Set<String> supportedRaw = entityConfigurationLoader != null ? entityConfigurationLoader.getSupportedEntityTypes() : null;
+        if (supportedRaw == null || supportedRaw.isEmpty()) {
+            // No configured spaces available; don't block routing, just normalize.
+            java.util.LinkedHashSet<String> unique = new java.util.LinkedHashSet<>();
+            boolean changed = false;
+            for (String space : requestedSpaces) {
+                if (!StringUtils.hasText(space)) {
+                    changed = true;
+                    continue;
+                }
+                String normalized = space.trim().toLowerCase(java.util.Locale.ROOT);
+                changed = changed || !normalized.equals(space);
+                if (!unique.add(normalized)) {
+                    changed = true;
+                }
+            }
+            return new VectorSpaceValidation(List.copyOf(unique), List.of(), changed);
+        }
+
+        Set<String> supported = supportedRaw.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .map(s -> s.toLowerCase(java.util.Locale.ROOT))
+            .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+
+        if (supported.isEmpty()) {
+            return VectorSpaceValidation.empty();
+        }
+
+        List<String> valid = new ArrayList<>();
+        List<String> invalid = new ArrayList<>();
+        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+        boolean changed = false;
+
+        for (String space : requestedSpaces) {
+            if (!StringUtils.hasText(space)) {
+                changed = true;
+                continue;
+            }
+            String normalized = space.trim().toLowerCase(java.util.Locale.ROOT);
+            changed = changed || !normalized.equals(space);
+
+            if (!seen.add(normalized)) {
+                changed = true;
+                continue;
+            }
+
+            if (supported.contains(normalized)) {
+                valid.add(normalized);
+            } else {
+                invalid.add(normalized);
+                changed = true;
+            }
+        }
+
+        return new VectorSpaceValidation(List.copyOf(valid), List.copyOf(invalid), changed);
+    }
+
+    private record VectorSpaceValidation(List<String> valid, List<String> invalid, boolean normalizedOrFiltered) {
+        static VectorSpaceValidation empty() {
+            return new VectorSpaceValidation(List.of(), List.of(), false);
+        }
+
+        boolean hasInvalid() {
+            return invalid != null && !invalid.isEmpty();
+        }
     }
 
     private RAGResponse.RAGDocument tagDocumentWithVectorSpace(RAGResponse.RAGDocument doc, String vectorSpace) {
