@@ -803,23 +803,66 @@ public class IntentHandlingStep implements PipelineStep {
         return Collections.unmodifiableMap(summary);
     }
 
-    private String extractAnswer(OrchestrationResult ragResult) {
-        if (ragResult == null || ragResult.getType() != OrchestrationResultType.INFORMATION_PROVIDED || !ragResult.isSuccess()) {
-            return null;
-        }
-        if (ragResult.getData() instanceof Map<?, ?> map) {
-            Object value = map.get(DATA_KEY_ANSWER);
-            if (value != null && StringUtils.hasText(value.toString())) {
-                return value.toString();
-            }
-        }
-        return null;
-    }
+	    private String extractAnswer(OrchestrationResult ragResult) {
+	        if (ragResult == null || ragResult.getType() != OrchestrationResultType.INFORMATION_PROVIDED || !ragResult.isSuccess()) {
+	            return null;
+	        }
+	        if (ragResult.getData() instanceof Map<?, ?> map) {
+	            Object value = map.get(DATA_KEY_ANSWER);
+	            if (value != null && StringUtils.hasText(value.toString())) {
+	                return value.toString();
+	            }
+	        }
+	        return null;
+	    }
 
-    private boolean requiresActionConfirmation(AIActionHandler handler) {
-        if (handler == null) {
-            return false;
-        }
+	    /**
+	     * Best-effort check for whether an INFORMATION result has any retrieval evidence.
+	     *
+	     * <p>This is used to decide whether deep-mode fallbacks should broaden retrieval (fan-out)
+	     * rather than returning an ungrounded generated answer.</p>
+	     */
+	    private boolean isNoEvidenceRagResult(OrchestrationResult result) {
+	        if (result == null || result.getData() == null) {
+	            return false;
+	        }
+	        if (!(result.getData() instanceof Map<?, ?> data)) {
+	            return false;
+	        }
+
+	        int docsCount = 0;
+	        Object docsObj = data.get(DATA_KEY_DOCUMENTS);
+	        if (docsObj instanceof List<?> list) {
+	            docsCount = list.size();
+	        }
+
+	        String ctx = null;
+	        Object ragObj = data.get(DATA_KEY_RAG_RESPONSE);
+	        if (ragObj instanceof RAGResponse rag) {
+	            ctx = rag.getContext();
+	            if (rag.getDocuments() != null && !rag.getDocuments().isEmpty()) {
+	                docsCount = Math.max(docsCount, rag.getDocuments().size());
+	            }
+	        } else if (ragObj != null) {
+	            ctx = ragObj.toString();
+	        }
+
+	        Double confidence = null;
+	        Object confObj = data.get(DATA_KEY_CONFIDENCE_SCORE);
+	        if (confObj instanceof Number n) {
+	            confidence = n.doubleValue();
+	        }
+
+	        boolean noDocs = docsCount <= 0;
+	        boolean noContext = !StringUtils.hasText(ctx) || RAG_NO_CONTEXT_MESSAGE.equals(ctx);
+	        boolean lowConfidence = confidence == null || confidence <= 0.0d;
+	        return noDocs && noContext && lowConfidence;
+	    }
+
+	    private boolean requiresActionConfirmation(AIActionHandler handler) {
+	        if (handler == null) {
+	            return false;
+	        }
         return handler.requiresConfirmation();
     }
 
@@ -1591,18 +1634,19 @@ public class IntentHandlingStep implements PipelineStep {
         }
     }
     
-    private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
-        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
-        OrchestrationPolicy.OrchestrationCapabilities capabilities = policy != null ? policy.capabilities() : null;
-        boolean retrievalEnabled = policy == null
-            || policy.capabilities() == null
-            || policy.capabilities().retrievalEnabled();
-        OrchestrationPolicy.RagBudgets ragBudgets = policy != null ? policy.ragBudgets() : null;
-        boolean retrievalAllowlistRequired = capabilities != null && capabilities.retrievalAllowlistRequired();
-        boolean vectorSpaceSelectionRequired = capabilities != null && capabilities.vectorSpaceSelectionRequired();
-        boolean fanoutAllowed = ragBudgets == null
-            || ragBudgets.fanoutEnabled() == null
-            || Boolean.TRUE.equals(ragBudgets.fanoutEnabled());
+	    private OrchestrationResult handleInformation(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
+	        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+	        OrchestrationPolicy.OrchestrationCapabilities capabilities = policy != null ? policy.capabilities() : null;
+	        boolean retrievalEnabled = policy == null
+	            || policy.capabilities() == null
+	            || policy.capabilities().retrievalEnabled();
+	        OrchestrationPolicy.RagBudgets ragBudgets = policy != null ? policy.ragBudgets() : null;
+	        boolean deepRetrievalEnabled = capabilities != null && capabilities.deepRetrievalEnabled();
+	        boolean retrievalAllowlistRequired = capabilities != null && capabilities.retrievalAllowlistRequired();
+	        boolean vectorSpaceSelectionRequired = capabilities != null && capabilities.vectorSpaceSelectionRequired();
+	        boolean fanoutAllowed = ragBudgets == null
+	            || ragBudgets.fanoutEnabled() == null
+	            || Boolean.TRUE.equals(ragBudgets.fanoutEnabled());
 
         boolean deterministic = isDeterministicInformationMode(pipelineContext);
         boolean requiresRetrieval = intent.requiresRetrievalOrDefault(true);
@@ -1846,18 +1890,32 @@ public class IntentHandlingStep implements PipelineStep {
 
         String retrievalQuery = applyRetrievalQueryHint(retrievalBaseQuery, pipelineContext, intent, metadata);
 
-        // Prefer the LLM-provided optimizedQuery (when present) as the base for the embedding query.
-        // The user query may be too short/ambiguous (e.g., "price?", "compare") while optimizedQuery carries
-        // the resolved intent semantics and identifiers.
-        String embeddingBaseQuery = retrievalBaseQuery;
-        embeddingBaseQuery = applyRetrievalQueryHint(embeddingBaseQuery, pipelineContext, intent, null);
+	        // Prefer the LLM-provided optimizedQuery (when present) as the base for the embedding query.
+	        // The user query may be too short/ambiguous (e.g., "price?", "compare") while optimizedQuery carries
+	        // the resolved intent semantics and identifiers.
+	        String embeddingBaseQuery = retrievalBaseQuery;
+	        embeddingBaseQuery = applyRetrievalQueryHint(embeddingBaseQuery, pipelineContext, intent, null);
 
-        EmbeddingQueryComposer.Result embedding = EmbeddingQueryComposer.compose(
-            embeddingBaseQuery,
-            intent,
-            pipelineContext,
-            orchestrationProperties
-        );
+	        boolean forcedTargetResolution = false;
+	        if (deepRetrievalEnabled
+	            && forceRetrievalWhenTargetsPresent
+	            && pipelineContext != null
+	            && pipelineContext.getResolvedTargets() != null
+	            && !pipelineContext.getResolvedTargets().isEmpty()
+	            && intent != null
+	            && !Boolean.TRUE.equals(intent.getRequiresTargetResolution())) {
+	            // Deep mode is specifically intended to handle implicit follow-ups like "negative reviews?"
+	            // where the user relies on pinned targets. Make the embedding query eligible for target hints.
+	            intent.setRequiresTargetResolution(true);
+	            forcedTargetResolution = true;
+	        }
+
+	        EmbeddingQueryComposer.Result embedding = EmbeddingQueryComposer.compose(
+	            embeddingBaseQuery,
+	            intent,
+	            pipelineContext,
+	            orchestrationProperties
+	        );
 
         if (StringUtils.hasText(processedQuery)) {
             metadata.put(EmbeddingQueryComposer.METADATA_KEY_USER_QUERY, processedQuery);
@@ -1865,12 +1923,15 @@ public class IntentHandlingStep implements PipelineStep {
         if (embedding != null && StringUtils.hasText(embedding.embeddingQuery())) {
             metadata.put(EmbeddingQueryComposer.METADATA_KEY_EMBEDDING_QUERY, embedding.embeddingQuery());
         }
-        if (embedding != null) {
-            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_ENABLED, embedding.targetHintEnabled());
-            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_APPLIED, embedding.targetHintApplied());
-            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_TARGETS_USED, embedding.targetHintTargetsUsed());
-            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_CHARS, embedding.targetHintChars());
-        }
+	        if (embedding != null) {
+	            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_ENABLED, embedding.targetHintEnabled());
+	            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_APPLIED, embedding.targetHintApplied());
+	            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_TARGETS_USED, embedding.targetHintTargetsUsed());
+	            metadata.put(EmbeddingQueryComposer.METADATA_KEY_TARGET_HINT_CHARS, embedding.targetHintChars());
+	        }
+	        if (forcedTargetResolution) {
+	            metadata.put("requiresTargetResolutionForced", true);
+	        }
 
         if (vectorSpaces.size() > 1) {
             return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, generationQuery, retrievalQuery, metadata, vectorSpaces, ragBudgets);
@@ -1882,15 +1943,36 @@ public class IntentHandlingStep implements PipelineStep {
                 ? pipelineContext.getOriginalQuery()
                 : generationQuery);
 
-        if (shouldUseAdvancedRag(intent, needsGeneration, advancedDecisionQuery, context, pipelineContext)) {
-            String advancedQuery = embedding != null && StringUtils.hasText(embedding.embeddingQuery())
-                ? embedding.embeddingQuery()
-                : retrievalQuery;
-            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, generationQuery, advancedQuery, metadata);
-            if (advanced != null) {
-                return advanced;
-            }
-        }
+	        if (shouldUseAdvancedRag(intent, needsGeneration, advancedDecisionQuery, context, pipelineContext)) {
+	            String advancedQuery = embedding != null && StringUtils.hasText(embedding.embeddingQuery())
+	                ? embedding.embeddingQuery()
+	                : retrievalQuery;
+	            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, generationQuery, advancedQuery, metadata);
+	            if (advanced != null) {
+	                if (deepRetrievalEnabled
+	                    && fanoutAllowed
+	                    && isNoEvidenceRagResult(advanced)) {
+	                    List<String> fallbackSpaces = resolveAllVectorSpaces();
+	                    fallbackSpaces = capVectorSpacesToBudget(fallbackSpaces, ragBudgets);
+	                    if (fallbackSpaces.size() > 1) {
+	                        // Deep mode: when Advanced RAG returns no documents/confidence, broaden retrieval across
+	                        // all configured spaces (e.g., reviews/policies) instead of returning a potentially
+	                        // ungrounded generated answer.
+	                        metadata.put("advancedRagFallback", true);
+	                        metadata.put("advancedRagFallbackReason", "NO_RELEVANT_RESULTS");
+
+	                        vectorSpaces = fallbackSpaces;
+	                        intent.setVectorSpace(String.join(",", vectorSpaces));
+	                        metadata.put("retrievalStrategy", "FAN_OUT");
+	                        metadata.put("vectorSpacesSelected", vectorSpaces);
+	                        metadata.put("vectorSpacesSelectionSource", "ADVANCED_FALLBACK_FAN_OUT");
+
+	                        return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, generationQuery, retrievalQuery, metadata, vectorSpaces, ragBudgets);
+	                    }
+	                }
+	                return advanced;
+	            }
+	        }
 
         return handleInformationBasic(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata, ragBudgets);
     }
@@ -2043,25 +2125,31 @@ public class IntentHandlingStep implements PipelineStep {
 
         String answer = null;
         if (needsGeneration) {
-            try {
-                String baseContext = ragResponse.getContext();
-                if (ragBudgets != null && (ragBudgets.maxDocumentsUsedForContext() != null || ragBudgets.maxContextChars() != null)) {
-                    List<RAGResponse.RAGDocument> docs = ragResponse.getDocuments() != null ? ragResponse.getDocuments() : List.of();
-                    int docsForContext = DEFAULT_RAG_LIMIT;
-                    if (ragBudgets.maxDocumentsUsedForContext() != null && ragBudgets.maxDocumentsUsedForContext() > 0) {
-                        docsForContext = ragBudgets.maxDocumentsUsedForContext();
-                    }
-                    docsForContext = Math.min(docsForContext, docs.size());
-                    Integer maxChars = ragBudgets.maxContextChars();
-                    baseContext = buildContextFromDocuments(docs.subList(0, docsForContext), maxChars);
-                }
+	            try {
+	                String baseContext = ragResponse.getContext();
+	                if (ragBudgets != null && (ragBudgets.maxDocumentsUsedForContext() != null || ragBudgets.maxContextChars() != null)) {
+	                    List<RAGResponse.RAGDocument> docs = ragResponse.getDocuments() != null ? ragResponse.getDocuments() : List.of();
+	                    int docsForContext = DEFAULT_RAG_LIMIT;
+	                    if (ragBudgets.maxDocumentsUsedForContext() != null && ragBudgets.maxDocumentsUsedForContext() > 0) {
+	                        docsForContext = ragBudgets.maxDocumentsUsedForContext();
+	                    }
+	                    docsForContext = Math.min(docsForContext, docs.size());
+	                    Integer maxChars = ragBudgets.maxContextChars();
+	                    baseContext = buildContextFromDocuments(docs.subList(0, docsForContext), maxChars);
+	                }
 
-                String generationContext = prependPinnedTargetsContext(baseContext, pipelineContext);
-                answer = generateRagAnswer(generationQuery, generationContext);
-            } catch (Exception ex) {
-                log.error("RAG generation failed for request {}: {}",
-                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
-                    ex.getMessage(),
+	                boolean hasRetrievedEvidence = ragResponse.getDocuments() != null && !ragResponse.getDocuments().isEmpty();
+	                if (!hasRetrievedEvidence) {
+	                    hasRetrievedEvidence = StringUtils.hasText(baseContext) && !RAG_NO_CONTEXT_MESSAGE.equals(baseContext);
+	                }
+	                String generationContext = hasRetrievedEvidence
+	                    ? prependPinnedTargetsContext(baseContext, pipelineContext)
+	                    : baseContext;
+	                answer = generateRagAnswer(generationQuery, generationContext);
+	            } catch (Exception ex) {
+	                log.error("RAG generation failed for request {}: {}",
+	                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+	                    ex.getMessage(),
                     ex);
 
                 Map<String, Object> errorData = new LinkedHashMap<>();
@@ -2218,14 +2306,21 @@ public class IntentHandlingStep implements PipelineStep {
             .success(true)
             .build();
 
-        String answer = null;
-        if (needsGeneration) {
-            try {
-                answer = generateRagAnswer(generationQuery, prependPinnedTargetsContext(mergedContext, pipelineContext));
-            } catch (Exception ex) {
-                log.error("Fan-out RAG generation failed for request {}: {}",
-                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
-                    ex.getMessage(),
+	        String answer = null;
+	        if (needsGeneration) {
+	            try {
+	                boolean hasRetrievedEvidence = merged != null && !merged.isEmpty();
+	                if (!hasRetrievedEvidence) {
+	                    hasRetrievedEvidence = StringUtils.hasText(mergedContext) && !RAG_NO_CONTEXT_MESSAGE.equals(mergedContext);
+	                }
+	                String generationContext = hasRetrievedEvidence
+	                    ? prependPinnedTargetsContext(mergedContext, pipelineContext)
+	                    : mergedContext;
+	                answer = generateRagAnswer(generationQuery, generationContext);
+	            } catch (Exception ex) {
+	                log.error("Fan-out RAG generation failed for request {}: {}",
+	                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+	                    ex.getMessage(),
                     ex);
 
                 Map<String, Object> errorData = new LinkedHashMap<>();
@@ -2404,21 +2499,31 @@ public class IntentHandlingStep implements PipelineStep {
                 return null;
             }
 
-            List<RAGResponse.RAGDocument> documents = convertToRagDocuments(advancedResponse.getDocuments());
-            RAGResponse ragResponse = convertToRagResponse(advancedResponse, documents, generationQuery, intent.getVectorSpace());
+	            List<RAGResponse.RAGDocument> documents = convertToRagDocuments(advancedResponse.getDocuments());
+	            RAGResponse ragResponse = convertToRagResponse(advancedResponse, documents, generationQuery, intent.getVectorSpace());
+	            String retrievedContext = ragResponse != null ? ragResponse.getContext() : null;
+	            boolean hasRetrievedEvidence = documents != null && !documents.isEmpty();
+	            if (!hasRetrievedEvidence) {
+	                hasRetrievedEvidence = StringUtils.hasText(retrievedContext) && !RAG_NO_CONTEXT_MESSAGE.equals(retrievedContext);
+	            }
+	            boolean lowConfidence = advancedResponse.getConfidenceScore() == null || advancedResponse.getConfidenceScore() <= 0.0d;
+	            boolean noEvidence = !hasRetrievedEvidence && lowConfidence;
 
-            String answer = null;
-            if (needsGeneration) {
-                if (StringUtils.hasText(advancedResponse.getResponse())) {
-                    answer = advancedResponse.getResponse();
-                } else {
-                    try {
-                        answer = generateRagAnswer(generationQuery, prependPinnedTargetsContext(ragResponse.getContext(), pipelineContext));
-                    } catch (Exception ex) {
-                        log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
-                            pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
-                            ex.getMessage(),
-                            ex);
+	            String answer = null;
+	            if (needsGeneration) {
+	                if (StringUtils.hasText(advancedResponse.getResponse()) && !noEvidence) {
+	                    answer = advancedResponse.getResponse();
+	                } else {
+	                    try {
+	                        String generationContext = hasRetrievedEvidence
+	                            ? prependPinnedTargetsContext(retrievedContext, pipelineContext)
+	                            : retrievedContext;
+	                        answer = generateRagAnswer(generationQuery, generationContext);
+	                    } catch (Exception ex) {
+	                        log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
+	                            pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+	                            ex.getMessage(),
+	                            ex);
 
                         Map<String, Object> errorData = new LinkedHashMap<>();
                         errorData.put(DATA_KEY_ANSWER, null);
