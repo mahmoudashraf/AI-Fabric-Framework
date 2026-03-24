@@ -36,6 +36,15 @@ public class DemoResetAdminController {
     private String connectorAdminApiKeyHeader;
 
     /**
+     * Some deployments want to keep {@code /actions/execute} protected while leaving demo reset endpoints open.
+     *
+     * <p>If set to {@code false}, this controller will skip the API-key check even if
+     * {@code connector.auth.api-key} is configured.</p>
+     */
+    @Value("${connector.admin.auth.enabled:true}")
+    private boolean connectorAdminAuthEnabled;
+
+    /**
      * Preferred endpoint name.
      */
     @PostMapping("/demo/reset")
@@ -52,7 +61,8 @@ public class DemoResetAdminController {
     }
 
     private ResponseEntity<?> handleReset(ResetRequest request, HttpServletRequest httpRequest) {
-        if (!AdminAuth.isAuthorized(connectorAdminApiKey, connectorAdminApiKeyHeader, httpRequest)) {
+        if (connectorAdminAuthEnabled
+            && !AdminAuth.isAuthorized(connectorAdminApiKey, connectorAdminApiKeyHeader, httpRequest)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
                 "success", false,
                 "message", "Unauthorized"
@@ -94,4 +104,3 @@ public class DemoResetAdminController {
         private Boolean clearRuntimeVectors = true;
     }
 }
-

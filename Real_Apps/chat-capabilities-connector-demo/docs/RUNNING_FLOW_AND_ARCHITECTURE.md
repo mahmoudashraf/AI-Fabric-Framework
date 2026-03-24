@@ -2,6 +2,9 @@
 
 This document describes the current runnable demo architecture (2 services) and the end-to-end request flows: ingestion (Data Sync), chat (RAG), and action execution (via connector).
 
+For a step-by-step operational checklist (health, indexing, actions wiring), see:
+- `Real_Apps/chat-capabilities-connector-demo/docs/VERIFICATION_PLAYBOOK.md`
+
 ## 1) Components (what runs)
 
 ### A) Client(s)
@@ -205,4 +208,3 @@ Only two things change structurally:
    - Instead of manually calling Data Sync, you run a Shopify sync job (webhooks + backfill) that pushes products/policies/etc to the runtime via `/api/ai/data-sync/*`.
 
 The runtime stays the same (same config mounting pattern, same vector DB interface), unless you decide to swap Lucene for a managed vector DB in production.
-

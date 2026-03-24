@@ -2,6 +2,9 @@
 
 This guide deploys **AI Fabric Runtime** as a Railway service.
 
+For a deeper explanation of what changes between the two Dockerfiles (config loading, volumes, and common failure modes), see:
+- `ai-infrastructure-module/ai-fabric-runtime/deploy/railway/BASE_VS_RAILWAY_DOCKERFILES.md`
+
 You have two deployment options:
 
 1) **Runtime (base)** — use the default runtime config bundled in the jar  
