@@ -1,10 +1,6 @@
 package com.ai.infrastructure.datasync.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
@@ -14,10 +10,6 @@ import java.util.Map;
  * <p>Used for access control, correlation, and audit logging. Values should be stable identifiers
  * (avoid PII such as email/phone).</p>
  */
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class DataSyncTrace {
 
     /**
@@ -40,5 +32,46 @@ public class DataSyncTrace {
      * Optional trace metadata (PII-safe).
      */
     private Map<String, Object> metadata;
-}
 
+    public DataSyncTrace() {
+    }
+
+    public DataSyncTrace(String userId, String sessionId, String requestId, Map<String, Object> metadata) {
+        this.userId = userId;
+        this.sessionId = sessionId;
+        this.requestId = requestId;
+        this.metadata = metadata;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public void setRequestId(String requestId) {
+        this.requestId = requestId;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+}

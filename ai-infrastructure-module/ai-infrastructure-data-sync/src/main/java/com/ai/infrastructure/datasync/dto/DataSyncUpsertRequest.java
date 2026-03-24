@@ -3,10 +3,6 @@ package com.ai.infrastructure.datasync.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
@@ -15,10 +11,6 @@ import java.util.Map;
  *
  * <p>Provide either {@link #content} (pre-normalized) OR {@link #entity} (raw fields to normalize).</p>
  */
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class DataSyncUpsertRequest {
 
     @NotBlank
@@ -46,5 +38,69 @@ public class DataSyncUpsertRequest {
     @Valid
     @NotNull
     private DataSyncTrace trace;
-}
 
+    public DataSyncUpsertRequest() {
+    }
+
+    public DataSyncUpsertRequest(String vectorSpace,
+                                 String id,
+                                 String content,
+                                 Map<String, Object> entity,
+                                 Map<String, Object> metadata,
+                                 DataSyncTrace trace) {
+        this.vectorSpace = vectorSpace;
+        this.id = id;
+        this.content = content;
+        this.entity = entity;
+        this.metadata = metadata;
+        this.trace = trace;
+    }
+
+    public String getVectorSpace() {
+        return vectorSpace;
+    }
+
+    public void setVectorSpace(String vectorSpace) {
+        this.vectorSpace = vectorSpace;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public Map<String, Object> getEntity() {
+        return entity;
+    }
+
+    public void setEntity(Map<String, Object> entity) {
+        this.entity = entity;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+
+    public DataSyncTrace getTrace() {
+        return trace;
+    }
+
+    public void setTrace(DataSyncTrace trace) {
+        this.trace = trace;
+    }
+}

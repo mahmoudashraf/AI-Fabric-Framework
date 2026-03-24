@@ -8,8 +8,6 @@ import com.ai.infrastructure.datasync.dto.DataSyncUpsertRequest;
 import com.ai.infrastructure.datasync.dto.DataSyncVectorSpacesResponse;
 import com.ai.infrastructure.datasync.service.DataSyncService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -19,19 +17,25 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Push-based data sync API for managed vector databases.
  */
-@Slf4j
 @RestController
 @RequestMapping("/api/ai/data-sync")
-@RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "ai.data-sync", name = "enabled", havingValue = "true")
 @ConditionalOnBean(DataSyncService.class)
 public class DataSyncController {
 
+    private static final Logger log = LoggerFactory.getLogger(DataSyncController.class);
+
     private final DataSyncService service;
+
+    public DataSyncController(DataSyncService service) {
+        this.service = service;
+    }
 
     @GetMapping("/vector-spaces")
     public ResponseEntity<DataSyncVectorSpacesResponse> listVectorSpaces() {

@@ -13,8 +13,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -29,8 +29,7 @@ import java.time.Clock;
 @AutoConfigureAfter(AIInfrastructureAutoConfiguration.class)
 @EnableConfigurationProperties(AIDataSyncProperties.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(prefix = "ai.data-sync", name = "enabled", havingValue = "true")
-@ConditionalOnProperty(prefix = "ai.service.features", name = "enable-embeddings", havingValue = "true", matchIfMissing = true)
+@ConditionalOnExpression("${ai.data-sync.enabled:false} && ${ai.service.features.enable-embeddings:true}")
 @Conditional(VectorDbConfiguredCondition.class)
 public class AIDataSyncAutoConfiguration {
 

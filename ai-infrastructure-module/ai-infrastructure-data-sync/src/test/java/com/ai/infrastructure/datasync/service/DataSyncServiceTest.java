@@ -66,12 +66,17 @@ class DataSyncServiceTest {
             clock
         );
 
-        DataSyncOperationResponse response = service.upsert(DataSyncUpsertRequest.builder()
-            .vectorSpace("product")
-            .id("p1")
-            .content("hello")
-            .trace(DataSyncTrace.builder().userId("system").requestId("req1").build())
-            .build());
+        DataSyncTrace trace = new DataSyncTrace();
+        trace.setUserId("system");
+        trace.setRequestId("req1");
+
+        DataSyncUpsertRequest request = new DataSyncUpsertRequest();
+        request.setVectorSpace("product");
+        request.setId("p1");
+        request.setContent("hello");
+        request.setTrace(trace);
+
+        DataSyncOperationResponse response = service.upsert(request);
 
         assertThat(response.getSuccess()).isTrue();
         assertThat(response.getVectorId()).isEqualTo("vec_1");
@@ -108,15 +113,19 @@ class DataSyncServiceTest {
             clock
         );
 
-        DataSyncOperationResponse response = service.upsert(DataSyncUpsertRequest.builder()
-            .vectorSpace("product")
-            .id("p1")
-            .content("hello")
-            .trace(DataSyncTrace.builder().userId("system").requestId("req1").build())
-            .build());
+        DataSyncTrace trace = new DataSyncTrace();
+        trace.setUserId("system");
+        trace.setRequestId("req1");
+
+        DataSyncUpsertRequest request = new DataSyncUpsertRequest();
+        request.setVectorSpace("product");
+        request.setId("p1");
+        request.setContent("hello");
+        request.setTrace(trace);
+
+        DataSyncOperationResponse response = service.upsert(request);
 
         assertThat(response.getSuccess()).isFalse();
         assertThat(response.getErrorCode()).isEqualTo("ACCESS_DENIED");
     }
 }
-

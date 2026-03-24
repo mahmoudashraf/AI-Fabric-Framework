@@ -2,7 +2,6 @@ package com.ai.infrastructure.datasync;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -11,7 +10,6 @@ import org.springframework.validation.annotation.Validated;
  *
  * <p>This module is opt-in and is enabled only when {@code ai.data-sync.enabled=true}.</p>
  */
-@Data
 @Validated
 @ConfigurationProperties(prefix = "ai.data-sync")
 public class AIDataSyncProperties {
@@ -50,5 +48,44 @@ public class AIDataSyncProperties {
     @Min(0)
     @Max(500)
     private int maxMetadataKeys = 75;
-}
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public int getMaxBatchSize() {
+        return maxBatchSize;
+    }
+
+    public void setMaxBatchSize(int maxBatchSize) {
+        this.maxBatchSize = maxBatchSize;
+    }
+
+    public int getMaxContentChars() {
+        return maxContentChars;
+    }
+
+    public void setMaxContentChars(int maxContentChars) {
+        this.maxContentChars = maxContentChars;
+    }
+
+    public int getMaxFieldValueChars() {
+        return maxFieldValueChars;
+    }
+
+    public void setMaxFieldValueChars(int maxFieldValueChars) {
+        this.maxFieldValueChars = maxFieldValueChars;
+    }
+
+    public int getMaxMetadataKeys() {
+        return maxMetadataKeys;
+    }
+
+    public void setMaxMetadataKeys(int maxMetadataKeys) {
+        this.maxMetadataKeys = maxMetadataKeys;
+    }
+}

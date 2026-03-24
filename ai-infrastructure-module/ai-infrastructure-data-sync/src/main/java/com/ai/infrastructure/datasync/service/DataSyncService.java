@@ -21,7 +21,8 @@ import com.ai.infrastructure.dto.AIEntityConfig;
 import com.ai.infrastructure.service.VectorManagementService;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.util.UlidGenerator;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
@@ -38,8 +39,9 @@ import java.util.Set;
 /**
  * Service implementing push-based data sync (ingestion) operations.
  */
-@Slf4j
 public class DataSyncService {
+
+    private static final Logger log = LoggerFactory.getLogger(DataSyncService.class);
 
     private static final String ERROR_INVALID_REQUEST = "INVALID_REQUEST";
     private static final String ERROR_ACCESS_DENIED = "ACCESS_DENIED";
@@ -91,11 +93,11 @@ public class DataSyncService {
                 .sorted()
                 .toList();
 
-        return DataSyncVectorSpacesResponse.builder()
-            .success(true)
-            .message("OK")
-            .vectorSpaces(vectorSpaces)
-            .build();
+        DataSyncVectorSpacesResponse response = new DataSyncVectorSpacesResponse();
+        response.setSuccess(true);
+        response.setMessage("OK");
+        response.setVectorSpaces(vectorSpaces);
+        return response;
     }
 
     public DataSyncOperationResponse upsert(DataSyncUpsertRequest request) {
@@ -162,16 +164,16 @@ public class DataSyncService {
         }
 
         long processingMs = nanosToMillis(System.nanoTime() - startedAt);
-        return DataSyncOperationResponse.builder()
-            .success(true)
-            .message("Upserted")
-            .type(DataSyncOperationType.UPSERT)
-            .vectorSpace(vectorSpace)
-            .id(id)
-            .vectorId(vectorId)
-            .processingTimeMs(processingMs)
-            .metadata(access.metadata())
-            .build();
+        DataSyncOperationResponse response = new DataSyncOperationResponse();
+        response.setSuccess(true);
+        response.setMessage("Upserted");
+        response.setType(DataSyncOperationType.UPSERT);
+        response.setVectorSpace(vectorSpace);
+        response.setId(id);
+        response.setVectorId(vectorId);
+        response.setProcessingTimeMs(processingMs);
+        response.setMetadata(access.metadata());
+        return response;
     }
 
     public DataSyncOperationResponse delete(DataSyncDeleteRequest request) {
@@ -206,15 +208,15 @@ public class DataSyncService {
         }
 
         long processingMs = nanosToMillis(System.nanoTime() - startedAt);
-        return DataSyncOperationResponse.builder()
-            .success(true)
-            .message(removed ? "Deleted" : "Not found")
-            .type(DataSyncOperationType.DELETE)
-            .vectorSpace(vectorSpace)
-            .id(id)
-            .processingTimeMs(processingMs)
-            .metadata(access.metadata())
-            .build();
+        DataSyncOperationResponse response = new DataSyncOperationResponse();
+        response.setSuccess(true);
+        response.setMessage(removed ? "Deleted" : "Not found");
+        response.setType(DataSyncOperationType.DELETE);
+        response.setVectorSpace(vectorSpace);
+        response.setId(id);
+        response.setProcessingTimeMs(processingMs);
+        response.setMetadata(access.metadata());
+        return response;
     }
 
     public DataSyncBatchResponse batch(DataSyncBatchRequest request) {
@@ -270,20 +272,22 @@ public class DataSyncService {
         if (!denied.isEmpty()) {
             Map<String, Object> meta = new LinkedHashMap<>();
             meta.put("deniedOperations", List.copyOf(denied));
-            return DataSyncBatchResponse.builder()
-                .success(false)
-                .errorCode(ERROR_ACCESS_DENIED)
-                .message("Access denied for one or more operations.")
-                .totalOperations(ops.size())
-                .succeededOperations(0)
-                .failedOperations(ops.size())
-                .results(List.of(DataSyncOperationResponse.builder()
-                    .success(false)
-                    .errorCode(ERROR_ACCESS_DENIED)
-                    .message("Access denied for one or more operations.")
-                    .metadata(Collections.unmodifiableMap(meta))
-                    .build()))
-                .build();
+
+            DataSyncOperationResponse marker = new DataSyncOperationResponse();
+            marker.setSuccess(false);
+            marker.setErrorCode(ERROR_ACCESS_DENIED);
+            marker.setMessage("Access denied for one or more operations.");
+            marker.setMetadata(Collections.unmodifiableMap(meta));
+
+            DataSyncBatchResponse response = new DataSyncBatchResponse();
+            response.setSuccess(false);
+            response.setErrorCode(ERROR_ACCESS_DENIED);
+            response.setMessage("Access denied for one or more operations.");
+            response.setTotalOperations(ops.size());
+            response.setSucceededOperations(0);
+            response.setFailedOperations(ops.size());
+            response.setResults(List.of(marker));
+            return response;
         }
 
         List<DataSyncOperationResponse> results = new ArrayList<>();
@@ -292,20 +296,23 @@ public class DataSyncService {
             if (op == null || op.getType() == null) {
                 continue;
             }
-            DataSyncOperationResponse result = op.getType() == DataSyncOperationType.DELETE
-                ? delete(DataSyncDeleteRequest.builder()
-                    .vectorSpace(op.getVectorSpace())
-                    .id(op.getId())
-                    .trace(trace)
-                    .build())
-                : upsert(DataSyncUpsertRequest.builder()
-                    .vectorSpace(op.getVectorSpace())
-                    .id(op.getId())
-                    .content(op.getContent())
-                    .entity(op.getEntity())
-                    .metadata(op.getMetadata())
-                    .trace(trace)
-                    .build());
+            DataSyncOperationResponse result;
+            if (op.getType() == DataSyncOperationType.DELETE) {
+                DataSyncDeleteRequest deleteRequest = new DataSyncDeleteRequest();
+                deleteRequest.setVectorSpace(op.getVectorSpace());
+                deleteRequest.setId(op.getId());
+                deleteRequest.setTrace(trace);
+                result = delete(deleteRequest);
+            } else {
+                DataSyncUpsertRequest upsertRequest = new DataSyncUpsertRequest();
+                upsertRequest.setVectorSpace(op.getVectorSpace());
+                upsertRequest.setId(op.getId());
+                upsertRequest.setContent(op.getContent());
+                upsertRequest.setEntity(op.getEntity());
+                upsertRequest.setMetadata(op.getMetadata());
+                upsertRequest.setTrace(trace);
+                result = upsert(upsertRequest);
+            }
 
             results.add(result);
             if (Boolean.TRUE.equals(result.getSuccess())) {
@@ -314,14 +321,14 @@ public class DataSyncService {
         }
 
         int failed = results.size() - successCount;
-        return DataSyncBatchResponse.builder()
-            .success(failed == 0)
-            .message(failed == 0 ? "OK" : "Completed with failures")
-            .totalOperations(results.size())
-            .succeededOperations(successCount)
-            .failedOperations(failed)
-            .results(Collections.unmodifiableList(results))
-            .build();
+        DataSyncBatchResponse response = new DataSyncBatchResponse();
+        response.setSuccess(failed == 0);
+        response.setMessage(failed == 0 ? "OK" : "Completed with failures");
+        response.setTotalOperations(results.size());
+        response.setSucceededOperations(successCount);
+        response.setFailedOperations(failed);
+        response.setResults(Collections.unmodifiableList(results));
+        return response;
     }
 
     private AccessDecision checkAccess(DataSyncTrace trace, String vectorSpace, String id, String operationType) {
@@ -374,35 +381,35 @@ public class DataSyncService {
                                               Map<String, Object> metadata,
                                               long startedAt) {
         long processingMs = nanosToMillis(System.nanoTime() - startedAt);
-        return DataSyncOperationResponse.builder()
-            .success(false)
-            .errorCode(errorCode)
-            .message(StringUtils.hasText(message) ? message : "Request failed.")
-            .type(type)
-            .vectorSpace(vectorSpace)
-            .id(id)
-            .metadata(metadata)
-            .processingTimeMs(processingMs)
-            .build();
+        DataSyncOperationResponse response = new DataSyncOperationResponse();
+        response.setSuccess(false);
+        response.setErrorCode(errorCode);
+        response.setMessage(StringUtils.hasText(message) ? message : "Request failed.");
+        response.setType(type);
+        response.setVectorSpace(vectorSpace);
+        response.setId(id);
+        response.setMetadata(metadata);
+        response.setProcessingTimeMs(processingMs);
+        return response;
     }
 
     private DataSyncBatchResponse batchFailure(String errorCode, String message, long startedAt) {
         long processingMs = nanosToMillis(System.nanoTime() - startedAt);
-        DataSyncOperationResponse marker = DataSyncOperationResponse.builder()
-            .success(false)
-            .errorCode(errorCode)
-            .message(StringUtils.hasText(message) ? message : "Batch request failed.")
-            .processingTimeMs(processingMs)
-            .build();
-        return DataSyncBatchResponse.builder()
-            .success(false)
-            .errorCode(errorCode)
-            .message(StringUtils.hasText(message) ? message : "Batch request failed.")
-            .totalOperations(0)
-            .succeededOperations(0)
-            .failedOperations(0)
-            .results(List.of(marker))
-            .build();
+        DataSyncOperationResponse marker = new DataSyncOperationResponse();
+        marker.setSuccess(false);
+        marker.setErrorCode(errorCode);
+        marker.setMessage(StringUtils.hasText(message) ? message : "Batch request failed.");
+        marker.setProcessingTimeMs(processingMs);
+
+        DataSyncBatchResponse response = new DataSyncBatchResponse();
+        response.setSuccess(false);
+        response.setErrorCode(errorCode);
+        response.setMessage(StringUtils.hasText(message) ? message : "Batch request failed.");
+        response.setTotalOperations(0);
+        response.setSucceededOperations(0);
+        response.setFailedOperations(0);
+        response.setResults(List.of(marker));
+        return response;
     }
 
     private long nanosToMillis(long nanos) {

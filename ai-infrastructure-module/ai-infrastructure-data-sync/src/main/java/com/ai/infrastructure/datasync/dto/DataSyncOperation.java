@@ -2,20 +2,12 @@ package com.ai.infrastructure.datasync.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
 /**
  * Single operation inside a batch sync request.
  */
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class DataSyncOperation {
 
     @NotNull
@@ -41,5 +33,69 @@ public class DataSyncOperation {
      * Optional metadata to store alongside the vector.
      */
     private Map<String, Object> metadata;
-}
 
+    public DataSyncOperation() {
+    }
+
+    public DataSyncOperation(DataSyncOperationType type,
+                             String vectorSpace,
+                             String id,
+                             String content,
+                             Map<String, Object> entity,
+                             Map<String, Object> metadata) {
+        this.type = type;
+        this.vectorSpace = vectorSpace;
+        this.id = id;
+        this.content = content;
+        this.entity = entity;
+        this.metadata = metadata;
+    }
+
+    public DataSyncOperationType getType() {
+        return type;
+    }
+
+    public void setType(DataSyncOperationType type) {
+        this.type = type;
+    }
+
+    public String getVectorSpace() {
+        return vectorSpace;
+    }
+
+    public void setVectorSpace(String vectorSpace) {
+        this.vectorSpace = vectorSpace;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public Map<String, Object> getEntity() {
+        return entity;
+    }
+
+    public void setEntity(Map<String, Object> entity) {
+        this.entity = entity;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+}
