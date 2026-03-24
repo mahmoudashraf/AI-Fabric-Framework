@@ -46,6 +46,13 @@ public class AIActionCatalogProperties {
          * Source path (Spring resource syntax supported), e.g. {@code classpath:ai-actions.yml} or {@code file:/...}.
          */
         private String path;
+
+        /**
+         * When {@code true}, a missing source file is ignored (useful for "mount if present" deployment patterns).
+         *
+         * <p>Note: if the file exists but is invalid/unreadable, startup will still fail fast.</p>
+         */
+        private boolean optional = false;
     }
 
     /**
@@ -56,4 +63,3 @@ public class AIActionCatalogProperties {
         DB
     }
 }
-

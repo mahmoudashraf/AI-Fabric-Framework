@@ -91,6 +91,10 @@ public class ConnectorActionCatalogLoader {
 
             Resource resource = resourceLoader.getResource(path.trim());
             if (resource == null || !resource.exists()) {
+                if (source.isOptional()) {
+                    log.info("Optional action contract file not found: {} (skipping)", path);
+                    continue;
+                }
                 throw new IllegalStateException("Action contract file not found: " + path);
             }
 
@@ -394,4 +398,3 @@ public class ConnectorActionCatalogLoader {
         }
     }
 }
-

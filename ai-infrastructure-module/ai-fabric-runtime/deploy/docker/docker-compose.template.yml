@@ -27,6 +27,7 @@ services:
 
       # Optional: connector-backed actions (Relay base URL)
       ACTIONS_CONNECTOR_BASE_URL: ""
+      ACTIONS_CONNECTOR_API_KEY: ""
 
     volumes:
       # Per-customer config + persistence

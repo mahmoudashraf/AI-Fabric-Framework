@@ -63,8 +63,13 @@ ai:
 
   # Connector-backed actions are opt-in; add ai-actions.yml when needed.
   actions:
+    sources:
+      - path: file:/config/ai-actions.yml
+        optional: true
     connector:
       base-url: ${ACTIONS_CONNECTOR_BASE_URL:}
+      api-key:
+        value: ${ACTIONS_CONNECTOR_API_KEY:}
 
 management:
   endpoints:
@@ -81,4 +86,3 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:}
-

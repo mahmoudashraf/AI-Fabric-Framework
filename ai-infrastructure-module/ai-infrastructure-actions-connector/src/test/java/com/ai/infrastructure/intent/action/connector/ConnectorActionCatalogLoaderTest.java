@@ -43,5 +43,30 @@ class ConnectorActionCatalogLoaderTest {
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("confirmationMessage placeholder");
     }
-}
 
+    @Test
+    void loadActions_shouldFailFastOnMissingFile_whenNotOptional() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/does-not-exist.yml");
+
+        assertThatThrownBy(() -> loader.loadActions(List.of(source)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Action contract file not found");
+    }
+
+    @Test
+    void loadActions_shouldSkipMissingFile_whenOptional() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/does-not-exist.yml");
+        source.setOptional(true);
+
+        List<ConnectorActionDefinition> actions = loader.loadActions(List.of(source));
+        assertThat(actions).isEmpty();
+    }
+}
