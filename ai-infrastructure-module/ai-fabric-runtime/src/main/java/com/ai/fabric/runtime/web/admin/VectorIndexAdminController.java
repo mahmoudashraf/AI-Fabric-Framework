@@ -116,18 +116,20 @@ public class VectorIndexAdminController {
 
         VectorScanPage page = vectorDatabaseService.scan(req);
         Integer nextOffset = decodeOffsetCursor(page != null ? page.getNextCursor() : null);
+        int resolvedOffset = offset != null ? offset : (effectiveCursor != null ? decodeOffsetCursor(effectiveCursor) : 0);
 
-        return ResponseEntity.ok(Map.of(
-            "success", true,
-            "entityType", entityType,
-            "limit", safeLimit,
-            "cursor", effectiveCursor,
-            "nextCursor", page != null ? page.getNextCursor() : null,
-            "offset", offset != null ? offset : (effectiveCursor != null ? decodeOffsetCursor(effectiveCursor) : 0),
-            "nextOffset", nextOffset,
-            "hasMore", page != null && page.isHasMore(),
-            "vectors", page != null ? page.getVectors() : null
-        ));
+        // Use a mutable map so we can safely return nulls (Map.of forbids null values).
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        body.put("entityType", entityType);
+        body.put("limit", safeLimit);
+        body.put("cursor", effectiveCursor);
+        body.put("nextCursor", page != null ? page.getNextCursor() : null);
+        body.put("offset", resolvedOffset);
+        body.put("nextOffset", nextOffset);
+        body.put("hasMore", page != null && page.isHasMore());
+        body.put("vectors", page != null && page.getVectors() != null ? page.getVectors() : java.util.List.of());
+        return ResponseEntity.ok(body);
     }
 
     private static String encodeOffsetCursor(int offset) {
@@ -151,4 +153,3 @@ public class VectorIndexAdminController {
         }
     }
 }
-
