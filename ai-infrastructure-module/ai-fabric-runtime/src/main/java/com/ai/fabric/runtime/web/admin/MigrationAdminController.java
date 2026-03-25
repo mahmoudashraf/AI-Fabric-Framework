@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MigrationAdminController {
 
+    private static final Logger log = LoggerFactory.getLogger(MigrationAdminController.class);
+
     private final VectorDatabaseService vectorDatabaseService;
 
     @Value("${app.admin.api-key:}")
@@ -49,6 +53,8 @@ public class MigrationAdminController {
                                    @RequestBody(required = false) ClearRequest body,
                                    HttpServletRequest httpRequest) {
         if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
+            log.warn("Unauthorized admin request: path=/api/admin/migration/clear remoteAddr={}",
+                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
                 "success", false,
                 "message", "Unauthorized"
@@ -74,11 +80,19 @@ public class MigrationAdminController {
             clearVectors = true;
         }
 
+        String reason = body != null ? body.getReason() : null;
+        if (StringUtils.hasText(reason)) {
+            reason = reason.trim();
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("clearedVectors", false);
         result.put("removedVectors", 0L);
 
         if (Boolean.TRUE.equals(clearVectors)) {
+            log.info("Clearing vectors requested (reason={}, remoteAddr={})",
+                StringUtils.hasText(reason) ? reason : null,
+                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
             long removed = vectorDatabaseService.clearVectors();
             result.put("clearedVectors", true);
             result.put("removedVectors", removed);
@@ -101,6 +115,6 @@ public class MigrationAdminController {
         @NotNull
         private Boolean confirm;
         private Boolean clearVectors = true;
+        private String reason;
     }
 }
-

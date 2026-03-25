@@ -16,9 +16,8 @@ import org.springframework.validation.annotation.Validated;
 public class RuntimeDevDefaultsProperties {
 
     /**
-     * When true (default), the runtime provides permissive dev-only implementations for required policy hooks
+     * When true, the runtime provides permissive dev-only implementations for required policy hooks
      * such as {@code EntityAccessPolicy}.
      */
     private boolean enabled = true;
 }
-

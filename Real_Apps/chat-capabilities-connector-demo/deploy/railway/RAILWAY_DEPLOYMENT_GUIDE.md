@@ -65,10 +65,15 @@ Enable API key protection for the Customer Connector actions endpoint:
 - `CONNECTOR_AUTH_API_KEY=...` (secret)
 - `CONNECTOR_AUTH_API_KEY_HEADER=X-AIFABRIC-API-KEY` (optional)
 
-By default, destructive connector admin endpoints (like `POST /api/admin/demo/reset`) use the same API key.
-If you want to keep `/actions/execute` protected but make admin reset endpoints public (demo-only), set:
+By default, destructive connector admin endpoints (like `POST /api/admin/demo/reset`) are **public** (demo utility behavior).
+If you want admin reset endpoints to require the same API key as `/actions/execute`, set:
 
-- `CONNECTOR_ADMIN_AUTH_ENABLED=false`
+- `CONNECTOR_ADMIN_AUTH_ENABLED=true`
+
+Optional: if you want `POST /api/admin/demo/reset` to also clear runtime vectors, configure the connector with the runtime admin key:
+
+- `CONNECTOR_RUNTIME_ADMIN_API_KEY=...` (should match the runtime’s `APP_ADMIN_API_KEY`)
+- Optional: `CONNECTOR_RUNTIME_ADMIN_API_KEY_HEADER=X-ADMIN-API-KEY`
 
 Then configure AI Fabric Runtime to send the same header/value:
 - `ACTIONS_CONNECTOR_API_KEY=...`

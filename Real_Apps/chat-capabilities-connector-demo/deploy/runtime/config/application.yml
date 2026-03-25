@@ -18,6 +18,12 @@ spring:
 ai:
   enabled: true
 
+  # Demo-only: allow all entity access decisions (required for indexing/search without a customer policy implementation).
+  fabric:
+    runtime:
+      dev-defaults:
+        enabled: true
+
   curated:
     pack: commerce
 

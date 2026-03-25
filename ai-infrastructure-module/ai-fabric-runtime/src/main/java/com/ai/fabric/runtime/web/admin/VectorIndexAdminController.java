@@ -6,6 +6,8 @@ import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class VectorIndexAdminController {
 
+    private static final Logger log = LoggerFactory.getLogger(VectorIndexAdminController.class);
+
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
 
@@ -41,6 +45,8 @@ public class VectorIndexAdminController {
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
         if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
+            log.warn("Unauthorized admin request: path=/api/admin/indexing/overview remoteAddr={}",
+                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
                 "success", false,
                 "message", "Unauthorized"
@@ -87,6 +93,8 @@ public class VectorIndexAdminController {
                                      @RequestParam(value = "includeMetadata", required = false) Boolean includeMetadata,
                                      HttpServletRequest httpRequest) {
         if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
+            log.warn("Unauthorized admin request: path=/api/admin/indexing/vectors remoteAddr={}",
+                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
                 "success", false,
                 "message", "Unauthorized"

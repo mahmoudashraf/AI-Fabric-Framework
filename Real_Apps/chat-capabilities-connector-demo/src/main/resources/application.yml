@@ -40,7 +40,8 @@ connector:
     api-key-header: ${CONNECTOR_AUTH_API_KEY_HEADER:X-AIFABRIC-API-KEY}
   admin:
     auth:
-      enabled: ${CONNECTOR_ADMIN_AUTH_ENABLED:true}
+      # Demo utility default: keep reset endpoints open even if /actions/execute is protected.
+      enabled: ${CONNECTOR_ADMIN_AUTH_ENABLED:false}
   indexing:
     enabled: ${CONNECTOR_INDEXING_ENABLED:false}
     runtime-base-url: ${CONNECTOR_INDEXING_RUNTIME_BASE_URL:http://ai-fabric-runtime:8097}

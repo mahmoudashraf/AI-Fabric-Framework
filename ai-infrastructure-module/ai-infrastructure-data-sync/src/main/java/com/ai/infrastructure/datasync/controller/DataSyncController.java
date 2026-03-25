@@ -45,7 +45,7 @@ public class DataSyncController {
     @PostMapping("/upsert")
     public ResponseEntity<DataSyncOperationResponse> upsert(@Valid @RequestBody DataSyncUpsertRequest request) {
         String requestId = request != null && request.getTrace() != null ? request.getTrace().getRequestId() : null;
-        log.info("Data sync upsert requested (vectorSpace={}, id={}, requestId={})",
+        log.debug("Data sync upsert requested (vectorSpace={}, id={}, requestId={})",
             request != null ? request.getVectorSpace() : null,
             request != null ? request.getId() : null,
             requestId);
@@ -57,7 +57,7 @@ public class DataSyncController {
     @PostMapping("/delete")
     public ResponseEntity<DataSyncOperationResponse> delete(@Valid @RequestBody DataSyncDeleteRequest request) {
         String requestId = request != null && request.getTrace() != null ? request.getTrace().getRequestId() : null;
-        log.info("Data sync delete requested (vectorSpace={}, id={}, requestId={})",
+        log.debug("Data sync delete requested (vectorSpace={}, id={}, requestId={})",
             request != null ? request.getVectorSpace() : null,
             request != null ? request.getId() : null,
             requestId);
@@ -70,7 +70,7 @@ public class DataSyncController {
     public ResponseEntity<DataSyncBatchResponse> batch(@Valid @RequestBody DataSyncBatchRequest request) {
         String requestId = request != null && request.getTrace() != null ? request.getTrace().getRequestId() : null;
         int size = request != null && request.getOperations() != null ? request.getOperations().size() : 0;
-        log.info("Data sync batch requested (ops={}, requestId={})", size, requestId);
+        log.debug("Data sync batch requested (ops={}, requestId={})", size, requestId);
 
         DataSyncBatchResponse response = service.batch(request);
         return respond(response != null ? response.getErrorCode() : null, response);

@@ -107,6 +107,10 @@ Optional CORS:
 - **Railway `PORT`**
   - Runtime uses `server.port: ${PORT:8097}`, so Railway can inject `PORT`.
 
+- **Admin endpoints (`/api/admin/*`)**
+  - These endpoints are **public** unless you configure an admin API key (demo convenience).
+  - Production: set `APP_ADMIN_API_KEY=...` (and optionally `APP_ADMIN_API_KEY_HEADER`, default `X-ADMIN-API-KEY`) on the runtime service, then send the header on requests.
+
 - **Persistence**
   - If you do not mount a Volume, H2 + Lucene indexes reset on redeploy/restart.
 

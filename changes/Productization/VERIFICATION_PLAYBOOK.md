@@ -19,11 +19,24 @@ export CONNECTOR_BASE_URL="https://<connector>.up.railway.app"
 export RUNTIME_BASE_URL="https://<runtime>.up.railway.app"
 ```
 
-Optional: if you enabled runtime admin auth (`app.admin.api-key`), set:
+Optional: if you configured runtime admin auth (`APP_ADMIN_API_KEY`), set:
 
 ```bash
 export RUNTIME_ADMIN_API_KEY_HEADER="X-ADMIN-API-KEY"
 export RUNTIME_ADMIN_API_KEY="<secret>"
+```
+
+If you want to protect runtime admin endpoints (`/api/admin/*`), configure the runtime service with:
+- `APP_ADMIN_API_KEY=<same secret>`
+- Optional: `APP_ADMIN_API_KEY_HEADER=X-ADMIN-API-KEY`
+
+Optional helper: only send the runtime admin header when a key is set:
+
+```bash
+RUNTIME_ADMIN_CURL_HEADER=()
+if [ -n "${RUNTIME_ADMIN_API_KEY:-}" ]; then
+  RUNTIME_ADMIN_CURL_HEADER=(-H "${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}: ${RUNTIME_ADMIN_API_KEY}")
+fi
 ```
 
 Optional: if you enabled connector admin auth (`connector.auth.api-key`), set:
@@ -33,10 +46,10 @@ export CONNECTOR_ADMIN_API_KEY_HEADER="X-AIFABRIC-API-KEY"
 export CONNECTOR_ADMIN_API_KEY="<secret>"
 ```
 
-If you want to disable admin protection on the connector even when `/actions/execute` is protected:
+Optional: if you want connector demo reset endpoints to require the same API key as `/actions/execute`:
 
 ```bash
-export CONNECTOR_ADMIN_AUTH_ENABLED="false"
+export CONNECTOR_ADMIN_AUTH_ENABLED="true"
 ```
 
 ## 1) Health Checks
@@ -67,17 +80,9 @@ If this is `404`:
 
 Check the runtime’s vector index counts:
 
-Without admin auth:
-
-```bash
-curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/overview"
-```
-
-With admin auth:
-
 ```bash
 curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/overview" \
-  -H "${RUNTIME_ADMIN_API_KEY_HEADER}: ${RUNTIME_ADMIN_API_KEY}"
+  "${RUNTIME_ADMIN_CURL_HEADER[@]}"
 ```
 
 Expected: JSON with `countsByEntityType` and `totalVectors`.
@@ -106,34 +111,17 @@ curl -sS -X POST "${CONNECTOR_BASE_URL}/api/products" \
 
 2) Wait briefly, then re-check runtime counts:
 
-Without admin auth:
-
-```bash
-sleep 1
-curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/overview"
-```
-
-With admin auth:
-
 ```bash
 sleep 1
 curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/overview" \
-  -H "${RUNTIME_ADMIN_API_KEY_HEADER}: ${RUNTIME_ADMIN_API_KEY}"
+  "${RUNTIME_ADMIN_CURL_HEADER[@]}"
 ```
 
 3) Inspect indexed vectors (paged):
 
-Without admin auth:
-
-```bash
-curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/vectors?entityType=product&offset=0&limit=50"
-```
-
-With admin auth:
-
 ```bash
 curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/vectors?entityType=product&offset=0&limit=50" \
-  -H "${RUNTIME_ADMIN_API_KEY_HEADER}: ${RUNTIME_ADMIN_API_KEY}"
+  "${RUNTIME_ADMIN_CURL_HEADER[@]}"
 ```
 
 Expected: a vector with `entityId: "SKU_VERIFY_1"`.
@@ -165,63 +153,45 @@ curl -sS -X POST "${CONNECTOR_BASE_URL}/api/reviews" \
 
 Then verify `review` count increments:
 
-Without admin auth:
-
-```bash
-sleep 1
-curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/overview"
-```
-
-With admin auth:
-
 ```bash
 sleep 1
 curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/overview" \
-  -H "${RUNTIME_ADMIN_API_KEY_HEADER}: ${RUNTIME_ADMIN_API_KEY}"
+  "${RUNTIME_ADMIN_CURL_HEADER[@]}"
 ```
 
 And inspect review vectors:
 
-Without admin auth:
-
-```bash
-curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/vectors?entityType=review&offset=0&limit=50"
-```
-
-With admin auth:
-
 ```bash
 curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/vectors?entityType=review&offset=0&limit=50" \
-  -H "${RUNTIME_ADMIN_API_KEY_HEADER}: ${RUNTIME_ADMIN_API_KEY}"
+  "${RUNTIME_ADMIN_CURL_HEADER[@]}"
 ```
 
 ## 6) Reset / Clear (For Repeatable Testing)
 
 ### 6.1 Clear runtime vectors (runtime endpoint)
 
-Without admin auth:
-
-```bash
-curl -sS -X POST "${RUNTIME_BASE_URL}/api/admin/migration/clear?confirm=true"
-```
-
-With admin auth:
-
 ```bash
 curl -sS -X POST "${RUNTIME_BASE_URL}/api/admin/migration/clear?confirm=true" \
-  -H "${RUNTIME_ADMIN_API_KEY_HEADER}: ${RUNTIME_ADMIN_API_KEY}"
+  "${RUNTIME_ADMIN_CURL_HEADER[@]}"
 ```
 
 ### 6.2 Reset connector demo (connector endpoint, clears connector DB and can clear runtime vectors)
 
-This endpoint is protected when:
+This endpoint is protected only when:
 
 - `connector.auth.api-key` is set, and
-- `connector.admin.auth.enabled=true` (default)
+- `connector.admin.auth.enabled=true`
 
-To disable protection for demo resets only, set:
+To enable protection for demo resets, set:
 
-- `CONNECTOR_ADMIN_AUTH_ENABLED=false`
+- `CONNECTOR_ADMIN_AUTH_ENABLED=true`
+
+If you keep it public (default), you can omit the connector API key header.
+
+To allow the connector reset endpoint to clear runtime vectors too, set these on the **connector** service:
+
+- `CONNECTOR_RUNTIME_ADMIN_API_KEY=<same as APP_ADMIN_API_KEY>`
+- Optional: `CONNECTOR_RUNTIME_ADMIN_API_KEY_HEADER=X-ADMIN-API-KEY`
 
 ```bash
 curl -sS -X POST "${CONNECTOR_BASE_URL}/api/admin/demo/reset" \
@@ -241,10 +211,16 @@ curl -sS -X POST "${CONNECTOR_BASE_URL}/api/admin/migration/clear" \
 
 ## 7) Action Wiring (Runtime → Connector) Quick Verification
 
-There is no single “list actions” API by default. Two practical checks:
+Two practical checks:
 
-1) **Runtime logs**: the intent-extraction prompt includes an `ALLOWED ACTIONS` list.
-   - If you only see `remove_vector` / `clear_vector_index`, your `ai-actions.yml` did not load.
+1) **Runtime action catalog endpoint** (admin):
+
+```bash
+curl -sS "${RUNTIME_BASE_URL}/api/admin/actions/overview" \
+  "${RUNTIME_ADMIN_CURL_HEADER[@]}"
+```
+
+Expected: `count > 0` and includes connector demo actions like `add_to_cart`, `list_products`, etc.
 
 2) **Connector reachability**:
    - Ensure `ACTIONS_CONNECTOR_BASE_URL` is absolute and includes scheme.

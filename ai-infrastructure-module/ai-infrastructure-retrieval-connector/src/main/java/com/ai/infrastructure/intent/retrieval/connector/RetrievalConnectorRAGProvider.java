@@ -221,7 +221,7 @@ public class RetrievalConnectorRAGProvider implements RAGProvider {
             .requestId(request.getRequestId())
             .originalQuery(query)
             .entityType(vectorSpace.trim())
-            .timestamp(LocalDateTime.now())
+            .timestamp(LocalDateTime.now(clock))
             .metadata(Collections.unmodifiableMap(meta));
 
         if (!connectorResult.success()) {
@@ -604,7 +604,7 @@ public class RetrievalConnectorRAGProvider implements RAGProvider {
             .usedDocuments(0)
             .relevanceScores(List.of())
             .processingTimeMs(processingTimeMs)
-            .timestamp(LocalDateTime.now())
+            .timestamp(LocalDateTime.now(clock))
             .metadata(Collections.unmodifiableMap(meta))
             .errorMessage(StringUtils.hasText(message) ? message : "Retrieval failed.")
             .build();

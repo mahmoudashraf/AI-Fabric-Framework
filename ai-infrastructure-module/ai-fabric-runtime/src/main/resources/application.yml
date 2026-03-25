@@ -17,6 +17,13 @@ spring:
 
 ai:
   enabled: true
+
+  # Dev/test default: allow-all policy hooks so the runtime works out-of-the-box.
+  # Production: set AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED=false and provide a real EntityAccessPolicy bean.
+  fabric:
+    runtime:
+      dev-defaults:
+        enabled: ${AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED:true}
   config:
     default-file: ai-entity-config.yml
 
