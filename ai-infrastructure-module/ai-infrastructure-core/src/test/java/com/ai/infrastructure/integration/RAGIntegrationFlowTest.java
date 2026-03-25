@@ -145,7 +145,8 @@ class RAGIntegrationFlowTest {
                     .type(IntentType.INFORMATION)
                     .intent("show_refund_policy")
                     .confidence(0.9)
-                    .vectorSpace("policies")
+                    // Vector spaces are validated against configured entity types; use a valid test space.
+                    .vectorSpace("document")
                     .requiresGeneration(true)
                     .build()))
                 .build());
@@ -183,7 +184,8 @@ class RAGIntegrationFlowTest {
                         .type(IntentType.INFORMATION)
                         .intent("show_special_offers")
                         .confidence(0.85)
-                        .vectorSpace("offers")
+                        // Vector spaces are validated against configured entity types; use a valid test space.
+                        .vectorSpace("document")
                         .build()))
                 .build());
 

@@ -64,6 +64,7 @@ class IntentHandlingStepEmbeddingQueryExpansionTest {
             providerOf(new ObjectMapper()),
             orchestrationProperties,
             providerOf((KnowledgeBaseOverviewService) null),
+            null,
             new InMemoryPendingActionStore(),
             new InMemoryActionDraftStore(),
             promptTemplateResolver(),

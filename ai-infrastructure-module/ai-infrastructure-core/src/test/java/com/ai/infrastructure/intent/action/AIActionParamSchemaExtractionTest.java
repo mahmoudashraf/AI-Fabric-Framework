@@ -48,7 +48,8 @@ class AIActionParamSchemaExtractionTest {
         AIActionRegistry registry = new AIActionRegistry(
             ctx,
             ctx.getBeanProvider(ConversionService.class),
-            ctx.getBeanProvider(com.fasterxml.jackson.databind.ObjectMapper.class)
+            ctx.getBeanProvider(com.fasterxml.jackson.databind.ObjectMapper.class),
+            ctx.getBeanProvider(AIActionRegistryContributor.class)
         );
         registry.initialize();
 

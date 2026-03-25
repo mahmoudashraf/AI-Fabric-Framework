@@ -1,0 +1,102 @@
+server:
+  port: ${PORT:8097}
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: ai-fabric-runtime
+  datasource:
+    url: jdbc:h2:file:./data/ai-fabric-runtime.db
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+ai:
+  enabled: true
+
+  # Dev/test default: allow-all policy hooks so the runtime works out-of-the-box.
+  # Production: set AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED=false and provide a real EntityAccessPolicy bean.
+  fabric:
+    runtime:
+      dev-defaults:
+        enabled: ${AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED:true}
+  config:
+    default-file: ai-entity-config.yml
+
+  chat:
+    enabled: true
+    window-size: 12
+    max-context-chars: 8000
+    auto-create-sessions: true
+
+  # Default OFF for privacy/noise in dev. Enable if you want analytics/auditing.
+  intent-history:
+    enabled: false
+
+  providers:
+    llm-provider: openai
+    embedding-provider: openai
+    openai:
+      enabled: ${OPENAI_ENABLED:false}
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+      # Lucene supports up to 1024 dimensions.
+      embedding-dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:512}
+      timeout: 45
+
+  service:
+    features:
+      enable-generation: ${OPENAI_ENABLED:false}
+      enable-embeddings: ${OPENAI_ENABLED:false}
+      enable-search: true
+      enable-rag: true
+
+  vector-db:
+    type: lucene
+    lucene:
+      # Include embedding dimensions in the path to avoid mixing different vector sizes in one Lucene index.
+      index-path: ./data/lucene-vector-index-${OPENAI_EMBEDDING_DIMENSIONS:512}
+      vector-dimension: ${OPENAI_EMBEDDING_DIMENSIONS:512}
+
+  # Push ingestion into the managed vector DB (requires embeddings enabled + vector DB configured).
+  data-sync:
+    enabled: true
+
+  # External retrieval connector is opt-in (documents-only).
+  retrieval:
+    connector:
+      enabled: false
+
+  # Connector-backed actions are opt-in: mount an action contract file or override AI_ACTIONS_CATALOG_PATH.
+  actions:
+    sources:
+      - path: ${AI_ACTIONS_CATALOG_PATH:file:/config/ai-actions.yml}
+        optional: true
+    connector:
+      base-url: ${ACTIONS_CONNECTOR_BASE_URL:}
+      api-key:
+        value: ${ACTIONS_CONNECTOR_API_KEY:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.ai.fabric.runtime: INFO
+    com.ai.infrastructure: INFO
+
+app:
+  cors:
+    # Example: CORS_ALLOWED_ORIGINS=https://my-ui.example.com
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+    # Example: CORS_ALLOWED_ORIGIN_PATTERNS=https://*.my-ui.example.com
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:}

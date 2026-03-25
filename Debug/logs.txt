@@ -1,0 +1,241 @@
+{
+  "type": "INFORMATION_PROVIDED",
+  "success": true,
+  "message": "The authoritative context provided does not include any specific negative reviews for the Sony WH-1000XM5 headphones (product id=7). It only describes the product's features, such as its superior audio quality, Adaptive ANC, and specifications. \n\nTo assist you better, could you specify what aspects of the negative reviews you are interested in? For example, are you looking for common complaints about sound quality, comfort, battery life, or something else?",
+  "data": {
+    "answer": "The authoritative context provided does not include any specific negative reviews for the Sony WH-1000XM5 headphones (product id=7). It only describes the product's features, such as its superior audio quality, Adaptive ANC, and specifications. \n\nTo assist you better, could you specify what aspects of the negative reviews you are interested in? For example, are you looking for common complaints about sound quality, comfort, battery life, or something else?",
+    "documents": [],
+    "ragResponse": {
+      "documents": [],
+      "context": "",
+      "totalDocuments": 0,
+      "usedDocuments": 0,
+      "relevanceScores": [],
+      "success": true,
+      "hybridSearchUsed": null,
+      "contextualSearchUsed": null,
+      "searchedCategories": null,
+      "totalResults": null,
+      "returnedResults": null,
+      "maxScore": null,
+      "averageScore": null,
+      "processingTimeMs": 3181,
+      "requestId": null,
+      "originalQuery": "any negative reviews. ? ",
+      "entityType": "product",
+      "model": null,
+      "timestamp": null,
+      "metadata": {
+        "enableContextualSearch": true,
+        "maxDocuments": 5,
+        "processingTimeMs": 3181,
+        "enableHybridSearch": true,
+        "contextOptimizationLevel": "medium",
+        "rerankingStrategy": "hybrid",
+        "timestamp": 1774366182181,
+        "expansionLevel": 2
+      },
+      "fromCache": null,
+      "cacheHitRate": null,
+      "errorMessage": null,
+      "warnings": null,
+      "suggestions": null,
+      "relatedQueries": null,
+      "facets": null,
+      "aggregations": null,
+      "confidenceScore": 0,
+      "qualityThresholdMet": null,
+      "query": "any negative reviews. ? "
+    },
+    "requiresGeneration": true,
+    "expandedQueries": [
+      "negative reviews for product id=7 Sony WH-1000XM5 negative reviews",
+      "'criticism of product id=7 Sony WH-1000XM5 unfavorable feedback'",
+      "'poor ratings for item id=7 Sony WH-1000XM5 customer complaints'"
+    ],
+    "confidenceScore": 0,
+    "rerankingStrategy": "hybrid",
+    "contextOptimizationLevel": "medium",
+    "smartSuggestion": {
+      "intent": "retrieve_negative_reviews",
+      "title": "Retrieve Negative Reviews",
+      "query": "Fetch negative reviews for Sony WH-1000XM5",
+      "confidence": 0.88,
+      "priority": "PRIMARY",
+      "rationale": "To provide the user with the requested information about negative reviews.",
+      "response": "No relevant context found.",
+      "documents": [],
+      "metadata": {
+        "suggestionIntent": "retrieve_negative_reviews",
+        "vectorSpace": "product",
+        "embeddingQuery": "Fetch negative reviews for Sony WH-1000XM5",
+        "source": "smart-suggestion",
+        "sessionId": "demo-session-max",
+        "userId": "demo-user",
+        "optimizedQueryProvided": false,
+        "suggestionConfidence": 0.88
+      }
+    }
+  },
+  "nextSteps": [
+    {
+      "intent": "retrieve_negative_reviews",
+      "query": "Fetch negative reviews for Sony WH-1000XM5",
+      "rationale": "To provide the user with the requested information about negative reviews.",
+      "confidence": 0.88,
+      "vectorSpace": "product"
+    }
+  ],
+  "children": [],
+  "metadata": {
+    "orchestrationPolicy": {
+      "profile": "PRODUCTION_CHAT",
+      "mode": "navigator_deep",
+      "position": "cart",
+      "informationModeEffective": "DETERMINISTIC_RAG_GENERATE",
+      "modeSource": "REQUEST_MODE",
+      "actionsEnabled": false,
+      "retrievalEnabled": true,
+      "deepRetrievalEnabled": true,
+      "forceRetrievalWhenTargetsPresent": true,
+      "forceRetrievalConsiderStoredTargets": true,
+      "minimizeRagWhenPinnedTargetsCoverRequest": false,
+      "suggestionsEnabled": true,
+      "exposeReadProbeFallbackAttempt": false,
+      "actionsPreferred": false,
+      "knowledgeBaseOverviewEnabled": true,
+      "retrievalAllowlistRequired": false,
+      "vectorSpaceSelectionRequired": false,
+      "advancedRagOverride": true,
+      "advancedRagOverrideSource": "MODE",
+      "ragFanoutEnabled": true,
+      "ragMaxSpaces": 6,
+      "ragTopKPerSpace": 8,
+      "ragMaxDocumentsReturnedToClient": 30,
+      "ragMaxDocumentsUsedForContext": 8,
+      "ragMaxContextChars": 6000
+    },
+    "attachments": {
+      "providedCount": 1,
+      "acceptedCount": 1,
+      "truncated": false,
+      "vectorSpaceValidationMode": "BEST_EFFORT"
+    },
+    "chat": {
+      "conversationId": "chat-07f04ed1-48dc-4bd6-ba64-287cb88a87fc",
+      "historyMessagesCount": 16,
+      "historyChars": 5106,
+      "memoryStrategy": "SLIDING_WINDOW",
+      "windowSize": 12
+    },
+    "attachmentsPrompt": {
+      "injected": true,
+      "attachmentsCount": 1
+    },
+    "llmPrompting": {
+      "standard": "MULTI_MESSAGE",
+      "historyMessagesCount": 16,
+      "pinnedTargetsContextChars": 549,
+      "currentUserMessageChars": 574
+    },
+    "extractionDiagnostics": {
+      "extractionPath": "compound",
+      "extractionAttempts": 1,
+      "llmCalls": 1,
+      "attempts": [
+        {
+          "strategy": "compound",
+          "success": true,
+          "llmCalls": 1,
+          "errorCategory": "NONE"
+        }
+      ]
+    },
+    "targetResolution": {
+      "source": "REQUEST_ATTACHMENTS",
+      "count": 1
+    },
+    "requestId": "rag-b23ab0df-a1f4-4844-b16c-8da08124fcc3",
+    "sessionId": "demo-session-max",
+    "conversationId": "chat-07f04ed1-48dc-4bd6-ba64-287cb88a87fc",
+    "intentsCount": 1,
+    "authenticated": true,
+    "intentMetadata": {
+      "retrievalQueryHint": "Sony WH-1000XM5 negative reviews",
+      "requiresTargetResolution": false
+    }
+  },
+  "smartSuggestion": {
+    "intent": "retrieve_negative_reviews",
+    "title": "Retrieve Negative Reviews",
+    "query": "Fetch negative reviews for Sony WH-1000XM5",
+    "confidence": 0.88,
+    "priority": "PRIMARY",
+    "rationale": "To provide the user with the requested information about negative reviews.",
+    "response": "No relevant context found.",
+    "documents": [],
+    "metadata": {
+      "suggestionIntent": "retrieve_negative_reviews",
+      "vectorSpace": "product",
+      "embeddingQuery": "Fetch negative reviews for Sony WH-1000XM5",
+      "source": "smart-suggestion",
+      "sessionId": "demo-session-max",
+      "userId": "demo-user",
+      "optimizedQueryProvided": false,
+      "suggestionConfidence": 0.88
+    }
+  },
+  "sanitizedPayload": {
+    "type": "INFORMATION_PROVIDED",
+    "success": true,
+    "message": "The authoritative context provided does not include any specific negative reviews for the Sony WH-1000XM5 headphones (product id=7). It only describes the product's features, such as its superior audio quality, Adaptive ANC, and specifications. \n\nTo assist you better, could you specify what aspects of the negative reviews you are interested in? For example, are you looking for common complaints about sound quality, comfort, battery life, or something else?",
+    "data": {
+      "answer": "The authoritative context provided does not include any specific negative reviews for the Sony WH-1000XM5 headphones (product id=7). It only describes the product's features, such as its superior audio quality, Adaptive ANC, and specifications. \n\nTo assist you better, could you specify what aspects of the negative reviews you are interested in? For example, are you looking for common complaints about sound quality, comfort, battery life, or something else?",
+      "requiresGeneration": true,
+      "expandedQueries": [
+        "negative reviews for product id=7 Sony WH-1000XM5 negative reviews",
+        "'criticism of product id=7 Sony WH-1000XM5 unfavorable feedback'",
+        "'poor ratings for item id=7 Sony WH-1000XM5 customer complaints'"
+      ],
+      "confidenceScore": 0,
+      "rerankingStrategy": "hybrid",
+      "contextOptimizationLevel": "medium",
+      "smartSuggestion": {
+        "intent": "retrieve_negative_reviews",
+        "title": "Retrieve Negative Reviews",
+        "query": "Fetch negative reviews for Sony WH-1000XM5",
+        "confidence": 0.88,
+        "priority": "PRIMARY",
+        "rationale": "To provide the user with the requested information about negative reviews.",
+        "response": "No relevant context found."
+      }
+    },
+    "suggestions": [
+      {
+        "intent": "retrieve_negative_reviews",
+        "query": "Fetch negative reviews for Sony WH-1000XM5",
+        "rationale": "To provide the user with the requested information about negative reviews.",
+        "confidence": 0.88,
+        "sanitization": {
+          "detectedTypes": [],
+          "redacted": false,
+          "risk": "NONE"
+        }
+      }
+    ],
+    "smartSuggestion": {
+      "intent": "retrieve_negative_reviews",
+      "title": "Retrieve Negative Reviews",
+      "query": "Fetch negative reviews for Sony WH-1000XM5",
+      "confidence": 0.88,
+      "priority": "PRIMARY",
+      "rationale": "To provide the user with the requested information about negative reviews.",
+      "response": "No relevant context found."
+    },
+    "safeSummary": "The authoritative context provided does not include any specific negative reviews for the Sony WH-1000XM5 headphones (product id=7). It only describes the product's features, such as its superior audio quality, Adaptive ANC, and specifications. \n\nTo assist you better, could you specify what aspects of the negative reviews you are interested in? For example, are you looking for common complaints about sound quality, comfort, battery life, or something else?",
+    "sanitization": {
+      "risk": "NONE",
+      "detectedTypes": []
+    }
+  }
+}

@@ -1,0 +1,62 @@
+package com.ai.infrastructure.entity;
+
+import com.ai.infrastructure.intent.action.AIActionParamType;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.connector.ConnectorActionDefinition;
+import com.ai.infrastructure.intent.action.connector.ConnectorActionParamDefinition;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class RegisteredConnectorActionMappingTest {
+
+    @Test
+    void fromDefinition_toDefinition_roundTrips() {
+        ConnectorActionDefinition definition = new ConnectorActionDefinition(
+            "create_order",
+            "Create an order",
+            "commerce",
+            ActionAccessMode.WRITE_ONLY,
+            true,
+            "Create order for {{sku}}?",
+            List.of(
+                new ConnectorActionParamDefinition(
+                    "sku",
+                    "SKU",
+                    AIActionParamType.STRING,
+                    true,
+                    false,
+                    "^[A-Z0-9_-]{3,64}$",
+                    List.of(),
+                    null,
+                    null,
+                    false
+                ),
+                new ConnectorActionParamDefinition(
+                    "quantity",
+                    "Quantity",
+                    AIActionParamType.INTEGER,
+                    true,
+                    false,
+                    null,
+                    List.of(),
+                    1L,
+                    100L,
+                    false
+                )
+            )
+        );
+
+        RegisteredConnectorAction entity = RegisteredConnectorAction.fromDefinition(definition);
+        ConnectorActionDefinition roundTrip = entity.toDefinition();
+
+        assertThat(roundTrip.name()).isEqualTo(definition.name());
+        assertThat(roundTrip.accessMode()).isEqualTo(definition.accessMode());
+        assertThat(roundTrip.params()).hasSize(2);
+        assertThat(roundTrip.params().getFirst().name()).isEqualTo("sku");
+        assertThat(roundTrip.params().getLast().name()).isEqualTo("quantity");
+    }
+}
+

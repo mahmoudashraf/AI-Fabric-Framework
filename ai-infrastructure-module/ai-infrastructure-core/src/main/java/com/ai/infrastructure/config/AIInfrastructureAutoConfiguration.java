@@ -100,6 +100,7 @@ import jakarta.persistence.EntityManagerFactory;
     IntentHistoryProperties.class,
     SecurityProperties.class,
     AIHttpClientProperties.class
+    // Connector-backed actions are enabled via the optional ai-infrastructure-actions-connector module.
 })
 @ComponentScan(
     basePackages = "com.ai.infrastructure",

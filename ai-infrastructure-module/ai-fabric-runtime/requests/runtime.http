@@ -1,0 +1,57 @@
+### AI Fabric Runtime (Option D2) — local smoke requests
+@baseUrl = http://localhost:8097
+@userId = user-1
+@sessionId = user-1-session
+@conversationId = chat-user-1
+
+### Health
+GET {{baseUrl}}/actuator/health
+
+### Swagger UI (open in browser)
+# {{baseUrl}}/swagger-ui/index.html
+
+### Chat: query (no OpenAI => expect an orchestration error result)
+POST {{baseUrl}}/api/chat/query
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "sessionId": "{{sessionId}}",
+  "conversationId": "{{conversationId}}",
+  "query": "What can you do?"
+}
+
+### Chat: suggestions (no OpenAI => fallback suggestions)
+POST {{baseUrl}}/api/chat/suggestions
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "content": "I want to search my docs",
+  "maxSuggestions": 5
+}
+
+### Conversations (requires ai.chat.enabled=true)
+GET {{baseUrl}}/api/chat/conversations?ownerId={{userId}}
+
+### Conversation detail
+GET {{baseUrl}}/api/chat/conversations/{{conversationId}}?ownerId={{userId}}
+
+### Delete conversation
+DELETE {{baseUrl}}/api/chat/conversations/{{conversationId}}?ownerId={{userId}}
+
+### Data Sync: list vector spaces (requires embeddings enabled + data sync enabled)
+GET {{baseUrl}}/api/ai/data-sync/vector-spaces
+
+### Data Sync: upsert a document into vector space "document"
+POST {{baseUrl}}/api/ai/data-sync/upsert
+Content-Type: application/json
+
+{
+  "vectorSpace": "document",
+  "id": "doc-1",
+  "content": "Return policy: returns accepted within 30 days with receipt.",
+  "metadata": { "source": "runtime.http" },
+  "trace": { "requestId": "req-1", "userId": "{{userId}}", "sessionId": "{{sessionId}}" }
+}
+

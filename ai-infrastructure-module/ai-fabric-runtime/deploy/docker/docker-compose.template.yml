@@ -1,0 +1,37 @@
+services:
+  ai-fabric-runtime:
+    # For local builds, this can build the image from repo source.
+    # If you're using a prebuilt image, remove the build section and set `image` to your published tag.
+    build:
+      context: ../../../..
+      dockerfile: ai-infrastructure-module/ai-fabric-runtime/Dockerfile
+    image: ai-fabric-runtime:local
+    container_name: ai-fabric-runtime-CUSTOMER_NAME
+    restart: unless-stopped
+    ports:
+      - "8097:8097"
+    environment:
+      PORT: 8097
+
+      # LLM/embeddings provider (OpenAI is opt-in)
+      OPENAI_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      OPENAI_BASE_URL: "https://api.openai.com/v1"
+      OPENAI_MODEL: "gpt-4o-mini"
+      OPENAI_EMBEDDING_MODEL: "text-embedding-3-small"
+      OPENAI_EMBEDDING_DIMENSIONS: "512"
+
+      # CORS (for hosted UIs)
+      CORS_ALLOWED_ORIGINS: ""
+      CORS_ALLOWED_ORIGIN_PATTERNS: ""
+
+      # Optional: connector-backed actions (Relay base URL)
+      ACTIONS_CONNECTOR_BASE_URL: ""
+      ACTIONS_CONNECTOR_API_KEY: ""
+
+    volumes:
+      # Per-customer config + persistence
+      - ./config:/config:ro
+      - ./data:/data
+    command:
+      - "--spring.config.additional-location=file:/config/"

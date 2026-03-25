@@ -1,0 +1,20 @@
+connector:
+  inbound-auth:
+    # Dev default only. For production: set allow-unauthenticated=false and enable api-key.
+    allow-unauthenticated: true
+
+  http:
+    connect-timeout-ms: 2000
+    timeout-ms: 8000
+    retry:
+      enabled: false
+      max-attempts: 1
+      backoff-ms: 200
+
+  idempotency:
+    enabled: true
+    ttl-seconds: 300
+    in-progress-max-wait-ms: 2000
+
+actions: {}
+

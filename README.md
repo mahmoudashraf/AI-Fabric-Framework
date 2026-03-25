@@ -3,9 +3,17 @@
 > **Everything you need to build intelligent applications. Nothing you don't.** Production-ready AI capabilities for Spring Boot — from semantic search to behavioral analytics, from natural language queries to compliance checking. One framework. Infinite possibilities.
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://openjdk.java.net/)
+[![Java](https://img.shields.io/badge/Java-21+-orange.svg)](https://openjdk.java.net/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Modules](https://img.shields.io/badge/Modules-6%20core%20%2B%2010%20providers-purple.svg)](#-the-complete-ecosystem)
+
+---
+
+## v0 Quickstart (Golden Path)
+
+- Run the reference demo app (chat + RAG + actions): `docs/V0_QUICKSTART.md`
+- Demo source: `Real_Apps/chat-capabilities-demo`
+- v0 supported baseline: OpenAI + Lucene (embedded)
 
 ---
 
