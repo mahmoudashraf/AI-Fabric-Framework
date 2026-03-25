@@ -3,6 +3,7 @@
 @userId = user-1
 @sessionId = user-1-session
 @conversationId = chat-user-1
+@adminApiKey =
 
 ### Health
 GET {{baseUrl}}/actuator/health
@@ -39,6 +40,28 @@ GET {{baseUrl}}/api/chat/conversations/{{conversationId}}?ownerId={{userId}}
 
 ### Delete conversation
 DELETE {{baseUrl}}/api/chat/conversations/{{conversationId}}?ownerId={{userId}}
+
+### ─── Admin: Verify Action Catalog ───
+
+### Actions overview (confirm the action catalog actually loaded)
+GET {{baseUrl}}/api/admin/actions/overview
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### ─── Admin: Verify Indexing ───
+
+### Indexing overview (entity types, vector counts, DB type)
+GET {{baseUrl}}/api/admin/indexing/overview
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### Indexing vectors — browse indexed vectors for an entity type
+GET {{baseUrl}}/api/admin/indexing/vectors?entityType=document&offset=0&limit=10
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### Indexing vectors — with all options
+GET {{baseUrl}}/api/admin/indexing/vectors?entityType=document&offset=0&limit=20&includeContent=true&includeEmbedding=false&includeMetadata=true
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### ─── Data Sync ───
 
 ### Data Sync: list vector spaces (requires embeddings enabled + data sync enabled)
 GET {{baseUrl}}/api/ai/data-sync/vector-spaces
