@@ -44,11 +44,22 @@ public class ProductController {
         return productService.get(id);
     }
 
+    @GetMapping("/by-sku")
+    public ResponseEntity<Product> getBySku(@RequestParam("sku") String sku) {
+        return productService.findBySku(sku)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/search")
     public List<Product> search(@RequestParam("q") String query,
                                 @RequestParam(value = "limit", defaultValue = "10") int limit,
                                 @RequestParam(value = "threshold", defaultValue = "0.3") double threshold) {
-        return productService.search(query, limit, threshold);
+        List<Product> matched = productService.search(query, limit, threshold);
+        if (matched == null || matched.isEmpty()) {
+            return productService.trending(limit);
+        }
+        return matched;
     }
 
     @GetMapping("/trending")

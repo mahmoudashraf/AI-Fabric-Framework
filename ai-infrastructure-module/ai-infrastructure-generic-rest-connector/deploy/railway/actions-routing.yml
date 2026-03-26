@@ -112,3 +112,182 @@ actions:
     response:
       success-http-status: [200]
       message: "Coupon applied."
+
+  get_product_details:
+    method: GET
+    path: /api/products/by-sku
+    request:
+      query:
+        sku: "{{params.sku}}"
+    response:
+      success-http-status: [200]
+      message: "Product details"
+
+  checkout_cart:
+    method: POST
+    path: /api/carts/active/checkout
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        shippingAddress: "{{params.shippingAddress}}"
+        email: "{{params.email}}"
+        paymentMethod: "{{params.paymentMethod|CARD}}"
+    response:
+      success-http-status: [201]
+      message: "Order created."
+
+  create_purchase_order:
+    method: POST
+    path: /api/orders
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        sku: "{{params.sku}}"
+        quantity: "{{params.quantity|1}}"
+        shippingAddress: "{{params.shippingAddress}}"
+        email: "{{params.email}}"
+    response:
+      success-http-status: [201]
+      message: "Purchase order created."
+
+  cancel_purchase_order:
+    method: POST
+    path: /api/orders/cancel
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        orderNumber: "{{params.orderNumber}}"
+        orderId: "{{params.orderId}}"
+    response:
+      success-http-status: [200]
+      message: "Order cancelled."
+
+  list_orders:
+    method: GET
+    path: /api/orders
+    request:
+      query:
+        userId: "{{trace.userId}}"
+        limit: "{{params.limit|50}}"
+    response:
+      success-http-status: [200]
+      message: "Orders"
+
+  get_active_orders:
+    method: GET
+    path: /api/orders/active
+    request:
+      query:
+        userId: "{{trace.userId}}"
+        limit: "{{params.limit|25}}"
+    response:
+      success-http-status: [200]
+      message: "Active orders"
+
+  get_order_details:
+    method: GET
+    path: /api/orders/resolve
+    request:
+      query:
+        userId: "{{trace.userId}}"
+        orderNumberOrId: "{{params.orderNumberOrId}}"
+    response:
+      success-http-status: [200]
+      message: "Order details"
+
+  change_delivery_address:
+    method: POST
+    path: /api/orders/delivery-address
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        shippingAddress: "{{params.shippingAddress}}"
+        orderNumber: "{{params.orderNumber}}"
+        orderId: "{{params.orderId}}"
+    response:
+      success-http-status: [200]
+      message: "Delivery address updated."
+
+  offer_order_discount:
+    method: POST
+    path: /api/orders/discount-offer
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        orderNumber: "{{params.orderNumber}}"
+        orderId: "{{params.orderId}}"
+        discountPercent: "{{params.discountPercent|10}}"
+    response:
+      success-http-status: [200]
+      message: "Discount offer applied."
+
+  list_my_addresses:
+    method: GET
+    path: /api/addresses
+    request:
+      query:
+        userId: "{{trace.userId}}"
+        limit: "{{params.limit|50}}"
+    response:
+      success-http-status: [200]
+      message: "Addresses"
+
+  get_my_account:
+    method: GET
+    path: /api/accounts/by-user
+    request:
+      query:
+        userId: "{{trace.userId}}"
+    response:
+      success-http-status: [200]
+      message: "Account"
+
+  create_support_ticket:
+    method: POST
+    path: /api/tickets
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        issueType: "{{params.issueType}}"
+        description: "{{params.description}}"
+        orderNumber: "{{params.orderNumber}}"
+    response:
+      success-http-status: [201]
+      message: "Support ticket created."
+
+  add_review:
+    method: POST
+    path: /api/reviews
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        productId: "{{params.productId}}"
+        sku: "{{params.sku}}"
+        rating: "{{params.rating}}"
+        text: "{{params.text}}"
+    response:
+      success-http-status: [201]
+      message: "Review submitted."
+
+  track_shipment:
+    method: GET
+    path: /api/shipments/track
+    request:
+      query:
+        userId: "{{trace.userId}}"
+        orderNumber: "{{params.orderNumber}}"
+    response:
+      success-http-status: [200]
+      message: "Shipment"
+
+  create_return_request:
+    method: POST
+    path: /api/returns
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        orderNumber: "{{params.orderNumber}}"
+        reason: "{{params.reason}}"
+    response:
+      success-http-status: [201]
+      message: "Return request created."
