@@ -1,0 +1,28 @@
+connector:
+  inbound-auth:
+    # Local-only convenience.
+    allow-unauthenticated: true
+
+  # Self-contained upstream for Phase 0 verification: call this service's own actuator.
+  upstream:
+    base-url: "http://localhost:${PORT:8082}"
+
+  http:
+    connect-timeout-ms: 2000
+    timeout-ms: 8000
+    retry:
+      enabled: false
+      max-attempts: 1
+      backoff-ms: 200
+
+  idempotency:
+    enabled: true
+    ttl-seconds: 300
+    in-progress-max-wait-ms: 2000
+
+actions:
+  ping:
+    method: GET
+    path: /actuator/health
+    response:
+      message: "pong"

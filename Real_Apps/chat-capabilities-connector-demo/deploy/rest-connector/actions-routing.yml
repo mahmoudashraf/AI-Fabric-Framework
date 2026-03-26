@@ -1,0 +1,62 @@
+#
+# Generic REST Connector routing config for the Chat Capabilities Connector Demo.
+#
+# Topology:
+#   AI Fabric Runtime -> Generic REST Connector (/actions/execute) -> Connector Demo domain APIs (/api/*)
+#
+# This file is intended for local Docker Compose and as a starting point for Railway deployments.
+#
+
+connector:
+  inbound-auth:
+    # Dev default. For Railway/prod: set to false and enable api-key.
+    allow-unauthenticated: ${CONNECTOR_ALLOW_UNAUTHENTICATED:true}
+    api-key:
+      enabled: ${CONNECTOR_API_KEY_ENABLED:false}
+      header: ${CONNECTOR_API_KEY_HEADER:X-AIFABRIC-API-KEY}
+      value: ${CONNECTOR_API_KEY:}
+
+  upstream:
+    # In Docker Compose, the Connector Demo service hostname is "connector".
+    # For Railway, set: UPSTREAM_BASE_URL=https://<your-connector-demo>.up.railway.app
+    base-url: ${UPSTREAM_BASE_URL:http://connector:8096}
+    auth:
+      type: ${UPSTREAM_AUTH_TYPE:NONE} # NONE | API_KEY
+      header: ${UPSTREAM_AUTH_HEADER:Authorization}
+      value: ${UPSTREAM_AUTH_VALUE:}
+
+  http:
+    connect-timeout-ms: ${CONNECTOR_CONNECT_TIMEOUT_MS:2000}
+    timeout-ms: ${CONNECTOR_TIMEOUT_MS:8000}
+    retry:
+      enabled: ${CONNECTOR_RETRY_ENABLED:false}
+      max-attempts: ${CONNECTOR_RETRY_MAX_ATTEMPTS:2}
+      backoff-ms: ${CONNECTOR_RETRY_BACKOFF_MS:200}
+      retry-on: [429, 502, 503, 504]
+
+  idempotency:
+    enabled: ${CONNECTOR_IDEMPOTENCY_ENABLED:true}
+    ttl-seconds: ${CONNECTOR_IDEMPOTENCY_TTL_SECONDS:300}
+    in-progress-max-wait-ms: ${CONNECTOR_IDEMPOTENCY_IN_PROGRESS_MAX_WAIT_MS:2000}
+
+actions:
+  # Runtime "add_to_cart" action -> Connector Demo domain endpoint.
+  #
+  # Notes:
+  # - The runtime action contract (ai-actions.yml) uses params.items[].
+  # - The demo domain API adds a single item per request, so we take items[0].
+  # - If you want true multi-item adds, either:
+  #   1) change the action contract to use {sku, quantity}, or
+  #   2) add a batch add endpoint upstream.
+  add_to_cart:
+    method: POST
+    path: /api/carts/active/items
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        sku: "{{params.items[0].sku}}"
+        quantity: "{{params.items[0].quantity}}"
+    response:
+      success-http-status: [200]
+      message: "Added item to cart."
+

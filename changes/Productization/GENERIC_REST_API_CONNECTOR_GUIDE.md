@@ -195,15 +195,17 @@ AI Fabric Runtime retry behavior is derived from `errorCode` + idempotency safet
 ### 6.1 Runnable module
 
 - Service module: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
-- Default port: `8082`
+- Default port: `8082` (supports `PORT` override via `server.port=${PORT:8082}`)
 
 ### 6.2 Docker image
 
 Build:
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/Dockerfile`
+- Railway-friendly Dockerfile (bakes a template routing config):
+  - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile`
+  - Guide: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
 
 Run pattern:
 - mount `actions-routing.yml` to `/config/actions-routing.yml`
 - set `REST_CONNECTOR_ROUTING_CONFIG_LOCATION=file:/config/actions-routing.yml`
 - set secrets via env (`CONNECTOR_API_KEY`, `UPSTREAM_API_KEY`, etc)
-
