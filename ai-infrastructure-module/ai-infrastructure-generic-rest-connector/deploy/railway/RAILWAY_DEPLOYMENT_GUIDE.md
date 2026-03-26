@@ -24,6 +24,11 @@ The service listens on `server.port=${PORT:8082}` so Railway can inject `PORT`.
 Use:
 - `GET /actuator/health`
 
+Optional admin verification endpoints (requires inbound API key when enabled):
+- `GET /api/admin/overview`
+- `GET /api/admin/actions/overview`
+- `GET /api/admin/actions/{actionId}`
+
 ## 4) Minimum environment variables (recommended)
 
 Inbound auth (recommended):
@@ -63,4 +68,3 @@ In AI Fabric Runtime env vars:
 
 Common failure mode:
 - `URI is not absolute` means the base URL is missing `https://`.
-

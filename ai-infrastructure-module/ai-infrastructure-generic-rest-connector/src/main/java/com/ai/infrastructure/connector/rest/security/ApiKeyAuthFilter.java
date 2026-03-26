@@ -37,7 +37,8 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         if (!StringUtils.hasText(path)) {
             return true;
         }
-        return !path.startsWith("/actions/execute");
+        // Protect both action execution and admin verification endpoints.
+        return !(path.startsWith("/actions/execute") || path.startsWith("/api/admin"));
     }
 
     @Override
@@ -65,12 +66,28 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         }
 
         String actual = request.getHeader(header.trim());
-        if (!StringUtils.hasText(actual) || !expected.trim().equals(actual.trim())) {
+        if (!StringUtils.hasText(actual) || !constantTimeEquals(expected.trim(), actual.trim())) {
             reject(response, "Unauthorized.");
             return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean constantTimeEquals(String expected, String actual) {
+        if (!StringUtils.hasText(expected) || !StringUtils.hasText(actual)) {
+            return false;
+        }
+        byte[] a = expected.getBytes(StandardCharsets.UTF_8);
+        byte[] b = actual.getBytes(StandardCharsets.UTF_8);
+        if (a.length != b.length) {
+            return false;
+        }
+        int result = 0;
+        for (int i = 0; i < a.length; i++) {
+            result |= a[i] ^ b[i];
+        }
+        return result == 0;
     }
 
     private void reject(HttpServletResponse response, String message) throws IOException {
@@ -85,4 +102,3 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         response.getWriter().flush();
     }
 }
-

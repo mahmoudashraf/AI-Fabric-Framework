@@ -197,6 +197,21 @@ AI Fabric Runtime retry behavior is derived from `errorCode` + idempotency safet
 - Service module: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 - Default port: `8082` (supports `PORT` override via `server.port=${PORT:8082}`)
 
+### 6.3 Verification endpoints (debug)
+
+These endpoints help confirm which routes are loaded at runtime (useful for "ACTION_NOT_SUPPORTED" debugging):
+
+- Health:
+  - `GET /actuator/health`
+- Routes overview (admin):
+  - `GET /api/admin/overview`
+  - `GET /api/admin/actions/overview`
+  - `GET /api/admin/actions/{actionId}`
+
+Security:
+- When `connector.inbound-auth.allow-unauthenticated=false`, the admin endpoints are protected by the same inbound API key as `/actions/execute`.
+- Send your inbound auth header (default `X-AIFABRIC-API-KEY`) when calling them.
+
 ### 6.2 Docker image
 
 Build:
