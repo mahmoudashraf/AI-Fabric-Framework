@@ -15,13 +15,16 @@ import java.util.regex.Pattern;
 /**
  * Minimal, strict templating engine for routing config:
  * - Supports placeholders: {@code {{params.*}}}, {@code {{trace.*}}}, {@code {{body.*}}}, {@code {{status}}}.
+ * - Supports a simple default value fallback with {@code |}: {@code {{params.items[0].quantity|1}}}.
  * - If the entire string is a single placeholder, the resolved value is returned as-is (type preserved).
  * - Otherwise placeholders are string-substituted.
  */
 @Service
 public class TemplateEngine {
 
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_\\.\\[\\]-]+)\\s*}}");
+    private static final Pattern PLACEHOLDER = Pattern.compile(
+        "\\{\\{\\s*([a-zA-Z0-9_\\.\\[\\]-]+(?:\\|[a-zA-Z0-9_\\.\\[\\]-]+)?)\\s*}}"
+    );
 
     public Map<String, Object> contextFor(ActionExecuteRequestDto request, ResolvedUpstream upstream) {
         Map<String, Object> ctx = new LinkedHashMap<>();
@@ -127,16 +130,68 @@ public class TemplateEngine {
         }
         String e = expr.trim();
 
+        // Fallback: {{path|default}} where default is a simple token (e.g. 1, true, demo-user).
+        String defaultRaw = null;
+        int pipe = e.indexOf('|');
+        if (pipe >= 0) {
+            defaultRaw = e.substring(pipe + 1).trim();
+            e = e.substring(0, pipe).trim();
+        }
+
         // Root access shortcut (e.g. {{status}})
         if (!e.contains(".")) {
-            return context != null ? context.get(e) : null;
+            Object value = context != null ? context.get(e) : null;
+            if (value == null || (value instanceof String s && !StringUtils.hasText(s))) {
+                return defaultRaw != null ? parseDefaultLiteral(defaultRaw) : value;
+            }
+            return value;
         }
 
         String[] parts = e.split("\\.", 2);
         String root = parts[0].trim();
         String path = parts[1].trim();
         Object rootObj = context != null ? context.get(root) : null;
-        return readPath(rootObj, path);
+        Object value = readPath(rootObj, path);
+        if (value == null || (value instanceof String s && !StringUtils.hasText(s))) {
+            return defaultRaw != null ? parseDefaultLiteral(defaultRaw) : value;
+        }
+        return value;
+    }
+
+    private Object parseDefaultLiteral(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "";
+        }
+        String r = raw.trim();
+        if ("null".equalsIgnoreCase(r)) {
+            return null;
+        }
+        if ("true".equalsIgnoreCase(r) || "false".equalsIgnoreCase(r)) {
+            return Boolean.parseBoolean(r);
+        }
+        if (r.matches("^-?[0-9]+$")) {
+            try {
+                return Integer.parseInt(r);
+            } catch (NumberFormatException ignored) {
+                try {
+                    return Long.parseLong(r);
+                } catch (NumberFormatException ignoredAgain) {
+                    return r;
+                }
+            }
+        }
+        if (r.matches("^-?[0-9]+\\.[0-9]+$")) {
+            try {
+                return Double.parseDouble(r);
+            } catch (NumberFormatException ignored) {
+                return r;
+            }
+        }
+        if ((r.startsWith("\"") && r.endsWith("\"") && r.length() >= 2)
+            || (r.startsWith("'") && r.endsWith("'") && r.length() >= 2)) {
+            return r.substring(1, r.length() - 1);
+        }
+        return r;
     }
 
     @SuppressWarnings("unchecked")
