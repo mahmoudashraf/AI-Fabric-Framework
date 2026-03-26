@@ -93,6 +93,13 @@ curl -sS "${RUNTIME_BASE_URL}/api/admin/indexing/overview" \
 
 Expected: JSON with `countsByEntityType` and `totalVectors`.
 
+If you enabled the Generic REST Connector runtime proxy (`REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`), you can also call this via the connector:
+
+```bash
+curl -sS "${CONNECTOR_BASE_URL}/api/admin/indexing/overview" \
+  -H "${CONNECTOR_ADMIN_API_KEY_HEADER}: ${CONNECTOR_ADMIN_API_KEY}"
+```
+
 ## 4) Connector → Runtime Indexing (Product)
 
 This verifies the event-based indexing flow: connector writes a product, then the runtime gets an upsert.

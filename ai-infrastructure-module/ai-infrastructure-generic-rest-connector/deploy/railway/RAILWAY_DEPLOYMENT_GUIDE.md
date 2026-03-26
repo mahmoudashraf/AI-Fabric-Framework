@@ -55,6 +55,10 @@ Optional auth header forwarded to runtime (only if runtime is protected by an ex
 - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<secret>`
 - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
 
+When enabled, the connector also exposes read-only runtime indexing inspection endpoints:
+- `GET /api/admin/indexing/overview`
+- `GET /api/admin/indexing/vectors?entityType=...`
+
 ## 5) Add your action routes
 
 Routes live in the routing config file referenced by:

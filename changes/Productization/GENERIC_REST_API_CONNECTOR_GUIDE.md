@@ -243,6 +243,10 @@ Exposed endpoints (when enabled):
 - `POST /api/ai/data-sync/delete`
 - `POST /api/ai/data-sync/batch`
 
+Also exposed (read-only admin inspection, when enabled):
+- `GET /api/admin/indexing/overview`
+- `GET /api/admin/indexing/vectors?entityType=...&offset=...&limit=...`
+
 Security:
 - These endpoints are protected by the same inbound API key filter as `/actions/execute` (unless you explicitly set `connector.inbound-auth.allow-unauthenticated=true`).
 
