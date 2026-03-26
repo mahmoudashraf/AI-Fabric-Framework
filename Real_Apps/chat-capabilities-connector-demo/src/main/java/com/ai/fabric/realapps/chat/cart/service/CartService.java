@@ -95,6 +95,21 @@ public class CartService {
     }
 
     @Transactional
+    public Cart addItem(String userId, String sku, Long productId, int quantity) {
+        if (StringUtils.hasText(sku)) {
+            return addItem(userId, sku, quantity);
+        }
+        if (productId == null) {
+            throw new IllegalArgumentException("sku or productId is required");
+        }
+        Product product = productService.get(productId);
+        if (product == null || !StringUtils.hasText(product.getSku())) {
+            throw new EntityNotFoundException("Product not found: " + productId);
+        }
+        return addItem(userId, product.getSku(), quantity);
+    }
+
+    @Transactional
     public Cart removeItem(String userId, String sku) {
         Cart cart = getOrCreateActiveCart(userId);
         if (!StringUtils.hasText(sku)) {

@@ -41,7 +41,12 @@ public class CartController {
 
     @PostMapping("/active/items")
     public Cart addItem(@Valid @RequestBody AddCartItemRequest request) {
-        return cartService.addItem(request.getUserId(), request.getSku(), request.getQuantity());
+        return cartService.addItem(
+            request.getUserId(),
+            request.getSku(),
+            request.getProductId(),
+            request.getQuantity()
+        );
     }
 
     @DeleteMapping("/active/items")
@@ -69,10 +74,10 @@ public class CartController {
     public static class AddCartItemRequest {
         @NotBlank
         private String userId;
-        @NotBlank
         private String sku;
+        private Long productId;
         @Min(1)
-        private int quantity;
+        private int quantity = 1;
     }
 
     @Data
