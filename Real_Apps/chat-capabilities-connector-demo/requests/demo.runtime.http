@@ -4,6 +4,7 @@
 @userId = user-1
 @sessionId = user-1-session
 @conversationId = chat-user-1
+@adminApiKey =
 
 ### Health (Runtime)
 GET {{runtimeBaseUrl}}/actuator/health
@@ -11,6 +12,32 @@ GET {{runtimeBaseUrl}}/actuator/health
 ### Swagger UI (open in browser)
 # Runtime: {{runtimeBaseUrl}}/swagger-ui/index.html
 # Connector: {{connectorBaseUrl}}/swagger-ui/index.html
+
+### ─── Admin: Verify Action Catalog ───
+
+### Actions overview (confirm the action catalog actually loaded)
+GET {{runtimeBaseUrl}}/api/admin/actions/overview
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### ─── Admin: Verify Indexing ───
+
+### Indexing overview (entity types, vector counts, DB type)
+GET {{runtimeBaseUrl}}/api/admin/indexing/overview
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### Indexing vectors — browse "product" vectors
+GET {{runtimeBaseUrl}}/api/admin/indexing/vectors?entityType=product&offset=0&limit=10
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### Indexing vectors — browse "policy" vectors
+GET {{runtimeBaseUrl}}/api/admin/indexing/vectors?entityType=policy&offset=0&limit=10
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### Indexing vectors — browse "review" vectors
+GET {{runtimeBaseUrl}}/api/admin/indexing/vectors?entityType=review&offset=0&limit=10
+X-ADMIN-API-KEY: {{adminApiKey}}
+
+### ─── Data Sync ───
 
 ### Data Sync: list vector spaces
 GET {{runtimeBaseUrl}}/api/ai/data-sync/vector-spaces
