@@ -1,5 +1,6 @@
-### AI Fabric Runtime (Option D2) — local smoke requests
-@baseUrl = http://localhost:8097
+### AI Fabric Runtime — smoke requests
+# @baseUrl = http://localhost:8097
+@baseUrl = https://ai-fabric-framework-production-d912.up.railway.app
 @userId = user-1
 @sessionId = user-1-session
 @conversationId = chat-user-1

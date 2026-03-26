@@ -1,5 +1,6 @@
-### AI Fabric Runtime + Customer Connector — local demo requests
-@runtimeBaseUrl = http://localhost:8097
+### AI Fabric Runtime + Customer Connector — demo requests
+# @runtimeBaseUrl = http://localhost:8097
+@runtimeBaseUrl = https://ai-fabric-framework-production-d912.up.railway.app
 @connectorBaseUrl = http://localhost:8096
 @userId = user-1
 @sessionId = user-1-session
