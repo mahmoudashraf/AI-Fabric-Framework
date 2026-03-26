@@ -39,5 +39,76 @@ connector:
     ttl-seconds: ${CONNECTOR_IDEMPOTENCY_TTL_SECONDS:300}
     in-progress-max-wait-ms: ${CONNECTOR_IDEMPOTENCY_IN_PROGRESS_MAX_WAIT_MS:2000}
 
-actions: {}
+actions:
+  # Commerce demo routes (runtime actionIds -> connector-demo domain APIs).
+  #
+  # These assume your upstream is the connector demo service:
+  #   UPSTREAM_BASE_URL=https://<connector-demo>.up.railway.app
 
+  list_products:
+    method: GET
+    path: /api/products/search
+    request:
+      query:
+        q: "{{params.query}}"
+        limit: 10
+        threshold: 0.3
+    response:
+      success-http-status: [200]
+      message: "Products"
+
+  search_products:
+    method: GET
+    path: /api/products/search
+    request:
+      query:
+        q: "{{params.query}}"
+        limit: 10
+        threshold: 0.3
+    response:
+      success-http-status: [200]
+      message: "Products"
+
+  view_cart:
+    method: GET
+    path: /api/carts/active
+    request:
+      query:
+        userId: "{{trace.userId}}"
+    response:
+      success-http-status: [200]
+      message: "Cart"
+
+  add_to_cart:
+    method: POST
+    path: /api/carts/active/items
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        sku: "{{params.items[0].sku}}"
+        quantity: "{{params.items[0].quantity}}"
+    response:
+      success-http-status: [200]
+      message: "Added item to cart."
+
+  remove_from_cart:
+    method: DELETE
+    path: /api/carts/active/items
+    request:
+      query:
+        userId: "{{trace.userId}}"
+        sku: "{{params.sku}}"
+    response:
+      success-http-status: [200]
+      message: "Removed item from cart."
+
+  apply_coupon_to_cart:
+    method: POST
+    path: /api/carts/active/coupon
+    request:
+      body:
+        userId: "{{trace.userId}}"
+        code: "{{params.code}}"
+    response:
+      success-http-status: [200]
+      message: "Coupon applied."
