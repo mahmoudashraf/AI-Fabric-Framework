@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Fabric — Admin Verification</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-hover: #22262f;
+    --border: #2a2e3a;
+    --text: #e1e4eb;
+    --text-muted: #8b8fa3;
+    --accent: #6c8aff;
+    --accent-hover: #8da4ff;
+    --green: #34d399;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .header .api-key-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .header label {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .header input[type="password"] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: var(--mono);
+    width: 220px;
+  }
+  .header input::placeholder { color: var(--text-muted); opacity: 0.5; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    cursor: default;
+  }
+  .card-header h2 {
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-body { padding: 18px; }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+    background: var(--text-muted);
+  }
+  .status-dot.ok { background: var(--green); }
+  .status-dot.err { background: var(--red); }
+  .status-dot.loading { background: var(--yellow); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .stat-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .stat-box .value {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--mono);
+    color: var(--accent);
+  }
+  .stat-box .label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface-hover); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: var(--mono);
+  }
+  .badge-green { background: rgba(52,211,153,0.15); color: var(--green); }
+  .badge-yellow { background: rgba(251,191,36,0.15); color: var(--yellow); }
+  .badge-red { background: rgba(248,113,113,0.15); color: var(--red); }
+  .badge-blue { background: rgba(108,138,255,0.15); color: var(--accent); }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .error-box {
+    background: rgba(248,113,113,0.1);
+    border: 1px solid rgba(248,113,113,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--red);
+    font-size: 13px;
+    font-family: var(--mono);
+  }
+
+  .entity-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .entity-tab {
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .entity-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .entity-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .pagination .btns { display: flex; gap: 6px; }
+
+  .actions-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>AI Fabric Admin Verification</h1>
+  <div class="api-key-group">
+    <label for="apiKey">Admin API Key</label>
+    <input type="password" id="apiKey" placeholder="empty = dev mode (allow all)">
+  </div>
+</div>
+
+<div class="container">
+  <div class="actions-toolbar">
+    <button class="btn" onclick="refreshAll()">Refresh All</button>
+  </div>
+
+  <!-- Action Catalog Card -->
+  <div class="card" id="actions-card">
+    <div class="card-header">
+      <h2><span class="status-dot" id="actions-status"></span> Action Catalog</h2>
+      <button class="btn btn-sm btn-outline" onclick="loadActions()">Refresh</button>
+    </div>
+    <div class="card-body" id="actions-body">
+      <div class="empty-state">Click Refresh All to load</div>
+    </div>
+  </div>
+
+  <!-- Indexing Overview Card -->
+  <div class="card" id="indexing-card">
+    <div class="card-header">
+      <h2><span class="status-dot" id="indexing-status"></span> Indexing Overview</h2>
+      <button class="btn btn-sm btn-outline" onclick="loadIndexing()">Refresh</button>
+    </div>
+    <div class="card-body" id="indexing-body">
+      <div class="empty-state">Click Refresh All to load</div>
+    </div>
+  </div>
+
+  <!-- Vector Browser Card -->
+  <div class="card" id="vectors-card">
+    <div class="card-header">
+      <h2><span class="status-dot" id="vectors-status"></span> Vector Browser</h2>
+    </div>
+    <div class="card-body" id="vectors-body">
+      <div class="empty-state">Load Indexing Overview first to discover entity types</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+
+function getHeaders() {
+  const key = document.getElementById('apiKey').value.trim();
+  const headers = { 'Accept': 'application/json' };
+  if (key) headers['X-ADMIN-API-KEY'] = key;
+  return headers;
+}
+
+function setStatus(id, state) {
+  const dot = document.getElementById(id);
+  dot.className = 'status-dot ' + state;
+}
+
+async function apiFetch(path) {
+  const resp = await fetch(API_BASE + path, { headers: getHeaders() });
+  const data = await resp.json();
+  if (!resp.ok || data.success === false) {
+    throw new Error(data.message || `HTTP ${resp.status}`);
+  }
+  return data;
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = String(str);
+  return d.innerHTML;
+}
+
+// ── Actions ──
+async function loadActions() {
+  const body = document.getElementById('actions-body');
+  setStatus('actions-status', 'loading');
+  try {
+    const data = await apiFetch('/api/admin/actions/overview');
+    setStatus('actions-status', 'ok');
+    if (!data.actions || data.actions.length === 0) {
+      body.innerHTML = '<div class="empty-state">No actions loaded. Check ai-actions.yml is mounted.</div>';
+      return;
+    }
+    let html = '<div class="stat-grid" style="margin-bottom:16px">';
+    html += `<div class="stat-box"><div class="value">${data.count}</div><div class="label">Actions Loaded</div></div>`;
+    const readCount = data.actions.filter(a => a.accessMode === 'READ').length;
+    const writeCount = data.actions.filter(a => a.accessMode === 'WRITE').length;
+    html += `<div class="stat-box"><div class="value">${readCount}</div><div class="label">Read</div></div>`;
+    html += `<div class="stat-box"><div class="value">${writeCount}</div><div class="label">Write</div></div>`;
+    html += '</div>';
+    html += '<table><thead><tr><th>Name</th><th>Access</th><th>Confirm</th><th>Description</th></tr></thead><tbody>';
+    for (const a of data.actions) {
+      const accessBadge = a.accessMode === 'WRITE'
+        ? '<span class="badge badge-yellow">WRITE</span>'
+        : '<span class="badge badge-green">READ</span>';
+      const confirmBadge = a.requiresConfirmation
+        ? '<span class="badge badge-red">yes</span>'
+        : '<span class="badge badge-blue">no</span>';
+      html += `<tr>
+        <td>${escapeHtml(a.name || '')}</td>
+        <td>${accessBadge}</td>
+        <td>${confirmBadge}</td>
+        <td style="font-family:inherit;color:var(--text-muted)">${escapeHtml(a.description || '')}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  } catch (e) {
+    setStatus('actions-status', 'err');
+    body.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ── Indexing Overview ──
+let discoveredEntityTypes = [];
+
+async function loadIndexing() {
+  const body = document.getElementById('indexing-body');
+  setStatus('indexing-status', 'loading');
+  try {
+    const data = await apiFetch('/api/admin/indexing/overview');
+    setStatus('indexing-status', 'ok');
+    discoveredEntityTypes = data.entityTypes ? [...data.entityTypes].sort() : [];
+
+    let html = '<div class="stat-grid">';
+    html += `<div class="stat-box"><div class="value">${escapeHtml(data.vectorDb || '?')}</div><div class="label">Vector DB</div></div>`;
+    html += `<div class="stat-box"><div class="value">${data.totalVectors}</div><div class="label">Total Vectors</div></div>`;
+    html += `<div class="stat-box"><div class="value">${data.supportsVectorScan ? 'Yes' : 'No'}</div><div class="label">Supports Scan</div></div>`;
+    html += '</div>';
+
+    if (data.countsByEntityType && Object.keys(data.countsByEntityType).length > 0) {
+      html += '<table style="margin-top:16px"><thead><tr><th>Entity Type</th><th>Vector Count</th></tr></thead><tbody>';
+      for (const [type, count] of Object.entries(data.countsByEntityType)) {
+        html += `<tr><td>${escapeHtml(type)}</td><td>${count}</td></tr>`;
+      }
+      html += '</tbody></table>';
+    }
+    body.innerHTML = html;
+    renderVectorBrowser();
+  } catch (e) {
+    setStatus('indexing-status', 'err');
+    body.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ── Vector Browser ──
+let vectorState = { entityType: null, offset: 0, limit: 20 };
+
+function renderVectorBrowser() {
+  const body = document.getElementById('vectors-body');
+  if (discoveredEntityTypes.length === 0) {
+    body.innerHTML = '<div class="empty-state">No entity types discovered. Load Indexing Overview first.</div>';
+    return;
+  }
+  if (!vectorState.entityType) {
+    vectorState.entityType = discoveredEntityTypes[0];
+  }
+  let tabs = '<div class="entity-tabs">';
+  for (const t of discoveredEntityTypes) {
+    const cls = t === vectorState.entityType ? 'entity-tab active' : 'entity-tab';
+    tabs += `<div class="${cls}" onclick="selectEntityType('${escapeHtml(t)}')">${escapeHtml(t)}</div>`;
+  }
+  tabs += '</div>';
+  body.innerHTML = tabs + '<div id="vectors-table"><div class="empty-state">Select an entity type and click Load</div></div>';
+  loadVectors();
+}
+
+function selectEntityType(type) {
+  vectorState.entityType = type;
+  vectorState.offset = 0;
+  renderVectorBrowser();
+}
+
+async function loadVectors() {
+  const container = document.getElementById('vectors-table');
+  if (!vectorState.entityType) return;
+  setStatus('vectors-status', 'loading');
+  container.innerHTML = '<div class="empty-state">Loading...</div>';
+  try {
+    const params = new URLSearchParams({
+      entityType: vectorState.entityType,
+      offset: vectorState.offset,
+      limit: vectorState.limit,
+      includeContent: true,
+      includeEmbedding: false,
+      includeMetadata: true
+    });
+    const data = await apiFetch('/api/admin/indexing/vectors?' + params);
+    setStatus('vectors-status', 'ok');
+    const vectors = data.vectors || [];
+    if (vectors.length === 0) {
+      container.innerHTML = '<div class="empty-state">No vectors found for this entity type.</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>ID</th><th>Content (preview)</th><th>Metadata</th></tr></thead><tbody>';
+    for (const v of vectors) {
+      const id = v.id || v.vectorId || '—';
+      const content = v.content || v.text || '';
+      const preview = content.length > 120 ? content.substring(0, 120) + '...' : content;
+      const meta = v.metadata ? JSON.stringify(v.metadata) : '';
+      const metaPreview = meta.length > 80 ? meta.substring(0, 80) + '...' : meta;
+      html += `<tr>
+        <td>${escapeHtml(id)}</td>
+        <td style="font-family:inherit;color:var(--text-muted);max-width:400px;word-break:break-word">${escapeHtml(preview)}</td>
+        <td style="color:var(--text-muted);max-width:250px;word-break:break-word" title="${escapeHtml(meta)}">${escapeHtml(metaPreview)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+
+    // Pagination
+    html += '<div class="pagination">';
+    html += `<span>Showing ${vectorState.offset + 1}–${vectorState.offset + vectors.length}` +
+            `${data.hasMore ? '+' : ''}</span>`;
+    html += '<div class="btns">';
+    if (vectorState.offset > 0) {
+      html += `<button class="btn btn-sm btn-outline" onclick="prevPage()">Previous</button>`;
+    }
+    if (data.hasMore) {
+      html += `<button class="btn btn-sm btn-outline" onclick="nextPage(${data.nextOffset || (vectorState.offset + vectorState.limit)})">Next</button>`;
+    }
+    html += '</div></div>';
+    container.innerHTML = html;
+  } catch (e) {
+    setStatus('vectors-status', 'err');
+    container.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function nextPage(nextOffset) {
+  vectorState.offset = nextOffset;
+  loadVectors();
+}
+function prevPage() {
+  vectorState.offset = Math.max(0, vectorState.offset - vectorState.limit);
+  loadVectors();
+}
+
+function refreshAll() {
+  loadActions();
+  loadIndexing();
+}
+
+// Auto-load on page open
+window.addEventListener('DOMContentLoaded', refreshAll);
+</script>
+</body>
+</html>
