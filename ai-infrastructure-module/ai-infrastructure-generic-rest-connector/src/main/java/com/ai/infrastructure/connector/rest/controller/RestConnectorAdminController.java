@@ -1,6 +1,7 @@
 package com.ai.infrastructure.connector.rest.controller;
 
 import com.ai.infrastructure.connector.rest.config.RestConnectorServiceProperties;
+import com.ai.infrastructure.connector.rest.config.RestConnectorRuntimeProxyProperties;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,7 @@ public class RestConnectorAdminController {
 
     private final RestRoutingConfig routingConfig;
     private final RestConnectorServiceProperties serviceProperties;
+    private final RestConnectorRuntimeProxyProperties runtimeProxyProperties;
 
     @GetMapping("/overview")
     public ResponseEntity<?> overview() {
@@ -41,6 +43,7 @@ public class RestConnectorAdminController {
 
         RestRoutingConfig.Connector connector = routingConfig != null ? routingConfig.getConnector() : null;
         body.put("connector", sanitizeConnector(connector));
+        body.put("runtimeProxy", sanitizeRuntimeProxy(runtimeProxyProperties));
 
         Map<String, RestRoutingConfig.ActionRoute> actions = routingConfig != null ? routingConfig.getActions() : null;
         List<Map<String, Object>> actionList = toActionSummaries(actions);
@@ -83,6 +86,19 @@ public class RestConnectorAdminController {
         body.put("success", true);
         body.put("action", sanitizeAction(actionId.trim(), route));
         return ResponseEntity.ok(body);
+    }
+
+    private static Map<String, Object> sanitizeRuntimeProxy(RestConnectorRuntimeProxyProperties props) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (props == null) {
+            return out;
+        }
+        out.put("enabled", props.isEnabled());
+        out.put("baseUrl", props.getBaseUrl());
+        out.put("apiKeyHeader", props.getApiKeyHeader());
+        out.put("apiKeyConfigured", StringUtils.hasText(props.getApiKey()));
+        out.put("timeoutMs", props.getTimeoutMs());
+        return out;
     }
 
     private static Map<String, Object> sanitizeConnector(RestRoutingConfig.Connector connector) {
@@ -196,4 +212,3 @@ public class RestConnectorAdminController {
         return out;
     }
 }
-

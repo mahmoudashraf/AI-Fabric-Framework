@@ -212,6 +212,40 @@ Security:
 - When `connector.inbound-auth.allow-unauthenticated=false`, the admin endpoints are protected by the same inbound API key as `/actions/execute`.
 - Send your inbound auth header (default `X-AIFABRIC-API-KEY`) when calling them.
 
+### 6.4 Optional: Runtime Proxy (Indexing Alias)
+
+For some demo setups you may want the connector to be the **single base URL** for both:
+- action execution (`POST /actions/execute`)
+- managed indexing calls (Runtime Data Sync push API)
+
+When enabled, the connector exposes a small set of **alias** endpoints under:
+- `/api/ai/data-sync/*`
+
+These endpoints **forward** to the configured runtime.
+
+Enable:
+
+```bash
+REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true
+REST_CONNECTOR_RUNTIME_PROXY_BASE_URL="https://<runtime>.up.railway.app"
+```
+
+Optional runtime auth header (only if your runtime is protected by an external gateway):
+
+```bash
+REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER="X-ADMIN-API-KEY"
+REST_CONNECTOR_RUNTIME_PROXY_API_KEY="<secret>"
+```
+
+Exposed endpoints (when enabled):
+- `GET /api/ai/data-sync/vector-spaces`
+- `POST /api/ai/data-sync/upsert`
+- `POST /api/ai/data-sync/delete`
+- `POST /api/ai/data-sync/batch`
+
+Security:
+- These endpoints are protected by the same inbound API key filter as `/actions/execute` (unless you explicitly set `connector.inbound-auth.allow-unauthenticated=true`).
+
 ### 6.2 Docker image
 
 Build:

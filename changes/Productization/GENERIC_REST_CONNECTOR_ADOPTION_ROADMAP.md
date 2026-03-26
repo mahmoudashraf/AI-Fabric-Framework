@@ -63,8 +63,9 @@ You can treat the connector as a “single point of contact” for:
 - Indexing push (optional): upstream -> connector -> runtime Data Sync push API.
 
 Important constraint:
-- Today, `ai-infrastructure-generic-rest-connector` is **actions-only** (`/actions/execute`).
-- To make it a full “gateway connector”, you either extend it with proxy endpoints or run a separate small gateway service.
+- By default, `ai-infrastructure-generic-rest-connector` is **actions-only** (`/actions/execute`).
+- If you want a “single base URL” demo, you can enable the built-in **runtime proxy** feature to expose a small set of alias endpoints (for the Runtime Data Sync push API). This is still a thin forwarder, not a full gateway.
+- For a full “gateway connector” (actions + retrieval + indexing + multi-tenant routing), you either extend the connector further or run a separate gateway service.
 
 Guidance:
 - The runtime’s Data Sync push API should remain the canonical indexing interface.
@@ -150,7 +151,7 @@ Option A: Runtime-owned vector index (Data Sync push API)
 - Requires a separate ingestion pipeline that calls runtime’s data-sync push endpoints.
 - For this demo, this is the recommended path.
 - You can call the runtime directly for ingestion.
-- Optionally, you can add a connector alias endpoint that forwards ingestion calls to the runtime for “single base URL” setups, but runtime direct remains supported and preferred.
+- Optionally, you can enable the connector’s built-in runtime proxy so `/api/ai/data-sync/*` on the connector forwards to the runtime for “single base URL” setups, but runtime direct remains supported and preferred.
 
 Option B: Customer-owned retrieval (documents-only retrieval connector)
 - Best when you already have a vector DB/search system and want runtime to call it.

@@ -45,6 +45,16 @@ Upstream (only required once you add action routes):
 - `UPSTREAM_AUTH_HEADER=Authorization`
 - `UPSTREAM_AUTH_VALUE=Bearer <token>`
 
+Optional: enable Runtime Data Sync alias endpoints (indexing proxy)
+
+If you want the connector to expose `/api/ai/data-sync/*` and forward to runtime:
+- `REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`
+- `REST_CONNECTOR_RUNTIME_PROXY_BASE_URL=https://<your-runtime>.up.railway.app`
+
+Optional auth header forwarded to runtime (only if runtime is protected by an external gateway):
+- `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<secret>`
+- `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
+
 ## 5) Add your action routes
 
 Routes live in the routing config file referenced by:

@@ -38,6 +38,13 @@ services:
       PORT: 8082
       REST_CONNECTOR_ROUTING_CONFIG_LOCATION: file:/config/actions-routing.yml
 
+      # Optional: expose /api/ai/data-sync/* on the rest connector and proxy to the runtime.
+      # This is useful if you want "connector = single base URL" for actions + indexing.
+      REST_CONNECTOR_RUNTIME_PROXY_ENABLED: ${REST_CONNECTOR_RUNTIME_PROXY_ENABLED:-false}
+      REST_CONNECTOR_RUNTIME_PROXY_BASE_URL: ${REST_CONNECTOR_RUNTIME_PROXY_BASE_URL:-http://ai-fabric-runtime:8097}
+      REST_CONNECTOR_RUNTIME_PROXY_API_KEY: ${REST_CONNECTOR_RUNTIME_PROXY_API_KEY:-}
+      REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER: ${REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER:-X-ADMIN-API-KEY}
+
       # Local/dev defaults.
       CONNECTOR_ALLOW_UNAUTHENTICATED: true
       CONNECTOR_API_KEY_ENABLED: false
@@ -86,4 +93,3 @@ services:
 volumes:
   runtime_data:
   connector_data:
-

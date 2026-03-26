@@ -69,6 +69,12 @@ Runtime should expose the Data Sync API and list configured vector spaces:
 curl -sS "${RUNTIME_BASE_URL}/api/ai/data-sync/vector-spaces"
 ```
 
+If you enabled the Generic REST Connector runtime proxy (`REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`), you can also call it via the connector:
+
+```bash
+curl -sS "${CONNECTOR_BASE_URL}/api/ai/data-sync/vector-spaces"
+```
+
 Expected (connector demo config): includes `product`, `review`, `policy`.
 
 If this is `404`:

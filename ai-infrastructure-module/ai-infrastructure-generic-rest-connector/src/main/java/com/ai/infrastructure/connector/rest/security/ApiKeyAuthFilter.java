@@ -37,8 +37,10 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         if (!StringUtils.hasText(path)) {
             return true;
         }
-        // Protect both action execution and admin verification endpoints.
-        return !(path.startsWith("/actions/execute") || path.startsWith("/api/admin"));
+        // Protect action execution, admin verification endpoints, and (optional) runtime proxy endpoints.
+        return !(path.startsWith("/actions/execute")
+            || path.startsWith("/api/admin")
+            || path.startsWith("/api/ai/data-sync"));
     }
 
     @Override
