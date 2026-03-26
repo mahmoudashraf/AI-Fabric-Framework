@@ -132,17 +132,23 @@ public class TemplateEngine {
 
         // Fallback: {{path|default}} where default is a simple token (e.g. 1, true, demo-user).
         String defaultRaw = null;
+        Object defaultValue = null;
         int pipe = e.indexOf('|');
         if (pipe >= 0) {
             defaultRaw = e.substring(pipe + 1).trim();
             e = e.substring(0, pipe).trim();
+            defaultValue = parseDefaultLiteral(defaultRaw);
         }
 
         // Root access shortcut (e.g. {{status}})
         if (!e.contains(".")) {
             Object value = context != null ? context.get(e) : null;
             if (value == null || (value instanceof String s && !StringUtils.hasText(s))) {
-                return defaultRaw != null ? parseDefaultLiteral(defaultRaw) : value;
+                return defaultValue;
+            }
+            Object clamped = maybeClampInvalidNumber(value, defaultValue);
+            if (clamped != null) {
+                return clamped;
             }
             return value;
         }
@@ -153,9 +159,33 @@ public class TemplateEngine {
         Object rootObj = context != null ? context.get(root) : null;
         Object value = readPath(rootObj, path);
         if (value == null || (value instanceof String s && !StringUtils.hasText(s))) {
-            return defaultRaw != null ? parseDefaultLiteral(defaultRaw) : value;
+            return defaultValue;
+        }
+        Object clamped = maybeClampInvalidNumber(value, defaultValue);
+        if (clamped != null) {
+            return clamped;
         }
         return value;
+    }
+
+    /**
+     * Small ergonomic improvement for demo connectors:
+     * if a template provides a positive numeric default (e.g. {@code |1}) and the resolved value is
+     * a non-positive number (0/-1), treat it as invalid and use the default instead.
+     *
+     * <p>This fixes common LLM outputs like {@code quantity: 0} which would otherwise fail upstream
+     * validation.</p>
+     */
+    private Object maybeClampInvalidNumber(Object value, Object defaultValue) {
+        if (!(value instanceof Number v) || !(defaultValue instanceof Number d)) {
+            return null;
+        }
+        double dv = d.doubleValue();
+        double vv = v.doubleValue();
+        if (dv > 0 && vv <= 0) {
+            return defaultValue;
+        }
+        return null;
     }
 
     private Object parseDefaultLiteral(String raw) {
