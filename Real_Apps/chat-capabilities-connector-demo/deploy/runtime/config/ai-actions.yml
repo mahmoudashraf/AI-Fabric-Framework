@@ -39,17 +39,25 @@ actions:
     requiresConfirmation: false
 
   - name: add_to_cart
-    description: Add one or more product SKUs to my active cart
+    description: Add a product SKU to my active cart
     category: commerce
     accessMode: WRITE_ONLY
     requiresConfirmation: true
-    confirmationMessage: Add items to your cart?
+    confirmationMessage: Add {{sku}} to your cart?
     params:
-      - name: items
-        description: Cart items to add
-        type: ARRAY
+      - name: sku
+        description: Product SKU
+        type: STRING
         required: true
-        batchTargets: true
+      - name: productId
+        description: Product ID (optional if SKU is provided)
+        type: INTEGER
+        required: false
+      - name: quantity
+        description: Quantity
+        type: INTEGER
+        required: false
+        min: 1
 
   - name: remove_from_cart
     description: Remove a product SKU from my active cart
@@ -316,4 +324,3 @@ actions:
         type: STRING
         required: true
         sensitive: true
-

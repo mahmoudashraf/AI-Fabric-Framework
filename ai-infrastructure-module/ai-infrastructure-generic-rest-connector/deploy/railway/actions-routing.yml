@@ -85,9 +85,9 @@ actions:
     request:
       body:
         userId: "{{trace.userId}}"
-        sku: "{{params.items[0].sku}}"
-        productId: "{{params.items[0].id}}"
-        quantity: "{{params.items[0].quantity|1}}"
+        sku: "{{params.sku}}"
+        productId: "{{params.productId}}"
+        quantity: "{{params.quantity|1}}"
     response:
       success-http-status: [200]
       message: "Added item to cart."
