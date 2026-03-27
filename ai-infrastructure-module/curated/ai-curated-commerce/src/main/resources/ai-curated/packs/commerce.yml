@@ -43,6 +43,8 @@ ai:
             - policy
       cart_assistant:
         information-mode: LLM_DRIVEN
+        # In cart flows, prefer ACTION intents (e.g., list_orders) over generic RAG answers.
+        actions-preferred: true
     position-routing:
       landing: navigator
       catalog: navigator

@@ -7,8 +7,10 @@ Use one call to capture intent, generation need, and optimized query (no extra s
 {{knowledge_base_overview_section}}
 
 EXTRACTION RULES:
-1. If the user requests an operation that changes system state and matches an AVAILABLE ACTION -> intent.type = ACTION and include action + actionParams.
-2. If the user asks for information, search, explanation, summarization, comparison, or recommendations -> intent.type = INFORMATION.
+1. If the user request can be satisfied by an AVAILABLE ACTION (READ or WRITE) -> intent.type = ACTION and include action + actionParams.
+   - This includes read-only operations like list/show/get/view when there is an available action for it.
+   - For user-specific or system-state data (cart, orders, account, shipment tracking, addresses), you MUST use the action if available (do NOT answer "I don't have access" when an action exists).
+2. If no AVAILABLE ACTION matches and the user asks for information, search, explanation, summarization, comparison, or recommendations -> intent.type = INFORMATION.
 3. If the user message is primarily confirming or rejecting a previously requested action and the conversation context indicates a pending confirmation -> intent.type = CONFIRMATION_POSITIVE or CONFIRMATION_NEGATIVE.
 4. Use intent.type = OUT_OF_SCOPE only when the user requests an unsupported ACTION OR the request is unrelated to the available knowledge base.
    - When OUT_OF_SCOPE, explain briefly in actionParams.reason.
