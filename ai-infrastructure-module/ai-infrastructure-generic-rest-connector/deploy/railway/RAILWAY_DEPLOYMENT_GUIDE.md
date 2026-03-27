@@ -63,6 +63,13 @@ When enabled, the connector also exposes read-only runtime indexing inspection e
 - `GET /api/admin/indexing/overview`
 - `GET /api/admin/indexing/vectors?entityType=...`
 
+When enabled, the connector also proxies the runtime chat API:
+- `POST /api/chat/query`
+- `POST /api/chat/suggestions`
+- `GET /api/chat/conversations`
+- `GET /api/chat/conversations/{conversationId}`
+- `DELETE /api/chat/conversations/{conversationId}`
+
 ## 5) Add your action routes
 
 Routes live in the routing config file referenced by:
