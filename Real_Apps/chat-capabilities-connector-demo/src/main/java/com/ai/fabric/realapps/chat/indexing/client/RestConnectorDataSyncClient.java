@@ -23,7 +23,7 @@ import org.springframework.web.client.RestTemplate;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "connector.indexing", name = "enabled", havingValue = "true")
-public class RuntimeDataSyncClient {
+public class RestConnectorDataSyncClient {
 
     private final RestTemplate restTemplate;
     private final ConnectorIndexingProperties properties;
@@ -140,7 +140,7 @@ public class RuntimeDataSyncClient {
         try {
             restTemplate.postForEntity(uri, new HttpEntity<>(payload, headers), String.class);
         } catch (RestClientException ex) {
-            log.warn("Runtime Data Sync call failed (uri={}): {}", uri, ex.getMessage());
+            log.warn("Data Sync call failed (uri={}): {}", uri, ex.getMessage());
         }
     }
 

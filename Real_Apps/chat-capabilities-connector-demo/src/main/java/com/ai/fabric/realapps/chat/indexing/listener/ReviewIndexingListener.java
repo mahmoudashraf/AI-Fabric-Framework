@@ -1,6 +1,6 @@
 package com.ai.fabric.realapps.chat.indexing.listener;
 
-import com.ai.fabric.realapps.chat.indexing.client.RuntimeDataSyncClient;
+import com.ai.fabric.realapps.chat.indexing.client.RestConnectorDataSyncClient;
 import com.ai.fabric.realapps.chat.indexing.events.ReviewDeleteIndexingEvent;
 import com.ai.fabric.realapps.chat.indexing.events.ReviewUpsertIndexingEvent;
 import java.util.LinkedHashMap;
@@ -20,7 +20,7 @@ import org.springframework.util.StringUtils;
 @ConditionalOnProperty(prefix = "connector.indexing", name = "enabled", havingValue = "true")
 public class ReviewIndexingListener {
 
-    private final RuntimeDataSyncClient dataSyncClient;
+    private final RestConnectorDataSyncClient dataSyncClient;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -68,4 +68,3 @@ public class ReviewIndexingListener {
         return "review-" + reviewId;
     }
 }
-

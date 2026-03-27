@@ -11,17 +11,44 @@ services:
     environment:
       PORT: 8096
 
-      # Optional: API key auth for /actions/execute
-      CONNECTOR_AUTH_API_KEY: ${CONNECTOR_AUTH_API_KEY:-}
-      CONNECTOR_AUTH_API_KEY_HEADER: ${CONNECTOR_AUTH_API_KEY_HEADER:-X-AIFABRIC-API-KEY}
-
-      # Optional: event-based indexing (Connector -> Runtime Data Sync)
+      # Optional: event-based indexing (Domain API -> Runtime Data Sync, via REST connector)
       CONNECTOR_INDEXING_ENABLED: ${CONNECTOR_INDEXING_ENABLED:-true}
-      CONNECTOR_INDEXING_RUNTIME_BASE_URL: ${CONNECTOR_INDEXING_RUNTIME_BASE_URL:-http://ai-fabric-runtime:8097}
+      CONNECTOR_INDEXING_RUNTIME_BASE_URL: ${CONNECTOR_INDEXING_RUNTIME_BASE_URL:-http://rest-connector:8082}
       CONNECTOR_INDEXING_API_KEY: ${CONNECTOR_INDEXING_API_KEY:-}
       CONNECTOR_INDEXING_API_KEY_HEADER: ${CONNECTOR_INDEXING_API_KEY_HEADER:-X-AIFABRIC-API-KEY}
     volumes:
       - connector_data:/app/data
+
+  rest-connector:
+    build:
+      context: ../../../..
+      dockerfile: ai-infrastructure-module/ai-infrastructure-generic-rest-connector/Dockerfile
+    image: ai-infrastructure-generic-rest-connector:local
+    container_name: ai-infrastructure-generic-rest-connector
+    restart: unless-stopped
+    depends_on:
+      - connector
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: 8082
+      REST_CONNECTOR_ROUTING_CONFIG_LOCATION: file:/config/actions-routing.yml
+
+      # Expose /api/ai/data-sync/* on the rest connector and proxy to the runtime.
+      # This is useful if you want "connector = single base URL" for actions + indexing.
+      REST_CONNECTOR_RUNTIME_PROXY_ENABLED: ${REST_CONNECTOR_RUNTIME_PROXY_ENABLED:-true}
+      REST_CONNECTOR_RUNTIME_PROXY_BASE_URL: ${REST_CONNECTOR_RUNTIME_PROXY_BASE_URL:-http://ai-fabric-runtime:8097}
+      REST_CONNECTOR_RUNTIME_PROXY_API_KEY: ${REST_CONNECTOR_RUNTIME_PROXY_API_KEY:-}
+      REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER: ${REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER:-X-ADMIN-API-KEY}
+
+      # Local/dev defaults.
+      CONNECTOR_ALLOW_UNAUTHENTICATED: true
+      CONNECTOR_API_KEY_ENABLED: false
+
+      # Point at the Domain API inside the Docker network.
+      UPSTREAM_BASE_URL: http://connector:8096
+    volumes:
+      - ../rest-connector/actions-routing.yml:/config/actions-routing.yml:ro
 
   ai-fabric-runtime:
     build:
@@ -31,7 +58,7 @@ services:
     container_name: ai-fabric-runtime
     restart: unless-stopped
     depends_on:
-      - connector
+      - rest-connector
     ports:
       - "8097:8097"
     environment:
@@ -50,7 +77,7 @@ services:
       CORS_ALLOWED_ORIGIN_PATTERNS: ${CORS_ALLOWED_ORIGIN_PATTERNS:-}
 
       # Connector-backed actions
-      ACTIONS_CONNECTOR_BASE_URL: ${ACTIONS_CONNECTOR_BASE_URL:-http://connector:8096}
+      ACTIONS_CONNECTOR_BASE_URL: ${ACTIONS_CONNECTOR_BASE_URL:-http://rest-connector:8082}
       ACTIONS_CONNECTOR_API_KEY: ${ACTIONS_CONNECTOR_API_KEY:-}
 
     volumes:

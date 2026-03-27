@@ -14,12 +14,16 @@ import com.ai.fabric.realapps.chat.returns.repo.ReturnRequestRepository;
 import com.ai.fabric.realapps.chat.reviews.repo.ReviewRepository;
 import com.ai.fabric.realapps.chat.shipping.repo.ShipmentRepository;
 import com.ai.fabric.realapps.chat.support.repo.SupportTicketRepository;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Demo-only maintenance service to clear connector-demo (H2) data.
+ */
 @Service
 @RequiredArgsConstructor
 public class DemoResetService {

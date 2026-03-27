@@ -1,4 +1,4 @@
-### Customer Connector (domain system) — local smoke requests
+### Domain API — local smoke requests
 @baseUrl = http://localhost:8096
 @userId = user-1
 @sessionId = user-1-session
@@ -64,57 +64,15 @@ Content-Type: application/json
   "text": "Great sound and ANC. Very comfortable for long flights."
 }
 
-### Customer Connector action protocol: list products
-POST {{baseUrl}}/actions/execute
-Content-Type: application/json
-
-{
-  "actionId": "list_products",
-  "params": {
-    "query": "headphones"
-  },
-  "trace": {
-    "requestId": "req-1",
-    "conversationId": "{{conversationId}}",
-    "userId": "{{userId}}",
-    "sessionId": "{{sessionId}}"
-  }
-}
-
-### Customer Connector action protocol: add to cart (write action + idempotency)
-POST {{baseUrl}}/actions/execute
-Content-Type: application/json
-
-{
-  "actionId": "add_to_cart",
-  "idempotencyKey": "demo-add-to-cart-1",
-  "params": {
-    "items": [
-      { "sku": "SKU-0001", "quantity": 1 }
-    ]
-  },
-  "trace": {
-    "requestId": "req-2",
-    "conversationId": "{{conversationId}}",
-    "userId": "{{userId}}",
-    "sessionId": "{{sessionId}}"
-  }
-}
-
-### Customer Connector action protocol: view cart
-POST {{baseUrl}}/actions/execute
-Content-Type: application/json
-
-{
-  "actionId": "view_cart",
-  "params": {},
-  "trace": {
-    "requestId": "req-3",
-    "conversationId": "{{conversationId}}",
-    "userId": "{{userId}}",
-    "sessionId": "{{sessionId}}"
-  }
-}
-
 ### List orders for the user (domain API)
 GET {{baseUrl}}/api/orders?userId=user-1
+
+### Reset demo data (UI maintenance)
+POST {{baseUrl}}/api/admin/demo/reset
+Content-Type: application/json
+
+{
+  "confirm": true,
+  "clearConnectorData": true,
+  "clearRuntimeVectors": true
+}

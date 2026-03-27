@@ -1,12 +1,11 @@
-# Chat Capabilities Connector Demo (AI Fabric Runtime + Customer Connector)
+# Chat Capabilities Domain Demo (Domain API + REST Connector + Runtime)
 
-This Real App demonstrates how to split the original `chat-capabilities-demo` into:
+This Real App demonstrates a 3-service setup:
+- **Domain API** (products/cart/orders/etc.): this app (port `8096`)
+- **Generic REST Connector** (actions connector + optional runtime proxy): `ai-infrastructure-generic-rest-connector` (port `8082`)
 - **AI Fabric Runtime** (chat orchestration, modes, RAG, suggestions): `ai-fabric-runtime` (port `8097`)
-- **Customer Connector (domain system)** (products/cart/orders + action execution): this app (port `8096`)
 
-The connector exposes:
-- Domain APIs (e.g. `/api/products`, `/api/cart`, `/api/orders`, …)
-- Customer Connector actions endpoint: `POST /actions/execute`
+The domain API exposes only domain endpoints (e.g. `/api/products`, `/api/carts`, `/api/orders`, ...). It does not expose `/actions/execute`.
 
 The runtime is configured via:
 - `deploy/runtime/config/application.yml`
@@ -24,21 +23,39 @@ docker compose -f Real_Apps/chat-capabilities-connector-demo/deploy/docker/docke
 ```
 
 Then:
-- Connector Swagger UI: `http://localhost:8096/swagger-ui/index.html`
+- Domain API Swagger UI: `http://localhost:8096/swagger-ui/index.html`
+- REST connector health: `http://localhost:8082/actuator/health`
 - Runtime Swagger UI: `http://localhost:8097/swagger-ui/index.html`
 
 Requests file:
 - Runtime: `requests/demo.runtime.http`
-- Connector: `requests/demo.connector.http`
+- Domain API: `requests/demo.connector.http`
+
+## Demo Reset / Migration Clear (Domain API)
+
+UI-facing maintenance endpoints:
+- `POST /api/admin/demo/reset` (preferred)
+- `POST /api/admin/migration/clear` (legacy alias)
+
+Both require a JSON body with at least:
+- `{"confirm": true}`
+
+Optional: protect these endpoints with an API key:
+```bash
+export CONNECTOR_ADMIN_AUTH_ENABLED=true
+export CONNECTOR_ADMIN_API_KEY="..."
+export CONNECTOR_ADMIN_API_KEY_HEADER="X-AIFABRIC-API-KEY"
+```
 
 ## Deploy (Railway)
 
-- Connector (this app): `Real_Apps/chat-capabilities-connector-demo/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
-- Runtime (AI Fabric): `ai-infrastructure-module/ai-fabric-runtime/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
+- Domain API (this app): `Real_Apps/chat-capabilities-connector-demo/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
+- REST connector: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
+- Runtime: `ai-infrastructure-module/ai-fabric-runtime/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
 
 ## Event-Based Indexing (Products/Policies/Reviews)
 
-In Docker Compose, the connector can automatically index **product/policy/review** changes into the runtime (via Data Sync) using after-commit event listeners.
+In Docker Compose, the domain API can automatically index **product/policy/review** changes into the runtime (via Data Sync) using after-commit event listeners.
 
 - Enabled by default in `deploy/docker/docker-compose.yml` via `CONNECTOR_INDEXING_ENABLED=true`.
 - Disable with:
@@ -46,6 +63,8 @@ In Docker Compose, the connector can automatically index **product/policy/review
 ```bash
 export CONNECTOR_INDEXING_ENABLED=false
 ```
+
+Note: indexing calls are sent to `CONNECTOR_INDEXING_RUNTIME_BASE_URL`, which should point at the REST connector when using this 3-service setup.
 
 ## OpenAI Setup (Runtime)
 
@@ -64,9 +83,9 @@ export OPENAI_EMBEDDING_DIMENSIONS="512"                  # recommended for Luce
 
 Then open `requests/demo.runtime.http`.
 
-## Demo Seed Data (Connector)
+## Demo Seed Data (Domain API)
 
-The connector seeds a small demo catalog (including `SKU-0001` and `SKU-0002`) and a demo coupon `SAVE10` on first start.
+The domain API seeds a small demo catalog (including `SKU-0001` and `SKU-0002`) and a demo coupon `SAVE10` on first start.
 Disable this with:
 
 ```bash

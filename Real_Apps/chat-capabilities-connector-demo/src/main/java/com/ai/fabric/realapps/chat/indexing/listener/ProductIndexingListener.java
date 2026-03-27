@@ -1,6 +1,6 @@
 package com.ai.fabric.realapps.chat.indexing.listener;
 
-import com.ai.fabric.realapps.chat.indexing.client.RuntimeDataSyncClient;
+import com.ai.fabric.realapps.chat.indexing.client.RestConnectorDataSyncClient;
 import com.ai.fabric.realapps.chat.indexing.events.ProductDeleteIndexingEvent;
 import com.ai.fabric.realapps.chat.indexing.events.ProductUpsertIndexingEvent;
 import java.util.LinkedHashMap;
@@ -19,7 +19,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @ConditionalOnProperty(prefix = "connector.indexing", name = "enabled", havingValue = "true")
 public class ProductIndexingListener {
 
-    private final RuntimeDataSyncClient dataSyncClient;
+    private final RestConnectorDataSyncClient dataSyncClient;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -64,4 +64,3 @@ public class ProductIndexingListener {
         return entity;
     }
 }
-

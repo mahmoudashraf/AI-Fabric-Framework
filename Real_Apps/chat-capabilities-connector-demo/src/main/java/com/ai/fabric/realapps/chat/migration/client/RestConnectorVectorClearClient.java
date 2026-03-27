@@ -1,9 +1,6 @@
 package com.ai.fabric.realapps.chat.migration.client;
 
 import jakarta.annotation.Nullable;
-import java.net.URI;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,35 +13,45 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
- * Connector → Runtime admin client for clearing vectors.
+ * Domain API -> REST connector admin client for clearing runtime vectors.
+ *
+ * <p>This keeps the domain API decoupled from runtime deployment details. The REST connector
+ * may proxy this call to runtime when {@code rest-connector.runtime-proxy.enabled=true}.</p>
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RuntimeVectorClearClient {
+public class RestConnectorVectorClearClient {
 
     private final RestTemplateBuilder restTemplateBuilder;
 
+    /**
+     * Base URL of the REST connector. Reuses the existing indexing base URL config
+     * to avoid introducing additional env vars.
+     */
     @Value("${connector.indexing.runtime-base-url:}")
-    private String runtimeBaseUrl;
+    private String restConnectorBaseUrl;
 
     /**
-     * Optional: protect the runtime admin endpoint.
-     * Runtime uses {@code app.admin.api-key} / {@code app.admin.api-key-header}.
+     * Optional: REST connector inbound API key (if enabled).
      */
-    @Value("${connector.runtime.admin.api-key:}")
-    private String runtimeAdminApiKey;
+    @Value("${connector.indexing.api-key:}")
+    private String restConnectorApiKey;
 
-    @Value("${connector.runtime.admin.api-key-header:X-ADMIN-API-KEY}")
-    private String runtimeAdminApiKeyHeader;
+    @Value("${connector.indexing.api-key-header:X-AIFABRIC-API-KEY}")
+    private String restConnectorApiKeyHeader;
 
     public Map<String, Object> clearRuntimeVectors() {
         return clearRuntimeVectors(null);
     }
 
     public Map<String, Object> clearRuntimeVectors(@Nullable String reason) {
-        if (!StringUtils.hasText(runtimeBaseUrl)) {
+        if (!StringUtils.hasText(restConnectorBaseUrl)) {
             return Map.of(
                 "success", false,
                 "skipped", true,
@@ -52,17 +59,15 @@ public class RuntimeVectorClearClient {
             );
         }
 
-        String trimmed = runtimeBaseUrl.trim();
         URI uri;
         try {
-            // Runtime endpoint supports confirm via query param (no body required).
             String path = "/api/admin/migration/clear?confirm=true";
-            uri = URI.create(trimTrailingSlash(trimmed) + path);
+            uri = URI.create(trimTrailingSlash(restConnectorBaseUrl.trim()) + path);
         } catch (IllegalArgumentException ex) {
             return Map.of(
                 "success", false,
                 "skipped", true,
-                "message", "Invalid runtime base URL: " + ex.getMessage()
+                "message", "Invalid REST connector base URL: " + ex.getMessage()
             );
         }
 
@@ -70,7 +75,7 @@ public class RuntimeVectorClearClient {
             return Map.of(
                 "success", false,
                 "skipped", true,
-                "message", "Runtime base URL must be absolute (include scheme, e.g. https://...). Got: " + runtimeBaseUrl
+                "message", "REST connector base URL must be absolute (include scheme, e.g. https://...). Got: " + restConnectorBaseUrl
             );
         }
 
@@ -78,12 +83,13 @@ public class RuntimeVectorClearClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        if (StringUtils.hasText(runtimeAdminApiKey)) {
-            String headerName = StringUtils.hasText(runtimeAdminApiKeyHeader) ? runtimeAdminApiKeyHeader.trim() : "X-ADMIN-API-KEY";
-            headers.set(headerName, runtimeAdminApiKey.trim());
+        if (StringUtils.hasText(restConnectorApiKey)) {
+            String headerName = StringUtils.hasText(restConnectorApiKeyHeader) ? restConnectorApiKeyHeader.trim() : "X-AIFABRIC-API-KEY";
+            headers.set(headerName, restConnectorApiKey.trim());
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("confirm", true);
         if (StringUtils.hasText(reason)) {
             payload.put("reason", reason.trim());
         }
@@ -97,7 +103,7 @@ public class RuntimeVectorClearClient {
                 "response", responseBody
             );
         } catch (RestClientException ex) {
-            log.warn("Runtime vector clear failed (uri={}): {}", uri, ex.getMessage());
+            log.warn("Runtime vector clear via REST connector failed (uri={}): {}", uri, ex.getMessage());
             return Map.of(
                 "success", false,
                 "skipped", false,

@@ -1,18 +1,17 @@
-# Railway Deployment Guide — `chat-capabilities-connector-demo` (Customer Connector)
+# Railway Deployment Guide — `chat-capabilities-connector-demo` (Domain API)
 
-This guide deploys **only** the Customer Connector app:
+This guide deploys **only** the domain API app:
 - module: `Real_Apps/chat-capabilities-connector-demo`
 - Dockerfile: `Real_Apps/chat-capabilities-connector-demo/Dockerfile`
 - port: uses `server.port: ${PORT:8096}` so Railway can inject `PORT`
 
-If you also want to deploy **AI Fabric Runtime** on Railway, deploy it as a separate Railway service and then configure the runtime to call this connector via `ACTIONS_CONNECTOR_BASE_URL`.
+This service is intended to sit behind the **Generic REST Connector** (actions connector). It does not expose `/actions/execute`.
 
 ---
 
 ## 0) What you get
 
-- Public HTTPS base URL for the connector (domain APIs + `POST /actions/execute`)
-- Optional connector API key auth for `/actions/execute`
+- Public HTTPS base URL for the domain APIs (products/cart/orders/etc.)
 - Optional persistent storage (H2 file DB) via a Railway Volume
 
 ---
@@ -47,7 +46,7 @@ This matches the container workdir (`/app`) and the configured relative `./data/
 
 ### 3.1 Required (none)
 
-The connector can run with defaults.
+The domain API can run with defaults.
 
 ### 3.2 Recommended
 
@@ -56,39 +55,33 @@ The connector can run with defaults.
   - Set to `false` if you want a clean DB.
 
 - `CORS_ALLOWED_ORIGINS=https://your-frontend-domain`
-  - Only required if you call the connector APIs from a browser frontend on another domain.
+  - Only required if you call the domain APIs from a browser frontend on another domain.
 
-### 3.3 Secure `/actions/execute` (recommended for any non-local deployment)
+### 3.3 Event-based indexing (Domain API → Runtime Data Sync, via REST connector)
 
-Enable API key protection for the Customer Connector actions endpoint:
-
-- `CONNECTOR_AUTH_API_KEY=...` (secret)
-- `CONNECTOR_AUTH_API_KEY_HEADER=X-AIFABRIC-API-KEY` (optional)
-
-By default, destructive connector admin endpoints (like `POST /api/admin/demo/reset`) are **public** (demo utility behavior).
-If you want admin reset endpoints to require the same API key as `/actions/execute`, set:
-
-- `CONNECTOR_ADMIN_AUTH_ENABLED=true`
-
-Optional: if you want `POST /api/admin/demo/reset` to also clear runtime vectors, configure the connector with the runtime admin key:
-
-- `CONNECTOR_RUNTIME_ADMIN_API_KEY=...` (should match the runtime’s `APP_ADMIN_API_KEY`)
-- Optional: `CONNECTOR_RUNTIME_ADMIN_API_KEY_HEADER=X-ADMIN-API-KEY`
-
-Then configure AI Fabric Runtime to send the same header/value:
-- `ACTIONS_CONNECTOR_API_KEY=...`
-- `ai.actions.connector.apiKey.header` should match the header name (if you changed it)
-
-### 3.4 Event-based indexing (Connector → Runtime Data Sync)
-
-Only enable this when you also deploy Runtime and you want the connector to push product/policy/review changes into the runtime’s vector DB.
+Only enable this when you also deploy Runtime and you want the domain API to push product/policy/review changes into the runtime’s vector DB.
 
 - `CONNECTOR_INDEXING_ENABLED=true`
-- `CONNECTOR_INDEXING_RUNTIME_BASE_URL=https://<your-runtime-service>.railway.app`
-- `CONNECTOR_INDEXING_API_KEY=...` (if your runtime data-sync API is protected)
+- `CONNECTOR_INDEXING_RUNTIME_BASE_URL=https://<your-rest-connector-service>.up.railway.app`
+- `CONNECTOR_INDEXING_API_KEY=...` (if your REST connector protects `/api/ai/data-sync/*`)
 
-If you are deploying **only** the connector, keep:
+The REST connector must be configured with:
+- `REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`
+- `REST_CONNECTOR_RUNTIME_PROXY_BASE_URL=https://<your-runtime-service>.up.railway.app`
+
+If you are deploying **only** the domain API, keep:
 - `CONNECTOR_INDEXING_ENABLED=false` (default)
+
+### 3.4 Demo reset endpoints (UI maintenance)
+
+This service exposes:
+- `POST /api/admin/demo/reset` (preferred)
+- `POST /api/admin/migration/clear` (legacy alias)
+
+Optional: protect these endpoints with an API key:
+- `CONNECTOR_ADMIN_AUTH_ENABLED=true`
+- `CONNECTOR_ADMIN_API_KEY=...`
+- Optional: `CONNECTOR_ADMIN_API_KEY_HEADER=X-AIFABRIC-API-KEY`
 
 ---
 
@@ -106,10 +99,15 @@ After deploy:
 
 ## 5) Hooking up AI Fabric Runtime (quick notes)
 
-If Runtime is deployed elsewhere (Railway / Docker / K8s), configure:
+Runtime should call the **Generic REST Connector** (actions connector), not this domain API.
 
-- `ACTIONS_CONNECTOR_BASE_URL=https://<your-connector-service>.railway.app`
-- `ACTIONS_CONNECTOR_API_KEY=...` (must match `CONNECTOR_AUTH_API_KEY` if enabled)
+Configure the REST connector:
+- `UPSTREAM_BASE_URL=https://<this-domain-api-service>.up.railway.app`
+- If REST connector inbound auth is enabled: `CONNECTOR_API_KEY=...` (and header)
+
+Configure Runtime:
+- `ACTIONS_CONNECTOR_BASE_URL=https://<your-rest-connector-service>.up.railway.app`
+- `ACTIONS_CONNECTOR_API_KEY=...` (must match the REST connector inbound key if enabled)
 
 ---
 
@@ -121,6 +119,6 @@ If Runtime is deployed elsewhere (Railway / Docker / K8s), configure:
 - **H2 database resets after redeploy**
   - Add a Railway Volume mounted at `/app/data`.
 
-- **`/actions/execute` returns `UNAUTHORIZED`**
-  - Ensure `CONNECTOR_AUTH_API_KEY` is set.
-  - Ensure Runtime sends the same header/value.
+- **Indexing calls fail (optional feature)**
+  - Ensure `CONNECTOR_INDEXING_RUNTIME_BASE_URL` points to the REST connector.
+  - Ensure the REST connector has `REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`.

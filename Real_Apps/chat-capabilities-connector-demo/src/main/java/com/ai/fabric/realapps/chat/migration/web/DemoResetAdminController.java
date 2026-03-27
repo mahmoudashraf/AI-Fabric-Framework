@@ -1,11 +1,9 @@
 package com.ai.fabric.realapps.chat.migration.web;
 
-import com.ai.fabric.realapps.chat.migration.client.RuntimeVectorClearClient;
+import com.ai.fabric.realapps.chat.migration.client.RestConnectorVectorClearClient;
 import com.ai.fabric.realapps.chat.migration.service.DemoResetService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,10 +14,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
- * Single "reset demo" endpoint for the connector:
- * - clears connector demo data (H2)
- * - optionally clears runtime vectors by calling runtime admin endpoint
+ * Demo maintenance endpoints for UI workflows:
+ * - clear domain (H2) data
+ * - optionally clear runtime vectors (via REST connector proxy)
  */
 @RestController
 @RequestMapping("/api/admin")
@@ -27,47 +28,41 @@ import org.springframework.web.bind.annotation.RestController;
 public class DemoResetAdminController {
 
     private final DemoResetService demoResetService;
-    private final RuntimeVectorClearClient runtimeVectorClearClient;
+    private final RestConnectorVectorClearClient vectorClearClient;
 
-    @Value("${connector.auth.api-key:}")
-    private String connectorAdminApiKey;
+    @Value("${connector.admin.auth.api-key:}")
+    private String adminApiKey;
 
-    @Value("${connector.auth.api-key-header:X-AIFABRIC-API-KEY}")
-    private String connectorAdminApiKeyHeader;
+    @Value("${connector.admin.auth.api-key-header:X-AIFABRIC-API-KEY}")
+    private String adminApiKeyHeader;
 
-    /**
-     * Some deployments want to keep {@code /actions/execute} protected while leaving demo reset endpoints open.
-     *
-     * <p>If set to {@code false}, this controller will skip the API-key check even if
-     * {@code connector.auth.api-key} is configured.</p>
-     */
-    @Value("${connector.admin.auth.enabled:true}")
-    private boolean connectorAdminAuthEnabled;
+    @Value("${connector.admin.auth.enabled:false}")
+    private boolean adminAuthEnabled;
 
     /**
      * Preferred endpoint name.
      */
     @PostMapping("/demo/reset")
-    public ResponseEntity<?> reset(@RequestBody ResetRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> reset(@RequestBody(required = false) ResetRequest request, HttpServletRequest httpRequest) {
         return handleReset(request, httpRequest);
     }
 
     /**
-     * Backwards-compatible path (matches the combined demo app).
+     * Backwards-compatible path (matches earlier demos).
      */
     @PostMapping("/migration/clear")
-    public ResponseEntity<?> clearMigration(@RequestBody ResetRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> clearMigration(@RequestBody(required = false) ResetRequest request, HttpServletRequest httpRequest) {
         return handleReset(request, httpRequest);
     }
 
     private ResponseEntity<?> handleReset(ResetRequest request, HttpServletRequest httpRequest) {
-        if (connectorAdminAuthEnabled
-            && !AdminAuth.isAuthorized(connectorAdminApiKey, connectorAdminApiKeyHeader, httpRequest)) {
+        if (adminAuthEnabled && !AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
                 "success", false,
                 "message", "Unauthorized"
             ));
         }
+
         if (request == null || !Boolean.TRUE.equals(request.getConfirm())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                 "success", false,
@@ -88,7 +83,7 @@ public class DemoResetAdminController {
         }
 
         if (clearRuntimeVectors) {
-            out.put("runtime", runtimeVectorClearClient.clearRuntimeVectors("connector-demo-reset"));
+            out.put("runtime", vectorClearClient.clearRuntimeVectors("connector-demo-reset"));
         } else {
             out.put("runtime", Map.of("success", true, "skipped", true));
         }
@@ -104,3 +99,4 @@ public class DemoResetAdminController {
         private Boolean clearRuntimeVectors = true;
     }
 }
+
