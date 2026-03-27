@@ -59,6 +59,9 @@ Optional auth header forwarded to runtime (only if runtime is protected by an ex
 - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<secret>`
 - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
 
+Optional: increase runtime proxy timeout (recommended on Railway to survive cold starts / slower LLM calls):
+- `REST_CONNECTOR_RUNTIME_PROXY_TIMEOUT_MS=60000`
+
 When enabled, the connector also exposes read-only runtime indexing inspection endpoints:
 - `GET /api/admin/indexing/overview`
 - `GET /api/admin/indexing/vectors?entityType=...`

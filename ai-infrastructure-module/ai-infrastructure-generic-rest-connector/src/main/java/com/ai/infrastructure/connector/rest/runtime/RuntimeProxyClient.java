@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
@@ -115,6 +116,9 @@ public class RuntimeProxyClient {
             int status = response != null ? response.statusCode() : 503;
             String body = response != null ? response.body() : null;
             return new ProxyResponse(status, body, contentType);
+        } catch (HttpTimeoutException ex) {
+            log.warn("Runtime proxy call timed out (method={}, uri={}, timeoutMs={}): {}", m, uri, timeoutMs, ex.getMessage());
+            return new ProxyResponse(504, "{\"success\":false,\"message\":\"Runtime request timed out.\"}", "application/json");
         } catch (Exception ex) {
             log.warn("Runtime proxy call failed (method={}, uri={}): {}", m, uri, ex.getMessage());
             return new ProxyResponse(503, "{\"success\":false,\"message\":\"Runtime service is unavailable.\"}", "application/json");
@@ -131,4 +135,3 @@ public class RuntimeProxyClient {
         return url;
     }
 }
-

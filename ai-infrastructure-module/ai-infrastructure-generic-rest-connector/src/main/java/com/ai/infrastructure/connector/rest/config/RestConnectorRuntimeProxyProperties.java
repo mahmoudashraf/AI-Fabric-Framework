@@ -38,6 +38,5 @@ public class RestConnectorRuntimeProxyProperties {
     /**
      * Proxy request timeout (milliseconds).
      */
-    private Integer timeoutMs = 8000;
+    private Integer timeoutMs = 45000;
 }
-
