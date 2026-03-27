@@ -15,7 +15,7 @@ import java.util.Map;
  * Demo authorization API for AI Fabric Runtime product deployments.
  *
  * <p>In production, customers should replace this with their real authorization service.
- * This demo implementation is intentionally simple: it grants when {@code userId} is present.</p>
+ * This demo implementation is intentionally simple.</p>
  *
  * <p>Contract: {@code POST /api/authz/check} -> {@code {granted: boolean, reason: string}}</p>
  */
@@ -29,8 +29,8 @@ public class AuthzController {
             return ResponseEntity.ok(new AuthzCheckResponse(false, "MISSING_USER", "demo-v1"));
         }
 
-        // Demo behavior: allow all authenticated/identified callers.
-        return ResponseEntity.ok(new AuthzCheckResponse(true, "OK", "demo-v1"));
+        // Test mode: deny all so you can verify runtime access control behavior end-to-end.
+        return ResponseEntity.ok(new AuthzCheckResponse(false, "DEMO_DENY_ALL", "demo-v1"));
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -50,4 +50,3 @@ public class AuthzController {
         String policyVersion
     ) { }
 }
-
