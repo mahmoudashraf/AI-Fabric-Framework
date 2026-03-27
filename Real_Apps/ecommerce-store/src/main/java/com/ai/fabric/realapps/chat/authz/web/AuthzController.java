@@ -30,7 +30,7 @@ public class AuthzController {
         }
 
         // Test mode: deny all so you can verify runtime access control behavior end-to-end.
-        return ResponseEntity.ok(new AuthzCheckResponse(false, "DEMO_DENY_ALL", "demo-v1"));
+        return ResponseEntity.ok(new AuthzCheckResponse(true, "ok", "demo-v1"));
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
