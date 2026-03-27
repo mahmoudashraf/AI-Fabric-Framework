@@ -39,6 +39,22 @@ connector:
     ttl-seconds: ${CONNECTOR_IDEMPOTENCY_TTL_SECONDS:300}
     in-progress-max-wait-ms: ${CONNECTOR_IDEMPOTENCY_IN_PROGRESS_MAX_WAIT_MS:2000}
 
+authz:
+  # Enable when you want runtime access control checks to be routed through this connector:
+  #   runtime -> rest-connector -> ecommerce-store (/api/authz/check)
+  enabled: ${AUTHZ_ENABLED:false}
+  path: ${AUTHZ_PATH:/api/authz/check}
+  # Upstream defaults to connector.upstream.base-url when blank (ecommerce-store).
+  upstream:
+    base-url: ${AUTHZ_UPSTREAM_BASE_URL:}
+    auth:
+      type: ${AUTHZ_UPSTREAM_AUTH_TYPE:NONE} # NONE | API_KEY
+      header: ${AUTHZ_UPSTREAM_AUTH_HEADER:Authorization}
+      value: ${AUTHZ_UPSTREAM_AUTH_VALUE:}
+  http:
+    connect-timeout-ms: ${AUTHZ_CONNECT_TIMEOUT_MS:500}
+    timeout-ms: ${AUTHZ_TIMEOUT_MS:1500}
+
 actions:
   # Runtime "add_to_cart" action -> Ecommerce Store domain endpoint.
   #

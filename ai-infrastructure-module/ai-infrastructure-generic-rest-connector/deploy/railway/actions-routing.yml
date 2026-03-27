@@ -39,6 +39,22 @@ connector:
     ttl-seconds: ${CONNECTOR_IDEMPOTENCY_TTL_SECONDS:300}
     in-progress-max-wait-ms: ${CONNECTOR_IDEMPOTENCY_IN_PROGRESS_MAX_WAIT_MS:2000}
 
+authz:
+  # When enabled, exposes POST /api/authz/check and forwards to the configured upstream.
+  # Typical topology: runtime -> rest-connector -> customer authz service.
+  enabled: ${AUTHZ_ENABLED:false}
+  path: ${AUTHZ_PATH:/api/authz/check}
+  upstream:
+    # If blank, the connector will fall back to connector.upstream.base-url (so ecommerce-store can serve both actions + authz).
+    base-url: ${AUTHZ_UPSTREAM_BASE_URL:}
+    auth:
+      type: ${AUTHZ_UPSTREAM_AUTH_TYPE:NONE} # NONE | API_KEY
+      header: ${AUTHZ_UPSTREAM_AUTH_HEADER:Authorization}
+      value: ${AUTHZ_UPSTREAM_AUTH_VALUE:}
+  http:
+    connect-timeout-ms: ${AUTHZ_CONNECT_TIMEOUT_MS:500}
+    timeout-ms: ${AUTHZ_TIMEOUT_MS:1500}
+
 actions:
   # Commerce demo routes (runtime actionIds -> ecommerce-store domain APIs).
   #

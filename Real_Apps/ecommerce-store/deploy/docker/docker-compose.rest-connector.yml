@@ -47,6 +47,9 @@ services:
 
       # Point at the Ecommerce Store inside the Docker network.
       UPSTREAM_BASE_URL: http://ecommerce-store:8096
+
+      # Enable runtime -> rest-connector -> ecommerce-store authz checks.
+      AUTHZ_ENABLED: true
     volumes:
       - ../rest-connector/actions-routing.yml:/config/actions-routing.yml:ro
 

@@ -50,6 +50,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         return !(path.startsWith("/actions/execute")
             || path.startsWith("/api/admin")
             || path.startsWith("/api/ai/data-sync")
+            || path.startsWith("/api/authz")
             || path.startsWith("/api/chat"));
     }
 

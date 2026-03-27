@@ -44,6 +44,8 @@ public class RestConnectorAdminController {
         RestRoutingConfig.Connector connector = routingConfig != null ? routingConfig.getConnector() : null;
         body.put("connector", sanitizeConnector(connector));
         body.put("runtimeProxy", sanitizeRuntimeProxy(runtimeProxyProperties));
+        RestRoutingConfig.Authz authz = routingConfig != null ? routingConfig.getAuthz() : null;
+        body.put("authz", sanitizeAuthz(authz));
 
         Map<String, RestRoutingConfig.ActionRoute> actions = routingConfig != null ? routingConfig.getActions() : null;
         List<Map<String, Object>> actionList = toActionSummaries(actions);
@@ -164,6 +166,41 @@ public class RestConnectorAdminController {
             idempotencyOut.put("inProgressMaxWaitMs", idempotency.getInProgressMaxWaitMs());
         }
         out.put("idempotency", idempotencyOut);
+
+        return out;
+    }
+
+    private static Map<String, Object> sanitizeAuthz(RestRoutingConfig.Authz authz) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (authz == null) {
+            return out;
+        }
+        out.put("enabled", authz.isEnabled());
+        out.put("path", authz.getPath());
+
+        RestRoutingConfig.Upstream upstream = authz.getUpstream();
+        Map<String, Object> upstreamOut = new LinkedHashMap<>();
+        if (upstream != null) {
+            upstreamOut.put("baseUrl", upstream.getBaseUrl());
+
+            RestRoutingConfig.UpstreamAuth auth = upstream.getAuth();
+            Map<String, Object> authOut = new LinkedHashMap<>();
+            if (auth != null) {
+                authOut.put("type", auth.getType() != null ? auth.getType().name() : null);
+                authOut.put("header", auth.getHeader());
+                authOut.put("valueConfigured", StringUtils.hasText(auth.getValue()));
+            }
+            upstreamOut.put("auth", authOut);
+        }
+        out.put("upstream", upstreamOut);
+
+        RestRoutingConfig.AuthzHttp http = authz.getHttp();
+        Map<String, Object> httpOut = new LinkedHashMap<>();
+        if (http != null) {
+            httpOut.put("connectTimeoutMs", http.getConnectTimeoutMs());
+            httpOut.put("timeoutMs", http.getTimeoutMs());
+        }
+        out.put("http", httpOut);
 
         return out;
     }

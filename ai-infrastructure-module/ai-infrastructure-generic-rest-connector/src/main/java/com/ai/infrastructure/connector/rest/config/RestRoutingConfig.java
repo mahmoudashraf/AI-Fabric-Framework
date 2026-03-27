@@ -17,6 +17,9 @@ public class RestRoutingConfig {
     private Connector connector = new Connector();
 
     @Valid
+    private Authz authz = new Authz();
+
+    @Valid
     private Map<String, ActionRoute> actions = new LinkedHashMap<>();
 
     @Data
@@ -32,6 +35,39 @@ public class RestRoutingConfig {
 
         @Valid
         private Idempotency idempotency = new Idempotency();
+    }
+
+    @Data
+    public static class Authz {
+        /**
+         * When true, {@code POST /api/authz/check} is enabled and forwards to the configured upstream.
+         *
+         * <p>This endpoint is protected by the same inbound auth filter as {@code /actions/execute}
+         * when {@code connector.inbound-auth.allow-unauthenticated=false}.</p>
+         */
+        private boolean enabled = false;
+
+        /**
+         * Upstream path for the authz check endpoint (relative to {@code authz.upstream.base-url}).
+         */
+        private String path = "/api/authz/check";
+
+        @Valid
+        private Upstream upstream = new Upstream();
+
+        @Valid
+        private AuthzHttp http = new AuthzHttp();
+    }
+
+    @Data
+    public static class AuthzHttp {
+        @Min(100)
+        @Max(120_000)
+        private int connectTimeoutMs = 500;
+
+        @Min(100)
+        @Max(120_000)
+        private int timeoutMs = 1500;
     }
 
     @Data
@@ -173,4 +209,3 @@ public class RestRoutingConfig {
         private Object pinnedTargets;
     }
 }
-

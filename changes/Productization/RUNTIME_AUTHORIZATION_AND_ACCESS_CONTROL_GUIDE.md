@@ -7,16 +7,18 @@ This document explains how **production runtime deployments** should implement a
 Related docs:
 - `changes/Productization/DATA_SYNC_PUSH_API_GUIDE.md` (Data Sync uses the same access-control hook)
 - `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md` (trace and defense-in-depth patterns)
+- Plan: `changes/Productization/REMOTE_ACCESS_CONTROL_VIA_REST_CONNECTOR_PLAN.md` (recommended product direction)
 
 ---
 
 ## 0) TL;DR
 
 - AI Fabric Runtime does **not** ship your business authorization rules.
-- A production deployment should provide a Spring bean implementing `com.ai.infrastructure.access.policy.EntityAccessPolicy` (authorization decisions).
+- Framework users can provide a Spring bean implementing `com.ai.infrastructure.access.policy.EntityAccessPolicy` (authorization decisions).
+- Runtime product deployments can instead use the built-in **remote HTTP authz policy** (no custom Java code) via `ai.fabric.runtime.authz.*`.
 - Optionally provide `com.ai.infrastructure.chat.spi.ChatSessionAccessControlPolicy` (conversation-level rules).
-- Dev/test: keep permissive defaults enabled (`ai.fabric.runtime.dev-defaults.enabled=true` or `AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED=true`).
-- Production: disable dev defaults and provide a real `EntityAccessPolicy`.
+- Dev/test/demos: explicitly enable permissive defaults (`ai.fabric.runtime.dev-defaults.enabled=true` or `AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED=true`).
+- Production: keep dev defaults disabled and provide a real `EntityAccessPolicy`.
 
 ---
 
@@ -52,11 +54,19 @@ Typical access request:
 
 ## 2) Who Should Provide `EntityAccessPolicy`
 
-The **host application** that deploys the runtime service must provide it.
+### 2.1 Framework usage (embedded)
 
 Concretely, this means:
-- Your "runtime product" build/image should include a Spring `@Bean` (or `@Component`) implementing `EntityAccessPolicy`.
-- The connector demo runtime config enables dev defaults and is not a production model.
+- Your host Spring application should include a Spring `@Bean` (or `@Component`) implementing `EntityAccessPolicy`.
+- Demo deployments often enable dev defaults for convenience; production should not.
+
+### 2.2 Runtime product deployments (recommended)
+
+You can avoid shipping custom Java code by configuring runtime to call a **customer-owned authorization API**:
+- Runtime calls `POST /api/authz/check`
+- Default wiring is via the Generic REST Connector (Runtime -> REST connector -> customer authz service)
+
+This is configured via `ai.fabric.runtime.authz.*` (see Option B below).
 
 ---
 
@@ -170,38 +180,32 @@ Response:
 { "granted": true, "reason": "OK" }
 ```
 
-### 5.2 Implementation sketch (fail-closed)
+### 5.2 Runtime product: built-in remote HTTP policy (no custom code)
 
-Implement `EntityAccessPolicy` as an HTTP client:
-- Short timeouts.
-- Deny on timeout/5xx/unparseable response.
-- Consider caching (tenant role checks are often stable for minutes).
+Runtime ships a built-in remote HTTP policy (`REMOTE_HTTP`) which is **fail-closed**:
+- Denies on timeout, 5xx/non-2xx, or unparseable payload.
+- Uses `ai.actions.connector.base-url` + `ai.actions.connector.api-key.*` by default (so the same REST connector used for actions can proxy authz).
 
-Pseudo-implementation outline:
+Example config:
 
-```java
-@Component
-@RequiredArgsConstructor
-public class RemoteAuthzEntityAccessPolicy implements EntityAccessPolicy {
-  private final RestClient restClient;
-
-  @Override
-  public boolean canUserAccessEntity(String userId, Map<String, Object> entity) {
-    AuthzRequest req = AuthzRequest.from(userId, entity);
-    try {
-      AuthzResponse resp = restClient.post().uri("/api/authz/check").body(req).retrieve().body(AuthzResponse.class);
-      return resp != null && resp.granted();
-    } catch (Exception ex) {
-      return false; // fail-closed
-    }
-  }
-}
+```yaml
+ai:
+  fabric:
+    runtime:
+      authz:
+        mode: REMOTE_HTTP
+        remote:
+          # Optional: defaults to ai.actions.connector.base-url when blank
+          base-url: ${AUTHZ_BASE_URL:${ACTIONS_CONNECTOR_BASE_URL:}}
+          path: /api/authz/check
+          timeout-ms: 1500
+          outbound-auth:
+            type: INHERIT_ACTIONS_API_KEY
 ```
 
-Operational guidance:
-- Add metrics: total checks, denies, timeouts, 5xx.
-- Add bounded retries only when safe.
-- Cache "grant/deny" for a short TTL to protect your authz service.
+### 5.3 Framework: implement a custom bean (still supported)
+
+If you are embedding the framework into your own Spring app, you can still implement `EntityAccessPolicy` as a bean and call your authz service however you want.
 
 ---
 

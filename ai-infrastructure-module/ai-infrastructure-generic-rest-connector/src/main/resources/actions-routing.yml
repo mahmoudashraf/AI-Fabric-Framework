@@ -16,5 +16,11 @@ connector:
     ttl-seconds: 300
     in-progress-max-wait-ms: 2000
 
-actions: {}
+authz:
+  enabled: false
+  path: /api/authz/check
+  http:
+    connect-timeout-ms: 500
+    timeout-ms: 1500
 
+actions: {}
