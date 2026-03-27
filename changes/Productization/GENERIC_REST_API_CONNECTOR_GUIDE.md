@@ -195,15 +195,70 @@ AI Fabric Runtime retry behavior is derived from `errorCode` + idempotency safet
 ### 6.1 Runnable module
 
 - Service module: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
-- Default port: `8082`
+- Default port: `8082` (supports `PORT` override via `server.port=${PORT:8082}`)
+
+### 6.3 Verification endpoints (debug)
+
+These endpoints help confirm which routes are loaded at runtime (useful for "ACTION_NOT_SUPPORTED" debugging):
+
+- Health:
+  - `GET /actuator/health`
+- Routes overview (admin):
+  - `GET /api/admin/overview`
+  - `GET /api/admin/actions/overview`
+  - `GET /api/admin/actions/{actionId}`
+
+Security:
+- When `connector.inbound-auth.allow-unauthenticated=false`, the admin endpoints are protected by the same inbound API key as `/actions/execute`.
+- Send your inbound auth header (default `X-AIFABRIC-API-KEY`) when calling them.
+
+### 6.4 Optional: Runtime Proxy (Indexing Alias)
+
+For some demo setups you may want the connector to be the **single base URL** for both:
+- action execution (`POST /actions/execute`)
+- managed indexing calls (Runtime Data Sync push API)
+
+When enabled, the connector exposes a small set of **alias** endpoints under:
+- `/api/ai/data-sync/*`
+
+These endpoints **forward** to the configured runtime.
+
+Enable:
+
+```bash
+REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true
+REST_CONNECTOR_RUNTIME_PROXY_BASE_URL="https://<runtime>.up.railway.app"
+```
+
+Optional runtime auth header (only if your runtime is protected by an external gateway):
+
+```bash
+REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER="X-ADMIN-API-KEY"
+REST_CONNECTOR_RUNTIME_PROXY_API_KEY="<secret>"
+```
+
+Exposed endpoints (when enabled):
+- `GET /api/ai/data-sync/vector-spaces`
+- `POST /api/ai/data-sync/upsert`
+- `POST /api/ai/data-sync/delete`
+- `POST /api/ai/data-sync/batch`
+
+Also exposed (read-only admin inspection, when enabled):
+- `GET /api/admin/indexing/overview`
+- `GET /api/admin/indexing/vectors?entityType=...&offset=...&limit=...`
+
+Security:
+- These endpoints are protected by the same inbound API key filter as `/actions/execute` (unless you explicitly set `connector.inbound-auth.allow-unauthenticated=true`).
 
 ### 6.2 Docker image
 
 Build:
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/Dockerfile`
+- Railway-friendly Dockerfile (bakes a template routing config):
+  - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile`
+  - Guide: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
 
 Run pattern:
 - mount `actions-routing.yml` to `/config/actions-routing.yml`
 - set `REST_CONNECTOR_ROUTING_CONFIG_LOCATION=file:/config/actions-routing.yml`
 - set secrets via env (`CONNECTOR_API_KEY`, `UPSTREAM_API_KEY`, etc)
-

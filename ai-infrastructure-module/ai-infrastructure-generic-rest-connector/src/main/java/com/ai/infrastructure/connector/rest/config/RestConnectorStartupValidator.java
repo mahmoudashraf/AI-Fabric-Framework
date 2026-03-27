@@ -33,6 +33,7 @@ public class RestConnectorStartupValidator {
 
         validateInboundAuth(config);
         validateUpstream(config);
+        validateAuthz(config);
         validateRoutes(config);
     }
 
@@ -64,6 +65,38 @@ public class RestConnectorStartupValidator {
 
         if (StringUtils.hasText(upstream.getBaseUrl())) {
             validateUrl(upstream.getBaseUrl().trim(), "connector.upstream.base-url");
+        }
+    }
+
+    private void validateAuthz(RestRoutingConfig config) {
+        RestRoutingConfig.Authz authz = config != null ? config.getAuthz() : null;
+        if (authz == null || !authz.isEnabled()) {
+            return;
+        }
+
+        RestRoutingConfig.Upstream upstream = authz.getUpstream();
+        String baseUrl = upstream != null ? upstream.getBaseUrl() : null;
+        if (!StringUtils.hasText(baseUrl)) {
+            // Convenience: allow reusing connector upstream baseUrl when authz is served by the same upstream.
+            RestRoutingConfig.Connector connector = config.getConnector();
+            RestRoutingConfig.Upstream connectorUpstream = connector != null ? connector.getUpstream() : null;
+            baseUrl = connectorUpstream != null ? connectorUpstream.getBaseUrl() : null;
+        }
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new IllegalStateException("authz.enabled=true but authz.upstream.base-url is missing.");
+        }
+        validateUrl(baseUrl.trim(), "authz.upstream.base-url");
+
+        String path = authz.getPath();
+        if (!StringUtils.hasText(path)) {
+            throw new IllegalStateException("authz.enabled=true but authz.path is missing.");
+        }
+        String p = path.trim();
+        if (p.contains("://")) {
+            throw new IllegalStateException("authz.path must be a relative path (no scheme).");
+        }
+        if (!p.startsWith("/")) {
+            throw new IllegalStateException("authz.path must start with '/'.");
         }
     }
 
@@ -149,4 +182,3 @@ public class RestConnectorStartupValidator {
         }
     }
 }
-

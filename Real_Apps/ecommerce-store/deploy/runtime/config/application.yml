@@ -1,0 +1,97 @@
+server:
+  port: ${PORT:8097}
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: ai-fabric-runtime-commerce-demo
+  datasource:
+    url: jdbc:h2:file:/data/ai-fabric-runtime.db
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+ai:
+  enabled: true
+
+  # Demo-only: allow all entity access decisions (required for indexing/search without a customer policy implementation).
+  fabric:
+    runtime:
+      dev-defaults:
+        enabled: true
+
+  curated:
+    pack: commerce
+
+  config:
+    default-file: file:/config/ai-entity-config.yml
+
+  chat:
+    enabled: true
+    window-size: 12
+    max-context-chars: 8000
+    auto-create-sessions: true
+
+  intent-history:
+    enabled: false
+
+  providers:
+    llm-provider: openai
+    embedding-provider: openai
+    openai:
+      enabled: ${OPENAI_ENABLED:false}
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+      embedding-dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:512}
+      timeout: 45
+
+  service:
+    features:
+      enable-generation: ${OPENAI_ENABLED:false}
+      enable-embeddings: ${OPENAI_ENABLED:false}
+      enable-search: true
+      enable-rag: true
+
+  vector-db:
+    type: lucene
+    lucene:
+      index-path: /data/lucene-vector-index-${OPENAI_EMBEDDING_DIMENSIONS:512}
+      vector-dimension: ${OPENAI_EMBEDDING_DIMENSIONS:512}
+
+  data-sync:
+    enabled: true
+
+  retrieval:
+    connector:
+      enabled: false
+
+  actions:
+    sources:
+      - path: file:/config/ai-actions.yml
+    connector:
+      base-url: ${ACTIONS_CONNECTOR_BASE_URL:}
+      api-key:
+        value: ${ACTIONS_CONNECTOR_API_KEY:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,conditions,mappings,beans
+
+logging:
+  level:
+    com.ai.fabric.runtime: INFO
+    com.ai.infrastructure: INFO
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:}
+    allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}

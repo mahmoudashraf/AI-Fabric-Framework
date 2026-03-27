@@ -5,6 +5,7 @@ ai:
     modes:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
+        actions-preferred: true
       navigator_deep:
         information-mode: DETERMINISTIC_RAG_GENERATE
         use-advanced-rag: true
@@ -43,6 +44,8 @@ ai:
             - policy
       cart_assistant:
         information-mode: LLM_DRIVEN
+        # In cart flows, prefer ACTION intents (e.g., list_orders) over generic RAG answers.
+        actions-preferred: true
     position-routing:
       landing: navigator
       catalog: navigator

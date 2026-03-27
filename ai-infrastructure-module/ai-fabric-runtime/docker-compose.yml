@@ -11,6 +11,9 @@ services:
     environment:
       PORT: 8097
 
+      # Demo convenience: enable permissive policy hooks (do not use in production).
+      AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED: "true"
+
       # LLM/embeddings provider (OpenAI is opt-in)
       OPENAI_ENABLED: "false"
       OPENAI_API_KEY: ""

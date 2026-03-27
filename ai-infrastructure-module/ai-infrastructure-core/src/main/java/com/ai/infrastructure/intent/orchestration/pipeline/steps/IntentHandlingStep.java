@@ -688,6 +688,14 @@ public class IntentHandlingStep implements PipelineStep {
         if (meta == null || meta.getAccessMode() != ActionAccessMode.READ) {
             return null;
         }
+        // In action-first modes (e.g., cart assistant / executor), an empty list is a valid, user-visible result.
+        // Falling back to RAG here makes it look like the action wasn't executed.
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        if (policy != null
+            && policy.capabilities() != null
+            && policy.capabilities().actionsPreferred()) {
+            return null;
+        }
         if (actionResult == null || !actionResult.isSuccess()) {
             return null;
         }
@@ -729,7 +737,6 @@ public class IntentHandlingStep implements PipelineStep {
             return null;
         }
 
-        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
         boolean exposeProbe = policy != null
             && policy.capabilities() != null
             && policy.capabilities().exposeReadProbeFallbackAttempt();

@@ -26,7 +26,7 @@ class RuntimeDevDefaultsConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "ai.fabric.runtime.dev-defaults", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "ai.fabric.runtime.dev-defaults", name = "enabled", havingValue = "true", matchIfMissing = false)
     @ConditionalOnMissingBean(EntityAccessPolicy.class)
     EntityAccessPolicy devAllowAllEntityAccessPolicy() {
         log.warn("Runtime dev-defaults are enabled: registering allow-all EntityAccessPolicy (DO NOT use in production).");
@@ -34,7 +34,7 @@ class RuntimeDevDefaultsConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "ai.fabric.runtime.dev-defaults", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "ai.fabric.runtime.dev-defaults", name = "enabled", havingValue = "true", matchIfMissing = false)
     @ConditionalOnMissingBean(ChatSessionAccessControlPolicy.class)
     ChatSessionAccessControlPolicy devChatSessionAccessControlPolicy() {
         return new ChatSessionAccessControlPolicy() {

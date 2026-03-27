@@ -1,5 +1,5 @@
 server:
-  port: 8082
+  port: ${PORT:8082}
 
 management:
   endpoints:
@@ -10,3 +10,11 @@ management:
 rest-connector:
   routing-config-location: classpath:actions-routing.yml
 
+app:
+  cors:
+    # Example: CORS_ALLOWED_ORIGINS=https://my-ui.example.com
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+    # Example: CORS_ALLOWED_ORIGIN_PATTERNS=https://*.my-ui.example.com
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:}
+    # Example: CORS_ALLOW_CREDENTIALS=true (only if you need cookies/session auth from the browser)
+    allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}

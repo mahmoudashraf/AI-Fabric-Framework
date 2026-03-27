@@ -8,7 +8,7 @@ This repo contains two different Dockerfiles for **AI Fabric Runtime**. They bot
   - `ai-infrastructure-module/ai-fabric-runtime/Dockerfile`
   - Entry point script: `ai-infrastructure-module/ai-fabric-runtime/docker-entrypoint.sh`
 
-- Railway-friendly runtime Dockerfile (bakes in connector-demo config):
+- Railway-friendly runtime Dockerfile (bakes in ecommerce-store demo config):
   - `ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile`
 
 ## What’s Different (Behaviorally)
@@ -26,7 +26,7 @@ This repo contains two different Dockerfiles for **AI Fabric Runtime**. They bot
 
 **Railway Dockerfile**
 
-- Copies the connector-demo runtime config folder into the image at:
+- Copies the ecommerce-store demo runtime config folder into the image at:
   - `/config/`
 - Starts the runtime with:
   - `--spring.config.additional-location=file:/config/`
@@ -45,7 +45,7 @@ This is the most common reason the runtime appears “missing actions”: the **
   - `/config/ai-actions.yml`
   - `/config/ai-entity-config.yml`
 - The demo runtime config in this repo is sourced from:
-  - `Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/`
+  - `Real_Apps/ecommerce-store/deploy/runtime/config/`
 
 **Base Dockerfile**
 
@@ -113,7 +113,7 @@ From the repo root:
 docker build -f ai-infrastructure-module/ai-fabric-runtime/Dockerfile -t ai-fabric-runtime:base .
 
 docker run --rm -p 8097:8097 \
-  -v "$(pwd)/Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config:/config" \
+  -v "$(pwd)/Real_Apps/ecommerce-store/deploy/runtime/config:/config" \
   -e SPRING_CONFIG_ADDITIONAL_LOCATION="file:/config/" \
   -e ACTIONS_CONNECTOR_BASE_URL="http://host.docker.internal:8096" \
   ai-fabric-runtime:base
@@ -129,5 +129,4 @@ docker run --rm -p 8097:8097 -e ACTIONS_CONNECTOR_BASE_URL="http://host.docker.i
 ## Related Docs
 
 - `ai-infrastructure-module/ai-fabric-runtime/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
-- `Real_Apps/chat-capabilities-connector-demo/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
-
+- `Real_Apps/ecommerce-store/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
