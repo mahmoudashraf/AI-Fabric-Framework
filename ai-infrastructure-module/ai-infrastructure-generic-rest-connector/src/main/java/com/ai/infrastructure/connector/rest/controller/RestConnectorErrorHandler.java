@@ -2,6 +2,9 @@ package com.ai.infrastructure.connector.rest.controller;
 
 import com.ai.infrastructure.connector.rest.api.ActionResultDto;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -10,6 +13,15 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class RestConnectorErrorHandler {
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<ActionResultDto> handleNotFound(NoHandlerFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+            ActionResultDto.failure("NOT_FOUND", "Not Found", Map.of(
+                "path", ex != null ? ex.getRequestURL() : null
+            ))
+        );
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ActionResultDto handleBadRequest(IllegalArgumentException ex) {
@@ -27,4 +39,3 @@ public class RestConnectorErrorHandler {
         return ActionResultDto.failure("SERVICE_UNAVAILABLE", "Connector service unavailable.", Map.of());
     }
 }
-
