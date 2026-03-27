@@ -76,6 +76,7 @@ If you are deploying **only** the domain API, keep:
 
 This service exposes:
 - `POST /api/admin/demo/reset` (preferred)
+- `POST /api/admin/demo/clear` (eventful; relies on delete-index events instead of runtime vector-clear)
 - `POST /api/admin/migration/clear` (legacy alias)
 
 Optional: protect these endpoints with an API key:

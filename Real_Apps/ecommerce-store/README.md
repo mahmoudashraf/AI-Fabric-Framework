@@ -35,6 +35,7 @@ Requests file:
 
 UI-facing maintenance endpoints:
 - `POST /api/admin/demo/reset` (preferred)
+- `POST /api/admin/demo/clear` (eventful; deletes indexed entities via service methods so delete-index events fire)
 - `POST /api/admin/migration/clear` (legacy alias)
 
 Both require a JSON body with at least:

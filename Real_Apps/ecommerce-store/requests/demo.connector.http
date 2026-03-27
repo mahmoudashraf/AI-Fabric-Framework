@@ -76,3 +76,11 @@ Content-Type: application/json
   "clearConnectorData": true,
   "clearRuntimeVectors": true
 }
+
+### Clear demo data (eventful; relies on delete-index events)
+POST {{baseUrl}}/api/admin/demo/clear
+Content-Type: application/json
+
+{
+  "confirm": true
+}

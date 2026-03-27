@@ -48,6 +48,35 @@ public class DemoResetAdminController {
     }
 
     /**
+     * Eventful clear: deletes indexed entities via service methods so delete-index events fire.
+     *
+     * <p>Unlike {@code /demo/reset}, this endpoint does not call the runtime "clear vectors" admin hook.
+     * Vector deletions rely on the existing event-based indexing listeners.</p>
+     */
+    @PostMapping("/demo/clear")
+    public ResponseEntity<?> clearEventful(@RequestBody(required = false) ClearRequest request, HttpServletRequest httpRequest) {
+        if (adminAuthEnabled && !AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "success", false,
+                "message", "Unauthorized"
+            ));
+        }
+
+        if (request == null || !Boolean.TRUE.equals(request.getConfirm())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "success", false,
+                "message", "confirm=true is required"
+            ));
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("success", true);
+        out.put("connector", demoResetService.clearConnectorDataEventfully());
+        out.put("note", "Vector deletions are async after commit and require connector.indexing.enabled=true.");
+        return ResponseEntity.ok(out);
+    }
+
+    /**
      * Backwards-compatible path (matches earlier demos).
      */
     @PostMapping("/migration/clear")
@@ -97,5 +126,11 @@ public class DemoResetAdminController {
         private Boolean confirm;
         private Boolean clearConnectorData = true;
         private Boolean clearRuntimeVectors = true;
+    }
+
+    @Data
+    public static class ClearRequest {
+        @NotNull
+        private Boolean confirm;
     }
 }
