@@ -17,6 +17,7 @@
     --green: #34d399;
     --red: #f87171;
     --yellow: #fbbf24;
+    --orange: #fb923c;
     --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,153 +28,260 @@
     line-height: 1.6;
     min-height: 100vh;
   }
+
+  /* ── Header ── */
   .header {
     border-bottom: 1px solid var(--border);
-    padding: 16px 24px;
+    padding: 14px 24px;
     display: flex;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
   }
-  .header h1 {
-    font-size: 18px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .header .api-key-group {
+  .header h1 { font-size: 17px; font-weight: 600; white-space: nowrap; }
+
+  /* ── Nav tabs ── */
+  .nav-tabs {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
+    gap: 2px;
+    margin-left: 24px;
   }
-  .header label {
-    font-size: 13px;
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
-  .header input[type="password"] {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 6px 10px;
+  .nav-tab {
+    padding: 6px 16px;
     border-radius: 6px;
     font-size: 13px;
-    font-family: var(--mono);
-    width: 220px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
   }
-  .header input::placeholder { color: var(--text-muted); opacity: 0.5; }
-  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  .nav-tab:hover { color: var(--text); border-color: var(--border); }
+  .nav-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+  /* ── Config bar ── */
+  .config-bar {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    background: var(--surface);
+    font-size: 12px;
+  }
+  .config-bar label { color: var(--text-muted); white-space: nowrap; }
+  .config-bar input[type="text"],
+  .config-bar input[type="password"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+  .config-bar input.url-input { width: 340px; }
+  .config-bar input.key-input { width: 160px; }
+  .config-bar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px 24px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── Cards ── */
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     overflow: hidden;
   }
   .card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 18px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--border);
-    cursor: default;
   }
   .card-header h2 {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .card-body { padding: 18px; }
+  .card-header .right { display: flex; gap: 6px; align-items: center; }
+  .card-body { padding: 16px; }
 
+  /* ── Status ── */
   .status-dot {
     width: 8px; height: 8px; border-radius: 50%;
     display: inline-block;
     background: var(--text-muted);
+    flex-shrink: 0;
   }
   .status-dot.ok { background: var(--green); }
   .status-dot.err { background: var(--red); }
   .status-dot.loading { background: var(--yellow); animation: pulse 1s infinite; }
   @keyframes pulse { 50% { opacity: 0.4; } }
 
+  /* ── Buttons ── */
   .btn {
     background: var(--accent);
     color: #fff;
     border: none;
-    padding: 7px 16px;
+    padding: 6px 14px;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.15s;
+    white-space: nowrap;
   }
   .btn:hover { background: var(--accent-hover); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
   .btn-outline {
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text-muted);
   }
   .btn-outline:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+  .btn-danger { background: var(--red); }
+  .btn-danger:hover { background: #ef4444; }
 
+  /* ── Verification row ── */
+  .verify-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .verify-row:last-child { border-bottom: none; }
+  .verify-row .info { flex: 1; min-width: 0; }
+  .verify-row .name {
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .verify-row .url {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text-muted);
+    margin-top: 2px;
+    word-break: break-all;
+  }
+  .verify-row .method {
+    font-size: 10px;
+    font-family: var(--mono);
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(108,138,255,0.15);
+    color: var(--accent);
+  }
+  .verify-row .method.post { background: rgba(251,191,36,0.15); color: var(--yellow); }
+
+  /* ── Response panel ── */
+  .response-panel {
+    margin-top: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: none;
+  }
+  .response-panel.visible { display: block; }
+  .response-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .response-bar .http-status {
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+  .response-bar .http-status.s2xx { color: var(--green); }
+  .response-bar .http-status.s4xx { color: var(--yellow); }
+  .response-bar .http-status.s5xx { color: var(--red); }
+  .response-bar .http-status.err { color: var(--red); }
+  .response-bar .latency { color: var(--text-muted); font-family: var(--mono); }
+  .response-body {
+    padding: 10px 12px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text-muted);
+    max-height: 400px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* ── Stat grid ── */
   .stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
   }
   .stat-box {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 14px;
+    padding: 12px;
     text-align: center;
   }
   .stat-box .value {
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 700;
     font-family: var(--mono);
     color: var(--accent);
   }
   .stat-box .label {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-muted);
-    margin-top: 4px;
+    margin-top: 2px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
   }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th {
     text-align: left;
-    padding: 8px 12px;
+    padding: 7px 10px;
     color: var(--text-muted);
     font-weight: 500;
-    font-size: 11px;
+    font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     border-bottom: 1px solid var(--border);
   }
   td {
-    padding: 8px 12px;
+    padding: 7px 10px;
     border-bottom: 1px solid var(--border);
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 11px;
   }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: var(--surface-hover); }
 
   .badge {
     display: inline-block;
-    padding: 2px 8px;
+    padding: 1px 7px;
     border-radius: 4px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     font-family: var(--mono);
   }
@@ -184,30 +292,25 @@
 
   .empty-state {
     text-align: center;
-    padding: 32px;
+    padding: 24px;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 13px;
   }
   .error-box {
     background: rgba(248,113,113,0.1);
     border: 1px solid rgba(248,113,113,0.3);
-    border-radius: 8px;
-    padding: 12px 16px;
+    border-radius: 6px;
+    padding: 10px 14px;
     color: var(--red);
-    font-size: 13px;
+    font-size: 12px;
     font-family: var(--mono);
   }
 
-  .entity-tabs {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 14px;
-    flex-wrap: wrap;
-  }
+  .entity-tabs { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; }
   .entity-tab {
-    padding: 5px 14px;
-    border-radius: 6px;
-    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 5px;
+    font-size: 11px;
     font-family: var(--mono);
     cursor: pointer;
     background: var(--bg);
@@ -222,58 +325,112 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 12px;
-    font-size: 12px;
+    padding-top: 10px;
+    font-size: 11px;
     color: var(--text-muted);
   }
-  .pagination .btns { display: flex; gap: 6px; }
+  .pagination .btns { display: flex; gap: 5px; }
 
-  .actions-toolbar {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin: 18px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
   }
+  .section-label:first-child { margin-top: 0; }
+
+  .confirm-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+  .confirm-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 420px;
+    width: 90%;
+  }
+  .confirm-box h3 { font-size: 15px; margin-bottom: 10px; }
+  .confirm-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+  .confirm-box .btns { display: flex; gap: 8px; justify-content: flex-end; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>AI Fabric Admin Verification</h1>
-  <div class="api-key-group">
-    <label for="apiKey">Admin API Key</label>
-    <input type="password" id="apiKey" placeholder="empty = dev mode (allow all)">
+  <h1>AI Fabric Admin</h1>
+  <div class="nav-tabs">
+    <div class="nav-tab active" onclick="showPage('verification')">Verification</div>
+    <div class="nav-tab" onclick="showPage('migration')">Migration</div>
   </div>
 </div>
 
+<div class="config-bar">
+  <label>Runtime</label>
+  <input type="text" class="url-input" id="runtimeBase" value="https://runtime-prod2.up.railway.app">
+  <div class="sep"></div>
+  <label>REST Connector</label>
+  <input type="text" class="url-input" id="restConnectorBase" value="https://ai-fabric-framework-production-d912.up.railway.app">
+  <div class="sep"></div>
+  <label>Demo Connector</label>
+  <input type="text" class="url-input" id="demoConnectorBase" value="https://ai-fabric-framework-production-a247.up.railway.app">
+  <div class="sep"></div>
+  <label>Connector Key</label>
+  <input type="password" class="key-input" id="connectorApiKey" value="test-key" placeholder="X-AIFABRIC-API-KEY">
+  <div class="sep"></div>
+  <label>Admin Key</label>
+  <input type="password" class="key-input" id="adminApiKey" placeholder="X-ADMIN-API-KEY">
+</div>
+
+<!-- ═══════════════ VERIFICATION PAGE ═══════════════ -->
 <div class="container">
-  <div class="actions-toolbar">
-    <button class="btn" onclick="refreshAll()">Refresh All</button>
+<div class="page active" id="page-verification">
+  <div class="toolbar">
+    <button class="btn" onclick="runAllVerifications()">Run All Checks</button>
   </div>
 
-  <!-- Action Catalog Card -->
-  <div class="card" id="actions-card">
+  <div id="verification-list"></div>
+</div>
+
+<!-- ═══════════════ MIGRATION PAGE ═══════════════ -->
+<div class="page" id="page-migration">
+
+  <!-- Action Catalog -->
+  <div class="card">
     <div class="card-header">
       <h2><span class="status-dot" id="actions-status"></span> Action Catalog</h2>
-      <button class="btn btn-sm btn-outline" onclick="loadActions()">Refresh</button>
+      <div class="right"><button class="btn btn-sm btn-outline" onclick="loadActions()">Refresh</button></div>
     </div>
     <div class="card-body" id="actions-body">
-      <div class="empty-state">Click Refresh All to load</div>
+      <div class="empty-state">Click Refresh to load</div>
     </div>
   </div>
 
-  <!-- Indexing Overview Card -->
-  <div class="card" id="indexing-card">
+  <!-- Indexing Overview -->
+  <div class="card">
     <div class="card-header">
       <h2><span class="status-dot" id="indexing-status"></span> Indexing Overview</h2>
-      <button class="btn btn-sm btn-outline" onclick="loadIndexing()">Refresh</button>
+      <div class="right"><button class="btn btn-sm btn-outline" onclick="loadIndexing()">Refresh</button></div>
     </div>
     <div class="card-body" id="indexing-body">
-      <div class="empty-state">Click Refresh All to load</div>
+      <div class="empty-state">Click Refresh to load</div>
     </div>
   </div>
 
-  <!-- Vector Browser Card -->
-  <div class="card" id="vectors-card">
+  <!-- Vector Browser -->
+  <div class="card">
     <div class="card-header">
       <h2><span class="status-dot" id="vectors-status"></span> Vector Browser</h2>
     </div>
@@ -281,70 +438,237 @@
       <div class="empty-state">Load Indexing Overview first to discover entity types</div>
     </div>
   </div>
+
+  <!-- Demo Reset -->
+  <div class="card">
+    <div class="card-header">
+      <h2><span class="status-dot" id="reset-status"></span> Demo Reset</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+        Clears demo connector data and/or runtime vectors. Requires confirmation.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-danger btn-sm" onclick="confirmReset('all')">Reset All (Connector + Vectors)</button>
+        <button class="btn btn-outline btn-sm" onclick="confirmReset('connector')">Clear Connector Data Only</button>
+        <button class="btn btn-outline btn-sm" onclick="confirmReset('vectors')">Clear Runtime Vectors Only</button>
+      </div>
+      <div id="reset-response" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
 </div>
 
+<div id="modal-container"></div>
+
 <script>
-const API_BASE = window.location.origin;
-
-function getHeaders() {
-  const key = document.getElementById('apiKey').value.trim();
-  const headers = { 'Accept': 'application/json' };
-  if (key) headers['X-ADMIN-API-KEY'] = key;
-  return headers;
+// ── Config helpers ──
+function cfg(id) { return document.getElementById(id).value.trim().replace(/\/+$/, ''); }
+function runtimeHeaders() {
+  const h = { 'Accept': 'application/json' };
+  const k = document.getElementById('adminApiKey').value.trim();
+  if (k) h['X-ADMIN-API-KEY'] = k;
+  return h;
 }
-
-function setStatus(id, state) {
-  const dot = document.getElementById(id);
-  dot.className = 'status-dot ' + state;
+function connectorHeaders() {
+  const h = { 'Accept': 'application/json' };
+  const k = document.getElementById('connectorApiKey').value.trim();
+  if (k) h['X-AIFABRIC-API-KEY'] = k;
+  return h;
 }
-
-async function apiFetch(path) {
-  const resp = await fetch(API_BASE + path, { headers: getHeaders() });
-  const data = await resp.json();
-  if (!resp.ok || data.success === false) {
-    throw new Error(data.message || `HTTP ${resp.status}`);
-  }
-  return data;
-}
-
-function escapeHtml(str) {
+function escapeHtml(s) {
   const d = document.createElement('div');
-  d.textContent = String(str);
+  d.textContent = String(s != null ? s : '');
   return d.innerHTML;
 }
 
-// ── Actions ──
+// ── Page navigation ──
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector(`.nav-tab[onclick*="${name}"]`).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════
+// VERIFICATION PAGE
+// ═══════════════════════════════════════════════
+function getVerificationChecks() {
+  const rt = cfg('runtimeBase');
+  const rc = cfg('restConnectorBase');
+  const dc = cfg('demoConnectorBase');
+  return [
+    // Runtime
+    { section: 'Runtime', name: 'Health', method: 'GET',
+      url: rt + '/actuator/health', headers: {} },
+    { section: 'Runtime', name: 'Actions Loaded', method: 'GET',
+      url: rt + '/api/admin/actions/overview', headers: runtimeHeaders() },
+    { section: 'Runtime', name: 'Indexing Overview', method: 'GET',
+      url: rt + '/api/admin/indexing/overview', headers: runtimeHeaders() },
+    { section: 'Runtime', name: 'Vector Scan (product)', method: 'GET',
+      url: rt + '/api/admin/indexing/vectors?entityType=product&offset=0&limit=50&includeContent=false&includeEmbedding=false&includeMetadata=true',
+      headers: runtimeHeaders() },
+    { section: 'Runtime', name: 'Vector Spaces', method: 'GET',
+      url: rt + '/api/ai/data-sync/vector-spaces', headers: {} },
+
+    // REST Connector
+    { section: 'REST Connector', name: 'Health', method: 'GET',
+      url: rc + '/actuator/health', headers: {} },
+    { section: 'REST Connector', name: 'Overview (routes + proxy config)', method: 'GET',
+      url: rc + '/api/admin/overview', headers: connectorHeaders() },
+    { section: 'REST Connector', name: 'Actions Overview (routes list)', method: 'GET',
+      url: rc + '/api/admin/actions/overview', headers: connectorHeaders() },
+    { section: 'REST Connector', name: 'Action Route: add_to_cart', method: 'GET',
+      url: rc + '/api/admin/actions/add_to_cart', headers: connectorHeaders() },
+    { section: 'REST Connector', name: 'Proxy: Indexing Overview', method: 'GET',
+      url: rc + '/api/admin/indexing/overview', headers: connectorHeaders() },
+    { section: 'REST Connector', name: 'Proxy: Vector Scan (product)', method: 'GET',
+      url: rc + '/api/admin/indexing/vectors?entityType=product&offset=0&limit=50&includeContent=false&includeEmbedding=false&includeMetadata=true',
+      headers: connectorHeaders() },
+    { section: 'REST Connector', name: 'Proxy: Vector Spaces', method: 'GET',
+      url: rc + '/api/ai/data-sync/vector-spaces', headers: connectorHeaders() },
+
+    // Demo Connector
+    { section: 'Demo Connector', name: 'Health', method: 'GET',
+      url: dc + '/actuator/health', headers: {} },
+    { section: 'Demo Connector', name: 'Products Count', method: 'GET',
+      url: dc + '/api/products/count', headers: {} },
+    { section: 'Demo Connector', name: 'Policies Count', method: 'GET',
+      url: dc + '/api/policies/count', headers: {} },
+  ];
+}
+
+function renderVerificationList() {
+  const checks = getVerificationChecks();
+  const el = document.getElementById('verification-list');
+  let html = '';
+  let currentSection = '';
+  checks.forEach((c, i) => {
+    if (c.section !== currentSection) {
+      currentSection = c.section;
+      html += `<div class="section-label">${escapeHtml(currentSection)}</div>`;
+    }
+    const methodCls = c.method === 'POST' ? 'method post' : 'method';
+    html += `
+      <div class="verify-row" id="vr-${i}">
+        <span class="status-dot" id="vs-${i}"></span>
+        <div class="info">
+          <div class="name">
+            <span class="${methodCls}">${c.method}</span>
+            ${escapeHtml(c.name)}
+          </div>
+          <div class="url">${escapeHtml(c.url)}</div>
+          <div class="response-panel" id="vp-${i}">
+            <div class="response-bar">
+              <span class="http-status" id="vhs-${i}"></span>
+              <span class="latency" id="vlt-${i}"></span>
+            </div>
+            <div class="response-body" id="vrb-${i}"></div>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline" onclick="runSingleCheck(${i})">Run</button>
+      </div>`;
+  });
+  el.innerHTML = html;
+}
+
+async function runSingleCheck(idx) {
+  const checks = getVerificationChecks();
+  const c = checks[idx];
+  const dot = document.getElementById('vs-' + idx);
+  const panel = document.getElementById('vp-' + idx);
+  const statusEl = document.getElementById('vhs-' + idx);
+  const latencyEl = document.getElementById('vlt-' + idx);
+  const bodyEl = document.getElementById('vrb-' + idx);
+
+  dot.className = 'status-dot loading';
+  panel.classList.add('visible');
+  statusEl.textContent = '';
+  statusEl.className = 'http-status';
+  latencyEl.textContent = '';
+  bodyEl.textContent = 'Loading...';
+
+  const start = performance.now();
+  try {
+    const fetchOpts = { method: c.method, headers: c.headers };
+    if (c.body) {
+      fetchOpts.body = typeof c.body === 'string' ? c.body : JSON.stringify(c.body);
+      fetchOpts.headers['Content-Type'] = 'application/json';
+    }
+    const resp = await fetch(c.url, fetchOpts);
+    const elapsed = Math.round(performance.now() - start);
+    latencyEl.textContent = elapsed + 'ms';
+
+    let text;
+    const ct = resp.headers.get('content-type') || '';
+    if (ct.includes('json')) {
+      const json = await resp.json();
+      text = JSON.stringify(json, null, 2);
+    } else {
+      text = await resp.text();
+    }
+
+    statusEl.textContent = resp.status + ' ' + resp.statusText;
+    if (resp.status >= 200 && resp.status < 300) {
+      statusEl.className = 'http-status s2xx';
+      dot.className = 'status-dot ok';
+    } else if (resp.status >= 400 && resp.status < 500) {
+      statusEl.className = 'http-status s4xx';
+      dot.className = 'status-dot err';
+    } else {
+      statusEl.className = 'http-status s5xx';
+      dot.className = 'status-dot err';
+    }
+    bodyEl.textContent = text;
+  } catch (e) {
+    const elapsed = Math.round(performance.now() - start);
+    latencyEl.textContent = elapsed + 'ms';
+    statusEl.textContent = 'NETWORK ERROR';
+    statusEl.className = 'http-status err';
+    dot.className = 'status-dot err';
+    bodyEl.textContent = e.message;
+  }
+}
+
+async function runAllVerifications() {
+  renderVerificationList();
+  const checks = getVerificationChecks();
+  const promises = checks.map((_, i) => runSingleCheck(i));
+  await Promise.allSettled(promises);
+}
+
+// ═══════════════════════════════════════════════
+// MIGRATION PAGE — Action Catalog
+// ═══════════════════════════════════════════════
+function setStatus(id, state) {
+  document.getElementById(id).className = 'status-dot ' + state;
+}
+
 async function loadActions() {
   const body = document.getElementById('actions-body');
   setStatus('actions-status', 'loading');
   try {
-    const data = await apiFetch('/api/admin/actions/overview');
+    const resp = await fetch(cfg('runtimeBase') + '/api/admin/actions/overview', { headers: runtimeHeaders() });
+    const data = await resp.json();
+    if (!resp.ok || data.success === false) throw new Error(data.message || 'HTTP ' + resp.status);
     setStatus('actions-status', 'ok');
     if (!data.actions || data.actions.length === 0) {
       body.innerHTML = '<div class="empty-state">No actions loaded. Check ai-actions.yml is mounted.</div>';
       return;
     }
-    let html = '<div class="stat-grid" style="margin-bottom:16px">';
-    html += `<div class="stat-box"><div class="value">${data.count}</div><div class="label">Actions Loaded</div></div>`;
     const readCount = data.actions.filter(a => a.accessMode === 'READ').length;
     const writeCount = data.actions.filter(a => a.accessMode === 'WRITE').length;
+    let html = '<div class="stat-grid">';
+    html += `<div class="stat-box"><div class="value">${data.count}</div><div class="label">Total</div></div>`;
     html += `<div class="stat-box"><div class="value">${readCount}</div><div class="label">Read</div></div>`;
     html += `<div class="stat-box"><div class="value">${writeCount}</div><div class="label">Write</div></div>`;
     html += '</div>';
     html += '<table><thead><tr><th>Name</th><th>Access</th><th>Confirm</th><th>Description</th></tr></thead><tbody>';
     for (const a of data.actions) {
-      const accessBadge = a.accessMode === 'WRITE'
-        ? '<span class="badge badge-yellow">WRITE</span>'
-        : '<span class="badge badge-green">READ</span>';
-      const confirmBadge = a.requiresConfirmation
-        ? '<span class="badge badge-red">yes</span>'
-        : '<span class="badge badge-blue">no</span>';
-      html += `<tr>
-        <td>${escapeHtml(a.name || '')}</td>
-        <td>${accessBadge}</td>
-        <td>${confirmBadge}</td>
-        <td style="font-family:inherit;color:var(--text-muted)">${escapeHtml(a.description || '')}</td>
-      </tr>`;
+      const ab = a.accessMode === 'WRITE' ? '<span class="badge badge-yellow">WRITE</span>' : '<span class="badge badge-green">READ</span>';
+      const cb = a.requiresConfirmation ? '<span class="badge badge-red">yes</span>' : '<span class="badge badge-blue">no</span>';
+      html += `<tr><td>${escapeHtml(a.name||'')}</td><td>${ab}</td><td>${cb}</td>
+        <td style="font-family:inherit;color:var(--text-muted)">${escapeHtml(a.description||'')}</td></tr>`;
     }
     html += '</tbody></table>';
     body.innerHTML = html;
@@ -361,20 +685,20 @@ async function loadIndexing() {
   const body = document.getElementById('indexing-body');
   setStatus('indexing-status', 'loading');
   try {
-    const data = await apiFetch('/api/admin/indexing/overview');
+    const resp = await fetch(cfg('runtimeBase') + '/api/admin/indexing/overview', { headers: runtimeHeaders() });
+    const data = await resp.json();
+    if (!resp.ok || data.success === false) throw new Error(data.message || 'HTTP ' + resp.status);
     setStatus('indexing-status', 'ok');
     discoveredEntityTypes = data.entityTypes ? [...data.entityTypes].sort() : [];
-
     let html = '<div class="stat-grid">';
-    html += `<div class="stat-box"><div class="value">${escapeHtml(data.vectorDb || '?')}</div><div class="label">Vector DB</div></div>`;
+    html += `<div class="stat-box"><div class="value">${escapeHtml(data.vectorDb||'?')}</div><div class="label">Vector DB</div></div>`;
     html += `<div class="stat-box"><div class="value">${data.totalVectors}</div><div class="label">Total Vectors</div></div>`;
-    html += `<div class="stat-box"><div class="value">${data.supportsVectorScan ? 'Yes' : 'No'}</div><div class="label">Supports Scan</div></div>`;
+    html += `<div class="stat-box"><div class="value">${data.supportsVectorScan?'Yes':'No'}</div><div class="label">Scan Support</div></div>`;
     html += '</div>';
-
     if (data.countsByEntityType && Object.keys(data.countsByEntityType).length > 0) {
-      html += '<table style="margin-top:16px"><thead><tr><th>Entity Type</th><th>Vector Count</th></tr></thead><tbody>';
-      for (const [type, count] of Object.entries(data.countsByEntityType)) {
-        html += `<tr><td>${escapeHtml(type)}</td><td>${count}</td></tr>`;
+      html += '<table style="margin-top:12px"><thead><tr><th>Entity Type</th><th>Count</th></tr></thead><tbody>';
+      for (const [t, c] of Object.entries(data.countsByEntityType)) {
+        html += `<tr><td>${escapeHtml(t)}</td><td>${c}</td></tr>`;
       }
       html += '</tbody></table>';
     }
@@ -392,10 +716,10 @@ let vectorState = { entityType: null, offset: 0, limit: 20 };
 function renderVectorBrowser() {
   const body = document.getElementById('vectors-body');
   if (discoveredEntityTypes.length === 0) {
-    body.innerHTML = '<div class="empty-state">No entity types discovered. Load Indexing Overview first.</div>';
+    body.innerHTML = '<div class="empty-state">No entity types discovered yet.</div>';
     return;
   }
-  if (!vectorState.entityType) {
+  if (!vectorState.entityType || !discoveredEntityTypes.includes(vectorState.entityType)) {
     vectorState.entityType = discoveredEntityTypes[0];
   }
   let tabs = '<div class="entity-tabs">';
@@ -404,7 +728,7 @@ function renderVectorBrowser() {
     tabs += `<div class="${cls}" onclick="selectEntityType('${escapeHtml(t)}')">${escapeHtml(t)}</div>`;
   }
   tabs += '</div>';
-  body.innerHTML = tabs + '<div id="vectors-table"><div class="empty-state">Select an entity type and click Load</div></div>';
+  body.innerHTML = tabs + '<div id="vectors-table"></div>';
   loadVectors();
 }
 
@@ -421,46 +745,33 @@ async function loadVectors() {
   container.innerHTML = '<div class="empty-state">Loading...</div>';
   try {
     const params = new URLSearchParams({
-      entityType: vectorState.entityType,
-      offset: vectorState.offset,
-      limit: vectorState.limit,
-      includeContent: true,
-      includeEmbedding: false,
-      includeMetadata: true
+      entityType: vectorState.entityType, offset: vectorState.offset,
+      limit: vectorState.limit, includeContent: true, includeEmbedding: false, includeMetadata: true
     });
-    const data = await apiFetch('/api/admin/indexing/vectors?' + params);
+    const resp = await fetch(cfg('runtimeBase') + '/api/admin/indexing/vectors?' + params, { headers: runtimeHeaders() });
+    const data = await resp.json();
+    if (!resp.ok || data.success === false) throw new Error(data.message || 'HTTP ' + resp.status);
     setStatus('vectors-status', 'ok');
     const vectors = data.vectors || [];
     if (vectors.length === 0) {
-      container.innerHTML = '<div class="empty-state">No vectors found for this entity type.</div>';
+      container.innerHTML = '<div class="empty-state">No vectors for this entity type.</div>';
       return;
     }
     let html = '<table><thead><tr><th>ID</th><th>Content (preview)</th><th>Metadata</th></tr></thead><tbody>';
     for (const v of vectors) {
-      const id = v.id || v.vectorId || '—';
+      const id = v.id || v.vectorId || '-';
       const content = v.content || v.text || '';
       const preview = content.length > 120 ? content.substring(0, 120) + '...' : content;
       const meta = v.metadata ? JSON.stringify(v.metadata) : '';
-      const metaPreview = meta.length > 80 ? meta.substring(0, 80) + '...' : meta;
-      html += `<tr>
-        <td>${escapeHtml(id)}</td>
-        <td style="font-family:inherit;color:var(--text-muted);max-width:400px;word-break:break-word">${escapeHtml(preview)}</td>
-        <td style="color:var(--text-muted);max-width:250px;word-break:break-word" title="${escapeHtml(meta)}">${escapeHtml(metaPreview)}</td>
-      </tr>`;
+      const mp = meta.length > 80 ? meta.substring(0, 80) + '...' : meta;
+      html += `<tr><td>${escapeHtml(id)}</td>
+        <td style="font-family:inherit;color:var(--text-muted);max-width:380px;word-break:break-word">${escapeHtml(preview)}</td>
+        <td style="color:var(--text-muted);max-width:220px;word-break:break-word" title="${escapeHtml(meta)}">${escapeHtml(mp)}</td></tr>`;
     }
     html += '</tbody></table>';
-
-    // Pagination
-    html += '<div class="pagination">';
-    html += `<span>Showing ${vectorState.offset + 1}–${vectorState.offset + vectors.length}` +
-            `${data.hasMore ? '+' : ''}</span>`;
-    html += '<div class="btns">';
-    if (vectorState.offset > 0) {
-      html += `<button class="btn btn-sm btn-outline" onclick="prevPage()">Previous</button>`;
-    }
-    if (data.hasMore) {
-      html += `<button class="btn btn-sm btn-outline" onclick="nextPage(${data.nextOffset || (vectorState.offset + vectorState.limit)})">Next</button>`;
-    }
+    html += '<div class="pagination"><span>Showing ' + (vectorState.offset+1) + '-' + (vectorState.offset+vectors.length) + (data.hasMore?'+':'') + '</span><div class="btns">';
+    if (vectorState.offset > 0) html += '<button class="btn btn-sm btn-outline" onclick="prevPage()">Prev</button>';
+    if (data.hasMore) html += `<button class="btn btn-sm btn-outline" onclick="nextPage(${data.nextOffset||(vectorState.offset+vectorState.limit)})">Next</button>`;
     html += '</div></div>';
     container.innerHTML = html;
   } catch (e) {
@@ -468,23 +779,57 @@ async function loadVectors() {
     container.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
   }
 }
+function nextPage(o) { vectorState.offset = o; loadVectors(); }
+function prevPage() { vectorState.offset = Math.max(0, vectorState.offset - vectorState.limit); loadVectors(); }
 
-function nextPage(nextOffset) {
-  vectorState.offset = nextOffset;
-  loadVectors();
+// ── Demo Reset ──
+function confirmReset(mode) {
+  const labels = { all: 'Reset All (connector data + runtime vectors)',
+                   connector: 'Clear connector data only', vectors: 'Clear runtime vectors only' };
+  const mc = document.getElementById('modal-container');
+  mc.innerHTML = `
+    <div class="confirm-modal" onclick="if(event.target===this)closeModal()">
+      <div class="confirm-box">
+        <h3>Confirm Reset</h3>
+        <p>${labels[mode]}. This cannot be undone.</p>
+        <div class="btns">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-danger" onclick="executeReset('${mode}')">Confirm Reset</button>
+        </div>
+      </div>
+    </div>`;
 }
-function prevPage() {
-  vectorState.offset = Math.max(0, vectorState.offset - vectorState.limit);
-  loadVectors();
+function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
+
+async function executeReset(mode) {
+  closeModal();
+  setStatus('reset-status', 'loading');
+  const out = document.getElementById('reset-response');
+  out.innerHTML = '<div class="empty-state">Resetting...</div>';
+  try {
+    const body = { confirm: true,
+      clearConnectorData: mode === 'all' || mode === 'connector',
+      clearRuntimeVectors: mode === 'all' || mode === 'vectors' };
+    const resp = await fetch(cfg('demoConnectorBase') + '/api/admin/demo/reset', {
+      method: 'POST',
+      headers: { ...connectorHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    setStatus('reset-status', resp.ok ? 'ok' : 'err');
+    out.innerHTML = `<div class="response-panel visible">
+      <div class="response-bar"><span class="http-status ${resp.ok?'s2xx':'s5xx'}">${resp.status} ${resp.statusText}</span></div>
+      <div class="response-body">${escapeHtml(JSON.stringify(data, null, 2))}</div></div>`;
+  } catch (e) {
+    setStatus('reset-status', 'err');
+    out.innerHTML = `<div class="error-box">${escapeHtml(e.message)}</div>`;
+  }
 }
 
-function refreshAll() {
-  loadActions();
-  loadIndexing();
-}
-
-// Auto-load on page open
-window.addEventListener('DOMContentLoaded', refreshAll);
+// ── Init ──
+window.addEventListener('DOMContentLoaded', () => {
+  renderVerificationList();
+});
 </script>
 </body>
 </html>
