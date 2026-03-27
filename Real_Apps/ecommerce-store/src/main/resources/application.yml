@@ -33,6 +33,8 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
     # Example: CORS_ALLOWED_ORIGIN_PATTERNS=https://ai-fabric.dev,https://*.lovable.app
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:}
+    # Example: CORS_ALLOW_CREDENTIALS=true (only if you need cookies/session auth from the browser)
+    allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
 
 connector:
   admin:

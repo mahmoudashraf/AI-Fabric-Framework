@@ -90,6 +90,11 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
             }
             RemoteAuthzCheckResponse parsed = objectMapper.readValue(body, RemoteAuthzCheckResponse.class);
             return parsed != null && Boolean.TRUE.equals(parsed.granted());
+        } catch (InterruptedException ex) {
+            // Preserve the interrupt flag for cooperative cancellation.
+            Thread.currentThread().interrupt();
+            log.debug("Remote authz call interrupted: {}", ex.getMessage());
+            return false;
         } catch (Exception ex) {
             // Deny on timeout/unavailability/unparseable payload.
             log.debug("Remote authz call failed: {}", ex.getMessage());
@@ -219,4 +224,3 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
 
     record RemoteAuthzCheckResponse(Boolean granted, String reason, String policyVersion) { }
 }
-

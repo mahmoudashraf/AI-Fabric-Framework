@@ -12,6 +12,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
@@ -89,6 +90,12 @@ public class RestAuthzProxyService {
             long tookMs = System.currentTimeMillis() - start;
             log.debug("Authz proxy -> upstream POST (status={}, tookMs={})", status, tookMs);
             return new ProxyResponse(status, respBody);
+        } catch (HttpTimeoutException ex) {
+            throw new IllegalStateException("Upstream authz request timed out.");
+        } catch (InterruptedException ex) {
+            // Preserve the interrupt flag for cooperative cancellation.
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Upstream authz request interrupted.");
         } catch (Exception ex) {
             String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase(Locale.ROOT) : "";
             boolean timeoutErr = msg.contains("timed out") || msg.contains("timeout");
@@ -99,4 +106,3 @@ public class RestAuthzProxyService {
 
     public record ProxyResponse(int status, String body) { }
 }
-

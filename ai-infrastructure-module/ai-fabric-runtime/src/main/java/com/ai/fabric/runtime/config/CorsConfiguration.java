@@ -29,6 +29,10 @@ class CorsConfiguration implements WebMvcConfigurer {
             .allowedHeaders("*")
             .maxAge(3600);
 
+        if (properties.allowCredentials()) {
+            registration.allowCredentials(true);
+        }
+
         if (!properties.allowedOrigins().isEmpty()) {
             registration.allowedOrigins(properties.allowedOrigins().toArray(String[]::new));
         }
@@ -40,7 +44,8 @@ class CorsConfiguration implements WebMvcConfigurer {
     @ConfigurationProperties(prefix = "app.cors")
     public record CorsProperties(
         List<String> allowedOrigins,
-        List<String> allowedOriginPatterns
+        List<String> allowedOriginPatterns,
+        boolean allowCredentials
     ) {
         public CorsProperties {
             allowedOrigins = allowedOrigins != null ? allowedOrigins : List.of();
@@ -48,4 +53,3 @@ class CorsConfiguration implements WebMvcConfigurer {
         }
     }
 }
-

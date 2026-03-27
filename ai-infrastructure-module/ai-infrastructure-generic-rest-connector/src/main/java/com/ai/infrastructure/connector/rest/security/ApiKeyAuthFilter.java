@@ -93,12 +93,11 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         }
         byte[] a = expected.getBytes(StandardCharsets.UTF_8);
         byte[] b = actual.getBytes(StandardCharsets.UTF_8);
-        if (a.length != b.length) {
-            return false;
-        }
-        int result = 0;
+        // Avoid early-return on length mismatch to reduce timing side-channels.
+        int result = a.length ^ b.length;
         for (int i = 0; i < a.length; i++) {
-            result |= a[i] ^ b[i];
+            byte other = i < b.length ? b[i] : 0;
+            result |= a[i] ^ other;
         }
         return result == 0;
     }
@@ -132,6 +131,9 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         response.setHeader("Access-Control-Allow-Origin", origin.trim());
         // Ensure caches vary by origin so different allowed origins don't leak.
         response.addHeader("Vary", "Origin");
+        if (corsProperties.allowCredentials()) {
+            response.setHeader("Access-Control-Allow-Credentials", "true");
+        }
     }
 
     private boolean isOriginAllowed(String origin, List<String> allowedOrigins, List<String> allowedOriginPatterns) {

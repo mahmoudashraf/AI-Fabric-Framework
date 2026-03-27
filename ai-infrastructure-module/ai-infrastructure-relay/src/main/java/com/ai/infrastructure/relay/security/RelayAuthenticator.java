@@ -104,12 +104,11 @@ public class RelayAuthenticator {
         }
         byte[] a = expected.getBytes(StandardCharsets.UTF_8);
         byte[] b = provided.getBytes(StandardCharsets.UTF_8);
-        if (a.length != b.length) {
-            return false;
-        }
-        int result = 0;
+        // Avoid early-return on length mismatch to reduce timing side-channels.
+        int result = a.length ^ b.length;
         for (int i = 0; i < a.length; i++) {
-            result |= a[i] ^ b[i];
+            byte other = i < b.length ? b[i] : 0;
+            result |= a[i] ^ other;
         }
         return result == 0;
     }

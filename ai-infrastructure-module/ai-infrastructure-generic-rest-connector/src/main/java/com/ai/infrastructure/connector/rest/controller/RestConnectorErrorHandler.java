@@ -8,6 +8,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
@@ -16,10 +17,10 @@ public class RestConnectorErrorHandler {
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ActionResultDto> handleNotFound(NoHandlerFoundException ex) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("path", ex != null ? ex.getRequestURL() : null);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-            ActionResultDto.failure("NOT_FOUND", "Not Found", Map.of(
-                "path", ex != null ? ex.getRequestURL() : null
-            ))
+            ActionResultDto.failure("NOT_FOUND", "Not Found", data)
         );
     }
 

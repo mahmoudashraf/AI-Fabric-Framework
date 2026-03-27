@@ -119,6 +119,11 @@ public class RuntimeProxyClient {
         } catch (HttpTimeoutException ex) {
             log.warn("Runtime proxy call timed out (method={}, uri={}, timeoutMs={}): {}", m, uri, timeoutMs, ex.getMessage());
             return new ProxyResponse(504, "{\"success\":false,\"message\":\"Runtime request timed out.\"}", "application/json");
+        } catch (InterruptedException ex) {
+            // Preserve the interrupt flag for cooperative cancellation.
+            Thread.currentThread().interrupt();
+            log.warn("Runtime proxy call interrupted (method={}, uri={}): {}", m, uri, ex.getMessage());
+            return new ProxyResponse(503, "{\"success\":false,\"message\":\"Runtime request interrupted.\"}", "application/json");
         } catch (Exception ex) {
             log.warn("Runtime proxy call failed (method={}, uri={}): {}", m, uri, ex.getMessage());
             return new ProxyResponse(503, "{\"success\":false,\"message\":\"Runtime service is unavailable.\"}", "application/json");

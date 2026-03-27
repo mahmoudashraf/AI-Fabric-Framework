@@ -125,6 +125,10 @@ public class RestActionExecutionService {
                 }
 
                 return out;
+            } catch (InterruptedException ie) {
+                // Preserve the interrupt flag for cooperative cancellation; do not retry.
+                Thread.currentThread().interrupt();
+                return ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Upstream request interrupted.");
             } catch (Exception ex) {
                 if (attempt < maxAttempts && shouldRetryException(retry, ex)) {
                     sleep(backoffMs, attempt);
