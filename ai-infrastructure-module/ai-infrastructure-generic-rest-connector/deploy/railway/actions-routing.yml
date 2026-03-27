@@ -40,10 +40,10 @@ connector:
     in-progress-max-wait-ms: ${CONNECTOR_IDEMPOTENCY_IN_PROGRESS_MAX_WAIT_MS:2000}
 
 actions:
-  # Commerce demo routes (runtime actionIds -> connector-demo domain APIs).
+  # Commerce demo routes (runtime actionIds -> ecommerce-store domain APIs).
   #
-  # These assume your upstream is the connector demo service:
-  #   UPSTREAM_BASE_URL=https://<connector-demo>.up.railway.app
+  # These assume your upstream is the ecommerce-store service:
+  #   UPSTREAM_BASE_URL=https://<ecommerce-store>.up.railway.app
 
   list_products:
     method: GET

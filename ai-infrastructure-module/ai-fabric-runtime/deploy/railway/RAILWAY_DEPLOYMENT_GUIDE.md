@@ -57,7 +57,7 @@ If you host a browser UI:
 ## Option 2: Runtime (connector demo config baked-in)
 
 Use this when you want runtime to run with the **same config used by**:
-- `Real_Apps/chat-capabilities-connector-demo/deploy/docker/docker-compose.yml`
+- `Real_Apps/ecommerce-store/deploy/docker/docker-compose.yml`
 
 ### 1) Create Railway service
 

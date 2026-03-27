@@ -39,7 +39,7 @@ Usually no.
 You have 3 viable setups.
 
 Option 1: Use the existing domain connector demo (current state)
-- Service: `Real_Apps/chat-capabilities-connector-demo`
+- Service: `Real_Apps/ecommerce-store`
 - Use when you want a self-contained demo domain (cart state, seeded products, demo reset tools).
 
 Option 2: Use the Generic REST Connector as your connector (recommended for “API feed” integrations)

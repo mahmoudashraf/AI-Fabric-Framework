@@ -17,12 +17,12 @@ The current work is centered on productizing **AI Fabric** as:
 
 In this repo, the main runnable reference slice for that model is:
 
-- **AI Fabric Runtime**: `Real_Apps/chat-capabilities-connector-demo` runtime config on port `8097`
-- **Customer Connector**: `Real_Apps/chat-capabilities-connector-demo` app on port `8096`
+- **AI Fabric Runtime**: `Real_Apps/ecommerce-store` runtime config on port `8097`
+- **Ecommerce Store (Domain API)**: `Real_Apps/ecommerce-store` app on port `8096`
 
 The best single architecture walkthrough is:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/docs/RUNNING_FLOW_AND_ARCHITECTURE.md`](../../Real_Apps/chat-capabilities-connector-demo/docs/RUNNING_FLOW_AND_ARCHITECTURE.md)
+- [`../../Real_Apps/ecommerce-store/docs/RUNNING_FLOW_AND_ARCHITECTURE.md`](../../Real_Apps/ecommerce-store/docs/RUNNING_FLOW_AND_ARCHITECTURE.md)
 
 ## 2. Architecture Snapshot
 
@@ -55,7 +55,7 @@ The productization direction is:
 
 This is the concrete action contract for the commerce demo runtime:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-actions.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-actions.yml)
+- [`../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml)
 
 It defines:
 
@@ -71,7 +71,7 @@ It defines:
 
 This is the concrete searchable/indexable entity config for the demo runtime:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-entity-config.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-entity-config.yml)
+- [`../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml)
 
 Current indexed/searchable vector spaces:
 
@@ -132,7 +132,7 @@ Framework guide:
 
 Demo runtime activation:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/application.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/application.yml)
+- [`../../Real_Apps/ecommerce-store/deploy/runtime/config/application.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/application.yml)
 
 Commerce curated pack:
 
@@ -169,7 +169,7 @@ Shipping/distribution:
 
 Connector deploy guide:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`](../../Real_Apps/chat-capabilities-connector-demo/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md)
+- [`../../Real_Apps/ecommerce-store/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`](../../Real_Apps/ecommerce-store/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md)
 
 ## 4. Demo-Specific Working Context
 
@@ -177,9 +177,9 @@ Connector deploy guide:
 
 The demo runtime config is mounted from:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/application.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/application.yml)
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-actions.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-actions.yml)
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-entity-config.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-entity-config.yml)
+- [`../../Real_Apps/ecommerce-store/deploy/runtime/config/application.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/application.yml)
+- [`../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml)
+- [`../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml)
 
 Important runtime choices:
 
@@ -205,7 +205,7 @@ The commerce demo action surface includes:
 
 This is defined in:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-actions.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-actions.yml)
+- [`../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml)
 
 ### Current vector/search surface
 
@@ -217,11 +217,11 @@ The runtime currently indexes:
 
 This is defined in:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-entity-config.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-entity-config.yml)
+- [`../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml)
 
 Event-based indexing planning is documented here:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/docs/EVENT_BASED_INDEXING_IMPLEMENTATION_PLAN.md`](../../Real_Apps/chat-capabilities-connector-demo/docs/EVENT_BASED_INDEXING_IMPLEMENTATION_PLAN.md)
+- [`../../Real_Apps/ecommerce-store/docs/EVENT_BASED_INDEXING_IMPLEMENTATION_PLAN.md`](../../Real_Apps/ecommerce-store/docs/EVENT_BASED_INDEXING_IMPLEMENTATION_PLAN.md)
 
 Important note:
 
@@ -259,8 +259,8 @@ Operational meaning in the demo:
 
 Primary sources:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/cart/domain/Cart.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/cart/domain/Cart.java)
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/cart/service/CartService.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/cart/service/CartService.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/cart/domain/Cart.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/cart/domain/Cart.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/cart/service/CartService.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/cart/service/CartService.java)
 
 ### Order
 
@@ -275,8 +275,8 @@ Operational meaning in the demo:
 
 Primary sources:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/orders/domain/PurchaseOrder.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/orders/domain/PurchaseOrder.java)
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/orders/service/PurchaseOrderService.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/orders/service/PurchaseOrderService.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/orders/domain/PurchaseOrder.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/orders/domain/PurchaseOrder.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/orders/service/PurchaseOrderService.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/orders/service/PurchaseOrderService.java)
 
 ### Customer / user scope
 
@@ -289,8 +289,8 @@ Operational meaning in the demo:
 Primary sources:
 
 - [`../../changes/Productization/customer-connector-api.openapi.yml`](../../changes/Productization/customer-connector-api.openapi.yml)
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/connector/web/ActionExecuteController.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/connector/web/ActionExecuteController.java)
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/connector/service/ConnectorActionDispatcher.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/connector/service/ConnectorActionDispatcher.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/connector/web/ActionExecuteController.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/connector/web/ActionExecuteController.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/connector/service/ConnectorActionDispatcher.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/connector/service/ConnectorActionDispatcher.java)
 
 ## 6. Known Important Nuances
 
@@ -305,7 +305,7 @@ The current connector contract of record is:
 Use these as authoritative:
 
 - [`../../changes/Productization/customer-connector-api.openapi.yml`](../../changes/Productization/customer-connector-api.openapi.yml)
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/connector/web/ActionExecuteController.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/connector/web/ActionExecuteController.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/connector/web/ActionExecuteController.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/connector/web/ActionExecuteController.java)
 
 ### Prompt pack nuance
 
@@ -330,23 +330,23 @@ If a future session needs a compact but sufficient context load, start with thes
 1. This file:
    - [`SESSION_CONTEXT.md`](./SESSION_CONTEXT.md)
 2. Runtime behavior/config:
-   - [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/application.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/application.yml)
-   - [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-actions.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-actions.yml)
-   - [`../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-entity-config.yml`](../../Real_Apps/chat-capabilities-connector-demo/deploy/runtime/config/ai-entity-config.yml)
+   - [`../../Real_Apps/ecommerce-store/deploy/runtime/config/application.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/application.yml)
+   - [`../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml)
+   - [`../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml`](../../Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml)
 3. Action/connector contract:
    - [`../../changes/Productization/customer-connector-api.openapi.yml`](../../changes/Productization/customer-connector-api.openapi.yml)
    - [`../../changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`](../../changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md)
 4. Demo architecture and UI integration:
-   - [`../../Real_Apps/chat-capabilities-connector-demo/docs/RUNNING_FLOW_AND_ARCHITECTURE.md`](../../Real_Apps/chat-capabilities-connector-demo/docs/RUNNING_FLOW_AND_ARCHITECTURE.md)
+   - [`../../Real_Apps/ecommerce-store/docs/RUNNING_FLOW_AND_ARCHITECTURE.md`](../../Real_Apps/ecommerce-store/docs/RUNNING_FLOW_AND_ARCHITECTURE.md)
    - [`../../Final_Documentation/Development_Guides/CHAT_CAPABILITIES_UI_MIGRATION_GUIDE.md`](../../Final_Documentation/Development_Guides/CHAT_CAPABILITIES_UI_MIGRATION_GUIDE.md)
 5. Curated pack behavior:
    - [`../../ai-infrastructure-module/curated/ai-curated-commerce/src/main/resources/ai-curated/packs/commerce.yml`](../../ai-infrastructure-module/curated/ai-curated-commerce/src/main/resources/ai-curated/packs/commerce.yml)
 
 If the task touches domain state semantics or action behavior in detail, also load:
 
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/connector/service/ConnectorActionDispatcher.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/connector/service/ConnectorActionDispatcher.java)
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/cart/service/CartService.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/cart/service/CartService.java)
-- [`../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/orders/service/PurchaseOrderService.java`](../../Real_Apps/chat-capabilities-connector-demo/src/main/java/com/ai/fabric/realapps/chat/orders/service/PurchaseOrderService.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/connector/service/ConnectorActionDispatcher.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/connector/service/ConnectorActionDispatcher.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/cart/service/CartService.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/cart/service/CartService.java)
+- [`../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/orders/service/PurchaseOrderService.java`](../../Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/orders/service/PurchaseOrderService.java)
 
 ## 8. Recommended Next Improvement
 
