@@ -35,6 +35,10 @@ Inbound auth (recommended):
 - `CONNECTOR_API_KEY=<strong-secret>`
 - Optional: `CONNECTOR_API_KEY_HEADER=X-AIFABRIC-API-KEY`
 
+Optional: CORS (for browser-based UIs calling the connector directly)
+- `CORS_ALLOWED_ORIGINS=https://your-ui.example.com`
+- Or: `CORS_ALLOWED_ORIGIN_PATTERNS=https://*.your-ui.example.com`
+
 If you want to temporarily allow unauthenticated access (dev only):
 - `CONNECTOR_ALLOW_UNAUTHENTICATED=true`
 - Also set `CONNECTOR_API_KEY_ENABLED=false` (otherwise startup validation still requires a key value)
