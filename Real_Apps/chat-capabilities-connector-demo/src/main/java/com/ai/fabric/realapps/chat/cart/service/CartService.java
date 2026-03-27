@@ -97,7 +97,15 @@ public class CartService {
     @Transactional
     public Cart addItem(String userId, String sku, Long productId, int quantity) {
         if (StringUtils.hasText(sku)) {
-            return addItem(userId, sku, quantity);
+            try {
+                return addItem(userId, sku, quantity);
+            } catch (EntityNotFoundException ex) {
+                // If the client provides both sku + productId, prefer a valid productId over a stale/incorrect sku.
+                // This reduces common LLM param mismatches in demo environments.
+                if (productId == null) {
+                    throw ex;
+                }
+            }
         }
         if (productId == null) {
             throw new IllegalArgumentException("sku or productId is required");
