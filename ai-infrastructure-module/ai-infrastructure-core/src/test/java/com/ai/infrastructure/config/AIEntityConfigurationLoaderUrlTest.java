@@ -3,7 +3,10 @@ package com.ai.infrastructure.config;
 import com.ai.infrastructure.dto.AIEntityConfig;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.io.Resource;
 
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -47,5 +50,39 @@ class AIEntityConfigurationLoaderUrlTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    @Test
+    void loadConfigurationFromResourceThatReportsMissingButStreamsSuccessfully() {
+        Resource resource = new ByteArrayResource("""
+            ai-entities:
+              product:
+                searchable-fields:
+                  - name: title
+            """.getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public boolean exists() {
+                return false;
+            }
+        };
+        ResourceLoader resourceLoader = new ResourceLoader() {
+            @Override
+            public Resource getResource(String location) {
+                return resource;
+            }
+
+            @Override
+            public ClassLoader getClassLoader() {
+                return getClass().getClassLoader();
+            }
+        };
+
+        AIEntityConfigurationLoader loader = new AIEntityConfigurationLoader(resourceLoader);
+
+        loader.loadConfigurationFromFile("https://platform.example/api/deployments/dep/versions/ver/artifacts/ai-entity-config.yml");
+
+        AIEntityConfig config = loader.getEntityConfig("product");
+        assertThat(config).isNotNull();
+        assertThat(config.getSearchableFields()).extracting("name").containsExactly("title");
     }
 }

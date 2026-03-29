@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 import org.yaml.snakeyaml.Yaml;
 
 import jakarta.annotation.PostConstruct;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,7 +63,7 @@ public class AIEntityConfigurationLoader {
     public void loadConfigurationFromFile(String configFile, boolean allowOverride) {
         try {
             Resource resource = resolveResource(configFile);
-            if (resource == null || !resource.exists()) {
+            if (resource == null) {
                 log.warn("Configuration file not found: {}", configFile);
                 return;
             }
@@ -71,6 +72,9 @@ public class AIEntityConfigurationLoader {
             try (InputStream inputStream = resource.getInputStream()) {
                 Yaml yaml = new Yaml();
                 config = yaml.load(inputStream);
+            } catch (FileNotFoundException ex) {
+                log.warn("Configuration file not found: {}", configFile);
+                return;
             }
             
             if (config == null) {
