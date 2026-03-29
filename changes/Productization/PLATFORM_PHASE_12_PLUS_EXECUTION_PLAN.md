@@ -1,6 +1,6 @@
 # Platform Phase 12+ Execution Plan
 
-Status: updated after Phase 16 implementation (2026-03-29)
+Status: updated after Phase 17 implementation (2026-03-29)
 
 This document is the follow-on execution plan for the new `Platfrom/` control plane implementation.
 
@@ -31,6 +31,8 @@ The current control-plane implementation already has these capabilities:
 - deeper post-deploy verification against runtime/admin and connector/admin surfaces
 - neutral Railway Docker packaging aligned to platform-served config artifacts
 - Postgres-first platform persistence with Flyway-managed schema
+- platform API-key auth with role-based operator access control
+- protected audit trail for privileged platform actions
 - explicit local/test bootstrap profiles
 - diagnostics and verification views
 - structured draft editors for:
@@ -42,9 +44,10 @@ The current control-plane implementation already has these capabilities:
 
 Current practical limitations:
 
-- the platform itself is not yet protected by platform auth
+- platform artifact endpoints remain intentionally unauthenticated because deployed runtime and connector services fetch versioned config bundles from them
+- operator auth is currently API-key based; OIDC / SSO is a future upgrade, not part of this plan
 
-The next priority is platform auth hardening.
+This execution plan is now complete.
 
 ---
 
@@ -85,6 +88,10 @@ This order is intentional:
 - then remove baked deployment-config assumptions from Railway packaging
 - then harden persistence
 - then secure the platform itself
+
+Outcome:
+
+- all phases in this execution plan are now implemented
 
 ---
 
@@ -399,6 +406,8 @@ You need durable storage for:
 
 ## 9) Phase 17: Platform Authentication And Operator Access Control
 
+Status: completed on 2026-03-29
+
 ### 9.1 Objective
 
 Protect the platform itself.
@@ -437,6 +446,20 @@ Recommended V1 role model:
 - privileged actions are role-restricted
 - secret updates and apply operations are auditable
 
+### 9.6 Implemented outcome
+
+- platform backend now enforces API-key auth by default through `X-PLATFORM-API-KEY`
+- `PLATFORM_OPERATOR` can operate deployments and read platform diagnostics
+- `PLATFORM_ADMIN` is required for platform secret mutation
+- a public auth-session endpoint lets the UI discover whether auth is enabled and whether the current operator is authenticated
+- platform audit events are stored in Postgres and exposed through a protected API
+- artifact endpoints remain publicly readable by design so deployed runtime and connector services can fetch versioned config bundles without platform login
+- the packaged backend was locally smoke-tested on Postgres with:
+  - unauthenticated platform overview returning `401`
+  - operator-authenticated overview returning `200`
+  - operator secret mutation returning `403`
+  - admin secret mutation returning `200`
+
 ---
 
 ## 10) Suggested “Definition Of Done” For The Platform MVP
@@ -459,16 +482,14 @@ If any of those are missing, the platform is still in implementation mode rather
 
 ## 11) Recommended Immediate Next Step
 
-Start **Phase 17** now.
+This execution plan is complete.
 
-Concrete first milestone:
+The immediate next work should come from a new follow-on plan, for example:
 
-1. add platform authentication for backend APIs and UI access
-2. restrict secret editing and deployment apply / rollback to authorized operators
-3. add audit trail for privileged platform actions
-4. rerun the full apply / verify flow through an authenticated operator path
-
-That is the highest-leverage next step now that live apply, deep verification, Docker/config cleanup, and durable persistence are proven.
+1. artifact delivery hardening
+2. OIDC / SSO for platform operators
+3. customer-facing deployment lifecycle UX
+4. Shopify or first vertical consumer integration
 
 ---
 
@@ -485,4 +506,4 @@ Avoid spending the next phase on:
 
 The bottleneck is not more configuration UX.
 
-The bottleneck is proving that the platform can provision and operate real deployments end to end.
+The core platform loop is now proven end to end.

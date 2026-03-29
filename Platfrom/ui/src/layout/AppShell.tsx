@@ -5,10 +5,12 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
 import {
   AppBar,
   Box,
+  Button,
   Chip,
   Divider,
   Drawer,
@@ -22,6 +24,7 @@ import {
 } from '@mui/material'
 import { type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { type PlatformAuthSessionSummary } from '../api/platformApi'
 
 const drawerWidth = 280
 
@@ -38,9 +41,11 @@ const navItems = [
 
 type AppShellProps = {
   children: ReactNode
+  session: PlatformAuthSessionSummary | null
+  onSignOut: () => void
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const location = useLocation()
 
   return (
@@ -86,7 +91,7 @@ export function AppShell({ children }: AppShellProps) {
               </Box>
             </Stack>
             <Chip
-              label="Phase 16 Postgres + Migrations"
+              label="Phase 17 Platform Auth"
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
@@ -139,13 +144,42 @@ export function AppShell({ children }: AppShellProps) {
           }}
         >
           <Toolbar sx={{ minHeight: 72 }}>
-            <Stack spacing={0.25}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Configurable AI Enablement Platform
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Runtime and connector remain immutable. Configuration is versioned and released from the platform.
-              </Typography>
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: 'flex-start', md: 'center' }}
+              sx={{ width: '100%' }}
+            >
+              <Stack spacing={0.25}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Configurable AI Enablement Platform
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Runtime and connector remain immutable. Configuration is versioned and released from the platform.
+                </Typography>
+              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                {session?.enabled ? (
+                  <>
+                    <Chip
+                      label={session.role ?? 'AUTHENTICATED'}
+                      color={session.role === 'PLATFORM_ADMIN' ? 'secondary' : 'primary'}
+                      variant="outlined"
+                    />
+                    <Chip label={session.actorId ?? 'unknown'} variant="outlined" />
+                    <Button
+                      variant="outlined"
+                      startIcon={<LogoutRoundedIcon />}
+                      onClick={onSignOut}
+                    >
+                      Sign out
+                    </Button>
+                  </>
+                ) : (
+                  <Chip label="Auth disabled" color="warning" variant="outlined" />
+                )}
+              </Stack>
             </Stack>
           </Toolbar>
         </AppBar>

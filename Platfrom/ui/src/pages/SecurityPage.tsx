@@ -29,6 +29,7 @@ import {
   updatePlatformSecret,
   updateDeploymentDraft,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
 type SecurityFormState = {
   authzMode: string
@@ -81,6 +82,7 @@ function summarizeSecurityConfig(form: SecurityFormState) {
 }
 
 export function SecurityPage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
@@ -124,6 +126,7 @@ export function SecurityPage() {
   }, [draftQuery.data])
 
   const summary = useMemo(() => summarizeSecurityConfig(formState), [formState])
+  const canManageSecrets = auth.session?.enabled ? auth.session.canManageSecrets : true
 
   const platformSecretsQuery = useQuery({
     queryKey: ['platform-secrets'],
@@ -282,6 +285,12 @@ export function SecurityPage() {
               </Stack>
             ) : null}
 
+            {!canManageSecrets ? (
+              <Alert severity="info">
+                Secret rotation and clear actions require the <code>PLATFORM_ADMIN</code> role.
+              </Alert>
+            ) : null}
+
             {platformSecretsQuery.isLoading ? (
               <Typography color="text.secondary">Loading platform secrets...</Typography>
             ) : platformSecretsQuery.isError ? (
@@ -328,6 +337,7 @@ export function SecurityPage() {
                               label="New secret value"
                               type="password"
                               value={inputValue}
+                              disabled={!canManageSecrets}
                               onChange={(event) =>
                                 setSecretInputs((previous) => ({
                                   ...previous,
@@ -345,7 +355,7 @@ export function SecurityPage() {
                               <Button
                                 variant="contained"
                                 startIcon={<SaveRoundedIcon />}
-                                disabled={inputValue.trim().length === 0 || isSaving}
+                                disabled={!canManageSecrets || inputValue.trim().length === 0 || isSaving}
                                 onClick={() =>
                                   secretMutation.mutate({
                                     name: secret.name,
@@ -357,7 +367,7 @@ export function SecurityPage() {
                               </Button>
                               <Button
                                 variant="outlined"
-                                disabled={isClearing || secret.source !== 'DATABASE'}
+                                disabled={!canManageSecrets || isClearing || secret.source !== 'DATABASE'}
                                 onClick={() => clearSecretMutation.mutate(secret.name)}
                               >
                                 {isClearing ? 'Clearing...' : 'Clear DB override'}

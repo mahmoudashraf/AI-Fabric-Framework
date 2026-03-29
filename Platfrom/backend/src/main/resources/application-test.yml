@@ -8,3 +8,5 @@ spring:
 platform:
   bootstrap:
     sample-enabled: false
+  auth:
+    enabled: false

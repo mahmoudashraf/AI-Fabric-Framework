@@ -32,9 +32,14 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-16-postgres-migrations
+  current-phase: phase-17-platform-auth-access-control
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
+  auth:
+    enabled: ${PLATFORM_AUTH_ENABLED:true}
+    header-name: ${PLATFORM_AUTH_HEADER:X-PLATFORM-API-KEY}
+    operator-api-key: ${PLATFORM_OPERATOR_API_KEY:}
+    admin-api-key: ${PLATFORM_ADMIN_API_KEY:}
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
   provisioning:

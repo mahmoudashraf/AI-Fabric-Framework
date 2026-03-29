@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
@@ -59,6 +60,7 @@ class RailwayPreflightServiceTest {
         when(repository.findAll()).thenReturn(List.of());
         PlatformSecretService platformSecretService = new PlatformSecretService(
             repository,
+            mock(PlatformAuditService.class),
             environment
         );
 
@@ -107,6 +109,7 @@ class RailwayPreflightServiceTest {
         when(repository.findAll()).thenReturn(List.of());
         PlatformSecretService platformSecretService = new PlatformSecretService(
             repository,
+            mock(PlatformAuditService.class),
             new MockEnvironment()
         );
         RailwayPreflightService service = new RailwayPreflightService(

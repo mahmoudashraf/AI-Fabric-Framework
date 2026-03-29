@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.web;
 import com.ai.fabric.platform.backend.config.PlatformProperties;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.deployment.service.RailwayPreflightService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,6 +25,7 @@ public class PlatformOverviewController {
     }
 
     @GetMapping("/overview")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public Map<String, Object> overview() {
         return Map.of(
             "name", properties.name(),
@@ -58,7 +60,10 @@ public class PlatformOverviewController {
                 "platform-served-config-contract",
                 "postgres-default-datasource",
                 "flyway-schema-migrations",
-                "explicit-bootstrap-profiles"
+                "explicit-bootstrap-profiles",
+                "platform-api-key-auth",
+                "role-based-platform-access-control",
+                "audit-events"
             ),
             "plannedScreens", List.of(
                 "deployments",
@@ -74,6 +79,7 @@ public class PlatformOverviewController {
     }
 
     @GetMapping("/provisioning/railway/preflight")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public RailwayPreflightSummary railwayPreflight() {
         return railwayPreflightService.run();
     }

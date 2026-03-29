@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.secret.service;
 
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity;
 import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
 import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
@@ -20,11 +21,14 @@ public class PlatformSecretService {
     private static final Map<String, SecretDefinition> SUPPORTED_SECRETS = createSupportedSecrets();
 
     private final PlatformSecretRepository platformSecretRepository;
+    private final PlatformAuditService platformAuditService;
     private final Environment environment;
 
     public PlatformSecretService(PlatformSecretRepository platformSecretRepository,
+                                 PlatformAuditService platformAuditService,
                                  Environment environment) {
         this.platformSecretRepository = platformSecretRepository;
+        this.platformAuditService = platformAuditService;
         this.environment = environment;
     }
 
@@ -67,8 +71,7 @@ public class PlatformSecretService {
     public PlatformSecretSummary updateSecret(String name, String value) {
         SecretDefinition definition = requireSupportedSecret(name);
         if (value == null || value.isBlank()) {
-            platformSecretRepository.deleteById(name);
-            return toSummary(name, definition, null);
+            return clearSecret(name);
         }
 
         PlatformSecretEntity entity = platformSecretRepository.findById(name).orElseGet(PlatformSecretEntity::new);
@@ -76,6 +79,12 @@ public class PlatformSecretService {
         entity.setSecretValue(value.trim());
         entity.setUpdatedAt(Instant.now());
         platformSecretRepository.save(entity);
+        platformAuditService.record(
+            "SECRET_UPDATED",
+            "PLATFORM_SECRET",
+            name,
+            Map.of("source", "DATABASE", "required", definition.required())
+        );
         return toSummary(name, definition, entity);
     }
 
@@ -83,6 +92,12 @@ public class PlatformSecretService {
     public PlatformSecretSummary clearSecret(String name) {
         SecretDefinition definition = requireSupportedSecret(name);
         platformSecretRepository.deleteById(name);
+        platformAuditService.record(
+            "SECRET_CLEARED",
+            "PLATFORM_SECRET",
+            name,
+            Map.of("required", definition.required())
+        );
         return toSummary(name, definition, null);
     }
 

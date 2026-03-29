@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
@@ -55,6 +56,7 @@ public class DeploymentService {
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
     private final PlatformProvisioningProperties provisioningProperties;
+    private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
@@ -99,6 +101,7 @@ public class DeploymentService {
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
                              PlatformProvisioningProperties provisioningProperties,
+                             PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
@@ -112,6 +115,7 @@ public class DeploymentService {
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
         this.provisioningProperties = provisioningProperties;
+        this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
 
@@ -151,6 +155,16 @@ public class DeploymentService {
         deployment.setActiveDraftId(draft.getId());
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DEPLOYMENT_CREATED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            java.util.Map.of(
+                "templateId", template.id(),
+                "environment", request.environment().trim(),
+                "draftId", draft.getId()
+            )
+        );
 
         return toSummary(deployment);
     }
@@ -193,6 +207,16 @@ public class DeploymentService {
         deployment.setStatus("DRAFT");
         deployment.setUpdatedAt(draft.getUpdatedAt());
         deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DRAFT_UPDATED",
+            "DEPLOYMENT_DRAFT",
+            draft.getId(),
+            java.util.Map.of(
+                "deploymentId", draft.getDeploymentId(),
+                "revisionNumber", draft.getRevisionNumber(),
+                "status", draft.getStatus()
+            )
+        );
 
         return toDraftResponse(draft);
     }
@@ -278,6 +302,17 @@ public class DeploymentService {
         deployment.setStatus("VERSION_PUBLISHED");
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DRAFT_PUBLISHED",
+            "DEPLOYMENT_VERSION",
+            version.getId(),
+            java.util.Map.of(
+                "deploymentId", deployment.getId(),
+                "draftId", draft.getId(),
+                "versionLabel", versionLabel,
+                "reindexRequired", reindexRequired
+            )
+        );
 
         return toVersionSummary(version);
     }
@@ -328,6 +363,16 @@ public class DeploymentService {
         deployment.setStatus("APPLY_REQUESTED");
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "VERSION_APPLY_REQUESTED",
+            "DEPLOYMENT_RELEASE",
+            release.getId(),
+            java.util.Map.of(
+                "deploymentId", deploymentId,
+                "versionId", versionId,
+                "provisioningTarget", release.getProvisioningTarget()
+            )
+        );
 
         scheduleApplyAfterCommit(deploymentId, versionId, release.getId());
         return toReleaseSummary(release);
@@ -381,6 +426,16 @@ public class DeploymentService {
             version,
             release,
             "MANUAL_RERUN"
+        );
+        platformAuditService.record(
+            "VERIFICATION_RERUN_REQUESTED",
+            "DEPLOYMENT_VERIFICATION_RUN",
+            verificationRun.getId(),
+            java.util.Map.of(
+                "deploymentId", deploymentId,
+                "releaseId", release.getId(),
+                "versionId", version.getId()
+            )
         );
         return toVerificationRunSummary(verificationRun);
     }

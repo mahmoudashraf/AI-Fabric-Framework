@@ -169,6 +169,27 @@ export type PlatformSecretSummary = {
   updatedAt: string | null
 }
 
+export type PlatformAuthSessionSummary = {
+  enabled: boolean
+  headerName: string
+  authenticated: boolean
+  actorId: string | null
+  role: string | null
+  canManageSecrets: boolean
+  canOperateDeployments: boolean
+}
+
+export type PlatformAuditEventSummary = {
+  id: string
+  actorId: string
+  actorRole: string
+  action: string
+  targetType: string
+  targetId: string
+  details: unknown
+  createdAt: string
+}
+
 export type CreateDeploymentRequest = {
   name: string
   environment: string
@@ -184,11 +205,52 @@ export type UpdateDeploymentDraftRequest = {
 }
 
 const apiBaseUrl = import.meta.env.VITE_PLATFORM_API_BASE_URL ?? 'http://localhost:8088'
+const platformApiKeyStorageKey = 'ai-enablement-platform.apiKey'
+
+export class PlatformApiError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+export function getStoredPlatformApiKey(): string {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return window.localStorage.getItem(platformApiKeyStorageKey) ?? ''
+}
+
+export function setStoredPlatformApiKey(value: string) {
+  if (typeof window === 'undefined') {
+    return
+  }
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    window.localStorage.removeItem(platformApiKeyStorageKey)
+    return
+  }
+  window.localStorage.setItem(platformApiKeyStorageKey, trimmed)
+}
+
+export function clearStoredPlatformApiKey() {
+  if (typeof window === 'undefined') {
+    return
+  }
+  window.localStorage.removeItem(platformApiKeyStorageKey)
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const apiKey = getStoredPlatformApiKey()
+  const baseHeaders: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {}),
+  }
   const response = await fetch(`${apiBaseUrl}${path}`, {
     headers: {
-      'Content-Type': 'application/json',
+      ...baseHeaders,
       ...(init?.headers ?? {}),
     },
     ...init,
@@ -199,16 +261,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
     if (contentType.includes('application/json')) {
       const payload = (await response.json()) as { message?: string; error?: string }
-      throw new Error(
+      throw new PlatformApiError(
+        response.status,
         payload.message ?? payload.error ?? `Request failed with status ${response.status}`,
       )
     }
 
     const message = await response.text()
-    throw new Error(message || `Request failed with status ${response.status}`)
+    throw new PlatformApiError(response.status, message || `Request failed with status ${response.status}`)
   }
 
   return response.json() as Promise<T>
+}
+
+export function fetchPlatformAuthSession() {
+  return request<PlatformAuthSessionSummary>('/api/platform/auth/session')
+}
+
+export function fetchPlatformAuditEvents() {
+  return request<PlatformAuditEventSummary[]>('/api/platform/audit-events')
 }
 
 export function fetchDeploymentTemplates() {

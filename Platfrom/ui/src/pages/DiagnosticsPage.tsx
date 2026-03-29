@@ -26,8 +26,10 @@ import {
   fetchDeploymentReleases,
   fetchDeployments,
   fetchDeploymentVerificationRuns,
+  fetchPlatformAuditEvents,
   fetchRailwayPreflight,
   rerunDeploymentVerification,
+  type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
 } from '../api/platformApi'
 
@@ -225,6 +227,17 @@ function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
     || release.verificationStatus === 'RUNNING'
 }
 
+function summarizeAuditDetails(value: unknown): string {
+  if (value == null) {
+    return '—'
+  }
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
 export function DiagnosticsPage() {
   const queryClient = useQueryClient()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
@@ -238,6 +251,11 @@ export function DiagnosticsPage() {
   const railwayPreflightQuery = useQuery({
     queryKey: ['railway-preflight'],
     queryFn: fetchRailwayPreflight,
+  })
+
+  const auditEventsQuery = useQuery({
+    queryKey: ['platform-audit-events'],
+    queryFn: fetchPlatformAuditEvents,
   })
 
   const deployments = deploymentsQuery.data ?? []
@@ -326,6 +344,14 @@ export function DiagnosticsPage() {
     [selectedRunId, verificationRuns],
   )
   const selectedRunChecks = readChecks(selectedRun?.checks)
+  const auditEvents = (auditEventsQuery.data ?? []).filter((event: PlatformAuditEventSummary) =>
+    !selectedDeploymentId
+      || (typeof event.details === 'object'
+        && event.details !== null
+        && 'deploymentId' in (event.details as Record<string, unknown>)
+        && (event.details as Record<string, unknown>).deploymentId === selectedDeploymentId)
+      || event.targetId === selectedDeploymentId,
+  )
 
   return (
     <Stack spacing={3}>
@@ -889,6 +915,71 @@ export function DiagnosticsPage() {
                   </>
                 ) : (
                   <Alert severity="info">Select or run verification to inspect detailed checks.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Audit events</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Recent privileged platform actions recorded with actor, role, target, and action details.
+                  </Typography>
+                </Box>
+                {auditEventsQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading audit events...</Typography>
+                ) : auditEventsQuery.isError ? (
+                  <Alert severity="error">
+                    {auditEventsQuery.error instanceof Error
+                      ? auditEventsQuery.error.message
+                      : 'Failed to load audit events'}
+                  </Alert>
+                ) : auditEvents.length === 0 ? (
+                  <Alert severity="info">No audit events recorded yet for this deployment.</Alert>
+                ) : (
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Time</TableCell>
+                        <TableCell>Actor</TableCell>
+                        <TableCell>Role</TableCell>
+                        <TableCell>Action</TableCell>
+                        <TableCell>Target</TableCell>
+                        <TableCell>Details</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {auditEvents.map((event) => (
+                        <TableRow key={event.id} hover>
+                          <TableCell>{formatTimestamp(event.createdAt)}</TableCell>
+                          <TableCell>{event.actorId}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={event.actorRole}
+                              color={event.actorRole === 'PLATFORM_ADMIN' ? 'secondary' : 'primary'}
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell>{event.action}</TableCell>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Typography variant="body2">{event.targetType}</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                                {event.targetId}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell sx={{ maxWidth: 360, fontFamily: 'monospace' }}>
+                            {summarizeAuditDetails(event.details)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
               </Stack>
             </CardContent>

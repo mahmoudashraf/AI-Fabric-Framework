@@ -11,3 +11,5 @@ spring:
 platform:
   bootstrap:
     sample-enabled: true
+  auth:
+    enabled: false
