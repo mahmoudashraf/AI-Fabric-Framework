@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -63,6 +64,7 @@ class RailwayProvisioningPlanServiceTest {
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties,
             artifactService,
+            mock(PlatformSecretService.class),
             new ObjectMapper()
         );
 
@@ -140,6 +142,7 @@ class RailwayProvisioningPlanServiceTest {
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties,
             artifactService,
+            mock(PlatformSecretService.class),
             new ObjectMapper()
         );
 
@@ -154,8 +157,70 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(plan.projectName()).hasSizeLessThanOrEqualTo(32);
     }
 
+    @Test
+    void buildPlanAddsRuntimeAdminKeyEnvWhenEnabledAndSecretExists() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            artifactService,
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("{\"adminApiKeyEnabled\":true}");
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
+            .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
+    }
+
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {
         return env.stream().collect(Collectors.toMap(RailwayEnvVarSummary::key, RailwayEnvVarSummary::value));
+    }
+
+    private PlatformProvisioningProperties properties() {
+        return new PlatformProvisioningProperties(
+            "RAILWAY_API",
+            "https://backboard.railway.com/graphql/v2",
+            "token",
+            "mahmoudashraf/AI-Fabric-Framework",
+            "main",
+            "dev",
+            "workspace-123",
+            "ai-infrastructure-module/ai-fabric-runtime",
+            "ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile",
+            "ai-infrastructure-module/ai-infrastructure-generic-rest-connector",
+            "ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile",
+            "runtime",
+            "rest-connector",
+            32,
+            "https://ai-fabric.dev,http://localhost:8080",
+            "https://*lovable*",
+            true,
+            false,
+            60_000,
+            Duration.ofSeconds(5),
+            Duration.ofMinutes(10)
+        );
     }
 
     private DeploymentEntity deployment() {

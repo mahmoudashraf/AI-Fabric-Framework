@@ -149,6 +149,14 @@ public class PlatformSecretService {
                 true
             )
         );
+        secrets.put(
+            "APP_ADMIN_API_KEY",
+            new SecretDefinition(
+                "Runtime Admin API Key",
+                "Optional key used to protect runtime /api/admin/* endpoints in platform-managed deployments.",
+                false
+            )
+        );
         return Map.copyOf(secrets);
     }
 

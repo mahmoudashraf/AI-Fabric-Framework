@@ -28,7 +28,7 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-13-release-progress
+  current-phase: phase-14-stronger-verification
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
   provisioning:
@@ -60,6 +60,11 @@ platform:
     timeout: 3s
     runtime-health-path: /actuator/health
     connector-health-path: /actuator/health
+    runtime-admin-overview-path: /api/admin/overview
+    runtime-actions-overview-path: /api/admin/actions/overview
+    runtime-indexing-overview-path: /api/admin/indexing/overview
+    connector-admin-overview-path: /api/admin/overview
+    connector-actions-overview-path: /api/admin/actions/overview
 
 logging:
   level:

@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningServicesSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -22,13 +23,16 @@ public class RailwayProvisioningPlanService {
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final DeploymentArtifactService artifactService;
+    private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
 
     public RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                           DeploymentArtifactService artifactService,
+                                          PlatformSecretService platformSecretService,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.artifactService = artifactService;
+        this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
     }
 
@@ -61,6 +65,11 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
             Boolean.toString(provisioningProperties.runtimeDevDefaultsEnabled())
         ));
+        if (securityConfig.path("adminApiKeyEnabled").asBoolean(false)
+            && platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")) {
+            runtimeEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
+            runtimeEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
+        }
         addCorsEnv(runtimeEnv);
         addOptionalEnv(runtimeEnv, "AUTHZ_BASE_URL", text(securityConfig, "authzBaseUrl"));
 

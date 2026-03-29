@@ -50,7 +50,10 @@ public class PlatformOverviewController {
                 "async-release-execution",
                 "release-progress-tracking",
                 "release-state-polling",
-                "duplicate-apply-guard"
+                "duplicate-apply-guard",
+                "runtime-admin-verification",
+                "connector-admin-verification",
+                "config-drift-verification"
             ),
             "plannedScreens", List.of(
                 "deployments",
