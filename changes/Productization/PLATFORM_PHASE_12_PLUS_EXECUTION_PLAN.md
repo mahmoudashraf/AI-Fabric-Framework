@@ -1,6 +1,6 @@
 # Platform Phase 12+ Execution Plan
 
-Status: updated after Phase 15 implementation (2026-03-29)
+Status: updated after Phase 16 implementation (2026-03-29)
 
 This document is the follow-on execution plan for the new `Platfrom/` control plane implementation.
 
@@ -30,6 +30,8 @@ The current control-plane implementation already has these capabilities:
 - async apply execution with release progress tracking
 - deeper post-deploy verification against runtime/admin and connector/admin surfaces
 - neutral Railway Docker packaging aligned to platform-served config artifacts
+- Postgres-first platform persistence with Flyway-managed schema
+- explicit local/test bootstrap profiles
 - diagnostics and verification views
 - structured draft editors for:
   - actions
@@ -40,10 +42,9 @@ The current control-plane implementation already has these capabilities:
 
 Current practical limitations:
 
-- platform persistence is still H2-oriented
 - the platform itself is not yet protected by platform auth
 
-The next priority is persistence/auth hardening.
+The next priority is platform auth hardening.
 
 ---
 
@@ -74,8 +75,7 @@ The target loop is:
 
 Recommended next order:
 
-1. Phase 16: Persistence hardening (Postgres + migrations)
-2. Phase 17: Platform authentication and operator access control
+1. Phase 17: Platform authentication and operator access control
 
 This order is intentional:
 
@@ -348,6 +348,8 @@ This phase is cleanup and architectural alignment, not a blocker for proving liv
 
 ## 8) Phase 16: Persistence Hardening
 
+Status: completed on 2026-03-29
+
 ### 8.1 Objective
 
 Move the platform backend from local H2-style persistence to durable product-grade persistence.
@@ -384,6 +386,14 @@ You need durable storage for:
 - backend runs cleanly on Postgres
 - schema is migration-managed
 - no runtime dependency on local file-based H2 in hosted environments
+
+### 8.6 Implemented outcome
+
+- default backend profile now targets Postgres
+- Flyway owns the baseline schema for deployments, drafts, versions, releases, verification runs, and secrets
+- local and test H2 usage moved to explicit `local` / `test` profiles
+- bootstrap sample creation is now explicitly controlled by `platform.bootstrap.sample-enabled`
+- the packaged backend was verified locally against a real Postgres 16 container
 
 ---
 
@@ -449,16 +459,16 @@ If any of those are missing, the platform is still in implementation mode rather
 
 ## 11) Recommended Immediate Next Step
 
-Start **Phase 16** now.
+Start **Phase 17** now.
 
 Concrete first milestone:
 
-1. move the platform backend off local H2 and onto Postgres
-2. introduce migrations for deployment, version, release, verification, and secret tables
-3. keep local development explicit with a dev-only fallback profile if needed
-4. rerun platform apply and verification flows against the durable store
+1. add platform authentication for backend APIs and UI access
+2. restrict secret editing and deployment apply / rollback to authorized operators
+3. add audit trail for privileged platform actions
+4. rerun the full apply / verify flow through an authenticated operator path
 
-That is the highest-leverage next step now that live apply, deep verification, and Docker/config cleanup are proven.
+That is the highest-leverage next step now that live apply, deep verification, Docker/config cleanup, and durable persistence are proven.
 
 ---
 

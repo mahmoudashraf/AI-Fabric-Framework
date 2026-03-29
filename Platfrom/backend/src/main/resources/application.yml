@@ -7,17 +7,21 @@ spring:
   application:
     name: ai-enablement-platform-backend
   datasource:
-    url: jdbc:h2:file:./data/ai-enablement-platform;AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: ${PLATFORM_DB_URL:jdbc:postgresql://${PLATFORM_DB_HOST:localhost}:${PLATFORM_DB_PORT:5432}/${PLATFORM_DB_NAME:ai_enablement_platform}}
+    driver-class-name: org.postgresql.Driver
+    username: ${PLATFORM_DB_USERNAME:platform}
+    password: ${PLATFORM_DB_PASSWORD:platform}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
-  h2:
-    console:
-      enabled: true
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 management:
   endpoints:
@@ -28,7 +32,9 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-15-docker-config-cleanup
+  current-phase: phase-16-postgres-migrations
+  bootstrap:
+    sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
   provisioning:

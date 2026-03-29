@@ -86,7 +86,7 @@ export function AppShell({ children }: AppShellProps) {
               </Box>
             </Stack>
             <Chip
-              label="Phase 15 Docker Config Cleanup"
+              label="Phase 16 Postgres + Migrations"
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}

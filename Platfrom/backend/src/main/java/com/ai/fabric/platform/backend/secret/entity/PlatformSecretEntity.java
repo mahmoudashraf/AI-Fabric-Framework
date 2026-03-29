@@ -15,7 +15,7 @@ public class PlatformSecretEntity {
     @Column(name = "name", nullable = false, updatable = false)
     private String name;
 
-    @Column(name = "secret_value", nullable = false, columnDefinition = "CLOB")
+    @Column(name = "secret_value", nullable = false, columnDefinition = "TEXT")
     private String secretValue;
 
     @Column(name = "updated_at", nullable = false)

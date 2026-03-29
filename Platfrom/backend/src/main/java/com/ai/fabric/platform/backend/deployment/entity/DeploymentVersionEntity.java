@@ -3,7 +3,6 @@ package com.ai.fabric.platform.backend.deployment.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -33,40 +32,31 @@ public class DeploymentVersionEntity {
     @Column(nullable = false)
     private boolean reindexRequired;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String actionsConfigJson;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String entityConfigJson;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String routingConfigJson;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String providerConfigJson;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String securityConfigJson;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String actionsArtifactYaml;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String entityArtifactYaml;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String routingArtifactYaml;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String manifestJson;
 
     @Column(nullable = false)
@@ -208,4 +198,3 @@ public class DeploymentVersionEntity {
         this.publishedAt = publishedAt;
     }
 }
-

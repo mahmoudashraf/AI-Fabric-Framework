@@ -55,7 +55,10 @@ public class PlatformOverviewController {
                 "connector-admin-verification",
                 "config-drift-verification",
                 "neutral-railway-packaging",
-                "platform-served-config-contract"
+                "platform-served-config-contract",
+                "postgres-default-datasource",
+                "flyway-schema-migrations",
+                "explicit-bootstrap-profiles"
             ),
             "plannedScreens", List.of(
                 "deployments",

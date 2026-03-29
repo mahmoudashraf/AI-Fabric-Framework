@@ -3,7 +3,6 @@ package com.ai.fabric.platform.backend.deployment.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -33,8 +32,7 @@ public class DeploymentVerificationRunEntity {
     @Column(nullable = false)
     private String summaryMessage;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "CLOB")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String checksJson;
 
     @Column(nullable = false)

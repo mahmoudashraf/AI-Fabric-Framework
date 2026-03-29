@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/ai-enablement-platform;MODE=PostgreSQL;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+
+platform:
+  bootstrap:
+    sample-enabled: true

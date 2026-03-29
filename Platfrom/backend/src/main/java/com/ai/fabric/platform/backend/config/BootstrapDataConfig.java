@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.config;
 
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,8 +10,8 @@ import org.springframework.context.annotation.Configuration;
 public class BootstrapDataConfig {
 
     @Bean
+    @ConditionalOnProperty(prefix = "platform.bootstrap", name = "sample-enabled", havingValue = "true")
     public ApplicationRunner bootstrapDataInitializer(DeploymentService deploymentService) {
         return args -> deploymentService.ensureBootstrapSample();
     }
 }
-
