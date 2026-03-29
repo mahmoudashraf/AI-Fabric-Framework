@@ -118,10 +118,14 @@ export type DeploymentReleaseSummary = {
   verificationStatus: string
   provisioningStatus: string
   provisioningTarget: string
+  currentStepKey: string | null
+  currentStepDescription: string | null
+  errorMessage: string | null
   verificationRunId: string | null
   provisioningDetails: unknown
   createdAt: string
   appliedAt: string
+  updatedAt: string
 }
 
 export type DeploymentVerificationRunSummary = {

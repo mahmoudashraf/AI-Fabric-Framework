@@ -1,6 +1,6 @@
 # Platform Phase 12+ Execution Plan
 
-Status: draft (2026-03-29)
+Status: updated after Phase 13 implementation (2026-03-29)
 
 This document is the follow-on execution plan for the new `Platfrom/` control plane implementation.
 
@@ -25,6 +25,9 @@ The current control-plane implementation already has these capabilities:
 - Railway plan generation
 - Railway API provider implementation
 - Railway preflight
+- platform-managed deployment secrets
+- real Railway apply proven from the platform
+- async apply execution with release progress tracking
 - diagnostics and verification views
 - structured draft editors for:
   - actions
@@ -35,9 +38,9 @@ The current control-plane implementation already has these capabilities:
 
 Current practical limitation:
 
-- the platform has **not yet been proven end-to-end as the system that creates a live Railway deployment and carries it all the way through apply -> deploy -> verify -> active**
+- post-deploy verification is still health-oriented and not yet deep enough to confirm loaded actions, routing, and effective config
 
-That missing loop is the next priority.
+The next priority is deeper verification and cleanup of Docker/config assumptions.
 
 ---
 
@@ -68,12 +71,10 @@ The target loop is:
 
 Recommended next order:
 
-1. Phase 12: Platform secrets + first real Railway apply
-2. Phase 13: Apply progress and release-state UX
-3. Phase 14: Stronger post-deploy verification
-4. Phase 15: Docker/config cleanup and migration to platform-served config
-5. Phase 16: Persistence hardening (Postgres + migrations)
-6. Phase 17: Platform authentication and operator access control
+1. Phase 14: Stronger post-deploy verification
+2. Phase 15: Docker/config cleanup and migration to platform-served config
+3. Phase 16: Persistence hardening (Postgres + migrations)
+4. Phase 17: Platform authentication and operator access control
 
 This order is intentional:
 

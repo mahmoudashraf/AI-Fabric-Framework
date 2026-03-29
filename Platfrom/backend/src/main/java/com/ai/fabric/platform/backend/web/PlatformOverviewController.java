@@ -46,7 +46,11 @@ public class PlatformOverviewController {
                 "railway-api-provider",
                 "railway-preflight",
                 "structured-draft-editors",
-                "platform-secrets"
+                "platform-secrets",
+                "async-release-execution",
+                "release-progress-tracking",
+                "release-state-polling",
+                "duplicate-apply-guard"
             ),
             "plannedScreens", List.of(
                 "deployments",

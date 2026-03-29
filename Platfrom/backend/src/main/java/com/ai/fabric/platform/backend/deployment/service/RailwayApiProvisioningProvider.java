@@ -53,10 +53,16 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     @Override
     public ProvisioningResult provision(DeploymentEntity deployment,
                                         DeploymentVersionEntity version,
-                                        DeploymentReleaseEntity release) {
+                                        DeploymentReleaseEntity release,
+                                        ProvisioningProgressTracker progressTracker) {
         validateConfiguration();
 
-        RailwayProvisioningPlanSummary plan = railwayProvisioningPlanService.buildPlan(deployment, version);
+        RailwayProvisioningPlanSummary plan = trackedStep(
+            progressTracker,
+            "publish_artifacts",
+            "Resolve immutable config artifact URLs for the selected version.",
+            () -> railwayProvisioningPlanService.buildPlan(deployment, version)
+        );
         String environmentName = resolveEnvironmentName(deployment);
 
         log.info(
@@ -66,88 +72,112 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             plan.projectName()
         );
 
-        RailwayGraphqlClient.RailwayProjectSnapshot project = railwayGraphqlClient.findProjectByName(
-            provisioningProperties.workspaceId(),
-            plan.projectName()
+        RailwayProjectContext projectContext = trackedStep(
+            progressTracker,
+            "prepare_project",
+            "Create or reuse the Railway project for this customer environment.",
+            () -> {
+                RailwayGraphqlClient.RailwayProjectSnapshot existingProject = railwayGraphqlClient.findProjectByName(
+                    provisioningProperties.workspaceId(),
+                    plan.projectName()
+                );
+                if (existingProject == null) {
+                    existingProject = railwayGraphqlClient.createProject(
+                        provisioningProperties.workspaceId(),
+                        plan.projectName(),
+                        environmentName
+                    );
+                }
+                RailwayGraphqlClient.RailwayEnvironmentSummary environment = existingProject.environmentNamed(environmentName);
+                if (environment == null) {
+                    environment = railwayGraphqlClient.createEnvironment(existingProject.id(), environmentName);
+                }
+                return new RailwayProjectContext(existingProject, environment);
+            }
         );
-        if (project == null) {
-            project = railwayGraphqlClient.createProject(
-                provisioningProperties.workspaceId(),
-                plan.projectName(),
-                environmentName
-            );
-        }
+        RailwayGraphqlClient.RailwayProjectSnapshot project = projectContext.project();
+        RailwayGraphqlClient.RailwayEnvironmentSummary environment = projectContext.environment();
 
-        RailwayGraphqlClient.RailwayEnvironmentSummary environment = project.environmentNamed(environmentName);
-        if (environment == null) {
-            environment = railwayGraphqlClient.createEnvironment(project.id(), environmentName);
-        }
-
-        RailwayGraphqlClient.RailwayServiceSummary runtimeService = project.serviceNamed(
+        RailwayGraphqlClient.RailwayServiceSummary runtimeService = ensureService(
+            project,
             plan.services().runtime().serviceName()
         );
-        if (runtimeService == null) {
-            runtimeService = railwayGraphqlClient.createServiceFromRepository(
-                project.id(),
-                plan.services().runtime().serviceName(),
-                provisioningProperties.repository(),
-                provisioningProperties.branch()
-            );
-        }
-
-        RailwayGraphqlClient.RailwayServiceSummary connectorService = project.serviceNamed(
-            plan.services().restConnector().serviceName()
-        );
-        if (connectorService == null) {
-            connectorService = railwayGraphqlClient.createServiceFromRepository(
-                project.id(),
-                plan.services().restConnector().serviceName(),
-                provisioningProperties.repository(),
-                provisioningProperties.branch()
-            );
-        }
-
-        configureServiceInstance(
-            project.id(),
-            runtimeService.id(),
-            environment.id(),
-            plan.services().runtime(),
-            verificationProperties.runtimeHealthPath(),
-            runtimeService.name(),
-            connectorService.name()
-        );
-        configureServiceInstance(
-            project.id(),
-            connectorService.id(),
-            environment.id(),
-            plan.services().restConnector(),
-            verificationProperties.connectorHealthPath(),
-            runtimeService.name(),
-            connectorService.name()
-        );
-
-        if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
-            railwayGraphqlClient.commitStagedChanges(environment.id());
-        }
-
-        String runtimeDeploymentId = railwayGraphqlClient.deployService(runtimeService.id(), environment.id());
-        String connectorDeploymentId = railwayGraphqlClient.deployService(connectorService.id(), environment.id());
-
-        RailwayGraphqlClient.RailwayDeploymentSummary runtimeDeployment = awaitSuccessfulDeployment(
-            runtimeDeploymentId,
-            plan.services().runtime().serviceName()
-        );
-        RailwayGraphqlClient.RailwayDeploymentSummary connectorDeployment = awaitSuccessfulDeployment(
-            connectorDeploymentId,
+        RailwayGraphqlClient.RailwayServiceSummary connectorService = ensureService(
+            project,
             plan.services().restConnector().serviceName()
         );
 
-        String runtimeBaseUrl = ensureServiceDomain(project.id(), environment.id(), runtimeService.id(), deployment.getRuntimeBaseUrl());
-        String connectorBaseUrl = ensureServiceDomain(
-            project.id(),
-            environment.id(),
-            connectorService.id(),
-            deployment.getConnectorBaseUrl()
+        trackedStep(
+            progressTracker,
+            "configure_runtime",
+            "Create or update the runtime service root and its environment variables.",
+            () -> {
+                configureServiceInstance(
+                    project.id(),
+                    runtimeService.id(),
+                    environment.id(),
+                    plan.services().runtime(),
+                    verificationProperties.runtimeHealthPath(),
+                    runtimeService.name(),
+                    connectorService.name()
+                );
+                return null;
+            }
+        );
+        trackedStep(
+            progressTracker,
+            "configure_rest_connector",
+            "Create or update the REST connector service root and its environment variables.",
+            () -> {
+                configureServiceInstance(
+                    project.id(),
+                    connectorService.id(),
+                    environment.id(),
+                    plan.services().restConnector(),
+                    verificationProperties.connectorHealthPath(),
+                    runtimeService.name(),
+                    connectorService.name()
+                );
+                return null;
+            }
+        );
+
+        RailwayDeploymentContext deploymentContext = trackedStep(
+            progressTracker,
+            "trigger_deploy",
+            "Commit staged changes or trigger Railway deployment/redeploy for both services.",
+            () -> {
+                if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
+                    railwayGraphqlClient.commitStagedChanges(environment.id());
+                }
+                String runtimeDeploymentId = railwayGraphqlClient.deployService(runtimeService.id(), environment.id());
+                String connectorDeploymentId = railwayGraphqlClient.deployService(connectorService.id(), environment.id());
+                return new RailwayDeploymentContext(runtimeDeploymentId, connectorDeploymentId);
+            }
+        );
+
+        RailwayActivatedServices activatedServices = trackedStep(
+            progressTracker,
+            "wait_for_active",
+            "Wait for Railway deployment states to become active.",
+            () -> {
+                RailwayGraphqlClient.RailwayDeploymentSummary runtimeDeployment = awaitSuccessfulDeployment(
+                    deploymentContext.runtimeDeploymentId(),
+                    plan.services().runtime().serviceName()
+                );
+                RailwayGraphqlClient.RailwayDeploymentSummary connectorDeployment = awaitSuccessfulDeployment(
+                    deploymentContext.connectorDeploymentId(),
+                    plan.services().restConnector().serviceName()
+                );
+                String runtimeBaseUrl = ensureServiceDomain(project.id(), environment.id(), runtimeService.id(), deployment.getRuntimeBaseUrl());
+                String connectorBaseUrl = ensureServiceDomain(
+                    project.id(),
+                    environment.id(),
+                    connectorService.id(),
+                    deployment.getConnectorBaseUrl()
+                );
+                return new RailwayActivatedServices(runtimeDeployment, connectorDeployment, runtimeBaseUrl, connectorBaseUrl);
+            }
         );
 
         ObjectNode details = objectMapper.valueToTree(plan);
@@ -167,28 +197,42 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         ObjectNode runtimeNode = servicesNode.putObject("runtime");
         runtimeNode.put("serviceId", runtimeService.id());
         runtimeNode.put("serviceName", runtimeService.name());
-        runtimeNode.put("deploymentId", runtimeDeployment.id());
-        runtimeNode.put("deploymentStatus", runtimeDeployment.status());
-        if (runtimeBaseUrl != null) {
-            runtimeNode.put("baseUrl", runtimeBaseUrl);
+        runtimeNode.put("deploymentId", activatedServices.runtimeDeployment().id());
+        runtimeNode.put("deploymentStatus", activatedServices.runtimeDeployment().status());
+        if (activatedServices.runtimeBaseUrl() != null) {
+            runtimeNode.put("baseUrl", activatedServices.runtimeBaseUrl());
         }
 
         ObjectNode connectorNode = servicesNode.putObject("restConnector");
         connectorNode.put("serviceId", connectorService.id());
         connectorNode.put("serviceName", connectorService.name());
-        connectorNode.put("deploymentId", connectorDeployment.id());
-        connectorNode.put("deploymentStatus", connectorDeployment.status());
-        if (connectorBaseUrl != null) {
-            connectorNode.put("baseUrl", connectorBaseUrl);
+        connectorNode.put("deploymentId", activatedServices.connectorDeployment().id());
+        connectorNode.put("deploymentStatus", activatedServices.connectorDeployment().status());
+        if (activatedServices.connectorBaseUrl() != null) {
+            connectorNode.put("baseUrl", activatedServices.connectorBaseUrl());
         }
 
         return new ProvisioningResult(
             "ACTIVE",
             "RAILWAY_API",
-            runtimeBaseUrl,
-            connectorBaseUrl,
+            activatedServices.runtimeBaseUrl(),
+            activatedServices.connectorBaseUrl(),
             details.toPrettyString()
         );
+    }
+
+    private RailwayGraphqlClient.RailwayServiceSummary ensureService(RailwayGraphqlClient.RailwayProjectSnapshot project,
+                                                                     String serviceName) {
+        RailwayGraphqlClient.RailwayServiceSummary service = project.serviceNamed(serviceName);
+        if (service == null) {
+            service = railwayGraphqlClient.createServiceFromRepository(
+                project.id(),
+                serviceName,
+                provisioningProperties.repository(),
+                provisioningProperties.branch()
+            );
+        }
+        return service;
     }
 
     private void configureServiceInstance(String projectId,
@@ -346,5 +390,45 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             }
         }
         return null;
+    }
+
+    private <T> T trackedStep(ProvisioningProgressTracker tracker,
+                              String key,
+                              String description,
+                              RailwayStepSupplier<T> supplier) {
+        tracker.stepStarted(key, description);
+        try {
+            T result = supplier.get();
+            tracker.stepCompleted(key, description);
+            return result;
+        } catch (Exception ex) {
+            tracker.stepFailed(key, description, ex.getMessage());
+            throw ex;
+        }
+    }
+
+    @FunctionalInterface
+    private interface RailwayStepSupplier<T> {
+        T get();
+    }
+
+    private record RailwayProjectContext(
+        RailwayGraphqlClient.RailwayProjectSnapshot project,
+        RailwayGraphqlClient.RailwayEnvironmentSummary environment
+    ) {
+    }
+
+    private record RailwayDeploymentContext(
+        String runtimeDeploymentId,
+        String connectorDeploymentId
+    ) {
+    }
+
+    private record RailwayActivatedServices(
+        RailwayGraphqlClient.RailwayDeploymentSummary runtimeDeployment,
+        RailwayGraphqlClient.RailwayDeploymentSummary connectorDeployment,
+        String runtimeBaseUrl,
+        String connectorBaseUrl
+    ) {
     }
 }

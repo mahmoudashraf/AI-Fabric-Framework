@@ -12,9 +12,13 @@ public record DeploymentReleaseSummary(
     String verificationStatus,
     String provisioningStatus,
     String provisioningTarget,
+    String currentStepKey,
+    String currentStepDescription,
+    String errorMessage,
     String verificationRunId,
     JsonNode provisioningDetails,
     Instant createdAt,
-    Instant appliedAt
+    Instant appliedAt,
+    Instant updatedAt
 ) {
 }

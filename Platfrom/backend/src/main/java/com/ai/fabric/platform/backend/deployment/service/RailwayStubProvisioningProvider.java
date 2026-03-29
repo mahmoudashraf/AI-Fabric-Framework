@@ -33,8 +33,21 @@ public class RailwayStubProvisioningProvider implements DeploymentProvisioningPr
     @Override
     public ProvisioningResult provision(DeploymentEntity deployment,
                                         DeploymentVersionEntity version,
-                                        DeploymentReleaseEntity release) {
+                                        DeploymentReleaseEntity release,
+                                        ProvisioningProgressTracker progressTracker) {
+        progressTracker.stepStarted("publish_artifacts", "Resolve immutable config artifact URLs for the selected version.");
         var plan = railwayProvisioningPlanService.buildPlan(deployment, version);
+        progressTracker.stepCompleted("publish_artifacts", "Resolve immutable config artifact URLs for the selected version.");
+        progressTracker.stepStarted("prepare_project", "Generate stub Railway provisioning details.");
+        progressTracker.stepCompleted("prepare_project", "Generate stub Railway provisioning details.");
+        progressTracker.stepStarted("configure_runtime", "Prepare stub runtime service configuration.");
+        progressTracker.stepCompleted("configure_runtime", "Prepare stub runtime service configuration.");
+        progressTracker.stepStarted("configure_rest_connector", "Prepare stub REST connector configuration.");
+        progressTracker.stepCompleted("configure_rest_connector", "Prepare stub REST connector configuration.");
+        progressTracker.stepStarted("trigger_deploy", "Simulate Railway deployment trigger.");
+        progressTracker.stepCompleted("trigger_deploy", "Simulate Railway deployment trigger.");
+        progressTracker.stepStarted("wait_for_active", "Simulate Railway deployment readiness.");
+        progressTracker.stepCompleted("wait_for_active", "Simulate Railway deployment readiness.");
 
         ObjectNode details = objectMapper.valueToTree(plan);
         details.put("provider", "RAILWAY_STUB");

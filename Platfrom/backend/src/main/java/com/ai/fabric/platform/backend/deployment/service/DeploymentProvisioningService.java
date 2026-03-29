@@ -22,14 +22,15 @@ public class DeploymentProvisioningService {
 
     public ProvisioningResult provision(DeploymentEntity deployment,
                                         DeploymentVersionEntity version,
-                                        DeploymentReleaseEntity release) {
+                                        DeploymentReleaseEntity release,
+                                        ProvisioningProgressTracker progressTracker) {
         return providers.stream()
             .filter(provider -> provider.supports(provisioningProperties.mode()))
             .findFirst()
             .orElseThrow(() -> new IllegalStateException(
                 "No provisioning provider registered for mode: " + provisioningProperties.mode()
             ))
-            .provision(deployment, version, release);
+            .provision(deployment, version, release, progressTracker == null ? ProvisioningProgressTracker.noop() : progressTracker);
     }
 
     public String selectedTarget() {

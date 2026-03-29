@@ -28,6 +28,7 @@ import {
   fetchDeploymentVerificationRuns,
   fetchRailwayPreflight,
   rerunDeploymentVerification,
+  type DeploymentReleaseSummary,
 } from '../api/platformApi'
 
 type VerificationCheck = {
@@ -37,12 +38,25 @@ type VerificationCheck = {
   details?: unknown
 }
 
+type ProvisioningProgressStep = {
+  key: string
+  description: string
+  status: string
+  startedAt: string | null
+  completedAt: string | null
+  errorMessage: string | null
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString()
+}
+
+function formatOptionalTimestamp(value: string | null | undefined): string {
+  return value ? formatTimestamp(value) : '—'
 }
 
 function summarizeProvisioningDetails(value: unknown) {
@@ -64,6 +78,13 @@ function summarizeProvisioningDetails(value: unknown) {
         routing: 'Unknown',
         manifest: 'Unknown',
       },
+      progress: {
+        currentStepKey: 'Unknown',
+        currentStepDescription: 'No progress recorded',
+        currentStepStatus: 'UNKNOWN',
+        errorMessage: null,
+        steps: [] as ProvisioningProgressStep[],
+      },
     }
   }
 
@@ -71,6 +92,8 @@ function summarizeProvisioningDetails(value: unknown) {
   const runtime = isRecord(services.runtime) ? services.runtime : {}
   const restConnector = isRecord(services.restConnector) ? services.restConnector : {}
   const artifactUrls = isRecord(value.artifactUrls) ? value.artifactUrls : {}
+  const progressNode = isRecord(value.progress) ? value.progress : {}
+  const stepNodes = Array.isArray(progressNode.steps) ? progressNode.steps : []
 
   return {
     provider: typeof value.provider === 'string' ? value.provider : 'Unknown',
@@ -89,6 +112,31 @@ function summarizeProvisioningDetails(value: unknown) {
       entities: typeof artifactUrls.entities === 'string' ? artifactUrls.entities : 'Unknown',
       routing: typeof artifactUrls.routing === 'string' ? artifactUrls.routing : 'Unknown',
       manifest: typeof artifactUrls.manifest === 'string' ? artifactUrls.manifest : 'Unknown',
+    },
+    progress: {
+      currentStepKey:
+        typeof progressNode.currentStepKey === 'string' ? progressNode.currentStepKey : 'Unknown',
+      currentStepDescription:
+        typeof progressNode.currentStepDescription === 'string'
+          ? progressNode.currentStepDescription
+          : 'No progress recorded',
+      currentStepStatus:
+        typeof progressNode.currentStepStatus === 'string' ? progressNode.currentStepStatus : 'UNKNOWN',
+      errorMessage:
+        typeof progressNode.errorMessage === 'string' ? progressNode.errorMessage : null,
+      steps: stepNodes.flatMap((step): ProvisioningProgressStep[] => {
+        if (!isRecord(step)) {
+          return []
+        }
+        return [{
+          key: typeof step.key === 'string' ? step.key : 'unknown_step',
+          description: typeof step.description === 'string' ? step.description : 'No description',
+          status: typeof step.status === 'string' ? step.status : 'UNKNOWN',
+          startedAt: typeof step.startedAt === 'string' ? step.startedAt : null,
+          completedAt: typeof step.completedAt === 'string' ? step.completedAt : null,
+          errorMessage: typeof step.errorMessage === 'string' ? step.errorMessage : null,
+        }]
+      }),
     },
   }
 }
@@ -139,6 +187,44 @@ function statusColor(status: string): 'success' | 'warning' | 'error' | 'default
   return 'error'
 }
 
+function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
+  if (status === 'APPLIED_VERIFIED') {
+    return 'success'
+  }
+  if (status === 'APPLY_REQUESTED' || status === 'PROVISIONING' || status === 'VERIFYING') {
+    return 'info'
+  }
+  if (status === 'APPLIED_VERIFICATION_FAILED') {
+    return 'warning'
+  }
+  if (status === 'FAILED') {
+    return 'error'
+  }
+  return 'default'
+}
+
+function releaseSignalColor(status: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
+  if (status === 'PASSED' || status === 'SUCCEEDED' || status === 'PLANNED' || status === 'COMPLETED') {
+    return 'success'
+  }
+  if (status === 'RUNNING' || status === 'QUEUED' || status === 'PENDING') {
+    return 'info'
+  }
+  if (status === 'SKIPPED') {
+    return 'default'
+  }
+  if (status === 'FAILED') {
+    return 'error'
+  }
+  return 'warning'
+}
+
+function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
+  return ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+    || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
+    || release.verificationStatus === 'RUNNING'
+}
+
 export function DiagnosticsPage() {
   const queryClient = useQueryClient()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
@@ -178,12 +264,21 @@ export function DiagnosticsPage() {
     queryKey: ['deployment-releases', selectedDeploymentId],
     queryFn: () => fetchDeploymentReleases(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
+    refetchInterval: (query) => {
+      const releases = (query.state.data as DeploymentReleaseSummary[] | undefined) ?? []
+      return releases.some(isReleaseInProgress) ? 3000 : false
+    },
   })
+
+  const releaseHistory = releasesQuery.data ?? []
+  const latestRelease = releaseHistory[0] ?? null
+  const releasesInProgress = releaseHistory.some(isReleaseInProgress)
 
   const verificationRunsQuery = useQuery({
     queryKey: ['deployment-verification-runs', selectedDeploymentId],
     queryFn: () => fetchDeploymentVerificationRuns(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
+    refetchInterval: releasesInProgress ? 3000 : false,
   })
 
   const rerunMutation = useMutation({
@@ -198,10 +293,20 @@ export function DiagnosticsPage() {
     },
   })
 
-  const releaseHistory = releasesQuery.data ?? []
   const verificationRuns = verificationRunsQuery.data ?? []
-  const latestRelease = releaseHistory[0] ?? null
   const provisioningSummary = summarizeProvisioningDetails(latestRelease?.provisioningDetails)
+
+  useEffect(() => {
+    if (!releasesInProgress) {
+      return undefined
+    }
+
+    const intervalId = window.setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: ['deployments'] })
+    }, 3000)
+
+    return () => window.clearInterval(intervalId)
+  }, [queryClient, releasesInProgress])
 
   useEffect(() => {
     if (verificationRuns.length === 0) {
@@ -378,6 +483,12 @@ export function DiagnosticsPage() {
                 <Chip label={selectedDeployment.status} color="primary" />
                 <Chip label={`Active: ${selectedDeployment.activeVersion}`} variant="outlined" />
                 <Chip label={selectedDeployment.templateId} variant="outlined" />
+                {releasesInProgress ? (
+                  <Chip
+                    label={`Release running: ${latestRelease?.currentStepDescription ?? latestRelease?.status ?? 'In progress'}`}
+                    color="info"
+                  />
+                ) : null}
               </Stack>
             ) : (
               <Alert severity="info">Create a deployment first to inspect diagnostics.</Alert>
@@ -418,11 +529,29 @@ export function DiagnosticsPage() {
                     </Typography>
                     {latestRelease ? (
                       <>
-                        <Chip
-                          label={`${latestRelease.provisioningStatus} · ${provisioningSummary.provider}`}
-                          color={latestRelease.provisioningStatus === 'PLANNED' ? 'primary' : 'default'}
-                          sx={{ alignSelf: 'flex-start' }}
-                        />
+                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                          <Chip
+                            label={latestRelease.status}
+                            color={releaseStatusColor(latestRelease.status)}
+                            sx={{ alignSelf: 'flex-start' }}
+                          />
+                          <Chip
+                            label={`${latestRelease.provisioningStatus} · ${provisioningSummary.provider}`}
+                            color={releaseSignalColor(latestRelease.provisioningStatus)}
+                            variant="outlined"
+                          />
+                          <Chip
+                            label={provisioningSummary.progress.currentStepStatus}
+                            color={releaseSignalColor(provisioningSummary.progress.currentStepStatus)}
+                            variant="outlined"
+                          />
+                        </Stack>
+                        <Typography variant="body2">
+                          Current step: {provisioningSummary.progress.currentStepDescription}
+                        </Typography>
+                        <Typography variant="body2">
+                          Updated: {formatOptionalTimestamp(latestRelease.updatedAt)}
+                        </Typography>
                         <Typography variant="body2">Project: {provisioningSummary.projectName}</Typography>
                         <Typography variant="body2">Repository: {provisioningSummary.repository}</Typography>
                         <Typography variant="body2">Branch: {provisioningSummary.branch}</Typography>
@@ -440,6 +569,11 @@ export function DiagnosticsPage() {
                             ? 'Unknown'
                             : formatTimestamp(provisioningSummary.generatedAt)}
                         </Typography>
+                        {latestRelease.errorMessage || provisioningSummary.progress.errorMessage ? (
+                          <Alert severity="error">
+                            {latestRelease.errorMessage ?? provisioningSummary.progress.errorMessage}
+                          </Alert>
+                        ) : null}
                         <Stack spacing={0.5}>
                           <Typography variant="caption" color="text.secondary">
                             Artifact URLs
@@ -515,15 +649,18 @@ export function DiagnosticsPage() {
                       ? releasesQuery.error.message
                       : 'Failed to load releases'}
                   </Alert>
+                ) : releaseHistory.length === 0 ? (
+                  <Alert severity="info">No release evidence exists yet for this deployment.</Alert>
                 ) : (
                   <Table size="small">
                     <TableHead>
                       <TableRow>
                         <TableCell>Release</TableCell>
                         <TableCell>Version</TableCell>
-                        <TableCell>Provisioning</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Current step</TableCell>
                         <TableCell>Verification</TableCell>
-                        <TableCell>Applied</TableCell>
+                        <TableCell>Updated</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -532,26 +669,110 @@ export function DiagnosticsPage() {
                           <TableCell>{release.id}</TableCell>
                           <TableCell>{release.deploymentVersionId}</TableCell>
                           <TableCell>
-                            <Stack spacing={0.25}>
-                              <Typography variant="body2">{release.provisioningStatus}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {release.provisioningTarget}
-                              </Typography>
+                            <Stack direction="row" spacing={1} flexWrap="wrap">
+                              <Chip
+                                size="small"
+                                label={release.status}
+                                color={releaseStatusColor(release.status)}
+                              />
+                              <Chip
+                                size="small"
+                                label={release.provisioningStatus}
+                                color={releaseSignalColor(release.provisioningStatus)}
+                                variant="outlined"
+                              />
                             </Stack>
                           </TableCell>
                           <TableCell>
                             <Stack spacing={0.25}>
-                              <Typography variant="body2">{release.verificationStatus}</Typography>
+                              <Typography variant="body2">
+                                {release.currentStepDescription ?? 'Not recorded yet'}
+                              </Typography>
+                              {release.errorMessage ? (
+                                <Typography variant="caption" color="error.main">
+                                  {release.errorMessage}
+                                </Typography>
+                              ) : null}
+                            </Stack>
+                          </TableCell>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Chip
+                                size="small"
+                                label={release.verificationStatus}
+                                color={releaseSignalColor(release.verificationStatus)}
+                                variant="outlined"
+                              />
                               <Typography variant="caption" color="text.secondary">
                                 {release.verificationRunId ?? 'No verification run'}
                               </Typography>
                             </Stack>
                           </TableCell>
-                          <TableCell>{formatTimestamp(release.appliedAt)}</TableCell>
+                          <TableCell>{formatOptionalTimestamp(release.updatedAt)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Provisioning step history</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Per-step progress evidence stored on the latest release while Railway apply runs.
+                  </Typography>
+                </Box>
+                {latestRelease ? (
+                  provisioningSummary.progress.steps.length === 0 ? (
+                    <Alert severity="info">The latest release does not contain detailed step history yet.</Alert>
+                  ) : (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Step</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Started</TableCell>
+                          <TableCell>Completed</TableCell>
+                          <TableCell>Error</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {provisioningSummary.progress.steps.map((step) => (
+                          <TableRow key={`${latestRelease.id}:${step.key}`} hover>
+                            <TableCell>
+                              <Stack spacing={0.25}>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                  {step.description}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                                  {step.key}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={step.status}
+                                color={releaseSignalColor(step.status)}
+                              />
+                            </TableCell>
+                            <TableCell>{formatOptionalTimestamp(step.startedAt)}</TableCell>
+                            <TableCell>{formatOptionalTimestamp(step.completedAt)}</TableCell>
+                            <TableCell sx={{ maxWidth: 320 }}>
+                              {step.errorMessage ?? '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )
+                ) : (
+                  <Alert severity="info">Apply a version first to inspect provisioning step history.</Alert>
                 )}
               </Stack>
             </CardContent>

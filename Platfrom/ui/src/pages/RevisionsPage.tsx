@@ -26,12 +26,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   applyDeploymentVersion,
   fetchDeploymentDraft,
-  fetchRailwayProvisioningPlan,
   fetchDeploymentReleases,
   fetchDeployments,
   fetchDeploymentVersions,
+  fetchRailwayProvisioningPlan,
   publishDeploymentDraft,
   type DeploymentDraftResponse,
+  type DeploymentReleaseSummary,
   type RailwayEnvVarSummary,
 } from '../api/platformApi'
 
@@ -86,6 +87,58 @@ function readBoolean(config: unknown, key: string): string {
 
 function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString()
+}
+
+function formatOptionalTimestamp(value: string | null | undefined): string {
+  return value ? formatTimestamp(value) : '—'
+}
+
+function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
+  if (status === 'APPLIED_VERIFIED') {
+    return 'success'
+  }
+  if (status === 'APPLY_REQUESTED' || status === 'PROVISIONING' || status === 'VERIFYING') {
+    return 'info'
+  }
+  if (status === 'APPLIED_VERIFICATION_FAILED') {
+    return 'warning'
+  }
+  if (status === 'FAILED') {
+    return 'error'
+  }
+  return 'default'
+}
+
+function verificationStatusColor(status: string): 'success' | 'warning' | 'info' | 'default' {
+  if (status === 'PASSED') {
+    return 'success'
+  }
+  if (status === 'RUNNING') {
+    return 'info'
+  }
+  if (status === 'FAILED') {
+    return 'warning'
+  }
+  return 'default'
+}
+
+function provisioningStatusColor(status: string): 'success' | 'warning' | 'info' | 'default' {
+  if (status === 'SUCCEEDED' || status === 'PLANNED') {
+    return 'success'
+  }
+  if (status === 'QUEUED' || status === 'RUNNING') {
+    return 'info'
+  }
+  if (status === 'FAILED') {
+    return 'warning'
+  }
+  return 'default'
+}
+
+function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
+  return ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+    || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
+    || release.verificationStatus === 'RUNNING'
 }
 
 function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
@@ -179,7 +232,27 @@ export function RevisionsPage() {
     queryKey: ['deployment-releases', selectedDeploymentId],
     queryFn: () => fetchDeploymentReleases(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
+    refetchInterval: (query) => {
+      const releases = (query.state.data as DeploymentReleaseSummary[] | undefined) ?? []
+      return releases.some(isReleaseInProgress) ? 3000 : false
+    },
   })
+
+  const releaseHistory = releasesQuery.data ?? []
+  const latestRelease = releaseHistory[0] ?? null
+  const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
+
+  useEffect(() => {
+    if (!inProgressRelease) {
+      return undefined
+    }
+
+    const intervalId = window.setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: ['deployments'] })
+    }, 3000)
+
+    return () => window.clearInterval(intervalId)
+  }, [inProgressRelease, queryClient])
 
   const publishMutation = useMutation({
     mutationFn: (draftId: string) => publishDeploymentDraft(draftId),
@@ -277,6 +350,12 @@ export function RevisionsPage() {
                 <Chip label={selectedDeployment.status} color="primary" />
                 <Chip label={`Active: ${selectedDeployment.activeVersion}`} variant="outlined" />
                 <Chip label={selectedDeployment.templateId} variant="outlined" />
+                {inProgressRelease ? (
+                  <Chip
+                    label={`Release running: ${inProgressRelease.currentStepDescription ?? inProgressRelease.status}`}
+                    color="info"
+                  />
+                ) : null}
               </Stack>
             ) : (
               <Alert severity="info">Create a deployment first to start managing revisions.</Alert>
@@ -485,15 +564,16 @@ export function RevisionsPage() {
                               variant="outlined"
                               size="small"
                               startIcon={<RocketLaunchRoundedIcon />}
-                              disabled={applyMutation.isPending}
-                              onClick={() =>
+                              disabled={applyMutation.isPending || Boolean(inProgressRelease)}
+                              onClick={(event) => {
+                                event.stopPropagation()
                                 applyMutation.mutate({
                                   deploymentId: selectedDeployment.id,
                                   versionId: version.id,
                                 })
-                              }
+                              }}
                             >
-                              Apply
+                              {inProgressRelease ? 'Release running' : 'Apply'}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -508,6 +588,80 @@ export function RevisionsPage() {
                       : 'Failed to apply version'}
                   </Alert>
                 ) : null}
+                {applyMutation.isSuccess ? (
+                  <Alert severity="info">
+                    Apply queued: {applyMutation.data.currentStepDescription ?? applyMutation.data.status}
+                  </Alert>
+                ) : null}
+                {inProgressRelease ? (
+                  <Alert severity="info">
+                    A release is already running for this deployment. Status and current step refresh automatically.
+                  </Alert>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Latest release execution</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Applies now run asynchronously. This card shows the newest release, its current
+                    step, and any error that blocked the rollout.
+                  </Typography>
+                </Box>
+                {latestRelease ? (
+                  <>
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      <Chip label={latestRelease.status} color={releaseStatusColor(latestRelease.status)} />
+                      <Chip
+                        label={`Provisioning: ${latestRelease.provisioningStatus}`}
+                        color={provisioningStatusColor(latestRelease.provisioningStatus)}
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`Verification: ${latestRelease.verificationStatus}`}
+                        color={verificationStatusColor(latestRelease.verificationStatus)}
+                        variant="outlined"
+                      />
+                    </Stack>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Stack spacing={1}>
+                          <Typography variant="body2">
+                            Current step: <strong>{latestRelease.currentStepDescription ?? 'Not recorded yet'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Release: <strong>{latestRelease.id}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Version: <strong>{latestRelease.deploymentVersionId}</strong>
+                          </Typography>
+                        </Stack>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Stack spacing={1}>
+                          <Typography variant="body2">
+                            Updated: <strong>{formatOptionalTimestamp(latestRelease.updatedAt)}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Applied: <strong>{formatOptionalTimestamp(latestRelease.appliedAt)}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Verification run: <strong>{latestRelease.verificationRunId ?? 'Pending'}</strong>
+                          </Typography>
+                        </Stack>
+                      </Grid>
+                    </Grid>
+                    {latestRelease.errorMessage ? (
+                      <Alert severity="error">{latestRelease.errorMessage}</Alert>
+                    ) : null}
+                  </>
+                ) : (
+                  <Alert severity="info">No release has been applied yet for this deployment.</Alert>
+                )}
               </Stack>
             </CardContent>
           </Card>
@@ -696,6 +850,8 @@ export function RevisionsPage() {
                       ? releasesQuery.error.message
                       : 'Failed to load releases'}
                   </Alert>
+                ) : releaseHistory.length === 0 ? (
+                  <Alert severity="info">No release history exists yet for this deployment.</Alert>
                 ) : (
                   <Table size="small">
                     <TableHead>
@@ -703,34 +859,57 @@ export function RevisionsPage() {
                         <TableCell>Release</TableCell>
                         <TableCell>Version</TableCell>
                         <TableCell>Status</TableCell>
-                        <TableCell>Provisioning</TableCell>
+                        <TableCell>Current step</TableCell>
                         <TableCell>Verification</TableCell>
-                        <TableCell>Applied</TableCell>
+                        <TableCell>Updated</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {(releasesQuery.data ?? []).map((release) => (
+                      {releaseHistory.map((release) => (
                         <TableRow key={release.id} hover>
                           <TableCell>{release.id}</TableCell>
                           <TableCell>{release.deploymentVersionId}</TableCell>
-                          <TableCell>{release.status}</TableCell>
                           <TableCell>
+                            <Stack direction="row" spacing={1} flexWrap="wrap">
+                              <Chip
+                                size="small"
+                                label={release.status}
+                                color={releaseStatusColor(release.status)}
+                              />
+                              <Chip
+                                size="small"
+                                label={release.provisioningStatus}
+                                color={provisioningStatusColor(release.provisioningStatus)}
+                                variant="outlined"
+                              />
+                            </Stack>
+                          </TableCell>
+                          <TableCell sx={{ maxWidth: 320 }}>
                             <Stack spacing={0.25}>
-                              <Typography variant="body2">{release.provisioningStatus}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {release.provisioningTarget}
+                              <Typography variant="body2">
+                                {release.currentStepDescription ?? 'Not recorded yet'}
                               </Typography>
+                              {release.errorMessage ? (
+                                <Typography variant="caption" color="error.main">
+                                  {release.errorMessage}
+                                </Typography>
+                              ) : null}
                             </Stack>
                           </TableCell>
                           <TableCell>
                             <Stack spacing={0.25}>
-                              <Typography variant="body2">{release.verificationStatus}</Typography>
+                              <Chip
+                                size="small"
+                                label={release.verificationStatus}
+                                color={verificationStatusColor(release.verificationStatus)}
+                                variant="outlined"
+                              />
                               <Typography variant="caption" color="text.secondary">
                                 {release.verificationRunId ?? 'No verification run'}
                               </Typography>
                             </Stack>
                           </TableCell>
-                          <TableCell>{formatTimestamp(release.appliedAt)}</TableCell>
+                          <TableCell>{formatOptionalTimestamp(release.updatedAt)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

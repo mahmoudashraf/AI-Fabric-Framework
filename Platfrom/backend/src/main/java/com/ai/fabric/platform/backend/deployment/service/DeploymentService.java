@@ -28,6 +28,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -51,6 +53,7 @@ public class DeploymentService {
     private final DeploymentProvisioningService deploymentProvisioningService;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
+    private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final ObjectMapper objectMapper;
 
@@ -94,6 +97,7 @@ public class DeploymentService {
                              DeploymentProvisioningService deploymentProvisioningService,
                              RailwayProvisioningPlanService railwayProvisioningPlanService,
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
+                             DeploymentReleaseExecutionService deploymentReleaseExecutionService,
                              PlatformProvisioningProperties provisioningProperties,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
@@ -106,6 +110,7 @@ public class DeploymentService {
         this.deploymentProvisioningService = deploymentProvisioningService;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
+        this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
         this.provisioningProperties = provisioningProperties;
         this.objectMapper = objectMapper;
     }
@@ -292,6 +297,14 @@ public class DeploymentService {
         if (!deployment.getId().equals(version.getDeploymentId())) {
             throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
         }
+        releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .filter(this::isReleaseInProgress)
+            .ifPresent(release -> {
+                throw new ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "Deployment already has an apply in progress: " + release.getId()
+                );
+            });
 
         Instant now = Instant.now();
 
@@ -299,34 +312,25 @@ public class DeploymentService {
         release.setId(generateId("rel"));
         release.setDeploymentId(deploymentId);
         release.setDeploymentVersionId(versionId);
-        release.setStatus("PROVISIONING");
+        release.setStatus("APPLY_REQUESTED");
         release.setVerificationStatus("PENDING");
-        release.setProvisioningStatus("PENDING");
+        release.setProvisioningStatus("QUEUED");
         release.setProvisioningTarget(deploymentProvisioningService.selectedTarget());
-        release.setProvisioningDetailsJson("{}");
+        release.setCurrentStepKey("queue_release");
+        release.setCurrentStepDescription("Apply request accepted and queued.");
+        release.setErrorMessage(null);
+        release.setProvisioningDetailsJson(initialReleaseDetails("queue_release", "Apply request accepted and queued."));
         release.setCreatedAt(now);
         release.setAppliedAt(now);
+        release.setUpdatedAt(now);
         releaseRepository.save(release);
 
-        ProvisioningResult provisioningResult = deploymentProvisioningService.provision(
-            deployment,
-            version,
-            release
-        );
-
-        release.setProvisioningStatus(provisioningResult.status());
-        release.setProvisioningTarget(provisioningResult.target());
-        release.setProvisioningDetailsJson(provisioningResult.detailsJson());
-
-        deployment.setActiveVersionId(versionId);
-        deployment.setRuntimeBaseUrl(provisioningResult.runtimeBaseUrl());
-        deployment.setConnectorBaseUrl(provisioningResult.connectorBaseUrl());
-        deployment.setStatus("APPLIED_PENDING_VERIFICATION");
+        deployment.setStatus("APPLY_REQUESTED");
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
 
-        runVerification(deployment, version, release, "POST_APPLY");
-        return toReleaseSummary(releaseRepository.save(release));
+        scheduleApplyAfterCommit(deploymentId, versionId, release.getId());
+        return toReleaseSummary(release);
     }
 
     public List<DeploymentReleaseSummary> listReleases(String deploymentId) {
@@ -504,6 +508,10 @@ public class DeploymentService {
         release.setStatus("PASSED".equals(verificationRun.getStatus())
             ? "APPLIED_VERIFIED"
             : "APPLIED_VERIFICATION_FAILED");
+        release.setCurrentStepKey("verification_complete");
+        release.setCurrentStepDescription("Verification completed.");
+        release.setErrorMessage(null);
+        release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);
 
         deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
@@ -578,13 +586,36 @@ public class DeploymentService {
                 release.getVerificationStatus(),
                 release.getProvisioningStatus(),
                 release.getProvisioningTarget(),
+                release.getCurrentStepKey(),
+                release.getCurrentStepDescription(),
+                release.getErrorMessage(),
                 release.getVerificationRunId(),
                 objectMapper.readTree(release.getProvisioningDetailsJson()),
                 release.getCreatedAt(),
-                release.getAppliedAt()
+                release.getAppliedAt(),
+                release.getUpdatedAt()
             );
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read provisioning details", ex);
+        }
+    }
+
+    private String initialReleaseDetails(String stepKey, String description) {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode progress = root.putObject("progress");
+        progress.put("currentStepKey", stepKey);
+        progress.put("currentStepDescription", description);
+        progress.put("currentStepStatus", "QUEUED");
+        ArrayNode steps = progress.putArray("steps");
+        ObjectNode queued = steps.addObject();
+        queued.put("key", stepKey);
+        queued.put("description", description);
+        queued.put("status", "QUEUED");
+        queued.put("startedAt", Instant.now().toString());
+        try {
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to build initial release details.", ex);
         }
     }
 
@@ -605,5 +636,28 @@ public class DeploymentService {
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read verification checks", ex);
         }
+    }
+
+    private boolean isReleaseInProgress(DeploymentReleaseEntity release) {
+        return switch (release.getStatus()) {
+            case "APPLY_REQUESTED", "PROVISIONING", "VERIFYING" -> true;
+            default -> "QUEUED".equals(release.getProvisioningStatus())
+                || "RUNNING".equals(release.getProvisioningStatus())
+                || "RUNNING".equals(release.getVerificationStatus());
+        };
+    }
+
+    private void scheduleApplyAfterCommit(String deploymentId, String versionId, String releaseId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deploymentReleaseExecutionService.executeApply(deploymentId, versionId, releaseId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                deploymentReleaseExecutionService.executeApply(deploymentId, versionId, releaseId);
+            }
+        });
     }
 }

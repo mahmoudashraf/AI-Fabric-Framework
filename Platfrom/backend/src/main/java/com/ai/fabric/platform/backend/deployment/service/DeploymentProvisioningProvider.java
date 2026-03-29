@@ -10,5 +10,6 @@ public interface DeploymentProvisioningProvider {
 
     ProvisioningResult provision(DeploymentEntity deployment,
                                  DeploymentVersionEntity version,
-                                 DeploymentReleaseEntity release);
+                                 DeploymentReleaseEntity release,
+                                 ProvisioningProgressTracker progressTracker);
 }

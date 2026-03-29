@@ -33,6 +33,14 @@ public class DeploymentReleaseEntity {
     @Column(nullable = false)
     private String provisioningTarget;
 
+    private String currentStepKey;
+
+    private String currentStepDescription;
+
+    @Lob
+    @Column(columnDefinition = "CLOB")
+    private String errorMessage;
+
     @Lob
     @Column(nullable = false, columnDefinition = "CLOB")
     private String provisioningDetailsJson;
@@ -44,6 +52,9 @@ public class DeploymentReleaseEntity {
 
     @Column(nullable = false)
     private Instant appliedAt;
+
+    @Column(nullable = false)
+    private Instant updatedAt;
 
     public String getId() {
         return id;
@@ -101,6 +112,30 @@ public class DeploymentReleaseEntity {
         this.provisioningTarget = provisioningTarget;
     }
 
+    public String getCurrentStepKey() {
+        return currentStepKey;
+    }
+
+    public void setCurrentStepKey(String currentStepKey) {
+        this.currentStepKey = currentStepKey;
+    }
+
+    public String getCurrentStepDescription() {
+        return currentStepDescription;
+    }
+
+    public void setCurrentStepDescription(String currentStepDescription) {
+        this.currentStepDescription = currentStepDescription;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
+    }
+
     public String getProvisioningDetailsJson() {
         return provisioningDetailsJson;
     }
@@ -131,5 +166,13 @@ public class DeploymentReleaseEntity {
 
     public void setAppliedAt(Instant appliedAt) {
         this.appliedAt = appliedAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }
