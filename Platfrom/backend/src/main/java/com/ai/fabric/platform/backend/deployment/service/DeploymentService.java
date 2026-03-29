@@ -3,12 +3,14 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
@@ -16,6 +18,7 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequ
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,8 +43,11 @@ public class DeploymentService {
     private final DeploymentDraftRepository draftRepository;
     private final DeploymentVersionRepository versionRepository;
     private final DeploymentReleaseRepository releaseRepository;
+    private final DeploymentVerificationRunRepository verificationRunRepository;
     private final DeploymentConfigCompiler deploymentConfigCompiler;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
+    private final DeploymentProvisioningService deploymentProvisioningService;
+    private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final ObjectMapper objectMapper;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
@@ -78,15 +84,21 @@ public class DeploymentService {
                              DeploymentDraftRepository draftRepository,
                              DeploymentVersionRepository versionRepository,
                              DeploymentReleaseRepository releaseRepository,
+                             DeploymentVerificationRunRepository verificationRunRepository,
                              DeploymentConfigCompiler deploymentConfigCompiler,
                              DeploymentDraftValidationService deploymentDraftValidationService,
+                             DeploymentProvisioningService deploymentProvisioningService,
+                             DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
+        this.verificationRunRepository = verificationRunRepository;
         this.deploymentConfigCompiler = deploymentConfigCompiler;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
+        this.deploymentProvisioningService = deploymentProvisioningService;
+        this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.objectMapper = objectMapper;
     }
 
@@ -279,24 +291,34 @@ public class DeploymentService {
         release.setId(generateId("rel"));
         release.setDeploymentId(deploymentId);
         release.setDeploymentVersionId(versionId);
-        release.setStatus("APPLIED_PENDING_VERIFICATION");
+        release.setStatus("PROVISIONING");
         release.setVerificationStatus("PENDING");
+        release.setProvisioningStatus("PENDING");
+        release.setProvisioningTarget("RAILWAY_STUB");
+        release.setProvisioningDetailsJson("{}");
         release.setCreatedAt(now);
         release.setAppliedAt(now);
         releaseRepository.save(release);
 
+        DeploymentProvisioningService.ProvisioningResult provisioningResult = deploymentProvisioningService.provision(
+            deployment,
+            version,
+            release
+        );
+
+        release.setProvisioningStatus(provisioningResult.status());
+        release.setProvisioningTarget(provisioningResult.target());
+        release.setProvisioningDetailsJson(provisioningResult.detailsJson());
+
         deployment.setActiveVersionId(versionId);
+        deployment.setRuntimeBaseUrl(provisioningResult.runtimeBaseUrl());
+        deployment.setConnectorBaseUrl(provisioningResult.connectorBaseUrl());
         deployment.setStatus("APPLIED_PENDING_VERIFICATION");
-        if (deployment.getRuntimeBaseUrl() == null) {
-            deployment.setRuntimeBaseUrl("https://runtime-" + deployment.getId() + ".placeholder.local");
-        }
-        if (deployment.getConnectorBaseUrl() == null) {
-            deployment.setConnectorBaseUrl("https://connector-" + deployment.getId() + ".placeholder.local");
-        }
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
 
-        return toReleaseSummary(release);
+        runVerification(deployment, version, release, "POST_APPLY");
+        return toReleaseSummary(releaseRepository.save(release));
     }
 
     public List<DeploymentReleaseSummary> listReleases(String deploymentId) {
@@ -304,6 +326,41 @@ public class DeploymentService {
         return releaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
             .map(this::toReleaseSummary)
             .toList();
+    }
+
+    public List<DeploymentVerificationRunSummary> listVerificationRuns(String deploymentId) {
+        getDeployment(deploymentId);
+        return verificationRunRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
+            .map(this::toVerificationRunSummary)
+            .toList();
+    }
+
+    @Transactional
+    public DeploymentVerificationRunSummary rerunVerification(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        if (deployment.getActiveVersionId() == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment has no active version to verify.");
+        }
+
+        DeploymentVersionEntity version = versionRepository.findById(deployment.getActiveVersionId())
+            .orElseThrow(() -> new ResponseStatusException(
+                NOT_FOUND,
+                "Active version not found: " + deployment.getActiveVersionId()
+            ));
+        DeploymentReleaseEntity release = releaseRepository
+            .findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(deploymentId, version.getId())
+            .orElseThrow(() -> new ResponseStatusException(
+                NOT_FOUND,
+                "No applied release found for active version: " + version.getVersionLabel()
+            ));
+
+        DeploymentVerificationRunEntity verificationRun = runVerification(
+            deployment,
+            version,
+            release,
+            "MANUAL_RERUN"
+        );
+        return toVerificationRunSummary(verificationRun);
     }
 
     @Transactional
@@ -410,6 +467,31 @@ public class DeploymentService {
         }
     }
 
+    private DeploymentVerificationRunEntity runVerification(DeploymentEntity deployment,
+                                                            DeploymentVersionEntity version,
+                                                            DeploymentReleaseEntity release,
+                                                            String verificationType) {
+        DeploymentVerificationRunEntity verificationRun = deploymentReleaseVerificationService.verify(
+            deployment,
+            version,
+            release,
+            verificationType
+        );
+        verificationRunRepository.save(verificationRun);
+
+        release.setVerificationRunId(verificationRun.getId());
+        release.setVerificationStatus(verificationRun.getStatus());
+        release.setStatus("PASSED".equals(verificationRun.getStatus())
+            ? "APPLIED_VERIFIED"
+            : "APPLIED_VERIFICATION_FAILED");
+        releaseRepository.save(release);
+
+        deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+        return verificationRun;
+    }
+
     private DeploymentSummary toSummary(DeploymentEntity deployment) {
         String activeVersion = null;
         if (deployment.getActiveVersionId() != null) {
@@ -467,14 +549,41 @@ public class DeploymentService {
     }
 
     private DeploymentReleaseSummary toReleaseSummary(DeploymentReleaseEntity release) {
-        return new DeploymentReleaseSummary(
-            release.getId(),
-            release.getDeploymentId(),
-            release.getDeploymentVersionId(),
-            release.getStatus(),
-            release.getVerificationStatus(),
-            release.getCreatedAt(),
-            release.getAppliedAt()
-        );
+        try {
+            return new DeploymentReleaseSummary(
+                release.getId(),
+                release.getDeploymentId(),
+                release.getDeploymentVersionId(),
+                release.getStatus(),
+                release.getVerificationStatus(),
+                release.getProvisioningStatus(),
+                release.getProvisioningTarget(),
+                release.getVerificationRunId(),
+                objectMapper.readTree(release.getProvisioningDetailsJson()),
+                release.getCreatedAt(),
+                release.getAppliedAt()
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read provisioning details", ex);
+        }
+    }
+
+    private DeploymentVerificationRunSummary toVerificationRunSummary(DeploymentVerificationRunEntity verificationRun) {
+        try {
+            return new DeploymentVerificationRunSummary(
+                verificationRun.getId(),
+                verificationRun.getDeploymentId(),
+                verificationRun.getReleaseId(),
+                verificationRun.getDeploymentVersionId(),
+                verificationRun.getVerificationType(),
+                verificationRun.getStatus(),
+                verificationRun.getSummaryMessage(),
+                objectMapper.readTree(verificationRun.getChecksJson()),
+                verificationRun.getCreatedAt(),
+                verificationRun.getCompletedAt()
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read verification checks", ex);
+        }
     }
 }

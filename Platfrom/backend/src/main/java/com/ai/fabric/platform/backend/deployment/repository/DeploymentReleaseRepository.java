@@ -8,5 +8,9 @@ import java.util.List;
 public interface DeploymentReleaseRepository extends JpaRepository<DeploymentReleaseEntity, String> {
 
     List<DeploymentReleaseEntity> findByDeploymentIdOrderByCreatedAtDesc(String deploymentId);
-}
 
+    java.util.Optional<DeploymentReleaseEntity> findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(
+        String deploymentId,
+        String deploymentVersionId
+    );
+}

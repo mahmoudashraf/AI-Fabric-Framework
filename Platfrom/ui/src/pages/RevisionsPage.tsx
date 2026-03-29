@@ -163,6 +163,7 @@ export function RevisionsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
       ])
     },
@@ -175,6 +176,7 @@ export function RevisionsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
       ])
     },
   })
@@ -189,9 +191,9 @@ export function RevisionsPage() {
           Draft, publish, apply
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 960 }}>
-          Phase 2 exposes the real release lifecycle: each deployment has an editable active draft,
-          immutable published versions, and applied release history. Railway provisioning is still
-          the next phase, but the platform state model is now real.
+          The release lifecycle now stores more than state transitions: publishing creates immutable
+          versions, applying produces provisioning evidence, and each release can point to a stored
+          verification run.
         </Typography>
       </Box>
 
@@ -459,8 +461,8 @@ export function RevisionsPage() {
                 <Box>
                   <Typography variant="h6">Release history</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Releases are the applied deployment records. Verification remains a later phase,
-                    so newly applied releases are still pending that step.
+                    Releases now capture provisioning status and verification linkage, so this table is
+                    the first support-ready rollout evidence view.
                   </Typography>
                 </Box>
                 {releasesQuery.isLoading ? (
@@ -478,6 +480,7 @@ export function RevisionsPage() {
                         <TableCell>Release</TableCell>
                         <TableCell>Version</TableCell>
                         <TableCell>Status</TableCell>
+                        <TableCell>Provisioning</TableCell>
                         <TableCell>Verification</TableCell>
                         <TableCell>Applied</TableCell>
                       </TableRow>
@@ -488,7 +491,22 @@ export function RevisionsPage() {
                           <TableCell>{release.id}</TableCell>
                           <TableCell>{release.deploymentVersionId}</TableCell>
                           <TableCell>{release.status}</TableCell>
-                          <TableCell>{release.verificationStatus}</TableCell>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Typography variant="body2">{release.provisioningStatus}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {release.provisioningTarget}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Typography variant="body2">{release.verificationStatus}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {release.verificationRunId ?? 'No verification run'}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
                           <TableCell>{formatTimestamp(release.appliedAt)}</TableCell>
                         </TableRow>
                       ))}

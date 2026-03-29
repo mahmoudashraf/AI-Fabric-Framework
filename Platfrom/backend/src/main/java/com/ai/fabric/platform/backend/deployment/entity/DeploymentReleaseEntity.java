@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -25,6 +26,18 @@ public class DeploymentReleaseEntity {
 
     @Column(nullable = false)
     private String verificationStatus;
+
+    @Column(nullable = false)
+    private String provisioningStatus;
+
+    @Column(nullable = false)
+    private String provisioningTarget;
+
+    @Lob
+    @Column(nullable = false, columnDefinition = "CLOB")
+    private String provisioningDetailsJson;
+
+    private String verificationRunId;
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -72,6 +85,38 @@ public class DeploymentReleaseEntity {
         this.verificationStatus = verificationStatus;
     }
 
+    public String getProvisioningStatus() {
+        return provisioningStatus;
+    }
+
+    public void setProvisioningStatus(String provisioningStatus) {
+        this.provisioningStatus = provisioningStatus;
+    }
+
+    public String getProvisioningTarget() {
+        return provisioningTarget;
+    }
+
+    public void setProvisioningTarget(String provisioningTarget) {
+        this.provisioningTarget = provisioningTarget;
+    }
+
+    public String getProvisioningDetailsJson() {
+        return provisioningDetailsJson;
+    }
+
+    public void setProvisioningDetailsJson(String provisioningDetailsJson) {
+        this.provisioningDetailsJson = provisioningDetailsJson;
+    }
+
+    public String getVerificationRunId() {
+        return verificationRunId;
+    }
+
+    public void setVerificationRunId(String verificationRunId) {
+        this.verificationRunId = verificationRunId;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -88,4 +133,3 @@ public class DeploymentReleaseEntity {
         this.appliedAt = appliedAt;
     }
 }
-

@@ -28,10 +28,14 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-4-core-draft-editors
+  current-phase: phase-6-live-verification
   cors:
     allowed-origins:
       - http://localhost:5173
+  verification:
+    timeout: 3s
+    runtime-health-path: /actuator/health
+    connector-health-path: /actuator/health
 
 logging:
   level:

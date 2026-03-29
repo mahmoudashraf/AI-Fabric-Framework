@@ -30,9 +30,11 @@ public class PlatformOverviewController {
                 "config-versioning",
                 "draft-validation",
                 "core-draft-editors",
+                "release-evidence",
                 "validation",
                 "verification",
-                "railway-provisioning"
+                "railway-provisioning",
+                "live-verification-reruns"
             ),
             "plannedScreens", List.of(
                 "deployments",

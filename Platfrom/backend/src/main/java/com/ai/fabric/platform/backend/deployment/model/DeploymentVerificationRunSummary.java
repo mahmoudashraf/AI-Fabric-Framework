@@ -4,17 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.Instant;
 
-public record DeploymentReleaseSummary(
+public record DeploymentVerificationRunSummary(
     String id,
     String deploymentId,
+    String releaseId,
     String deploymentVersionId,
+    String verificationType,
     String status,
-    String verificationStatus,
-    String provisioningStatus,
-    String provisioningTarget,
-    String verificationRunId,
-    JsonNode provisioningDetails,
+    String summaryMessage,
+    JsonNode checks,
     Instant createdAt,
-    Instant appliedAt
+    Instant completedAt
 ) {
 }

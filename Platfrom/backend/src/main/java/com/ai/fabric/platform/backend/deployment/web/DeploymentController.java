@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
@@ -85,5 +86,16 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/releases")
     public List<DeploymentReleaseSummary> listReleases(@PathVariable String deploymentId) {
         return deploymentService.listReleases(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/verification-runs")
+    public List<DeploymentVerificationRunSummary> listVerificationRuns(@PathVariable String deploymentId) {
+        return deploymentService.listVerificationRuns(deploymentId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/verification-runs/recheck")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentVerificationRunSummary rerunVerification(@PathVariable String deploymentId) {
+        return deploymentService.rerunVerification(deploymentId);
     }
 }

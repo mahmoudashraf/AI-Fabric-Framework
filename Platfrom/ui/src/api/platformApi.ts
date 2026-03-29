@@ -51,8 +51,25 @@ export type DeploymentReleaseSummary = {
   deploymentVersionId: string
   status: string
   verificationStatus: string
+  provisioningStatus: string
+  provisioningTarget: string
+  verificationRunId: string | null
+  provisioningDetails: unknown
   createdAt: string
   appliedAt: string
+}
+
+export type DeploymentVerificationRunSummary = {
+  id: string
+  deploymentId: string
+  releaseId: string
+  deploymentVersionId: string
+  verificationType: string
+  status: string
+  summaryMessage: string
+  checks: unknown
+  createdAt: string
+  completedAt: string
 }
 
 export type DraftValidationIssue = {
@@ -140,6 +157,19 @@ export function fetchDeploymentVersions(deploymentId: string) {
 
 export function fetchDeploymentReleases(deploymentId: string) {
   return request<DeploymentReleaseSummary[]>(`/api/deployments/${deploymentId}/releases`)
+}
+
+export function fetchDeploymentVerificationRuns(deploymentId: string) {
+  return request<DeploymentVerificationRunSummary[]>(`/api/deployments/${deploymentId}/verification-runs`)
+}
+
+export function rerunDeploymentVerification(deploymentId: string) {
+  return request<DeploymentVerificationRunSummary>(
+    `/api/deployments/${deploymentId}/verification-runs/recheck`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function publishDeploymentDraft(draftId: string) {
