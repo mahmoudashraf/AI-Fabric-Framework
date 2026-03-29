@@ -44,7 +44,9 @@ public class PlatformOverviewController {
                 "provisioning-provider-abstraction",
                 "railway-plan-preview",
                 "railway-api-provider",
-                "railway-preflight"
+                "railway-preflight",
+                "structured-draft-editors",
+                "platform-secrets"
             ),
             "plannedScreens", List.of(
                 "deployments",

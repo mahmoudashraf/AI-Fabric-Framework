@@ -24,45 +24,59 @@ import {
   updateDeploymentDraft,
 } from '../api/platformApi'
 
+type ProviderFormState = {
+  llmProvider: string
+  embeddingProvider: string
+  vectorStrategy: string
+  runtimeProfile: string
+  connectorProfile: string
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function readString(config: unknown, key: string): string {
-  if (!isRecord(config)) {
-    return 'Not configured'
-  }
-
-  const value = config[key]
-  return typeof value === 'string' && value.length > 0 ? value : 'Not configured'
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value ?? null)) as T
 }
 
-function summarizeProviderConfig(config: unknown) {
-  const llmProvider = readString(config, 'llmProvider')
-  const embeddingProvider = readString(config, 'embeddingProvider')
-  const vectorStrategy = readString(config, 'vectorStrategy')
-  const runtimeProfile = readString(config, 'runtimeProfile')
-  const connectorProfile = readString(config, 'connectorProfile')
+function readString(config: Record<string, unknown>, key: string, fallback = ''): string {
+  const value = config[key]
+  return typeof value === 'string' ? value : fallback
+}
 
+function readProviderForm(config: unknown): ProviderFormState {
+  const record = isRecord(config) ? config : {}
   return {
-    llmProvider,
-    embeddingProvider,
-    vectorStrategy,
-    runtimeProfile,
-    connectorProfile,
-    configuredCount: [llmProvider, embeddingProvider, vectorStrategy, runtimeProfile, connectorProfile].filter(
-      (value) => value !== 'Not configured',
-    ).length,
+    llmProvider: readString(record, 'llmProvider', 'openai'),
+    embeddingProvider: readString(record, 'embeddingProvider', 'openai'),
+    vectorStrategy: readString(record, 'vectorStrategy', 'lucene'),
+    runtimeProfile: readString(record, 'runtimeProfile', 'runtime-dev'),
+    connectorProfile: readString(record, 'connectorProfile', 'connector-hosted'),
+  }
+}
+
+function summarizeProviderConfig(form: ProviderFormState) {
+  return {
+    llmProvider: form.llmProvider.trim() || 'Not configured',
+    embeddingProvider: form.embeddingProvider.trim() || 'Not configured',
+    vectorStrategy: form.vectorStrategy.trim() || 'Not configured',
+    runtimeProfile: form.runtimeProfile.trim() || 'Not configured',
+    connectorProfile: form.connectorProfile.trim() || 'Not configured',
+    configuredCount: Object.values(form).filter((value) => value.trim().length > 0).length,
   }
 }
 
 export function ProvidersPage() {
   const queryClient = useQueryClient()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
-  const [editorValue, setEditorValue] = useState(
-    '{\n  "llmProvider": "openai",\n  "embeddingProvider": "openai",\n  "vectorStrategy": "lucene",\n  "runtimeProfile": "runtime-dev",\n  "connectorProfile": "connector-hosted"\n}',
-  )
-  const [parseError, setParseError] = useState<string | null>(null)
+  const [formState, setFormState] = useState<ProviderFormState>({
+    llmProvider: 'openai',
+    embeddingProvider: 'openai',
+    vectorStrategy: 'lucene',
+    runtimeProfile: 'runtime-dev',
+    connectorProfile: 'connector-hosted',
+  })
 
   const deploymentsQuery = useQuery({
     queryKey: ['deployments'],
@@ -92,18 +106,11 @@ export function ProvidersPage() {
 
   useEffect(() => {
     if (draftQuery.data) {
-      setEditorValue(JSON.stringify(draftQuery.data.providerConfig, null, 2))
-      setParseError(null)
+      setFormState(readProviderForm(draftQuery.data.providerConfig))
     }
   }, [draftQuery.data])
 
-  const summary = useMemo(() => {
-    try {
-      return summarizeProviderConfig(JSON.parse(editorValue))
-    } catch {
-      return summarizeProviderConfig(null)
-    }
-  }, [editorValue])
+  const summary = useMemo(() => summarizeProviderConfig(formState), [formState])
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, providerConfig }: { draftId: string; providerConfig: unknown }) =>
@@ -117,21 +124,31 @@ export function ProvidersPage() {
     },
   })
 
+  const handleFieldChange = (key: keyof ProviderFormState, value: string) => {
+    setFormState((previous) => ({
+      ...previous,
+      [key]: value,
+    }))
+  }
+
   const handleSave = () => {
     if (!draftQuery.data) {
       return
     }
 
-    try {
-      const parsed = JSON.parse(editorValue) as unknown
-      setParseError(null)
-      saveMutation.mutate({
-        draftId: draftQuery.data.id,
-        providerConfig: parsed,
-      })
-    } catch (error) {
-      setParseError(error instanceof Error ? error.message : 'Invalid JSON')
-    }
+    const nextConfig = cloneJson(
+      isRecord(draftQuery.data.providerConfig) ? draftQuery.data.providerConfig : {},
+    )
+    nextConfig.llmProvider = formState.llmProvider.trim()
+    nextConfig.embeddingProvider = formState.embeddingProvider.trim()
+    nextConfig.vectorStrategy = formState.vectorStrategy.trim()
+    nextConfig.runtimeProfile = formState.runtimeProfile.trim()
+    nextConfig.connectorProfile = formState.connectorProfile.trim()
+
+    saveMutation.mutate({
+      draftId: draftQuery.data.id,
+      providerConfig: nextConfig,
+    })
   }
 
   return (
@@ -141,9 +158,9 @@ export function ProvidersPage() {
         <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
           Provider profile editor
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 960 }}>
-          Provider choices remain deployment configuration, not runtime code. This screen manages the
-          active draft section that later compiles into runtime and connector provider settings.
+        <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
+          Provider selection stays structured and versioned. This screen edits the bounded provider knobs
+          that later compile into runtime and connector deployment settings.
         </Typography>
       </Box>
 
@@ -187,12 +204,12 @@ export function ProvidersPage() {
           <Grid item xs={12} lg={7}>
             <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
               <CardContent>
-                <Stack spacing={2}>
+                <Stack spacing={2.5}>
                   <Box>
-                    <Typography variant="h6">Raw provider config</Typography>
+                    <Typography variant="h6">Structured provider settings</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Keep provider selection explicit and versioned. Later phases can replace this with
-                      profile pickers and secret references.
+                      Advanced provider-specific secret handling stays at the platform secret layer. This page only
+                      manages the portable deployment profile values.
                     </Typography>
                   </Box>
 
@@ -206,20 +223,54 @@ export function ProvidersPage() {
                     </Alert>
                   ) : (
                     <>
-                      <TextField
-                        multiline
-                        minRows={24}
-                        fullWidth
-                        value={editorValue}
-                        onChange={(event) => setEditorValue(event.target.value)}
-                        InputProps={{
-                          sx: {
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                            fontSize: 13,
-                          },
-                        }}
-                      />
-                      {parseError ? <Alert severity="error">{parseError}</Alert> : null}
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="LLM provider"
+                            value={formState.llmProvider}
+                            onChange={(event) => handleFieldChange('llmProvider', event.target.value)}
+                            helperText="Examples: openai, anthropic"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Embedding provider"
+                            value={formState.embeddingProvider}
+                            onChange={(event) => handleFieldChange('embeddingProvider', event.target.value)}
+                            helperText="Examples: openai, voyageai"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Vector strategy"
+                            value={formState.vectorStrategy}
+                            onChange={(event) => handleFieldChange('vectorStrategy', event.target.value)}
+                            helperText="Examples: lucene, qdrant"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Runtime profile"
+                            value={formState.runtimeProfile}
+                            onChange={(event) => handleFieldChange('runtimeProfile', event.target.value)}
+                            helperText="Example: runtime-dev"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Connector profile"
+                            value={formState.connectorProfile}
+                            onChange={(event) => handleFieldChange('connectorProfile', event.target.value)}
+                            helperText="Example: connector-hosted"
+                          />
+                        </Grid>
+                      </Grid>
+
                       {saveMutation.isError ? (
                         <Alert severity="error">
                           {saveMutation.error instanceof Error
@@ -230,6 +281,7 @@ export function ProvidersPage() {
                       {saveMutation.isSuccess ? (
                         <Alert severity="success">Provider config draft saved.</Alert>
                       ) : null}
+
                       <Stack direction="row" spacing={1.5}>
                         <Button
                           variant="contained"
@@ -243,12 +295,11 @@ export function ProvidersPage() {
                           variant="outlined"
                           onClick={() => {
                             if (draftQuery.data) {
-                              setEditorValue(JSON.stringify(draftQuery.data.providerConfig, null, 2))
-                              setParseError(null)
+                              setFormState(readProviderForm(draftQuery.data.providerConfig))
                             }
                           }}
                         >
-                          Reset editor
+                          Reset form
                         </Button>
                       </Stack>
                     </>
@@ -263,9 +314,9 @@ export function ProvidersPage() {
               <CardContent>
                 <Stack spacing={2}>
                   <Box>
-                    <Typography variant="h6">Parsed preview</Typography>
+                    <Typography variant="h6">Provider summary</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      High-level summary of the provider profile currently in the editor.
+                      High-level summary of the provider profile currently in the form.
                     </Typography>
                   </Box>
 

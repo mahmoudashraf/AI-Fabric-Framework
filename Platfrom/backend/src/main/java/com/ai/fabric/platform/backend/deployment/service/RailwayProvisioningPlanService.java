@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class RailwayProvisioningPlanService {
@@ -65,7 +66,8 @@ public class RailwayProvisioningPlanService {
 
         RailwayServicePlanSummary runtime = new RailwayServicePlanSummary(
             provisioningProperties.runtimeServiceNamePrefix() + "-" + deployment.getId(),
-            provisioningProperties.runtimeServiceRoot(),
+            resolveRootDirectory(provisioningProperties.runtimeDockerfilePath(), provisioningProperties.runtimeServiceRoot()),
+            provisioningProperties.runtimeDockerfilePath(),
             runtimeBaseUrl,
             runtimeEnv
         );
@@ -91,7 +93,11 @@ public class RailwayProvisioningPlanService {
 
         RailwayServicePlanSummary restConnector = new RailwayServicePlanSummary(
             provisioningProperties.connectorServiceNamePrefix() + "-" + deployment.getId(),
-            provisioningProperties.connectorServiceRoot(),
+            resolveRootDirectory(
+                provisioningProperties.connectorDockerfilePath(),
+                provisioningProperties.connectorServiceRoot()
+            ),
+            provisioningProperties.connectorDockerfilePath(),
             connectorBaseUrl,
             connectorEnv
         );
@@ -105,7 +111,7 @@ public class RailwayProvisioningPlanService {
             version.getVersionLabel(),
             version.getConfigHash(),
             provisioningProperties.mode(),
-            normalizeName(deployment.getName()) + "-" + deployment.getEnvironmentName(),
+            buildProjectName(deployment),
             provisioningProperties.repository(),
             provisioningProperties.branch(),
             provisioningProperties.workspaceId().isBlank() ? null : provisioningProperties.workspaceId(),
@@ -125,7 +131,55 @@ public class RailwayProvisioningPlanService {
     }
 
     private String normalizeName(String value) {
-        return value.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9]+", "-")
+            .replaceAll("-{2,}", "-")
+            .replaceAll("(^-|-$)", "");
+    }
+
+    private String buildProjectName(DeploymentEntity deployment) {
+        String environment = fallbackName(normalizeName(deployment.getEnvironmentName()), "dev");
+        String deploymentSlug = fallbackName(normalizeName(deployment.getName()), "deployment");
+        String idSuffix = fallbackName(
+            normalizeName(shortDeploymentId(deployment.getId())),
+            "default"
+        );
+        String suffix = environment + "-" + idSuffix;
+        int maxLength = provisioningProperties.projectNameMaxLength();
+        int maxBaseLength = Math.max(1, maxLength - suffix.length() - 1);
+        String truncatedBase = trimHyphenated(deploymentSlug.substring(0, Math.min(deploymentSlug.length(), maxBaseLength)));
+        if (truncatedBase.isBlank()) {
+            truncatedBase = "deployment";
+            if (truncatedBase.length() > maxBaseLength) {
+                truncatedBase = truncatedBase.substring(0, maxBaseLength);
+            }
+            truncatedBase = trimHyphenated(truncatedBase);
+        }
+        String projectName = trimHyphenated(truncatedBase + "-" + suffix);
+        if (projectName.length() > maxLength) {
+            projectName = trimHyphenated(projectName.substring(0, maxLength));
+        }
+        return fallbackName(projectName, "deployment-" + idSuffix);
+    }
+
+    private String shortDeploymentId(String deploymentId) {
+        String normalized = normalizeName(deploymentId);
+        if (normalized.startsWith("dep-")) {
+            normalized = normalized.substring(4);
+        }
+        return normalized.length() <= 8 ? normalized : normalized.substring(0, 8);
+    }
+
+    private String fallbackName(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String trimHyphenated(String value) {
+        return value == null ? "" : value.replaceAll("(^-|-$)", "");
     }
 
     private JsonNode readJson(String value) {
@@ -161,5 +215,13 @@ public class RailwayProvisioningPlanService {
         if (value != null && !value.isBlank()) {
             env.add(new RailwayEnvVarSummary(key, value));
         }
+    }
+
+    private String resolveRootDirectory(String dockerfilePath, String configuredRootDirectory) {
+        if (dockerfilePath != null && !dockerfilePath.isBlank()) {
+            // The Railway-specific Dockerfiles in this repo expect repo-root build context.
+            return null;
+        }
+        return configuredRootDirectory;
     }
 }

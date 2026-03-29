@@ -12,9 +12,12 @@ public record PlatformProvisioningProperties(
     String environmentName,
     String workspaceId,
     String runtimeServiceRoot,
+    String runtimeDockerfilePath,
     String connectorServiceRoot,
+    String connectorDockerfilePath,
     String runtimeServiceNamePrefix,
     String connectorServiceNamePrefix,
+    int projectNameMaxLength,
     String corsAllowedOrigins,
     String corsAllowedOriginPatterns,
     boolean corsAllowCredentials,
@@ -33,12 +36,21 @@ public record PlatformProvisioningProperties(
         environmentName = defaultText(environmentName, "dev");
         workspaceId = workspaceId == null ? "" : workspaceId.trim();
         runtimeServiceRoot = defaultText(runtimeServiceRoot, "ai-infrastructure-module/ai-fabric-runtime");
+        runtimeDockerfilePath = defaultText(
+            runtimeDockerfilePath,
+            "ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile"
+        );
         connectorServiceRoot = defaultText(
             connectorServiceRoot,
             "ai-infrastructure-module/ai-infrastructure-generic-rest-connector"
         );
+        connectorDockerfilePath = defaultText(
+            connectorDockerfilePath,
+            "ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile"
+        );
         runtimeServiceNamePrefix = defaultText(runtimeServiceNamePrefix, "runtime");
         connectorServiceNamePrefix = defaultText(connectorServiceNamePrefix, "rest-connector");
+        projectNameMaxLength = projectNameMaxLength <= 0 ? 32 : projectNameMaxLength;
         corsAllowedOrigins = corsAllowedOrigins == null ? "" : corsAllowedOrigins.trim();
         corsAllowedOriginPatterns = corsAllowedOriginPatterns == null ? "" : corsAllowedOriginPatterns.trim();
         runtimeProxyTimeoutMs = runtimeProxyTimeoutMs <= 0 ? 60_000 : runtimeProxyTimeoutMs;

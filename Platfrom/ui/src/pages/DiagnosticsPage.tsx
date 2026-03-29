@@ -55,7 +55,9 @@ function summarizeProvisioningDetails(value: unknown) {
       artifactStrategy: 'Unknown',
       generatedAt: 'Unknown',
       runtimeRootDir: 'Unknown',
+      runtimeDockerfilePath: 'Unknown',
       connectorRootDir: 'Unknown',
+      connectorDockerfilePath: 'Unknown',
       artifactUrls: {
         actions: 'Unknown',
         entities: 'Unknown',
@@ -78,7 +80,10 @@ function summarizeProvisioningDetails(value: unknown) {
     artifactStrategy: typeof value.artifactStrategy === 'string' ? value.artifactStrategy : 'Unknown',
     generatedAt: typeof value.generatedAt === 'string' ? value.generatedAt : 'Unknown',
     runtimeRootDir: typeof runtime.rootDir === 'string' ? runtime.rootDir : 'Unknown',
+    runtimeDockerfilePath: typeof runtime.dockerfilePath === 'string' ? runtime.dockerfilePath : 'Unknown',
     connectorRootDir: typeof restConnector.rootDir === 'string' ? restConnector.rootDir : 'Unknown',
+    connectorDockerfilePath:
+      typeof restConnector.dockerfilePath === 'string' ? restConnector.dockerfilePath : 'Unknown',
     artifactUrls: {
       actions: typeof artifactUrls.actions === 'string' ? artifactUrls.actions : 'Unknown',
       entities: typeof artifactUrls.entities === 'string' ? artifactUrls.entities : 'Unknown',
@@ -423,7 +428,13 @@ export function DiagnosticsPage() {
                         <Typography variant="body2">Branch: {provisioningSummary.branch}</Typography>
                         <Typography variant="body2">Artifact strategy: {provisioningSummary.artifactStrategy}</Typography>
                         <Typography variant="body2">Runtime root: {provisioningSummary.runtimeRootDir}</Typography>
+                        <Typography variant="body2">
+                          Runtime Dockerfile: {provisioningSummary.runtimeDockerfilePath}
+                        </Typography>
                         <Typography variant="body2">Connector root: {provisioningSummary.connectorRootDir}</Typography>
+                        <Typography variant="body2">
+                          Connector Dockerfile: {provisioningSummary.connectorDockerfilePath}
+                        </Typography>
                         <Typography variant="body2">
                           Generated: {provisioningSummary.generatedAt === 'Unknown'
                             ? 'Unknown'

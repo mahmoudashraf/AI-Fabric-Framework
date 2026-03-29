@@ -4,7 +4,7 @@ import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
-import org.springframework.core.env.Environment;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import org.springframework.stereotype.Service;
 
 import java.net.InetAddress;
@@ -20,26 +20,20 @@ import java.util.List;
 @Service
 public class RailwayPreflightService {
 
-    private static final List<String> REQUIRED_PLATFORM_SECRETS = List.of(
-        "OPENAI_API_KEY",
-        "CONNECTOR_API_KEY",
-        "ACTIONS_CONNECTOR_API_KEY"
-    );
-
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
     private final RailwayGraphqlClient railwayGraphqlClient;
-    private final Environment environment;
+    private final PlatformSecretService platformSecretService;
     private final HttpClient httpClient;
 
     public RailwayPreflightService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
                                    RailwayGraphqlClient railwayGraphqlClient,
-                                   Environment environment) {
+                                   PlatformSecretService platformSecretService) {
         this.provisioningProperties = provisioningProperties;
         this.deliveryProperties = deliveryProperties;
         this.railwayGraphqlClient = railwayGraphqlClient;
-        this.environment = environment;
+        this.platformSecretService = platformSecretService;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
             .build();
@@ -107,14 +101,15 @@ public class RailwayPreflightService {
     }
 
     private void checkSecrets(List<RailwayPreflightCheckSummary> checks) {
-        List<String> missing = REQUIRED_PLATFORM_SECRETS.stream()
-            .filter(this::isBlankSecret)
+        List<String> requiredSecrets = platformSecretService.requiredSecretNames();
+        List<String> missing = requiredSecrets.stream()
+            .filter(name -> !platformSecretService.isSecretPresent(name))
             .toList();
         if (missing.isEmpty()) {
             checks.add(pass(
                 "platform_secrets",
                 "Required platform secrets are available for Railway provisioning.",
-                String.join(", ", REQUIRED_PLATFORM_SECRETS)
+                String.join(", ", requiredSecrets)
             ));
             return;
         }
@@ -252,11 +247,6 @@ public class RailwayPreflightService {
             ));
             return null;
         }
-    }
-
-    private boolean isBlankSecret(String key) {
-        String value = environment.getProperty(key);
-        return value == null || value.isBlank();
     }
 
     private String blankToNull(String value) {

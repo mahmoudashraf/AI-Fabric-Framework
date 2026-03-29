@@ -575,7 +575,10 @@ export function RevisionsPage() {
                                 {plan.services.runtime.serviceName}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
-                                {plan.services.runtime.rootDir}
+                                {plan.services.runtime.rootDir ?? 'repo root'}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                Dockerfile: {plan.services.runtime.dockerfilePath ?? 'default'}
                               </Typography>
                               <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
                                 {plan.services.runtime.baseUrl}
@@ -595,7 +598,10 @@ export function RevisionsPage() {
                                 {plan.services.restConnector.serviceName}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
-                                {plan.services.restConnector.rootDir}
+                                {plan.services.restConnector.rootDir ?? 'repo root'}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                Dockerfile: {plan.services.restConnector.dockerfilePath ?? 'default'}
                               </Typography>
                               <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
                                 {plan.services.restConnector.baseUrl}

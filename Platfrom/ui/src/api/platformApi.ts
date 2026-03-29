@@ -52,7 +52,8 @@ export type RailwayEnvVarSummary = {
 
 export type RailwayServicePlanSummary = {
   serviceName: string
-  rootDir: string
+  rootDir: string | null
+  dockerfilePath?: string | null
   baseUrl: string
   env: RailwayEnvVarSummary[]
 }
@@ -154,6 +155,16 @@ export type DraftValidationResponse = {
   issues: DraftValidationIssue[]
 }
 
+export type PlatformSecretSummary = {
+  name: string
+  displayName: string
+  description: string
+  required: boolean
+  present: boolean
+  source: string
+  updatedAt: string | null
+}
+
 export type CreateDeploymentRequest = {
   name: string
   environment: string
@@ -229,6 +240,10 @@ export function fetchRailwayPreflight() {
   return request<RailwayPreflightSummary>('/api/platform/provisioning/railway/preflight')
 }
 
+export function fetchPlatformSecrets() {
+  return request<PlatformSecretSummary[]>('/api/platform/secrets')
+}
+
 export function fetchDeploymentReleases(deploymentId: string) {
   return request<DeploymentReleaseSummary[]>(`/api/deployments/${deploymentId}/releases`)
 }
@@ -262,6 +277,19 @@ export function updateDeploymentDraft(draftId: string, payload: UpdateDeployment
   return request<DeploymentDraftResponse>(`/api/deployment-drafts/${draftId}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformSecret(name: string, value: string) {
+  return request<PlatformSecretSummary>(`/api/platform/secrets/${name}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value }),
+  })
+}
+
+export function clearPlatformSecret(name: string) {
+  return request<PlatformSecretSummary>(`/api/platform/secrets/${name}`, {
+    method: 'DELETE',
   })
 }
 

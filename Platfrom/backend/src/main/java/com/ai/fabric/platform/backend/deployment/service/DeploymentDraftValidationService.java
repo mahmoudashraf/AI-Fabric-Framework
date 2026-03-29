@@ -7,11 +7,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @Service
@@ -156,6 +158,13 @@ public class DeploymentDraftValidationService {
         JsonNode connector = routingNode.path("connector");
         if (!connector.isObject()) {
             issues.add(error("routing", "CONNECTOR_OBJECT_REQUIRED", "$.connector", "connector object is required."));
+        } else {
+            validateConnector(connector, issues);
+        }
+
+        JsonNode authz = routingNode.path("authz");
+        if (authz.isObject()) {
+            validateAuthz(authz, connector, issues);
         }
 
         JsonNode actionRoutes = routingNode.path("actions");
@@ -173,12 +182,121 @@ public class DeploymentDraftValidationService {
             String routeName = routeNames.next();
             if (!actionNames.contains(routeName)) {
                 issues.add(error("routing", "ROUTE_WITHOUT_ACTION", "$.actions." + routeName, "Route exists for undefined action: " + routeName));
+                continue;
             }
+
+            JsonNode route = actionRoutes.path(routeName);
+            if (!route.isObject()) {
+                issues.add(error("routing", "ROUTE_OBJECT_REQUIRED", "$.actions." + routeName, "Each action route must be an object."));
+                continue;
+            }
+
+            validateRoute(routeName, route, connector, issues);
         }
 
         for (String actionName : actionNames) {
             if (!actionRoutes.has(actionName)) {
                 issues.add(warning("routing", "ACTION_WITHOUT_ROUTE", "$.actions", "No route is configured yet for action: " + actionName));
+            }
+        }
+    }
+
+    private void validateConnector(JsonNode connector, List<DraftValidationIssue> issues) {
+        JsonNode inboundAuth = connector.path("inbound-auth");
+        if (!inboundAuth.isObject()) {
+            issues.add(error("routing", "INBOUND_AUTH_REQUIRED", "$.connector.inbound-auth", "connector.inbound-auth object is required."));
+            return;
+        }
+
+        boolean allowUnauthenticated = inboundAuth.path("allow-unauthenticated").asBoolean(false);
+        JsonNode apiKey = inboundAuth.path("api-key");
+        boolean apiKeyEnabled = apiKey.path("enabled").asBoolean(false);
+        if (!allowUnauthenticated && !apiKeyEnabled) {
+            issues.add(error(
+                "routing",
+                "INBOUND_AUTH_INCOMPLETE",
+                "$.connector.inbound-auth",
+                "Inbound auth is not configured. Enable connector.inbound-auth.api-key.enabled or explicitly allow unauthenticated access."
+            ));
+        }
+
+        if (apiKeyEnabled) {
+            if (apiKey.path("header").asText("").trim().isEmpty()) {
+                issues.add(error("routing", "CONNECTOR_API_KEY_HEADER_REQUIRED", "$.connector.inbound-auth.api-key.header", "connector inbound API key header is required when api-key.enabled=true."));
+            }
+            if (apiKey.path("value").asText("").trim().isEmpty()) {
+                issues.add(error("routing", "CONNECTOR_API_KEY_VALUE_REQUIRED", "$.connector.inbound-auth.api-key.value", "connector inbound API key value is required when api-key.enabled=true."));
+            }
+        }
+
+        String baseUrl = connector.path("upstream").path("base-url").asText("").trim();
+        if (!baseUrl.isEmpty() && !isAbsoluteHttpUrl(baseUrl)) {
+            issues.add(error("routing", "CONNECTOR_UPSTREAM_URL_INVALID", "$.connector.upstream.base-url", "connector.upstream.base-url must be a valid absolute http(s) URL."));
+        }
+    }
+
+    private void validateAuthz(JsonNode authz, JsonNode connector, List<DraftValidationIssue> issues) {
+        if (!authz.path("enabled").asBoolean(false)) {
+            return;
+        }
+
+        String path = authz.path("path").asText("").trim();
+        if (path.isEmpty()) {
+            issues.add(error("routing", "AUTHZ_PATH_REQUIRED", "$.authz.path", "authz.path is required when authz.enabled=true."));
+        } else if (!isRelativePath(path)) {
+            issues.add(error("routing", "AUTHZ_PATH_INVALID", "$.authz.path", "authz.path must be a relative path starting with '/'."));
+        }
+
+        String authzBaseUrl = authz.path("upstream").path("base-url").asText("").trim();
+        String connectorBaseUrl = connector.path("upstream").path("base-url").asText("").trim();
+        String effectiveBaseUrl = !authzBaseUrl.isEmpty() ? authzBaseUrl : connectorBaseUrl;
+        if (effectiveBaseUrl.isEmpty()) {
+            issues.add(error("routing", "AUTHZ_BASE_URL_REQUIRED", "$.authz.upstream.base-url", "authz.enabled=true requires authz.upstream.base-url or connector.upstream.base-url."));
+        } else if (!isAbsoluteHttpUrl(effectiveBaseUrl)) {
+            issues.add(error("routing", "AUTHZ_BASE_URL_INVALID", "$.authz.upstream.base-url", "Authz upstream base URL must be a valid absolute http(s) URL."));
+        }
+    }
+
+    private void validateRoute(String routeName,
+                               JsonNode route,
+                               JsonNode connector,
+                               List<DraftValidationIssue> issues) {
+        String basePath = "$.actions." + routeName;
+        String url = route.path("url").asText("").trim();
+        String path = route.path("path").asText("").trim();
+
+        if (url.isEmpty() && path.isEmpty()) {
+            issues.add(error("routing", "ROUTE_TARGET_REQUIRED", basePath, "Each action route must define either url or path."));
+        } else if (!url.isEmpty()) {
+            if (!isAbsoluteHttpUrl(url)) {
+                issues.add(error("routing", "ROUTE_URL_INVALID", basePath + ".url", "Action route url must be a valid absolute http(s) URL."));
+            }
+        } else {
+            String connectorBaseUrl = connector.path("upstream").path("base-url").asText("").trim();
+            if (connectorBaseUrl.isEmpty()) {
+                issues.add(error("routing", "ROUTE_PATH_REQUIRES_CONNECTOR_UPSTREAM", basePath + ".path", "Path-based routes require connector.upstream.base-url to be configured."));
+            }
+            if (!isRelativePath(path)) {
+                issues.add(error("routing", "ROUTE_PATH_INVALID", basePath + ".path", "Action route path must be a relative path starting with '/'."));
+            }
+        }
+
+        String method = route.path("method").asText("").trim();
+        if (method.isEmpty()) {
+            issues.add(error("routing", "ROUTE_METHOD_REQUIRED", basePath + ".method", "Action route method is required."));
+        } else if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS").contains(method.toUpperCase(Locale.ROOT))) {
+            issues.add(warning("routing", "ROUTE_METHOD_UNRECOGNIZED", basePath + ".method", "Action route method is not part of the current supported template set: " + method));
+        }
+
+        JsonNode successHttpStatus = route.path("response").path("success-http-status");
+        if (!successHttpStatus.isMissingNode() && !successHttpStatus.isArray()) {
+            issues.add(error("routing", "SUCCESS_STATUS_ARRAY_REQUIRED", basePath + ".response.success-http-status", "response.success-http-status must be an array of HTTP status codes."));
+        } else if (successHttpStatus.isArray()) {
+            for (int index = 0; index < successHttpStatus.size(); index++) {
+                int status = successHttpStatus.path(index).asInt(-1);
+                if (status < 100 || status > 599) {
+                    issues.add(error("routing", "SUCCESS_STATUS_INVALID", basePath + ".response.success-http-status[" + index + "]", "response.success-http-status must contain valid HTTP status codes."));
+                }
             }
         }
     }
@@ -239,5 +357,27 @@ public class DeploymentDraftValidationService {
 
     private DraftValidationIssue warning(String section, String code, String path, String message) {
         return new DraftValidationIssue("WARNING", section, code, path, message);
+    }
+
+    private boolean isRelativePath(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String normalized = value.trim();
+        return normalized.startsWith("/") && !normalized.contains("://");
+    }
+
+    private boolean isAbsoluteHttpUrl(String value) {
+        try {
+            URI uri = URI.create(value);
+            String scheme = uri.getScheme();
+            if (scheme == null || uri.getHost() == null) {
+                return false;
+            }
+            String normalized = scheme.trim().toLowerCase(Locale.ROOT);
+            return "http".equals(normalized) || "https".equals(normalized);
+        } catch (Exception ex) {
+            return false;
+        }
     }
 }

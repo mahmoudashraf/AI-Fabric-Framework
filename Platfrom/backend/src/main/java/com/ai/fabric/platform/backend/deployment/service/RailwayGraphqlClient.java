@@ -163,7 +163,12 @@ public class RailwayGraphqlClient {
 
     private static final String ENVIRONMENT_STAGED_CHANGES_QUERY = """
         query environmentStagedChanges($environmentId: String!) {
-          environmentStagedChanges(environmentId: $environmentId)
+          environmentStagedChanges(environmentId: $environmentId) {
+            id
+            status
+            message
+            lastAppliedError
+          }
         }
         """;
 
@@ -305,9 +310,15 @@ public class RailwayGraphqlClient {
     public void updateServiceInstance(String serviceId,
                                       String environmentId,
                                       String rootDirectory,
+                                      String dockerfilePath,
                                       String healthcheckPath) {
         Map<String, Object> input = new LinkedHashMap<>();
-        input.put("rootDirectory", rootDirectory);
+        if (rootDirectory != null && !rootDirectory.isBlank()) {
+            input.put("rootDirectory", rootDirectory);
+        }
+        if (dockerfilePath != null && !dockerfilePath.isBlank()) {
+            input.put("dockerfilePath", dockerfilePath);
+        }
         input.put("healthcheckPath", healthcheckPath);
 
         execute(
@@ -319,10 +330,11 @@ public class RailwayGraphqlClient {
             )
         );
         log.info(
-            "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}",
+            "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}, dockerfilePath={}",
             serviceId,
             environmentId,
-            rootDirectory
+            rootDirectory,
+            dockerfilePath
         );
     }
 
@@ -427,21 +439,30 @@ public class RailwayGraphqlClient {
 
     public boolean hasStagedChanges(String environmentId) {
         JsonNode data = execute(ENVIRONMENT_STAGED_CHANGES_QUERY, Map.of("environmentId", environmentId));
-        JsonNode staged = data.path("environmentStagedChanges");
-        if (staged.isMissingNode() || staged.isNull()) {
+        return hasMeaningfulStagedChanges(data.path("environmentStagedChanges"));
+    }
+
+    static boolean hasMeaningfulStagedChanges(JsonNode staged) {
+        if (staged == null || staged.isMissingNode() || staged.isNull()) {
             return false;
         }
-        if (staged.isArray()) {
-            return !staged.isEmpty();
+        if (!staged.isObject()) {
+            return false;
         }
-        if (staged.isObject()) {
-            return staged.fieldNames().hasNext();
+
+        String id = textValue(staged.path("id"));
+        if (id == null || "<empty>".equalsIgnoreCase(id)) {
+            return false;
         }
-        if (staged.isTextual()) {
-            String text = staged.asText().trim();
-            return !text.isBlank() && !"[]".equals(text) && !"{}".equals(text);
+
+        String status = textValue(staged.path("status"));
+        if (status == null) {
+            return true;
         }
-        return true;
+
+        return !"EMPTY".equalsIgnoreCase(status)
+            && !"NONE".equalsIgnoreCase(status)
+            && !"NO_CHANGES".equalsIgnoreCase(status);
     }
 
     public void commitStagedChanges(String environmentId) {
@@ -501,6 +522,10 @@ public class RailwayGraphqlClient {
     }
 
     private String text(JsonNode node) {
+        return textValue(node);
+    }
+
+    private static String textValue(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return null;
         }

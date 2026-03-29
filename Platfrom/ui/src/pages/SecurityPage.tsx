@@ -5,8 +5,10 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Divider,
+  FormControlLabel,
   Grid,
   List,
   ListItem,
@@ -19,57 +21,75 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  clearPlatformSecret,
   fetchDeploymentDraft,
   fetchDeployments,
+  fetchPlatformSecrets,
+  fetchRailwayPreflight,
+  updatePlatformSecret,
   updateDeploymentDraft,
 } from '../api/platformApi'
+
+type SecurityFormState = {
+  authzMode: string
+  adminApiKeyEnabled: boolean
+  connectorApiKeyEnabled: boolean
+  authzBaseUrl: string
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function readString(config: unknown, key: string): string {
-  if (!isRecord(config)) {
-    return 'Not configured'
-  }
-
-  const value = config[key]
-  return typeof value === 'string' && value.length > 0 ? value : 'Not configured'
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value ?? null)) as T
 }
 
-function readBoolean(config: unknown, key: string): string {
-  if (!isRecord(config)) {
-    return 'Unknown'
-  }
-
+function readString(config: Record<string, unknown>, key: string, fallback = ''): string {
   const value = config[key]
-  return typeof value === 'boolean' ? String(value) : 'Unknown'
+  return typeof value === 'string' ? value : fallback
 }
 
-function summarizeSecurityConfig(config: unknown) {
-  const authzMode = readString(config, 'authzMode')
-  const adminApiKeyEnabled = readBoolean(config, 'adminApiKeyEnabled')
-  const connectorApiKeyEnabled = readBoolean(config, 'connectorApiKeyEnabled')
-  const authzBaseUrl = readString(config, 'authzBaseUrl')
+function readBoolean(config: Record<string, unknown>, key: string, fallback = false): boolean {
+  const value = config[key]
+  return typeof value === 'boolean' ? value : fallback
+}
 
+function readSecurityForm(config: unknown): SecurityFormState {
+  const record = isRecord(config) ? config : {}
   return {
-    authzMode,
-    adminApiKeyEnabled,
-    connectorApiKeyEnabled,
-    authzBaseUrl,
-    configuredCount: [authzMode, adminApiKeyEnabled, connectorApiKeyEnabled].filter(
-      (value) => value !== 'Not configured' && value !== 'Unknown',
-    ).length,
+    authzMode: readString(record, 'authzMode', 'REMOTE_HTTP'),
+    adminApiKeyEnabled: readBoolean(record, 'adminApiKeyEnabled', true),
+    connectorApiKeyEnabled: readBoolean(record, 'connectorApiKeyEnabled', true),
+    authzBaseUrl: readString(record, 'authzBaseUrl'),
+  }
+}
+
+function summarizeSecurityConfig(form: SecurityFormState) {
+  return {
+    authzMode: form.authzMode.trim() || 'Not configured',
+    adminApiKeyEnabled: String(form.adminApiKeyEnabled),
+    connectorApiKeyEnabled: String(form.connectorApiKeyEnabled),
+    authzBaseUrl: form.authzBaseUrl.trim() || 'Not configured',
+    configuredCount: [
+      form.authzMode.trim().length > 0,
+      true,
+      true,
+      form.authzBaseUrl.trim().length > 0,
+    ].filter(Boolean).length,
   }
 }
 
 export function SecurityPage() {
   const queryClient = useQueryClient()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
-  const [editorValue, setEditorValue] = useState(
-    '{\n  "authzMode": "REMOTE_HTTP",\n  "adminApiKeyEnabled": true,\n  "connectorApiKeyEnabled": true\n}',
-  )
-  const [parseError, setParseError] = useState<string | null>(null)
+  const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
+  const [formState, setFormState] = useState<SecurityFormState>({
+    authzMode: 'REMOTE_HTTP',
+    adminApiKeyEnabled: true,
+    connectorApiKeyEnabled: true,
+    authzBaseUrl: '',
+  })
 
   const deploymentsQuery = useQuery({
     queryKey: ['deployments'],
@@ -99,18 +119,36 @@ export function SecurityPage() {
 
   useEffect(() => {
     if (draftQuery.data) {
-      setEditorValue(JSON.stringify(draftQuery.data.securityConfig, null, 2))
-      setParseError(null)
+      setFormState(readSecurityForm(draftQuery.data.securityConfig))
     }
   }, [draftQuery.data])
 
-  const summary = useMemo(() => {
-    try {
-      return summarizeSecurityConfig(JSON.parse(editorValue))
-    } catch {
-      return summarizeSecurityConfig(null)
+  const summary = useMemo(() => summarizeSecurityConfig(formState), [formState])
+
+  const platformSecretsQuery = useQuery({
+    queryKey: ['platform-secrets'],
+    queryFn: fetchPlatformSecrets,
+  })
+
+  const railwayPreflightQuery = useQuery({
+    queryKey: ['railway-preflight'],
+    queryFn: fetchRailwayPreflight,
+  })
+
+  useEffect(() => {
+    if (!platformSecretsQuery.data) {
+      return
     }
-  }, [editorValue])
+    setSecretInputs((previous) => {
+      const next = { ...previous }
+      for (const secret of platformSecretsQuery.data) {
+        if (!(secret.name in next)) {
+          next[secret.name] = ''
+        }
+      }
+      return next
+    })
+  }, [platformSecretsQuery.data])
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, securityConfig }: { draftId: string; securityConfig: unknown }) =>
@@ -124,21 +162,51 @@ export function SecurityPage() {
     },
   })
 
+  const secretMutation = useMutation({
+    mutationFn: ({ name, value }: { name: string; value: string }) => updatePlatformSecret(name, value),
+    onSuccess: async (_data, variables) => {
+      setSecretInputs((previous) => ({
+        ...previous,
+        [variables.name]: '',
+      }))
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
+        queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
+      ])
+    },
+  })
+
+  const clearSecretMutation = useMutation({
+    mutationFn: (name: string) => clearPlatformSecret(name),
+    onSuccess: async (data) => {
+      setSecretInputs((previous) => ({
+        ...previous,
+        [data.name]: '',
+      }))
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
+        queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
+      ])
+    },
+  })
+
   const handleSave = () => {
     if (!draftQuery.data) {
       return
     }
 
-    try {
-      const parsed = JSON.parse(editorValue) as unknown
-      setParseError(null)
-      saveMutation.mutate({
-        draftId: draftQuery.data.id,
-        securityConfig: parsed,
-      })
-    } catch (error) {
-      setParseError(error instanceof Error ? error.message : 'Invalid JSON')
-    }
+    const nextConfig = cloneJson(
+      isRecord(draftQuery.data.securityConfig) ? draftQuery.data.securityConfig : {},
+    )
+    nextConfig.authzMode = formState.authzMode.trim()
+    nextConfig.adminApiKeyEnabled = formState.adminApiKeyEnabled
+    nextConfig.connectorApiKeyEnabled = formState.connectorApiKeyEnabled
+    nextConfig.authzBaseUrl = formState.authzBaseUrl.trim()
+
+    saveMutation.mutate({
+      draftId: draftQuery.data.id,
+      securityConfig: nextConfig,
+    })
   }
 
   return (
@@ -148,9 +216,9 @@ export function SecurityPage() {
         <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
           Security config editor
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 960 }}>
-          Security stays bounded and versioned at the platform layer. This screen edits the draft
-          settings that control runtime protection, connector protection, and remote authz behavior.
+        <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
+          Security stays bounded and versioned at the platform layer. This screen edits the draft values
+          that control runtime access mode, admin protection, and connector protection.
         </Typography>
       </Box>
 
@@ -189,17 +257,156 @@ export function SecurityPage() {
         </CardContent>
       </Card>
 
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Platform deployment secrets</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                Phase 12 moves required deployment secrets into the platform layer. Railway provisioning now
+                resolves required secret placeholders from this store first, with process env as a fallback for
+                local development and transition.
+              </Typography>
+            </Box>
+
+            {railwayPreflightQuery.data ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip
+                  label={railwayPreflightQuery.data.ready ? 'Railway Preflight Ready' : 'Railway Preflight Blocked'}
+                  color={railwayPreflightQuery.data.ready ? 'success' : 'warning'}
+                />
+                <Chip
+                  label={`Mode: ${railwayPreflightQuery.data.mode}`}
+                  variant="outlined"
+                />
+              </Stack>
+            ) : null}
+
+            {platformSecretsQuery.isLoading ? (
+              <Typography color="text.secondary">Loading platform secrets...</Typography>
+            ) : platformSecretsQuery.isError ? (
+              <Alert severity="error">
+                {platformSecretsQuery.error instanceof Error
+                  ? platformSecretsQuery.error.message
+                  : 'Failed to load platform secrets'}
+              </Alert>
+            ) : (
+              <Grid container spacing={2}>
+                {(platformSecretsQuery.data ?? []).map((secret) => {
+                  const inputValue = secretInputs[secret.name] ?? ''
+                  const isSaving = secretMutation.isPending && secretMutation.variables?.name === secret.name
+                  const isClearing =
+                    clearSecretMutation.isPending && clearSecretMutation.variables === secret.name
+
+                  return (
+                    <Grid item xs={12} md={6} key={secret.name}>
+                      <Card variant="outlined" sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Stack spacing={2}>
+                            <Box>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
+                                <Chip
+                                  label={secret.present ? 'Present' : 'Missing'}
+                                  color={secret.present ? 'success' : 'warning'}
+                                  size="small"
+                                />
+                                <Chip label={secret.source} variant="outlined" size="small" />
+                              </Stack>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                {secret.displayName}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                {secret.description}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                                Key: {secret.name}
+                                {secret.updatedAt ? ` • Updated ${new Date(secret.updatedAt).toLocaleString()}` : ''}
+                              </Typography>
+                            </Box>
+
+                            <TextField
+                              label="New secret value"
+                              type="password"
+                              value={inputValue}
+                              onChange={(event) =>
+                                setSecretInputs((previous) => ({
+                                  ...previous,
+                                  [secret.name]: event.target.value,
+                                }))
+                              }
+                              helperText={
+                                secret.source === 'ENV'
+                                  ? 'Currently falling back to platform process env. Saving here creates a DB-backed override.'
+                                  : 'Existing secret values are never returned to the UI. Enter a new value to rotate.'
+                              }
+                            />
+
+                            <Stack direction="row" spacing={1.5}>
+                              <Button
+                                variant="contained"
+                                startIcon={<SaveRoundedIcon />}
+                                disabled={inputValue.trim().length === 0 || isSaving}
+                                onClick={() =>
+                                  secretMutation.mutate({
+                                    name: secret.name,
+                                    value: inputValue,
+                                  })
+                                }
+                              >
+                                {isSaving ? 'Saving...' : 'Save secret'}
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                disabled={isClearing || secret.source !== 'DATABASE'}
+                                onClick={() => clearSecretMutation.mutate(secret.name)}
+                              >
+                                {isClearing ? 'Clearing...' : 'Clear DB override'}
+                              </Button>
+                            </Stack>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  )
+                })}
+              </Grid>
+            )}
+
+            {secretMutation.isError ? (
+              <Alert severity="error">
+                {secretMutation.error instanceof Error
+                  ? secretMutation.error.message
+                  : 'Failed to update platform secret'}
+              </Alert>
+            ) : null}
+            {clearSecretMutation.isError ? (
+              <Alert severity="error">
+                {clearSecretMutation.error instanceof Error
+                  ? clearSecretMutation.error.message
+                  : 'Failed to clear platform secret'}
+              </Alert>
+            ) : null}
+            {secretMutation.isSuccess ? (
+              <Alert severity="success">Platform secret updated.</Alert>
+            ) : null}
+            {clearSecretMutation.isSuccess ? (
+              <Alert severity="success">Platform secret override cleared.</Alert>
+            ) : null}
+          </Stack>
+        </CardContent>
+      </Card>
+
       {selectedDeploymentId ? (
         <Grid container spacing={2.5}>
           <Grid item xs={12} lg={7}>
             <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
               <CardContent>
-                <Stack spacing={2}>
+                <Stack spacing={2.5}>
                   <Box>
-                    <Typography variant="h6">Raw security config</Typography>
+                    <Typography variant="h6">Structured security settings</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      This keeps fail-closed runtime settings explicit. Arbitrary secret env vars are
-                      still out of scope; this is only for bounded platform-managed security knobs.
+                      Remote authz path and connector authz upstream wiring remain on the Actions/Routing page.
+                      This page controls the higher-level deployment security posture.
                     </Typography>
                   </Box>
 
@@ -213,20 +420,72 @@ export function SecurityPage() {
                     </Alert>
                   ) : (
                     <>
-                      <TextField
-                        multiline
-                        minRows={24}
-                        fullWidth
-                        value={editorValue}
-                        onChange={(event) => setEditorValue(event.target.value)}
-                        InputProps={{
-                          sx: {
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                            fontSize: 13,
-                          },
-                        }}
-                      />
-                      {parseError ? <Alert severity="error">{parseError}</Alert> : null}
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            select
+                            fullWidth
+                            label="Runtime authz mode"
+                            value={formState.authzMode}
+                            onChange={(event) =>
+                              setFormState((previous) => ({
+                                ...previous,
+                                authzMode: event.target.value,
+                              }))
+                            }
+                          >
+                            <MenuItem value="REMOTE_HTTP">REMOTE_HTTP</MenuItem>
+                            <MenuItem value="DENY_ALL">DENY_ALL</MenuItem>
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Runtime authz base URL"
+                            value={formState.authzBaseUrl}
+                            onChange={(event) =>
+                              setFormState((previous) => ({
+                                ...previous,
+                                authzBaseUrl: event.target.value,
+                              }))
+                            }
+                            helperText="Optional if runtime should fall back to the connector base URL."
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={formState.adminApiKeyEnabled}
+                                onChange={(event) =>
+                                  setFormState((previous) => ({
+                                    ...previous,
+                                    adminApiKeyEnabled: event.target.checked,
+                                  }))
+                                }
+                              />
+                            }
+                            label="Enable runtime admin API key"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={formState.connectorApiKeyEnabled}
+                                onChange={(event) =>
+                                  setFormState((previous) => ({
+                                    ...previous,
+                                    connectorApiKeyEnabled: event.target.checked,
+                                  }))
+                                }
+                              />
+                            }
+                            label="Enable connector API key"
+                          />
+                        </Grid>
+                      </Grid>
+
                       {saveMutation.isError ? (
                         <Alert severity="error">
                           {saveMutation.error instanceof Error
@@ -237,6 +496,7 @@ export function SecurityPage() {
                       {saveMutation.isSuccess ? (
                         <Alert severity="success">Security config draft saved.</Alert>
                       ) : null}
+
                       <Stack direction="row" spacing={1.5}>
                         <Button
                           variant="contained"
@@ -250,12 +510,11 @@ export function SecurityPage() {
                           variant="outlined"
                           onClick={() => {
                             if (draftQuery.data) {
-                              setEditorValue(JSON.stringify(draftQuery.data.securityConfig, null, 2))
-                              setParseError(null)
+                              setFormState(readSecurityForm(draftQuery.data.securityConfig))
                             }
                           }}
                         >
-                          Reset editor
+                          Reset form
                         </Button>
                       </Stack>
                     </>
@@ -270,14 +529,14 @@ export function SecurityPage() {
               <CardContent>
                 <Stack spacing={2}>
                   <Box>
-                    <Typography variant="h6">Parsed preview</Typography>
+                    <Typography variant="h6">Security summary</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Readable summary of the security settings currently in the editor.
+                      Readable summary of the security settings currently in the form.
                     </Typography>
                   </Box>
 
                   <Stack direction="row" spacing={1} flexWrap="wrap">
-                    <Chip label={`${summary.configuredCount}/3 required fields configured`} color="primary" />
+                    <Chip label={`${summary.configuredCount}/4 fields configured`} color="primary" />
                     <Chip label={summary.authzMode} variant="outlined" />
                   </Stack>
 
@@ -294,7 +553,7 @@ export function SecurityPage() {
                       <ListItemText primary="Connector API key enabled" secondary={summary.connectorApiKeyEnabled} />
                     </ListItem>
                     <ListItem disableGutters>
-                      <ListItemText primary="Remote authz base URL" secondary={summary.authzBaseUrl} />
+                      <ListItemText primary="Runtime authz base URL" secondary={summary.authzBaseUrl} />
                     </ListItem>
                   </List>
                 </Stack>

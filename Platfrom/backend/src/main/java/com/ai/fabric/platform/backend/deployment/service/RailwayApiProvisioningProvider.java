@@ -8,11 +8,11 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -28,21 +28,21 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     private final PlatformVerificationProperties verificationProperties;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final RailwayGraphqlClient railwayGraphqlClient;
+    private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
-    private final Environment environment;
 
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
                                           PlatformVerificationProperties verificationProperties,
                                           RailwayProvisioningPlanService railwayProvisioningPlanService,
                                           RailwayGraphqlClient railwayGraphqlClient,
-                                          ObjectMapper objectMapper,
-                                          Environment environment) {
+                                          PlatformSecretService platformSecretService,
+                                          ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.verificationProperties = verificationProperties;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.railwayGraphqlClient = railwayGraphqlClient;
+        this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
-        this.environment = environment;
     }
 
     @Override
@@ -202,6 +202,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             serviceId,
             environmentId,
             plan.rootDir(),
+            plan.dockerfilePath(),
             healthcheckPath
         );
         railwayGraphqlClient.upsertVariables(
@@ -314,7 +315,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             return value;
         }
         String secretName = value.substring("${secret:".length(), value.length() - 1).trim();
-        String resolved = environment.getProperty(secretName);
+        String resolved = platformSecretService.resolveSecret(secretName);
         if (resolved == null || resolved.isBlank()) {
             throw new RailwayProvisioningConfigurationException(
                 "Missing platform secret '" + secretName + "' required for Railway provisioning."

@@ -86,7 +86,7 @@ export function AppShell({ children }: AppShellProps) {
               </Box>
             </Stack>
             <Chip
-              label="Phase 10 Railway Preflight"
+              label="Phase 12 Platform Secrets"
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
