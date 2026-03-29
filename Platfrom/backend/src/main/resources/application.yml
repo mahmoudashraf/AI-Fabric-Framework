@@ -28,7 +28,7 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-9-railway-api-provider
+  current-phase: phase-10-railway-preflight
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
   provisioning:

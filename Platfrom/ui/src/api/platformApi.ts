@@ -63,6 +63,25 @@ export type RailwayProvisioningStepSummary = {
   description: string
 }
 
+export type RailwayPreflightCheckSummary = {
+  key: string
+  status: string
+  message: string
+  details: string | null
+}
+
+export type RailwayPreflightSummary = {
+  mode: string
+  ready: boolean
+  checkedAt: string
+  publicBaseUrl: string
+  workspaceId: string | null
+  workspaceName: string | null
+  repository: string
+  branch: string
+  checks: RailwayPreflightCheckSummary[]
+}
+
 export type RailwayProvisioningPlanSummary = {
   deploymentId: string
   deploymentName: string
@@ -204,6 +223,10 @@ export function fetchRailwayProvisioningPlan(deploymentId: string, versionId: st
   return request<RailwayProvisioningPlanSummary>(
     `/api/deployments/${deploymentId}/versions/${versionId}/railway-plan`,
   )
+}
+
+export function fetchRailwayPreflight() {
+  return request<RailwayPreflightSummary>('/api/platform/provisioning/railway/preflight')
 }
 
 export function fetchDeploymentReleases(deploymentId: string) {

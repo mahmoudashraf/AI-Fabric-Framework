@@ -36,6 +36,17 @@ public class RailwayGraphqlClient {
         }
         """;
 
+    private static final String API_TOKEN_WORKSPACES_QUERY = """
+        query apiTokenWorkspaces {
+          apiToken {
+            workspaces {
+              id
+              name
+            }
+          }
+        }
+        """;
+
     private static final String PROJECT_SNAPSHOT_QUERY = """
         query project($id: String!) {
           project(id: $id) {
@@ -188,6 +199,18 @@ public class RailwayGraphqlClient {
             }
         }
         return null;
+    }
+
+    public List<RailwayWorkspaceSummary> listAccessibleWorkspaces() {
+        JsonNode data = execute(API_TOKEN_WORKSPACES_QUERY, Map.of());
+        List<RailwayWorkspaceSummary> workspaces = new ArrayList<>();
+        for (JsonNode node : data.path("apiToken").path("workspaces")) {
+            workspaces.add(new RailwayWorkspaceSummary(
+                text(node.path("id")),
+                text(node.path("name"))
+            ));
+        }
+        return workspaces;
     }
 
     public RailwayProjectSnapshot createProject(String workspaceId,
@@ -507,6 +530,9 @@ public class RailwayGraphqlClient {
     }
 
     public record RailwayEnvironmentSummary(String id, String name) {
+    }
+
+    public record RailwayWorkspaceSummary(String id, String name) {
     }
 
     public record RailwayServiceSummary(String id, String name) {

@@ -1,5 +1,6 @@
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded'
+import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import {
   Alert,
@@ -25,6 +26,7 @@ import {
   fetchDeploymentReleases,
   fetchDeployments,
   fetchDeploymentVerificationRuns,
+  fetchRailwayPreflight,
   rerunDeploymentVerification,
 } from '../api/platformApi'
 
@@ -123,6 +125,9 @@ function statusColor(status: string): 'success' | 'warning' | 'error' | 'default
   if (status === 'PASSED') {
     return 'success'
   }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
   if (status === 'SKIPPED') {
     return 'default'
   }
@@ -137,6 +142,11 @@ export function DiagnosticsPage() {
   const deploymentsQuery = useQuery({
     queryKey: ['deployments'],
     queryFn: fetchDeployments,
+  })
+
+  const railwayPreflightQuery = useQuery({
+    queryKey: ['railway-preflight'],
+    queryFn: fetchRailwayPreflight,
   })
 
   const deployments = deploymentsQuery.data ?? []
@@ -223,6 +233,94 @@ export function DiagnosticsPage() {
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
           <Stack spacing={2}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="h6">Railway preflight</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Read-only provisioning readiness check for Railway API mode, workspace access, public artifact delivery,
+                  and required platform secrets.
+                </Typography>
+              </Box>
+              <Button
+                variant="outlined"
+                startIcon={<SyncRoundedIcon />}
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['railway-preflight'] })}
+                disabled={railwayPreflightQuery.isFetching}
+              >
+                {railwayPreflightQuery.isFetching ? 'Refreshing...' : 'Refresh preflight'}
+              </Button>
+            </Stack>
+
+            {railwayPreflightQuery.isLoading ? (
+              <Typography color="text.secondary">Running Railway preflight...</Typography>
+            ) : railwayPreflightQuery.isError ? (
+              <Alert severity="error">
+                {railwayPreflightQuery.error instanceof Error
+                  ? railwayPreflightQuery.error.message
+                  : 'Failed to run Railway preflight'}
+              </Alert>
+            ) : railwayPreflightQuery.data ? (
+              <>
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <Chip
+                    label={railwayPreflightQuery.data.ready ? 'Ready to provision' : 'Not ready to provision'}
+                    color={railwayPreflightQuery.data.ready ? 'success' : 'warning'}
+                  />
+                  <Chip label={`Mode: ${railwayPreflightQuery.data.mode}`} variant="outlined" />
+                  <Chip
+                    label={`Workspace: ${railwayPreflightQuery.data.workspaceName ?? railwayPreflightQuery.data.workspaceId ?? 'Unresolved'}`}
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`Checked: ${formatTimestamp(railwayPreflightQuery.data.checkedAt)}`}
+                    variant="outlined"
+                  />
+                </Stack>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Stack spacing={1}>
+                      <Typography variant="body2">
+                        Repository: <strong>{railwayPreflightQuery.data.repository}</strong>
+                      </Typography>
+                      <Typography variant="body2">
+                        Branch: <strong>{railwayPreflightQuery.data.branch}</strong>
+                      </Typography>
+                      <Typography variant="body2">
+                        Public base URL: <strong>{railwayPreflightQuery.data.publicBaseUrl}</strong>
+                      </Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Check</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Message</TableCell>
+                          <TableCell>Details</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {railwayPreflightQuery.data.checks.map((check) => (
+                          <TableRow key={check.key} hover>
+                            <TableCell sx={{ fontFamily: 'monospace' }}>{check.key}</TableCell>
+                            <TableCell>
+                              <Chip size="small" color={statusColor(check.status)} label={check.status} />
+                            </TableCell>
+                            <TableCell>{check.message}</TableCell>
+                            <TableCell sx={{ fontFamily: 'monospace', maxWidth: 320 }}>
+                              {check.details ?? '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Grid>
+                </Grid>
+              </>
+            ) : null}
+
             <Box>
               <Typography variant="h6">Deployment selection</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
