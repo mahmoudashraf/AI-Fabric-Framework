@@ -86,7 +86,7 @@ export function AppShell({ children }: AppShellProps) {
               </Box>
             </Stack>
             <Chip
-              label="Phase 14 Stronger Verification"
+              label="Phase 15 Docker Config Cleanup"
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}

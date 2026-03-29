@@ -1,98 +1,84 @@
 # Generic REST Connector on Railway
 
-Status: draft (2026-03-25)
-
 This guide deploys `ai-infrastructure-generic-rest-connector` to Railway and makes it callable from AI Fabric Runtime.
 
-## 1) Pick a Dockerfile
+The Railway Dockerfile is now **packaging-only**. It does not bake a separate routing file into the image.
 
-Option A: Base Dockerfile (bring your own routing config)
-- Dockerfile: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/Dockerfile`
-- You must provide `actions-routing.yml` yourself (either bake it into the image or switch to the Railway Dockerfile below).
+Platform-managed deployments should provide routing through:
 
-Option B: Railway Dockerfile (bakes a template routing config)
-- Dockerfile: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile`
-- Bakes `deploy/railway/actions-routing.yml` into the image at `/config/actions-routing.yml`
-- Sets `REST_CONNECTOR_ROUTING_CONFIG_LOCATION=file:/config/actions-routing.yml` by default
+- `REST_CONNECTOR_ROUTING_CONFIG_LOCATION=https://<platform>/api/deployments/.../artifacts/actions-routing.yml`
 
-## 2) Railway-required port behavior
-
-The service listens on `server.port=${PORT:8082}` so Railway can inject `PORT`.
-
-## 3) Health check
+## 1) Recommended Dockerfile
 
 Use:
-- `GET /actuator/health`
 
-Optional admin verification endpoints (requires inbound API key when enabled):
+- `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile`
+
+The base Dockerfile also works, but the platform provisioning flow already targets the Railway path above.
+
+## 2) Default behavior with no external routing config
+
+If `REST_CONNECTOR_ROUTING_CONFIG_LOCATION` is not provided, the connector loads:
+
+- `classpath:actions-routing.yml`
+
+That classpath default is now:
+
+- generic
+- safe-by-default
+- empty under `actions:`
+
+So the connector boots, but `/actions/execute` returns `ACTION_NOT_SUPPORTED` until you provide real routes.
+
+## 3) Minimum environment variables
+
+For a useful deployment you typically set:
+
+- `REST_CONNECTOR_ROUTING_CONFIG_LOCATION=https://<platform>/api/deployments/.../artifacts/actions-routing.yml`
+- `CONNECTOR_API_KEY=<secret>`
+- `REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`
+- `REST_CONNECTOR_RUNTIME_PROXY_BASE_URL=https://<runtime>.up.railway.app`
+- `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<secret>`
+- `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-AIFABRIC-API-KEY`
+
+Optional CORS:
+
+- `CORS_ALLOWED_ORIGINS=https://your-ui.example.com`
+- `CORS_ALLOWED_ORIGIN_PATTERNS=https://*.your-ui.example.com`
+- `CORS_ALLOW_CREDENTIALS=true|false`
+
+## 4) Manual routing without the platform
+
+If you are not using the platform yet, you can still provide routing manually by setting:
+
+- `REST_CONNECTOR_ROUTING_CONFIG_LOCATION=file:/config/actions-routing.yml`
+
+and mounting `/config/actions-routing.yml`.
+
+You can also rely on the classpath default and override behavior through env placeholders such as:
+
+- `CONNECTOR_ALLOW_UNAUTHENTICATED`
+- `CONNECTOR_API_KEY`
+- `UPSTREAM_BASE_URL`
+- `AUTHZ_ENABLED`
+- `AUTHZ_UPSTREAM_BASE_URL`
+
+## 5) Health and admin checks
+
+- `GET /actuator/health`
 - `GET /api/admin/overview`
 - `GET /api/admin/actions/overview`
 - `GET /api/admin/actions/{actionId}`
 
-## 4) Minimum environment variables (recommended)
+If inbound API-key auth is enabled, send the configured connector API key header.
 
-Inbound auth (recommended):
-- `CONNECTOR_API_KEY=<strong-secret>`
-- Optional: `CONNECTOR_API_KEY_HEADER=X-AIFABRIC-API-KEY`
+## 6) Runtime wiring
 
-Optional: CORS (for browser-based UIs calling the connector directly)
-- `CORS_ALLOWED_ORIGINS=https://your-ui.example.com`
-- Or: `CORS_ALLOWED_ORIGIN_PATTERNS=https://*.your-ui.example.com`
+In runtime env vars:
 
-If you want to temporarily allow unauthenticated access (dev only):
-- `CONNECTOR_ALLOW_UNAUTHENTICATED=true`
-- Also set `CONNECTOR_API_KEY_ENABLED=false` (otherwise startup validation still requires a key value)
-
-Upstream (only required once you add action routes):
-- `UPSTREAM_BASE_URL=https://your-api.example.com`
-- `UPSTREAM_AUTH_TYPE=NONE` or `API_KEY`
-- `UPSTREAM_AUTH_HEADER=Authorization`
-- `UPSTREAM_AUTH_VALUE=Bearer <token>`
-
-Optional: enable Runtime Data Sync alias endpoints (indexing proxy)
-
-If you want the connector to expose `/api/ai/data-sync/*` and forward to runtime:
-- `REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`
-- `REST_CONNECTOR_RUNTIME_PROXY_BASE_URL=https://<your-runtime>.up.railway.app`
-
-Optional auth header forwarded to runtime (only if runtime is protected by an external gateway):
-- `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<secret>`
-- `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
-
-Optional: increase runtime proxy timeout (recommended on Railway to survive cold starts / slower LLM calls):
-- `REST_CONNECTOR_RUNTIME_PROXY_TIMEOUT_MS=60000`
-
-When enabled, the connector also exposes read-only runtime indexing inspection endpoints:
-- `GET /api/admin/indexing/overview`
-- `GET /api/admin/indexing/vectors?entityType=...`
-
-When enabled, the connector also proxies the runtime chat API:
-- `POST /api/chat/query`
-- `POST /api/chat/suggestions`
-- `GET /api/chat/conversations`
-- `GET /api/chat/conversations/{conversationId}`
-- `DELETE /api/chat/conversations/{conversationId}`
-
-## 5) Add your action routes
-
-Routes live in the routing config file referenced by:
-- `REST_CONNECTOR_ROUTING_CONFIG_LOCATION`
-
-For the Railway Dockerfile default, edit:
-- `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/actions-routing.yml`
-
-Add entries under:
-- `actions:`
-
-Each action route must set either:
-- `url: https://...` (absolute), or
-- `path: /...` (relative, requires `connector.upstream.base-url`)
-
-## 6) Point runtime at the connector
-
-In AI Fabric Runtime env vars:
 - `ACTIONS_CONNECTOR_BASE_URL=https://<your-railway-connector>.up.railway.app`
-- `ACTIONS_CONNECTOR_API_KEY=<same as CONNECTOR_API_KEY>`
+- `ACTIONS_CONNECTOR_API_KEY=<same as connector inbound key>`
 
 Common failure mode:
-- `URI is not absolute` means the base URL is missing `https://`.
+
+- `URI is not absolute` means one of the configured base URLs is missing `https://`.

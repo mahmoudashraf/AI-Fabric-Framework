@@ -1,6 +1,6 @@
 # Platform Phase 12+ Execution Plan
 
-Status: updated after Phase 14 implementation (2026-03-29)
+Status: updated after Phase 15 implementation (2026-03-29)
 
 This document is the follow-on execution plan for the new `Platfrom/` control plane implementation.
 
@@ -29,6 +29,7 @@ The current control-plane implementation already has these capabilities:
 - real Railway apply proven from the platform
 - async apply execution with release progress tracking
 - deeper post-deploy verification against runtime/admin and connector/admin surfaces
+- neutral Railway Docker packaging aligned to platform-served config artifacts
 - diagnostics and verification views
 - structured draft editors for:
   - actions
@@ -39,11 +40,10 @@ The current control-plane implementation already has these capabilities:
 
 Current practical limitations:
 
-- Railway Dockerfiles still need cleanup so platform-managed deployments are clearly driven by platform artifacts rather than legacy demo packaging assumptions
 - platform persistence is still H2-oriented
 - the platform itself is not yet protected by platform auth
 
-The next priority is Docker/config cleanup and persistence/auth hardening.
+The next priority is persistence/auth hardening.
 
 ---
 
@@ -74,9 +74,8 @@ The target loop is:
 
 Recommended next order:
 
-1. Phase 15: Docker/config cleanup and migration to platform-served config
-2. Phase 16: Persistence hardening (Postgres + migrations)
-3. Phase 17: Platform authentication and operator access control
+1. Phase 16: Persistence hardening (Postgres + migrations)
+2. Phase 17: Platform authentication and operator access control
 
 This order is intentional:
 
@@ -280,6 +279,8 @@ If APIs are protected, verification should use deployment-aware credentials.
 
 ## 7) Phase 15: Docker/Config Cleanup And Migration To Platform-Served Config
 
+Status: completed on 2026-03-29
+
 ### 7.1 Objective
 
 Make the Railway Dockerfiles and deployment packaging neutral, so customer deployment behavior comes from the platform-generated config artifacts rather than baked demo config inside the image.
@@ -448,16 +449,16 @@ If any of those are missing, the platform is still in implementation mode rather
 
 ## 11) Recommended Immediate Next Step
 
-Start **Phase 15** now.
+Start **Phase 16** now.
 
 Concrete first milestone:
 
-1. audit the Railway Dockerfiles used by platform-managed deployments
-2. identify which config assumptions are still demo-specific versus truly required for packaging
-3. remove or isolate baked config that should now come only from platform artifact URLs
-4. rerun platform-managed Railway provisioning and verification to confirm nothing regressed
+1. move the platform backend off local H2 and onto Postgres
+2. introduce migrations for deployment, version, release, verification, and secret tables
+3. keep local development explicit with a dev-only fallback profile if needed
+4. rerun platform apply and verification flows against the durable store
 
-That is the cleanest next step now that live apply and deep post-deploy verification are both proven.
+That is the highest-leverage next step now that live apply, deep verification, and Docker/config cleanup are proven.
 
 ---
 

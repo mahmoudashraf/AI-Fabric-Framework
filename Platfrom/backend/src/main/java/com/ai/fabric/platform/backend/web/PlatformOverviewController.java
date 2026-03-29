@@ -53,7 +53,9 @@ public class PlatformOverviewController {
                 "duplicate-apply-guard",
                 "runtime-admin-verification",
                 "connector-admin-verification",
-                "config-drift-verification"
+                "config-drift-verification",
+                "neutral-railway-packaging",
+                "platform-served-config-contract"
             ),
             "plannedScreens", List.of(
                 "deployments",

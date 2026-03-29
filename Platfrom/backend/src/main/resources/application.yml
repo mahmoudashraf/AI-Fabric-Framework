@@ -28,7 +28,7 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-14-stronger-verification
+  current-phase: phase-15-docker-config-cleanup
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
   provisioning:

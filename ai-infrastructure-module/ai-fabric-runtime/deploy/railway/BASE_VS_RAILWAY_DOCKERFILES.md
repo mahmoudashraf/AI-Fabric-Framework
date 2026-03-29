@@ -1,132 +1,67 @@
-# Runtime Dockerfiles: Base vs Railway (Baked Demo Config)
+# Runtime Dockerfiles: Base vs Railway
 
-This repo contains two different Dockerfiles for **AI Fabric Runtime**. They both use **Java 21**, but they serve different purposes.
+This repo keeps two Dockerfiles for **AI Fabric Runtime**:
 
-## Files
-
-- Base runtime Dockerfile:
+- Base:
   - `ai-infrastructure-module/ai-fabric-runtime/Dockerfile`
-  - Entry point script: `ai-infrastructure-module/ai-fabric-runtime/docker-entrypoint.sh`
-
-- Railway-friendly runtime Dockerfile (bakes in ecommerce-store demo config):
+- Railway:
   - `ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile`
 
-## What’s Different (Behaviorally)
+## Current contract
 
-### 1) Configuration loading
+Both images are now **packaging-only**.
 
-**Base Dockerfile**
+They do **not** bake ecommerce-store config into the image anymore.
 
-- Starts the runtime jar with no extra Spring config locations:
-  - `java -jar /app/runtime.jar`
-- Uses the runtime’s bundled `application.yml`:
-  - Default entity config: `ai.config.default-file: ai-entity-config.yml` (classpath)
-  - Actions contract source defaults to: `${AI_ACTIONS_CATALOG_PATH:file:/config/ai-actions.yml}` and is `optional: true`
-- Result: if you do not mount `/config/ai-actions.yml`, the runtime still boots, but your connector demo actions are not loaded.
+For platform-managed deployments, runtime config should come from:
 
-**Railway Dockerfile**
+- `AI_ACTIONS_CATALOG_PATH`
+- `AI_CONFIG_DEFAULT_FILE`
+- `ACTIONS_CONNECTOR_BASE_URL`
+- `ACTIONS_CONNECTOR_API_KEY`
 
-- Copies the ecommerce-store demo runtime config folder into the image at:
-  - `/config/`
-- Starts the runtime with:
-  - `--spring.config.additional-location=file:/config/`
-- Result: the runtime loads:
-  - `/config/application.yml`
-  - `/config/ai-actions.yml`
-  - `/config/ai-entity-config.yml`
+That means the source of truth is:
 
-This is the most common reason the runtime appears “missing actions”: the **base** image doesn’t include the demo action catalog unless you mount it.
+- platform artifact URLs
+- deployment env vars
 
-### 2) Where `ai-actions.yml` and `ai-entity-config.yml` live
+not Dockerfile-baked demo files.
 
-**Railway Dockerfile**
+## What is still different
 
-- In-container paths are:
-  - `/config/ai-actions.yml`
-  - `/config/ai-entity-config.yml`
-- The demo runtime config in this repo is sourced from:
-  - `Real_Apps/ecommerce-store/deploy/runtime/config/`
+Behavior is intentionally very close now.
 
-**Base Dockerfile**
+- Both create `/config` so mounted config remains possible.
+- Both use the same runtime entrypoint script.
+- Both are repo-root builds.
+- The Railway Dockerfile simply remains the Railway-targeted path the platform already uses.
 
-- You decide where the files live.
-- Recommended pattern:
-  - Mount a folder to `/config`
-  - Set `SPRING_CONFIG_ADDITIONAL_LOCATION=file:/config/` (or pass `--spring.config.additional-location=file:/config/`)
-  - Or minimally just mount `/config/ai-actions.yml` and rely on `AI_ACTIONS_CATALOG_PATH` default.
+## Runtime behavior with no external config
 
-### 3) Persistence paths and Railway volumes
+If you run either image with no extra config:
 
-**Base Dockerfile**
+- runtime still boots
+- bundled generic `ai-entity-config.yml` is used
+- connector actions are not loaded unless `AI_ACTIONS_CATALOG_PATH` is set
 
-- Default runtime config uses relative paths under the working directory (`/app`):
-  - H2: `jdbc:h2:file:./data/ai-fabric-runtime.db`
-  - Lucene: `./data/lucene-vector-index-*`
-- Railway guide recommends mounting a volume at:
-  - `/app/data`
+This is intentional:
 
-**Railway Dockerfile**
+- packaging is neutral
+- platform-managed deployments provide real config
+- manual/demo deployments can still mount `/config` or set explicit env vars
 
-- Demo runtime config uses absolute `/data/...` paths.
-- Railway guide recommends mounting a volume at:
-  - `/data`
+## Manual/demo config patterns
 
-### 4) Entrypoint and permissions
+If you want demo or customer-specific config outside the platform:
 
-**Base Dockerfile**
+- mount a folder to `/config`
+- optionally set `SPRING_CONFIG_ADDITIONAL_LOCATION=file:/config/`
+- or set the direct config env vars:
+  - `AI_ACTIONS_CATALOG_PATH=file:/config/ai-actions.yml`
+  - `AI_CONFIG_DEFAULT_FILE=file:/config/ai-entity-config.yml`
 
-- Installs `gosu` and uses `docker-entrypoint.sh` to:
-  - `chown` mounted volumes when running as root
-  - drop to UID `10001` before launching Java
+If you specifically want the ecommerce-store demo config, use:
 
-**Railway Dockerfile**
+- `Real_Apps/ecommerce-store/deploy/runtime/config/`
 
-- Runs as `USER 10001` directly.
-- Creates `/data` and `/config` and sets ownership during build.
-
-## Typical Symptoms and the Dockerfile Choice
-
-### Symptom: runtime only “knows” a tiny set of actions (e.g., vector maintenance)
-
-Likely cause: you deployed the **base** runtime Dockerfile without mounting `/config/ai-actions.yml` (or without pointing `AI_ACTIONS_CATALOG_PATH` at your action catalog).
-
-Fix options:
-
-- Use the Railway Dockerfile (baked config), or
-- Use the base Dockerfile and mount `/config/ai-actions.yml`, or
-- Use the base Dockerfile and set `AI_ACTIONS_CATALOG_PATH` to wherever your catalog is mounted.
-
-### Symptom: action execution fails with `URI is not absolute`
-
-Likely cause: an env var base URL is missing a scheme.
-
-Example:
-
-- Bad: `ACTIONS_CONNECTOR_BASE_URL=ai-fabric-framework-production-a247.up.railway.app`
-- Good: `ACTIONS_CONNECTOR_BASE_URL=https://ai-fabric-framework-production-a247.up.railway.app`
-
-## Example: Running the Base Runtime With Demo Config Mounted
-
-From the repo root:
-
-```bash
-docker build -f ai-infrastructure-module/ai-fabric-runtime/Dockerfile -t ai-fabric-runtime:base .
-
-docker run --rm -p 8097:8097 \
-  -v "$(pwd)/Real_Apps/ecommerce-store/deploy/runtime/config:/config" \
-  -e SPRING_CONFIG_ADDITIONAL_LOCATION="file:/config/" \
-  -e ACTIONS_CONNECTOR_BASE_URL="http://host.docker.internal:8096" \
-  ai-fabric-runtime:base
-```
-
-## Example: Running the Railway Runtime Locally (Baked Config)
-
-```bash
-docker build -f ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile -t ai-fabric-runtime:railway .
-docker run --rm -p 8097:8097 -e ACTIONS_CONNECTOR_BASE_URL="http://host.docker.internal:8096" ai-fabric-runtime:railway
-```
-
-## Related Docs
-
-- `ai-infrastructure-module/ai-fabric-runtime/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
-- `Real_Apps/ecommerce-store/deploy/railway/RAILWAY_DEPLOYMENT_GUIDE.md`
+as a mounted config source, not as baked image content.
