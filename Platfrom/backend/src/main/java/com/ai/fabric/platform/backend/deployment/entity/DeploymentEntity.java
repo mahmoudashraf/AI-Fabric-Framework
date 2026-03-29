@@ -34,6 +34,8 @@ public class DeploymentEntity {
 
     private String connectorBaseUrl;
 
+    private Instant archivedAt;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -112,6 +114,14 @@ public class DeploymentEntity {
         this.connectorBaseUrl = connectorBaseUrl;
     }
 
+    public Instant getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(Instant archivedAt) {
+        this.archivedAt = archivedAt;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -128,4 +138,3 @@ public class DeploymentEntity {
         this.updatedAt = updatedAt;
     }
 }
-

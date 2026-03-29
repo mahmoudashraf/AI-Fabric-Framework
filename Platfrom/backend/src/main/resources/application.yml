@@ -32,7 +32,7 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-19-platform-identity-and-session-auth
+  current-phase: phase-20-customer-facing-deployment-lifecycle-ux
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
   auth:

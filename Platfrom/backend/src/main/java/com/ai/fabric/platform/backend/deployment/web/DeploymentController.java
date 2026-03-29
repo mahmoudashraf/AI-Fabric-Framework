@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.web;
 
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -42,14 +44,26 @@ public class DeploymentController {
     }
 
     @GetMapping("/deployments")
-    public List<DeploymentSummary> listDeployments() {
-        return deploymentService.listDeployments();
+    public List<DeploymentSummary> listDeployments(@RequestParam(defaultValue = "false") boolean includeArchived) {
+        return deploymentService.listDeployments(includeArchived);
+    }
+
+    @GetMapping("/deployments/overview")
+    public List<DeploymentOverviewSummary> listDeploymentOverviews(
+        @RequestParam(defaultValue = "false") boolean includeArchived
+    ) {
+        return deploymentService.listDeploymentOverviews(includeArchived);
     }
 
     @PostMapping("/deployments")
     @ResponseStatus(HttpStatus.CREATED)
     public DeploymentSummary createDeployment(@Valid @RequestBody CreateDeploymentRequest request) {
         return deploymentService.createDeployment(request);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/archive")
+    public DeploymentOverviewSummary archiveDeployment(@PathVariable String deploymentId) {
+        return deploymentService.archiveDeployment(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/draft")

@@ -20,6 +20,46 @@ export type DeploymentSummary = {
   createdAt: string
 }
 
+export type DeploymentLifecycleSnapshotSummary = {
+  releaseId: string
+  versionId: string
+  status: string
+  provisioningStatus: string
+  verificationStatus: string
+  currentStepKey: string | null
+  currentStepDescription: string | null
+  updatedAt: string
+}
+
+export type DeploymentVerificationSnapshotSummary = {
+  verificationRunId: string
+  status: string
+  summaryMessage: string
+  passedChecks: number
+  warningChecks: number
+  failedChecks: number
+  skippedChecks: number
+  completedAt: string | null
+}
+
+export type DeploymentOverviewSummary = {
+  id: string
+  name: string
+  environment: string
+  templateId: string
+  status: string
+  activeVersion: string | null
+  healthStatus: string
+  healthSummary: string
+  runtimeBaseUrl: string | null
+  connectorBaseUrl: string | null
+  latestRelease: DeploymentLifecycleSnapshotSummary | null
+  latestVerification: DeploymentVerificationSnapshotSummary | null
+  archivedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export type DeploymentDraftResponse = {
   id: string
   deploymentId: string
@@ -310,13 +350,27 @@ export function fetchDeploymentTemplates() {
 }
 
 export function fetchDeployments() {
-  return request<DeploymentSummary[]>('/api/deployments')
+  return request<DeploymentSummary[]>('/api/deployments?includeArchived=false')
+}
+
+export function fetchDeploymentsByArchiveState(includeArchived = false) {
+  return request<DeploymentSummary[]>(`/api/deployments?includeArchived=${includeArchived}`)
+}
+
+export function fetchDeploymentOverviews(includeArchived = false) {
+  return request<DeploymentOverviewSummary[]>(`/api/deployments/overview?includeArchived=${includeArchived}`)
 }
 
 export function createDeployment(payload: CreateDeploymentRequest) {
   return request<DeploymentSummary>('/api/deployments', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function archiveDeployment(deploymentId: string) {
+  return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/archive`, {
+    method: 'POST',
   })
 }
 

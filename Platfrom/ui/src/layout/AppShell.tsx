@@ -91,7 +91,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
               </Box>
             </Stack>
             <Chip
-              label="Phase 19 Identity Sessions"
+              label="Phase 20 Customer Lifecycle"
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}

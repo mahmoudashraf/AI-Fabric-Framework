@@ -68,7 +68,11 @@ public class PlatformOverviewController {
                 "platform-user-bootstrap",
                 "cookie-session-authentication",
                 "browser-session-login",
-                "api-key-auth-fallback"
+                "api-key-auth-fallback",
+                "deployment-overview-summaries",
+                "customer-lifecycle-navigation",
+                "archived-deployment-state",
+                "audited-archive-flow"
             ),
             "plannedScreens", List.of(
                 "deployments",

@@ -23,6 +23,7 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   applyDeploymentVersion,
   fetchDeploymentDraft,
@@ -167,6 +168,7 @@ function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
 
 export function RevisionsPage() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [selectedVersionId, setSelectedVersionId] = useState('')
 
@@ -176,6 +178,7 @@ export function RevisionsPage() {
   })
 
   const deployments = deploymentsQuery.data ?? []
+  const requestedDeploymentId = searchParams.get('deploymentId') ?? ''
 
   useEffect(() => {
     if (deployments.length === 0) {
@@ -185,10 +188,32 @@ export function RevisionsPage() {
       return
     }
 
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(deployments[0].id)
+    const preferredDeploymentId =
+      deployments.find((deployment) => deployment.status !== 'DRAFT')?.id ?? deployments[0].id
+
+    if (
+      requestedDeploymentId.length > 0
+      && deployments.some((deployment) => deployment.id === requestedDeploymentId)
+      && selectedDeploymentId !== requestedDeploymentId
+    ) {
+      setSelectedDeploymentId(requestedDeploymentId)
+      return
     }
-  }, [deployments, selectedDeploymentId])
+
+    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
+      setSelectedDeploymentId(preferredDeploymentId)
+    }
+  }, [deployments, requestedDeploymentId, selectedDeploymentId])
+
+  useEffect(() => {
+    const current = searchParams.get('deploymentId') ?? ''
+    if (selectedDeploymentId.length === 0 || current === selectedDeploymentId) {
+      return
+    }
+    const next = new URLSearchParams(searchParams)
+    next.set('deploymentId', selectedDeploymentId)
+    setSearchParams(next, { replace: true })
+  }, [searchParams, selectedDeploymentId, setSearchParams])
 
   const selectedDeployment = useMemo(
     () => deployments.find((deployment) => deployment.id === selectedDeploymentId) ?? null,

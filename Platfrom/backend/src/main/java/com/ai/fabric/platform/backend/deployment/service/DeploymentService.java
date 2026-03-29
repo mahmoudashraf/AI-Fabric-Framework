@@ -9,10 +9,13 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRu
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
@@ -34,11 +37,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -124,9 +127,18 @@ public class DeploymentService {
     }
 
     public List<DeploymentSummary> listDeployments() {
-        return deploymentRepository.findAll().stream()
-            .sorted(Comparator.comparing(DeploymentEntity::getCreatedAt).reversed())
+        return listDeployments(false);
+    }
+
+    public List<DeploymentSummary> listDeployments(boolean includeArchived) {
+        return selectDeployments(includeArchived).stream()
             .map(this::toSummary)
+            .toList();
+    }
+
+    public List<DeploymentOverviewSummary> listDeploymentOverviews(boolean includeArchived) {
+        return selectDeployments(includeArchived).stream()
+            .map(this::toOverview)
             .toList();
     }
 
@@ -169,8 +181,42 @@ public class DeploymentService {
         return toSummary(deployment);
     }
 
+    @Transactional
+    public DeploymentOverviewSummary archiveDeployment(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        if (isArchived(deployment)) {
+            return toOverview(deployment);
+        }
+        releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .filter(this::isReleaseInProgress)
+            .ifPresent(release -> {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Deployment cannot be archived while apply is in progress: " + release.getId()
+                );
+            });
+
+        Instant now = Instant.now();
+        deployment.setStatus("ARCHIVED");
+        deployment.setArchivedAt(now);
+        deployment.setUpdatedAt(now);
+        deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DEPLOYMENT_ARCHIVED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            java.util.Map.of(
+                "environment", deployment.getEnvironmentName(),
+                "templateId", deployment.getTemplateId(),
+                "archivedAt", now.toString()
+            )
+        );
+        return toOverview(deployment);
+    }
+
     public DeploymentDraftResponse getActiveDraftForDeployment(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        assertNotArchived(deployment, "load draft");
         String draftId = deployment.getActiveDraftId();
         DeploymentDraftEntity draft = draftId != null
             ? draftRepository.findById(draftId).orElseGet(() -> latestDraft(deploymentId))
@@ -182,6 +228,8 @@ public class DeploymentService {
     public DeploymentDraftResponse updateDraft(String draftId, UpdateDeploymentDraftRequest request) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
+        DeploymentEntity deployment = getDeployment(draft.getDeploymentId());
+        assertNotArchived(deployment, "update draft");
 
         if (request.actionsConfig() != null) {
             draft.setActionsConfigJson(writeJson(request.actionsConfig()));
@@ -203,7 +251,6 @@ public class DeploymentService {
         draft.setUpdatedAt(Instant.now());
         draftRepository.save(draft);
 
-        DeploymentEntity deployment = getDeployment(draft.getDeploymentId());
         deployment.setStatus("DRAFT");
         deployment.setUpdatedAt(draft.getUpdatedAt());
         deploymentRepository.save(deployment);
@@ -232,6 +279,7 @@ public class DeploymentService {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
         DeploymentEntity deployment = getDeployment(draft.getDeploymentId());
+        assertNotArchived(deployment, "publish draft");
         Instant now = Instant.now();
         DraftValidationResponse validation = deploymentDraftValidationService.validate(draft);
         if (!validation.publishReady()) {
@@ -327,6 +375,7 @@ public class DeploymentService {
     @Transactional
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        assertNotArchived(deployment, "apply version");
         DeploymentVersionEntity version = versionRepository.findById(versionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));
         if (!deployment.getId().equals(version.getDeploymentId())) {
@@ -405,6 +454,7 @@ public class DeploymentService {
     @Transactional
     public DeploymentVerificationRunSummary rerunVerification(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        assertNotArchived(deployment, "rerun verification");
         if (deployment.getActiveVersionId() == null) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment has no active version to verify.");
         }
@@ -598,6 +648,44 @@ public class DeploymentService {
         );
     }
 
+    private DeploymentOverviewSummary toOverview(DeploymentEntity deployment) {
+        String activeVersion = null;
+        if (deployment.getActiveVersionId() != null) {
+            activeVersion = versionRepository.findById(deployment.getActiveVersionId())
+                .map(DeploymentVersionEntity::getVersionLabel)
+                .orElse(deployment.getActiveVersionId());
+        } else if (deployment.getActiveDraftId() != null) {
+            activeVersion = "draft";
+        }
+
+        DeploymentReleaseEntity latestRelease = releaseRepository
+            .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
+            .orElse(null);
+        DeploymentVerificationRunEntity latestVerification = verificationRunRepository
+            .findByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
+            .stream()
+            .findFirst()
+            .orElse(null);
+
+        return new DeploymentOverviewSummary(
+            deployment.getId(),
+            deployment.getName(),
+            deployment.getEnvironmentName(),
+            deployment.getTemplateId(),
+            deployment.getStatus(),
+            activeVersion,
+            determineHealthStatus(deployment, latestRelease, latestVerification),
+            determineHealthSummary(deployment, latestRelease, latestVerification),
+            deployment.getRuntimeBaseUrl(),
+            deployment.getConnectorBaseUrl(),
+            toLifecycleSnapshot(latestRelease),
+            toVerificationSnapshot(latestVerification),
+            deployment.getArchivedAt(),
+            deployment.getCreatedAt(),
+            deployment.getUpdatedAt()
+        );
+    }
+
     private DeploymentDraftResponse toDraftResponse(DeploymentDraftEntity draft) {
         try {
             return new DeploymentDraftResponse(
@@ -700,6 +788,121 @@ public class DeploymentService {
                 || "RUNNING".equals(release.getProvisioningStatus())
                 || "RUNNING".equals(release.getVerificationStatus());
         };
+    }
+
+    private List<DeploymentEntity> selectDeployments(boolean includeArchived) {
+        if (includeArchived) {
+            return deploymentRepository.findAllByOrderByCreatedAtDesc();
+        }
+        return deploymentRepository.findByArchivedAtIsNullOrderByCreatedAtDesc();
+    }
+
+    private void assertNotArchived(DeploymentEntity deployment, String action) {
+        if (isArchived(deployment)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment is archived and cannot " + action + ".");
+        }
+    }
+
+    private boolean isArchived(DeploymentEntity deployment) {
+        return deployment.getArchivedAt() != null || "ARCHIVED".equalsIgnoreCase(deployment.getStatus());
+    }
+
+    private DeploymentLifecycleSnapshotSummary toLifecycleSnapshot(DeploymentReleaseEntity release) {
+        if (release == null) {
+            return null;
+        }
+        return new DeploymentLifecycleSnapshotSummary(
+            release.getId(),
+            release.getDeploymentVersionId(),
+            release.getStatus(),
+            release.getProvisioningStatus(),
+            release.getVerificationStatus(),
+            release.getCurrentStepKey(),
+            release.getCurrentStepDescription(),
+            release.getUpdatedAt()
+        );
+    }
+
+    private DeploymentVerificationSnapshotSummary toVerificationSnapshot(DeploymentVerificationRunEntity verificationRun) {
+        if (verificationRun == null) {
+            return null;
+        }
+
+        int passed = 0;
+        int warning = 0;
+        int failed = 0;
+        int skipped = 0;
+        try {
+            JsonNode checks = objectMapper.readTree(verificationRun.getChecksJson());
+            if (checks.isArray()) {
+                for (JsonNode check : checks) {
+                    String status = check.path("status").asText("UNKNOWN");
+                    switch (status) {
+                        case "PASSED" -> passed++;
+                        case "WARNING" -> warning++;
+                        case "FAILED" -> failed++;
+                        case "SKIPPED" -> skipped++;
+                        default -> {
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read verification summary counts", ex);
+        }
+
+        return new DeploymentVerificationSnapshotSummary(
+            verificationRun.getId(),
+            verificationRun.getStatus(),
+            verificationRun.getSummaryMessage(),
+            passed,
+            warning,
+            failed,
+            skipped,
+            verificationRun.getCompletedAt()
+        );
+    }
+
+    private String determineHealthStatus(DeploymentEntity deployment,
+                                         DeploymentReleaseEntity latestRelease,
+                                         DeploymentVerificationRunEntity latestVerification) {
+        if (isArchived(deployment)) {
+            return "ARCHIVED";
+        }
+        if (latestRelease != null && isReleaseInProgress(latestRelease)) {
+            return "PROVISIONING";
+        }
+        if (latestVerification != null) {
+            return switch (latestVerification.getStatus()) {
+                case "PASSED" -> "HEALTHY";
+                case "FAILED" -> "ATTENTION";
+                default -> "REVIEW";
+            };
+        }
+        if (deployment.getActiveVersionId() != null) {
+            return "READY_TO_APPLY";
+        }
+        return "DRAFT";
+    }
+
+    private String determineHealthSummary(DeploymentEntity deployment,
+                                          DeploymentReleaseEntity latestRelease,
+                                          DeploymentVerificationRunEntity latestVerification) {
+        if (isArchived(deployment)) {
+            return "Archived. Hidden from active customer workflows.";
+        }
+        if (latestRelease != null && isReleaseInProgress(latestRelease)) {
+            return latestRelease.getCurrentStepDescription() != null
+                ? latestRelease.getCurrentStepDescription()
+                : "Apply is still running.";
+        }
+        if (latestVerification != null) {
+            return latestVerification.getSummaryMessage();
+        }
+        if (deployment.getActiveVersionId() != null) {
+            return "A version is published and ready to apply.";
+        }
+        return "Draft configuration has not been published yet.";
     }
 
     private void scheduleApplyAfterCommit(String deploymentId, String versionId, String releaseId) {

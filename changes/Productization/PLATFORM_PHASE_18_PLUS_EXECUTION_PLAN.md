@@ -1,6 +1,6 @@
 # Platform Phase 18+ Execution Plan
 
-Status: Phase 18 and Phase 19 implemented and verified locally from API + UI flow (2026-03-29)
+Status: Phase 18, Phase 19, and Phase 20 implemented and verified locally from API + UI flow (2026-03-29)
 
 This document is the next execution plan for the `Platfrom/` control plane after completion of:
 
@@ -365,6 +365,41 @@ Customers need:
 - billing
 - multi-environment promotion pipelines
 - complex incident-management workflows
+
+### 6.7 Implementation status
+
+Completed in the current branch.
+
+Delivered:
+
+- customer-oriented deployments overview cards with lifecycle health summaries
+- default deployment creation flow focused on template choice plus environment naming
+- explicit navigation from deployment overview into:
+  - Revisions
+  - Diagnostics
+- archive deployment workflow with:
+  - explicit name confirmation
+  - audit event recording
+  - active-list removal
+  - archived-list visibility
+- archived deployments excluded from default active deployment selectors
+- Revisions and Diagnostics now prefer a deployment with meaningful lifecycle data when no deployment is explicitly requested
+- browser smoke script:
+  - `Platfrom/ui/scripts/phase20-ui-lifecycle-smoke.mjs`
+
+Local verification completed:
+
+- backend test suite passed
+- UI production build passed
+- browser smokes passed against the live local stack:
+  - Phase 18 signed artifact flow
+  - Phase 19 session login/logout flow
+  - Phase 20 deployment lifecycle flow:
+    - create deployment
+    - navigate to revisions
+    - archive with explicit confirmation
+    - verify active-list removal
+    - verify archived-list visibility
 
 ---
 
