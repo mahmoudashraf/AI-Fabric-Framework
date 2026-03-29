@@ -1,0 +1,109 @@
+actions:
+  - name: create_purchase_order
+    description: "Create a purchase order"
+    category: "orders"
+    accessMode: WRITE_ONLY
+    requiresConfirmation: true
+    confirmationMessage: "Create purchase order for {{quantity}} x {{sku}}?"
+    params:
+      - name: sku
+        type: STRING
+        required: true
+      - name: quantity
+        type: INTEGER
+        required: true
+      - name: email
+        type: STRING
+        required: true
+      - name: shippingAddress
+        type: STRING
+        required: true
+
+  - name: cancel_purchase_order
+    description: "Cancel an existing purchase order"
+    category: "orders"
+    accessMode: WRITE_ONLY
+    requiresConfirmation: true
+    confirmationMessage: "Cancel order {{orderRef}}?"
+    params:
+      - name: orderRef
+        type: STRING
+        required: true
+
+  - name: get_order_details
+    description: "Get order details"
+    category: "orders"
+    accessMode: READ
+    requiresConfirmation: false
+    params:
+      - name: orderRef
+        type: STRING
+        required: true
+
+  - name: list_orders
+    description: "List user orders"
+    category: "orders"
+    accessMode: READ
+    requiresConfirmation: false
+    params:
+      - name: userId
+        type: STRING
+        required: false
+
+  - name: track_shipment
+    description: "Track a shipment by order number"
+    category: "shipping"
+    accessMode: READ
+    requiresConfirmation: false
+    params:
+      - name: orderNumber
+        type: STRING
+        required: true
+
+  - name: add_to_cart
+    description: "Add a product to cart"
+    category: "cart"
+    accessMode: READ_WRITE
+    requiresConfirmation: false
+    params:
+      - name: sku
+        type: STRING
+        required: true
+      - name: quantity
+        type: INTEGER
+        required: false
+
+  - name: remove_from_cart
+    description: "Remove a product from cart"
+    category: "cart"
+    accessMode: READ_WRITE
+    requiresConfirmation: false
+    params:
+      - name: sku
+        type: STRING
+        required: true
+
+  - name: view_cart
+    description: "View cart"
+    category: "cart"
+    accessMode: READ
+    requiresConfirmation: false
+    params: []
+
+  - name: apply_coupon_to_cart
+    description: "Apply coupon to cart"
+    category: "cart"
+    accessMode: READ_WRITE
+    requiresConfirmation: false
+    params:
+      - name: code
+        type: STRING
+        required: true
+
+  - name: checkout_cart
+    description: "Checkout cart"
+    category: "cart"
+    accessMode: WRITE_ONLY
+    requiresConfirmation: true
+    confirmationMessage: "Proceed to checkout now?"
+    params: []

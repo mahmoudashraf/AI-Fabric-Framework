@@ -1,0 +1,39 @@
+services:
+  connector-app:
+    build:
+      context: ../..
+      dockerfile: Real_Apps/chat-capabilities-runtime-connector/Dockerfile
+    image: chat-capabilities-runtime-connector:local
+    container_name: chat-capabilities-runtime-connector
+    restart: unless-stopped
+    ports:
+      - "8098:8098"
+    environment:
+      PORT: 8098
+    volumes:
+      - ./data/connector:/app/data
+
+  ai-fabric-runtime:
+    image: ai-fabric-runtime:local
+    container_name: ai-fabric-runtime
+    restart: unless-stopped
+    ports:
+      - "8097:8097"
+    environment:
+      PORT: 8097
+      OPENAI_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      OPENAI_BASE_URL: "https://api.openai.com/v1"
+      OPENAI_MODEL: "gpt-4o-mini"
+      OPENAI_EMBEDDING_MODEL: "text-embedding-3-small"
+      OPENAI_EMBEDDING_DIMENSIONS: "512"
+
+      AI_ACTIONS_SOURCES_0_TYPE: file
+      AI_ACTIONS_SOURCES_0_PATH: file:/config/ai-actions.yml
+      AI_ACTIONS_CONNECTOR_BASE_URL: http://connector-app:8098
+
+      AI_CONFIG_DEFAULT_FILE: file:/config/ai-entity-config.yml
+
+    volumes:
+      - ./runtime-config:/config:ro
+      - ./data/runtime:/data

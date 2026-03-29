@@ -1,0 +1,17 @@
+ai-entities:
+  document:
+    features: ["embedding", "search"]
+    auto-process: true
+    enable-search: true
+    auto-embedding: true
+    indexable: true
+    crud-operations:
+      create:
+        generate-embedding: true
+        index-for-search: true
+      update:
+        generate-embedding: true
+        index-for-search: true
+      delete:
+        index-for-search: false
+        remove-from-search: true
