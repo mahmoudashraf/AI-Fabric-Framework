@@ -651,6 +651,112 @@ Rollback should:
 - redeploy
 - re-run verification
 
+### 13.5 Railway Public API feasibility
+
+Railway is a valid V1 provisioning backend for this platform.
+
+Railway's Public API is GraphQL-based and supports the main operations needed for this plan:
+
+- create project
+- create service
+- create environment
+- create/update variables
+- trigger deployment / redeploy
+- inspect deployment status
+
+This means the control plane does not need to rely on manual dashboard operations for every deployment.
+
+### 13.6 Recommended token model
+
+For your hosted platform V1, the recommended Railway auth model is:
+
+- use a **workspace token** in the platform backend
+- provision customer environments inside your Railway workspace
+
+This is the best fit because:
+
+- the platform will create many customer projects
+- the platform needs broad workspace-scoped automation
+- the platform should not require each customer to own Railway directly in V1
+
+Later options:
+
+- use project tokens for narrower environment-scoped automation
+- use OAuth only if customers later connect their own Railway accounts
+
+### 13.7 Recommended provisioning sequence
+
+When a user requests a new deployment from your platform, the platform backend should:
+
+1. create a Railway project for the customer environment
+2. create the `runtime` service
+3. create the `rest-connector` service
+4. optionally create additional resources later such as a managed vector DB service
+5. publish immutable config artifacts for the target deployment version
+6. upsert variables for runtime and connector
+7. trigger or commit deployment changes in Railway
+8. wait for deployment state transitions
+9. run verification against the deployed endpoints
+10. mark the deployment healthy or roll it back
+
+### 13.8 Suggested initial Railway variable strategy
+
+The platform worker should set variables in a structured way rather than exposing ad hoc free-form settings.
+
+Examples:
+
+- runtime config artifact location
+- connector routing config artifact location
+- action connector base URL
+- provider credentials and model selections
+- authz settings
+- admin auth settings
+- CORS/browser settings
+- platform-managed config version identifier
+
+This keeps deployments reproducible and easier to support.
+
+### 13.9 Deployment state handling
+
+The platform should explicitly model Railway deployment states during rollout.
+
+At minimum:
+
+- provisioning requested
+- services created
+- variables applied
+- deploying
+- active
+- failed
+- rolled back
+
+The control plane should not mark a deployment as ready merely because Railway accepted the mutation.
+
+It should only mark it healthy after:
+
+- Railway reports the deployment as active
+- verification checks pass
+
+### 13.10 Why Railway is sufficient for V1
+
+Railway is sufficient for the V1 deployment engine because it already provides the primitives needed for:
+
+- project-per-customer-environment isolation
+- multi-service deployment
+- environment variable management
+- redeploy/restart workflows
+- deployment status inspection
+
+This lets the platform focus its engineering effort on:
+
+- configuration modeling
+- validation
+- release/versioning
+- verification
+- rollback logic
+
+instead of building custom infrastructure orchestration too early.
+
 ---
 
 ## 14) Required Runtime and Connector Changes
@@ -733,6 +839,64 @@ Advanced mode can provide:
 - expert-only overrides
 
 But this should not replace structured editing for the main product path.
+
+### 15.4 Recommended V1 UI technology stack
+
+For the platform UI, the recommended V1 stack is:
+
+- `React`
+- `TypeScript`
+- `Vite`
+- `Material UI`
+- `@tanstack/react-query`
+- `react-hook-form`
+- `zod`
+- `Monaco Editor` for advanced YAML/JSON editing only
+
+### 15.5 Why this stack is recommended
+
+This stack is the most pragmatic fit for the platform UI because the product is primarily an authenticated control-plane console, not a public marketing site.
+
+The main UI needs are:
+
+- dense tables
+- configuration forms
+- wizards
+- status pages
+- dialogs
+- polling and async workflow state
+- diff/revision flows
+
+`Material UI` is well suited for this kind of internal/product console.
+
+`@tanstack/react-query` is the correct data-fetching layer for:
+
+- deployment lists
+- deployment status polling
+- verification results
+- apply/rollback mutations
+- cache invalidation after config changes
+
+`react-hook-form` and `zod` are a good fit for large structured configuration forms with client-side validation.
+
+### 15.6 Why Next.js is not required for V1
+
+Next.js is optional, not required.
+
+For this platform, a plain React SPA is enough because:
+
+- the control-plane backend is already a separate service
+- the UI is primarily an authenticated admin/product console
+- the product does not depend on server-side rendering
+- the main complexity is operational workflows, not public content rendering
+
+Next.js can still be considered later if you want:
+
+- a combined frontend/backend web app
+- server-side auth/session handling in the UI layer
+- marketing/docs and product console in a single app
+
+For V1, `React + Vite + Material UI` is the simpler and lower-friction path.
 
 ---
 
@@ -972,4 +1136,3 @@ not:
 - one-off custom runtime forks
 - manual environment assembly
 - hidden config drift
-

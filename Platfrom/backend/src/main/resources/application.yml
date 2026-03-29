@@ -1,0 +1,36 @@
+server:
+  port: ${PORT:8088}
+
+spring:
+  application:
+    name: ai-enablement-platform-backend
+  datasource:
+    url: jdbc:h2:file:./data/ai-enablement-platform;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+platform:
+  name: AI Enablement Platform
+  stage: bootstrap
+  current-phase: phase-2-persisted-lifecycle
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+
+logging:
+  level:
+    com.ai.fabric.platform: INFO

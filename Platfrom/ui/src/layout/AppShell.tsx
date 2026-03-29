@@ -1,0 +1,158 @@
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
+import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
+import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
+import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
+import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
+import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
+import {
+  AppBar,
+  Box,
+  Chip,
+  Divider,
+  Drawer,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Stack,
+  Toolbar,
+  Typography,
+} from '@mui/material'
+import { type ReactNode } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+
+const drawerWidth = 280
+
+const navItems = [
+  { label: 'Deployments', path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
+  { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
+  { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
+  { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },
+  { label: 'Security', path: '/security', icon: <HttpsRoundedIcon /> },
+  { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
+  { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
+  { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
+]
+
+type AppShellProps = {
+  children: ReactNode
+}
+
+export function AppShell({ children }: AppShellProps) {
+  const location = useLocation()
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Drawer
+        variant="permanent"
+        sx={{
+          width: drawerWidth,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            boxSizing: 'border-box',
+            borderRight: '1px solid',
+            borderColor: 'divider',
+            backgroundImage: 'linear-gradient(180deg, rgba(12,19,34,0.98), rgba(20,33,52,0.94))',
+          },
+        }}
+      >
+        <Toolbar sx={{ px: 3, pt: 2, pb: 1, alignItems: 'flex-start' }}>
+          <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 2,
+                  display: 'grid',
+                  placeItems: 'center',
+                  bgcolor: 'primary.main',
+                  color: 'primary.contrastText',
+                  boxShadow: '0 10px 30px rgba(75, 156, 211, 0.35)',
+                }}
+              >
+                <AutoAwesomeRoundedIcon />
+              </Box>
+              <Box>
+                <Typography variant="h6" sx={{ color: 'common.white', lineHeight: 1.1 }}>
+                  AI Enablement
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'grey.400' }}>
+                  Control Plane
+                </Typography>
+              </Box>
+            </Stack>
+            <Chip
+              label="Phase 2 Lifecycle"
+              color="primary"
+              size="small"
+              sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
+            />
+          </Stack>
+        </Toolbar>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+        <List sx={{ px: 1.5, py: 2 }}>
+          {navItems.map((item) => {
+            const active = location.pathname === item.path
+            return (
+              <ListItemButton
+                key={item.path}
+                component={Link}
+                to={item.path}
+                selected={active}
+                sx={{
+                  borderRadius: 2,
+                  mb: 0.5,
+                  color: active ? 'common.white' : 'grey.300',
+                  '&.Mui-selected': {
+                    bgcolor: 'rgba(75, 156, 211, 0.18)',
+                  },
+                  '&.Mui-selected:hover': {
+                    bgcolor: 'rgba(75, 156, 211, 0.24)',
+                  },
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.04)',
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.label} />
+              </ListItemButton>
+            )
+          })}
+        </List>
+      </Drawer>
+
+      <Box sx={{ flexGrow: 1 }}>
+        <AppBar
+          position="sticky"
+          elevation={0}
+          sx={{
+            backdropFilter: 'blur(12px)',
+            bgcolor: 'rgba(245, 247, 250, 0.82)',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            color: 'text.primary',
+          }}
+        >
+          <Toolbar sx={{ minHeight: 72 }}>
+            <Stack spacing={0.25}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Configurable AI Enablement Platform
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Runtime and connector remain immutable. Configuration is versioned and released from the platform.
+              </Typography>
+            </Stack>
+          </Toolbar>
+        </AppBar>
+        <Box component="main" sx={{ p: 3.5 }}>
+          {children}
+        </Box>
+      </Box>
+    </Box>
+  )
+}
