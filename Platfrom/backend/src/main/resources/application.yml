@@ -32,14 +32,23 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-18-artifact-delivery-hardening
+  current-phase: phase-19-platform-identity-and-session-auth
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
   auth:
     enabled: ${PLATFORM_AUTH_ENABLED:true}
     header-name: ${PLATFORM_AUTH_HEADER:X-PLATFORM-API-KEY}
+    api-key-enabled: ${PLATFORM_AUTH_API_KEY_ENABLED:true}
+    session-enabled: ${PLATFORM_AUTH_SESSION_ENABLED:true}
+    session-cookie-name: ${PLATFORM_AUTH_SESSION_COOKIE_NAME:platform_session}
+    session-ttl: ${PLATFORM_AUTH_SESSION_TTL:12h}
+    session-cookie-secure: ${PLATFORM_AUTH_SESSION_COOKIE_SECURE:false}
     operator-api-key: ${PLATFORM_OPERATOR_API_KEY:}
     admin-api-key: ${PLATFORM_ADMIN_API_KEY:}
+    bootstrap-admin-enabled: ${PLATFORM_BOOTSTRAP_ADMIN_ENABLED:false}
+    bootstrap-admin-email: ${PLATFORM_BOOTSTRAP_ADMIN_EMAIL:}
+    bootstrap-admin-password: ${PLATFORM_BOOTSTRAP_ADMIN_PASSWORD:}
+    bootstrap-admin-display-name: ${PLATFORM_BOOTSTRAP_ADMIN_DISPLAY_NAME:Platform Admin}
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
     signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}
@@ -69,6 +78,7 @@ platform:
   cors:
     allowed-origins:
       - http://localhost:5173
+    allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
   verification:
     timeout: 3s
     runtime-health-path: /actuator/health

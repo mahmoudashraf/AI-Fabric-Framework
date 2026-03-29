@@ -15,13 +15,25 @@ async function maybeLogin(page) {
     return
   }
 
+  const email = process.env.PLATFORM_UI_EMAIL
+  const password = process.env.PLATFORM_UI_PASSWORD
   const apiKey = process.env.PLATFORM_UI_API_KEY
+
+  const emailField = page.getByLabel('Email')
+  if (email && password && (await emailField.isVisible().catch(() => false))) {
+    await emailField.fill(email)
+    await page.getByLabel('Password').fill(password)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await page.getByText('Configurable AI Enablement Platform').waitFor()
+    return
+  }
+
   if (!apiKey) {
-    throw new Error('Platform UI requires authentication. Set PLATFORM_UI_API_KEY to run the smoke flow.')
+    throw new Error('Platform UI requires authentication. Set PLATFORM_UI_EMAIL/PLATFORM_UI_PASSWORD or PLATFORM_UI_API_KEY.')
   }
 
   await page.getByLabel('Platform API key').fill(apiKey)
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Continue with API key' }).click()
   await page.getByText('Configurable AI Enablement Platform').waitFor()
 }
 

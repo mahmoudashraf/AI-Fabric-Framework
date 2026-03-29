@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   CardContent,
+  Divider,
   Stack,
   TextField,
   Typography,
@@ -13,23 +14,52 @@ import { FormEvent, useEffect, useState } from 'react'
 
 type PlatformLoginPageProps = {
   headerName: string
+  sessionAuthEnabled: boolean
+  apiKeyAuthEnabled: boolean
   errorMessage: string | null
-  onSubmit: (apiKey: string) => void
+  onPasswordSubmit: (email: string, password: string) => Promise<void>
+  onApiKeySubmit: (apiKey: string) => void
 }
 
-export function PlatformLoginPage({ headerName, errorMessage, onSubmit }: PlatformLoginPageProps) {
+export function PlatformLoginPage({
+  headerName,
+  sessionAuthEnabled,
+  apiKeyAuthEnabled,
+  errorMessage,
+  onPasswordSubmit,
+  onApiKeySubmit,
+}: PlatformLoginPageProps) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [apiKey, setApiKey] = useState('')
+  const [submittingPassword, setSubmittingPassword] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!errorMessage) {
       return
     }
+    setPassword('')
     setApiKey('')
+    setLocalError(null)
   }, [errorMessage])
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onSubmit(apiKey)
+    setSubmittingPassword(true)
+    setLocalError(null)
+    try {
+      await onPasswordSubmit(email, password)
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Platform sign-in failed.')
+    } finally {
+      setSubmittingPassword(false)
+    }
+  }
+
+  const handleApiKeySubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    onApiKeySubmit(apiKey)
   }
 
   return (
@@ -62,31 +92,69 @@ export function PlatformLoginPage({ headerName, errorMessage, onSubmit }: Platfo
               </Box>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                  Platform operator sign-in
+                  Platform sign-in
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Enter the platform API key used for backend requests from this browser.
+                  Use a platform user session by default. API key login remains available as an operator fallback.
                 </Typography>
               </Box>
             </Stack>
 
             {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
+            {!errorMessage && localError ? <Alert severity="error">{localError}</Alert> : null}
 
-            <Box component="form" onSubmit={handleSubmit}>
-              <Stack spacing={2}>
-                <TextField
-                  label={headerName}
-                  type="password"
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
-                  autoFocus
-                  fullWidth
-                />
-                <Button type="submit" variant="contained" size="large" disabled={apiKey.trim().length === 0}>
-                  Continue
-                </Button>
-              </Stack>
-            </Box>
+            {sessionAuthEnabled ? (
+              <Box component="form" onSubmit={handlePasswordSubmit}>
+                <Stack spacing={2}>
+                  <TextField
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    autoFocus
+                    fullWidth
+                  />
+                  <TextField
+                    label="Password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    fullWidth
+                  />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    disabled={submittingPassword || email.trim().length === 0 || password.trim().length === 0}
+                  >
+                    {submittingPassword ? 'Signing in...' : 'Sign in'}
+                  </Button>
+                </Stack>
+              </Box>
+            ) : null}
+
+            {sessionAuthEnabled && apiKeyAuthEnabled ? <Divider>Or use API key</Divider> : null}
+
+            {apiKeyAuthEnabled ? (
+              <Box component="form" onSubmit={handleApiKeySubmit}>
+                <Stack spacing={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    Fallback access for internal operators and local/dev automation.
+                  </Typography>
+                  <TextField
+                    label={headerName}
+                    type="password"
+                    value={apiKey}
+                    onChange={(event) => setApiKey(event.target.value)}
+                    fullWidth
+                    autoFocus={!sessionAuthEnabled}
+                  />
+                  <Button type="submit" variant="outlined" size="large" disabled={apiKey.trim().length === 0}>
+                    Continue with API key
+                  </Button>
+                </Stack>
+              </Box>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>

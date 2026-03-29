@@ -19,9 +19,9 @@ public class WebConfig {
                 registry.addMapping("/api/**")
                     .allowedOrigins(corsProperties.getAllowedOrigins().toArray(String[]::new))
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                    .allowedHeaders("*");
+                    .allowedHeaders("*")
+                    .allowCredentials(corsProperties.isAllowCredentials());
             }
         };
     }
 }
-

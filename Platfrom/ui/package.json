@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "smoke:phase18": "node scripts/phase18-ui-smoke.mjs"
+    "smoke:phase18": "node scripts/phase18-ui-smoke.mjs",
+    "smoke:phase19": "node scripts/phase19-ui-auth-smoke.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -10,6 +10,8 @@ import {
   clearStoredPlatformApiKey,
   fetchPlatformAuthSession,
   getStoredPlatformApiKey,
+  loginToPlatform,
+  logoutFromPlatform,
   setStoredPlatformApiKey,
   type PlatformAuthSessionSummary,
 } from '../api/platformApi'
@@ -19,8 +21,9 @@ type PlatformAuthContextValue = {
   session: PlatformAuthSessionSummary | null
   isLoading: boolean
   error: Error | null
+  signInWithPassword: (email: string, password: string) => Promise<void>
   setApiKey: (value: string) => void
-  signOut: () => void
+  signOut: () => Promise<void>
   refreshSession: () => Promise<void>
 }
 
@@ -41,14 +44,26 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     session: sessionQuery.data ?? null,
     isLoading: sessionQuery.isLoading,
     error: sessionQuery.error instanceof Error ? sessionQuery.error : null,
+    signInWithPassword: async (email, password) => {
+      clearStoredPlatformApiKey()
+      setApiKeyState('')
+      const session = await loginToPlatform({ email, password })
+      queryClient.setQueryData(['platform-auth-session', ''], session)
+      await queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
+    },
     setApiKey: (value) => {
       setStoredPlatformApiKey(value)
       setApiKeyState(getStoredPlatformApiKey())
+      void queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
     },
-    signOut: () => {
+    signOut: async () => {
+      const session = await logoutFromPlatform().catch(() => null)
       clearStoredPlatformApiKey()
       setApiKeyState('')
-      void queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
+      if (session) {
+        queryClient.setQueryData(['platform-auth-session', ''], session)
+      }
+      await queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
     },
     refreshSession: async () => {
       await queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })

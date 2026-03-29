@@ -1,17 +1,18 @@
 package com.ai.fabric.platform.backend.security;
 
 import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
+import com.ai.fabric.platform.backend.security.service.PlatformIdentityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
-import org.springframework.util.StringUtils;
 
 import java.util.Map;
 
@@ -21,26 +22,37 @@ public class PlatformSecurityConfiguration {
 
     private final PlatformAuthProperties properties;
     private final ObjectMapper objectMapper;
+    private final PlatformIdentityService platformIdentityService;
 
     public PlatformSecurityConfiguration(PlatformAuthProperties properties,
-                                         ObjectMapper objectMapper) {
+                                         ObjectMapper objectMapper,
+                                         PlatformIdentityService platformIdentityService) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.platformIdentityService = platformIdentityService;
     }
 
     @Bean
     public SecurityFilterChain platformSecurityFilterChain(HttpSecurity http) throws Exception {
-        if (properties.enabled()
-            && !StringUtils.hasText(properties.adminApiKey())
-            && !StringUtils.hasText(properties.operatorApiKey())) {
-            throw new IllegalStateException("Platform auth is enabled but no platform API keys are configured.");
+        if (properties.enabled() && !properties.apiKeyEnabled() && !properties.sessionEnabled()) {
+            throw new IllegalStateException("Platform auth is enabled but no authentication method is configured.");
         }
 
         http.csrf(csrf -> csrf.disable());
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.cors(Customizer.withDefaults());
+        http.addFilterBefore(
+            new PlatformSessionAuthenticationFilter(properties, platformIdentityService),
+            AnonymousAuthenticationFilter.class
+        );
         http.addFilterBefore(new PlatformApiKeyAuthenticationFilter(properties), AnonymousAuthenticationFilter.class);
         http.authorizeHttpRequests(authorize -> {
-            authorize.requestMatchers("/actuator/health", "/api/platform/auth/session").permitAll();
+            authorize.requestMatchers(
+                "/actuator/health",
+                "/api/platform/auth/session",
+                "/api/platform/auth/login",
+                "/api/platform/auth/logout"
+            ).permitAll();
             authorize.requestMatchers(
                 "/api/deployments/*/versions/*/artifacts/ai-actions.yml",
                 "/api/deployments/*/versions/*/artifacts/ai-entity-config.yml",

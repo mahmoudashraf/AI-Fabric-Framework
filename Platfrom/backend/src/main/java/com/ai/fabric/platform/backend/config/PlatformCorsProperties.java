@@ -9,6 +9,7 @@ import java.util.List;
 public class PlatformCorsProperties {
 
     private List<String> allowedOrigins = new ArrayList<>();
+    private boolean allowCredentials = true;
 
     public List<String> getAllowedOrigins() {
         return allowedOrigins;
@@ -17,5 +18,12 @@ public class PlatformCorsProperties {
     public void setAllowedOrigins(List<String> allowedOrigins) {
         this.allowedOrigins = allowedOrigins != null ? allowedOrigins : new ArrayList<>();
     }
-}
 
+    public boolean isAllowCredentials() {
+        return allowCredentials;
+    }
+
+    public void setAllowCredentials(boolean allowCredentials) {
+        this.allowCredentials = allowCredentials;
+    }
+}

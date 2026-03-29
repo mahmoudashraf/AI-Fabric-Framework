@@ -40,8 +40,11 @@ export default function App() {
     return (
       <PlatformLoginPage
         headerName={auth.session.headerName}
+        sessionAuthEnabled={auth.session.sessionAuthEnabled}
+        apiKeyAuthEnabled={auth.session.apiKeyAuthEnabled}
         errorMessage={auth.apiKey ? 'Platform API key rejected. Please try again.' : null}
-        onSubmit={auth.setApiKey}
+        onPasswordSubmit={auth.signInWithPassword}
+        onApiKeySubmit={auth.setApiKey}
       />
     )
   }

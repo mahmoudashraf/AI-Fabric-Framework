@@ -5,7 +5,11 @@ public record PlatformAuthSessionSummary(
     String headerName,
     boolean authenticated,
     String actorId,
+    String displayName,
     String role,
+    String authenticationMode,
+    boolean sessionAuthEnabled,
+    boolean apiKeyAuthEnabled,
     boolean canManageSecrets,
     boolean canOperateDeployments
 ) {

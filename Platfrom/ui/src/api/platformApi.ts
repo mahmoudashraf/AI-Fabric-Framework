@@ -174,9 +174,18 @@ export type PlatformAuthSessionSummary = {
   headerName: string
   authenticated: boolean
   actorId: string | null
+  displayName: string | null
   role: string | null
+  authenticationMode: string | null
+  sessionAuthEnabled: boolean
+  apiKeyAuthEnabled: boolean
   canManageSecrets: boolean
   canOperateDeployments: boolean
+}
+
+export type PlatformLoginRequest = {
+  email: string
+  password: string
 }
 
 export type PlatformAuditEventSummary = {
@@ -249,6 +258,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...(apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {}),
   }
   const response = await fetch(`${apiBaseUrl}${path}`, {
+    credentials: 'include',
     headers: {
       ...baseHeaders,
       ...(init?.headers ?? {}),
@@ -276,6 +286,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function fetchPlatformAuthSession() {
   return request<PlatformAuthSessionSummary>('/api/platform/auth/session')
+}
+
+export function loginToPlatform(payload: PlatformLoginRequest) {
+  return request<PlatformAuthSessionSummary>('/api/platform/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function logoutFromPlatform() {
+  return request<PlatformAuthSessionSummary>('/api/platform/auth/logout', {
+    method: 'POST',
+  })
 }
 
 export function fetchPlatformAuditEvents() {

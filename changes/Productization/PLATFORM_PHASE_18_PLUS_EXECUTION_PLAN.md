@@ -1,6 +1,6 @@
 # Platform Phase 18+ Execution Plan
 
-Status: Phase 18 implemented and verified locally from API + UI flow (2026-03-29)
+Status: Phase 18 and Phase 19 implemented and verified locally from API + UI flow (2026-03-29)
 
 This document is the next execution plan for the `Platfrom/` control plane after completion of:
 
@@ -45,6 +45,8 @@ The platform now already has:
 - audit trail for privileged actions
 - signed artifact delivery for runtime/connector config bundles
 - UI smoke verification for signed artifact delivery
+- platform-managed user/session identity
+- browser session login/logout flow
 
 The current proven loop is:
 
@@ -266,7 +268,39 @@ Recommended initial role set:
   - audit review
 - audit events show real user identity, not only static API-key actor ids
 
-### 5.7 Out of scope
+### 5.7 Implementation status
+
+Implemented in the current branch as a platform-managed identity/session layer.
+
+Delivered:
+
+- persistent `platform_users` and `platform_user_sessions` tables via Flyway
+- bootstrap admin user support for local/dev and controlled hosted bootstrap
+- password-based login endpoint with cookie session issuance
+- session cookie authentication filter on backend requests
+- browser login/logout/session refresh flow in the platform UI
+- API-key auth retained as optional fallback instead of the primary browser path
+- audit coverage for bootstrap admin creation, successful login, and logout
+- browser smoke script:
+  - `Platfrom/ui/scripts/phase19-ui-auth-smoke.mjs`
+
+Local verification completed:
+
+- backend test suite passed with session-auth integration coverage
+- UI build passed
+- UI flow verified against local auth-enabled backend + Vite UI:
+  - sign-in with email/password
+  - authenticated operator shell rendering
+  - sign-out back to login screen
+- Phase 18 signed-artifact smoke still passed after the identity changes
+
+Known follow-up still open within the broader identity theme:
+
+- external OIDC/SSO provider integration
+- org/project ownership mapping
+- customer-admin / customer-operator role expansion
+
+### 5.8 Out of scope
 
 - advanced SCIM / enterprise provisioning
 - fine-grained per-field ACLs

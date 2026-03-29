@@ -64,7 +64,11 @@ public class PlatformOverviewController {
                 "explicit-bootstrap-profiles",
                 "platform-api-key-auth",
                 "role-based-platform-access-control",
-                "audit-events"
+                "audit-events",
+                "platform-user-bootstrap",
+                "cookie-session-authentication",
+                "browser-session-login",
+                "api-key-auth-fallback"
             ),
             "plannedScreens", List.of(
                 "deployments",

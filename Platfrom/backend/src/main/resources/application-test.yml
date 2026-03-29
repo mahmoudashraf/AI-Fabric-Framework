@@ -10,5 +10,9 @@ platform:
     sample-enabled: false
   auth:
     enabled: false
+    bootstrap-admin-enabled: true
+    bootstrap-admin-email: admin@test.platform
+    bootstrap-admin-password: TestAdminPass123!
+    bootstrap-admin-display-name: Test Platform Admin
 
 PLATFORM_ARTIFACT_SIGNING_KEY: test-platform-artifact-signing-key

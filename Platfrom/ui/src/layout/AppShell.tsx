@@ -42,7 +42,7 @@ const navItems = [
 type AppShellProps = {
   children: ReactNode
   session: PlatformAuthSessionSummary | null
-  onSignOut: () => void
+  onSignOut: () => Promise<void>
 }
 
 export function AppShell({ children, session, onSignOut }: AppShellProps) {
@@ -91,7 +91,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
               </Box>
             </Stack>
             <Chip
-              label="Phase 18 Artifact Delivery"
+              label="Phase 19 Identity Sessions"
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
@@ -167,11 +167,14 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
                       color={session.role === 'PLATFORM_ADMIN' ? 'secondary' : 'primary'}
                       variant="outlined"
                     />
-                    <Chip label={session.actorId ?? 'unknown'} variant="outlined" />
+                    <Chip label={session.displayName ?? session.actorId ?? 'unknown'} variant="outlined" />
+                    <Chip label={session.authenticationMode ?? 'AUTH'} variant="outlined" />
                     <Button
                       variant="outlined"
                       startIcon={<LogoutRoundedIcon />}
-                      onClick={onSignOut}
+                      onClick={() => {
+                        void onSignOut()
+                      }}
                     >
                       Sign out
                     </Button>
