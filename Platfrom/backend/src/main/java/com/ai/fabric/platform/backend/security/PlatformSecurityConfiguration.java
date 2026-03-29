@@ -41,7 +41,12 @@ public class PlatformSecurityConfiguration {
         http.addFilterBefore(new PlatformApiKeyAuthenticationFilter(properties), AnonymousAuthenticationFilter.class);
         http.authorizeHttpRequests(authorize -> {
             authorize.requestMatchers("/actuator/health", "/api/platform/auth/session").permitAll();
-            authorize.requestMatchers("/api/deployments/*/versions/*/artifacts/**").permitAll();
+            authorize.requestMatchers(
+                "/api/deployments/*/versions/*/artifacts/ai-actions.yml",
+                "/api/deployments/*/versions/*/artifacts/ai-entity-config.yml",
+                "/api/deployments/*/versions/*/artifacts/actions-routing.yml",
+                "/api/deployments/*/versions/*/artifacts/deployment-manifest.json"
+            ).permitAll();
             if (properties.enabled()) {
                 authorize.anyRequest().authenticated();
             } else {

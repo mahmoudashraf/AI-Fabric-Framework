@@ -13,3 +13,5 @@ platform:
     sample-enabled: true
   auth:
     enabled: false
+
+PLATFORM_ARTIFACT_SIGNING_KEY: local-platform-artifact-signing-key

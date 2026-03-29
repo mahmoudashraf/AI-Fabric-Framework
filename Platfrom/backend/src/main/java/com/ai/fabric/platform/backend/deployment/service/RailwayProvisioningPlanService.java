@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -22,15 +23,18 @@ import java.util.Locale;
 public class RailwayProvisioningPlanService {
 
     private final PlatformProvisioningProperties provisioningProperties;
+    private final PlatformDeliveryProperties deliveryProperties;
     private final DeploymentArtifactService artifactService;
     private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
 
     public RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
+                                          PlatformDeliveryProperties deliveryProperties,
                                           DeploymentArtifactService artifactService,
                                           PlatformSecretService platformSecretService,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
+        this.deliveryProperties = deliveryProperties;
         this.artifactService = artifactService;
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
@@ -124,7 +128,7 @@ public class RailwayProvisioningPlanService {
             provisioningProperties.repository(),
             provisioningProperties.branch(),
             provisioningProperties.workspaceId().isBlank() ? null : provisioningProperties.workspaceId(),
-            "REMOTE_CONFIG_BUNDLES",
+            artifactServiceSignedStrategy(),
             artifactUrls,
             new RailwayProvisioningServicesSummary(runtime, restConnector),
             List.of(
@@ -137,6 +141,12 @@ public class RailwayProvisioningPlanService {
                 new RailwayProvisioningStepSummary(7, "run_verification", "Run post-deploy verification against runtime and connector endpoints.")
             )
         );
+    }
+
+    private String artifactServiceSignedStrategy() {
+        return deliveryProperties.signedArtifactsEnabled()
+            ? "SIGNED_REMOTE_CONFIG_BUNDLES"
+            : "REMOTE_CONFIG_BUNDLES";
     }
 
     private String normalizeName(String value) {

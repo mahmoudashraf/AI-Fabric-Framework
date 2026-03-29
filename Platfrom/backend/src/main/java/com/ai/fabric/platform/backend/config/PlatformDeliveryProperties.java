@@ -2,13 +2,20 @@ package com.ai.fabric.platform.backend.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 @ConfigurationProperties(prefix = "platform.delivery")
 public record PlatformDeliveryProperties(
-    String publicBaseUrl
+    String publicBaseUrl,
+    boolean signedArtifactsEnabled,
+    Duration artifactUrlTtl
 ) {
 
     public PlatformDeliveryProperties {
         publicBaseUrl = normalize(publicBaseUrl);
+        artifactUrlTtl = artifactUrlTtl == null || artifactUrlTtl.isZero() || artifactUrlTtl.isNegative()
+            ? Duration.ofDays(3650)
+            : artifactUrlTtl;
     }
 
     private static String normalize(String value) {

@@ -45,7 +45,11 @@ class RailwayPreflightServiceTest {
             Duration.ofSeconds(5),
             Duration.ofMinutes(10)
         );
-        PlatformDeliveryProperties deliveryProperties = new PlatformDeliveryProperties("https://platform.example");
+        PlatformDeliveryProperties deliveryProperties = new PlatformDeliveryProperties(
+            "https://platform.example",
+            true,
+            Duration.ofDays(3650)
+        );
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         when(railwayGraphqlClient.listAccessibleWorkspaces()).thenReturn(List.of(
             new RailwayGraphqlClient.RailwayWorkspaceSummary("workspace-123", "AI-Fabric-Platform")
@@ -54,7 +58,8 @@ class RailwayPreflightServiceTest {
         MockEnvironment environment = new MockEnvironment()
             .withProperty("OPENAI_API_KEY", "set")
             .withProperty("CONNECTOR_API_KEY", "set")
-            .withProperty("ACTIONS_CONNECTOR_API_KEY", "set");
+            .withProperty("ACTIONS_CONNECTOR_API_KEY", "set")
+            .withProperty("PLATFORM_ARTIFACT_SIGNING_KEY", "set");
         PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
         when(repository.findById(anyString())).thenReturn(Optional.empty());
         when(repository.findAll()).thenReturn(List.of());
@@ -103,7 +108,11 @@ class RailwayPreflightServiceTest {
             Duration.ofSeconds(5),
             Duration.ofMinutes(10)
         );
-        PlatformDeliveryProperties deliveryProperties = new PlatformDeliveryProperties("http://localhost:8088");
+        PlatformDeliveryProperties deliveryProperties = new PlatformDeliveryProperties(
+            "http://localhost:8088",
+            true,
+            Duration.ofDays(3650)
+        );
         PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
         when(repository.findById(anyString())).thenReturn(Optional.empty());
         when(repository.findAll()).thenReturn(List.of());

@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -30,10 +31,10 @@ class RailwayProvisioningPlanServiceTest {
                 "ver-123",
                 "v1",
                 "hash-123",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
 
@@ -63,6 +64,7 @@ class RailwayProvisioningPlanServiceTest {
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             artifactService,
             mock(PlatformSecretService.class),
             new ObjectMapper()
@@ -80,23 +82,33 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(plan.services().restConnector().dockerfilePath())
             .isEqualTo("ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile");
         assertThat(plan.projectName()).isEqualTo("sample-commerce-dev-dev-123");
+        assertThat(plan.artifactStrategy()).isEqualTo("SIGNED_REMOTE_CONFIG_BUNDLES");
 
         assertThat(runtimeEnv)
-            .containsEntry("AI_ACTIONS_CATALOG_PATH", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml")
-            .containsEntry("AI_CONFIG_DEFAULT_FILE", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml")
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
             .containsEntry("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("CORS_ALLOWED_ORIGIN_PATTERNS", "https://*lovable*")
             .containsEntry("CORS_ALLOW_CREDENTIALS", "true")
             .doesNotContainKey("AI_ENTITY_CONFIG_PATH");
+        assertThat(runtimeEnv.get("AI_ACTIONS_CATALOG_PATH"))
+            .startsWith("https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?")
+            .contains("expires=")
+            .contains("sig=");
+        assertThat(runtimeEnv.get("AI_CONFIG_DEFAULT_FILE"))
+            .startsWith("https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?")
+            .contains("expires=")
+            .contains("sig=");
 
         assertThat(connectorEnv)
-            .containsEntry("REST_CONNECTOR_ROUTING_CONFIG_LOCATION", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_ENABLED", "true")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_TIMEOUT_MS", "60000")
             .containsEntry("CORS_ALLOW_CREDENTIALS", "true")
             .doesNotContainKey("REST_CONNECTOR_ROUTING_CONFIG_PATH");
+        assertThat(connectorEnv.get("REST_CONNECTOR_ROUTING_CONFIG_LOCATION"))
+            .startsWith("https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?")
+            .contains("expires=")
+            .contains("sig=");
     }
 
     @Test
@@ -108,10 +120,10 @@ class RailwayProvisioningPlanServiceTest {
                 "ver-123",
                 "v1",
                 "hash-123",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
 
@@ -141,6 +153,7 @@ class RailwayProvisioningPlanServiceTest {
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             artifactService,
             mock(PlatformSecretService.class),
             new ObjectMapper()
@@ -166,10 +179,10 @@ class RailwayProvisioningPlanServiceTest {
                 "ver-123",
                 "v1",
                 "hash-123",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
@@ -177,6 +190,7 @@ class RailwayProvisioningPlanServiceTest {
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             artifactService,
             platformSecretService,
             new ObjectMapper()

@@ -8,6 +8,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.net.URI;
+
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -88,7 +90,7 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
-    void artifactEndpointsRemainPublicWhenPlatformAuthIsEnabled() throws Exception {
+    void signedArtifactEndpointsRemainMachineAccessibleWhileBundleSummaryRequiresOperatorAuth() throws Exception {
         var createResult = mockMvc.perform(post("/api/deployments")
                 .header("X-PLATFORM-API-KEY", "operator-test-key")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -126,16 +128,32 @@ class PlatformSecurityIntegrationTest {
         );
 
         mockMvc.perform(get("/api/deployments/{deploymentId}/versions/{versionId}/artifacts", deploymentId, versionId))
+            .andExpect(status().isUnauthorized());
+
+        var bundleResult = mockMvc.perform(get("/api/deployments/{deploymentId}/versions/{versionId}/artifacts", deploymentId, versionId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
-            .andExpect(jsonPath("$.deploymentVersionId", is(versionId)));
+            .andExpect(jsonPath("$.deploymentVersionId", is(versionId)))
+            .andReturn();
+
+        String signedActionsArtifactUrl = com.jayway.jsonpath.JsonPath.read(
+            bundleResult.getResponse().getContentAsString(),
+            "$.actionsArtifactUrl"
+        );
 
         mockMvc.perform(get(
                 "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml",
                 deploymentId,
                 versionId
             ))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get(URI.create(signedActionsArtifactUrl)))
             .andExpect(status().isOk())
             .andExpect(content().string(org.hamcrest.Matchers.containsString("actions:")));
+
+        mockMvc.perform(get(URI.create(signedActionsArtifactUrl.replace("sig=", "sig=broken-"))))
+            .andExpect(status().isUnauthorized());
     }
 }

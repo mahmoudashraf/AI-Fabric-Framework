@@ -32,7 +32,7 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-17-platform-auth-access-control
+  current-phase: phase-18-artifact-delivery-hardening
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
   auth:
@@ -42,6 +42,8 @@ platform:
     admin-api-key: ${PLATFORM_ADMIN_API_KEY:}
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
+    signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}
+    artifact-url-ttl: ${PLATFORM_ARTIFACT_URL_TTL:3650d}
   provisioning:
     mode: ${PLATFORM_PROVISIONING_MODE:RAILWAY_STUB}
     railway-api-endpoint: ${RAILWAY_API_ENDPOINT:https://backboard.railway.com/graphql/v2}

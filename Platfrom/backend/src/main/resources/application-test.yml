@@ -10,3 +10,5 @@ platform:
     sample-enabled: false
   auth:
     enabled: false
+
+PLATFORM_ARTIFACT_SIGNING_KEY: test-platform-artifact-signing-key

@@ -91,7 +91,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
               </Box>
             </Stack>
             <Chip
-              label="Phase 17 Platform Auth"
+              label="Phase 18 Artifact Delivery"
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}

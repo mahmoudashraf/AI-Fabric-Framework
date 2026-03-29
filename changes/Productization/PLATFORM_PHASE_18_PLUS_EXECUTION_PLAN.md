@@ -1,6 +1,6 @@
 # Platform Phase 18+ Execution Plan
 
-Status: new follow-on execution plan after Phase 17 completion (2026-03-29)
+Status: Phase 18 implemented and verified locally from API + UI flow (2026-03-29)
 
 This document is the next execution plan for the `Platfrom/` control plane after completion of:
 
@@ -43,6 +43,8 @@ The platform now already has:
 - platform API-key auth
 - operator/admin role separation
 - audit trail for privileged actions
+- signed artifact delivery for runtime/connector config bundles
+- UI smoke verification for signed artifact delivery
 
 The current proven loop is:
 
@@ -170,7 +172,31 @@ Recommended direction:
 - verification passes against a signed-artifact deployment
 - rejected or expired artifact access is observable in logs/audit
 
-### 4.7 Out of scope
+### 4.7 Implementation status
+
+Completed in the current branch.
+
+Delivered:
+
+- per-version signed artifact URLs with expiry and HMAC validation
+- platform signing secret support through platform secret management
+- Railway plan generation updated to emit signed artifact URLs into runtime and REST connector env
+- runtime/connector artifact access remains separate from operator auth
+- audit trail for rejected artifact access
+- UI visibility in Revisions and Diagnostics for signed artifact strategy and artifact URLs
+- browser smoke script:
+  - `Platfrom/ui/scripts/phase18-ui-smoke.mjs`
+
+Local verification completed:
+
+- backend test suite passed
+- signed URLs verified in Railway provisioning plan output
+- UI flow verified against local backend + Vite UI:
+  - Revisions page shows signed artifact bundle URLs
+  - Diagnostics page shows `SIGNED_REMOTE_CONFIG_BUNDLES`
+  - artifact URLs shown in UI include `expires=` and `sig=`
+
+### 4.8 Out of scope
 
 - general CDN layer
 - customer BYO object storage

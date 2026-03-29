@@ -172,6 +172,14 @@ public class PlatformSecretService {
                 false
             )
         );
+        secrets.put(
+            "PLATFORM_ARTIFACT_SIGNING_KEY",
+            new SecretDefinition(
+                "Platform Artifact Signing Key",
+                "Signing key used to generate deployment artifact URLs for runtime and connector config delivery.",
+                true
+            )
+        );
         return Map.copyOf(secrets);
     }
 
