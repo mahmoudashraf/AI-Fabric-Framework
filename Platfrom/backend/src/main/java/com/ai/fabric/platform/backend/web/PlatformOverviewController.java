@@ -34,7 +34,9 @@ public class PlatformOverviewController {
                 "validation",
                 "verification",
                 "railway-provisioning",
-                "live-verification-reruns"
+                "live-verification-reruns",
+                "artifact-delivery",
+                "provisioning-provider-abstraction"
             ),
             "plannedScreens", List.of(
                 "deployments",

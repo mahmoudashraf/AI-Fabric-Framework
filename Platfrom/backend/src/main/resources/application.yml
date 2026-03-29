@@ -28,7 +28,19 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-6-live-verification
+  current-phase: phase-7-artifact-delivery
+  delivery:
+    public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
+  provisioning:
+    mode: ${PLATFORM_PROVISIONING_MODE:RAILWAY_STUB}
+    repository: ${PLATFORM_DEPLOY_REPOSITORY:TheBaseRepo}
+    branch: ${PLATFORM_DEPLOY_BRANCH:main}
+    environment-name: ${PLATFORM_PROVISIONING_ENVIRONMENT:dev}
+    workspace-id: ${RAILWAY_WORKSPACE_ID:}
+    runtime-service-root: ${PLATFORM_RUNTIME_SERVICE_ROOT:ai-infrastructure-module/ai-fabric-runtime}
+    connector-service-root: ${PLATFORM_CONNECTOR_SERVICE_ROOT:ai-infrastructure-module/ai-infrastructure-generic-rest-connector}
+    runtime-service-name-prefix: ${PLATFORM_RUNTIME_SERVICE_NAME_PREFIX:runtime}
+    connector-service-name-prefix: ${PLATFORM_CONNECTOR_SERVICE_NAME_PREFIX:rest-connector}
   cors:
     allowed-origins:
       - http://localhost:5173

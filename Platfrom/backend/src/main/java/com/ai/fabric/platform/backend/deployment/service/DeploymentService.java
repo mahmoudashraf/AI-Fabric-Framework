@@ -294,13 +294,13 @@ public class DeploymentService {
         release.setStatus("PROVISIONING");
         release.setVerificationStatus("PENDING");
         release.setProvisioningStatus("PENDING");
-        release.setProvisioningTarget("RAILWAY_STUB");
+        release.setProvisioningTarget(deploymentProvisioningService.selectedTarget());
         release.setProvisioningDetailsJson("{}");
         release.setCreatedAt(now);
         release.setAppliedAt(now);
         releaseRepository.save(release);
 
-        DeploymentProvisioningService.ProvisioningResult provisioningResult = deploymentProvisioningService.provision(
+        ProvisioningResult provisioningResult = deploymentProvisioningService.provision(
             deployment,
             version,
             release

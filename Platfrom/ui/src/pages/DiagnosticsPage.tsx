@@ -48,16 +48,41 @@ function summarizeProvisioningDetails(value: unknown) {
     return {
       provider: 'Unknown',
       projectName: 'Unknown',
+      repository: 'Unknown',
+      branch: 'Unknown',
       artifactStrategy: 'Unknown',
       generatedAt: 'Unknown',
+      runtimeRootDir: 'Unknown',
+      connectorRootDir: 'Unknown',
+      artifactUrls: {
+        actions: 'Unknown',
+        entities: 'Unknown',
+        routing: 'Unknown',
+        manifest: 'Unknown',
+      },
     }
   }
+
+  const services = isRecord(value.services) ? value.services : {}
+  const runtime = isRecord(services.runtime) ? services.runtime : {}
+  const restConnector = isRecord(services.restConnector) ? services.restConnector : {}
+  const artifactUrls = isRecord(value.artifactUrls) ? value.artifactUrls : {}
 
   return {
     provider: typeof value.provider === 'string' ? value.provider : 'Unknown',
     projectName: typeof value.projectName === 'string' ? value.projectName : 'Unknown',
+    repository: typeof value.repository === 'string' ? value.repository : 'Unknown',
+    branch: typeof value.branch === 'string' ? value.branch : 'Unknown',
     artifactStrategy: typeof value.artifactStrategy === 'string' ? value.artifactStrategy : 'Unknown',
     generatedAt: typeof value.generatedAt === 'string' ? value.generatedAt : 'Unknown',
+    runtimeRootDir: typeof runtime.rootDir === 'string' ? runtime.rootDir : 'Unknown',
+    connectorRootDir: typeof restConnector.rootDir === 'string' ? restConnector.rootDir : 'Unknown',
+    artifactUrls: {
+      actions: typeof artifactUrls.actions === 'string' ? artifactUrls.actions : 'Unknown',
+      entities: typeof artifactUrls.entities === 'string' ? artifactUrls.entities : 'Unknown',
+      routing: typeof artifactUrls.routing === 'string' ? artifactUrls.routing : 'Unknown',
+      manifest: typeof artifactUrls.manifest === 'string' ? artifactUrls.manifest : 'Unknown',
+    },
   }
 }
 
@@ -296,12 +321,33 @@ export function DiagnosticsPage() {
                           sx={{ alignSelf: 'flex-start' }}
                         />
                         <Typography variant="body2">Project: {provisioningSummary.projectName}</Typography>
+                        <Typography variant="body2">Repository: {provisioningSummary.repository}</Typography>
+                        <Typography variant="body2">Branch: {provisioningSummary.branch}</Typography>
                         <Typography variant="body2">Artifact strategy: {provisioningSummary.artifactStrategy}</Typography>
+                        <Typography variant="body2">Runtime root: {provisioningSummary.runtimeRootDir}</Typography>
+                        <Typography variant="body2">Connector root: {provisioningSummary.connectorRootDir}</Typography>
                         <Typography variant="body2">
                           Generated: {provisioningSummary.generatedAt === 'Unknown'
                             ? 'Unknown'
                             : formatTimestamp(provisioningSummary.generatedAt)}
                         </Typography>
+                        <Stack spacing={0.5}>
+                          <Typography variant="caption" color="text.secondary">
+                            Artifact URLs
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            actions: {provisioningSummary.artifactUrls.actions}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            entities: {provisioningSummary.artifactUrls.entities}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            routing: {provisioningSummary.artifactUrls.routing}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            manifest: {provisioningSummary.artifactUrls.manifest}
+                          </Typography>
+                        </Stack>
                       </>
                     ) : (
                       <Alert severity="info">No release evidence exists yet for this deployment.</Alert>
