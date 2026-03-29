@@ -34,6 +34,12 @@ public class DeploymentEntity {
 
     private String connectorBaseUrl;
 
+    @Column(columnDefinition = "TEXT")
+    private String sourceRepositoryOverride;
+
+    @Column(columnDefinition = "TEXT")
+    private String sourceBranchOverride;
+
     private Instant archivedAt;
 
     @Column(nullable = false)
@@ -112,6 +118,22 @@ public class DeploymentEntity {
 
     public void setConnectorBaseUrl(String connectorBaseUrl) {
         this.connectorBaseUrl = connectorBaseUrl;
+    }
+
+    public String getSourceRepositoryOverride() {
+        return sourceRepositoryOverride;
+    }
+
+    public void setSourceRepositoryOverride(String sourceRepositoryOverride) {
+        this.sourceRepositoryOverride = sourceRepositoryOverride;
+    }
+
+    public String getSourceBranchOverride() {
+        return sourceBranchOverride;
+    }
+
+    public void setSourceBranchOverride(String sourceBranchOverride) {
+        this.sourceBranchOverride = sourceBranchOverride;
     }
 
     public Instant getArchivedAt() {

@@ -32,10 +32,12 @@ import {
   fetchDeploymentVersions,
   fetchRailwayProvisioningPlan,
   publishDeploymentDraft,
+  updateDeploymentSource,
   type DeploymentDraftResponse,
   type DeploymentReleaseSummary,
   type RailwayEnvVarSummary,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -167,10 +169,13 @@ function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
 }
 
 export function RevisionsPage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [selectedVersionId, setSelectedVersionId] = useState('')
+  const [sourceRepositoryInput, setSourceRepositoryInput] = useState('')
+  const [sourceBranchInput, setSourceBranchInput] = useState('')
 
   const deploymentsQuery = useQuery({
     queryKey: ['deployments'],
@@ -219,6 +224,11 @@ export function RevisionsPage() {
     () => deployments.find((deployment) => deployment.id === selectedDeploymentId) ?? null,
     [deployments, selectedDeploymentId],
   )
+
+  useEffect(() => {
+    setSourceRepositoryInput(selectedDeployment?.source.repositoryOverride ?? '')
+    setSourceBranchInput(selectedDeployment?.source.branchOverride ?? '')
+  }, [selectedDeployment?.id, selectedDeployment?.source.branchOverride, selectedDeployment?.source.repositoryOverride])
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -304,7 +314,27 @@ export function RevisionsPage() {
     },
   })
 
+  const updateSourceMutation = useMutation({
+    mutationFn: ({
+      deploymentId,
+      repository,
+      branch,
+    }: {
+      deploymentId: string
+      repository?: string
+      branch?: string
+    }) => updateDeploymentSource(deploymentId, { repository, branch }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
+      ])
+    },
+  })
+
   const draftSummary = summarizeDraft(draftQuery.data)
+  const isPlatformAdmin = auth.session?.role === 'PLATFORM_ADMIN'
 
   const selectedVersion = useMemo(
     () => versions.find((version) => version.id === selectedVersionId) ?? null,
@@ -375,6 +405,7 @@ export function RevisionsPage() {
                 <Chip label={selectedDeployment.status} color="primary" />
                 <Chip label={`Active: ${selectedDeployment.activeVersion}`} variant="outlined" />
                 <Chip label={selectedDeployment.templateId} variant="outlined" />
+                <Chip label={`Source: ${selectedDeployment.source.branch}`} variant="outlined" />
                 {inProgressRelease ? (
                   <Chip
                     label={`Release running: ${inProgressRelease.currentStepDescription ?? inProgressRelease.status}`}
@@ -391,6 +422,102 @@ export function RevisionsPage() {
 
       {selectedDeployment ? (
         <>
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Deployment source</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    This controls which GitHub repo and branch Railway will deploy for this
+                    deployment. Keep this admin-only. Customers should choose templates, not raw
+                    branches.
+                  </Typography>
+                </Box>
+
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <Chip label={`Effective repo: ${selectedDeployment.source.repository}`} variant="outlined" />
+                  <Chip label={`Effective branch: ${selectedDeployment.source.branch}`} variant="outlined" />
+                  {selectedDeployment.source.overrideActive ? (
+                    <Chip label="Override active" color="secondary" />
+                  ) : (
+                    <Chip label="Using platform default" variant="outlined" />
+                  )}
+                </Stack>
+
+                {isPlatformAdmin ? (
+                  <>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          label="Repository override"
+                          value={sourceRepositoryInput}
+                          onChange={(event) => setSourceRepositoryInput(event.target.value)}
+                          fullWidth
+                          helperText="Optional. Use owner/repo. Leave blank to keep the platform default repository."
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          label="Branch override"
+                          value={sourceBranchInput}
+                          onChange={(event) => setSourceBranchInput(event.target.value)}
+                          fullWidth
+                          helperText="Optional. Leave blank to keep the platform default branch."
+                        />
+                      </Grid>
+                    </Grid>
+
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        variant="contained"
+                        disabled={updateSourceMutation.isPending}
+                        onClick={() =>
+                          updateSourceMutation.mutate({
+                            deploymentId: selectedDeployment.id,
+                            repository: sourceRepositoryInput,
+                            branch: sourceBranchInput,
+                          })}
+                      >
+                        {updateSourceMutation.isPending ? 'Saving source...' : 'Save source override'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="inherit"
+                        disabled={
+                          updateSourceMutation.isPending
+                          || (!selectedDeployment.source.repositoryOverride && !selectedDeployment.source.branchOverride)
+                        }
+                        onClick={() => {
+                          setSourceRepositoryInput('')
+                          setSourceBranchInput('')
+                          updateSourceMutation.mutate({
+                            deploymentId: selectedDeployment.id,
+                            repository: '',
+                            branch: '',
+                          })
+                        }}
+                      >
+                        Clear override
+                      </Button>
+                    </Stack>
+                  </>
+                ) : (
+                  <Alert severity="info">
+                    Changing deployment source is restricted to the <code>PLATFORM_ADMIN</code> role.
+                  </Alert>
+                )}
+
+                {updateSourceMutation.isError ? (
+                  <Alert severity="error">
+                    {updateSourceMutation.error instanceof Error
+                      ? updateSourceMutation.error.message
+                      : 'Failed to update deployment source'}
+                  </Alert>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
+
           <Grid container spacing={2.5}>
             <Grid item xs={12} lg={4}>
               <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>

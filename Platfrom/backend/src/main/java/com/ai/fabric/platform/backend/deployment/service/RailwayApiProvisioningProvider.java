@@ -27,6 +27,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformVerificationProperties verificationProperties;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
+    private final DeploymentSourceResolver deploymentSourceResolver;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
@@ -34,12 +35,14 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
                                           PlatformVerificationProperties verificationProperties,
                                           RailwayProvisioningPlanService railwayProvisioningPlanService,
+                                          DeploymentSourceResolver deploymentSourceResolver,
                                           RailwayGraphqlClient railwayGraphqlClient,
                                           PlatformSecretService platformSecretService,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.verificationProperties = verificationProperties;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
+        this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
@@ -56,6 +59,9 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                         DeploymentReleaseEntity release,
                                         ProvisioningProgressTracker progressTracker) {
         validateConfiguration();
+        String sourceRepository = deploymentSourceResolver.resolveRepository(deployment);
+        String sourceBranch = deploymentSourceResolver.resolveBranch(deployment);
+        deploymentSourceResolver.validateEffectiveSource(sourceRepository, sourceBranch);
 
         RailwayProvisioningPlanSummary plan = trackedStep(
             progressTracker,
@@ -105,10 +111,12 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
 
         RailwayGraphqlClient.RailwayServiceSummary runtimeService = ensureService(
             project,
+            deployment,
             plan.services().runtime().serviceName()
         );
         RailwayGraphqlClient.RailwayServiceSummary connectorService = ensureService(
             project,
+            deployment,
             plan.services().restConnector().serviceName()
         );
         recordRailwayContext(
@@ -131,6 +139,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     environment.id(),
                     plan.services().runtime(),
                     verificationProperties.runtimeHealthPath(),
+                    deployment,
                     runtimeService.name(),
                     connectorService.name()
                 );
@@ -148,6 +157,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     environment.id(),
                     plan.services().restConnector(),
                     verificationProperties.connectorHealthPath(),
+                    deployment,
                     runtimeService.name(),
                     connectorService.name()
                 );
@@ -216,14 +226,15 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     }
 
     private RailwayGraphqlClient.RailwayServiceSummary ensureService(RailwayGraphqlClient.RailwayProjectSnapshot project,
+                                                                     DeploymentEntity deployment,
                                                                      String serviceName) {
         RailwayGraphqlClient.RailwayServiceSummary service = project.serviceNamed(serviceName);
         if (service == null) {
             service = railwayGraphqlClient.createServiceFromRepository(
                 project.id(),
                 serviceName,
-                provisioningProperties.repository(),
-                provisioningProperties.branch()
+                deploymentSourceResolver.resolveRepository(deployment),
+                deploymentSourceResolver.resolveBranch(deployment)
             );
         }
         return service;
@@ -234,12 +245,13 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                           String environmentId,
                                           RailwayServicePlanSummary plan,
                                           String healthcheckPath,
+                                          DeploymentEntity deployment,
                                           String runtimeServiceName,
                                           String connectorServiceName) {
         railwayGraphqlClient.connectServiceToRepository(
             serviceId,
-            provisioningProperties.repository(),
-            provisioningProperties.branch()
+            deploymentSourceResolver.resolveRepository(deployment),
+            deploymentSourceResolver.resolveBranch(deployment)
         );
         railwayGraphqlClient.updateServiceInstance(
             serviceId,
@@ -301,6 +313,11 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         if (!provisioningProperties.repository().contains("/")) {
             throw new RailwayProvisioningConfigurationException(
                 "PLATFORM_DEPLOY_REPOSITORY must be a GitHub repository slug like 'owner/repo' in RAILWAY_API mode."
+            );
+        }
+        if (provisioningProperties.branch().isBlank()) {
+            throw new RailwayProvisioningConfigurationException(
+                "PLATFORM_DEPLOY_BRANCH must not be blank in RAILWAY_API mode."
             );
         }
     }

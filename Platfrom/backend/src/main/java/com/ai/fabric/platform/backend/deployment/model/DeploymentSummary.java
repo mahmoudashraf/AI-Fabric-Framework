@@ -7,6 +7,7 @@ public record DeploymentSummary(
     String name,
     String environment,
     String templateId,
+    DeploymentSourceSummary source,
     String status,
     String activeVersion,
     String runtimeBaseUrl,
@@ -14,4 +15,3 @@ public record DeploymentSummary(
     Instant createdAt
 ) {
 }
-

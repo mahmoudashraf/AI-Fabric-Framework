@@ -66,6 +66,7 @@ class RailwayProvisioningPlanServiceTest {
             properties,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             artifactService,
+            new DeploymentSourceResolver(properties),
             mock(PlatformSecretService.class),
             new ObjectMapper()
         );
@@ -155,6 +156,7 @@ class RailwayProvisioningPlanServiceTest {
             properties,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             artifactService,
+            new DeploymentSourceResolver(properties),
             mock(PlatformSecretService.class),
             new ObjectMapper()
         );
@@ -192,6 +194,7 @@ class RailwayProvisioningPlanServiceTest {
             properties(),
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             artifactService,
+            new DeploymentSourceResolver(properties()),
             platformSecretService,
             new ObjectMapper()
         );
@@ -205,6 +208,42 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
             .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
+    }
+
+    @Test
+    void buildPlanUsesDeploymentSourceOverridesWhenPresent() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        PlatformProvisioningProperties properties = properties();
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = deployment();
+        deployment.setSourceRepositoryOverride("example/custom-runtime");
+        deployment.setSourceBranchOverride("release-candidate");
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment, version());
+
+        assertThat(plan.repository()).isEqualTo("example/custom-runtime");
+        assertThat(plan.branch()).isEqualTo("release-candidate");
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {

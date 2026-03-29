@@ -54,6 +54,7 @@ class DeploymentServiceApplyGuardTest {
             railwayProvisioningPlanService,
             deploymentReleaseVerificationService,
             deploymentReleaseExecutionService,
+            new DeploymentSourceResolver(provisioningProperties()),
             provisioningProperties(),
             platformAuditService,
             new ObjectMapper()

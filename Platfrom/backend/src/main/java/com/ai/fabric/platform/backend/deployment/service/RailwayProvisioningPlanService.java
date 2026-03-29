@@ -25,22 +25,27 @@ public class RailwayProvisioningPlanService {
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
     private final DeploymentArtifactService artifactService;
+    private final DeploymentSourceResolver deploymentSourceResolver;
     private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
 
     public RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                           PlatformDeliveryProperties deliveryProperties,
                                           DeploymentArtifactService artifactService,
+                                          DeploymentSourceResolver deploymentSourceResolver,
                                           PlatformSecretService platformSecretService,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.deliveryProperties = deliveryProperties;
         this.artifactService = artifactService;
+        this.deploymentSourceResolver = deploymentSourceResolver;
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
     }
 
     public RailwayProvisioningPlanSummary buildPlan(DeploymentEntity deployment, DeploymentVersionEntity version) {
+        String sourceRepository = deploymentSourceResolver.resolveRepository(deployment);
+        String sourceBranch = deploymentSourceResolver.resolveBranch(deployment);
         String runtimeBaseUrl = deployment.getRuntimeBaseUrl() != null
             ? deployment.getRuntimeBaseUrl()
             : "https://runtime-" + deployment.getId() + ".placeholder.local";
@@ -125,8 +130,8 @@ public class RailwayProvisioningPlanService {
             version.getConfigHash(),
             provisioningProperties.mode(),
             buildProjectName(deployment),
-            provisioningProperties.repository(),
-            provisioningProperties.branch(),
+            sourceRepository,
+            sourceBranch,
             provisioningProperties.workspaceId().isBlank() ? null : provisioningProperties.workspaceId(),
             artifactServiceSignedStrategy(),
             artifactUrls,

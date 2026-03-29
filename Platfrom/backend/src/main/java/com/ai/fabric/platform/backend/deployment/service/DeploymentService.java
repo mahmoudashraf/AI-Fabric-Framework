@@ -12,6 +12,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
@@ -20,6 +21,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -58,6 +60,7 @@ public class DeploymentService {
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
+    private final DeploymentSourceResolver deploymentSourceResolver;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -103,6 +106,7 @@ public class DeploymentService {
                              RailwayProvisioningPlanService railwayProvisioningPlanService,
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
+                             DeploymentSourceResolver deploymentSourceResolver,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
@@ -117,6 +121,7 @@ public class DeploymentService {
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
+        this.deploymentSourceResolver = deploymentSourceResolver;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -270,6 +275,44 @@ public class DeploymentService {
         );
 
         return toDraftResponse(draft);
+    }
+
+    @Transactional
+    public DeploymentOverviewSummary updateDeploymentSource(String deploymentId, UpdateDeploymentSourceRequest request) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        assertNotArchived(deployment, "update deployment source");
+        releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .filter(this::isReleaseInProgress)
+            .ifPresent(release -> {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Deployment source cannot be changed while apply is in progress: " + release.getId()
+                );
+            });
+
+        String repositoryOverride = deploymentSourceResolver.normalizeOverride(request.repository());
+        String branchOverride = deploymentSourceResolver.normalizeOverride(request.branch());
+        String effectiveRepository = repositoryOverride != null ? repositoryOverride : provisioningProperties.repository();
+        String effectiveBranch = branchOverride != null ? branchOverride : provisioningProperties.branch();
+        deploymentSourceResolver.validateEffectiveSource(effectiveRepository, effectiveBranch);
+
+        deployment.setSourceRepositoryOverride(repositoryOverride);
+        deployment.setSourceBranchOverride(branchOverride);
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DEPLOYMENT_SOURCE_UPDATED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            java.util.Map.of(
+                "repositoryOverride", repositoryOverride == null ? "" : repositoryOverride,
+                "branchOverride", branchOverride == null ? "" : branchOverride,
+                "effectiveRepository", effectiveRepository,
+                "effectiveBranch", effectiveBranch
+            )
+        );
+
+        return toOverview(deployment);
     }
 
     public DraftValidationResponse validateDraft(String draftId) {
@@ -647,11 +690,14 @@ public class DeploymentService {
             activeVersion = "draft";
         }
 
+        DeploymentSourceSummary source = deploymentSourceResolver.summarize(deployment);
+
         return new DeploymentSummary(
             deployment.getId(),
             deployment.getName(),
             deployment.getEnvironmentName(),
             deployment.getTemplateId(),
+            source,
             deployment.getStatus(),
             activeVersion,
             deployment.getRuntimeBaseUrl(),
@@ -670,6 +716,8 @@ public class DeploymentService {
             activeVersion = "draft";
         }
 
+        DeploymentSourceSummary source = deploymentSourceResolver.summarize(deployment);
+
         DeploymentReleaseEntity latestRelease = releaseRepository
             .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
             .orElse(null);
@@ -684,6 +732,7 @@ public class DeploymentService {
             deployment.getName(),
             deployment.getEnvironmentName(),
             deployment.getTemplateId(),
+            source,
             deployment.getStatus(),
             activeVersion,
             determineHealthStatus(deployment, latestRelease, latestVerification),

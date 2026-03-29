@@ -8,11 +8,20 @@ export type DeploymentTemplateSummary = {
   connectorProfile: string
 }
 
+export type DeploymentSourceSummary = {
+  repository: string
+  branch: string
+  repositoryOverride: string | null
+  branchOverride: string | null
+  overrideActive: boolean
+}
+
 export type DeploymentSummary = {
   id: string
   name: string
   environment: string
   templateId: string
+  source: DeploymentSourceSummary
   status: string
   activeVersion: string
   runtimeBaseUrl: string | null
@@ -47,6 +56,7 @@ export type DeploymentOverviewSummary = {
   name: string
   environment: string
   templateId: string
+  source: DeploymentSourceSummary
   status: string
   activeVersion: string | null
   healthStatus: string
@@ -290,6 +300,11 @@ export type CreateDeploymentRequest = {
   templateId: string
 }
 
+export type UpdateDeploymentSourceRequest = {
+  repository?: string
+  branch?: string
+}
+
 export type UpdateDeploymentDraftRequest = {
   actionsConfig?: unknown
   entityConfig?: unknown
@@ -426,6 +441,13 @@ export function createDeployment(payload: CreateDeploymentRequest) {
 export function archiveDeployment(deploymentId: string) {
   return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/archive`, {
     method: 'POST',
+  })
+}
+
+export function updateDeploymentSource(deploymentId: string, payload: UpdateDeploymentSourceRequest) {
+  return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/source`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   })
 }
 

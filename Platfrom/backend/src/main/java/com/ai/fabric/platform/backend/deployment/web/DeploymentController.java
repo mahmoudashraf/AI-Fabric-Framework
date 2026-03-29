@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRun
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
@@ -69,6 +70,13 @@ public class DeploymentController {
     @PostMapping("/deployments/{deploymentId}/archive")
     public DeploymentOverviewSummary archiveDeployment(@PathVariable String deploymentId) {
         return deploymentService.archiveDeployment(deploymentId);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/source")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentOverviewSummary updateDeploymentSource(@PathVariable String deploymentId,
+                                                           @RequestBody UpdateDeploymentSourceRequest request) {
+        return deploymentService.updateDeploymentSource(deploymentId, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/draft")
