@@ -236,6 +236,11 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                           String healthcheckPath,
                                           String runtimeServiceName,
                                           String connectorServiceName) {
+        railwayGraphqlClient.connectServiceToRepository(
+            serviceId,
+            provisioningProperties.repository(),
+            provisioningProperties.branch()
+        );
         railwayGraphqlClient.updateServiceInstance(
             serviceId,
             environmentId,

@@ -102,6 +102,15 @@ public class RailwayGraphqlClient {
         }
         """;
 
+    private static final String SERVICE_CONNECT_MUTATION = """
+        mutation serviceConnect($id: String!, $input: ServiceConnectInput!) {
+          serviceConnect(id: $id, input: $input) {
+            id
+            name
+          }
+        }
+        """;
+
     private static final String SERVICE_INSTANCE_UPDATE_MUTATION = """
         mutation serviceInstanceUpdate(
           $serviceId: String!,
@@ -325,6 +334,29 @@ public class RailwayGraphqlClient {
             throw new RailwayProvisioningException("Railway serviceCreate did not return a service id.");
         }
         log.info("Railway service created: name={}, id={}, projectId={}", serviceName, id, projectId);
+        return new RailwayServiceSummary(id, text(node.path("name")));
+    }
+
+    public RailwayServiceSummary connectServiceToRepository(String serviceId,
+                                                            String repository,
+                                                            String branch) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("repo", repository);
+        input.put("branch", branch);
+
+        JsonNode data = execute(SERVICE_CONNECT_MUTATION, Map.of(
+            "id", serviceId,
+            "input", input
+        ));
+        JsonNode node = data.path("serviceConnect");
+        String id = text(node.path("id"));
+        if (id == null) {
+            throw new RailwayProvisioningException("Railway serviceConnect did not return a service id.");
+        }
+        log.info("Railway service connected to repository: serviceId={}, repository={}, branch={}",
+            serviceId,
+            repository,
+            branch);
         return new RailwayServiceSummary(id, text(node.path("name")));
     }
 
